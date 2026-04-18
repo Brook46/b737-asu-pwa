@@ -1,0 +1,707 @@
+/* Airspeed Unreliable — B737NG PWA
+   Palette tuned for cockpit glance-reading in both themes. */
+
+:root {
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --card-border: #d1d1d6;
+  --text: #1c1c1e;
+  --text-sub: #6e6e73;
+  --accent: #185fa5;
+  --accent-soft: #e6f0fb;
+  --warn: #b5873a;
+  --warn-bg: #fff4dc;
+  --danger: #993c1d;
+  --ok: #1d9e75;
+  --highlight: #c9e2f8;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+:root.dark,
+:root[data-theme="dark"] {
+  --bg: #0f1418;
+  --card: #1c2128;
+  --card-border: #2a3038;
+  --text: #f0f3f7;
+  --text-sub: #8a95a0;
+  --accent: #4a9ede;
+  --accent-soft: #1a2a3d;
+  --warn: #e9c46a;
+  --warn-bg: #2a2414;
+  --danger: #e07a4a;
+  --ok: #4bc48b;
+  --highlight: #1e3a5c;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, system-ui, sans-serif;
+  font-feature-settings: "tnum" 1; /* tabular numerals — crucial for numeric stability */
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  transition: background 0.15s ease, color 0.15s ease;
+  overscroll-behavior-y: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+}
+
+button,
+input {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* ─── Top bar ──────────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: max(env(safe-area-inset-top), 0.6rem) 1rem 0.6rem 1rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--card-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar-title h1 {
+  font-size: 1.1rem;
+  line-height: 1.1;
+}
+
+.topbar-sub {
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.seg {
+  display: inline-flex;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  padding: 2px;
+}
+
+.seg-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-sub);
+  border-radius: 7px;
+  cursor: pointer;
+  min-width: 48px;
+}
+
+.seg-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.theme-btn {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text-sub);
+  border-radius: 20px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-width: 64px;
+}
+
+.theme-btn.on {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ─── Main layout ─────────────────────────────────────────────────────── */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0.8rem 1rem 1.2rem;
+  max-width: 980px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  box-shadow: var(--shadow);
+}
+
+.section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+/* ─── Weight card ─────────────────────────────────────────────────────── */
+
+.weight-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.weight-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.weight-labels > span:first-child {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+}
+
+.weight-labels .hint {
+  font-size: 0.7rem;
+  color: var(--text-sub);
+  opacity: 0.8;
+}
+
+.weight-input-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  touch-action: none;
+  user-select: none;
+}
+
+.weight-input-wrap input {
+  font-size: 3rem;
+  font-weight: 500;
+  border: 0;
+  background: transparent;
+  text-align: right;
+  width: 5rem;
+  padding: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  line-height: 1;
+}
+
+.weight-input-wrap input:focus {
+  color: var(--accent);
+}
+
+.weight-input-wrap input::-webkit-outer-spin-button,
+.weight-input-wrap input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.weight-input-wrap input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.weight-unit {
+  font-size: 1.2rem;
+  color: var(--text-sub);
+  font-weight: 500;
+}
+
+.weight-bands {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding: 0 0.2rem;
+}
+
+.weight-bands .band {
+  font-size: 0.7rem;
+  color: var(--text-sub);
+  font-weight: 500;
+  opacity: 0.5;
+  transition: opacity 0.12s, color 0.12s;
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-bands .band.near {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ─── Phase tabs ──────────────────────────────────────────────────────── */
+
+.phase-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.45rem;
+}
+
+.phase-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+  gap: 0.4rem;
+}
+
+.phase-tab {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 0.55rem 0.5rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.phase-tab[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ─── Sub-controls (airport alt picker, flap tabs) ───────────────────── */
+
+.sub-controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 18px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ─── Result card + tables ────────────────────────────────────────────── */
+
+.result-card {
+  padding: 0.5rem 0.5rem 0.75rem;
+  min-height: 200px;
+}
+
+.result-header {
+  padding: 0.5rem 0.6rem;
+  color: var(--text-sub);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.result-header strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.phase-note {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-sub);
+  margin: 0.25rem 0.3rem 0.6rem;
+}
+
+.phase-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin: 0.25rem 0.3rem 0.6rem;
+}
+
+.qrh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.qrh-table th,
+.qrh-table td {
+  text-align: center;
+  padding: 0.45rem 0.3rem;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.92rem;
+}
+
+.qrh-table th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  border-bottom: 1px solid var(--card-border);
+  background: transparent;
+  position: sticky;
+  top: 0;
+}
+
+.qrh-table th.row-label,
+.qrh-table td.row-label {
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  font-weight: 500;
+  padding-left: 0.6rem;
+  white-space: nowrap;
+}
+
+.qrh-table td.metric-label {
+  font-size: 0.62rem;
+  color: var(--text-sub);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  padding-left: 0.6rem;
+  padding-top: 0.05rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 0;
+}
+
+.qrh-table td.val {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.qrh-table td.val.sub {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--text-sub);
+  padding-top: 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.qrh-table td.no-data {
+  color: var(--text-sub);
+  opacity: 0.4;
+}
+
+.qrh-table .weight-col-header.near,
+.qrh-table td.col-near {
+  background: var(--highlight);
+}
+
+.qrh-table td.col-near.val {
+  font-weight: 700;
+}
+
+.qrh-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Final-approach VREF sub-label */
+.flap-sub {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--text-sub);
+  font-weight: 500;
+  margin-top: 0.1rem;
+}
+
+/* Negative-value styling for V/S in descent */
+.qrh-table td.val.neg {
+  color: var(--danger);
+}
+
+/* ─── Source cite ─────────────────────────────────────────────────────── */
+
+.source-cite {
+  font-size: 0.7rem;
+  color: var(--text-sub);
+  text-align: center;
+  opacity: 0.8;
+  padding: 0 0.5rem;
+}
+
+.procedure-btn {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.procedure-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.procedure-panel ol {
+  padding-left: 1.4rem;
+}
+
+.procedure-panel li {
+  margin-bottom: 0.5rem;
+}
+
+.procedure-panel code {
+  background: var(--bg);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+/* ─── Sensor footer ───────────────────────────────────────────────────── */
+
+.sensor-bar {
+  background: var(--card);
+  border-top: 1px solid var(--card-border);
+  padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom));
+  position: sticky;
+  bottom: 0;
+}
+
+.sensor-row {
+  display: flex;
+  justify-content: space-around;
+  gap: 0.4rem;
+}
+
+.sensor-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.sensor-label {
+  font-size: 0.62rem;
+  color: var(--text-sub);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sensor-value {
+  font-size: 1.6rem;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sensor-unit {
+  font-size: 0.72rem;
+  color: var(--text-sub);
+}
+
+.sensor-gforce .sensor-value.peak {
+  color: var(--warn);
+}
+
+.sensor-gforce .sensor-value.alarm {
+  color: var(--danger);
+}
+
+.sensor-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-sub);
+}
+
+.sensor-enable-btn {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 14px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sensor-enable-btn[hidden] {
+  display: none;
+}
+
+/* ─── Disclaimer modal ────────────────────────────────────────────────── */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.modal[aria-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: var(--shadow);
+}
+
+.modal-card h2 {
+  font-size: 1.05rem;
+  color: var(--warn);
+  margin-bottom: 0.6rem;
+}
+
+.modal-card p {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+.modal-card p:last-of-type {
+  margin-bottom: 1.1rem;
+}
+
+.modal-card code {
+  background: var(--bg);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.btn-primary {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ─── iPad / large-screen layout ──────────────────────────────────────── */
+
+@media (min-width: 900px) {
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-areas:
+      "weight result"
+      "phase result"
+      "sub result"
+      "cite cite"
+      "procbtn procbtn"
+      "procpanel procpanel";
+    gap: 0.9rem 1rem;
+    max-width: 1100px;
+  }
+  .weight-card { grid-area: weight; }
+  .phase-card { grid-area: phase; }
+  .sub-controls-card { grid-area: sub; }
+  .result-card { grid-area: result; min-height: 380px; }
+  .source-cite { grid-area: cite; text-align: left; }
+  .procedure-btn { grid-area: procbtn; justify-self: start; }
+  .procedure-panel { grid-area: procpanel; }
+
+  .weight-input-wrap input {
+    font-size: 4rem;
+    width: 6rem;
+  }
+
+  .sensor-value {
+    font-size: 2rem;
+  }
+}
+
+/* Very wide iPad landscape */
+@media (min-width: 1200px) {
+  .main {
+    grid-template-columns: 360px 1fr;
+    max-width: 1280px;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

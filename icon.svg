@@ -1,0 +1,79 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f1a2e"/>
+      <stop offset="100%" stop-color="#050a14"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a9ede"/>
+      <stop offset="100%" stop-color="#1e5a96"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8a5a2b"/>
+      <stop offset="100%" stop-color="#4e2f14"/>
+    </linearGradient>
+    <linearGradient id="bezel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e9c46a"/>
+      <stop offset="50%" stop-color="#b5873a"/>
+      <stop offset="100%" stop-color="#8d6420"/>
+    </linearGradient>
+    <clipPath id="ball"><circle cx="512" cy="512" r="340"/></clipPath>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- subtle radial vignette -->
+  <circle cx="512" cy="460" r="560" fill="#1a2a48" opacity="0.35"/>
+
+  <!-- outer bezel ring (gold/amber — reference/emergency color) -->
+  <circle cx="512" cy="512" r="356" fill="none" stroke="url(#bezel)" stroke-width="16"/>
+  <circle cx="512" cy="512" r="344" fill="none" stroke="#0a1220" stroke-width="6"/>
+
+  <!-- AI ball: horizon pushed DOWN = pitched UP +10° -->
+  <g clip-path="url(#ball)">
+    <rect x="0" y="0" width="1024" height="592" fill="url(#sky)"/>
+    <rect x="0" y="592" width="1024" height="432" fill="url(#ground)"/>
+    <line x1="0" y1="592" x2="1024" y2="592" stroke="#ffffff" stroke-width="7"/>
+
+    <!-- pitch ladder -->
+    <g stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round">
+      <line x1="410" y1="472" x2="614" y2="472"/>
+      <line x1="452" y1="512" x2="572" y2="512"/>
+      <line x1="452" y1="552" x2="572" y2="552"/>
+      <line x1="410" y1="672" x2="614" y2="672"/>
+      <line x1="452" y1="712" x2="572" y2="712"/>
+    </g>
+    <g font-family="-apple-system, SF Pro Display, sans-serif" font-size="30" font-weight="700" fill="#ffffff">
+      <text x="382" y="484" text-anchor="end">20</text>
+      <text x="642" y="484" text-anchor="start">20</text>
+      <text x="382" y="684" text-anchor="end">10</text>
+      <text x="642" y="684" text-anchor="start">10</text>
+    </g>
+
+    <!-- roll scale arc marks (top) -->
+    <g stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round">
+      <line x1="512" y1="182" x2="512" y2="210"/>
+      <line x1="334" y1="230" x2="346" y2="256"/>
+      <line x1="690" y1="230" x2="678" y2="256"/>
+    </g>
+  </g>
+
+  <!-- sky-pointer triangle (fixed, top of ball) -->
+  <path d="M 512 200 L 496 232 L 528 232 Z" fill="#ffd66b" stroke="#0a1220" stroke-width="2"/>
+
+  <!-- aircraft symbol (fixed reticle) -->
+  <g fill="#ffd66b" stroke="#0a1220" stroke-width="3">
+    <rect x="412" y="504" width="80" height="16" rx="3"/>
+    <rect x="532" y="504" width="80" height="16" rx="3"/>
+    <rect x="506" y="488" width="12" height="48" rx="3"/>
+  </g>
+
+  <!-- amber caution chevron, top-right bezel: signals "non-normal reference" -->
+  <g transform="translate(768 168) rotate(18)">
+    <path d="M -72 -36 L 72 -36 L 84 0 L 72 36 L -72 36 L -84 0 Z" fill="#d47a1a" stroke="#5a330a" stroke-width="3"/>
+    <text x="0" y="14" font-family="-apple-system, SF Pro Display, sans-serif" font-size="44" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="3">ASU</text>
+  </g>
+</svg>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0f1a2e" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ASU" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Airspeed Unreliable — B737NG</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div id="disclaimer" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <h2>Reference only</h2>
+      <p>This app is for <strong>training and reference</strong>. Always follow your current approved QRH and operator procedures. Data source: <code>D6-27370-858-ELA Rev.57</code> (4X-EK fleet).</p>
+      <p>GPS and G-force readings are taken from iPad sensors and are <strong>not certified</strong> for flight use.</p>
+      <button type="button" id="disclaimer-ack" class="btn-primary">I understand</button>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>Airspeed Unreliable</h1>
+      <span class="topbar-sub">B737NG</span>
+    </div>
+    <div class="topbar-controls">
+      <div class="seg" role="tablist" aria-label="Aircraft variant">
+        <button type="button" class="seg-btn" data-variant="800" aria-pressed="true">−800</button>
+        <button type="button" class="seg-btn" data-variant="900" aria-pressed="false">−900</button>
+      </div>
+      <button type="button" id="theme-btn" class="theme-btn" title="Cycle theme" aria-label="Cycle theme">Auto</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="weight-card card" aria-labelledby="weight-label">
+      <div class="weight-row">
+        <div class="weight-labels">
+          <span id="weight-label">Gross weight</span>
+          <span class="hint">tap number to type · drag ↕ to scrub</span>
+        </div>
+        <div class="weight-input-wrap">
+          <input
+            type="number"
+            id="weight"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            min="40"
+            max="80"
+            step="1"
+            value="65"
+            aria-describedby="weight-hint"
+          />
+          <span class="weight-unit">t</span>
+        </div>
+      </div>
+      <div class="weight-bands" aria-hidden="true">
+        <span class="band" data-w="40">40</span>
+        <span class="band" data-w="50">50</span>
+        <span class="band" data-w="60">60</span>
+        <span class="band" data-w="70">70</span>
+        <span class="band" data-w="80">80</span>
+      </div>
+    </section>
+
+    <section class="phase-card card" aria-labelledby="phase-label">
+      <div class="phase-label-row">
+        <span id="phase-label" class="section-label">Flight phase</span>
+      </div>
+      <div class="phase-tabs" role="tablist" aria-label="Flight phase">
+        <button type="button" class="phase-tab" data-phase="climb" aria-pressed="true">Climb</button>
+        <button type="button" class="phase-tab" data-phase="cruise" aria-pressed="false">Cruise</button>
+        <button type="button" class="phase-tab" data-phase="descent" aria-pressed="false">Descent</button>
+        <button type="button" class="phase-tab" data-phase="holding" aria-pressed="false">Hold</button>
+        <button type="button" class="phase-tab" data-phase="terminal" aria-pressed="false">Terminal</button>
+        <button type="button" class="phase-tab" data-phase="approach" aria-pressed="false">Final&nbsp;Appr.</button>
+        <button type="button" class="phase-tab" data-phase="go_around" aria-pressed="false">Go‑Around</button>
+      </div>
+    </section>
+
+    <section id="sub-controls" class="sub-controls-card card" hidden aria-live="polite">
+      <!-- Populated per-phase: airport-altitude picker for terminal/approach; flap tabs for go_around -->
+    </section>
+
+    <section id="result" class="result-card card" aria-live="polite">
+      <!-- Populated by app.js -->
+    </section>
+
+    <p id="source-cite" class="source-cite" aria-live="polite"></p>
+
+    <button type="button" id="qrh-procedure-btn" class="procedure-btn">QRH Procedure (22 steps)</button>
+    <div id="qrh-procedure" class="procedure-panel" hidden></div>
+  </main>
+
+  <footer class="sensor-bar" aria-label="Sensors">
+    <div class="sensor-row">
+      <div class="sensor-cell" data-role="gs">
+        <span class="sensor-label">GND SPD</span>
+        <span class="sensor-value">—</span>
+        <span class="sensor-unit">kt</span>
+      </div>
+      <div class="sensor-cell" data-role="trk">
+        <span class="sensor-label">TRACK</span>
+        <span class="sensor-value">—</span>
+        <span class="sensor-unit">°T</span>
+      </div>
+      <div class="sensor-cell" data-role="alt">
+        <span class="sensor-label">GPS ALT</span>
+        <span class="sensor-value">—</span>
+        <span class="sensor-unit">ft</span>
+      </div>
+      <div class="sensor-cell" data-role="acc">
+        <span class="sensor-label">ACC</span>
+        <span class="sensor-value">—</span>
+        <span class="sensor-unit">m</span>
+      </div>
+      <div class="sensor-cell sensor-gforce" data-role="gforce">
+        <span class="sensor-label" id="g-label">G</span>
+        <span class="sensor-value">—</span>
+        <span class="sensor-unit" id="g-unit">g</span>
+      </div>
+    </div>
+    <div class="sensor-status">
+      <button type="button" id="enable-sensors" class="sensor-enable-btn">Enable sensors</button>
+      <span id="sensor-status-text" class="sensor-status-text">Tap to enable GPS &amp; motion</span>
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

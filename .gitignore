@@ -1,0 +1,23 @@
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Local dev caches
+/tmp/
+/qlmtest/
+
+# Claude local runtime (keep launch.json, ignore rest)
+.claude/*
+!.claude/launch.json
+
+# Source PDF is not redistributed
+*.pdf
+QRH.pdf
