@@ -1,44 +1,39 @@
-/* Airspeed Unreliable — B737NG PWA
+/* Airspeed Unreliable — B737NG PWA (v2)
  * Source: D6-27370-858-ELA Rev.57 · PI-QRH §10 (4X-EK fleet)
  *
  * Architecture:
- *  - State lives in one `state` object, persisted to localStorage.
- *  - Rendering is pure: render() reads state + QRH data and rewrites the result card.
- *  - Sensors (GPS + DeviceMotion) are lazily enabled on user gesture (iOS requirement).
- *  - G-force has a touchdown state machine: pre-landing shows live |g|; after GS
- *    crosses 60 kt downward it switches to "peak over last 120s".
+ *  - `state` holds all user selections, persisted to localStorage.
+ *  - QRH data loaded once from data/qrh-{variant}.json; single source of truth.
+ *  - render() rewrites the result card from state + data — pure.
+ *  - Sensors lazy-start on user-gesture ack of memory-items modal (iOS rule).
+ *  - G-force has a touchdown state machine: live → peak when GS drops < 60 kt
+ *    after having been above 60 kt.
  */
 
 'use strict';
 
-/* ─── State & persistence ──────────────────────────────────────────────── */
-
-const STORE_KEY = 'asu.state.v1';
+/* ─── Persistence keys ─────────────────────────────────────────── */
+const STORE_KEY = 'asu.state.v2';
 const DISCLAIMER_KEY = 'asu.disclaimerAck.v1';
 const THEME_KEY = 'asu.theme.v1';
 
-/** @type {{variant:'800'|'900', phase:string, weight:number, aptAlt:number|null, gaFlap:string}} */
-const state = Object.assign({
-  variant: '800',
+/* ─── State ────────────────────────────────────────────────────── */
+const defaultState = {
+  variant: null,     // null | '800' | '900' — null = user hasn't picked
   phase: 'climb',
-  weight: 65,
-  aptAlt: 0,
-  gaFlap: '1',
-}, loadJSON(STORE_KEY, {}));
+  weight: 65.0,
+  aptAlt: 5000,      // default airport altitude — common DA/MDA region
+};
+const state = Object.assign({}, defaultState, loadJSON(STORE_KEY, {}));
 
-function loadJSON(key, fallback) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
-  catch { return fallback; }
+function loadJSON(k, fb) {
+  try { return JSON.parse(localStorage.getItem(k)) ?? fb; }
+  catch { return fb; }
 }
-function saveState() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
-}
+function saveState() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 
-/* ─── QRH data loading ─────────────────────────────────────────────────── */
-
-/** @type {{['800']?: any, ['900']?: any}} */
+/* ─── QRH data ─────────────────────────────────────────────────── */
 const qrh = {};
-
 async function loadQRH() {
   const [d800, d900] = await Promise.all([
     fetch('data/qrh-800.json').then(r => r.json()),
@@ -48,39 +43,68 @@ async function loadQRH() {
   qrh['900'] = d900;
 }
 
-/* ─── Utilities ────────────────────────────────────────────────────────── */
-
-const WEIGHTS = [40, 50, 60, 70, 80];
-const MIN_WEIGHT = 40, MAX_WEIGHT = 80;
-
+/* ─── Utilities ────────────────────────────────────────────────── */
+const MIN_W = 40, MAX_W = 80;
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
 const fmtPitch = p => p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(1) + '°';
-const fmtN1    = n => n == null ? '—' : n.toFixed(1) + '%';
+const fmtN1    = n => n == null ? '—' : n.toFixed(1) + ' %';
 const fmtVS    = v => v == null ? '—' : (v > 0 ? '+' : '') + Math.round(v).toLocaleString();
 const fmtKIAS  = k => k == null ? '—' : String(Math.round(k));
-const fmtAlt   = a => a === 0 ? 'Sea Level' : (a < 0 ? a.toLocaleString() : a.toLocaleString()) + ' ft';
-const pad3     = n => String(n).padStart(3, '0');
+const fmtAlt   = a => a === 0 ? 'Sea Level' : (a > 0 ? '+' : '') + a.toLocaleString() + ' ft';
 
-/** Index of the weight band nearest `w` (rounded to nearest 10t, clamped). */
-function nearestBandIdx(w) {
-  const clamped = clamp(w, MIN_WEIGHT, MAX_WEIGHT);
-  return Math.round((clamped - MIN_WEIGHT) / 10);
+const sortAsc = rows => rows.slice().sort((a, b) => a.alt - b.alt);
+
+/** Linear-interpolate a per-weight array (5 entries, 40..80 t in 10 t steps)
+ * at arbitrary weight `w`. Null-safe: if one side is null, return the other;
+ * if both null, return null. */
+function interpWeight(arr, w) {
+  if (!arr || arr.length === 0) return null;
+  const x = clamp((w - MIN_W) / 10, 0, 4);
+  const lo = Math.floor(x);
+  const hi = Math.min(lo + 1, 4);
+  const f = x - lo;
+  const vLo = arr[lo], vHi = arr[hi];
+  if (vLo == null && vHi == null) return null;
+  if (vLo == null) return vHi;
+  if (vHi == null) return vLo;
+  return vLo + f * (vHi - vLo);
 }
 
-/* ─── Theme ────────────────────────────────────────────────────────────── */
-
-const themeBtn = document.getElementById('theme-btn');
+/* ─── Theme button ─────────────────────────────────────────────── */
+const themeBtn   = $('#theme-btn');
+const themeIcon  = $('#theme-icon');
+const themeLabel = $('#theme-label');
 const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+const THEME_ICONS = {
+  auto: `
+    <circle cx="12" cy="12" r="8"/>
+    <path d="M12 4 A8 8 0 0 1 12 20 Z" class="fill"/>`,
+  light: `
+    <circle cx="12" cy="12" r="4" class="fill"/>
+    <line x1="12" y1="2.3" x2="12" y2="5.3"/>
+    <line x1="12" y1="18.7" x2="12" y2="21.7"/>
+    <line x1="2.3" y1="12" x2="5.3" y2="12"/>
+    <line x1="18.7" y1="12" x2="21.7" y2="12"/>
+    <line x1="4.9"  y1="4.9"  x2="7"    y2="7"/>
+    <line x1="17"   y1="17"   x2="19.1" y2="19.1"/>
+    <line x1="4.9"  y1="19.1" x2="7"    y2="17"/>
+    <line x1="17"   y1="7"    x2="19.1" y2="4.9"/>`,
+  dark: `
+    <path d="M20.2 14.3 A7.5 7.5 0 1 1 9.7 3.8 A6 6 0 0 0 20.2 14.3 Z" class="fill"/>`,
+};
 
 function applyTheme() {
   const mode = localStorage.getItem(THEME_KEY) || 'auto';
   const isDark = mode === 'dark' || (mode === 'auto' && mq.matches);
   document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-  themeBtn.textContent = mode[0].toUpperCase() + mode.slice(1);
-  themeBtn.classList.toggle('on', mode !== 'auto');
-  // update theme-color
+  themeIcon.innerHTML = THEME_ICONS[mode] || THEME_ICONS.auto;
+  themeLabel.textContent = mode[0].toUpperCase() + mode.slice(1);
   const meta = document.querySelector('meta[name="theme-color"]:not([media])');
-  if (meta) meta.setAttribute('content', isDark ? '#0f1418' : '#f5f5f7');
+  if (meta) meta.setAttribute('content', isDark ? '#0b1016' : '#f2f3f5');
 }
 themeBtn.addEventListener('click', () => {
   const cur = localStorage.getItem(THEME_KEY) || 'auto';
@@ -91,392 +115,432 @@ themeBtn.addEventListener('click', () => {
 mq.addEventListener('change', applyTheme);
 applyTheme();
 
-/* ─── Disclaimer gate ──────────────────────────────────────────────────── */
+/* ─── Modals ───────────────────────────────────────────────────── */
+const disclaimerEl = $('#disclaimer');
+const memoryEl     = $('#memory-modal');
 
-const disclaimer = document.getElementById('disclaimer');
 function showDisclaimer() {
-  if (localStorage.getItem(DISCLAIMER_KEY) !== '1') {
-    disclaimer.setAttribute('aria-hidden', 'false');
-  } else {
-    disclaimer.setAttribute('aria-hidden', 'true');
-  }
+  return new Promise(resolve => {
+    if (localStorage.getItem(DISCLAIMER_KEY) === '1') { resolve(); return; }
+    disclaimerEl.setAttribute('aria-hidden', 'false');
+    $('#disclaimer-ack').addEventListener('click', () => {
+      localStorage.setItem(DISCLAIMER_KEY, '1');
+      disclaimerEl.setAttribute('aria-hidden', 'true');
+      resolve();
+    }, { once: true });
+  });
 }
-document.getElementById('disclaimer-ack').addEventListener('click', () => {
-  localStorage.setItem(DISCLAIMER_KEY, '1');
-  disclaimer.setAttribute('aria-hidden', 'true');
-});
-showDisclaimer();
 
-/* ─── Variant picker ───────────────────────────────────────────────────── */
+// Shown every launch; starts sensors synchronously inside the user gesture.
+function showMemoryItems() {
+  memoryEl.setAttribute('aria-hidden', 'false');
+  $('#memory-ack').addEventListener('click', () => {
+    memoryEl.setAttribute('aria-hidden', 'true');
+    // Kick off sensors inside the user-gesture so iOS accepts requestPermission.
+    startGPS();
+    startMotion();
+  }, { once: true });
+}
 
-document.querySelectorAll('.seg-btn[data-variant]').forEach(btn => {
+/* ─── Variant picker ───────────────────────────────────────────── */
+const variantCard = $('.variant-card');
+function updateVariantUI() {
+  $$('.variant-opt').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.variant === state.variant));
+  });
+  variantCard.classList.toggle('selected', !!state.variant);
+}
+$$('.variant-opt').forEach(btn => {
   btn.addEventListener('click', () => {
     state.variant = btn.dataset.variant;
     saveState();
     updateVariantUI();
+    buildSubControls();
     render();
   });
 });
-function updateVariantUI() {
-  document.querySelectorAll('.seg-btn[data-variant]').forEach(btn => {
-    btn.setAttribute('aria-pressed', String(btn.dataset.variant === state.variant));
-  });
-}
 updateVariantUI();
 
-/* ─── Phase tabs ───────────────────────────────────────────────────────── */
-
-document.querySelectorAll('.phase-tab').forEach(btn => {
+/* ─── Phase tabs ───────────────────────────────────────────────── */
+$$('.phase-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     state.phase = btn.dataset.phase;
     saveState();
     updatePhaseUI();
+    buildSubControls();
     render();
   });
 });
 function updatePhaseUI() {
-  document.querySelectorAll('.phase-tab').forEach(btn => {
+  $$('.phase-tab').forEach(btn => {
     btn.setAttribute('aria-pressed', String(btn.dataset.phase === state.phase));
   });
 }
 updatePhaseUI();
 
-/* ─── Weight input (typed + drag-to-scrub) ─────────────────────────────── */
+/* ─── Weight input ─────────────────────────────────────────────── */
+const weightInput   = $('#weight');
+const weightSlider  = $('#weight-slider');
+const weightFill    = $('#weight-fill');
+const weightThumb   = $('#weight-thumb');
 
-const weightInput = document.getElementById('weight');
-const weightWrap = weightInput.closest('.weight-input-wrap');
-weightInput.value = String(state.weight);
+function setWeight(w, { save = true, sync = true } = {}) {
+  const nw = clamp(Number(w), MIN_W, MAX_W);
+  if (!Number.isFinite(nw)) return;
+  state.weight = Math.round(nw * 10) / 10;
+  if (sync) weightInput.value = state.weight.toFixed(1);
+  updateSliderUI();
+  if (save) saveState();
+  render();
+}
 
-weightInput.addEventListener('input', () => {
-  const v = parseInt(weightInput.value, 10);
-  if (!Number.isNaN(v)) {
-    state.weight = clamp(v, MIN_WEIGHT, MAX_WEIGHT);
-    saveState();
-    updateWeightBands();
-    render();
-  }
+function updateSliderUI() {
+  const pct = (state.weight - MIN_W) / (MAX_W - MIN_W);
+  weightFill.style.width = (pct * 100) + '%';
+  weightThumb.style.left = (pct * 100) + '%';
+}
+
+weightInput.value = state.weight.toFixed(1);
+updateSliderUI();
+
+// Tap the number → clear it so user can type a new value.
+weightInput.addEventListener('focus', () => {
+  weightInput.value = '';
 });
+// Commit only on blur / Enter — avoids re-renders on every keystroke.
 weightInput.addEventListener('blur', () => {
-  weightInput.value = String(state.weight);
+  const v = parseFloat((weightInput.value || '').replace(',', '.'));
+  if (!Number.isFinite(v)) weightInput.value = state.weight.toFixed(1);
+  else setWeight(v);
+});
+weightInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') weightInput.blur();
 });
 
-// Drag-to-scrub on the wrap (but allow tap-to-focus the number)
+// Horizontal slider drag
 (() => {
-  let dragging = false, startY = 0, startW = 0, totalDy = 0;
-  const MOVE_PER_TONNE = 12; // px per 1 t when dragging vertically
-  weightWrap.addEventListener('pointerdown', e => {
-    if (e.target === weightInput) return; // allow normal input focus
+  const track = weightSlider.querySelector('.weight-slider-track');
+  let dragging = false;
+  function posToWeight(clientX) {
+    const r = track.getBoundingClientRect();
+    const f = clamp((clientX - r.left) / r.width, 0, 1);
+    return Math.round((MIN_W + f * (MAX_W - MIN_W)) * 10) / 10;
+  }
+  track.addEventListener('pointerdown', e => {
     dragging = true;
-    startY = e.clientY;
-    startW = state.weight;
-    totalDy = 0;
-    weightWrap.setPointerCapture(e.pointerId);
+    track.setPointerCapture(e.pointerId);
+    setWeight(posToWeight(e.clientX), { save: false });
     e.preventDefault();
   });
-  weightWrap.addEventListener('pointermove', e => {
+  track.addEventListener('pointermove', e => {
     if (!dragging) return;
-    const dy = startY - e.clientY; // drag up -> increase
-    totalDy = dy;
-    const newW = clamp(Math.round(startW + dy / MOVE_PER_TONNE), MIN_WEIGHT, MAX_WEIGHT);
-    if (newW !== state.weight) {
-      state.weight = newW;
-      weightInput.value = String(newW);
-      updateWeightBands();
-      render();
-      if (window.navigator.vibrate) window.navigator.vibrate(3);
-    }
+    setWeight(posToWeight(e.clientX), { save: false });
   });
-  weightWrap.addEventListener('pointerup', e => {
+  const endDrag = e => {
     if (!dragging) return;
     dragging = false;
-    weightWrap.releasePointerCapture(e.pointerId);
+    try { track.releasePointerCapture(e.pointerId); } catch {}
     saveState();
-    // If drag was trivial, let the tap focus the input
-    if (Math.abs(totalDy) < 3) weightInput.focus();
+  };
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
+  // Tick labels → jump to tick value
+  $$('.weight-slider-ticks span').forEach(el => {
+    el.addEventListener('click', () => setWeight(Number(el.dataset.tick)));
   });
-  weightWrap.addEventListener('pointercancel', () => { dragging = false; });
 })();
 
-function updateWeightBands() {
-  const idx = nearestBandIdx(state.weight);
-  document.querySelectorAll('.weight-bands .band').forEach((el, i) => {
-    el.classList.toggle('near', i === idx);
-  });
-}
-updateWeightBands();
-
-/* ─── Sub-controls (airport alt, GA flap) ──────────────────────────────── */
-
-const subCard = document.getElementById('sub-controls');
+/* ─── Sub-controls (airport altitude only now) ─────────────────── */
+const subCard = $('#sub-controls');
 
 function buildSubControls() {
   subCard.innerHTML = '';
-  if (state.phase === 'terminal' || state.phase === 'approach') {
-    const data = qrh[state.variant][state.phase];
-    const alts = data.map(r => r.apt_alt);
-    // Clamp current aptAlt to an available value
-    if (!alts.includes(state.aptAlt)) {
-      state.aptAlt = alts.includes(0) ? 0 : alts[0];
-      saveState();
-    }
-    const label = document.createElement('span');
-    label.className = 'section-label';
-    label.textContent = state.phase === 'terminal' ? 'Airport altitude' : 'Airport altitude';
-    subCard.appendChild(label);
-    const wrap = document.createElement('div');
-    wrap.className = 'chips';
-    alts.forEach(a => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'chip';
-      chip.setAttribute('aria-pressed', String(a === state.aptAlt));
-      chip.textContent = a === 0 ? 'SL' : (a > 0 ? '+' : '') + a.toLocaleString();
-      chip.addEventListener('click', () => {
-        state.aptAlt = a;
-        saveState();
-        buildSubControls();
-        render();
-      });
-      wrap.appendChild(chip);
-    });
-    subCard.appendChild(wrap);
-    subCard.hidden = false;
-  } else if (state.phase === 'go_around') {
-    const label = document.createElement('span');
-    label.className = 'section-label';
-    label.textContent = 'Go-Around flap';
-    subCard.appendChild(label);
-    const wrap = document.createElement('div');
-    wrap.className = 'chips';
-    ['1', '5', '15'].forEach(f => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'chip';
-      chip.setAttribute('aria-pressed', String(f === state.gaFlap));
-      chip.textContent = 'Flaps ' + f;
-      chip.addEventListener('click', () => {
-        state.gaFlap = f;
-        saveState();
-        buildSubControls();
-        render();
-      });
-      wrap.appendChild(chip);
-    });
-    subCard.appendChild(wrap);
-    subCard.hidden = false;
-  } else {
-    subCard.hidden = true;
+  if (!state.variant) { subCard.hidden = true; return; }
+  const needsApt = state.phase === 'terminal' || state.phase === 'approach' || state.phase === 'go_around';
+  if (!needsApt) { subCard.hidden = true; return; }
+
+  // Pull the full airport-altitude list from the Terminal dataset (most granular).
+  // Terminal/Approach look up an exact row; Go-Around snaps to the nearest GA altitude
+  // to highlight the matching row.
+  const terminalData = qrh[state.variant].terminal || [];
+  const alts = terminalData.map(r => r.apt_alt);
+  if (!alts.includes(state.aptAlt)) {
+    state.aptAlt = alts.includes(5000) ? 5000 : (alts.includes(0) ? 0 : alts[0]);
+    saveState();
   }
+
+  subCard.classList.add('apt-card');
+  subCard.innerHTML = `
+    <span class="section-label">Airport altitude</span>
+    <div class="apt-select-wrap">
+      <select id="apt-alt-select" class="apt-select" aria-label="Airport altitude">
+        ${alts.map(a =>
+          `<option value="${a}"${a === state.aptAlt ? ' selected' : ''}>${
+            a === 0 ? 'Sea Level' : (a > 0 ? '+' : '') + a.toLocaleString() + ' ft'
+          }</option>`
+        ).join('')}
+      </select>
+      <span class="apt-caret" aria-hidden="true">▾</span>
+    </div>`;
+  subCard.hidden = false;
+  const sel = document.getElementById('apt-alt-select');
+  sel.addEventListener('change', () => {
+    state.aptAlt = Number(sel.value);
+    saveState();
+    render();
+  });
 }
 
-/* ─── Rendering ────────────────────────────────────────────────────────── */
-
-const resultEl = document.getElementById('result');
-const sourceEl = document.getElementById('source-cite');
+/* ─── Rendering ────────────────────────────────────────────────── */
+const resultEl = $('#result');
+const sourceEl = $('#source-cite');
 
 function render() {
-  if (!qrh['800']) return; // data not loaded yet
-  const d = qrh[state.variant];
-  const nearIdx = nearestBandIdx(state.weight);
-  let html = '';
-  let source = '';
+  if (!state.variant) {
+    resultEl.innerHTML = `
+      <div class="result-empty">
+        <div class="chev">↑</div>
+        <div><strong>Select aircraft variant</strong> above to begin.</div>
+        <div style="font-size:.8rem; opacity:.8;">Tap −800W or −900ERW</div>
+      </div>`;
+    sourceEl.textContent = '';
+    return;
+  }
+  if (!qrh[state.variant]) return;
 
-  const header = (title, sub) =>
-    `<div class="result-header"><strong>${title}</strong>${sub ? ' · ' + sub : ''}</div>`;
+  const d = qrh[state.variant];
+  const vName = state.variant === '800' ? '737‑800W' : '737‑900ERW';
+  const w = state.weight;
+  const wStr = w.toFixed(1) + ' t';
+
+  let body = '', source = '';
+  const header = (title, sub) => `
+    <div class="result-header">
+      <span class="result-title">${title}</span>
+      <span class="result-dot">·</span><span>${sub}</span>
+    </div>`;
 
   switch (state.phase) {
     case 'climb':
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Climb`,
-        `${state.weight} t`) +
+      body = header(`${vName} · Climb`, wStr) +
         `<div class="phase-note">${d.notes.climb}</div>` +
-        renderAltPitchMetricTable(d.climb, 'vs', 'V/S fpm', nearIdx);
+        renderAltPitchMetric(sortAsc(d.climb), w, 'vs', 'V/S fpm');
       source = `${d.source} · PI-QRH §10 CLIMB`;
       break;
     case 'cruise':
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Cruise`,
-        `${state.weight} t`) +
+      body = header(`${vName} · Cruise`, wStr) +
         `<div class="phase-note">${d.notes.cruise}</div>` +
-        renderAltPitchMetricTable(d.cruise, 'n1', 'N1 %', nearIdx);
+        renderAltPitchMetric(sortAsc(d.cruise), w, 'n1', 'N1 %');
       source = `${d.source} · PI-QRH §10 CRUISE`;
       break;
     case 'descent':
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Descent`,
-        `${state.weight} t`) +
+      body = header(`${vName} · Descent`, wStr) +
         `<div class="phase-note">${d.notes.descent}</div>` +
-        renderAltPitchMetricTable(d.descent, 'vs', 'V/S fpm', nearIdx);
+        renderAltPitchMetric(sortAsc(d.descent), w, 'vs', 'V/S fpm');
       source = `${d.source} · PI-QRH §10 DESCENT`;
       break;
     case 'holding':
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Holding`,
-        `${state.weight} t`) +
+      body = header(`${vName} · Holding`, wStr) +
         `<div class="phase-note">${d.notes.holding}</div>` +
-        renderHoldingTable(d.holding, nearIdx);
+        renderHolding(sortAsc(d.holding), w);
       source = `${d.source} · PI-QRH §10 HOLDING`;
       break;
     case 'terminal': {
       const row = d.terminal.find(r => r.apt_alt === state.aptAlt) || d.terminal[0];
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Terminal 5,000 ft AGL`,
-        `${state.weight} t · Airport ${fmtAlt(row.apt_alt)}`) +
+      body = header(`${vName} · Terminal 5,000 ft AGL`,
+        `${wStr} · Airport ${fmtAlt(row.apt_alt)}`) +
         `<div class="phase-note">${d.notes.terminal}</div>` +
-        renderFlapTable(row.flaps, nearIdx);
+        renderConfig(row.flaps, w, { highlightGearDown: true });
       source = `${d.source} · PI-QRH §10 TERMINAL AREA`;
       break;
     }
     case 'approach': {
       const row = d.approach.find(r => r.apt_alt === state.aptAlt) || d.approach[0];
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Final Approach 1,500 ft AGL`,
-        `${state.weight} t · Airport ${fmtAlt(row.apt_alt)}`) +
+      body = header(`${vName} · Final Approach 1,500 ft AGL`,
+        `${wStr} · Airport ${fmtAlt(row.apt_alt)}`) +
         `<div class="phase-note">${d.notes.approach}</div>` +
-        renderFlapTable(row.flaps, nearIdx);
+        renderConfig(row.flaps, w, { highlightGearDown: false });
       source = `${d.source} · PI-QRH §10 FINAL APPROACH`;
       break;
     }
-    case 'go_around': {
-      const rows = d.go_around['flap_' + state.gaFlap] || [];
-      const note = state.gaFlap === '5'
-        ? `${d.notes.go_around} — Flaps 5 is only authorized with the Alternate Go-Around and Missed Approach Procedure.`
-        : d.notes.go_around;
-      html = header(`737${state.variant === '800' ? '-800W' : '-900ERW'} · Go-Around`,
-        `${state.weight} t · Flaps ${state.gaFlap} · Gear Up`) +
-        `<div class="phase-note">${note}</div>` +
-        renderGoAroundTable(rows, nearIdx);
+    case 'go_around':
+      body = header(`${vName} · Go‑Around`,
+        `${wStr} · Gear Up · Airport ${fmtAlt(state.aptAlt)}`) +
+        `<div class="phase-note">${d.notes.go_around} — Flaps 5 is only authorized with the Alternate Go‑Around and Missed Approach procedure.</div>` +
+        renderGoAround(d.go_around, w, state.aptAlt);
       source = `${d.source} · PI-QRH §10 GO-AROUND`;
       break;
-    }
   }
-  resultEl.innerHTML = html;
+
+  resultEl.innerHTML = body;
   sourceEl.textContent = source;
 }
 
-function weightColHeaders(nearIdx) {
-  return WEIGHTS.map((w, i) =>
-    `<th class="weight-col-header${i === nearIdx ? ' near' : ''}">${w}&thinsp;t</th>`
-  ).join('');
+/* Render: altitude × (pitch + metric) — climb / cruise / descent */
+function renderAltPitchMetric(rows, w, metricKey, metricLabel) {
+  const isVS = metricKey === 'vs';
+  const fmtMetric = isVS ? fmtVS : fmtN1;
+  const body = rows.map(r => {
+    const p = interpWeight(r.pitch, w);
+    const m = interpWeight(r[metricKey], w);
+    const mClass = 'val' +
+      (isVS && m != null && m < 0 ? ' neg' : '') +
+      (m == null ? ' no-data' : '');
+    const pClass = 'val' + (p == null ? ' no-data' : '');
+    return `<tr>
+      <td class="row-label">${fmtAlt(r.alt)}</td>
+      <td class="${pClass}">${fmtPitch(p)}</td>
+      <td class="${mClass}">${fmtMetric(m)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="qrh-table">
+    <thead><tr><th class="row-label">Altitude</th><th>Pitch</th><th>${metricLabel}</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
 }
 
-function renderAltPitchMetricTable(rows, metricKey, metricLabel, nearIdx) {
-  const rowsHtml = rows.slice().sort((a, b) => b.alt - a.alt).map(r => {
-    const p = r.pitch.map((v, i) => tdVal(v, i, nearIdx, fmtPitch)).join('');
-    const m = r[metricKey].map((v, i) => {
-      const formatter = metricKey === 'vs' ? fmtVS : fmtN1;
-      return tdVal(v, i, nearIdx, formatter, metricKey === 'vs');
+function renderHolding(rows, w) {
+  const body = rows.map(r => {
+    const p = interpWeight(r.pitch, w);
+    const n = interpWeight(r.n1,    w);
+    const k = interpWeight(r.kias,  w);
+    return `<tr>
+      <td class="row-label">${fmtAlt(r.alt)}</td>
+      <td class="val${p == null ? ' no-data' : ''}">${fmtPitch(p)}</td>
+      <td class="val${n == null ? ' no-data' : ''}">${fmtN1(n)}</td>
+      <td class="val${k == null ? ' no-data' : ''}">${fmtKIAS(k)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="qrh-table">
+    <thead><tr><th class="row-label">Altitude</th><th>Pitch</th><th>N1</th><th>KIAS</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+function renderConfig(flaps, w, opts = {}) {
+  const { highlightGearDown = false } = opts;
+  // On Terminal: move Gear-Down to the top and visually highlight it — that's
+  // the landing configuration and the most important operational reference.
+  // On Final Approach: keep the original order (gear is already down on final).
+  let ordered = flaps;
+  if (highlightGearDown) {
+    const gearDown = flaps.filter(f => f.gear === 'DOWN');
+    const gearUp   = flaps.filter(f => f.gear !== 'DOWN');
+    ordered = [...gearDown, ...gearUp];
+  }
+
+  const body = ordered.map(f => {
+    const p = interpWeight(f.pitch, w);
+    const n = interpWeight(f.n1,    w);
+    const k = interpWeight(f.kias,  w);
+    const isGD = f.gear === 'DOWN';
+    const gearTag = isGD ? ' · GD'
+                  : f.gear === 'UP' ? ' · GU'
+                  : '';
+    const label = `Flaps ${f.flap}${gearTag}` +
+                  (f.vref ? `<span class="flap-sub">${f.vref}</span>` : '');
+    const rowCls = (highlightGearDown && isGD) ? ' class="gear-down-row"' : '';
+    return `<tr${rowCls}>
+      <td class="row-label">${label}</td>
+      <td class="val${p == null ? ' no-data' : ''}">${fmtPitch(p)}</td>
+      <td class="val${n == null ? ' no-data' : ''}">${fmtN1(n)}</td>
+      <td class="val${k == null ? ' no-data' : ''}">${fmtKIAS(k)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="qrh-table">
+    <thead><tr><th class="row-label">Configuration</th><th>Pitch</th><th>N1</th><th>KIAS</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+/* Go-Around: columns = flaps 1/5/15 (all Gear Up), rows = altitude (asc).
+ * Each altitude row shows 3 stacked metrics per flap column: pitch, V/S, KIAS.
+ * aptAlt — if provided, snap to the nearest GA altitude and highlight that row. */
+function renderGoAround(gaData, w, aptAlt) {
+  const flaps = ['1', '5', '15'];
+  const perFlap = flaps.map(k => sortAsc(gaData['flap_' + k] || []));
+  const alts = perFlap[0].map(r => r.alt);
+  // Snap aptAlt to the closest GA altitude band.
+  let matchAlt = null;
+  if (alts.length && aptAlt != null) {
+    matchAlt = alts.reduce((best, a) =>
+      Math.abs(a - aptAlt) < Math.abs(best - aptAlt) ? a : best, alts[0]);
+  }
+  const body = alts.map(alt => {
+    const cells = flaps.map((_, i) => {
+      const r = perFlap[i].find(x => x.alt === alt);
+      if (!r) return { p: null, v: null, k: null };
+      return {
+        p: interpWeight(r.pitch, w),
+        v: interpWeight(r.vs,    w),
+        k: interpWeight(r.kias,  w),
+      };
+    });
+    const pTR = cells.map(c => `<td class="val${c.p == null ? ' no-data' : ''}">${fmtPitch(c.p)}</td>`).join('');
+    const vTR = cells.map(c => {
+      const cls = 'val sub' + (c.v != null && c.v < 0 ? ' neg' : '') + (c.v == null ? ' no-data' : '');
+      return `<td class="${cls}">${fmtVS(c.v)}</td>`;
     }).join('');
-    return `<tr class="double-row">
-      <td class="row-label" rowspan="2">${fmtAlt(r.alt)}</td>${p}</tr>
-      <tr class="double-row"><td class="metric-label" colspan="0" style="display:none"></td>${m}</tr>`;
-  }).join('');
-  return `
-    <table class="qrh-table">
-      <thead><tr><th class="row-label">Altitude</th>${weightColHeaders(nearIdx)}</tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
-    <div class="source-cite" style="margin-top:.5rem;">Each altitude shows <strong>Pitch °</strong> (row 1) and <strong>${metricLabel}</strong> (row 2).</div>
-  `;
-}
-
-function renderHoldingTable(rows, nearIdx) {
-  const rowsHtml = rows.slice().sort((a, b) => b.alt - a.alt).map(r => {
-    const p = r.pitch.map((v, i) => tdVal(v, i, nearIdx, fmtPitch)).join('');
-    const n = r.n1.map((v, i) => tdVal(v, i, nearIdx, fmtN1)).join('');
-    const k = r.kias.map((v, i) => tdVal(v, i, nearIdx, fmtKIAS, false, 'sub')).join('');
+    const kTR = cells.map(c => `<td class="val sub${c.k == null ? ' no-data' : ''}">${fmtKIAS(c.k)}</td>`).join('');
+    const hl = alt === matchAlt ? ' apt-match' : '';
     return `
-      <tr><td class="row-label" rowspan="3">${fmtAlt(r.alt)}</td>${p}</tr>
-      <tr>${n}</tr>
-      <tr>${k}</tr>`;
+      <tr class="stack-start${hl}"><td class="row-label" rowspan="3">${fmtAlt(alt)}</td>${pTR}</tr>
+      <tr class="stack-mid${hl}">${vTR}</tr>
+      <tr class="stack-end${hl}">${kTR}</tr>`;
   }).join('');
-  return `
-    <table class="qrh-table">
-      <thead><tr><th class="row-label">Altitude</th>${weightColHeaders(nearIdx)}</tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
-    <div class="source-cite" style="margin-top:.5rem;">Each altitude shows <strong>Pitch °</strong>, <strong>N1 %</strong>, <strong>KIAS</strong>.</div>
-  `;
+  return `<table class="qrh-table">
+    <thead><tr><th class="row-label">Press. Alt</th><th>Flaps 1</th><th>Flaps 5</th><th>Flaps 15</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <div class="source-cite" style="margin-top:.55rem;">Each altitude row: <strong>Pitch</strong> · <strong>V/S fpm</strong> · <strong>KIAS</strong>.</div>`;
 }
 
-function renderFlapTable(flaps, nearIdx) {
-  const rowsHtml = flaps.map(f => {
-    const label = `Flaps ${f.flap} ${f.gear === 'DOWN' ? '· Gear DN' : ''}<span class="flap-sub">${f.vref}</span>`;
-    const p = f.pitch.map((v, i) => tdVal(v, i, nearIdx, fmtPitch)).join('');
-    const n = f.n1.map((v, i) => tdVal(v, i, nearIdx, fmtN1)).join('');
-    const k = f.kias.map((v, i) => tdVal(v, i, nearIdx, fmtKIAS, false, 'sub')).join('');
-    return `
-      <tr><td class="row-label" rowspan="3">${label}</td>${p}</tr>
-      <tr>${n}</tr>
-      <tr>${k}</tr>`;
-  }).join('');
-  return `
-    <table class="qrh-table">
-      <thead><tr><th class="row-label">Configuration</th>${weightColHeaders(nearIdx)}</tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
-    <div class="source-cite" style="margin-top:.5rem;">Each config shows <strong>Pitch °</strong>, <strong>N1 %</strong>, <strong>KIAS</strong>.</div>
-  `;
-}
-
-function renderGoAroundTable(rows, nearIdx) {
-  if (!rows.length) return '<div class="phase-note">No data</div>';
-  const rowsHtml = rows.slice().sort((a, b) => b.alt - a.alt).map(r => {
-    const p = r.pitch.map((v, i) => tdVal(v, i, nearIdx, fmtPitch)).join('');
-    const v = r.vs.map((val, i) => tdVal(val, i, nearIdx, fmtVS, true)).join('');
-    const k = r.kias.map((val, i) => tdVal(val, i, nearIdx, fmtKIAS, false, 'sub')).join('');
-    return `
-      <tr><td class="row-label" rowspan="3">${fmtAlt(r.alt)}</td>${p}</tr>
-      <tr>${v}</tr>
-      <tr>${k}</tr>`;
-  }).join('');
-  return `
-    <table class="qrh-table">
-      <thead><tr><th class="row-label">Press. Alt</th>${weightColHeaders(nearIdx)}</tr></thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
-    <div class="source-cite" style="margin-top:.5rem;">Each altitude shows <strong>Pitch °</strong>, <strong>V/S fpm</strong>, <strong>KIAS</strong>.</div>
-  `;
-}
-
-function tdVal(val, i, nearIdx, fmt, negAware = false, extraClass = '') {
-  if (val == null) return `<td class="val no-data${i === nearIdx ? ' col-near' : ''} ${extraClass}">—</td>`;
-  const neg = negAware && val < 0;
-  return `<td class="val${neg ? ' neg' : ''}${i === nearIdx ? ' col-near' : ''}${extraClass ? ' ' + extraClass : ''}">${fmt(val)}</td>`;
-}
-
-/* ─── QRH procedure (22 steps, §10.1) ──────────────────────────────────── */
-
-const PROCEDURE_STEPS = [
-  ['Autopilot (if engaged)', 'Disengage'],
-  ['Autothrottle (if engaged)', 'Disengage'],
-  ['F/D switches (both)', 'OFF'],
-  ['Set gear-up pitch + thrust', 'Flaps extended: 10° / 80% N1 · Flaps up: 4° / 75% N1'],
-  ['PROBE HEAT switches', 'Check ON'],
-  ['Reliable indications', 'Attitude · N1 · Ground speed · Radio altitude'],
-  ['Choose:', 'Reliable indication found → Go to 11 · else → Go to 8'],
-  ['Refer to PI-QRH §10 tables', 'Set pitch + thrust for current config + phase'],
-  ['In trim and stabilized', 'Compare CA / FO / standby airspeed vs table — >20 kt or >0.03 M difference = unreliable'],
-  ['Choose: reliable found / not found', 'Found → Go to 11 · Not → Go to 12'],
-  ['Choose: CA/FO reliable / only standby', 'CA/FO: FD ON (reliable side) · Standby only: no AP/AT/FD'],
-  ['Set pitch + thrust from PI-QRH tables', 'As needed'],
-  ['Non-Normal Config Landing Distance', 'Check PI-QRH tables or other approved source'],
-  ['Autopilot (reliable side, if needed)', 'Engage'],
-  ['Do not use autothrottle', '—'],
-  ['Choose: altitude reliable / both unreliable', 'If reliable → 17 · If both unreliable → 21 (no RVSM)'],
-  ['RVSM airspace requirement', 'Airplane may not meet'],
-  ['Transponder reliable altitude', 'Select reliable side per tail fleet'],
-  ['Transponder mode selector', 'TA (per fleet)'],
-  ['Transponder mode selector', 'TA ONLY (per fleet)'],
-  ['Transponder altitude reporting OFF', 'Per fleet'],
-  ['Checklist complete', 'Except deferred items'],
+/* ─── Procedure panel (22 steps; memory items boxed) ───────────── */
+const MEMORY_STEPS = [
+  ['Autopilot (if engaged)',          'Disengage'],
+  ['Autothrottle (if engaged)',       'Disengage'],
+  ['F/D switches (both)',             'OFF'],
+  ['Set pitch attitude and thrust',   'Flaps Up: 4° / 75 % N1 · Flaps Extended: 10° / 80 % N1'],
 ];
-
-const procBtn = document.getElementById('qrh-procedure-btn');
-const procPanel = document.getElementById('qrh-procedure');
+const REMAINDER_STEPS = [
+  ['PROBE HEAT switches',             'Check ON'],
+  ['Reliable indications',            'Attitude · N1 · Ground speed · Radio altitude'],
+  ['Choose',                          'Reliable indication found → step 11 · else → step 8'],
+  ['Refer to PI‑QRH §10 tables',      'Set pitch + thrust for current config + phase'],
+  ['In trim and stabilized',          'Compare CA / FO / standby airspeed vs table — >20 kt or >0.03 M = unreliable'],
+  ['Choose',                          'Reliable found → 11 · Not → 12'],
+  ['Choose',                          'CA/FO reliable → FD ON (reliable side) · Standby only → no AP/AT/FD'],
+  ['Set pitch + thrust from §10',     'As needed'],
+  ['Non-Normal Config Landing Dist.', 'Check PI‑QRH tables or approved source'],
+  ['Autopilot (reliable side)',       'Engage if required'],
+  ['Autothrottle',                    'Do not use'],
+  ['Choose',                          'Reliable altitude → 17 · Both unreliable → 21 (no RVSM)'],
+  ['RVSM airspace requirement',       'Airplane may not meet'],
+  ['Transponder altitude source',     'Select reliable side per fleet'],
+  ['Transponder mode selector',       'TA (per fleet)'],
+  ['Transponder mode selector',       'TA ONLY (per fleet)'],
+  ['Transponder altitude reporting',  'OFF per fleet'],
+  ['Checklist complete',              'Except deferred items'],
+];
+const procBtn = $('#qrh-procedure-btn');
+const procPanel = $('#qrh-procedure');
 procBtn.addEventListener('click', () => {
   if (procPanel.hidden) {
-    const items = PROCEDURE_STEPS.map(([l, r]) =>
+    const memHTML = MEMORY_STEPS.map(([l, r]) =>
+      `<li><strong>${l}</strong> — ${r}</li>`).join('');
+    const remHTML = REMAINDER_STEPS.map(([l, r]) =>
       `<li><strong>${l}</strong>${r && r !== '—' ? ' — ' + r : ''}</li>`).join('');
     procPanel.innerHTML = `
-      <p style="margin-bottom:.75rem;font-size:.8rem;color:var(--text-sub)">
-        Paraphrased for quick reference. Always verify against your current QRH.
-      </p>
-      <ol>${items}</ol>`;
+      <div class="proc-memory">
+        <ol>${memHTML}</ol>
+      </div>
+      <div class="proc-remainder">
+        <h3>Reference items</h3>
+        <ol start="5">${remHTML}</ol>
+      </div>
+      <p style="margin-top:.75rem;font-size:.75rem;color:var(--text-sub);">
+        Paraphrased for quick reference. Always verify against the current approved QRH.
+      </p>`;
     procPanel.hidden = false;
     procBtn.textContent = 'Hide QRH Procedure';
   } else {
@@ -485,72 +549,89 @@ procBtn.addEventListener('click', () => {
   }
 });
 
-/* ─── Sensors: GPS + G-force ───────────────────────────────────────────── */
-
-const sensorState = {
+/* ─── Sensors ──────────────────────────────────────────────────── */
+const sensor = {
   geoActive: false,
   motionActive: false,
-  gs: null,        // ground speed, knots
-  track: null,     // deg true
-  alt: null,       // feet
-  acc: null,       // horizontal accuracy, meters
-  currentG: null,  // magnitude of (ax, ay, az) in g
-  peakG: null,     // peak |g| in trailing 2 min
-  // touchdown state machine
-  gsSeenAbove60: false,
-  landedAt: 0,     // epoch ms when GS first dropped below 60 after being above
-  gBuffer: [],     // [{t, g}]
+  gs: null, track: null, alt: null, acc: null,
+  currentG: null, peakG: null,
+  gsSeenAbove60: false, landedAt: 0,
+  gBuffer: [],
 };
+const MS_TO_KT = 1.94384, M_TO_FT = 3.28084;
+const TOUCHDOWN_KT = 60, PEAK_WINDOW_MS = 120e3;
 
-const MS_TO_KT = 1.94384;
-const M_TO_FT = 3.28084;
-const TOUCHDOWN_KT = 60;
-const PEAK_WINDOW_MS = 120 * 1000;
+const sensorCells = {
+  gs:     $('.sensor-cell[data-role="gs"] .sensor-value'),
+  trk:    $('.sensor-cell[data-role="trk"] .sensor-value'),
+  alt:    $('.sensor-cell[data-role="alt"] .sensor-value'),
+  acc:    $('.sensor-cell[data-role="acc"] .sensor-value'),
+  gforce: $('.sensor-cell[data-role="gforce"] .sensor-value'),
+};
+const gLabel = $('#g-label');
+const gUnit = $('#g-unit');
+const enableBtn = $('#enable-sensors');
+const statusText = $('#sensor-status-text');
+
+function setSensorStatus(t) { statusText.textContent = t || ''; }
+function setClass(el, cls) {
+  el.classList.remove('ok', 'amber', 'danger');
+  if (cls) el.classList.add(cls);
+}
+
+/* Color buckets: G-force and GPS accuracy */
+function gClass(g) {
+  if (g == null) return '';
+  if (g > 1.8) return 'danger';
+  if (g > 1.4) return 'amber';
+  if (g >= 0.5) return 'ok';
+  return 'danger'; // near-zero g = free-fall / unusual attitude
+}
+function accClass(a) {
+  if (a == null) return '';
+  if (a <= 10) return 'ok';
+  if (a <= 30) return 'amber';
+  return 'danger';
+}
 
 function startGPS() {
-  if (!('geolocation' in navigator) || sensorState.geoActive) return;
-  sensorState.geoActive = true;
-  navigator.geolocation.watchPosition(pos => {
-    const s = pos.coords.speed;       // m/s (null when stationary in some browsers)
-    const h = pos.coords.heading;     // deg true
-    const a = pos.coords.altitude;    // meters (geoidal)
-    const ac = pos.coords.accuracy;   // meters
-    sensorState.gs = (s != null && s >= 0) ? Math.round(s * MS_TO_KT) : null;
-    sensorState.track = (h != null && !Number.isNaN(h)) ? Math.round(((h % 360) + 360) % 360) : null;
-    sensorState.alt = (a != null) ? Math.round(a * M_TO_FT) : null;
-    sensorState.acc = (ac != null) ? Math.round(ac) : null;
-    // touchdown detection
-    if (sensorState.gs != null) {
-      if (sensorState.gs >= TOUCHDOWN_KT) {
-        sensorState.gsSeenAbove60 = true;
-      } else if (sensorState.gsSeenAbove60 && !sensorState.landedAt) {
-        sensorState.landedAt = Date.now();
+  if (!('geolocation' in navigator) || sensor.geoActive) return;
+  sensor.geoActive = true;
+  navigator.geolocation.watchPosition(
+    pos => {
+      const s  = pos.coords.speed;
+      const h  = pos.coords.heading;
+      const a  = pos.coords.altitude;
+      const ac = pos.coords.accuracy;
+      sensor.gs    = (s != null && s >= 0) ? Math.round(s * MS_TO_KT) : null;
+      sensor.track = (h != null && !Number.isNaN(h)) ? Math.round(((h % 360) + 360) % 360) : null;
+      sensor.alt   = (a != null) ? Math.round(a * M_TO_FT) : null;
+      sensor.acc   = (ac != null) ? Math.round(ac) : null;
+      if (sensor.gs != null) {
+        if (sensor.gs >= TOUCHDOWN_KT) sensor.gsSeenAbove60 = true;
+        else if (sensor.gsSeenAbove60 && !sensor.landedAt) sensor.landedAt = Date.now();
       }
-    }
-    renderSensors();
-  }, err => {
-    setSensorStatus('GPS unavailable: ' + err.message);
-  }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+      renderSensors();
+    },
+    err => setSensorStatus('GPS: ' + (err.message || 'unavailable')),
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+  );
 }
 
 async function startMotion() {
-  if (sensorState.motionActive) return;
-  // iOS Safari requires explicit permission + user gesture
+  if (sensor.motionActive) return;
   try {
     if (typeof DeviceMotionEvent !== 'undefined' &&
         typeof DeviceMotionEvent.requestPermission === 'function') {
       const r = await DeviceMotionEvent.requestPermission();
-      if (r !== 'granted') {
-        setSensorStatus('Motion permission denied');
-        return;
-      }
+      if (r !== 'granted') { setSensorStatus('Motion permission denied'); reportSensorStatus(); return; }
     }
-  } catch (e) {
-    setSensorStatus('Motion unavailable');
-    return;
+  } catch {
+    setSensorStatus('Motion unavailable'); reportSensorStatus(); return;
   }
   window.addEventListener('devicemotion', onMotion);
-  sensorState.motionActive = true;
+  sensor.motionActive = true;
+  reportSensorStatus();
 }
 
 function onMotion(e) {
@@ -558,64 +639,59 @@ function onMotion(e) {
   if (!a) return;
   const g = Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2) / 9.80665;
   if (!Number.isFinite(g)) return;
-  sensorState.currentG = g;
+  // Guard: devices without a real accelerometer (e.g. desktop browsers) emit
+  // events with all-zero acceleration. Treat near-zero magnitudes as no reading.
+  if (g < 0.1) return;
+  sensor.currentG = g;
   const now = Date.now();
-  sensorState.gBuffer.push({ t: now, g });
-  // prune
+  sensor.gBuffer.push({ t: now, g });
   const cutoff = now - PEAK_WINDOW_MS;
-  while (sensorState.gBuffer.length && sensorState.gBuffer[0].t < cutoff) {
-    sensorState.gBuffer.shift();
-  }
-  // compute peak
+  while (sensor.gBuffer.length && sensor.gBuffer[0].t < cutoff) sensor.gBuffer.shift();
   let peak = 0;
-  for (const s of sensorState.gBuffer) if (s.g > peak) peak = s.g;
-  sensorState.peakG = peak;
-  renderSensorGOnly();
+  for (const s of sensor.gBuffer) if (s.g > peak) peak = s.g;
+  sensor.peakG = peak;
+  renderSensorG();
 }
-
-/* ─── Sensor rendering ─────────────────────────────────────────────────── */
-
-const sensorCells = {
-  gs: document.querySelector('.sensor-cell[data-role="gs"] .sensor-value'),
-  trk: document.querySelector('.sensor-cell[data-role="trk"] .sensor-value'),
-  alt: document.querySelector('.sensor-cell[data-role="alt"] .sensor-value'),
-  acc: document.querySelector('.sensor-cell[data-role="acc"] .sensor-value'),
-  gforce: document.querySelector('.sensor-cell[data-role="gforce"] .sensor-value'),
-};
-const gLabel = document.getElementById('g-label');
-const gUnit = document.getElementById('g-unit');
-const enableBtn = document.getElementById('enable-sensors');
-const statusText = document.getElementById('sensor-status-text');
-
-function setSensorStatus(text) { statusText.textContent = text; }
 
 function renderSensors() {
-  sensorCells.gs.textContent = sensorState.gs == null ? '—' : sensorState.gs;
-  sensorCells.trk.textContent = sensorState.track == null ? '—' : pad3(sensorState.track);
-  sensorCells.alt.textContent = sensorState.alt == null ? '—' : sensorState.alt.toLocaleString();
-  sensorCells.acc.textContent = sensorState.acc == null ? '—' : sensorState.acc;
-  renderSensorGOnly();
+  sensorCells.gs.textContent  = sensor.gs    == null ? '—' : sensor.gs;
+  sensorCells.trk.textContent = sensor.track == null ? '—' : String(sensor.track).padStart(3, '0');
+  sensorCells.alt.textContent = sensor.alt   == null ? '—' : sensor.alt.toLocaleString();
+  sensorCells.acc.textContent = sensor.acc   == null ? '—' : sensor.acc;
+  setClass(sensorCells.acc, accClass(sensor.acc));
+  renderSensorG();
 }
-
-function renderSensorGOnly() {
+function renderSensorG() {
   const el = sensorCells.gforce;
-  el.classList.remove('peak', 'alarm');
-  // decide live vs. peak mode
-  const post = sensorState.landedAt > 0;
-  if (post && sensorState.peakG != null) {
-    el.textContent = sensorState.peakG.toFixed(2);
+  el.classList.remove('peak');
+  const post = sensor.landedAt > 0;
+  if (post && sensor.peakG != null) {
+    el.textContent = sensor.peakG.toFixed(2);
     el.classList.add('peak');
     gLabel.textContent = 'G PEAK';
-    gUnit.textContent = 'last 2 min';
-    if (sensorState.peakG >= 1.8) el.classList.add('alarm');
-  } else if (sensorState.currentG != null) {
-    el.textContent = sensorState.currentG.toFixed(2);
-    gLabel.textContent = 'G';
-    gUnit.textContent = 'g';
+    gUnit.textContent  = 'last 2 min';
+    setClass(el, gClass(sensor.peakG));
+  } else if (sensor.currentG != null) {
+    el.textContent = sensor.currentG.toFixed(2);
+    gLabel.textContent = 'G'; gUnit.textContent = 'g';
+    setClass(el, gClass(sensor.currentG));
   } else {
     el.textContent = '—';
-    gLabel.textContent = 'G';
-    gUnit.textContent = 'g';
+    gLabel.textContent = 'G'; gUnit.textContent = 'g';
+    setClass(el, '');
+  }
+}
+
+function reportSensorStatus() {
+  const parts = [];
+  if (sensor.geoActive)    parts.push('GPS');
+  if (sensor.motionActive) parts.push('Motion');
+  if (parts.length) {
+    setSensorStatus(parts.join(' · ') + ' active');
+    enableBtn.hidden = true;
+  } else {
+    setSensorStatus('Tap to enable sensors');
+    enableBtn.hidden = false;
   }
 }
 
@@ -624,49 +700,42 @@ enableBtn.addEventListener('click', async () => {
   setSensorStatus('Enabling…');
   startGPS();
   await startMotion();
-  const parts = [];
-  if (sensorState.geoActive) parts.push('GPS ON');
-  if (sensorState.motionActive) parts.push('Motion ON');
-  setSensorStatus(parts.length ? parts.join(' · ') : 'Sensors unavailable');
-  if (parts.length) enableBtn.hidden = true;
+  reportSensorStatus();
   enableBtn.disabled = false;
 });
 
-// Add a double-tap on the G cell to reset the touchdown state (useful for
-// repeated landings without reloading the app).
+// Double-tap the G cell to reset touchdown state (useful for repeat landings).
 sensorCells.gforce.addEventListener('dblclick', () => {
-  sensorState.gsSeenAbove60 = false;
-  sensorState.landedAt = 0;
-  sensorState.peakG = null;
-  sensorState.gBuffer.length = 0;
-  renderSensorGOnly();
+  sensor.gsSeenAbove60 = false;
+  sensor.landedAt = 0;
+  sensor.peakG = null;
+  sensor.gBuffer.length = 0;
+  renderSensorG();
 });
 
-/* ─── Service worker registration ──────────────────────────────────────── */
-
+/* ─── Service worker ───────────────────────────────────────────── */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* silently ignore on file:// */ });
+    navigator.serviceWorker.register('sw.js').catch(() => { /* no-op on file:// */ });
   });
 }
 
-/* ─── Boot ─────────────────────────────────────────────────────────────── */
-
+/* ─── Boot ─────────────────────────────────────────────────────── */
 (async function boot() {
+  setSensorStatus('');
   try {
     await loadQRH();
-  } catch (e) {
+  } catch {
     resultEl.innerHTML = `<div class="phase-warn">Failed to load QRH data. Reload the page.</div>`;
     return;
   }
+
+  await showDisclaimer();
+  showMemoryItems(); // non-blocking; sensors kick in on "Got it" click
+
   buildSubControls();
   render();
-})();
 
-/* When phase changes we may need to (re)build sub-controls */
-document.querySelectorAll('.phase-tab').forEach(btn => {
-  btn.addEventListener('click', () => buildSubControls());
-});
-document.querySelectorAll('.seg-btn[data-variant]').forEach(btn => {
-  btn.addEventListener('click', () => buildSubControls());
-});
+  // If motion permission never gets requested (non-iOS / no memory click), show enable button
+  setTimeout(reportSensorStatus, 1500);
+})();

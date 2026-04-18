@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#0f1a2e" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0b1016" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f2f3f5" media="(prefers-color-scheme: light)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ASU" />
@@ -13,15 +13,60 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
-  <link rel="stylesheet" href="app.css" />
+  <link rel="stylesheet" href="app.css?v=7" />
 </head>
 <body>
+  <!-- Disclaimer modal (shown once) -->
   <div id="disclaimer" class="modal" aria-hidden="true">
     <div class="modal-card">
       <h2>Reference only</h2>
       <p>This app is for <strong>training and reference</strong>. Always follow your current approved QRH and operator procedures. Data source: <code>D6-27370-858-ELA Rev.57</code> (4X-EK fleet).</p>
-      <p>GPS and G-force readings are taken from iPad sensors and are <strong>not certified</strong> for flight use.</p>
+      <p>GPS and G‑force readings are taken from device sensors and are <strong>not certified</strong> for flight use.</p>
       <button type="button" id="disclaimer-ack" class="btn-primary">I understand</button>
+    </div>
+  </div>
+
+  <!-- Memory-items modal (shown every launch) -->
+  <div id="memory-modal" class="modal" aria-hidden="true">
+    <div class="modal-card memory-card">
+      <div class="memory-badge">Memory Items</div>
+      <h2 class="memory-title">Airspeed Unreliable</h2>
+
+      <ol class="memory-list">
+        <li>
+          <span class="memory-step">1</span>
+          <div class="memory-body"><strong>Autopilot</strong><span class="memory-sub">if engaged</span></div>
+          <span class="memory-action">Disengage</span>
+        </li>
+        <li>
+          <span class="memory-step">2</span>
+          <div class="memory-body"><strong>Autothrottle</strong><span class="memory-sub">if engaged</span></div>
+          <span class="memory-action">Disengage</span>
+        </li>
+        <li>
+          <span class="memory-step">3</span>
+          <div class="memory-body"><strong>F/D Switches</strong><span class="memory-sub">both</span></div>
+          <span class="memory-action">OFF</span>
+        </li>
+        <li class="memory-pitch">
+          <span class="memory-step">4</span>
+          <div class="memory-body">
+            <strong>Set pitch attitude and thrust</strong>
+            <div class="memory-matrix">
+              <div class="memory-matrix-row">
+                <span class="matrix-label">Flaps Up</span>
+                <span class="matrix-vals">4°&nbsp;/&nbsp;75&nbsp;%&nbsp;N1</span>
+              </div>
+              <div class="memory-matrix-row">
+                <span class="matrix-label">Flaps Extended</span>
+                <span class="matrix-vals">10°&nbsp;/&nbsp;80&nbsp;%&nbsp;N1</span>
+              </div>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <button type="button" id="memory-ack" class="btn-primary">Got it — continue</button>
     </div>
   </div>
 
@@ -31,49 +76,64 @@
       <span class="topbar-sub">B737NG</span>
     </div>
     <div class="topbar-controls">
-      <div class="seg" role="tablist" aria-label="Aircraft variant">
-        <button type="button" class="seg-btn" data-variant="800" aria-pressed="true">−800</button>
-        <button type="button" class="seg-btn" data-variant="900" aria-pressed="false">−900</button>
-      </div>
-      <button type="button" id="theme-btn" class="theme-btn" title="Cycle theme" aria-label="Cycle theme">Auto</button>
+      <button type="button" id="theme-btn" class="theme-btn" title="Cycle theme" aria-label="Cycle theme">
+        <svg id="theme-icon" class="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
+        <span id="theme-label">Auto</span>
+      </button>
     </div>
   </header>
 
   <main class="main">
-    <section class="weight-card card" aria-labelledby="weight-label">
-      <div class="weight-row">
-        <div class="weight-labels">
-          <span id="weight-label">Gross weight</span>
-          <span class="hint">tap number to type · drag ↕ to scrub</span>
+    <!-- Setup row: aircraft + gross weight -->
+    <section class="setup-row">
+      <div class="variant-card card" aria-labelledby="variant-label">
+        <span id="variant-label" class="section-label">Aircraft</span>
+        <div class="variant-options" role="tablist" aria-label="Aircraft variant">
+          <button type="button" class="variant-opt" data-variant="800" aria-pressed="false">
+            <span class="variant-tag">737</span>
+            <span class="variant-dash">−800W</span>
+          </button>
+          <button type="button" class="variant-opt" data-variant="900" aria-pressed="false">
+            <span class="variant-tag">737</span>
+            <span class="variant-dash">−900ERW</span>
+          </button>
         </div>
-        <div class="weight-input-wrap">
+      </div>
+
+      <div class="weight-card card" aria-labelledby="weight-label">
+        <span id="weight-label" class="section-label">Gross Weight</span>
+        <div class="weight-display">
           <input
-            type="number"
+            type="text"
+            inputmode="decimal"
             id="weight"
-            inputmode="numeric"
-            pattern="[0-9]*"
-            min="40"
-            max="80"
-            step="1"
-            value="65"
-            aria-describedby="weight-hint"
+            autocomplete="off"
+            spellcheck="false"
+            value="65.0"
+            aria-label="Gross weight in tonnes"
           />
           <span class="weight-unit">t</span>
         </div>
+        <div class="weight-slider" id="weight-slider">
+          <div class="weight-slider-track">
+            <div class="weight-slider-fill" id="weight-fill"></div>
+            <div class="weight-slider-thumb" id="weight-thumb"></div>
+          </div>
+          <div class="weight-slider-ticks">
+            <span data-tick="40">40</span>
+            <span data-tick="50">50</span>
+            <span data-tick="60">60</span>
+            <span data-tick="70">70</span>
+            <span data-tick="80">80</span>
+          </div>
+        </div>
       </div>
-      <div class="weight-bands" aria-hidden="true">
-        <span class="band" data-w="40">40</span>
-        <span class="band" data-w="50">50</span>
-        <span class="band" data-w="60">60</span>
-        <span class="band" data-w="70">70</span>
-        <span class="band" data-w="80">80</span>
-      </div>
+
+      <section id="sub-controls" class="sub-controls-card card" hidden aria-live="polite"></section>
     </section>
 
     <section class="phase-card card" aria-labelledby="phase-label">
-      <div class="phase-label-row">
-        <span id="phase-label" class="section-label">Flight phase</span>
-      </div>
+      <span id="phase-label" class="section-label">Flight phase</span>
       <div class="phase-tabs" role="tablist" aria-label="Flight phase">
         <button type="button" class="phase-tab" data-phase="climb" aria-pressed="true">Climb</button>
         <button type="button" class="phase-tab" data-phase="cruise" aria-pressed="false">Cruise</button>
@@ -85,13 +145,7 @@
       </div>
     </section>
 
-    <section id="sub-controls" class="sub-controls-card card" hidden aria-live="polite">
-      <!-- Populated per-phase: airport-altitude picker for terminal/approach; flap tabs for go_around -->
-    </section>
-
-    <section id="result" class="result-card card" aria-live="polite">
-      <!-- Populated by app.js -->
-    </section>
+    <section id="result" class="result-card card" aria-live="polite"></section>
 
     <p id="source-cite" class="source-cite" aria-live="polite"></p>
 
@@ -128,11 +182,11 @@
       </div>
     </div>
     <div class="sensor-status">
-      <button type="button" id="enable-sensors" class="sensor-enable-btn">Enable sensors</button>
-      <span id="sensor-status-text" class="sensor-status-text">Tap to enable GPS &amp; motion</span>
+      <button type="button" id="enable-sensors" class="sensor-enable-btn" hidden>Enable sensors</button>
+      <span id="sensor-status-text" class="sensor-status-text"></span>
     </div>
   </footer>
 
-  <script src="app.js" defer></script>
+  <script src="app.js?v=7" defer></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
  * Cache-first for all app shell + QRH data so the app works fully offline.
  * Bump CACHE_VERSION whenever shell assets change — old caches are purged on activate.
  */
-const CACHE_VERSION = 'asu-v1';
+const CACHE_VERSION = 'asu-v2';
 const APP_SHELL = [
   './',
   './index.html',
