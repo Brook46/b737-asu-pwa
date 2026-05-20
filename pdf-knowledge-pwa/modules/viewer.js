@@ -1,21 +1,27 @@
 // Horizontal page-by-page PDF viewer.
 //
-// Supports multiple concurrent mounts (for side-by-side split view): render
-// cancellation and markup wiring are tracked per container, not globally.
-// Each mount also keeps a back/forward history for in-PDF link jumps, and
-// centres the chosen page in the viewport.
+// Pages are virtualised: every page gets a correctly-sized placeholder so
+// scroll geometry is stable, but a page's canvas is only painted when it
+// scrolls near the viewport (IntersectionObserver). A rendered-page cap frees
+// the canvases furthest from the active page, so large manuals (700+ pages)
+// stay within a small, fixed memory budget and don't crash the tab.
+//
+// Supports multiple concurrent mounts (split view), per-mount back/forward
+// history for in-PDF link jumps, freehand + shape markup, and centres the
+// chosen page in the viewport.
 
 import { pdfjsLib } from './pdf-ingest.js';
 import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js';
 
 const docCache = new Map();
-const tokens = new WeakMap();         // container -> current render token
+const tokens = new Map();             // container -> current render token
 const markupHandles = new Map();      // container -> { applyMode }
 
-// Markup tool state is module-level so every pane shares the active tool.
+const MAX_RENDERED = 10;              // hard cap on simultaneously painted pages
+
 let markupTool = null;                // null|pen|highlight|line|arrow|box|text|eraser
 let markupColor = '#ff3b30';
-let markupWidth = 0.006;              // normalised stroke width
+let markupWidth = 0.006;
 const HL_WIDTH = 0.028;
 const ERASE_RADIUS = 0.022;
 const TEXT_SIZE = 0.026;
@@ -33,9 +39,8 @@ async function loadDoc(fileId) {
 export function clearViewerCache() {
   docCache.clear();
   markupHandles.clear();
+  tokens.clear();
 }
-
-// --- Markup tool API ---------------------------------------------------------
 
 export function setMarkupTool(tool) {
   markupTool = tool || null;
@@ -46,6 +51,11 @@ export function getMarkupTool() { return markupTool; }
 export function setMarkupColor(color) { markupColor = color; }
 export function setMarkupWidth(w) { markupWidth = w; }
 
+/**
+ * Find every text item on a page that matches the query and return one rect
+ * per item — so the caller can highlight the actual words, not a big box.
+ * @returns {Promise<{rects:number[][]}|null>}
+ */
 export async function findQueryHighlight(fileId, pageNum, query) {
   if (!query || !query.trim()) return null;
   const doc = await loadDoc(fileId);
@@ -53,65 +63,64 @@ export async function findQueryHighlight(fileId, pageNum, query) {
   const text = await page.getTextContent();
   const terms = query.toLowerCase().match(/[a-z0-9֐-׿]+/g) || [];
   if (!terms.length) return null;
-  const viewport = page.getViewport({ scale: 1 });
-  const matches = [];
+  const rects = [];
   for (const it of text.items) {
-    if (!it.str) continue;
+    if (!it.str || !it.str.trim()) continue;
     if (!terms.some((t) => it.str.toLowerCase().includes(t))) continue;
     const tx = it.transform;
-    matches.push({ x: tx[4], y: tx[5], w: it.width || (tx[0] * (it.str.length || 1)), h: it.height || Math.abs(tx[3]) || 12 });
+    const x = tx[4];
+    const y = tx[5];
+    const w = it.width || (tx[0] * (it.str.length || 1));
+    const h = it.height || Math.abs(tx[3]) || 11;
+    rects.push([x - 1, y - 1, x + w + 1, y + h + 1]);
   }
-  if (!matches.length) return null;
-  const minX = Math.min(...matches.map((m) => m.x)) - 4;
-  const maxX = Math.max(...matches.map((m) => m.x + m.w)) + 4;
-  const minY = Math.min(...matches.map((m) => m.y)) - 4;
-  const maxY = Math.max(...matches.map((m) => m.y + m.h)) + 4;
-  return {
-    rect: [Math.max(0, minX), Math.max(0, minY), Math.min(viewport.width, maxX), Math.min(viewport.height, maxY)],
-    matchCount: matches.length,
-  };
+  return rects.length ? { rects } : null;
 }
 
 /**
  * Mount a PDF into a horizontal scroll container.
  * @param {HTMLElement} container
- * @param {string} fileId
- * @param {object} opts { startPage, highlights, onPageChange, markMemory, onHistoryChange }
+ * @param {object} opts { startPage, highlights:[{pageNum,rect}], onPageChange,
+ *                         markMemory, onHistoryChange }
  */
 export async function mountPdf(container, fileId, opts = {}) {
   const { startPage = 1, highlights = [], onPageChange, markMemory = false, onHistoryChange } = opts;
   const doc = await loadDoc(fileId);
   const myToken = Symbol('render');
+  for (const c of [...tokens.keys()]) if (!c.isConnected) tokens.delete(c);
+  for (const c of [...markupHandles.keys()]) if (!c.isConnected) markupHandles.delete(c);
   tokens.set(container, myToken);
   const live = () => tokens.get(container) === myToken;
-  // Drop markup handles for panes that were removed from the DOM.
-  for (const c of [...markupHandles.keys()]) if (!c.isConnected) markupHandles.delete(c);
   container.innerHTML = '';
   container.setAttribute('data-fileid', fileId);
 
   const containerHeight = Math.max(320, container.clientHeight - 16);
+
+  // Uniform page size sampled from page 1; renderOne self-corrects per page.
+  const first = await doc.getPage(1);
+  const fv = first.getViewport({ scale: 1 });
+  const baseScale = Math.min(3, Math.max(0.5, containerHeight / fv.height));
+  const baseDim = { width: Math.floor(fv.width * baseScale), height: Math.floor(fv.height * baseScale) };
+
   const pageEls = [];
-  const highlightByPage = new Map(highlights.filter((h) => h.rect).map((h) => [h.pageNum, h.rect]));
+  const wrapToEl = new Map();
+  const highlightByPage = new Map();
+  for (const h of highlights) {
+    if (!h.rect) continue;
+    if (!highlightByPage.has(h.pageNum)) highlightByPage.set(h.pageNum, []);
+    highlightByPage.get(h.pageNum).push(h.rect);
+  }
   const backStack = [];
   const fwdStack = [];
 
-  const pageDims = new Array(doc.numPages);
   for (let i = 1; i <= doc.numPages; i++) {
-    const p = await doc.getPage(i);
-    const v1 = p.getViewport({ scale: 1 });
-    const fitScale = Math.min(3, Math.max(0.5, containerHeight / v1.height));
-    const v = p.getViewport({ scale: fitScale });
-    pageDims[i - 1] = { width: Math.floor(v.width), height: Math.floor(v.height), scale: fitScale, page: p };
-  }
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const dim = pageDims[i - 1];
     const wrap = document.createElement('div');
     wrap.className = 'pdf-page';
     wrap.setAttribute('data-page', String(i));
-    wrap.style.width = dim.width + 'px';
-    wrap.style.height = dim.height + 'px';
+    wrap.style.width = baseDim.width + 'px';
+    wrap.style.height = baseDim.height + 'px';
     const canvas = document.createElement('canvas');
+    canvas.width = 0; canvas.height = 0;
     const highlightLayer = document.createElement('div');
     highlightLayer.className = 'pdf-highlight-layer';
     const memoryLayer = document.createElement('div');
@@ -120,10 +129,14 @@ export async function mountPdf(container, fileId, opts = {}) {
     linkLayer.className = 'pdf-link-layer';
     const drawLayer = document.createElement('canvas');
     drawLayer.className = 'pdf-draw-layer';
+    drawLayer.width = 0; drawLayer.height = 0;
     wrap.append(canvas, highlightLayer, memoryLayer, linkLayer, drawLayer);
     container.appendChild(wrap);
-    const el = { wrap, canvas, linkLayer, highlightLayer, memoryLayer, drawLayer, dim, pageNum: i, strokes: [], current: null, dirty: false };
+    const el = { wrap, canvas, linkLayer, highlightLayer, memoryLayer, drawLayer,
+      dim: { ...baseDim }, pageNum: i, strokes: [], current: null, dirty: false,
+      rendered: false, rendering: false };
     pageEls.push(el);
+    wrapToEl.set(wrap, el);
     attachMarkup(el);
   }
 
@@ -238,96 +251,110 @@ export async function mountPdf(container, fileId, opts = {}) {
     persistMarkup(el);
   }
 
-  // --- active page tracking ---
+  // --- lazy rendering ---
   let activePage = startPage;
   let suppressIoUntil = 0;
-  function recomputeActive() {
-    if (!live() || Date.now() < suppressIoUntil) return;
-    const cLeft = container.getBoundingClientRect().left;
-    let best = activePage, bestDist = Infinity;
-    for (const p of pageEls) {
-      const r = p.wrap.getBoundingClientRect();
-      const d = Math.abs((r.left + r.width / 2) - (cLeft + container.clientWidth / 2));
-      if (d < bestDist) { bestDist = d; best = +p.wrap.getAttribute('data-page'); }
-    }
-    if (best !== activePage) { activePage = best; onPageChange && onPageChange(activePage); }
-  }
-  const io = new IntersectionObserver(() => recomputeActive(), { root: container, threshold: [0, 0.5, 1] });
-  pageEls.forEach((p) => io.observe(p.wrap));
-  let scrollRaf = 0;
-  container.addEventListener('scroll', () => {
-    if (scrollRaf) return;
-    scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; recomputeActive(); });
-  });
 
-  async function renderOne(pageNum, el) {
-    if (!live()) return;
-    const page = el.dim.page;
-    const viewport = page.getViewport({ scale: el.dim.scale });
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    el.canvas.width = Math.floor(viewport.width * dpr);
-    el.canvas.height = Math.floor(viewport.height * dpr);
-    el.canvas.style.width = Math.floor(viewport.width) + 'px';
-    el.canvas.style.height = Math.floor(viewport.height) + 'px';
-    for (const layer of [el.linkLayer, el.highlightLayer, el.memoryLayer, el.drawLayer]) {
-      layer.style.width = el.canvas.style.width;
-      layer.style.height = el.canvas.style.height;
-    }
-    const ctx = el.canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const annots = await page.getAnnotations({ intent: 'display' }).catch(() => []);
+  function freePage(el) {
+    if (el.rendering) { el.freePending = true; return; }
+    el.canvas.width = 0; el.canvas.height = 0;
+    el.drawLayer.width = 0; el.drawLayer.height = 0;
     el.linkLayer.innerHTML = '';
-    for (const a of annots) {
-      if (a.subtype !== 'Link' || !a.rect) continue;
-      const r = rectToView(a.rect, viewport);
-      const link = document.createElement('a');
-      link.className = 'pdf-link';
-      link.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
-      if (a.url) {
-        link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.title = a.url;
-      } else if (a.dest) {
-        link.href = '#'; link.title = 'Follow link in this PDF';
-        link.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const target = await resolveDest(doc, a.dest);
-          if (target) navigate(target, { push: true, smooth: true });
-        });
-      } else { continue; }
-      el.linkLayer.appendChild(link);
-    }
-
-    const hRect = highlightByPage.get(pageNum);
     el.highlightLayer.innerHTML = '';
-    if (hRect) {
-      const r = rectToView(hRect, viewport);
-      const hl = document.createElement('div');
-      hl.className = 'pdf-highlight';
-      hl.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
-      el.highlightLayer.appendChild(hl);
-    }
-
     el.memoryLayer.innerHTML = '';
-    if (markMemory) {
-      try {
-        const text = await page.getTextContent();
-        for (const rect of memoryItemRects(text)) {
-          const r = rectToView(rect, viewport);
-          const box = document.createElement('div');
-          box.className = 'pdf-memory-box';
-          box.title = 'Memory item — (#) limitation';
-          box.style.cssText = `left:${r.left - 3}px;top:${r.top - 2}px;width:${r.width + 6}px;height:${r.height + 4}px`;
-          el.memoryLayer.appendChild(box);
-        }
-      } catch { /* best-effort */ }
-    }
+    el.rendered = false;
+  }
 
+  function pruneRendered() {
+    const rendered = pageEls.filter((e) => e.rendered && !e.rendering);
+    if (rendered.length <= MAX_RENDERED) return;
+    rendered.sort((a, b) => Math.abs(b.pageNum - activePage) - Math.abs(a.pageNum - activePage));
+    for (const el of rendered.slice(0, rendered.length - MAX_RENDERED)) freePage(el);
+  }
+
+  async function renderOne(el) {
+    if (el.rendered || el.rendering) return;
+    if (tokens.get(container) !== myToken) return;
+    el.rendering = true;
     try {
-      const record = await getMarkup(fileId, pageNum);
-      el.strokes = record && record.strokes ? record.strokes : [];
-    } catch { el.strokes = []; }
-    renderMarkup(el);
+      const page = await doc.getPage(el.pageNum);
+      const v1 = page.getViewport({ scale: 1 });
+      const fitScale = Math.min(3, Math.max(0.5, containerHeight / v1.height));
+      const viewport = page.getViewport({ scale: fitScale });
+      el.dim = { width: Math.floor(viewport.width), height: Math.floor(viewport.height), scale: fitScale };
+      if (Math.abs(parseInt(el.wrap.style.width, 10) - el.dim.width) > 1) {
+        el.wrap.style.width = el.dim.width + 'px';
+        el.wrap.style.height = el.dim.height + 'px';
+      }
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      el.canvas.width = Math.floor(viewport.width * dpr);
+      el.canvas.height = Math.floor(viewport.height * dpr);
+      el.canvas.style.width = Math.floor(viewport.width) + 'px';
+      el.canvas.style.height = Math.floor(viewport.height) + 'px';
+      for (const layer of [el.linkLayer, el.highlightLayer, el.memoryLayer, el.drawLayer]) {
+        layer.style.width = el.canvas.style.width;
+        layer.style.height = el.canvas.style.height;
+      }
+      const ctx = el.canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const annots = await page.getAnnotations({ intent: 'display' }).catch(() => []);
+      el.linkLayer.innerHTML = '';
+      for (const a of annots) {
+        if (a.subtype !== 'Link' || !a.rect) continue;
+        const r = rectToView(a.rect, viewport);
+        const link = document.createElement('a');
+        link.className = 'pdf-link';
+        link.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
+        if (a.url) {
+          link.href = a.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.title = a.url;
+        } else if (a.dest) {
+          link.href = '#'; link.title = 'Follow link in this PDF';
+          link.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const target = await resolveDest(doc, a.dest);
+            if (target) navigate(target, { push: true, smooth: true });
+          });
+        } else { continue; }
+        el.linkLayer.appendChild(link);
+      }
+
+      el.highlightLayer.innerHTML = '';
+      for (const hr of (highlightByPage.get(el.pageNum) || [])) {
+        const r = rectToView(hr, viewport);
+        const hl = document.createElement('div');
+        hl.className = 'pdf-highlight';
+        hl.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
+        el.highlightLayer.appendChild(hl);
+      }
+
+      el.memoryLayer.innerHTML = '';
+      if (markMemory) {
+        try {
+          const text = await page.getTextContent();
+          for (const rect of memoryItemRects(text)) {
+            const r = rectToView(rect, viewport);
+            const box = document.createElement('div');
+            box.className = 'pdf-memory-box';
+            box.title = 'Memory item — (#) limitation';
+            box.style.cssText = `left:${r.left - 3}px;top:${r.top - 2}px;width:${r.width + 6}px;height:${r.height + 4}px`;
+            el.memoryLayer.appendChild(box);
+          }
+        } catch { /* best-effort */ }
+      }
+
+      try {
+        const record = await getMarkup(fileId, el.pageNum);
+        el.strokes = record && record.strokes ? record.strokes : [];
+      } catch { el.strokes = []; }
+      renderMarkup(el);
+      el.rendered = true;
+    } finally {
+      el.rendering = false;
+      if (el.freePending) { el.freePending = false; freePage(el); }
+      else pruneRendered();
+    }
   }
 
   function memoryItemRects(text) {
@@ -356,11 +383,46 @@ export async function mountPdf(container, fileId, opts = {}) {
     return { left: Math.min(vx1, vx2), top: Math.min(vy1, vy2), width: Math.abs(vx2 - vx1), height: Math.abs(vy2 - vy1) };
   }
 
-  // Centre the page in the viewport.
+  // Render visible pages, free the ones that scroll well away.
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const el = wrapToEl.get(e.target);
+      if (!el) continue;
+      if (e.isIntersecting) renderOne(el).catch((err) => console.warn('render failed', el.pageNum, err));
+    }
+    recomputeActive();
+  }, { root: container, rootMargin: '150px 700px 150px 700px', threshold: 0 });
+  pageEls.forEach((p) => io.observe(p.wrap));
+
+  function recomputeActive() {
+    if (Date.now() < suppressIoUntil) return;
+    const cMid = container.getBoundingClientRect().left + container.clientWidth / 2;
+    let best = activePage, bestDist = Infinity;
+    for (const p of pageEls) {
+      const r = p.wrap.getBoundingClientRect();
+      if (r.width === 0) continue;
+      const d = Math.abs((r.left + r.width / 2) - cMid);
+      if (d < bestDist) { bestDist = d; best = +p.wrap.getAttribute('data-page'); }
+    }
+    if (best !== activePage) {
+      activePage = best;
+      onPageChange && onPageChange(activePage);
+    }
+  }
+  let scrollRaf = 0;
+  container.addEventListener('scroll', () => {
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; recomputeActive(); });
+  });
+
   function scrollToPage(n, { smooth = false } = {}) {
     const idx = Math.max(1, Math.min(doc.numPages, n)) - 1;
     const el = pageEls[idx];
     if (!el) return;
+    // paint the target (and neighbours) right away so the jump is instant
+    for (let j = Math.max(0, idx - 2); j <= Math.min(pageEls.length - 1, idx + 2); j++) {
+      renderOne(pageEls[j]).catch(() => {});
+    }
     const wrapRect = el.wrap.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
     const centreOffset = (container.clientWidth - wrapRect.width) / 2;
@@ -371,7 +433,6 @@ export async function mountPdf(container, fileId, opts = {}) {
     onPageChange && onPageChange(activePage);
   }
 
-  // Navigate with optional back/forward history (used by in-PDF links).
   function navigate(n, { push = false, smooth = false } = {}) {
     const dest = Math.max(1, Math.min(doc.numPages, n));
     if (push && dest !== activePage) {
@@ -397,14 +458,22 @@ export async function mountPdf(container, fileId, opts = {}) {
     onHistoryChange && onHistoryChange({ canBack: backStack.length > 0, canForward: fwdStack.length > 0 });
   }
 
-  const renderQueue = pageEls.map((p, idx) => ({ page: idx + 1, el: p }));
-  renderQueue.sort((a, b) => Math.abs(a.page - startPage) - Math.abs(b.page - startPage));
-  (async () => {
-    for (const { page, el } of renderQueue) {
-      if (!live()) return;
-      try { await renderOne(page, el); } catch (err) { console.warn('page render failed', page, err); }
+  async function getOutline() {
+    let raw = null;
+    try { raw = await doc.getOutline(); } catch { raw = null; }
+    if (!raw || !raw.length) return [];
+    const flat = [];
+    async function walk(items, level) {
+      for (const it of items) {
+        let page = null;
+        try { page = await resolveDest(doc, it.dest); } catch {}
+        flat.push({ title: it.title || '(untitled)', page, level });
+        if (it.items && it.items.length) await walk(it.items, level + 1);
+      }
     }
-  })();
+    await walk(raw, 0);
+    return flat;
+  }
 
   setTimeout(() => { scrollToPage(startPage, { smooth: false }); emitHistory(); }, 50);
 
@@ -415,6 +484,7 @@ export async function mountPdf(container, fileId, opts = {}) {
     goBack, goForward,
     undo: () => undo(activePage),
     clearPage: () => clearPage(activePage),
+    getOutline,
   };
 }
 

@@ -7,14 +7,14 @@
 // uploaded PDFs, so the anchor-admin titles are what make them land precisely.
 
 export const PHASES = [
-  { id: 'dispatch',     label: 'Dispatch',      aov: false },
-  { id: 'takeoff',      label: 'Takeoff',       aov: true  },
-  { id: 'climb',        label: 'Climb',         aov: false },
-  { id: 'cruise',       label: 'Cruise',        aov: false },
-  { id: 'descent',      label: 'Descent',       aov: false },
-  { id: 'approach',     label: 'Approach',      aov: true  },
-  { id: 'landing',      label: 'Landing',       aov: true  },
-  { id: 'afterLanding', label: 'After Landing', aov: false },
+  { id: 'dispatch',     label: 'Dispatch' },
+  { id: 'takeoff',      label: 'Takeoff' },
+  { id: 'climb',        label: 'Climb' },
+  { id: 'cruise',       label: 'Cruise' },
+  { id: 'descent',      label: 'Descent' },
+  { id: 'approach',     label: 'Approach' },
+  { id: 'landing',      label: 'Landing' },
+  { id: 'afterLanding', label: 'After Landing' },
 ];
 
 export const TOGGLES = [
@@ -78,8 +78,6 @@ export function sectionsFor(phaseId, toggleId) {
   return (phase && phase[toggleId]) || [];
 }
 
-export const AOV_CEILING_FT = 10000;
-
 // Pure altitude->phase mapping for GPS auto-detect. `trend` is +1 climbing,
 // -1 descending, 0 level. Without a barometric/FMC source this is a best
 // effort — manual phase selection always overrides it.
@@ -95,8 +93,4 @@ export function phaseForAltitude(altFt, trend) {
   if (altFt > 3000) return 'descent';
   if (altFt > 1000) return 'approach';
   return 'landing';
-}
-
-export function isAov(altFt) {
-  return Number.isFinite(altFt) && altFt < AOV_CEILING_FT;
 }

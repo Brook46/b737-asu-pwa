@@ -4,7 +4,7 @@ import * as storage from './modules/storage.js';
 import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
 import * as searchMod from './modules/search.js';
 import { extractiveSummary } from './modules/summarize.js?v=8';
-import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth } from './modules/viewer.js?v=12';
+import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth } from './modules/viewer.js?v=14';
 import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=2';
 import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js';
 import { extractAnchors } from './modules/anchor-extract.js';
@@ -18,26 +18,29 @@ import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js';
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  tailSelect: $('tail-select'), gpsReadout: $('gps-readout'), aovBadge: $('aov-badge'),
+  tailSelect: $('tail-select'), gpsReadout: $('gps-readout'),
   gpsToggle: $('gps-toggle'), scratchToggle: $('scratch-toggle'), themeToggle: $('theme-toggle'),
-  phasePath: $('phase-path'), contextToggles: $('context-toggles'), aovBanner: $('aov-banner'),
-  briefingTitle: $('briefing-title'), briefingList: $('briefing-list'),
+  phasePath: $('phase-path'), contextToggles: $('context-toggles'),
+  briefingTitle: $('briefing-title'), briefingList: $('briefing-list'), briefingAddBm: $('briefing-add-bm'),
   searchForm: $('search-form'), searchInput: $('search-input'),
   jumpResults: $('jump-results'), answerPanel: $('answer-panel'),
-  notesList: $('notes-list'),
+  notesList: $('notes-list'), filesList: $('files-list'),
   tailForm: $('tail-form'), tailReg: $('tail-reg'), tailLabel: $('tail-label'), tailList: $('tail-list'),
   fileInput: $('file-input'), personalInput: $('personal-input'), ingestStatus: $('ingest-status'),
   libraryList: $('library-list'), storageInfo: $('storage-info'),
   viewerOverlay: $('viewer-overlay'), viewerTabs: $('viewer-tabs'), viewerTitle: $('viewer-title'),
-  splitToggle: $('split-toggle'), viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
+  sidebarToggle: $('sidebar-toggle'), splitToggle: $('split-toggle'),
+  viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
   mkToggle: $('mk-toggle'), markupBar: $('markup-bar'), mkUndo: $('mk-undo'), mkClear: $('mk-clear'),
+  viewerSidebar: $('viewer-sidebar'), vsChapters: $('vs-chapters'), vsBookmarks: $('vs-bookmarks'), vsAddBm: $('vs-add-bm'),
   pdfPanes: $('pdf-panes'), viewerNotes: $('viewer-notes'),
   adminOverlay: $('admin-overlay'), adminClose: $('admin-close'), adminBody: $('admin-body'),
   importOverlay: $('import-overlay'), importBody: $('import-body'),
+  bookmarkOverlay: $('bookmark-overlay'), bookmarkBody: $('bookmark-body'), bookmarkClose: $('bookmark-close'),
   noteOverlay: $('note-overlay'), noteTitle: $('note-title'), noteClose: $('note-close'), noteBody: $('note-body'),
   scratchpad: $('scratchpad'), scratchHead: $('scratch-head'), scratchClose: $('scratch-close'),
   scratchText: $('scratch-text'),
-  aovStrip: $('aov-strip'), tabDock: $('tab-dock'), toast: $('toast'),
+  tabDock: $('tab-dock'), toast: $('toast'),
 };
 
 const state = {
@@ -45,13 +48,13 @@ const state = {
   manuals: new Map(),
   tails: [],
   activeTail: null,
-  noteCounts: new Map(),
+  noteCounts: new Map(),       // anchorId -> count
+  fileNoteCounts: new Map(),   // fileId -> count
   view: 'phase',
   phase: 'dispatch',
   toggle: 'normal',
   gpsAuto: false,
   manualPhaseUntil: 0,
-  // tabs: open documents; panes: 1-2 viewports each showing a tab.
   viewer: { tabs: [], panes: [], focused: 0, split: false },
   markup: { on: false, tool: 'pen', color: '#ff3b30', width: 0.006 },
 };
@@ -123,9 +126,14 @@ function restoreViewerState(saved) {
 
 async function refreshNoteCounts() {
   const all = await storage.getAllAnnotations();
-  const m = new Map();
-  for (const n of all) m.set(n.anchorId, (m.get(n.anchorId) || 0) + 1);
-  state.noteCounts = m;
+  const byAnchor = new Map();
+  const byFile = new Map();
+  for (const n of all) {
+    byAnchor.set(n.anchorId, (byAnchor.get(n.anchorId) || 0) + 1);
+    byFile.set(n.fileId, (byFile.get(n.fileId) || 0) + 1);
+  }
+  state.noteCounts = byAnchor;
+  state.fileNoteCounts = byFile;
 }
 
 // --- Event wiring ------------------------------------------------------------
@@ -147,12 +155,18 @@ function wireEvents() {
     const files = [...e.target.files]; e.target.value = '';
     if (files.length) handlePersonalFiles(files);
   });
+  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({}));
 
   els.searchForm.addEventListener('submit', (e) => { e.preventDefault(); runJumpSearch(els.searchInput.value.trim()); });
 
   els.viewerClose.addEventListener('click', minimizeViewer);
   els.viewerNote.addEventListener('click', openNotesForActiveTab);
   els.splitToggle.addEventListener('click', toggleSplit);
+  els.sidebarToggle.addEventListener('click', toggleSidebar);
+  els.vsAddBm.addEventListener('click', () => {
+    const tab = paneTab(state.viewer.focused);
+    openBookmarkModal(tab ? { fileId: tab.fileId, pageNum: tab.pageNum } : {});
+  });
 
   els.mkToggle.addEventListener('click', () => setMarkupOn(!state.markup.on));
   els.markupBar.querySelectorAll('.mk-tool').forEach((btn) => {
@@ -181,7 +195,8 @@ function wireEvents() {
 
   els.adminClose.addEventListener('click', () => els.adminOverlay.classList.add('hidden'));
   els.noteClose.addEventListener('click', () => els.noteOverlay.classList.add('hidden'));
-  [els.adminOverlay, els.noteOverlay].forEach((ov) => {
+  els.bookmarkClose.addEventListener('click', () => els.bookmarkOverlay.classList.add('hidden'));
+  [els.adminOverlay, els.noteOverlay, els.bookmarkOverlay].forEach((ov) => {
     ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.add('hidden'); });
   });
   window.addEventListener('resize', debounce(remountViewer, 250));
@@ -196,17 +211,19 @@ function switchView(view) {
   document.querySelectorAll('.view-tab').forEach((t) =>
     t.setAttribute('aria-selected', t.getAttribute('data-view') === view ? 'true' : 'false'));
   $('view-phase').classList.toggle('hidden', view !== 'phase');
-  $('view-search').classList.toggle('hidden', view !== 'search');
+  $('view-bookmarks').classList.toggle('hidden', view !== 'bookmarks');
   $('view-notes').classList.toggle('hidden', view !== 'notes');
+  $('view-files').classList.toggle('hidden', view !== 'files');
   $('view-library').classList.toggle('hidden', view !== 'library');
   if (view === 'notes') renderNotesView();
+  if (view === 'files') renderFilesView();
 }
 
 // --- Phase dashboard ---------------------------------------------------------
 
 function buildPhasePath() {
   els.phasePath.innerHTML = PHASES.map((p) => `
-    <button class="phase-node ${p.aov ? 'aov' : ''}" role="tab" data-phase="${p.id}">
+    <button class="phase-node" role="tab" data-phase="${p.id}">
       <span class="pn-rail"><span class="pn-dot"></span></span>
       <span class="pn-body">
         <span class="pn-label">${escapeHtml(p.label)}</span>
@@ -293,10 +310,10 @@ async function renderBriefing() {
         <div class="briefing-section-head">
           <span class="bs-caret">›</span>
           <span class="bs-name">${escapeHtml(r.sec.label)}</span>
-          <span class="bs-meta">${a.length ? a.length + ' anchor(s)' : 'no anchors found'}</span>
+          <span class="bs-meta">${a.length ? a.length + ' bookmark(s)' : 'no bookmarks found'}</span>
         </div>
         <ul class="briefing-anchors hidden">
-          ${a.length ? a.map(anchorRowHtml).join('') : '<li class="briefing-empty">No matching content — add anchors in Library → Anchors.</li>'}
+          ${a.length ? a.map(anchorRowHtml).join('') : '<li class="briefing-empty">No matching content — use “+ Add bookmark”.</li>'}
         </ul>
       </li>`;
   }).join('') || '<li class="briefing-empty">No sections for this phase.</li>';
@@ -318,10 +335,13 @@ function anchorRowHtml(a) {
   const count = state.noteCounts.get(a.anchorId) || 0;
   return `
     <li class="anchor-row" data-anchor="${escapeHtml(a.anchorId)}">
-      <span class="ar-id">${escapeHtml(a.value)}</span>
-      <span class="ar-title">${escapeHtml(a.title || manualLabel(a.manualType))}</span>
-      ${count ? `<span class="ar-note-count">${count}✎</span>` : ''}
-      <button class="btn ghost ar-note" data-act="note" title="Notes">✎</button>
+      <div class="ar-main">
+        <span class="ar-id">${escapeHtml(a.value)}</span>
+        <span class="ar-title">${escapeHtml(a.title || manualLabel(a.manualType))}</span>
+        ${count ? `<span class="ar-note-count">${count}✎</span>` : ''}
+        <button class="btn ghost ar-note" data-act="note" title="Notes">✎</button>
+      </div>
+      ${a.excerpt ? `<div class="ar-excerpt">${escapeHtml(a.excerpt)}</div>` : ''}
     </li>`;
 }
 
@@ -345,7 +365,7 @@ async function prepPhaseTabs(resolved) {
     seen.add(a.fileId);
     newTabs.push(makeTab(a));
   }
-  if (!newTabs.length) { toast('No content anchored for this phase yet.'); return; }
+  if (!newTabs.length) { toast('No content bookmarked for this phase yet.'); return; }
   state.viewer.tabs = newTabs;
   state.viewer.panes = [{ tabId: newTabs[0].id }];
   state.viewer.focused = 0;
@@ -401,7 +421,7 @@ async function setActiveTail(reg) {
   renderBriefing();
 }
 
-// --- Library + import --------------------------------------------------------
+// --- Library + Files + import ------------------------------------------------
 
 function renderLibrary() {
   const files = [...state.files.values()].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
@@ -413,17 +433,19 @@ function renderLibrary() {
   els.libraryList.innerHTML = files.map((f) => {
     const m = state.manuals.get(f.id);
     const inEffect = !fileIds || fileIds.has(f.id);
+    const nc = state.fileNoteCounts.get(f.id) || 0;
     const lepBadge = m && m.lep && m.lep.length ? `<span class="badge">LEP ${m.lep.length}*</span>` : '';
     const cbBadge = m && m.changeBarPages && m.changeBarPages.length ? `<span class="badge">CB ${m.changeBarPages.length}</span>` : '';
+    const noteFlag = nc ? `<span class="note-flag">${nc} ✎</span>` : '';
     return `
       <li data-id="${escapeHtml(f.id)}" style="${inEffect ? '' : 'opacity:.45'}">
         <span class="badge">${escapeHtml(m ? m.manualType : '?')}</span>
         <span class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
-        ${lepBadge}${cbBadge}
+        ${lepBadge}${cbBadge}${noteFlag}
         <span class="meta">${escapeHtml(fmtBytes(f.sizeBytes))} · ${f.numPages || '?'}p</span>
         <span class="row-actions">
           <button class="btn ghost" data-act="open">Open</button>
-          <button class="btn ghost" data-act="anchors">Anchors</button>
+          <button class="btn ghost" data-act="anchors">Bookmarks</button>
           <button class="btn ghost" data-act="revise">Revise</button>
           <button class="btn ghost danger" data-act="del">✕</button>
         </span>
@@ -435,6 +457,33 @@ function renderLibrary() {
     li.querySelector('[data-act="anchors"]').addEventListener('click', () => openAnchorAdmin(id));
     li.querySelector('[data-act="revise"]').addEventListener('click', () => reviseManual(id));
     li.querySelector('[data-act="del"]').addEventListener('click', () => confirmDelete(id));
+  });
+}
+
+async function renderFilesView() {
+  const files = [...state.files.values()].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  if (!files.length) {
+    els.filesList.innerHTML = '<li class="briefing-empty">No documents yet — add some in Library.</li>';
+    return;
+  }
+  const anchors = await kg.allAnchors();
+  els.filesList.innerHTML = files.map((f) => {
+    const m = state.manuals.get(f.id);
+    const bm = anchors.filter((a) => a.fileId === f.id).length;
+    const nc = state.fileNoteCounts.get(f.id) || 0;
+    return `
+      <li class="file-card" data-id="${escapeHtml(f.id)}">
+        <span class="fc-badge">${escapeHtml(m ? m.manualType : '?')}</span>
+        <span class="fc-body">
+          <div class="fc-name">${escapeHtml(f.name)}</div>
+          <div class="fc-meta">${f.numPages || '?'} pages · ${bm} bookmark(s)${nc ? ` · ${nc} note(s)` : ''}</div>
+        </span>
+        ${nc ? `<span class="note-flag">${nc} ✎</span>` : ''}
+        <button class="btn" data-act="open">Open</button>
+      </li>`;
+  }).join('');
+  els.filesList.querySelectorAll('.file-card').forEach((card) => {
+    card.addEventListener('click', () => openFileInViewer(card.getAttribute('data-id'), 1));
   });
 }
 
@@ -555,7 +604,7 @@ async function processImport(file, meta) {
     } else if (meta.manualType === 'PERSONAL') {
       setIngestStatus(`Imported personal document ${file.name} (${numPages} pages).`, 'ok');
     } else {
-      setIngestStatus(`Imported ${file.name}: ${anchors.length} anchor(s) auto-extracted, ${manual.lep.length} LEP page(s).`, 'ok');
+      setIngestStatus(`Imported ${file.name}: ${anchors.length} bookmark(s) auto-extracted, ${manual.lep.length} LEP page(s).`, 'ok');
     }
     return id;
   } catch (err) {
@@ -567,7 +616,7 @@ async function processImport(file, meta) {
 
 async function confirmDelete(id) {
   const file = state.files.get(id);
-  if (!file || !confirm(`Delete "${file.name}"? Notes, anchors and markup for it are also removed.`)) return;
+  if (!file || !confirm(`Delete "${file.name}"? Notes, bookmarks and markup for it are also removed.`)) return;
   await storage.deleteFile(id);
   searchMod.removeFileFromIndex(id);
   state.files.delete(id);
@@ -602,7 +651,7 @@ function reviseManual(oldId) {
   input.click();
 }
 
-// --- Anchor admin ------------------------------------------------------------
+// --- Bookmark admin + add-bookmark modal -------------------------------------
 
 async function openAnchorAdmin(fileId) {
   const file = state.files.get(fileId);
@@ -645,7 +694,84 @@ async function scanChangeBars(fileId, btn) {
   }
 }
 
-// --- Viewer (multi-tab, split panes, persistent dock) ------------------------
+// Add a bookmark to a specific file, optionally linking a chosen paragraph.
+function openBookmarkModal(preset = {}) {
+  const files = [...state.files.values()];
+  if (!files.length) { toast('Add a document first.'); return; }
+  let chosenExcerpt = '';
+  els.bookmarkBody.innerHTML = `
+    <div class="field">
+      <label for="bm-file">Document</label>
+      <select id="bm-file">${files.map((f) =>
+        `<option value="${escapeHtml(f.id)}" ${f.id === preset.fileId ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label for="bm-page">Page</label>
+      <input type="text" id="bm-page" inputmode="numeric" value="${preset.pageNum || ''}" placeholder="Page number" /></div>
+    <div class="field"><label for="bm-ref">Reference / ID</label>
+      <input type="text" id="bm-ref" placeholder="e.g. 13.20.3, 36-09, or a short label" /></div>
+    <div class="field"><label for="bm-title">Title</label>
+      <input type="text" id="bm-title" placeholder="Short description" /></div>
+    <div class="field">
+      <label>Paragraph (optional — tap one to link &amp; show it)</label>
+      <ul class="para-list" id="bm-paras"><li class="vs-empty">Pick a document and page to load paragraphs.</li></ul>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="bm-cancel">Cancel</button>
+      <button class="btn primary" id="bm-save">Save bookmark</button>
+    </div>`;
+  els.bookmarkOverlay.classList.remove('hidden');
+
+  async function loadParas() {
+    const fileId = $('bm-file').value;
+    const pg = parseInt($('bm-page').value, 10);
+    const list = $('bm-paras');
+    chosenExcerpt = '';
+    if (!fileId || !Number.isFinite(pg)) { list.innerHTML = '<li class="vs-empty">Pick a document and page to load paragraphs.</li>'; return; }
+    const pages = await storage.getPagesForFile(fileId);
+    const page = pages.find((p) => p.pageNum === pg);
+    const paras = page && page.text
+      ? page.text.split(/\n+/).map((s) => s.trim()).filter((s) => s.length > 30)
+      : [];
+    list.innerHTML = paras.length
+      ? paras.map((p, i) => `<li class="para-item" data-i="${i}" aria-selected="false">${escapeHtml(p.slice(0, 320))}</li>`).join('')
+      : '<li class="vs-empty">No paragraph text found on that page.</li>';
+    list.querySelectorAll('.para-item').forEach((li) => {
+      li.addEventListener('click', () => {
+        list.querySelectorAll('.para-item').forEach((x) => x.setAttribute('aria-selected', 'false'));
+        li.setAttribute('aria-selected', 'true');
+        chosenExcerpt = paras[+li.getAttribute('data-i')];
+        if (!$('bm-title').value) $('bm-title').value = chosenExcerpt.slice(0, 60);
+      });
+    });
+  }
+  $('bm-file').addEventListener('change', loadParas);
+  $('bm-page').addEventListener('change', loadParas);
+  $('bm-cancel').addEventListener('click', () => els.bookmarkOverlay.classList.add('hidden'));
+  $('bm-save').addEventListener('click', async () => {
+    const fileId = $('bm-file').value;
+    const pg = parseInt($('bm-page').value, 10);
+    const ref = $('bm-ref').value.trim();
+    const title = $('bm-title').value.trim();
+    if (!fileId || !Number.isFinite(pg) || !ref) { toast('Document, page and reference are required.'); return; }
+    const m = state.manuals.get(fileId);
+    const manualType = m ? m.manualType : 'PERSONAL';
+    const anchorType = anchorTypeFor(manualType);
+    await storage.putAnchor({
+      anchorId: `${fileId}:${anchorType}:${ref.toUpperCase()}`,
+      fileId, manualType, anchorType, value: ref, title,
+      pageNum: pg, source: 'manual', confidence: null,
+      excerpt: chosenExcerpt.slice(0, 260),
+    });
+    kg.invalidate(); await kg.load(true);
+    els.bookmarkOverlay.classList.add('hidden');
+    renderBriefing();
+    if (viewerVisible() && !els.viewerSidebar.classList.contains('hidden')) renderSidebar();
+    toast('Bookmark added.');
+  });
+  if (preset.fileId && preset.pageNum) loadParas();
+}
+
+// --- Viewer (multi-tab, split panes, sidebar, dock) --------------------------
 
 function makeTab(anchor, query = '') {
   const file = state.files.get(anchor.fileId);
@@ -673,9 +799,15 @@ function tabLabel(t) {
 }
 
 async function openAnchorInViewer(anchor, { query = '' } = {}) {
+  const hlQuery = query || anchor.excerpt || anchor.title || '';
   let tab = state.viewer.tabs.find((t) => t.fileId === anchor.fileId);
-  if (!tab) { tab = makeTab(anchor, query); state.viewer.tabs.push(tab); }
-  else Object.assign(tab, { pageNum: anchor.pageNum, anchor, query });
+  if (!tab) {
+    tab = makeTab(anchor, hlQuery);
+    state.viewer.tabs.push(tab);
+  } else {
+    Object.assign(tab, { pageNum: anchor.pageNum, anchor, query: hlQuery });
+  }
+  tab.highlightPage = anchor.pageNum;
   ensurePanes();
   state.viewer.panes[state.viewer.focused].tabId = tab.id;
   persistViewer();
@@ -690,7 +822,10 @@ async function openFileInViewer(fileId, pageNum, { query = '' } = {}) {
     const m = state.manuals.get(fileId);
     tab = { id: newTabId(), fileId, fileName: file.name, pageNum, query, anchor: null, manualType: m ? m.manualType : '' };
     state.viewer.tabs.push(tab);
-  } else Object.assign(tab, { pageNum, query });
+  } else {
+    Object.assign(tab, { pageNum, query });
+  }
+  tab.highlightPage = null;
   ensurePanes();
   state.viewer.panes[state.viewer.focused].tabId = tab.id;
   persistViewer();
@@ -809,6 +944,49 @@ function toggleSplit() {
   refreshViewer();
 }
 
+function toggleSidebar() {
+  const isHidden = els.viewerSidebar.classList.toggle('hidden');
+  els.sidebarToggle.setAttribute('aria-pressed', isHidden ? 'false' : 'true');
+  if (!isHidden) renderSidebar();
+}
+
+async function renderSidebar() {
+  if (els.viewerSidebar.classList.contains('hidden')) return;
+  const pane = state.viewer.panes[state.viewer.focused];
+  const tab = paneTab(state.viewer.focused);
+  if (!pane || !tab) return;
+
+  let outline = [];
+  if (pane.api && pane.api.getOutline) {
+    try { outline = await pane.api.getOutline(); } catch { outline = []; }
+  }
+  els.vsChapters.innerHTML = outline.length
+    ? outline.map((o) => `
+        <li class="vs-item" data-page="${o.page || ''}" style="padding-left:${9 + o.level * 12}px">
+          <span class="vs-title">${escapeHtml(o.title)}</span>
+          ${o.page ? `<span class="vs-page">${o.page}</span>` : ''}
+        </li>`).join('')
+    : '<li class="vs-empty">No chapter outline in this PDF.</li>';
+  els.vsChapters.querySelectorAll('.vs-item').forEach((li) => {
+    const pg = parseInt(li.getAttribute('data-page'), 10);
+    if (Number.isFinite(pg)) li.addEventListener('click', () => paneGoTo(state.viewer.focused, pg));
+  });
+
+  const anchors = (await kg.anchorsForFile(tab.fileId)).sort((a, b) => a.pageNum - b.pageNum);
+  els.vsBookmarks.innerHTML = anchors.length
+    ? anchors.map((a) => `
+        <li class="vs-item" data-anchor="${escapeHtml(a.anchorId)}">
+          <span class="vs-title">${escapeHtml(a.value)}${a.title ? ' — ' + escapeHtml(a.title) : ''}</span>
+          <span class="vs-page">${a.pageNum}</span>
+          ${state.noteCounts.get(a.anchorId) ? '<span class="vs-note">✎</span>' : ''}
+        </li>`).join('')
+    : '<li class="vs-empty">No bookmarks for this file yet.</li>';
+  els.vsBookmarks.querySelectorAll('.vs-item').forEach((li) => {
+    const a = anchors.find((x) => x.anchorId === li.getAttribute('data-anchor'));
+    if (a) li.addEventListener('click', () => openAnchorInViewer(a));
+  });
+}
+
 function buildPaneShells() {
   els.pdfPanes.innerHTML = state.viewer.panes.map((p, i) => `
     <div class="pdf-pane ${i === state.viewer.focused ? 'focused' : ''}" data-pane="${i}">
@@ -859,6 +1037,7 @@ async function refreshViewer() {
   }
   applyMarkup();
   refreshViewerFoot();
+  renderSidebar();
 }
 
 async function mountPane(i) {
@@ -867,7 +1046,7 @@ async function mountPane(i) {
   if (!pane || !tab || !pane.scrollEl) return;
   pane.headEl.querySelector('.pane-doc').textContent = tab.fileName;
   try {
-    const highlights = await collectHighlights(tab.fileId, tab.query);
+    const highlights = await collectHighlights(tab.fileId, tab.query, tab.highlightPage);
     const markMemory = ['FCOM', 'FCTM', 'QRH'].includes(tab.manualType);
     const api = await mountPdf(pane.scrollEl, tab.fileId, {
       startPage: tab.pageNum, highlights, markMemory,
@@ -917,6 +1096,7 @@ function setFocusedPane(i) {
     el.classList.toggle('focused', +el.getAttribute('data-pane') === i));
   persistViewer();
   refreshViewerFoot();
+  renderSidebar();
 }
 
 async function refreshViewerFoot() {
@@ -953,18 +1133,19 @@ function persistViewer() {
   });
 }
 
-async function collectHighlights(fileId, query) {
+async function collectHighlights(fileId, query, onlyPage) {
   if (!query) return [];
   const pages = await storage.getPagesForFile(fileId);
   const terms = query.toLowerCase().match(/[a-z0-9֐-׿]+/g) || [];
   if (!terms.length) return [];
   const out = [];
   for (const p of pages) {
+    if (onlyPage && p.pageNum !== onlyPage) continue;
     const hay = ((p.text || '') + ' ' + (p.annotationsText || '')).toLowerCase();
     if (!terms.some((t) => hay.includes(t))) continue;
     try {
       const h = await findQueryHighlight(fileId, p.pageNum, query);
-      if (h && h.rect) out.push({ pageNum: p.pageNum, rect: h.rect });
+      if (h && h.rects) for (const rect of h.rects) out.push({ pageNum: p.pageNum, rect });
     } catch { /* skip */ }
   }
   return out;
@@ -1030,7 +1211,7 @@ async function openNotes(anchor) {
       li.querySelector('[data-act="del-note"]').addEventListener('click', async () => {
         await notes.removeNote(n.noteId);
         await refreshNoteCounts();
-        renderBriefing();
+        renderBriefing(); renderLibrary();
         refresh();
       });
     }
@@ -1041,8 +1222,9 @@ async function openNotes(anchor) {
       if (!text && !pendingImg) return;
       await notes.addNote(anchor, { text, imageBlob: pendingImg });
       await refreshNoteCounts();
-      renderBriefing();
+      renderBriefing(); renderLibrary();
       refreshViewerFoot();
+      if (viewerVisible() && !els.viewerSidebar.classList.contains('hidden')) renderSidebar();
       refresh();
     });
   }
@@ -1097,7 +1279,7 @@ async function renderNotesView() {
       await notes.removeNote(n.noteId);
       await refreshNoteCounts();
       renderNotesView();
-      renderBriefing();
+      renderBriefing(); renderLibrary();
     });
   }
 }
@@ -1113,7 +1295,7 @@ async function openNoteFromList(n) {
   openNotes(anchor);
 }
 
-// --- Jump to Link search -----------------------------------------------------
+// --- Bookmarks search --------------------------------------------------------
 
 async function runJumpSearch(query) {
   if (!query) { els.jumpResults.innerHTML = ''; els.answerPanel.classList.add('hidden'); return; }
@@ -1129,7 +1311,7 @@ async function runJumpSearch(query) {
       bindAnchorRows(grp, groups[gi].anchors);
     });
   } else {
-    els.jumpResults.innerHTML = '<div class="jump-empty">No anchor matches — showing full-text results.</div>';
+    els.jumpResults.innerHTML = '<div class="jump-empty">No bookmark matches — showing full-text results.</div>';
   }
   runFullTextSearch(query);
 }
@@ -1156,7 +1338,7 @@ function runFullTextSearch(query) {
   });
 }
 
-// --- GPS + AOV ---------------------------------------------------------------
+// --- GPS (phase auto-detection only) -----------------------------------------
 
 function toggleGps() {
   if (gps.isActive()) {
@@ -1164,7 +1346,6 @@ function toggleGps() {
     state.gpsAuto = false;
     els.gpsToggle.setAttribute('aria-pressed', 'false');
     els.gpsReadout.textContent = '';
-    setAov(false);
   } else {
     if (gps.start()) {
       state.gpsAuto = true;
@@ -1179,20 +1360,11 @@ function onGpsUpdate(s) {
   if (s.altFt == null) return;
   const arrow = s.trend > 0 ? '↑' : s.trend < 0 ? '↓' : '→';
   els.gpsReadout.textContent = `${Math.round(s.altFt).toLocaleString()} ft ${arrow}`;
-  setAov(s.aov);
   els.phasePath.querySelectorAll('[data-gps]').forEach((el) =>
     el.classList.toggle('hidden', el.getAttribute('data-gps') !== s.phase));
   if (state.gpsAuto && s.phase && s.phase !== state.phase && Date.now() > state.manualPhaseUntil) {
     setPhase(s.phase);
   }
-}
-
-function setAov(on) {
-  document.body.classList.toggle('aov-mode', on);
-  els.aovBadge.classList.toggle('hidden', !on);
-  els.aovBanner.classList.toggle('hidden', !on);
-  els.aovStrip.classList.toggle('hidden', !on);
-  if (on && state.view !== 'phase') switchView('phase');
 }
 
 // --- Helpers -----------------------------------------------------------------

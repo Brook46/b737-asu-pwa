@@ -9,7 +9,7 @@ import { anchorTypeFor } from './manuals.js';
 
 const RE_DECIMAL = /\b\d{1,2}\.\d{1,2}\.\d{1,3}\b/g;
 
-function mkAnchor(fileId, manualType, anchorType, value, title, pageNum, confidence) {
+function mkAnchor(fileId, manualType, anchorType, value, title, pageNum, confidence, excerpt) {
   return {
     anchorId: `${fileId}:${anchorType}:${String(value).toUpperCase()}`,
     fileId,
@@ -20,6 +20,7 @@ function mkAnchor(fileId, manualType, anchorType, value, title, pageNum, confide
     pageNum,
     source: 'auto',
     confidence: Math.round(confidence * 100) / 100,
+    excerpt: (excerpt || '').trim().slice(0, 260),
   };
 }
 
@@ -29,6 +30,15 @@ function firstMeaningfulLine(text) {
     if (line.length >= 4 && /[a-z]/i.test(line)) return line;
   }
   return '';
+}
+
+// A short paragraph-ish excerpt of the page so anchors can show content,
+// not just a link.
+function pageExcerpt(text) {
+  const lines = (text || '').split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 24 && /[a-z]/i.test(l));
+  return lines.slice(0, 3).join(' ');
 }
 
 // FCOM / FCTM / OMA — decimal page identifiers printed on each page.
@@ -48,7 +58,7 @@ function extractDecimal(fileId, manualType, pages) {
     else if (freq[primary] > 1) confidence = 0.75;
     if (!seen.has(primary)) {
       seen.set(primary, mkAnchor(fileId, manualType, 'decimal', primary,
-        firstMeaningfulLine(text), p.pageNum, confidence));
+        firstMeaningfulLine(text), p.pageNum, confidence, pageExcerpt(text)));
     }
   }
   return [...seen.values()];
@@ -64,7 +74,7 @@ function extractAta(fileId, manualType, pages) {
       const value = m[1];
       if (seen.has(value)) continue;
       const confidence = m[2] && /[a-z]/i.test(m[2]) ? 0.85 : 0.6;
-      seen.set(value, mkAnchor(fileId, manualType, 'ata', value, m[2], p.pageNum, confidence));
+      seen.set(value, mkAnchor(fileId, manualType, 'ata', value, m[2], p.pageNum, confidence, pageExcerpt(p.text || '')));
     }
   }
   return [...seen.values()];
@@ -94,7 +104,7 @@ function extractNnc(fileId, manualType, pages) {
       const key = line.toLowerCase();
       if (seen.has(key)) break;
       seen.set(key, mkAnchor(fileId, manualType, 'nnc', line, line, p.pageNum,
-        hasChecklist ? 0.7 : 0.4));
+        hasChecklist ? 0.7 : 0.4, pageExcerpt(text)));
       break; // one primary NNC title per page
     }
   }

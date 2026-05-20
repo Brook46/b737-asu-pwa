@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>B737 Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=8" />
+  <link rel="stylesheet" href="./app.css?v=10" />
 </head>
 <body>
   <header class="app-header">
@@ -24,7 +24,6 @@
     <div class="header-status">
       <select id="tail-select" class="tail-select" aria-label="Active aircraft"></select>
       <span id="gps-readout" class="gps-readout" title="GPS altitude"></span>
-      <span id="aov-badge" class="aov-badge hidden" title="Below 10,000 ft — Area of Vulnerability">AOV</span>
     </div>
     <div class="actions">
       <button id="gps-toggle" class="btn icon-btn" title="GPS auto-phase" aria-pressed="false" aria-label="GPS auto-phase">GPS</button>
@@ -35,8 +34,9 @@
 
   <nav class="view-nav" role="tablist">
     <button class="view-tab" data-view="phase" role="tab" aria-selected="true">Phases of Flight</button>
-    <button class="view-tab" data-view="search" role="tab" aria-selected="false">Jump to Link</button>
+    <button class="view-tab" data-view="bookmarks" role="tab" aria-selected="false">Bookmarks</button>
     <button class="view-tab" data-view="notes" role="tab" aria-selected="false">Notes</button>
+    <button class="view-tab" data-view="files" role="tab" aria-selected="false">Files</button>
     <button class="view-tab" data-view="library" role="tab" aria-selected="false">Library</button>
   </nav>
 
@@ -46,19 +46,18 @@
         <div id="phase-path" class="phase-path" role="tablist" aria-label="Phase of flight"></div>
         <div class="phase-main">
           <div id="context-toggles" class="context-toggles" role="group" aria-label="Operation type"></div>
-          <div id="aov-banner" class="aov-banner hidden">
-            <strong>AOV — Area of Vulnerability.</strong>
-            Below 10,000 ft. Prioritise <em>Aviate · Navigate · Communicate</em>. Distractions minimised.
+          <div class="briefing-bar">
+            <h2 id="briefing-title" class="briefing-title">Dispatch — Normal Ops</h2>
+            <button class="btn" id="briefing-add-bm">+ Add bookmark</button>
           </div>
-          <h2 id="briefing-title" class="briefing-title">Dispatch — Normal Ops</h2>
           <ul id="briefing-list" class="briefing-list" aria-label="Briefing sections"></ul>
         </div>
       </div>
     </section>
 
-    <section id="view-search" class="view hidden">
+    <section id="view-bookmarks" class="view hidden">
       <form id="search-form" class="search-form" autocomplete="off">
-        <input id="search-input" type="search" placeholder="Jump to link — e.g. MEL 36-09, FCOM 13.20.3, Engine Fire…" enterkeyhint="search" />
+        <input id="search-input" type="search" placeholder="Search bookmarks — e.g. MEL 36-09, FCOM 13.20.3, Engine Fire…" enterkeyhint="search" />
         <button class="btn primary" type="submit">Search</button>
       </form>
       <div id="jump-results" class="jump-results" aria-live="polite"></div>
@@ -67,18 +66,21 @@
 
     <section id="view-notes" class="view hidden">
       <div class="library-block">
-        <div class="library-head">
-          <h2>All Notes &amp; Pictures</h2>
-        </div>
+        <div class="library-head"><h2>All Notes &amp; Pictures</h2></div>
         <ul id="notes-list" class="notes-view-list" aria-label="All notes"></ul>
+      </div>
+    </section>
+
+    <section id="view-files" class="view hidden">
+      <div class="library-block">
+        <div class="library-head"><h2>All Documents</h2></div>
+        <ul id="files-list" class="files-list" aria-label="All files"></ul>
       </div>
     </section>
 
     <section id="view-library" class="view hidden">
       <div class="library-block">
-        <div class="library-head">
-          <h2>Aircraft</h2>
-        </div>
+        <div class="library-head"><h2>Aircraft</h2></div>
         <form id="tail-form" class="tail-form" autocomplete="off">
           <input id="tail-reg" placeholder="Registration (e.g. 4X-EKA)" required />
           <input id="tail-label" placeholder="Label (optional)" />
@@ -110,6 +112,7 @@
   <div id="viewer-overlay" class="viewer-overlay hidden">
     <div id="viewer-tabs" class="viewer-tabbar" role="tablist" aria-label="Open documents"></div>
     <div class="viewer-controls">
+      <button class="btn ghost" id="sidebar-toggle" title="Chapters &amp; bookmarks" aria-pressed="false">☰ Outline</button>
       <span id="viewer-title" class="viewer-title"></span>
       <span class="spacer"></span>
       <button class="btn ghost" id="split-toggle" title="Side-by-side view" aria-pressed="false">⊟ Split</button>
@@ -143,7 +146,22 @@
       <button class="btn ghost" id="mk-undo">↶ Undo</button>
       <button class="btn ghost" id="mk-clear">Clear page</button>
     </div>
-    <div id="pdf-panes" class="pdf-panes"></div>
+    <div class="viewer-body">
+      <aside id="viewer-sidebar" class="viewer-sidebar hidden">
+        <div class="vs-section">
+          <div class="vs-head">Chapters</div>
+          <ul id="vs-chapters" class="vs-list"></ul>
+        </div>
+        <div class="vs-section">
+          <div class="vs-head">
+            <span>Bookmarks</span>
+            <button class="btn ghost" id="vs-add-bm" title="Add bookmark">+ Add</button>
+          </div>
+          <ul id="vs-bookmarks" class="vs-list"></ul>
+        </div>
+      </aside>
+      <div id="pdf-panes" class="pdf-panes"></div>
+    </div>
     <div class="viewer-foot">
       <span class="legend"><span class="legend-swatch legend-mem"></span> Memory item (#)</span>
       <span class="legend"><span class="legend-swatch legend-hl"></span> Search match</span>
@@ -154,7 +172,7 @@
   <div id="admin-overlay" class="modal-overlay hidden">
     <div class="modal modal-wide">
       <header class="modal-head">
-        <h2>Anchor Admin — Knowledge Graph</h2>
+        <h2>Bookmark Admin — Knowledge Graph</h2>
         <button class="btn ghost" id="admin-close" aria-label="Close">✕</button>
       </header>
       <div id="admin-body" class="modal-body"></div>
@@ -163,10 +181,18 @@
 
   <div id="import-overlay" class="modal-overlay hidden">
     <div class="modal">
-      <header class="modal-head">
-        <h2>Tag Manual</h2>
-      </header>
+      <header class="modal-head"><h2>Tag Manual</h2></header>
       <div id="import-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="bookmark-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <header class="modal-head">
+        <h2>Add Bookmark</h2>
+        <button class="btn ghost" id="bookmark-close" aria-label="Close">✕</button>
+      </header>
+      <div id="bookmark-body" class="modal-body"></div>
     </div>
   </div>
 
@@ -189,16 +215,10 @@
     <textarea id="scratch-text" placeholder="Quick notes — cockpit flows, tail-specific reminders…"></textarea>
   </div>
 
-  <div id="aov-strip" class="aov-strip hidden" aria-hidden="true">
-    <span class="aov-word">AVIATE</span>
-    <span class="aov-word">NAVIGATE</span>
-    <span class="aov-word">COMMUNICATE</span>
-  </div>
-
   <div id="tab-dock" class="tab-dock hidden" aria-label="Open documents"></div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=12"></script>
+  <script type="module" src="./app.js?v=14"></script>
 </body>
 </html>

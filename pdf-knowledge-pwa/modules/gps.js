@@ -1,11 +1,10 @@
-// GPS altitude watcher — feeds phase auto-detection and the sub-10,000 ft AOV
-// mode. Ported from the "Airspeed Unreliable" app's watchPosition pattern.
+// GPS altitude watcher — feeds automatic flight-phase detection.
+// Ported from the "Airspeed Unreliable" app's watchPosition pattern.
 //
-// NOTE: GPS altitude is geometric WGS-84, not barometric — fine for the AOV
-// 10,000 ft gate, not for precise flight data. Manual phase selection always
-// overrides the detected phase.
+// NOTE: GPS altitude is geometric WGS-84, not barometric — adequate for a
+// coarse phase guess only. Manual phase selection always overrides it.
 
-import { phaseForAltitude, isAov } from './phases.js';
+import { phaseForAltitude } from './phases.js';
 
 const M_TO_FT = 3.28084;
 const HISTORY_MS = 30000;
@@ -20,7 +19,6 @@ const state = {
   trend: 0,        // +1 climbing, -1 descending, 0 level
   accuracyFt: null,
   phase: null,
-  aov: false,
   error: null,
 };
 
@@ -95,7 +93,6 @@ function onPosition(pos) {
   state.accuracyFt = pos.coords.altitudeAccuracy != null
     ? pos.coords.altitudeAccuracy * M_TO_FT : null;
   state.trend = computeTrend();
-  state.aov = isAov(altFt);
   state.phase = phaseForAltitude(altFt, state.trend);
   state.error = null;
   emit();
