@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#13243f"/>
+      <stop offset="1" stop-color="#060a14"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff8a00"/>
+      <stop offset="1" stop-color="#ffc752"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect x="22" y="22" width="980" height="980" rx="204" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="3"/>
+
+  <!-- open manual -->
+  <g>
+    <path d="M512 628 L300 588 Q288 586 288 599 L288 690 Q288 703 300 705 L512 736 Z" fill="#c4d0e4"/>
+    <path d="M512 628 L724 588 Q736 586 736 599 L736 690 Q736 703 724 705 L512 736 Z" fill="#e9eef7"/>
+    <g stroke="#93a1bc" stroke-width="9" stroke-linecap="round">
+      <path d="M338 614 L486 642"/>
+      <path d="M338 648 L486 672"/>
+      <path d="M338 682 L486 702"/>
+    </g>
+    <g stroke="#a4b1c9" stroke-width="9" stroke-linecap="round">
+      <path d="M538 642 L686 614"/>
+      <path d="M538 672 L686 648"/>
+      <path d="M538 702 L686 682"/>
+    </g>
+    <path d="M512 628 L512 736" stroke="#717f9b" stroke-width="8"/>
+  </g>
+
+  <!-- climbing flight path -->
+  <path d="M468 612 Q566 520 596 396 Q620 300 700 250" fill="none"
+        stroke="url(#amber)" stroke-width="28" stroke-linecap="round" stroke-dasharray="5 44"/>
+  <circle cx="468" cy="612" r="23" fill="url(#amber)"/>
+
+  <!-- climbing jet -->
+  <g transform="translate(716 232) rotate(-34)">
+    <path d="M0 -86 L38 48 L0 20 L-38 48 Z" fill="#ffffff"/>
+  </g>
+</svg>
