@@ -318,17 +318,34 @@ body {
 .viewer-title { color: var(--fg-muted); font-size: 0.88em; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdf-scroll {
   flex: 1;
-  overflow-x: auto; overflow-y: hidden;
-  padding: 12px; display: flex; flex-direction: row; align-items: center; gap: 12px;
+  overflow-y: auto; overflow-x: auto;
+  padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 14px;
   background: var(--bg-elev-2);
-  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  scroll-snap-type: y proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
 }
 .pdf-page {
   position: relative; background: white; box-shadow: var(--shadow);
-  flex-shrink: 0; scroll-snap-align: center; scroll-snap-stop: always;
+  flex-shrink: 0; scroll-snap-align: center;
 }
-.pdf-page canvas { display: block; }
-.pdf-link-layer, .pdf-highlight-layer, .pdf-memory-layer { position: absolute; inset: 0; pointer-events: none; }
+.pdf-page canvas.pdf-draw-layer { background: transparent; }
+.pdf-page > canvas:first-child { display: block; }
+.pdf-link-layer, .pdf-highlight-layer, .pdf-memory-layer, .pdf-text-layer { position: absolute; inset: 0; pointer-events: none; }
+.pdf-text-layer { overflow: hidden; line-height: 1; }
+.pdf-text-layer span {
+  position: absolute; white-space: pre; color: transparent; transform-origin: 0 0;
+}
+.pdf-text-layer.select-active { pointer-events: auto; cursor: text; }
+.pdf-text-layer.select-active span { user-select: text; -webkit-user-select: text; }
+.pdf-text-layer span::selection { background: rgba(255, 212, 0, 0.45); }
+.text-sel-menu {
+  position: fixed; z-index: 90; display: flex; gap: 2px;
+  background: var(--fg); border-radius: 9px; padding: 3px; box-shadow: var(--shadow);
+}
+.text-sel-menu button {
+  background: transparent; color: var(--bg); border: none; cursor: pointer;
+  padding: 7px 14px; font: inherit; font-size: 0.85em; font-weight: 700; border-radius: 6px;
+}
+.text-sel-menu button:hover { background: rgba(127,127,127,0.35); }
 .pdf-link {
   position: absolute; display: block; pointer-events: auto;
   background: rgba(44,92,255,.06); border: 1px solid transparent; border-radius: 2px;
@@ -664,3 +681,27 @@ body.has-dock .app-main { padding-bottom: 60px; }
 }
 .para-item:hover, .para-item[aria-selected="true"] { border-color: var(--accent); }
 .para-item[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* --- Markup tool icons --- */
+.mk-tool { padding: 6px 9px; display: inline-flex; align-items: center; justify-content: center; }
+.mk-tool svg, #mk-undo svg, #mk-clear svg { display: block; }
+#mk-undo, #mk-clear { padding: 6px 9px; display: inline-flex; align-items: center; }
+#select-toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+/* --- Collapsible chapter tree --- */
+.vs-tree, .vs-children { list-style: none; margin: 0; padding: 0; }
+.vs-children.collapsed { display: none; }
+.vs-node {
+  display: flex; align-items: center; gap: 4px; padding: 7px 8px;
+  border-radius: var(--radius-sm); cursor: pointer; font-size: 0.88em;
+}
+.vs-node:hover { background: var(--bg-elev-2); }
+.vs-caret {
+  flex: 0 0 18px; width: 18px; text-align: center; color: var(--fg-muted);
+  transition: transform .1s ease;
+}
+.vs-node.collapsed > .vs-caret { transform: rotate(-90deg); }
+.vs-node.leaf > .vs-caret { visibility: hidden; }
+.vs-node .vs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vs-node .vs-page { color: var(--fg-muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.vs-children { padding-left: 14px; }

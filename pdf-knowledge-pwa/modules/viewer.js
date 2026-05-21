@@ -1,30 +1,32 @@
-// Horizontal page-by-page PDF viewer.
+// Vertical page-by-page PDF viewer.
 //
-// Pages are virtualised: every page gets a correctly-sized placeholder so
-// scroll geometry is stable, but a page's canvas is only painted when it
-// scrolls near the viewport (IntersectionObserver). A rendered-page cap frees
-// the canvases furthest from the active page, so large manuals (700+ pages)
-// stay within a small, fixed memory budget and don't crash the tab.
+// Pages stack top-to-bottom and the user scrolls up/down. Pages are
+// virtualised: only pages near the viewport are painted (hard cap of 10
+// canvases), so large manuals stay within a small memory budget.
 //
-// Supports multiple concurrent mounts (split view), per-mount back/forward
-// history for in-PDF link jumps, freehand + shape markup, and centres the
-// chosen page in the viewport.
+// Features: multiple concurrent mounts (split view), per-mount back/forward
+// history, freehand + shape markup, a selectable text layer (drag-select then
+// Highlight or Note), centred page jumps and a nested chapter outline.
 
 import { pdfjsLib } from './pdf-ingest.js';
 import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js';
 
 const docCache = new Map();
 const tokens = new Map();             // container -> current render token
-const markupHandles = new Map();      // container -> { applyMode }
+const handles = new Map();            // container -> { applyMode }
 
-const MAX_RENDERED = 10;              // hard cap on simultaneously painted pages
+const MAX_RENDERED = 10;
 
 let markupTool = null;                // null|pen|highlight|line|arrow|box|text|eraser
 let markupColor = '#ff3b30';
 let markupWidth = 0.006;
+let selectMode = false;
 const HL_WIDTH = 0.028;
 const ERASE_RADIUS = 0.022;
 const TEXT_SIZE = 0.026;
+const SEL_HL_COLOR = '#ffd400';
+
+let selMenu = null;
 
 async function loadDoc(fileId) {
   if (docCache.has(fileId)) return docCache.get(fileId);
@@ -38,24 +40,27 @@ async function loadDoc(fileId) {
 
 export function clearViewerCache() {
   docCache.clear();
-  markupHandles.clear();
+  handles.clear();
   tokens.clear();
 }
 
 export function setMarkupTool(tool) {
   markupTool = tool || null;
-  for (const h of markupHandles.values()) h.applyMode();
+  if (markupTool) selectMode = false;
+  for (const h of handles.values()) h.applyMode();
   return markupTool;
 }
 export function getMarkupTool() { return markupTool; }
 export function setMarkupColor(color) { markupColor = color; }
 export function setMarkupWidth(w) { markupWidth = w; }
+export function setSelectMode(on) {
+  selectMode = !!on;
+  if (selectMode) markupTool = null;
+  hideSelMenu();
+  for (const h of handles.values()) h.applyMode();
+  return selectMode;
+}
 
-/**
- * Find every text item on a page that matches the query and return one rect
- * per item — so the caller can highlight the actual words, not a big box.
- * @returns {Promise<{rects:number[][]}|null>}
- */
 export async function findQueryHighlight(fileId, pageNum, query) {
   if (!query || !query.trim()) return null;
   const doc = await loadDoc(fileId);
@@ -68,8 +73,7 @@ export async function findQueryHighlight(fileId, pageNum, query) {
     if (!it.str || !it.str.trim()) continue;
     if (!terms.some((t) => it.str.toLowerCase().includes(t))) continue;
     const tx = it.transform;
-    const x = tx[4];
-    const y = tx[5];
+    const x = tx[4], y = tx[5];
     const w = it.width || (tx[0] * (it.str.length || 1));
     const h = it.height || Math.abs(tx[3]) || 11;
     rects.push([x - 1, y - 1, x + w + 1, y + h + 1]);
@@ -77,29 +81,32 @@ export async function findQueryHighlight(fileId, pageNum, query) {
   return rects.length ? { rects } : null;
 }
 
+function hideSelMenu() {
+  if (selMenu) { selMenu.remove(); selMenu = null; }
+}
+
 /**
- * Mount a PDF into a horizontal scroll container.
+ * Mount a PDF into a vertical scroll container.
  * @param {HTMLElement} container
- * @param {object} opts { startPage, highlights:[{pageNum,rect}], onPageChange,
- *                         markMemory, onHistoryChange }
+ * @param {object} opts { startPage, highlights, onPageChange, markMemory,
+ *                         onHistoryChange, onNoteSelection }
  */
 export async function mountPdf(container, fileId, opts = {}) {
-  const { startPage = 1, highlights = [], onPageChange, markMemory = false, onHistoryChange } = opts;
+  const { startPage = 1, highlights = [], onPageChange, markMemory = false,
+    onHistoryChange, onNoteSelection } = opts;
   const doc = await loadDoc(fileId);
   const myToken = Symbol('render');
   for (const c of [...tokens.keys()]) if (!c.isConnected) tokens.delete(c);
-  for (const c of [...markupHandles.keys()]) if (!c.isConnected) markupHandles.delete(c);
+  for (const c of [...handles.keys()]) if (!c.isConnected) handles.delete(c);
   tokens.set(container, myToken);
-  const live = () => tokens.get(container) === myToken;
   container.innerHTML = '';
   container.setAttribute('data-fileid', fileId);
 
-  const containerHeight = Math.max(320, container.clientHeight - 16);
-
-  // Uniform page size sampled from page 1; renderOne self-corrects per page.
+  // Vertical layout: pages fit the container WIDTH.
+  const containerWidth = Math.max(280, container.clientWidth - 16);
   const first = await doc.getPage(1);
   const fv = first.getViewport({ scale: 1 });
-  const baseScale = Math.min(3, Math.max(0.5, containerHeight / fv.height));
+  const baseScale = Math.min(3, Math.max(0.4, containerWidth / fv.width));
   const baseDim = { width: Math.floor(fv.width * baseScale), height: Math.floor(fv.height * baseScale) };
 
   const pageEls = [];
@@ -127,12 +134,14 @@ export async function mountPdf(container, fileId, opts = {}) {
     memoryLayer.className = 'pdf-memory-layer';
     const linkLayer = document.createElement('div');
     linkLayer.className = 'pdf-link-layer';
+    const textLayer = document.createElement('div');
+    textLayer.className = 'pdf-text-layer';
     const drawLayer = document.createElement('canvas');
     drawLayer.className = 'pdf-draw-layer';
     drawLayer.width = 0; drawLayer.height = 0;
-    wrap.append(canvas, highlightLayer, memoryLayer, linkLayer, drawLayer);
+    wrap.append(canvas, highlightLayer, memoryLayer, linkLayer, textLayer, drawLayer);
     container.appendChild(wrap);
-    const el = { wrap, canvas, linkLayer, highlightLayer, memoryLayer, drawLayer,
+    const el = { wrap, canvas, linkLayer, highlightLayer, memoryLayer, textLayer, drawLayer,
       dim: { ...baseDim }, pageNum: i, strokes: [], current: null, dirty: false,
       rendered: false, rendering: false };
     pageEls.push(el);
@@ -141,15 +150,97 @@ export async function mountPdf(container, fileId, opts = {}) {
   }
 
   function applyMode() {
-    const active = !!markupTool;
+    const drawing = !!markupTool;
     for (const el of pageEls) {
-      el.drawLayer.style.pointerEvents = active ? 'auto' : 'none';
-      el.drawLayer.style.touchAction = active ? 'none' : 'auto';
-      el.drawLayer.classList.toggle('markup-active', active);
+      el.drawLayer.style.pointerEvents = drawing ? 'auto' : 'none';
+      el.drawLayer.style.touchAction = drawing ? 'none' : 'auto';
+      el.drawLayer.classList.toggle('markup-active', drawing);
+      el.textLayer.style.pointerEvents = selectMode ? 'auto' : 'none';
+      el.textLayer.classList.toggle('select-active', selectMode);
     }
+    if (!selectMode) hideSelMenu();
   }
-  markupHandles.set(container, { applyMode });
+  handles.set(container, { applyMode });
   applyMode();
+
+  // --- text selection -> highlight / note ---
+  container.addEventListener('pointerup', () => {
+    if (!selectMode) return;
+    setTimeout(checkSelection, 10);
+  });
+
+  function pageElAtClientPoint(x, y) {
+    for (const el of pageEls) {
+      const r = el.canvas.getBoundingClientRect();
+      if (r.width && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return el;
+    }
+    return null;
+  }
+
+  function checkSelection() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) { hideSelMenu(); return; }
+    const range = sel.getRangeAt(0);
+    if (!container.contains(range.commonAncestorContainer)) { hideSelMenu(); return; }
+    const text = sel.toString().trim();
+    if (!text) { hideSelMenu(); return; }
+    const r = range.getBoundingClientRect();
+    showSelMenu(r, text);
+  }
+
+  function showSelMenu(rect, text) {
+    hideSelMenu();
+    selMenu = document.createElement('div');
+    selMenu.className = 'text-sel-menu';
+    selMenu.innerHTML = '<button data-a="hl">Highlight</button><button data-a="note">Note</button>';
+    document.body.appendChild(selMenu);
+    selMenu.style.left = Math.max(8, Math.min(window.innerWidth - 160, rect.left)) + 'px';
+    selMenu.style.top = Math.max(8, rect.top - 44) + 'px';
+    selMenu.querySelector('[data-a="hl"]').addEventListener('click', () => highlightSelection());
+    selMenu.querySelector('[data-a="note"]').addEventListener('click', () => {
+      const sel = window.getSelection();
+      const txt = sel ? sel.toString().trim() : '';
+      const el = sel && sel.rangeCount ? pageElForNode(sel.getRangeAt(0).commonAncestorContainer) : null;
+      hideSelMenu();
+      if (el && onNoteSelection) onNoteSelection(el.pageNum, txt);
+    });
+  }
+
+  function pageElForNode(node) {
+    let n = node;
+    while (n && n !== container) {
+      if (n.classList && n.classList.contains('pdf-page')) return wrapToEl.get(n);
+      n = n.parentNode;
+    }
+    return null;
+  }
+
+  function highlightSelection() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) { hideSelMenu(); return; }
+    const rects = [...sel.getRangeAt(0).getClientRects()];
+    const byEl = new Map();
+    for (const cr of rects) {
+      if (cr.width < 3 || cr.height < 3) continue;
+      const el = pageElAtClientPoint(cr.left + cr.width / 2, cr.top + cr.height / 2);
+      if (!el) continue;
+      const can = el.canvas.getBoundingClientRect();
+      if (!can.width) continue;
+      const stroke = { kind: 'hl', color: SEL_HL_COLOR, pts: [
+        [(cr.left - can.left) / can.width, (cr.top - can.top) / can.height],
+        [(cr.right - can.left) / can.width, (cr.bottom - can.top) / can.height],
+      ] };
+      if (!byEl.has(el)) byEl.set(el, []);
+      byEl.get(el).push(stroke);
+    }
+    for (const [el, strokes] of byEl) {
+      el.strokes.push(...strokes);
+      renderMarkup(el);
+      persistMarkup(el);
+    }
+    sel.removeAllRanges();
+    hideSelMenu();
+  }
 
   function attachMarkup(el) {
     const draw = el.drawLayer;
@@ -262,6 +353,7 @@ export async function mountPdf(container, fileId, opts = {}) {
     el.linkLayer.innerHTML = '';
     el.highlightLayer.innerHTML = '';
     el.memoryLayer.innerHTML = '';
+    el.textLayer.innerHTML = '';
     el.rendered = false;
   }
 
@@ -279,10 +371,10 @@ export async function mountPdf(container, fileId, opts = {}) {
     try {
       const page = await doc.getPage(el.pageNum);
       const v1 = page.getViewport({ scale: 1 });
-      const fitScale = Math.min(3, Math.max(0.5, containerHeight / v1.height));
+      const fitScale = Math.min(3, Math.max(0.4, containerWidth / v1.width));
       const viewport = page.getViewport({ scale: fitScale });
       el.dim = { width: Math.floor(viewport.width), height: Math.floor(viewport.height), scale: fitScale };
-      if (Math.abs(parseInt(el.wrap.style.width, 10) - el.dim.width) > 1) {
+      if (Math.abs(parseInt(el.wrap.style.height, 10) - el.dim.height) > 1) {
         el.wrap.style.width = el.dim.width + 'px';
         el.wrap.style.height = el.dim.height + 'px';
       }
@@ -291,7 +383,7 @@ export async function mountPdf(container, fileId, opts = {}) {
       el.canvas.height = Math.floor(viewport.height * dpr);
       el.canvas.style.width = Math.floor(viewport.width) + 'px';
       el.canvas.style.height = Math.floor(viewport.height) + 'px';
-      for (const layer of [el.linkLayer, el.highlightLayer, el.memoryLayer, el.drawLayer]) {
+      for (const layer of [el.linkLayer, el.highlightLayer, el.memoryLayer, el.textLayer, el.drawLayer]) {
         layer.style.width = el.canvas.style.width;
         layer.style.height = el.canvas.style.height;
       }
@@ -329,20 +421,19 @@ export async function mountPdf(container, fileId, opts = {}) {
         el.highlightLayer.appendChild(hl);
       }
 
+      const textContent = await page.getTextContent().catch(() => null);
       el.memoryLayer.innerHTML = '';
-      if (markMemory) {
-        try {
-          const text = await page.getTextContent();
-          for (const rect of memoryItemRects(text)) {
-            const r = rectToView(rect, viewport);
-            const box = document.createElement('div');
-            box.className = 'pdf-memory-box';
-            box.title = 'Memory item — (#) limitation';
-            box.style.cssText = `left:${r.left - 3}px;top:${r.top - 2}px;width:${r.width + 6}px;height:${r.height + 4}px`;
-            el.memoryLayer.appendChild(box);
-          }
-        } catch { /* best-effort */ }
+      if (markMemory && textContent) {
+        for (const rect of memoryItemRects(textContent)) {
+          const r = rectToView(rect, viewport);
+          const box = document.createElement('div');
+          box.className = 'pdf-memory-box';
+          box.title = 'Memory item — (#) limitation';
+          box.style.cssText = `left:${r.left - 3}px;top:${r.top - 2}px;width:${r.width + 6}px;height:${r.height + 4}px`;
+          el.memoryLayer.appendChild(box);
+        }
       }
+      buildTextLayer(el, textContent, viewport);
 
       try {
         const record = await getMarkup(fileId, el.pageNum);
@@ -355,6 +446,27 @@ export async function mountPdf(container, fileId, opts = {}) {
       if (el.freePending) { el.freePending = false; freePage(el); }
       else pruneRendered();
     }
+  }
+
+  function buildTextLayer(el, textContent, viewport) {
+    el.textLayer.innerHTML = '';
+    if (!textContent) return;
+    const frag = document.createDocumentFragment();
+    for (const it of textContent.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const t = it.transform;
+      const [x, y] = viewport.convertToViewportPoint(t[4], t[5]);
+      const fontPx = Math.abs(t[3]) * viewport.scale;
+      if (fontPx < 4) continue;
+      const span = document.createElement('span');
+      span.textContent = it.str;
+      span.style.left = x + 'px';
+      span.style.top = (y - fontPx) + 'px';
+      span.style.fontSize = fontPx + 'px';
+      span.style.lineHeight = fontPx + 'px';
+      frag.appendChild(span);
+    }
+    el.textLayer.appendChild(frag);
   }
 
   function memoryItemRects(text) {
@@ -383,25 +495,23 @@ export async function mountPdf(container, fileId, opts = {}) {
     return { left: Math.min(vx1, vx2), top: Math.min(vy1, vy2), width: Math.abs(vx2 - vx1), height: Math.abs(vy2 - vy1) };
   }
 
-  // Render visible pages, free the ones that scroll well away.
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       const el = wrapToEl.get(e.target);
-      if (!el) continue;
-      if (e.isIntersecting) renderOne(el).catch((err) => console.warn('render failed', el.pageNum, err));
+      if (el && e.isIntersecting) renderOne(el).catch((err) => console.warn('render failed', el.pageNum, err));
     }
     recomputeActive();
-  }, { root: container, rootMargin: '150px 700px 150px 700px', threshold: 0 });
+  }, { root: container, rootMargin: '700px 0px 700px 0px', threshold: 0 });
   pageEls.forEach((p) => io.observe(p.wrap));
 
   function recomputeActive() {
     if (Date.now() < suppressIoUntil) return;
-    const cMid = container.getBoundingClientRect().left + container.clientWidth / 2;
+    const cMid = container.getBoundingClientRect().top + container.clientHeight / 2;
     let best = activePage, bestDist = Infinity;
     for (const p of pageEls) {
       const r = p.wrap.getBoundingClientRect();
-      if (r.width === 0) continue;
-      const d = Math.abs((r.left + r.width / 2) - cMid);
+      if (r.height === 0) continue;
+      const d = Math.abs((r.top + r.height / 2) - cMid);
       if (d < bestDist) { bestDist = d; best = +p.wrap.getAttribute('data-page'); }
     }
     if (best !== activePage) {
@@ -419,26 +529,22 @@ export async function mountPdf(container, fileId, opts = {}) {
     const idx = Math.max(1, Math.min(doc.numPages, n)) - 1;
     const el = pageEls[idx];
     if (!el) return;
-    // paint the target (and neighbours) right away so the jump is instant
     for (let j = Math.max(0, idx - 2); j <= Math.min(pageEls.length - 1, idx + 2); j++) {
       renderOne(pageEls[j]).catch(() => {});
     }
     const wrapRect = el.wrap.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    const centreOffset = (container.clientWidth - wrapRect.width) / 2;
-    const target = container.scrollLeft + (wrapRect.left - containerRect.left) - centreOffset;
+    const centreOffset = (container.clientHeight - wrapRect.height) / 2;
+    const target = container.scrollTop + (wrapRect.top - containerRect.top) - centreOffset;
     suppressIoUntil = Date.now() + (smooth ? 1500 : 250);
-    container.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'auto' });
+    container.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' });
     activePage = idx + 1;
     onPageChange && onPageChange(activePage);
   }
 
   function navigate(n, { push = false, smooth = false } = {}) {
     const dest = Math.max(1, Math.min(doc.numPages, n));
-    if (push && dest !== activePage) {
-      backStack.push(activePage);
-      fwdStack.length = 0;
-    }
+    if (push && dest !== activePage) { backStack.push(activePage); fwdStack.length = 0; }
     scrollToPage(dest, { smooth });
     emitHistory();
   }
@@ -458,21 +564,24 @@ export async function mountPdf(container, fileId, opts = {}) {
     onHistoryChange && onHistoryChange({ canBack: backStack.length > 0, canForward: fwdStack.length > 0 });
   }
 
+  // Nested chapter outline for the sidebar tree.
   async function getOutline() {
     let raw = null;
     try { raw = await doc.getOutline(); } catch { raw = null; }
     if (!raw || !raw.length) return [];
-    const flat = [];
-    async function walk(items, level) {
+    async function walk(items) {
+      const out = [];
       for (const it of items) {
         let page = null;
         try { page = await resolveDest(doc, it.dest); } catch {}
-        flat.push({ title: it.title || '(untitled)', page, level });
-        if (it.items && it.items.length) await walk(it.items, level + 1);
+        out.push({
+          title: it.title || '(untitled)', page,
+          children: it.items && it.items.length ? await walk(it.items) : [],
+        });
       }
+      return out;
     }
-    await walk(raw, 0);
-    return flat;
+    return walk(raw);
   }
 
   setTimeout(() => { scrollToPage(startPage, { smooth: false }); emitHistory(); }, 50);
@@ -498,7 +607,7 @@ function drawStroke(ctx, s, cssW, cssH) {
   ctx.strokeStyle = s.color || '#ff3b30';
   ctx.fillStyle = s.color || '#ff3b30';
   ctx.lineWidth = Math.max(1, (s.w || 0.006) * cssW);
-  ctx.globalAlpha = s.tool === 'highlight' ? 0.38 : 1;
+  ctx.globalAlpha = (s.tool === 'highlight' || s.kind === 'hl') ? 0.4 : 1;
   const P = (i) => [s.pts[i][0] * cssW, s.pts[i][1] * cssH];
   if (s.kind === 'free' || !s.kind) {
     ctx.beginPath();
@@ -506,6 +615,9 @@ function drawStroke(ctx, s, cssW, cssH) {
     for (let i = 1; i < s.pts.length; i++) ctx.lineTo(...P(i));
     if (s.pts.length === 1) ctx.lineTo(P(0)[0] + 0.1, P(0)[1]);
     ctx.stroke();
+  } else if (s.kind === 'hl') {
+    const [x1, y1] = P(0), [x2, y2] = P(1);
+    ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
   } else if (s.kind === 'line' || s.kind === 'arrow') {
     const [x1, y1] = P(0), [x2, y2] = P(1);
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -540,12 +652,13 @@ function distToSeg(p, a, b) {
 
 function strokeSegments(s) {
   const segs = [];
-  if (s.kind === 'box') {
+  if (s.kind === 'box' || s.kind === 'hl') {
     const [a, b] = s.pts;
     const tl = [Math.min(a[0], b[0]), Math.min(a[1], b[1])];
     const br = [Math.max(a[0], b[0]), Math.max(a[1], b[1])];
     const tr = [br[0], tl[1]], bl = [tl[0], br[1]];
     segs.push([tl, tr], [tr, br], [br, bl], [bl, tl]);
+    if (s.kind === 'hl') segs.push([tl, br]);
   } else if (s.kind === 'line' || s.kind === 'arrow') {
     segs.push([s.pts[0], s.pts[1]]);
   } else if (s.kind === 'text') {

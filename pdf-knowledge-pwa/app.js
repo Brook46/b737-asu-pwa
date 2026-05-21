@@ -4,7 +4,7 @@ import * as storage from './modules/storage.js';
 import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
 import * as searchMod from './modules/search.js';
 import { extractiveSummary } from './modules/summarize.js?v=8';
-import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth } from './modules/viewer.js?v=14';
+import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=15';
 import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=2';
 import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js';
 import { extractAnchors } from './modules/anchor-extract.js';
@@ -29,7 +29,7 @@ const els = {
   fileInput: $('file-input'), personalInput: $('personal-input'), ingestStatus: $('ingest-status'),
   libraryList: $('library-list'), storageInfo: $('storage-info'),
   viewerOverlay: $('viewer-overlay'), viewerTabs: $('viewer-tabs'), viewerTitle: $('viewer-title'),
-  sidebarToggle: $('sidebar-toggle'), splitToggle: $('split-toggle'),
+  sidebarToggle: $('sidebar-toggle'), splitToggle: $('split-toggle'), selectToggle: $('select-toggle'),
   viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
   mkToggle: $('mk-toggle'), markupBar: $('markup-bar'), mkUndo: $('mk-undo'), mkClear: $('mk-clear'),
   viewerSidebar: $('viewer-sidebar'), vsChapters: $('vs-chapters'), vsBookmarks: $('vs-bookmarks'), vsAddBm: $('vs-add-bm'),
@@ -57,6 +57,7 @@ const state = {
   manualPhaseUntil: 0,
   viewer: { tabs: [], panes: [], focused: 0, split: false },
   markup: { on: false, tool: 'pen', color: '#ff3b30', width: 0.006 },
+  selectMode: false,
 };
 
 let tabSeq = 0;
@@ -162,6 +163,7 @@ function wireEvents() {
   els.viewerClose.addEventListener('click', minimizeViewer);
   els.viewerNote.addEventListener('click', openNotesForActiveTab);
   els.splitToggle.addEventListener('click', toggleSplit);
+  els.selectToggle.addEventListener('click', toggleSelectMode);
   els.sidebarToggle.addEventListener('click', toggleSidebar);
   els.vsAddBm.addEventListener('click', () => {
     const tab = paneTab(state.viewer.focused);
@@ -285,9 +287,26 @@ async function renderBriefing() {
   const phase = phaseById(state.phase);
   const toggle = TOGGLES.find((t) => t.id === state.toggle);
   els.briefingTitle.textContent = `${phase.label} — ${toggle.label}`;
-  const sections = sectionsFor(state.phase, state.toggle);
   const fileIds = activeFileIds();
 
+  // Briefing toggle: one flat list of all supplementary content for the phase.
+  if (state.toggle === 'briefing') {
+    const seen = new Set();
+    const flat = [];
+    for (const sec of sectionsFor(state.phase, 'briefing')) {
+      for (const a of await kg.findAnchors(sec.manualType, sec.hint, { fileIds })) {
+        if (!seen.has(a.anchorId)) { seen.add(a.anchorId); flat.push(a); }
+      }
+    }
+    flat.sort((a, b) => (a.manualType || '').localeCompare(b.manualType || '') || a.pageNum - b.pageNum);
+    els.briefingList.innerHTML = flat.length
+      ? flat.map(anchorRowHtml).join('')
+      : '<li class="briefing-empty">No briefing material found yet — tap “+ Add bookmark” to add your own.</li>';
+    bindAnchorRows(els.briefingList, flat);
+    return;
+  }
+
+  const sections = sectionsFor(state.phase, state.toggle);
   const resolved = [];
   for (const sec of sections) {
     let anchors;
@@ -950,6 +969,19 @@ function toggleSidebar() {
   if (!isHidden) renderSidebar();
 }
 
+function outlineNodeHtml(n) {
+  const leaf = !n.children || !n.children.length;
+  return `
+    <li>
+      <div class="vs-node ${leaf ? 'leaf' : 'collapsed'}" data-page="${n.page || ''}">
+        <span class="vs-caret">▾</span>
+        <span class="vs-title">${escapeHtml(n.title)}</span>
+        ${n.page ? `<span class="vs-page">${n.page}</span>` : ''}
+      </div>
+      ${leaf ? '' : `<ul class="vs-children collapsed">${n.children.map(outlineNodeHtml).join('')}</ul>`}
+    </li>`;
+}
+
 async function renderSidebar() {
   if (els.viewerSidebar.classList.contains('hidden')) return;
   const pane = state.viewer.panes[state.viewer.focused];
@@ -961,15 +993,19 @@ async function renderSidebar() {
     try { outline = await pane.api.getOutline(); } catch { outline = []; }
   }
   els.vsChapters.innerHTML = outline.length
-    ? outline.map((o) => `
-        <li class="vs-item" data-page="${o.page || ''}" style="padding-left:${9 + o.level * 12}px">
-          <span class="vs-title">${escapeHtml(o.title)}</span>
-          ${o.page ? `<span class="vs-page">${o.page}</span>` : ''}
-        </li>`).join('')
+    ? outline.map(outlineNodeHtml).join('')
     : '<li class="vs-empty">No chapter outline in this PDF.</li>';
-  els.vsChapters.querySelectorAll('.vs-item').forEach((li) => {
-    const pg = parseInt(li.getAttribute('data-page'), 10);
-    if (Number.isFinite(pg)) li.addEventListener('click', () => paneGoTo(state.viewer.focused, pg));
+  els.vsChapters.querySelectorAll('.vs-node').forEach((node) => {
+    const childUl = node.parentElement.querySelector(':scope > .vs-children');
+    if (childUl) {
+      node.querySelector('.vs-caret').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const collapsed = node.classList.toggle('collapsed');
+        childUl.classList.toggle('collapsed', collapsed);
+      });
+    }
+    const pg = parseInt(node.getAttribute('data-page'), 10);
+    if (Number.isFinite(pg)) node.addEventListener('click', () => paneGoTo(state.viewer.focused, pg));
   });
 
   const anchors = (await kg.anchorsForFile(tab.fileId)).sort((a, b) => a.pageNum - b.pageNum);
@@ -1052,6 +1088,7 @@ async function mountPane(i) {
       startPage: tab.pageNum, highlights, markMemory,
       onPageChange: (n) => { tab.pageNum = n; updatePanePage(i, n); },
       onHistoryChange: (h) => updatePaneHistory(i, h),
+      onNoteSelection: (pageNum, text) => openSelectionNote(tab.fileId, pageNum, text),
     });
     pane.api = api;
     pane.mountedFileId = tab.fileId;
@@ -1157,6 +1194,10 @@ function setMarkupOn(on) {
   state.markup.on = on;
   els.mkToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
   els.markupBar.classList.toggle('hidden', !on);
+  if (on && state.selectMode) {
+    state.selectMode = false;
+    els.selectToggle.setAttribute('aria-pressed', 'false');
+  }
   applyMarkup();
 }
 
@@ -1166,24 +1207,43 @@ function applyMarkup() {
   setMarkupTool(state.markup.on ? state.markup.tool : null);
 }
 
+function toggleSelectMode() {
+  state.selectMode = !state.selectMode;
+  els.selectToggle.setAttribute('aria-pressed', state.selectMode ? 'true' : 'false');
+  if (state.selectMode && state.markup.on) {
+    state.markup.on = false;
+    els.mkToggle.setAttribute('aria-pressed', 'false');
+    els.markupBar.classList.add('hidden');
+  }
+  setSelectMode(state.selectMode);
+}
+
 // --- Annotations -------------------------------------------------------------
 
-function pageAnchorFor(tab) {
+function pageAnchor(fileId, pageNum) {
+  const file = state.files.get(fileId);
+  const m = state.manuals.get(fileId);
   return {
-    anchorId: `${tab.fileId}:page:${tab.pageNum}`,
-    fileId: tab.fileId, manualType: tab.manualType || 'PERSONAL',
-    anchorType: 'page', value: 'p.' + tab.pageNum,
-    title: tab.fileName, pageNum: tab.pageNum,
+    anchorId: `${fileId}:page:${pageNum}`,
+    fileId, manualType: m ? m.manualType : 'PERSONAL',
+    anchorType: 'page', value: 'p.' + pageNum,
+    title: file ? file.name : '', pageNum,
   };
 }
 
+// "Note this page" — the viewer toolbar button.
 function openNotesForActiveTab() {
   const tab = paneTab(state.viewer.focused);
   if (!tab) return;
-  openNotes(tab.anchor || pageAnchorFor(tab));
+  openNotes(pageAnchor(tab.fileId, tab.pageNum));
 }
 
-async function openNotes(anchor) {
+// Note from a text selection — prefilled with the selected text.
+function openSelectionNote(fileId, pageNum, text) {
+  openNotes(pageAnchor(fileId, pageNum), text ? `“${text}”\n\n` : '');
+}
+
+async function openNotes(anchor, prefill = '') {
   els.noteTitle.textContent = `Notes — ${anchor.manualType} ${anchor.value}`;
   els.noteOverlay.classList.remove('hidden');
 
@@ -1194,7 +1254,7 @@ async function openNotes(anchor) {
         ${list.length ? list.map(noteItemHtml).join('') : '<li class="briefing-empty">No notes yet.</li>'}
       </ul>
       <div class="note-add">
-        <textarea id="note-text" placeholder="Add a note for ${escapeHtml(anchor.value)}…"></textarea>
+        <textarea id="note-text" placeholder="Add a note for ${escapeHtml(anchor.value)}…">${escapeHtml(prefill)}</textarea>
         <div class="note-add-row">
           <label class="btn">📷 Picture<input type="file" id="note-img" accept="image/*" hidden /></label>
           <span style="flex:1"></span>

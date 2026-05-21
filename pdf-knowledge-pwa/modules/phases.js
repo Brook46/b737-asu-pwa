@@ -18,54 +18,56 @@ export const PHASES = [
 ];
 
 export const TOGGLES = [
-  { id: 'normal',    label: 'Normal Ops',        source: 'FCOM NP / Amplified Procedures' },
-  { id: 'nonNormal', label: 'Non-Normal',        source: 'QRH NNCs' },
-  { id: 'weather',   label: 'Weather / Adverse', source: 'FCOM SP.16 / OMA 8.3' },
+  { id: 'normal',    label: 'Normal Ops', source: 'FCOM NP / Amplified Procedures' },
+  { id: 'nonNormal', label: 'Non-Normal', source: 'QRH NNCs' },
+  { id: 'briefing',  label: 'Briefing',   source: 'Supplementary · Weather · Techniques' },
 ];
 
 // section: { manualType, hint, label }
 const S = (manualType, hint, label) => ({ manualType, hint, label });
 
+// The "briefing" toggle gathers all of these into one flat list per phase:
+// adverse weather, supplementary procedures, landing/handling techniques, etc.
 export const PHASE_SECTIONS = {
   dispatch: {
     normal:    [S('FCOM', 'Preflight', 'FCOM Preflight'), S('FCTM', 'Preflight', 'FCTM Preflight'), S('OMA', 'Dispatch', 'OMA Dispatch')],
     nonNormal: [S('MEL', '', 'MEL Items'), S('QRH', 'Dispatch', 'QRH Dispatch Deviation')],
-    weather:   [S('FCOM', 'Adverse Weather', 'FCOM SP.16 Adverse Weather'), S('OMA', 'Weather', 'OMA 8.3 Weather')],
+    briefing:  [S('FCOM', 'Adverse Weather', 'Adverse Weather'), S('FCOM', 'Supplementary', 'Supplementary Procedures'), S('OMA', 'Weather', 'OMA Weather')],
   },
   takeoff: {
     normal:    [S('FCOM', 'Takeoff', 'FCOM Takeoff'), S('FCTM', 'Takeoff', 'FCTM Takeoff'), S('OMA', 'Takeoff', 'OMA Takeoff')],
     nonNormal: [S('QRH', 'Rejected Takeoff', 'QRH Rejected Takeoff'), S('QRH', 'Engine', 'QRH Engine Failure')],
-    weather:   [S('FCOM', 'Crosswind', 'FCOM Crosswind'), S('FCTM', 'Crosswind Takeoff', 'FCTM Crosswind Takeoff')],
+    briefing:  [S('FCOM', 'Crosswind', 'Crosswind'), S('FCTM', 'Crosswind Takeoff', 'Crosswind Takeoff Technique'), S('FCOM', 'Supplementary', 'Supplementary Procedures')],
   },
   climb: {
     normal:    [S('FCOM', 'Climb', 'FCOM Climb'), S('FCTM', 'Climb', 'FCTM Climb')],
     nonNormal: [S('QRH', 'Climb', 'QRH Climb'), S('QRH', 'Engine', 'QRH Engine')],
-    weather:   [S('FCOM', 'Turbulence', 'FCOM Turbulence'), S('FCOM', 'Icing', 'FCOM Icing')],
+    briefing:  [S('FCOM', 'Turbulence', 'Turbulence'), S('FCOM', 'Icing', 'Icing'), S('FCTM', 'Technique', 'Climb Techniques')],
   },
   cruise: {
     normal:    [S('FCOM', 'Cruise', 'FCOM Cruise'), S('FCTM', 'Cruise', 'FCTM Cruise')],
     nonNormal: [S('QRH', 'Cruise', 'QRH Cruise'), S('QRH', 'Depressurization', 'QRH Depressurization')],
-    weather:   [S('FCOM', 'Turbulence', 'FCOM Turbulence'), S('OMA', 'Weather', 'OMA 8.3 Weather')],
+    briefing:  [S('FCOM', 'Turbulence', 'Turbulence'), S('OMA', 'Weather', 'OMA Weather'), S('FCOM', 'Supplementary', 'Supplementary Procedures')],
   },
   descent: {
     normal:    [S('FCOM', 'Descent', 'FCOM Descent'), S('FCTM', 'Descent', 'FCTM Descent')],
     nonNormal: [S('QRH', 'Descent', 'QRH Descent')],
-    weather:   [S('FCOM', 'Icing', 'FCOM Icing'), S('FCOM', 'Adverse Weather', 'FCOM SP.16')],
+    briefing:  [S('FCOM', 'Icing', 'Icing'), S('FCOM', 'Adverse Weather', 'Adverse Weather'), S('FCTM', 'Technique', 'Descent Techniques')],
   },
   approach: {
     normal:    [S('FCOM', 'Amplified Procedures', 'FCOM Amplified Procedures'), S('FCTM', 'Instrument Approach', 'FCTM Instrument Approaches'), S('OMA', 'Minima', 'OMA Minima')],
     nonNormal: [S('QRH', 'Approach', 'QRH Approach'), S('QRH', 'Go-Around', 'QRH Go-Around')],
-    weather:   [S('FCOM', 'Adverse Weather', 'FCOM SP.16 Adverse Weather'), S('OMA', 'Weather', 'OMA 8.3 Minima')],
+    briefing:  [S('FCOM', 'Adverse Weather', 'Adverse Weather'), S('FCTM', 'Instrument Approach', 'Instrument Approach Techniques'), S('OMA', 'Minima', 'OMA Minima')],
   },
   landing: {
     normal:    [S('FCOM', 'Landing', 'FCOM Landing'), S('FCTM', 'Landing', 'FCTM Landing')],
     nonNormal: [S('QRH', 'Landing', 'QRH Landing'), S('QRH', 'Go-Around', 'QRH Go-Around')],
-    weather:   [S('FCOM', 'Crosswind', 'FCOM Crosswind Landing'), S('FCTM', 'Crosswind Landing', 'FCTM Crosswind Landing')],
+    briefing:  [S('FCOM', 'Crosswind', 'Crosswind'), S('FCTM', 'Crosswind Landing', 'Crosswind Landing Technique'), S('FCTM', 'Landing', 'Landing Techniques')],
   },
   afterLanding: {
     normal:    [S('FCOM', 'After Landing', 'FCOM After Landing'), S('FCTM', 'Taxi', 'FCTM Taxi')],
     nonNormal: [S('QRH', 'Ground', 'QRH Ground')],
-    weather:   [S('FCOM', 'Adverse Weather', 'FCOM SP.16')],
+    briefing:  [S('FCOM', 'Adverse Weather', 'Adverse Weather'), S('FCTM', 'Taxi', 'Taxi Technique')],
   },
 };
 
