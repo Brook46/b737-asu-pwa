@@ -1,7 +1,7 @@
 // Service worker: cache the app shell + vendored PDF.js + MiniSearch so the
 // app loads fully offline. Bump CACHE_VERSION whenever shell assets change.
 
-const CACHE_VERSION = 'pkpwa-v12';
+const CACHE_VERSION = 'pkpwa-v13';
 const APP_SHELL = [
   './',
   './index.html',
@@ -31,9 +31,15 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Fetch with cache:'reload' so a new version always precaches fresh files
+  // (bypasses the browser HTTP cache).
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) => Promise.all(APP_SHELL.map((url) =>
+        fetch(url, { cache: 'reload' })
+          .then((res) => { if (res && res.ok) return cache.put(url, res); })
+          .catch(() => {})
+      )))
       .then(() => self.skipWaiting())
   );
 });

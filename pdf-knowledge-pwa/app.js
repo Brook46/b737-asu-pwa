@@ -1,9 +1,8 @@
 // B737 Pilot Companion — bootstrap, state, and event wiring.
 
-import * as storage from './modules/storage.js';
+import * as storage from './modules/storage.js?v=4';
 import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
 import * as searchMod from './modules/search.js';
-import { extractiveSummary } from './modules/summarize.js?v=8';
 import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=16';
 import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=2';
 import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js';
@@ -21,7 +20,9 @@ const els = {
   tailSelect: $('tail-select'), gpsReadout: $('gps-readout'),
   gpsToggle: $('gps-toggle'), scratchToggle: $('scratch-toggle'), themeToggle: $('theme-toggle'),
   phasePath: $('phase-path'), contextToggles: $('context-toggles'),
-  briefingTitle: $('briefing-title'), briefingList: $('briefing-list'), briefingAddBm: $('briefing-add-bm'),
+  briefingTitle: $('briefing-title'), briefingList: $('briefing-list'),
+  briefingAddBm: $('briefing-add-bm'), briefingScenarios: $('briefing-scenarios'),
+  scenarioOverlay: $('scenario-overlay'), scenarioBody: $('scenario-body'), scenarioClose: $('scenario-close'),
   searchForm: $('search-form'), searchInput: $('search-input'),
   jumpResults: $('jump-results'), answerPanel: $('answer-panel'),
   notesList: $('notes-list'), filesList: $('files-list'),
@@ -47,6 +48,7 @@ const state = {
   files: new Map(),
   manuals: new Map(),
   tails: [],
+  scenarios: [],
   activeTail: null,
   noteCounts: new Map(),       // anchorId -> count
   fileNoteCounts: new Map(),   // fileId -> count
@@ -70,13 +72,14 @@ bootstrap().catch((err) => { console.error(err); toast('Failed to load: ' + err.
 
 async function bootstrap() {
   registerSW();
-  const [files, manuals, tails, activeTail, savedViewer] = await Promise.all([
+  const [files, manuals, tails, scenarios, activeTail, savedViewer] = await Promise.all([
     storage.listFiles(), storage.listManuals(), storage.listTails(),
-    storage.getKV('activeTail'), storage.getKV('viewerState'),
+    storage.listScenarios(), storage.getKV('activeTail'), storage.getKV('viewerState'),
   ]);
   for (const f of files) state.files.set(f.id, f);
   for (const m of manuals) state.manuals.set(m.fileId, m);
   state.tails = tails;
+  state.scenarios = scenarios;
   state.activeTail = activeTail || null;
 
   await searchMod.rebuildIndex(state.files);
@@ -156,7 +159,10 @@ function wireEvents() {
     const files = [...e.target.files]; e.target.value = '';
     if (files.length) handlePersonalFiles(files);
   });
-  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({ phase: state.phase, toggle: state.toggle }));
+  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({}));
+  els.briefingScenarios.addEventListener('click', openScenarioManager);
+  els.scenarioClose.addEventListener('click', () => els.scenarioOverlay.classList.add('hidden'));
+  els.scenarioOverlay.addEventListener('click', (e) => { if (e.target === els.scenarioOverlay) els.scenarioOverlay.classList.add('hidden'); });
 
   els.searchForm.addEventListener('submit', (e) => { e.preventDefault(); runJumpSearch(els.searchInput.value.trim()); });
 
@@ -290,71 +296,72 @@ async function renderBriefing() {
   const toggle = TOGGLES.find((t) => t.id === state.toggle);
   els.briefingTitle.textContent = `${phase.label} — ${toggle.label}`;
   const fileIds = activeFileIds();
+  const allAnchors = await kg.allAnchors();
 
-  // Briefing toggle: one flat list of all supplementary content for the phase.
-  if (state.toggle === 'briefing') {
-    const seen = new Set();
-    const flat = [];
-    for (const sec of sectionsFor(state.phase, 'briefing')) {
-      for (const a of await kg.findAnchors(sec.manualType, sec.hint, { fileIds })) {
-        if (!seen.has(a.anchorId)) { seen.add(a.anchorId); flat.push(a); }
-      }
-    }
-    for (const a of await kg.anchorsForPlacement(state.phase, 'briefing', { fileIds })) {
-      if (!seen.has(a.anchorId)) { seen.add(a.anchorId); flat.push(a); }
-    }
-    flat.sort((a, b) => (a.manualType || '').localeCompare(b.manualType || '') || a.pageNum - b.pageNum);
-    els.briefingList.innerHTML = flat.length
-      ? flat.map(anchorRowHtml).join('')
-      : '<li class="briefing-empty">No briefing material found yet — tap “+ Add bookmark” to add your own.</li>';
-    bindAnchorRows(els.briefingList, flat);
-    return;
+  // Scenarios assigned to this phase + briefing kind, each with its bookmarks.
+  const sections = [];
+  for (const s of state.scenarios) {
+    if (s.kind !== state.toggle || !(s.phases || []).includes(state.phase)) continue;
+    let anchors = allAnchors.filter((a) => Array.isArray(a.scenarios) && a.scenarios.includes(s.id));
+    if (fileIds) anchors = anchors.filter((a) => fileIds.has(a.fileId));
+    sections.push({ kind: 'scenario', id: s.id, label: s.name, anchors });
   }
 
-  const sections = sectionsFor(state.phase, state.toggle);
-  const resolved = [];
-  for (const sec of sections) {
+  // Supplementary content auto-found from the manuals (non-empty only).
+  const autoSections = [];
+  for (const sec of sectionsFor(state.phase, state.toggle)) {
     let anchors;
-    if (sec.manualType === 'MEL' && !sec.hint) {
-      anchors = await kg.anchorsByManualType('MEL', { fileIds });
-    } else {
-      anchors = await kg.findAnchors(sec.manualType, sec.hint, { fileIds });
-    }
-    resolved.push({ sec, anchors: anchors.slice(0, 25) });
+    if (sec.manualType === 'MEL' && !sec.hint) anchors = await kg.anchorsByManualType('MEL', { fileIds });
+    else anchors = await kg.findAnchors(sec.manualType, sec.hint, { fileIds });
+    if (anchors.length) autoSections.push({ kind: 'auto', label: sec.label, anchors: anchors.slice(0, 25) });
   }
-  const placed = await kg.anchorsForPlacement(state.phase, state.toggle, { fileIds });
-  if (placed.length) resolved.unshift({ sec: { label: '★ Your Bookmarks' }, anchors: placed });
 
-  const anyAnchors = resolved.some((r) => r.anchors.length);
-  const openAllBtn = anyAnchors
-    ? '<button class="btn primary" id="open-all-btn">Open all sections in viewer</button>' : '';
-
-  els.briefingList.innerHTML = openAllBtn + resolved.map((r, i) => {
-    const a = r.anchors;
-    return `
-      <li class="briefing-section" data-idx="${i}" aria-expanded="false">
-        <div class="briefing-section-head">
-          <span class="bs-caret">›</span>
-          <span class="bs-name">${escapeHtml(r.sec.label)}</span>
-          <span class="bs-meta">${a.length ? a.length + ' bookmark(s)' : 'no bookmarks found'}</span>
-        </div>
-        <ul class="briefing-anchors hidden">
-          ${a.length ? a.map(anchorRowHtml).join('') : '<li class="briefing-empty">No matching content — use “+ Add bookmark”.</li>'}
-        </ul>
-      </li>`;
-  }).join('') || '<li class="briefing-empty">No sections for this phase.</li>';
+  const all = sections.concat(autoSections);
+  const openAllBtn = all.some((r) => r.anchors.length)
+    ? '<button class="btn primary" id="open-all-btn">Open all in viewer</button>' : '';
+  const scenarioHtml = sections.length
+    ? sections.map((r, i) => briefingSectionHtml(r, i, true)).join('')
+    : '<li class="briefing-empty">No scenarios for this phase yet — tap “✦ Scenarios” to create one, then “+ Add bookmark”.</li>';
+  const autoHtml = autoSections.length
+    ? '<li class="briefing-divider">Suggested from the manuals</li>' +
+      autoSections.map((r, i) => briefingSectionHtml(r, sections.length + i, false)).join('')
+    : '';
+  els.briefingList.innerHTML = openAllBtn + scenarioHtml + autoHtml;
 
   els.briefingList.querySelectorAll('.briefing-section').forEach((li) => {
     const idx = +li.getAttribute('data-idx');
-    li.querySelector('.briefing-section-head').addEventListener('click', () => {
+    li.querySelector('.briefing-section-head').addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="add"]')) return;
       const open = li.getAttribute('aria-expanded') === 'true';
       li.setAttribute('aria-expanded', open ? 'false' : 'true');
       li.querySelector('.briefing-anchors').classList.toggle('hidden', open);
     });
-    bindAnchorRows(li, resolved[idx].anchors);
+    const addBtn = li.querySelector('[data-act="add"]');
+    if (addBtn) addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openBookmarkModal({ scenarioIds: [li.getAttribute('data-scenario')] });
+    });
+    bindAnchorRows(li, all[idx].anchors);
   });
   const openAll = $('open-all-btn');
-  if (openAll) openAll.addEventListener('click', () => prepPhaseTabs(resolved));
+  if (openAll) openAll.addEventListener('click', () => prepPhaseTabs(all));
+}
+
+function briefingSectionHtml(r, idx, isScenario) {
+  const a = r.anchors;
+  return `
+    <li class="briefing-section" data-idx="${idx}" aria-expanded="${isScenario ? 'true' : 'false'}"
+        ${isScenario ? `data-scenario="${escapeHtml(r.id)}"` : ''}>
+      <div class="briefing-section-head">
+        <span class="bs-caret">›</span>
+        <span class="bs-name">${isScenario ? '✦ ' : ''}${escapeHtml(r.label)}</span>
+        <span class="bs-meta">${a.length ? a.length + ' bookmark(s)' : 'empty'}</span>
+        ${isScenario ? '<button class="btn ghost" data-act="add" title="Add a bookmark to this scenario">+</button>' : ''}
+      </div>
+      <ul class="briefing-anchors ${isScenario ? '' : 'hidden'}">
+        ${a.length ? a.map(anchorRowHtml).join('') : '<li class="briefing-empty">No bookmarks linked yet.</li>'}
+      </ul>
+    </li>`;
 }
 
 function anchorRowHtml(a) {
@@ -720,6 +727,97 @@ async function scanChangeBars(fileId, btn) {
   }
 }
 
+// --- Scenarios ---------------------------------------------------------------
+
+const KIND_LABEL = { normal: 'Normal Ops', nonNormal: 'Non-Normal', briefing: 'Briefing' };
+
+async function reloadScenarios() {
+  state.scenarios = await storage.listScenarios();
+}
+
+function openScenarioManager() {
+  els.scenarioOverlay.classList.remove('hidden');
+  renderScenarioManager();
+}
+
+function scenarioRowHtml(s) {
+  return `
+    <li class="sc-item" data-id="${escapeHtml(s.id)}">
+      <div class="sc-head">
+        <input class="sc-name-edit" value="${escapeHtml(s.name)}" aria-label="Scenario name" />
+        <select class="sc-kind-edit" aria-label="Kind">
+          <option value="normal" ${s.kind === 'normal' ? 'selected' : ''}>Normal</option>
+          <option value="nonNormal" ${s.kind === 'nonNormal' ? 'selected' : ''}>Non-Normal</option>
+          <option value="briefing" ${s.kind === 'briefing' ? 'selected' : ''}>Briefing</option>
+        </select>
+        <button class="btn ghost danger" data-act="del" title="Delete scenario">✕</button>
+      </div>
+      <div class="sc-phases">
+        ${PHASES.map((p) => `<button type="button" class="sc-phase ${(s.phases || []).includes(p.id) ? 'on' : ''}" data-phase="${p.id}">${escapeHtml(p.label)}</button>`).join('')}
+      </div>
+    </li>`;
+}
+
+function renderScenarioManager() {
+  const list = [...state.scenarios].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  els.scenarioBody.innerHTML = `
+    <form id="sc-create" class="sc-create" autocomplete="off">
+      <input id="sc-name" placeholder="New scenario — e.g. Engine Failure, Low-Vis Approach" required />
+      <select id="sc-kind">
+        <option value="normal">Normal Ops</option>
+        <option value="nonNormal">Non-Normal</option>
+        <option value="briefing">Briefing</option>
+      </select>
+      <button class="btn primary" type="submit">Create</button>
+    </form>
+    <p class="admin-sub">Tap a scenario's phase chips to choose which phases of flight it belongs to.</p>
+    <ul class="sc-list">
+      ${list.length ? list.map(scenarioRowHtml).join('') : '<li class="vs-empty">No scenarios yet. Create one above.</li>'}
+    </ul>`;
+  els.scenarioBody.querySelector('#sc-create').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('sc-name').value.trim();
+    if (!name) return;
+    await storage.putScenario({
+      id: 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, kind: $('sc-kind').value, phases: [], createdAt: Date.now(),
+    });
+    await reloadScenarios();
+    renderScenarioManager();
+    renderBriefing();
+  });
+  els.scenarioBody.querySelectorAll('.sc-item').forEach((li) => {
+    const id = li.getAttribute('data-id');
+    const sc = state.scenarios.find((s) => s.id === id);
+    if (!sc) return;
+    li.querySelector('.sc-name-edit').addEventListener('change', async (e) => {
+      sc.name = e.target.value.trim() || sc.name;
+      await storage.putScenario(sc);
+      await reloadScenarios(); renderBriefing();
+    });
+    li.querySelector('.sc-kind-edit').addEventListener('change', async (e) => {
+      sc.kind = e.target.value;
+      await storage.putScenario(sc);
+      await reloadScenarios(); renderBriefing();
+    });
+    li.querySelector('[data-act="del"]').addEventListener('click', async () => {
+      await storage.deleteScenario(id);
+      await reloadScenarios();
+      renderScenarioManager(); renderBriefing();
+    });
+    li.querySelectorAll('.sc-phase').forEach((chip) => {
+      chip.addEventListener('click', async () => {
+        const ph = chip.getAttribute('data-phase');
+        sc.phases = sc.phases || [];
+        sc.phases = sc.phases.includes(ph) ? sc.phases.filter((x) => x !== ph) : [...sc.phases, ph];
+        chip.classList.toggle('on');
+        await storage.putScenario(sc);
+        await reloadScenarios(); renderBriefing();
+      });
+    });
+  });
+}
+
 // "Bookmark this page" — opens the modal pre-filled from the focused pane.
 function openBookmarkFromViewer() {
   const tab = paneTab(state.viewer.focused);
@@ -750,18 +848,13 @@ function openBookmarkModal(preset = {}) {
       <input type="text" id="bm-title" placeholder="Short description" value="${escapeHtml((preset.excerpt || '').slice(0, 60))}" /></div>
     <div class="field"><label for="bm-ref">Reference / ID (optional)</label>
       <input type="text" id="bm-ref" placeholder="e.g. 13.20.3, 36-09 — defaults to the page" /></div>
-    <div class="field bm-place">
-      <label>Place in a briefing</label>
-      <div class="bm-place-row">
-        <select id="bm-phase">
-          <option value="">— don't place —</option>
-          ${PHASES.map((p) => `<option value="${p.id}" ${p.id === preset.phase ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('')}
-        </select>
-        <select id="bm-toggle">
-          ${TOGGLES.map((t) => `<option value="${t.id}" ${t.id === preset.toggle ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
-        </select>
+    <div class="field">
+      <label>Link to scenario(s)</label>
+      <div class="sc-checks" id="bm-scenarios">
+        ${state.scenarios.length
+          ? state.scenarios.map((s) => `<label><input type="checkbox" value="${escapeHtml(s.id)}" ${(preset.scenarioIds || []).includes(s.id) ? 'checked' : ''}/> ${escapeHtml(s.name)} <span class="sc-tag">${escapeHtml(KIND_LABEL[s.kind] || s.kind)}</span></label>`).join('')
+          : '<span class="admin-sub">No scenarios yet — create them with “✦ Scenarios” on the phase page.</span>'}
       </div>
-      <div class="admin-sub">Placed bookmarks appear in that phase's briefing list.</div>
     </div>
     <div class="field">
       <label>Paragraph (optional — tap one to link &amp; show it)</label>
@@ -807,19 +900,18 @@ function openBookmarkModal(preset = {}) {
     const m = state.manuals.get(fileId);
     const manualType = m ? m.manualType : 'PERSONAL';
     const anchorType = anchorTypeFor(manualType);
-    const phaseVal = $('bm-phase').value;
-    const placements = phaseVal ? [{ phase: phaseVal, toggle: $('bm-toggle').value || 'briefing' }] : [];
+    const scenarios = [...els.bookmarkBody.querySelectorAll('#bm-scenarios input:checked')].map((c) => c.value);
     await storage.putAnchor({
       anchorId: `${fileId}:m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       fileId, manualType, anchorType, value: ref, title,
       pageNum: pg, source: 'manual', confidence: null,
-      excerpt: chosenExcerpt.slice(0, 260), placements,
+      excerpt: chosenExcerpt.slice(0, 260), scenarios,
     });
     kg.invalidate(); await kg.load(true);
     els.bookmarkOverlay.classList.add('hidden');
     renderBriefing();
     if (viewerVisible() && !els.viewerSidebar.classList.contains('hidden')) renderSidebar();
-    toast(placements.length ? 'Bookmark added to the briefing.' : 'Bookmark added.');
+    toast(scenarios.length ? `Bookmark linked to ${scenarios.length} scenario(s).` : 'Bookmark added.');
   });
   if (preset.fileId && preset.pageNum) loadParas();
 }
@@ -1411,25 +1503,49 @@ async function runJumpSearch(query) {
   runFullTextSearch(query);
 }
 
+// A short snippet of `text` centred on the first query term.
+function searchSnippet(text, query) {
+  const clean = (text || '').replace(/\s+/g, ' ').trim();
+  const terms = query.toLowerCase().match(/[a-z0-9֐-׿]+/g) || [];
+  const lower = clean.toLowerCase();
+  let idx = -1;
+  for (const t of terms) {
+    const i = lower.indexOf(t);
+    if (i >= 0 && (idx < 0 || i < idx)) idx = i;
+  }
+  if (idx < 0) return clean.slice(0, 170);
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(clean.length, idx + 150);
+  return (start > 0 ? '… ' : '') + clean.slice(start, end).trim() + (end < clean.length ? ' …' : '');
+}
+
+// Full-text results: every matching page gets its own snippet glimpse,
+// grouped by document so multiple hits in one book are easy to scan.
 function runFullTextSearch(query) {
   if (!state.files.size) { els.answerPanel.classList.add('hidden'); return; }
-  const hits = searchMod.search(query, { limit: 12 });
+  const hits = searchMod.search(query, { limit: 30 });
   if (!hits.length) { els.answerPanel.classList.add('hidden'); return; }
-  const summary = extractiveSummary(query, hits);
+  const byFile = new Map();
+  for (const h of hits) {
+    if (!byFile.has(h.fileId)) byFile.set(h.fileId, { fileName: h.fileName, pages: [] });
+    byFile.get(h.fileId).pages.push(h);
+  }
   els.answerPanel.classList.remove('hidden');
-  els.answerPanel.innerHTML = summary.sections.map((sec) => `
+  els.answerPanel.innerHTML = [...byFile.entries()].map(([fileId, g]) => `
     <article class="answer-section">
       <header class="answer-section-head">
-        <span class="answer-section-name">${escapeHtml(sec.fileName)}</span>
-        <span>${sec.citations.map((c) => `<span class="cite" data-cite="${c.idx}">p.${c.pageNum}</span>`).join(' · ')}</span>
+        <span class="answer-section-name">${escapeHtml(g.fileName)}</span>
+        <span>${g.pages.length} match${g.pages.length > 1 ? 'es' : ''}</span>
       </header>
-      <p class="answer-section-body">${escapeHtml(sec.paragraph)}</p>
+      ${g.pages.map((h) => `
+        <div class="glimpse" data-file="${escapeHtml(fileId)}" data-page="${h.pageNum}">
+          <span class="glimpse-pg">p.${h.pageNum}</span>
+          <span class="glimpse-text">${escapeHtml(searchSnippet(h.text, query))}</span>
+        </div>`).join('')}
     </article>`).join('');
-  els.answerPanel.querySelectorAll('[data-cite]').forEach((node) => {
-    node.addEventListener('click', () => {
-      const cite = summary.citations.find((c) => c.idx === +node.getAttribute('data-cite'));
-      if (cite) openFileInViewer(cite.fileId, cite.pageNum, { query });
-    });
+  els.answerPanel.querySelectorAll('.glimpse').forEach((g) => {
+    g.addEventListener('click', () =>
+      openFileInViewer(g.getAttribute('data-file'), +g.getAttribute('data-page'), { query }));
   });
 }
 

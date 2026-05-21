@@ -5,7 +5,7 @@
 // tails (aircraft registrations).
 
 const DB_NAME = 'pdf-knowledge';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise = null;
 
@@ -50,6 +50,11 @@ function openDB() {
         if (!db.objectStoreNames.contains('markup')) {
           const markup = db.createObjectStore('markup', { keyPath: 'key' });
           markup.createIndex('byFile', 'fileId', { unique: false });
+        }
+      }
+      if (e.oldVersion < 4) {
+        if (!db.objectStoreNames.contains('scenarios')) {
+          db.createObjectStore('scenarios', { keyPath: 'id' });
         }
       }
     };
@@ -277,4 +282,22 @@ export async function getMarkupForFile(fileId) {
     const idx = t.objectStore('markup').index('byFile');
     return reqToPromise(idx.getAll(IDBKeyRange.only(fileId)));
   });
+}
+
+// --- Scenarios (group bookmarks; assigned to phases of flight) ---
+
+export async function putScenario(scenario) {
+  await tx('scenarios', 'readwrite', (t) => t.objectStore('scenarios').put(scenario));
+}
+
+export async function getScenario(id) {
+  return tx('scenarios', 'readonly', (t) => reqToPromise(t.objectStore('scenarios').get(id)));
+}
+
+export async function listScenarios() {
+  return tx('scenarios', 'readonly', (t) => reqToPromise(t.objectStore('scenarios').getAll()));
+}
+
+export async function deleteScenario(id) {
+  await tx('scenarios', 'readwrite', (t) => t.objectStore('scenarios').delete(id));
 }

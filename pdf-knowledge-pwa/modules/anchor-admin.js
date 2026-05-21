@@ -3,7 +3,7 @@
 // (with its confidence), correct the value/title/page, delete bad anchors and
 // add ones the heuristics missed.
 
-import * as storage from './storage.js';
+import * as storage from './storage.js?v=4';
 import * as kg from './knowledge-graph.js';
 import { anchorTypeFor, anchorTypeLabel, manualLabel } from './manuals.js';
 import { escapeHtml } from './ui.js';

@@ -3,7 +3,7 @@
 // anchor is what lets notes survive a manual revision (see revision.js).
 // Everything is stored in IndexedDB as Blobs, so it is fully available offline.
 
-import * as storage from './storage.js';
+import * as storage from './storage.js?v=4';
 
 function makeNoteId() {
   return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);

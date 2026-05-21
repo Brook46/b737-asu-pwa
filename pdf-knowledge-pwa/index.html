@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>B737 Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=12" />
+  <link rel="stylesheet" href="./app.css?v=13" />
 </head>
 <body>
   <header class="app-header">
@@ -48,7 +48,10 @@
           <div id="context-toggles" class="context-toggles" role="group" aria-label="Operation type"></div>
           <div class="briefing-bar">
             <h2 id="briefing-title" class="briefing-title">Dispatch — Normal Ops</h2>
-            <button class="btn" id="briefing-add-bm">+ Add bookmark</button>
+            <span class="briefing-actions">
+              <button class="btn" id="briefing-scenarios">✦ Scenarios</button>
+              <button class="btn" id="briefing-add-bm">+ Add bookmark</button>
+            </span>
           </div>
           <ul id="briefing-list" class="briefing-list" aria-label="Briefing sections"></ul>
         </div>
@@ -198,6 +201,16 @@
     </div>
   </div>
 
+  <div id="scenario-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <header class="modal-head">
+        <h2>Scenarios</h2>
+        <button class="btn ghost" id="scenario-close" aria-label="Close">✕</button>
+      </header>
+      <div id="scenario-body" class="modal-body"></div>
+    </div>
+  </div>
+
   <div id="note-overlay" class="modal-overlay hidden">
     <div class="modal">
       <header class="modal-head">
@@ -221,6 +234,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=16"></script>
+  <script type="module" src="./app.js?v=17"></script>
 </body>
 </html>

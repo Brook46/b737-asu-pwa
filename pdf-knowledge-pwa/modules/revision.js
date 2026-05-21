@@ -7,7 +7,7 @@
 //  - Change bars are vector graphics, NOT in the text layer. We rasterise each
 //    page and sample the margins — this is advisory only, never authoritative.
 
-import * as storage from './storage.js';
+import * as storage from './storage.js?v=4';
 import { pdfjsLib } from './pdf-ingest.js';
 
 const RE_PAGE_ID = /(\d{1,2}\.\d{1,2}\.\d{1,3}|\d{2}-\d{2})/;
