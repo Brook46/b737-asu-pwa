@@ -31,6 +31,14 @@ export async function anchorsForFile(fileId) {
   return (await allAnchors()).filter((a) => a.fileId === fileId);
 }
 
+// Bookmarks the user has explicitly placed into a phase + briefing status.
+export async function anchorsForPlacement(phase, toggle, { fileIds = null } = {}) {
+  return (await allAnchors()).filter((a) =>
+    (!fileIds || fileIds.has(a.fileId)) &&
+    Array.isArray(a.placements) &&
+    a.placements.some((p) => p.phase === phase && p.toggle === toggle));
+}
+
 // Resolve a content id (e.g. FCOM "13.20.3") to its best anchor.
 export async function resolveAnchor(manualType, value, { fileIds = null } = {}) {
   const v = String(value).trim().toLowerCase();

@@ -93,7 +93,7 @@ function hideSelMenu() {
  */
 export async function mountPdf(container, fileId, opts = {}) {
   const { startPage = 1, highlights = [], onPageChange, markMemory = false,
-    onHistoryChange, onNoteSelection } = opts;
+    onHistoryChange, onNoteSelection, onBookmarkSelection } = opts;
   const doc = await loadDoc(fileId);
   const myToken = Symbol('render');
   for (const c of [...tokens.keys()]) if (!c.isConnected) tokens.delete(c);
@@ -192,18 +192,20 @@ export async function mountPdf(container, fileId, opts = {}) {
     hideSelMenu();
     selMenu = document.createElement('div');
     selMenu.className = 'text-sel-menu';
-    selMenu.innerHTML = '<button data-a="hl">Highlight</button><button data-a="note">Note</button>';
+    selMenu.innerHTML = '<button data-a="hl">Highlight</button><button data-a="note">Note</button><button data-a="bm">Bookmark</button>';
     document.body.appendChild(selMenu);
-    selMenu.style.left = Math.max(8, Math.min(window.innerWidth - 160, rect.left)) + 'px';
+    selMenu.style.left = Math.max(8, Math.min(window.innerWidth - 230, rect.left)) + 'px';
     selMenu.style.top = Math.max(8, rect.top - 44) + 'px';
     selMenu.querySelector('[data-a="hl"]').addEventListener('click', () => highlightSelection());
-    selMenu.querySelector('[data-a="note"]').addEventListener('click', () => {
+    const fromSelection = (cb) => {
       const sel = window.getSelection();
       const txt = sel ? sel.toString().trim() : '';
       const el = sel && sel.rangeCount ? pageElForNode(sel.getRangeAt(0).commonAncestorContainer) : null;
       hideSelMenu();
-      if (el && onNoteSelection) onNoteSelection(el.pageNum, txt);
-    });
+      if (el && cb) cb(el.pageNum, txt);
+    };
+    selMenu.querySelector('[data-a="note"]').addEventListener('click', () => fromSelection(onNoteSelection));
+    selMenu.querySelector('[data-a="bm"]').addEventListener('click', () => fromSelection(onBookmarkSelection));
   }
 
   function pageElForNode(node) {

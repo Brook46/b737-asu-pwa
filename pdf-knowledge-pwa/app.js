@@ -4,7 +4,7 @@ import * as storage from './modules/storage.js';
 import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
 import * as searchMod from './modules/search.js';
 import { extractiveSummary } from './modules/summarize.js?v=8';
-import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=15';
+import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=16';
 import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=2';
 import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js';
 import { extractAnchors } from './modules/anchor-extract.js';
@@ -30,7 +30,7 @@ const els = {
   libraryList: $('library-list'), storageInfo: $('storage-info'),
   viewerOverlay: $('viewer-overlay'), viewerTabs: $('viewer-tabs'), viewerTitle: $('viewer-title'),
   sidebarToggle: $('sidebar-toggle'), splitToggle: $('split-toggle'), selectToggle: $('select-toggle'),
-  viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
+  viewerBookmark: $('viewer-bookmark'), viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
   mkToggle: $('mk-toggle'), markupBar: $('markup-bar'), mkUndo: $('mk-undo'), mkClear: $('mk-clear'),
   viewerSidebar: $('viewer-sidebar'), vsChapters: $('vs-chapters'), vsBookmarks: $('vs-bookmarks'), vsAddBm: $('vs-add-bm'),
   pdfPanes: $('pdf-panes'), viewerNotes: $('viewer-notes'),
@@ -156,18 +156,20 @@ function wireEvents() {
     const files = [...e.target.files]; e.target.value = '';
     if (files.length) handlePersonalFiles(files);
   });
-  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({}));
+  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({ phase: state.phase, toggle: state.toggle }));
 
   els.searchForm.addEventListener('submit', (e) => { e.preventDefault(); runJumpSearch(els.searchInput.value.trim()); });
 
   els.viewerClose.addEventListener('click', minimizeViewer);
   els.viewerNote.addEventListener('click', openNotesForActiveTab);
+  els.viewerBookmark.addEventListener('click', openBookmarkFromViewer);
   els.splitToggle.addEventListener('click', toggleSplit);
   els.selectToggle.addEventListener('click', toggleSelectMode);
   els.sidebarToggle.addEventListener('click', toggleSidebar);
   els.vsAddBm.addEventListener('click', () => {
     const tab = paneTab(state.viewer.focused);
-    openBookmarkModal(tab ? { fileId: tab.fileId, pageNum: tab.pageNum } : {});
+    openBookmarkModal({ phase: state.phase, toggle: state.toggle,
+      ...(tab ? { fileId: tab.fileId, pageNum: tab.pageNum } : {}) });
   });
 
   els.mkToggle.addEventListener('click', () => setMarkupOn(!state.markup.on));
@@ -298,6 +300,9 @@ async function renderBriefing() {
         if (!seen.has(a.anchorId)) { seen.add(a.anchorId); flat.push(a); }
       }
     }
+    for (const a of await kg.anchorsForPlacement(state.phase, 'briefing', { fileIds })) {
+      if (!seen.has(a.anchorId)) { seen.add(a.anchorId); flat.push(a); }
+    }
     flat.sort((a, b) => (a.manualType || '').localeCompare(b.manualType || '') || a.pageNum - b.pageNum);
     els.briefingList.innerHTML = flat.length
       ? flat.map(anchorRowHtml).join('')
@@ -317,6 +322,8 @@ async function renderBriefing() {
     }
     resolved.push({ sec, anchors: anchors.slice(0, 25) });
   }
+  const placed = await kg.anchorsForPlacement(state.phase, state.toggle, { fileIds });
+  if (placed.length) resolved.unshift({ sec: { label: '★ Your Bookmarks' }, anchors: placed });
 
   const anyAnchors = resolved.some((r) => r.anchors.length);
   const openAllBtn = anyAnchors
@@ -713,11 +720,24 @@ async function scanChangeBars(fileId, btn) {
   }
 }
 
-// Add a bookmark to a specific file, optionally linking a chosen paragraph.
+// "Bookmark this page" — opens the modal pre-filled from the focused pane.
+function openBookmarkFromViewer() {
+  const tab = paneTab(state.viewer.focused);
+  if (!tab) return;
+  openBookmarkModal({ fileId: tab.fileId, pageNum: tab.pageNum, phase: state.phase, toggle: state.toggle });
+}
+
+// Bookmark a text selection — pre-fills the excerpt.
+function openBookmarkSelection(fileId, pageNum, text) {
+  openBookmarkModal({ fileId, pageNum, excerpt: text, phase: state.phase, toggle: state.toggle });
+}
+
+// Create a bookmark, optionally linking a paragraph and placing it into a
+// phase briefing (phase + status). Openable from the phase page or the PDF.
 function openBookmarkModal(preset = {}) {
   const files = [...state.files.values()];
   if (!files.length) { toast('Add a document first.'); return; }
-  let chosenExcerpt = '';
+  let chosenExcerpt = preset.excerpt || '';
   els.bookmarkBody.innerHTML = `
     <div class="field">
       <label for="bm-file">Document</label>
@@ -726,10 +746,23 @@ function openBookmarkModal(preset = {}) {
     </div>
     <div class="field"><label for="bm-page">Page</label>
       <input type="text" id="bm-page" inputmode="numeric" value="${preset.pageNum || ''}" placeholder="Page number" /></div>
-    <div class="field"><label for="bm-ref">Reference / ID</label>
-      <input type="text" id="bm-ref" placeholder="e.g. 13.20.3, 36-09, or a short label" /></div>
     <div class="field"><label for="bm-title">Title</label>
-      <input type="text" id="bm-title" placeholder="Short description" /></div>
+      <input type="text" id="bm-title" placeholder="Short description" value="${escapeHtml((preset.excerpt || '').slice(0, 60))}" /></div>
+    <div class="field"><label for="bm-ref">Reference / ID (optional)</label>
+      <input type="text" id="bm-ref" placeholder="e.g. 13.20.3, 36-09 — defaults to the page" /></div>
+    <div class="field bm-place">
+      <label>Place in a briefing</label>
+      <div class="bm-place-row">
+        <select id="bm-phase">
+          <option value="">— don't place —</option>
+          ${PHASES.map((p) => `<option value="${p.id}" ${p.id === preset.phase ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('')}
+        </select>
+        <select id="bm-toggle">
+          ${TOGGLES.map((t) => `<option value="${t.id}" ${t.id === preset.toggle ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="admin-sub">Placed bookmarks appear in that phase's briefing list.</div>
+    </div>
     <div class="field">
       <label>Paragraph (optional — tap one to link &amp; show it)</label>
       <ul class="para-list" id="bm-paras"><li class="vs-empty">Pick a document and page to load paragraphs.</li></ul>
@@ -744,7 +777,6 @@ function openBookmarkModal(preset = {}) {
     const fileId = $('bm-file').value;
     const pg = parseInt($('bm-page').value, 10);
     const list = $('bm-paras');
-    chosenExcerpt = '';
     if (!fileId || !Number.isFinite(pg)) { list.innerHTML = '<li class="vs-empty">Pick a document and page to load paragraphs.</li>'; return; }
     const pages = await storage.getPagesForFile(fileId);
     const page = pages.find((p) => p.pageNum === pg);
@@ -769,23 +801,25 @@ function openBookmarkModal(preset = {}) {
   $('bm-save').addEventListener('click', async () => {
     const fileId = $('bm-file').value;
     const pg = parseInt($('bm-page').value, 10);
-    const ref = $('bm-ref').value.trim();
-    const title = $('bm-title').value.trim();
-    if (!fileId || !Number.isFinite(pg) || !ref) { toast('Document, page and reference are required.'); return; }
+    if (!fileId || !Number.isFinite(pg)) { toast('Document and page are required.'); return; }
+    const ref = $('bm-ref').value.trim() || ('p.' + pg);
+    const title = $('bm-title').value.trim() || ref;
     const m = state.manuals.get(fileId);
     const manualType = m ? m.manualType : 'PERSONAL';
     const anchorType = anchorTypeFor(manualType);
+    const phaseVal = $('bm-phase').value;
+    const placements = phaseVal ? [{ phase: phaseVal, toggle: $('bm-toggle').value || 'briefing' }] : [];
     await storage.putAnchor({
-      anchorId: `${fileId}:${anchorType}:${ref.toUpperCase()}`,
+      anchorId: `${fileId}:m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       fileId, manualType, anchorType, value: ref, title,
       pageNum: pg, source: 'manual', confidence: null,
-      excerpt: chosenExcerpt.slice(0, 260),
+      excerpt: chosenExcerpt.slice(0, 260), placements,
     });
     kg.invalidate(); await kg.load(true);
     els.bookmarkOverlay.classList.add('hidden');
     renderBriefing();
     if (viewerVisible() && !els.viewerSidebar.classList.contains('hidden')) renderSidebar();
-    toast('Bookmark added.');
+    toast(placements.length ? 'Bookmark added to the briefing.' : 'Bookmark added.');
   });
   if (preset.fileId && preset.pageNum) loadParas();
 }
@@ -1089,6 +1123,7 @@ async function mountPane(i) {
       onPageChange: (n) => { tab.pageNum = n; updatePanePage(i, n); },
       onHistoryChange: (h) => updatePaneHistory(i, h),
       onNoteSelection: (pageNum, text) => openSelectionNote(tab.fileId, pageNum, text),
+      onBookmarkSelection: (pageNum, text) => openBookmarkSelection(tab.fileId, pageNum, text),
     });
     pane.api = api;
     pane.mountedFileId = tab.fileId;

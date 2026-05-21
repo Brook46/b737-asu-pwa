@@ -705,3 +705,11 @@ body.has-dock .app-main { padding-bottom: 60px; }
 .vs-node .vs-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vs-node .vs-page { color: var(--fg-muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
 .vs-children { padding-left: 14px; }
+
+/* --- Bookmark placement --- */
+.bm-place-row { display: flex; gap: 8px; }
+.bm-place-row select {
+  flex: 1; min-width: 0; font: inherit; padding: 9px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg-elev-2); color: var(--fg);
+}
