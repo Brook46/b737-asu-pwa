@@ -83,7 +83,7 @@ const state = {
   gpsAuto: false,
   manualPhaseUntil: 0,
   viewer: { tabs: [], panes: [], focused: 0, split: false },
-  markup: { on: false, tool: 'pen', color: '#ff3b30', width: 0.006 },
+  markup: { on: false, tool: 'highlight', color: '#ffcc00', width: 0.012 },
   selectMode: false,
 };
 
@@ -258,13 +258,6 @@ function wireEvents() {
       applyMarkup();
     });
   });
-  els.markupBar.querySelectorAll('.mk-width').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.markup.width = parseFloat(btn.getAttribute('data-width'));
-      pressGroup(els.markupBar.querySelectorAll('.mk-width'), btn);
-      applyMarkup();
-    });
-  });
   els.mkUndo.addEventListener('click', () => { const a = focusedApi(); if (a) a.undo(); });
   els.mkClear.addEventListener('click', () => { const a = focusedApi(); if (a) a.clearPage(); });
 
@@ -303,57 +296,112 @@ function switchView(view) {
 // AND the search query. Bottom-right: floating "add file" button. Tap a result
 // to open the file full-window at its page.
 
-// Flight-path SVG. The viewBox is 1000×200 and stretches to fill its
-// container regardless of window width. Each phase sits on the profile.
-const PHASE_PROFILE = {
-  dispatch:     { x: 40,  y: 180, lblY: 210 },
-  takeoff:      { x: 140, y: 180, lblY: 210 },
-  climb:        { x: 280, y: 95,  lblY: 78  },
-  cruise:       { x: 470, y: 38,  lblY: 22  },
-  descent:      { x: 660, y: 95,  lblY: 78  },
-  approach:     { x: 790, y: 160, lblY: 188 },
-  landing:      { x: 880, y: 180, lblY: 210 },
-  afterLanding: { x: 970, y: 180, lblY: 210 },
-};
-const FLIGHT_PATH_D =
-  'M30,180 L150,180 Q220,180 290,90 Q380,38 470,38 Q560,38 650,90 Q720,162 790,162 L880,180 L970,180';
+// Thin horizontal phase strip. A horizontal line with one tick per phase.
+// An airplane glyph sits on the active phase and can be dragged left/right
+// to snap to the nearest phase. Tapping any phase label also selects it.
+const STRIP_VB_W = 1000;
+const STRIP_VB_H = 70;
+
+function phaseXAt(idx) {
+  const n = PHASES.length;
+  const inset = 60;
+  return inset + (STRIP_VB_W - inset * 2) * (idx / Math.max(1, n - 1));
+}
+
+function nearestPhaseFromX(x) {
+  let best = 0, bestDist = Infinity;
+  PHASES.forEach((_, i) => {
+    const d = Math.abs(phaseXAt(i) - x);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  return PHASES[best];
+}
 
 function renderHomePhases() {
-  const nodes = PHASES.map((p) => {
-    const pos = PHASE_PROFILE[p.id] || { x: 500, y: 100, lblY: 80 };
+  const activeIdx = Math.max(0, PHASES.findIndex((p) => p.id === state.selectedPhase));
+  const hasActive = state.selectedPhase != null;
+  const ticks = PHASES.map((p, i) => {
+    const x = phaseXAt(i);
     const on = state.selectedPhase === p.id;
     return `
-      <g class="fp-node ${on ? 'on' : ''}" data-phase="${p.id}" transform="translate(${pos.x} ${pos.y})">
-        <circle class="fp-hit" r="22" />
-        <circle class="fp-dot" r="9" />
-        <text class="fp-label" text-anchor="middle" y="${pos.lblY - pos.y}">${escapeHtml(p.label)}</text>
-        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="${pos.lblY - pos.y + 14}">GPS</text>
+      <g class="fp-tick ${on ? 'on' : ''}" data-phase="${p.id}" transform="translate(${x} 28)">
+        <circle class="fp-hit" r="20" />
+        <circle class="fp-dot" r="5" />
+        <text class="fp-label" text-anchor="middle" y="22">${escapeHtml(p.label)}</text>
+        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="36">GPS</text>
       </g>`;
   }).join('');
+  const planeX = hasActive ? phaseXAt(activeIdx) : phaseXAt(0);
   els.homePhases.innerHTML = `
-    <svg class="flight-path" viewBox="0 0 1000 230" preserveAspectRatio="xMidYMid meet" role="radiogroup" aria-label="Phase of flight">
-      <line class="fp-ground" x1="0" y1="200" x2="1000" y2="200" />
-      <path class="fp-line" d="M30,195 L140,195 Q210,195 280,95 Q380,38 470,38 Q560,38 660,95 Q730,160 790,160 L880,195 L970,195" />
-      ${nodes}
+    <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="none" role="radiogroup" aria-label="Phase of flight">
+      <line class="fp-line" x1="40" y1="28" x2="${STRIP_VB_W - 40}" y2="28" />
+      ${ticks}
+      <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planeX} 18)">
+        <title>Drag to change phase</title>
+        <circle class="fp-plane-bg" r="14" />
+        <text class="fp-plane-glyph" text-anchor="middle" y="5">✈</text>
+      </g>
     </svg>`;
-  els.homePhases.querySelectorAll('.fp-node').forEach((g) => {
-    g.addEventListener('click', () => {
-      const id = g.getAttribute('data-phase');
-      state.selectedPhase = state.selectedPhase === id ? null : id;
-      state.phase = id;
-      state.manualPhaseUntil = Date.now() + 60000;
-      if (state.selectedPhase) {
-        for (const sid of [...state.selectedScenarios]) {
-          const sc = state.scenarios.find((s) => s.id === sid);
-          if (!sc || (sc.phases || []).length && !sc.phases.includes(state.selectedPhase)) {
-            state.selectedScenarios.delete(sid);
-          }
-        }
+  els.homePhases.querySelectorAll('.fp-tick').forEach((g) => {
+    g.addEventListener('click', () => selectPhaseById(g.getAttribute('data-phase')));
+  });
+  initPlaneDrag(els.homePhases.querySelector('.fp-plane'));
+}
+
+function selectPhaseById(id) {
+  state.selectedPhase = state.selectedPhase === id ? null : id;
+  state.phase = id;
+  state.manualPhaseUntil = Date.now() + 60000;
+  if (state.selectedPhase) {
+    for (const sid of [...state.selectedScenarios]) {
+      const sc = state.scenarios.find((s) => s.id === sid);
+      if (!sc || (sc.phases || []).length && !sc.phases.includes(state.selectedPhase)) {
+        state.selectedScenarios.delete(sid);
       }
-      renderHomePhases();
-      renderHomeScenarios();
-      renderHomeResults();
-    });
+    }
+  }
+  renderHomePhases();
+  renderHomeScenarios();
+  renderHomeResults();
+}
+
+function initPlaneDrag(planeEl) {
+  if (!planeEl) return;
+  const svg = els.homePhases.querySelector('.flight-strip');
+  let dragging = false;
+  const xFromEvent = (e) => {
+    const rect = svg.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    return (cx / rect.width) * STRIP_VB_W;
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    e.preventDefault();
+    const x = Math.max(0, Math.min(STRIP_VB_W, xFromEvent(e)));
+    planeEl.setAttribute('transform', `translate(${x} 18)`);
+    // Highlight the nearest tick while dragging.
+    const near = nearestPhaseFromX(x);
+    els.homePhases.querySelectorAll('.fp-tick').forEach((g) =>
+      g.classList.toggle('drag-hover', g.getAttribute('data-phase') === near.id));
+  };
+  const onUp = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    const x = Math.max(0, Math.min(STRIP_VB_W, xFromEvent(e)));
+    const near = nearestPhaseFromX(x);
+    // Force-select (not toggle) the snapped phase.
+    state.selectedPhase = near.id; state.phase = near.id;
+    state.manualPhaseUntil = Date.now() + 60000;
+    renderHomePhases(); renderHomeScenarios(); renderHomeResults();
+  };
+  planeEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); dragging = true;
+    document.addEventListener('pointermove', onMove, { passive: false });
+    document.addEventListener('pointerup', onUp);
   });
 }
 
@@ -518,7 +566,19 @@ async function renderHomeResults() {
       e.stopPropagation();
       openAnchorInViewer(anchor);
     });
-    row.querySelector('.hr-head')?.addEventListener('click', () => openAnchorInViewer(anchor));
+    const minBtn = row.querySelector('.hr-min');
+    minBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const collapsed = row.classList.toggle('hr-collapsed');
+      minBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      minBtn.textContent = collapsed ? '▢' : '▭';
+      minBtn.title = collapsed ? 'Show preview' : 'Minimise preview';
+    });
+    // Clicking the header (file name / page) also opens full-screen.
+    row.querySelector('.hr-head')?.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      openAnchorInViewer(anchor);
+    });
   });
   attachPreviewObserver(els.homeResults, anchors);
 }
@@ -536,7 +596,8 @@ function homeResultHtml(a) {
       <span class="hr-kind kind-${itemType}" title="${itemType}">${kindIcon}</span>
       <span class="hr-file">${escapeHtml(fname)}</span>
       <span class="hr-page">p.${a.pageNum}</span>
-      <button class="btn ghost hr-open" data-act="open" title="Open in full viewer">⤢</button>
+      <button class="btn ghost hr-min" data-act="min" title="Minimise preview" aria-pressed="false">▭</button>
+      <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶</button>
     </div>
     ${a.excerpt ? `<div class="hr-excerpt">${escapeHtml(a.excerpt.slice(0, 240))}</div>` : ''}
     <div class="hr-preview" data-pending="1">
@@ -1351,6 +1412,63 @@ function openIndexerFromSelection(fileId, pageNum, text, rects) {
   openIndexerModal({ fileId, pageNum, text, selectionRects: rects });
 }
 
+// One-tap "Link selected text to a briefing/scenario". Lightweight popup —
+// pick a scenario (or create one), and the selection becomes an indexed
+// anchor tagged with that scenario + the active phase.
+function openScenarioLinkPicker(fileId, pageNum, text, rects) {
+  if (!text || !text.trim()) { toast('Selection is empty.'); return; }
+  const list = state.scenarios || [];
+  // Reuse the indexer overlay shell with a focused picker UI.
+  els.indexerBody.innerHTML = `
+    <div class="field">
+      <label>Link selection to briefing <span class="admin-sub">— page ${pageNum}</span></label>
+      <div class="ix-quote">${escapeHtml(text.slice(0, 200))}${text.length > 200 ? '…' : ''}</div>
+    </div>
+    <div class="field">
+      <label>Pick one or more</label>
+      <div class="dim-chips" id="ix-link-list">
+        ${list.length
+          ? list.map((s) => `<button type="button" class="dim-chip" data-id="${escapeHtml(s.id)}" ${s.color ? `style="--c:${escapeHtml(s.color)}"` : ''}>${s.parentId ? '↳ ' : ''}${escapeHtml(s.name)}</button>`).join('')
+          : '<span class="admin-sub">No briefings yet — create one first via ⚙ Settings or ＋ New on the home screen.</span>'}
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="ix-link-cancel">Cancel</button>
+      <button class="btn primary" id="ix-link-save">Link</button>
+    </div>`;
+  els.indexerOverlay.classList.remove('hidden');
+  const onClick = async (e) => {
+    const chip = e.target.closest('.dim-chip');
+    if (chip && els.indexerBody.contains(chip)) { chip.classList.toggle('on'); return; }
+    if (e.target.id === 'ix-link-cancel') { els.indexerOverlay.classList.add('hidden'); return; }
+    if (e.target.id === 'ix-link-save') {
+      const picked = [...els.indexerBody.querySelectorAll('#ix-link-list .dim-chip.on')].map((c) => c.getAttribute('data-id'));
+      if (!picked.length) { toast('Pick at least one briefing.'); return; }
+      const m = state.manuals.get(fileId);
+      await storage.putAnchor({
+        anchorId: 'idx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        fileId, manualType: m ? m.manualType : 'PERSONAL',
+        kind: 'idx', itemType: 'briefing', source: 'selection',
+        paraIndex: null, selectionRects: rects || null,
+        pageNum, anchorType: 'page', value: 'p.' + pageNum,
+        title: text.slice(0, 60), excerpt: text.slice(0, 600),
+        textHash: paragraphHash(text),
+        phases: state.selectedPhase ? [state.selectedPhase] : [],
+        briefingTypes: [], scenarios: picked,
+        aiSuggested: null, aiAccepted: false,
+        createdAt: Date.now(), updatedAt: Date.now(),
+      });
+      kg.invalidate(); await kg.load(true);
+      els.indexerOverlay.classList.add('hidden');
+      renderHomeResults();
+      toast(`Linked to ${picked.length} briefing${picked.length === 1 ? '' : 's'}.`);
+    }
+  };
+  if (els.indexerBody._handler) els.indexerBody.removeEventListener('click', els.indexerBody._handler);
+  els.indexerBody._handler = onClick;
+  els.indexerBody.addEventListener('click', onClick);
+}
+
 function openIndexerModal(preset) {
   if (!preset || !preset.fileId || !preset.pageNum) { toast('Missing file/page.'); return; }
   const startText = preset.text || '';
@@ -1611,11 +1729,17 @@ async function openFileInViewer(fileId, pageNum, { query = '' } = {}) {
 async function openViewer() {
   ensurePanes();
   els.viewerOverlay.classList.remove('hidden');
-  els.viewerOverlay.classList.toggle('split', state.viewer.split);
-  els.splitToggle.setAttribute('aria-pressed', state.viewer.split ? 'true' : 'false');
+  // Split view removed — always force single-pane.
+  els.viewerOverlay.classList.remove('split');
+  state.viewer.split = false;
+  // Sidebar (outline) defaults to open whenever the viewer is launched.
+  els.viewerSidebar.classList.remove('hidden');
+  els.sidebarToggle.setAttribute('aria-pressed', 'true');
   renderViewerTabs();
   renderTabDock();
   await refreshViewer();
+  // Render the outline now so it's already populated.
+  try { renderSidebar(); } catch (_) {}
 }
 
 function minimizeViewer() {
@@ -1848,6 +1972,7 @@ async function mountPane(i) {
       onNoteSelection: (pageNum, text) => openSelectionNote(tab.fileId, pageNum, text),
       onBookmarkSelection: (pageNum, text) => openBookmarkSelection(tab.fileId, pageNum, text),
       onIndexSelection: (pageNum, text, rects) => openIndexerFromSelection(tab.fileId, pageNum, text, rects),
+      onScenarioSelection: (pageNum, text, rects) => openScenarioLinkPicker(tab.fileId, pageNum, text, rects),
     });
     pane.api = api;
     pane.mountedFileId = tab.fileId;
