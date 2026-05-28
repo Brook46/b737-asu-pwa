@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=18" />
+  <link rel="stylesheet" href="./app.css?v=19" />
 </head>
 <body>
   <header class="app-header">
@@ -26,9 +26,10 @@
       <span id="gps-readout" class="gps-readout" title="GPS altitude"></span>
     </div>
     <div class="actions">
-      <button id="gps-toggle" class="btn icon-btn" title="GPS auto-phase" aria-pressed="false" aria-label="GPS auto-phase">GPS</button>
-      <button id="scratch-toggle" class="btn icon-btn" title="Scratchpad" aria-pressed="false" aria-label="Scratchpad">✎</button>
+      <button id="header-settings" class="btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
       <button id="theme-toggle" class="btn icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <button id="gps-toggle" class="btn icon-btn hidden" title="GPS auto-phase" aria-pressed="false" aria-label="GPS auto-phase" aria-hidden="true">GPS</button>
+      <button id="scratch-toggle" class="btn icon-btn hidden" title="Scratchpad" aria-pressed="false" aria-label="Scratchpad" aria-hidden="true">✎</button>
     </div>
   </header>
 
@@ -47,19 +48,22 @@
         <button class="btn ghost" id="home-clear" title="Clear selection">Clear</button>
       </div>
       <div id="home-phases" class="home-phases" aria-label="Phase of flight"></div>
+      <div class="home-row home-row-btypes">
+        <span class="home-row-label" title="Briefing types">🏷</span>
+        <div id="home-btypes" class="home-scenarios" role="group" aria-label="Briefing types"></div>
+        <button class="btn ghost home-row-btn" id="home-add-btype" title="New briefing type">＋</button>
+      </div>
       <div class="home-row">
+        <span class="home-row-label" title="Briefings">✦</span>
         <div id="home-scenarios" class="home-scenarios" role="group" aria-label="Top-level briefings"></div>
-        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New top-level briefing">＋ New</button>
+        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New top-level briefing">＋</button>
       </div>
       <div class="home-row home-row-sub hidden" id="home-sub-row">
         <div id="home-sub-scenarios" class="home-scenarios" role="group" aria-label="Sub-briefings"></div>
         <button class="btn ghost home-row-btn" id="home-add-sub" title="New sub-briefing">＋ New</button>
       </div>
       <ul id="home-results" class="home-results" aria-label="Filtered indexed paragraphs"></ul>
-      <div class="fab-stack">
-        <button id="home-settings" class="fab fab-secondary" title="Settings" aria-label="Settings">⚙</button>
-        <button id="home-add-file" class="fab" title="Add files" aria-label="Add files">＋</button>
-      </div>
+      <button id="home-add-file" class="fab" title="Add files" aria-label="Add files">＋</button>
     </section>
 
     <section id="view-bookmarks" class="view hidden">
@@ -127,7 +131,7 @@
       <button class="btn ghost" id="mk-toggle" title="Highlight markup" aria-pressed="false">✐ Markup</button>
       <button class="btn ghost" id="viewer-index" title="Index a paragraph on this page">📑 Index</button>
       <button class="btn ghost" id="viewer-bookmark" title="Bookmark this page">✚ Bookmark</button>
-      <button class="btn ghost" id="viewer-note" title="Note this page">✎ Note</button>
+      <button class="btn ghost hidden" id="viewer-note" title="Note this page" aria-hidden="true">✎ Note</button>
       <button class="btn ghost" id="viewer-close" aria-label="Minimise viewer">Minimise</button>
     </div>
     <div id="markup-bar" class="markup-bar hidden">
@@ -297,15 +301,12 @@
       </header>
       <div class="modal-body settings-body">
         <section class="settings-section">
-          <h3>Scenarios <span class="admin-sub">— linked to one or more phases</span></h3>
-          <div id="settings-scenarios" class="settings-list"></div>
-          <form id="settings-scenario-new" class="settings-new-form">
-            <input id="ss-name" placeholder="New scenario name" required />
-            <button class="btn primary" type="submit">Add</button>
-          </form>
+          <h3>Library <span class="admin-sub">— pick the right category per document</span></h3>
+          <div id="settings-library" class="settings-library"></div>
+          <button class="btn primary" id="settings-add-file" type="button">＋ Add documents</button>
         </section>
         <section class="settings-section">
-          <h3>Briefing types <span class="admin-sub">— labels for indexed items (e.g. Normal Ops, Memory Items)</span></h3>
+          <h3>Briefing types <span class="admin-sub">— labels (e.g. Normal Ops, Memory Items)</span></h3>
           <div id="settings-btypes" class="settings-list"></div>
           <form id="settings-btype-new" class="settings-new-form">
             <input id="sb-name" placeholder="New briefing-type name" required />
@@ -314,17 +315,17 @@
           </form>
         </section>
         <section class="settings-section">
-          <h3>Library</h3>
-          <div class="settings-actions">
-            <button class="btn" id="settings-files">All documents</button>
-            <button class="btn" id="settings-notes">All notes &amp; pictures</button>
-            <button class="btn" id="settings-aircraft">Aircraft / effectivity</button>
-          </div>
+          <h3>Briefings &amp; specific briefings <span class="admin-sub">— top-level briefings can have sub-briefings</span></h3>
+          <div id="settings-scenarios" class="settings-list"></div>
+          <form id="settings-scenario-new" class="settings-new-form">
+            <input id="ss-name" placeholder="New top-level briefing" required />
+            <button class="btn primary" type="submit">Add</button>
+          </form>
         </section>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=22"></script>
+  <script type="module" src="./app.js?v=23"></script>
 </body>
 </html>
