@@ -9,7 +9,7 @@
 // Highlight or Note), centred page jumps and a nested chapter outline.
 
 import { pdfjsLib } from './pdf-ingest.js';
-import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js?v=4';
+import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js?v=5';
 
 const docCache = new Map();
 const tokens = new Map();             // container -> current render token
@@ -93,7 +93,7 @@ function hideSelMenu() {
  */
 export async function mountPdf(container, fileId, opts = {}) {
   const { startPage = 1, highlights = [], onPageChange, markMemory = false,
-    onHistoryChange, onNoteSelection, onBookmarkSelection } = opts;
+    onHistoryChange, onNoteSelection, onBookmarkSelection, onIndexSelection } = opts;
   const doc = await loadDoc(fileId);
   const myToken = Symbol('render');
   for (const c of [...tokens.keys()]) if (!c.isConnected) tokens.delete(c);
@@ -192,20 +192,33 @@ export async function mountPdf(container, fileId, opts = {}) {
     hideSelMenu();
     selMenu = document.createElement('div');
     selMenu.className = 'text-sel-menu';
-    selMenu.innerHTML = '<button data-a="hl">Highlight</button><button data-a="note">Note</button><button data-a="bm">Bookmark</button>';
+    selMenu.innerHTML = '<button data-a="hl">Highlight</button><button data-a="idx">Index</button><button data-a="note">Note</button><button data-a="bm">Bookmark</button>';
     document.body.appendChild(selMenu);
-    selMenu.style.left = Math.max(8, Math.min(window.innerWidth - 230, rect.left)) + 'px';
+    selMenu.style.left = Math.max(8, Math.min(window.innerWidth - 320, rect.left)) + 'px';
     selMenu.style.top = Math.max(8, rect.top - 44) + 'px';
     selMenu.querySelector('[data-a="hl"]').addEventListener('click', () => highlightSelection());
-    const fromSelection = (cb) => {
+    const fromSelection = (cb, withRects) => {
       const sel = window.getSelection();
       const txt = sel ? sel.toString().trim() : '';
       const el = sel && sel.rangeCount ? pageElForNode(sel.getRangeAt(0).commonAncestorContainer) : null;
+      let rects = null;
+      if (withRects && el && sel && sel.rangeCount) {
+        const canRect = el.canvas.getBoundingClientRect();
+        if (canRect.width) {
+          rects = [...sel.getRangeAt(0).getClientRects()]
+            .filter((r) => r.width > 2 && r.height > 2)
+            .map((r) => [
+              [(r.left - canRect.left) / canRect.width, (r.top - canRect.top) / canRect.height],
+              [(r.right - canRect.left) / canRect.width, (r.bottom - canRect.top) / canRect.height],
+            ]);
+        }
+      }
       hideSelMenu();
-      if (el && cb) cb(el.pageNum, txt);
+      if (el && cb) cb(el.pageNum, txt, rects);
     };
     selMenu.querySelector('[data-a="note"]').addEventListener('click', () => fromSelection(onNoteSelection));
     selMenu.querySelector('[data-a="bm"]').addEventListener('click', () => fromSelection(onBookmarkSelection));
+    selMenu.querySelector('[data-a="idx"]').addEventListener('click', () => fromSelection(onIndexSelection, true));
   }
 
   function pageElForNode(node) {

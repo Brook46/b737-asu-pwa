@@ -2,7 +2,7 @@
 // during any flight phase. Position, text and open/closed state persist to the
 // kv store so it survives reloads and works offline.
 
-import { getKV, setKV } from './storage.js?v=4';
+import { getKV, setKV } from './storage.js?v=5';
 
 const POS_KEY = 'scratchpad-pos';
 const TEXT_KEY = 'scratchpad-text';

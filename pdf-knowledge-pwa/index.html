@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>B737 Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=13" />
+  <link rel="stylesheet" href="./app.css?v=15" />
 </head>
 <body>
   <header class="app-header">
@@ -42,20 +42,18 @@
 
   <main class="app-main">
     <section id="view-phase" class="view">
-      <div class="phase-layout">
-        <div id="phase-path" class="phase-path" role="tablist" aria-label="Phase of flight"></div>
-        <div class="phase-main">
-          <div id="context-toggles" class="context-toggles" role="group" aria-label="Operation type"></div>
-          <div class="briefing-bar">
-            <h2 id="briefing-title" class="briefing-title">Dispatch — Normal Ops</h2>
-            <span class="briefing-actions">
-              <button class="btn" id="briefing-scenarios">✦ Scenarios</button>
-              <button class="btn" id="briefing-add-bm">+ Add bookmark</button>
-            </span>
-          </div>
-          <ul id="briefing-list" class="briefing-list" aria-label="Briefing sections"></ul>
-        </div>
+      <div class="home-search-row">
+        <input id="home-search" type="search" placeholder="Search within selected boxes…" enterkeyhint="search" />
+        <button class="btn ghost" id="home-clear" title="Clear selection">Clear</button>
       </div>
+      <div id="home-phases" class="home-phases" role="group" aria-label="Phases of flight"></div>
+      <div class="home-row">
+        <div id="home-scenarios" class="home-scenarios" role="group" aria-label="Scenarios"></div>
+        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New scenario">＋ New</button>
+        <button class="btn ghost home-row-btn" id="home-mng-scenario" title="Manage scenarios">⚙</button>
+      </div>
+      <ul id="home-results" class="home-results" aria-label="Filtered files and indexed paragraphs"></ul>
+      <button id="home-add-file" class="fab" title="Add files" aria-label="Add files">＋</button>
     </section>
 
     <section id="view-bookmarks" class="view hidden">
@@ -121,6 +119,7 @@
       <button class="btn ghost" id="split-toggle" title="Side-by-side view" aria-pressed="false">⊟ Split</button>
       <button class="btn ghost" id="select-toggle" title="Select &amp; highlight text" aria-pressed="false">⌖ Select</button>
       <button class="btn ghost" id="mk-toggle" title="Draw on the PDF" aria-pressed="false">✐ Markup</button>
+      <button class="btn ghost" id="viewer-index" title="Index a paragraph on this page">📑 Index</button>
       <button class="btn ghost" id="viewer-bookmark" title="Bookmark this page">✚ Bookmark</button>
       <button class="btn ghost" id="viewer-note" title="Note this page">✎ Note</button>
       <button class="btn ghost" id="viewer-close" aria-label="Minimise viewer">Minimise</button>
@@ -201,6 +200,36 @@
     </div>
   </div>
 
+  <div id="indexer-overlay" class="modal-overlay hidden">
+    <div class="modal modal-wide">
+      <header class="modal-head">
+        <h2>Index paragraph</h2>
+        <button class="btn ghost" id="indexer-close" aria-label="Close">✕</button>
+      </header>
+      <div id="indexer-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="page-paras-overlay" class="modal-overlay hidden">
+    <div class="modal modal-wide">
+      <header class="modal-head">
+        <h2 id="page-paras-title">Paragraphs on this page</h2>
+        <button class="btn ghost" id="page-paras-close" aria-label="Close">✕</button>
+      </header>
+      <div id="page-paras-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="btype-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <header class="modal-head">
+        <h2>Briefing Types</h2>
+        <button class="btn ghost" id="btype-close" aria-label="Close">✕</button>
+      </header>
+      <div id="btype-body" class="modal-body"></div>
+    </div>
+  </div>
+
   <div id="scenario-overlay" class="modal-overlay hidden">
     <div class="modal">
       <header class="modal-head">
@@ -234,6 +263,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=17"></script>
+  <script type="module" src="./app.js?v=19"></script>
 </body>
 </html>

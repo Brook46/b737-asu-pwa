@@ -1,6 +1,6 @@
 // B737 Pilot Companion — bootstrap, state, and event wiring.
 
-import * as storage from './modules/storage.js?v=4';
+import * as storage from './modules/storage.js?v=5';
 import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
 import * as searchMod from './modules/search.js';
 import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=16';
@@ -14,15 +14,18 @@ import * as gps from './modules/gps.js';
 import * as notes from './modules/annotations.js';
 import { initScratchpad } from './modules/scratchpad.js';
 import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js';
+import { paragraphsForPage, paragraphHash } from './modules/paragraphs.js?v=1';
 
 const $ = (id) => document.getElementById(id);
 const els = {
   tailSelect: $('tail-select'), gpsReadout: $('gps-readout'),
   gpsToggle: $('gps-toggle'), scratchToggle: $('scratch-toggle'), themeToggle: $('theme-toggle'),
-  phasePath: $('phase-path'), contextToggles: $('context-toggles'),
-  briefingTitle: $('briefing-title'), briefingList: $('briefing-list'),
-  briefingAddBm: $('briefing-add-bm'), briefingScenarios: $('briefing-scenarios'),
+  homeSearch: $('home-search'), homeClear: $('home-clear'),
+  homePhases: $('home-phases'), homeScenarios: $('home-scenarios'),
+  homeAddScenario: $('home-add-scenario'), homeMngScenario: $('home-mng-scenario'),
+  homeResults: $('home-results'), homeAddFile: $('home-add-file'),
   scenarioOverlay: $('scenario-overlay'), scenarioBody: $('scenario-body'), scenarioClose: $('scenario-close'),
+  btypeOverlay: $('btype-overlay'), btypeBody: $('btype-body'), btypeClose: $('btype-close'),
   searchForm: $('search-form'), searchInput: $('search-input'),
   jumpResults: $('jump-results'), answerPanel: $('answer-panel'),
   notesList: $('notes-list'), filesList: $('files-list'),
@@ -31,7 +34,11 @@ const els = {
   libraryList: $('library-list'), storageInfo: $('storage-info'),
   viewerOverlay: $('viewer-overlay'), viewerTabs: $('viewer-tabs'), viewerTitle: $('viewer-title'),
   sidebarToggle: $('sidebar-toggle'), splitToggle: $('split-toggle'), selectToggle: $('select-toggle'),
-  viewerBookmark: $('viewer-bookmark'), viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
+  viewerIndex: $('viewer-index'), viewerBookmark: $('viewer-bookmark'),
+  viewerNote: $('viewer-note'), viewerClose: $('viewer-close'),
+  indexerOverlay: $('indexer-overlay'), indexerBody: $('indexer-body'), indexerClose: $('indexer-close'),
+  pageParasOverlay: $('page-paras-overlay'), pageParasBody: $('page-paras-body'),
+  pageParasClose: $('page-paras-close'), pageParasTitle: $('page-paras-title'),
   mkToggle: $('mk-toggle'), markupBar: $('markup-bar'), mkUndo: $('mk-undo'), mkClear: $('mk-clear'),
   viewerSidebar: $('viewer-sidebar'), vsChapters: $('vs-chapters'), vsBookmarks: $('vs-bookmarks'), vsAddBm: $('vs-add-bm'),
   pdfPanes: $('pdf-panes'), viewerNotes: $('viewer-notes'),
@@ -49,12 +56,17 @@ const state = {
   manuals: new Map(),
   tails: [],
   scenarios: [],
+  briefingTypes: [],
   activeTail: null,
   noteCounts: new Map(),       // anchorId -> count
   fileNoteCounts: new Map(),   // fileId -> count
   view: 'phase',
   phase: 'dispatch',
   toggle: 'normal',
+  // 3-D home filters (multi-select)
+  selectedPhases: new Set(),
+  selectedScenarios: new Set(),
+  homeQuery: '',
   gpsAuto: false,
   manualPhaseUntil: 0,
   viewer: { tabs: [], panes: [], focused: 0, split: false },
@@ -72,27 +84,29 @@ bootstrap().catch((err) => { console.error(err); toast('Failed to load: ' + err.
 
 async function bootstrap() {
   registerSW();
-  const [files, manuals, tails, scenarios, activeTail, savedViewer] = await Promise.all([
+  const [files, manuals, tails, scenarios, briefingTypes, activeTail, savedViewer] = await Promise.all([
     storage.listFiles(), storage.listManuals(), storage.listTails(),
-    storage.listScenarios(), storage.getKV('activeTail'), storage.getKV('viewerState'),
+    storage.listScenarios(), storage.listBriefingTypes(),
+    storage.getKV('activeTail'), storage.getKV('viewerState'),
   ]);
   for (const f of files) state.files.set(f.id, f);
   for (const m of manuals) state.manuals.set(m.fileId, m);
   state.tails = tails;
   state.scenarios = scenarios;
+  state.briefingTypes = briefingTypes;
   state.activeTail = activeTail || null;
 
   await searchMod.rebuildIndex(state.files);
   await kg.load(true);
   await refreshNoteCounts();
 
-  buildPhasePath();
-  buildContextToggles();
+  renderHomePhases();
+  renderHomeScenarios();
   renderTailSelect();
   renderTails();
   renderLibrary();
   renderStorageInfo();
-  await renderBriefing();
+  await renderHomeResults();
   restoreViewerState(savedViewer);
   renderTabDock();
 
@@ -159,16 +173,34 @@ function wireEvents() {
     const files = [...e.target.files]; e.target.value = '';
     if (files.length) handlePersonalFiles(files);
   });
-  els.briefingAddBm.addEventListener('click', () => openBookmarkModal({}));
-  els.briefingScenarios.addEventListener('click', openScenarioManager);
+  // Home view (3-D hub): phase chips + scenario chips + filtered indexed results.
+  els.homeSearch.addEventListener('input', debounce(() => {
+    state.homeQuery = els.homeSearch.value.trim();
+    renderHomeResults();
+  }, 200));
+  els.homeClear.addEventListener('click', () => {
+    state.selectedPhases.clear(); state.selectedScenarios.clear();
+    state.homeQuery = ''; els.homeSearch.value = '';
+    renderHomePhases(); renderHomeScenarios(); renderHomeResults();
+  });
+  els.homeAddScenario.addEventListener('click', () => quickAddScenario());
+  els.homeMngScenario.addEventListener('click', openScenarioManager);
+  els.homeAddFile.addEventListener('click', () => els.personalInput.click());
   els.scenarioClose.addEventListener('click', () => els.scenarioOverlay.classList.add('hidden'));
   els.scenarioOverlay.addEventListener('click', (e) => { if (e.target === els.scenarioOverlay) els.scenarioOverlay.classList.add('hidden'); });
+  els.btypeClose.addEventListener('click', () => els.btypeOverlay.classList.add('hidden'));
+  els.btypeOverlay.addEventListener('click', (e) => { if (e.target === els.btypeOverlay) els.btypeOverlay.classList.add('hidden'); });
 
   els.searchForm.addEventListener('submit', (e) => { e.preventDefault(); runJumpSearch(els.searchInput.value.trim()); });
 
   els.viewerClose.addEventListener('click', minimizeViewer);
   els.viewerNote.addEventListener('click', openNotesForActiveTab);
   els.viewerBookmark.addEventListener('click', openBookmarkFromViewer);
+  els.viewerIndex.addEventListener('click', openPageIndexerForActiveTab);
+  els.indexerClose.addEventListener('click', () => els.indexerOverlay.classList.add('hidden'));
+  els.indexerOverlay.addEventListener('click', (e) => { if (e.target === els.indexerOverlay) els.indexerOverlay.classList.add('hidden'); });
+  els.pageParasClose.addEventListener('click', () => els.pageParasOverlay.classList.add('hidden'));
+  els.pageParasOverlay.addEventListener('click', (e) => { if (e.target === els.pageParasOverlay) els.pageParasOverlay.classList.add('hidden'); });
   els.splitToggle.addEventListener('click', toggleSplit);
   els.selectToggle.addEventListener('click', toggleSelectMode);
   els.sidebarToggle.addEventListener('click', toggleSidebar);
@@ -229,55 +261,146 @@ function switchView(view) {
   if (view === 'files') renderFilesView();
 }
 
-// --- Phase dashboard ---------------------------------------------------------
+// --- Home view: 3-D filtering hub --------------------------------------------
+// Top: horizontal phase chips. Below: scenario chips (+ new / manage). Below:
+// indexed-anchor results filtered by the union of selected phases AND scenarios
+// AND the search query. Bottom-right: floating "add file" button. Tap a result
+// to open the file full-window at its page.
 
-function buildPhasePath() {
-  els.phasePath.innerHTML = PHASES.map((p) => `
-    <button class="phase-node" role="tab" data-phase="${p.id}">
-      <span class="pn-rail"><span class="pn-dot"></span></span>
-      <span class="pn-body">
-        <span class="pn-label">${escapeHtml(p.label)}</span>
-        <span class="pn-gps hidden" data-gps="${p.id}">GPS</span>
-      </span>
-    </button>`).join('');
-  els.phasePath.querySelectorAll('.phase-node').forEach((node) => {
-    node.addEventListener('click', () => {
+function renderHomePhases() {
+  els.homePhases.innerHTML = PHASES.map((p) => {
+    const on = state.selectedPhases.has(p.id);
+    return `<button class="home-chip phase-chip ${on ? 'on' : ''}" data-phase="${p.id}">
+      <span class="hc-label">${escapeHtml(p.label)}</span>
+      <span class="hc-gps hidden" data-gps="${p.id}">GPS</span>
+    </button>`;
+  }).join('');
+  els.homePhases.querySelectorAll('.home-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-phase');
+      if (state.selectedPhases.has(id)) state.selectedPhases.delete(id);
+      else state.selectedPhases.add(id);
+      // Keep legacy state.phase as "last picked" for callers like GPS.
+      state.phase = id;
       state.manualPhaseUntil = Date.now() + 60000;
-      setPhase(node.getAttribute('data-phase'));
+      renderHomePhases();
+      renderHomeScenarios();
+      renderHomeResults();
     });
   });
-  syncPhaseUI();
 }
 
-function buildContextToggles() {
-  els.contextToggles.innerHTML = TOGGLES.map((t) => `
-    <button class="ctx-toggle" data-toggle="${t.id}" aria-selected="${t.id === state.toggle}">
-      <span class="ctx-label">${escapeHtml(t.label)}</span>
-      <span class="ctx-src">${escapeHtml(t.source)}</span>
-    </button>`).join('');
-  els.contextToggles.querySelectorAll('.ctx-toggle').forEach((btn) => {
-    btn.addEventListener('click', () => { state.toggle = btn.getAttribute('data-toggle'); syncToggleUI(); renderBriefing(); });
+function renderHomeScenarios() {
+  const list = state.scenarios || [];
+  els.homeScenarios.innerHTML = list.length
+    ? list.map((s) => {
+        const on = state.selectedScenarios.has(s.id);
+        return `<button class="home-chip scenario-chip ${on ? 'on' : ''}" data-id="${escapeHtml(s.id)}">
+          <span class="hc-label">${escapeHtml(s.name)}</span>
+        </button>`;
+      }).join('')
+    : '<span class="admin-sub">No scenarios yet — tap ＋ New to add one.</span>';
+  els.homeScenarios.querySelectorAll('.home-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      if (state.selectedScenarios.has(id)) state.selectedScenarios.delete(id);
+      else state.selectedScenarios.add(id);
+      renderHomeScenarios();
+      renderHomeResults();
+    });
   });
 }
 
+async function quickAddScenario() {
+  const name = prompt('New scenario name:');
+  if (!name || !name.trim()) return;
+  const sc = {
+    id: 'sc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    name: name.trim(), phases: [], kind: 'normal', sort: Date.now(), createdAt: Date.now(),
+  };
+  await storage.putScenario(sc);
+  await reloadScenarios();
+  renderHomeScenarios();
+}
+
+async function renderHomeResults() {
+  const fileIds = activeFileIds();
+  const phases = [...state.selectedPhases];
+  const scenarios = [...state.selectedScenarios];
+  let anchors = [];
+  try {
+    anchors = await kg.indexedAnchors({
+      phases: phases.length ? phases : null,
+      scenarios: scenarios.length ? scenarios : null,
+      fileIds: fileIds ? [...fileIds] : null,
+      query: state.homeQuery || '',
+    });
+  } catch (e) {
+    // Fallback if knowledge graph doesn't yet expose indexedAnchors.
+    const all = await kg.allAnchors();
+    anchors = all.filter((a) => {
+      if (a.kind !== 'idx') return false;
+      if (phases.length && !phases.some((p) => (a.phases || []).includes(p))) return false;
+      if (scenarios.length && !scenarios.some((s) => (a.scenarios || []).includes(s))) return false;
+      if (fileIds && !fileIds.has(a.fileId)) return false;
+      if (state.homeQuery) {
+        const q = state.homeQuery.toLowerCase();
+        const hay = ((a.title || '') + ' ' + (a.excerpt || '')).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  const hasFilters = phases.length || scenarios.length || state.homeQuery;
+  if (!anchors.length) {
+    els.homeResults.innerHTML = hasFilters
+      ? '<li class="home-empty">No indexed paragraphs match. Try other phases/scenarios, or tap “Clear”.</li>'
+      : '<li class="home-empty">Nothing indexed yet. Open a file → 📑 Index → tap a paragraph to tag it across phases & scenarios.</li>';
+    return;
+  }
+  els.homeResults.innerHTML = anchors.map((a) => homeResultHtml(a)).join('');
+  els.homeResults.querySelectorAll('.home-result').forEach((row) => {
+    const anchor = anchors.find((x) => x.anchorId === row.getAttribute('data-anchor'));
+    if (!anchor) return;
+    row.addEventListener('click', () => openAnchorInViewer(anchor));
+  });
+}
+
+function homeResultHtml(a) {
+  const file = state.files.get(a.fileId);
+  const fname = file ? file.name : '(file missing)';
+  const phaseTags = (a.phases || []).map(phaseLabel).filter(Boolean).slice(0, 3).join(' · ');
+  const scenTags = (a.scenarios || []).map(scenarioLabel).filter(Boolean).slice(0, 3).join(' · ');
+  return `<li class="home-result" data-anchor="${escapeHtml(a.anchorId)}">
+    <div class="hr-head">
+      <span class="hr-file">${escapeHtml(fname)}</span>
+      <span class="hr-page">p.${a.pageNum}</span>
+    </div>
+    ${a.excerpt ? `<div class="hr-excerpt">${escapeHtml(a.excerpt.slice(0, 240))}</div>` : ''}
+    <div class="hr-tags">
+      ${phaseTags ? `<span class="hr-tag">✈ ${escapeHtml(phaseTags)}</span>` : ''}
+      ${scenTags ? `<span class="hr-tag">✦ ${escapeHtml(scenTags)}</span>` : ''}
+    </div>
+  </li>`;
+}
+
+function phaseLabel(id) { const p = PHASES.find((x) => x.id === id); return p ? p.label : ''; }
+function scenarioLabel(id) { const s = (state.scenarios || []).find((x) => x.id === id); return s ? s.name : ''; }
+
+// Back-compat shims so existing callers (GPS, scenario-manager close, file
+// ingest, etc.) keep working against the rebuilt home view.
 function setPhase(phaseId) {
   state.phase = phaseId;
-  syncPhaseUI();
-  renderBriefing();
+  // Treat GPS-driven phase changes as "make this the only selected phase".
+  state.selectedPhases = new Set([phaseId]);
+  renderHomePhases();
+  renderHomeScenarios();
+  renderHomeResults();
 }
-
-function syncPhaseUI() {
-  const activeIdx = PHASES.findIndex((p) => p.id === state.phase);
-  els.phasePath.querySelectorAll('.phase-node').forEach((node, i) => {
-    node.setAttribute('aria-selected', node.getAttribute('data-phase') === state.phase ? 'true' : 'false');
-    node.classList.toggle('passed', i <= activeIdx);
-  });
-}
-
-function syncToggleUI() {
-  els.contextToggles.querySelectorAll('.ctx-toggle').forEach((b) =>
-    b.setAttribute('aria-selected', b.getAttribute('data-toggle') === state.toggle ? 'true' : 'false'));
-}
+function syncPhaseUI() { renderHomePhases(); }
+function syncToggleUI() { /* no toggles in the new home view */ }
+async function renderBriefing() { renderHomePhases(); renderHomeScenarios(); await renderHomeResults(); }
 
 function activeFileIds() {
   if (!state.activeTail) return null;
@@ -289,62 +412,6 @@ function activeFileIds() {
     }
   }
   return ids;
-}
-
-async function renderBriefing() {
-  const phase = phaseById(state.phase);
-  const toggle = TOGGLES.find((t) => t.id === state.toggle);
-  els.briefingTitle.textContent = `${phase.label} — ${toggle.label}`;
-  const fileIds = activeFileIds();
-  const allAnchors = await kg.allAnchors();
-
-  // Scenarios assigned to this phase + briefing kind, each with its bookmarks.
-  const sections = [];
-  for (const s of state.scenarios) {
-    if (s.kind !== state.toggle || !(s.phases || []).includes(state.phase)) continue;
-    let anchors = allAnchors.filter((a) => Array.isArray(a.scenarios) && a.scenarios.includes(s.id));
-    if (fileIds) anchors = anchors.filter((a) => fileIds.has(a.fileId));
-    sections.push({ kind: 'scenario', id: s.id, label: s.name, anchors });
-  }
-
-  // Supplementary content auto-found from the manuals (non-empty only).
-  const autoSections = [];
-  for (const sec of sectionsFor(state.phase, state.toggle)) {
-    let anchors;
-    if (sec.manualType === 'MEL' && !sec.hint) anchors = await kg.anchorsByManualType('MEL', { fileIds });
-    else anchors = await kg.findAnchors(sec.manualType, sec.hint, { fileIds });
-    if (anchors.length) autoSections.push({ kind: 'auto', label: sec.label, anchors: anchors.slice(0, 25) });
-  }
-
-  const all = sections.concat(autoSections);
-  const openAllBtn = all.some((r) => r.anchors.length)
-    ? '<button class="btn primary" id="open-all-btn">Open all in viewer</button>' : '';
-  const scenarioHtml = sections.length
-    ? sections.map((r, i) => briefingSectionHtml(r, i, true)).join('')
-    : '<li class="briefing-empty">No scenarios for this phase yet — tap “✦ Scenarios” to create one, then “+ Add bookmark”.</li>';
-  const autoHtml = autoSections.length
-    ? '<li class="briefing-divider">Suggested from the manuals</li>' +
-      autoSections.map((r, i) => briefingSectionHtml(r, sections.length + i, false)).join('')
-    : '';
-  els.briefingList.innerHTML = openAllBtn + scenarioHtml + autoHtml;
-
-  els.briefingList.querySelectorAll('.briefing-section').forEach((li) => {
-    const idx = +li.getAttribute('data-idx');
-    li.querySelector('.briefing-section-head').addEventListener('click', (e) => {
-      if (e.target.closest('[data-act="add"]')) return;
-      const open = li.getAttribute('aria-expanded') === 'true';
-      li.setAttribute('aria-expanded', open ? 'false' : 'true');
-      li.querySelector('.briefing-anchors').classList.toggle('hidden', open);
-    });
-    const addBtn = li.querySelector('[data-act="add"]');
-    if (addBtn) addBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openBookmarkModal({ scenarioIds: [li.getAttribute('data-scenario')] });
-    });
-    bindAnchorRows(li, all[idx].anchors);
-  });
-  const openAll = $('open-all-btn');
-  if (openAll) openAll.addEventListener('click', () => prepPhaseTabs(all));
 }
 
 function briefingSectionHtml(r, idx, isScenario) {
@@ -727,7 +794,75 @@ async function scanChangeBars(fileId, btn) {
   }
 }
 
-// --- Scenarios ---------------------------------------------------------------
+// --- Briefing types (dimension #2 of the 3-D index) -------------------------
+
+async function reloadBriefingTypes() {
+  state.briefingTypes = await storage.listBriefingTypes();
+}
+
+function openBriefingTypeManager() {
+  els.btypeOverlay.classList.remove('hidden');
+  renderBriefingTypeManager();
+}
+
+function btypeRowHtml(b) {
+  return `
+    <li class="bt-item" data-id="${escapeHtml(b.id)}">
+      <span class="bt-swatch" style="background:${escapeHtml(b.color || '#7aa3ff')}"></span>
+      <input class="bt-name-edit" value="${escapeHtml(b.name)}" aria-label="Type name" />
+      <input class="bt-color-edit" type="color" value="${escapeHtml(b.color || '#7aa3ff')}" aria-label="Colour" />
+      <button class="btn ghost danger" data-act="del" title="Delete type">✕</button>
+    </li>`;
+}
+
+function renderBriefingTypeManager() {
+  const list = [...state.briefingTypes].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  els.btypeBody.innerHTML = `
+    <form id="bt-create" class="sc-create" autocomplete="off">
+      <input id="bt-name" placeholder="New briefing type — e.g. Normal Ops, Legal, Memory Items" required />
+      <input id="bt-color" type="color" value="#7aa3ff" aria-label="Colour" />
+      <button class="btn primary" type="submit">Create</button>
+    </form>
+    <p class="admin-sub">Types are dimensions you can tag any indexed paragraph with (multi-select). Pilot-defined, no fixed set.</p>
+    <ul class="bt-list">
+      ${list.length ? list.map(btypeRowHtml).join('') : '<li class="vs-empty">No briefing types yet. Create one above.</li>'}
+    </ul>`;
+  els.btypeBody.querySelector('#bt-create').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('bt-name').value.trim();
+    if (!name) return;
+    await storage.putBriefingType({
+      id: 'bt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, color: $('bt-color').value, sort: state.briefingTypes.length,
+      createdAt: Date.now(),
+    });
+    await reloadBriefingTypes();
+    renderBriefingTypeManager();
+  });
+  els.btypeBody.querySelectorAll('.bt-item').forEach((li) => {
+    const id = li.getAttribute('data-id');
+    const bt = state.briefingTypes.find((b) => b.id === id);
+    if (!bt) return;
+    li.querySelector('.bt-name-edit').addEventListener('change', async (e) => {
+      bt.name = e.target.value.trim() || bt.name;
+      await storage.putBriefingType(bt);
+      await reloadBriefingTypes();
+    });
+    li.querySelector('.bt-color-edit').addEventListener('change', async (e) => {
+      bt.color = e.target.value;
+      await storage.putBriefingType(bt);
+      await reloadBriefingTypes();
+      renderBriefingTypeManager();
+    });
+    li.querySelector('[data-act="del"]').addEventListener('click', async () => {
+      await storage.deleteBriefingType(id);
+      await reloadBriefingTypes();
+      renderBriefingTypeManager();
+    });
+  });
+}
+
+// --- Scenarios (dimension #3: situations) -----------------------------------
 
 const KIND_LABEL = { normal: 'Normal Ops', nonNormal: 'Non-Normal', briefing: 'Briefing' };
 
@@ -816,6 +951,132 @@ function renderScenarioManager() {
       });
     });
   });
+}
+
+// --- Indexer (3-D paragraph indexing) ---------------------------------------
+
+function openPageIndexerForActiveTab() {
+  const tab = paneTab(state.viewer.focused);
+  if (!tab) { toast('Open a document first.'); return; }
+  openPageParagraphList(tab.fileId, tab.pageNum);
+}
+
+async function openPageParagraphList(fileId, pageNum) {
+  const file = state.files.get(fileId);
+  els.pageParasTitle.textContent = `Paragraphs — ${file ? file.name : ''} · p.${pageNum}`;
+  els.pageParasOverlay.classList.remove('hidden');
+  els.pageParasBody.innerHTML = '<div class="admin-sub">Loading…</div>';
+  const paras = await paragraphsForPage(fileId, pageNum);
+  const allAnchors = await kg.allAnchors();
+  const indexedHashes = new Set(
+    allAnchors.filter((a) => a.fileId === fileId && a.kind === 'idx' && a.textHash)
+      .map((a) => a.textHash));
+  els.pageParasBody.innerHTML = paras.length
+    ? `<ul class="page-para-list">${paras.map((p, i) => {
+        const indexed = indexedHashes.has(paragraphHash(p));
+        return `<li class="page-para ${indexed ? 'indexed' : ''}" data-i="${i}">
+          <span class="ppl-status">${indexed ? '✓ Indexed' : 'Unindexed'}</span>
+          <span class="ppl-text">${escapeHtml(p.slice(0, 320))}</span>
+          <button class="btn ${indexed ? 'ghost' : 'primary'}" data-act="idx">${indexed ? 'Re-index' : 'Index'}</button>
+        </li>`;
+      }).join('')}</ul>`
+    : '<div class="admin-sub">No paragraphs found on this page (PDF may be a scan or have no extractable text).</div>';
+  els.pageParasBody.querySelectorAll('.page-para').forEach((li) => {
+    const i = +li.getAttribute('data-i');
+    li.querySelector('[data-act="idx"]').addEventListener('click', () => {
+      els.pageParasOverlay.classList.add('hidden');
+      openIndexerModal({ fileId, pageNum, paraIndex: i, text: paras[i] });
+    });
+  });
+}
+
+function openIndexerFromSelection(fileId, pageNum, text, rects) {
+  if (!text || !text.trim()) { toast('Selection is empty.'); return; }
+  openIndexerModal({ fileId, pageNum, text, selectionRects: rects });
+}
+
+function openIndexerModal(preset) {
+  if (!preset || !preset.fileId || !preset.pageNum) { toast('Missing file/page.'); return; }
+  const startText = preset.text || '';
+  els.indexerBody.innerHTML = `
+    <div class="field">
+      <label for="ix-text">Excerpt <span class="admin-sub">— page ${preset.pageNum}</span></label>
+      <textarea id="ix-text" rows="4">${escapeHtml(startText)}</textarea>
+    </div>
+    <div class="field">
+      <label>Phases of flight</label>
+      <div class="dim-chips" id="ix-phases">
+        ${PHASES.map((p) => `<button type="button" class="dim-chip" data-id="${p.id}">${escapeHtml(p.label)}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <label>Briefing types
+        <button type="button" class="btn ghost ix-mng" id="ix-mng-bt">Manage…</button>
+      </label>
+      <div class="dim-chips" id="ix-btypes">
+        ${state.briefingTypes.length
+          ? state.briefingTypes.map((b) => `<button type="button" class="dim-chip" data-id="${escapeHtml(b.id)}" style="--c:${escapeHtml(b.color || '#7aa3ff')}">${escapeHtml(b.name)}</button>`).join('')
+          : '<span class="admin-sub">No briefing types yet — tap Manage to create some.</span>'}
+      </div>
+    </div>
+    <div class="field">
+      <label>Situations
+        <button type="button" class="btn ghost ix-mng" id="ix-mng-sc">Manage…</button>
+      </label>
+      <div class="dim-chips" id="ix-situations">
+        ${state.scenarios.length
+          ? state.scenarios.map((s) => `<button type="button" class="dim-chip" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('')
+          : '<span class="admin-sub">No situations yet — tap Manage to create some.</span>'}
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="ix-cancel">Cancel</button>
+      <button class="btn primary" id="ix-save">Save</button>
+    </div>`;
+  els.indexerOverlay.classList.remove('hidden');
+  let saving = false;
+  const doSave = async () => {
+    if (saving) return; saving = true;
+    const t = $('ix-text').value.trim() || startText;
+    if (!t) { toast('Excerpt required.'); saving = false; return; }
+    const phases = [...els.indexerBody.querySelectorAll('#ix-phases .dim-chip.on')].map((c) => c.getAttribute('data-id'));
+    const btypes = [...els.indexerBody.querySelectorAll('#ix-btypes .dim-chip.on')].map((c) => c.getAttribute('data-id'));
+    const sits   = [...els.indexerBody.querySelectorAll('#ix-situations .dim-chip.on')].map((c) => c.getAttribute('data-id'));
+    const m = state.manuals.get(preset.fileId);
+    await storage.putAnchor({
+      anchorId: 'idx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      fileId: preset.fileId, manualType: m ? m.manualType : 'PERSONAL',
+      kind: 'idx',
+      source: preset.selectionRects ? 'selection' : (preset.paraIndex != null ? 'auto-para' : 'manual'),
+      paraIndex: preset.paraIndex ?? null,
+      selectionRects: preset.selectionRects || null,
+      pageNum: preset.pageNum,
+      anchorType: 'page',
+      value: 'p.' + preset.pageNum,
+      title: t.slice(0, 60),
+      excerpt: t.slice(0, 600),
+      textHash: paragraphHash(t),
+      phases, briefingTypes: btypes, scenarios: sits,
+      aiSuggested: null, aiAccepted: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    kg.invalidate(); await kg.load(true);
+    els.indexerOverlay.classList.add('hidden');
+    renderBriefing();
+    toast(`Indexed (${phases.length}p · ${btypes.length}b · ${sits.length}s)`);
+    saving = false;
+  };
+  const onBodyClick = (e) => {
+    const chip = e.target.closest('.dim-chip');
+    if (chip && els.indexerBody.contains(chip)) { chip.classList.toggle('on'); return; }
+    if (e.target.id === 'ix-mng-bt') { els.indexerOverlay.classList.add('hidden'); openBriefingTypeManager(); return; }
+    if (e.target.id === 'ix-mng-sc') { els.indexerOverlay.classList.add('hidden'); openScenarioManager(); return; }
+    if (e.target.id === 'ix-cancel') { els.indexerOverlay.classList.add('hidden'); return; }
+    if (e.target.id === 'ix-save') { doSave(); return; }
+  };
+  if (els.indexerBody._handler) els.indexerBody.removeEventListener('click', els.indexerBody._handler);
+  els.indexerBody._handler = onBodyClick;
+  els.indexerBody.addEventListener('click', onBodyClick);
 }
 
 // "Bookmark this page" — opens the modal pre-filled from the focused pane.
@@ -1216,6 +1477,7 @@ async function mountPane(i) {
       onHistoryChange: (h) => updatePaneHistory(i, h),
       onNoteSelection: (pageNum, text) => openSelectionNote(tab.fileId, pageNum, text),
       onBookmarkSelection: (pageNum, text) => openBookmarkSelection(tab.fileId, pageNum, text),
+      onIndexSelection: (pageNum, text, rects) => openIndexerFromSelection(tab.fileId, pageNum, text, rects),
     });
     pane.api = api;
     pane.mountedFileId = tab.fileId;
@@ -1571,7 +1833,7 @@ function onGpsUpdate(s) {
   if (s.altFt == null) return;
   const arrow = s.trend > 0 ? '↑' : s.trend < 0 ? '↓' : '→';
   els.gpsReadout.textContent = `${Math.round(s.altFt).toLocaleString()} ft ${arrow}`;
-  els.phasePath.querySelectorAll('[data-gps]').forEach((el) =>
+  els.homePhases.querySelectorAll('[data-gps]').forEach((el) =>
     el.classList.toggle('hidden', el.getAttribute('data-gps') !== s.phase));
   if (state.gpsAuto && s.phase && s.phase !== state.phase && Date.now() > state.manualPhaseUntil) {
     setPhase(s.phase);

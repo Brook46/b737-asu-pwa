@@ -5,7 +5,7 @@
 // numbers, so a revision that renumbers pages only needs the anchor store
 // rebuilt — callers are unaffected.
 
-import * as storage from './storage.js?v=4';
+import * as storage from './storage.js?v=5';
 
 let cache = null; // { all: [anchor] }
 
@@ -31,12 +31,34 @@ export async function anchorsForFile(fileId) {
   return (await allAnchors()).filter((a) => a.fileId === fileId);
 }
 
-// Bookmarks the user has explicitly placed into a phase + briefing status.
-export async function anchorsForPlacement(phase, toggle, { fileIds = null } = {}) {
-  return (await allAnchors()).filter((a) =>
-    (!fileIds || fileIds.has(a.fileId)) &&
-    Array.isArray(a.placements) &&
-    a.placements.some((p) => p.phase === phase && p.toggle === toggle));
+/**
+ * Query indexed anchors by ANY combination of the three dimensions.
+ *  - phases:        match if anchor.phases includes ANY of these
+ *  - briefingTypes: match if anchor.briefingTypes includes ANY of these
+ *  - scenarios:     match if anchor.scenarios includes ANY of these
+ *  - query:         free-text match against title + excerpt
+ *  - fileIds:       optional Set to restrict to specific files
+ *  - kind:          default 'idx' (the new 3-D indexed items only)
+ * All non-empty filters are AND-combined.
+ */
+export async function indexedAnchors({ phases, briefingTypes, scenarios,
+  fileIds = null, query = '', kind = 'idx' } = {}) {
+  const wantP = phases && phases.length ? new Set(phases) : null;
+  const wantB = briefingTypes && briefingTypes.length ? new Set(briefingTypes) : null;
+  const wantS = scenarios && scenarios.length ? new Set(scenarios) : null;
+  const terms = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return (await allAnchors()).filter((a) => {
+    if (kind && a.kind !== kind) return false;
+    if (fileIds && !fileIds.has(a.fileId)) return false;
+    if (wantP && !(a.phases || []).some((p) => wantP.has(p))) return false;
+    if (wantB && !(a.briefingTypes || []).some((b) => wantB.has(b))) return false;
+    if (wantS && !(a.scenarios || []).some((s) => wantS.has(s))) return false;
+    if (terms.length) {
+      const hay = `${a.title || ''} ${a.excerpt || ''} ${a.value || ''}`.toLowerCase();
+      if (!terms.every((t) => hay.includes(t))) return false;
+    }
+    return true;
+  });
 }
 
 // Resolve a content id (e.g. FCOM "13.20.3") to its best anchor.

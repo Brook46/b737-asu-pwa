@@ -5,7 +5,7 @@
 // tails (aircraft registrations).
 
 const DB_NAME = 'pdf-knowledge';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise = null;
 
@@ -56,6 +56,32 @@ function openDB() {
         if (!db.objectStoreNames.contains('scenarios')) {
           db.createObjectStore('scenarios', { keyPath: 'id' });
         }
+      }
+      if (e.oldVersion < 5) {
+        // 3-D indexing: user-defined briefing types as a new dimension.
+        if (!db.objectStoreNames.contains('briefingTypes')) {
+          db.createObjectStore('briefingTypes', { keyPath: 'id' });
+        }
+        // Backfill every anchor with the new fields and a default kind so old
+        // bookmarks keep working until the user upgrades them via the Indexer.
+        const anchors = e.target.transaction.objectStore('anchors');
+        if (!anchors.indexNames.contains('byKind')) {
+          anchors.createIndex('byKind', 'kind', { unique: false });
+        }
+        const cur = anchors.openCursor();
+        cur.onsuccess = (ev) => {
+          const c = ev.target.result;
+          if (!c) return;
+          const a = c.value;
+          let touched = false;
+          if (a.kind === undefined) { a.kind = 'nav'; touched = true; }
+          if (a.phases === undefined) { a.phases = []; touched = true; }
+          if (a.briefingTypes === undefined) { a.briefingTypes = []; touched = true; }
+          if (a.scenarios === undefined) { a.scenarios = []; touched = true; }
+          if (a.placements !== undefined) { delete a.placements; touched = true; }
+          if (touched) c.update(a);
+          c.continue();
+        };
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -300,4 +326,34 @@ export async function listScenarios() {
 
 export async function deleteScenario(id) {
   await tx('scenarios', 'readwrite', (t) => t.objectStore('scenarios').delete(id));
+}
+
+// --- Briefing types (user-defined dimension #2: e.g. Normal Ops, Legal…) ---
+
+export async function putBriefingType(bt) {
+  await tx('briefingTypes', 'readwrite', (t) => t.objectStore('briefingTypes').put(bt));
+}
+
+export async function listBriefingTypes() {
+  return tx('briefingTypes', 'readonly', (t) => reqToPromise(t.objectStore('briefingTypes').getAll()));
+}
+
+export async function deleteBriefingType(id) {
+  await tx('briefingTypes', 'readwrite', (t) => t.objectStore('briefingTypes').delete(id));
+}
+
+// --- Anchor extensions for 3-D indexing ---
+
+export async function getAnchorsByKind(kind) {
+  return tx('anchors', 'readonly', (t) => {
+    const idx = t.objectStore('anchors').index('byKind');
+    return reqToPromise(idx.getAll(IDBKeyRange.only(kind)));
+  });
+}
+
+export async function bulkPutAnchors(anchors) {
+  await tx('anchors', 'readwrite', (t) => {
+    const store = t.objectStore('anchors');
+    for (const a of anchors) store.put(a);
+  });
 }

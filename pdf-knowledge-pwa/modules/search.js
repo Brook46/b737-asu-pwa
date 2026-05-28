@@ -1,7 +1,7 @@
 // MiniSearch-backed full-text search across page records.
 // Index is rebuilt from IndexedDB on boot (cheap for <50 files / <200 MB libraries).
 
-import { getAllPages } from './storage.js?v=4';
+import { getAllPages } from './storage.js?v=5';
 
 let MiniSearch = null;
 let index = null;
