@@ -1024,6 +1024,14 @@ body.has-dock .app-main { padding-bottom: 60px; }
 .settings-add-child {
   align-self: flex-start; font-size: 0.85em; padding: 4px 10px; color: var(--fg-muted);
 }
+.sr-reorder { display: inline-flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.sr-reorder .btn { padding: 1px 6px; line-height: 1; font-size: 0.7em; min-height: 0; }
+.sr-links { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.sr-link-group { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.sr-link-label {
+  font-size: 0.7em; color: var(--fg-muted); font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; margin-right: 4px;
+}
 .settings-new-form { display: flex; gap: 8px; align-items: center; }
 .settings-new-form input[type="text"], .settings-new-form input:not([type]), .settings-new-form input[type="search"] {
   flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);

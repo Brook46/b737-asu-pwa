@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=19" />
+  <link rel="stylesheet" href="./app.css?v=20" />
 </head>
 <body>
   <header class="app-header">
@@ -271,14 +271,17 @@
             <input id="bn-name" type="text" required placeholder="e.g. Engine Failure" />
           </div>
           <div class="field" id="bn-parent-field">
-            <label for="bn-parent">Parent briefing <span class="admin-sub">— leave “(top-level)” for a category</span></label>
-            <select id="bn-parent">
-              <option value="">(top-level)</option>
-            </select>
+            <label>Parent briefings <span class="admin-sub">— tap to link, leave empty for a top-level briefing</span></label>
+            <div id="bn-parents" class="sr-phases" aria-label="Parent briefings"></div>
+            <select id="bn-parent" class="hidden" aria-hidden="true"></select>
           </div>
-          <div class="field">
-            <label>Phases of flight <span class="admin-sub">— tap to link</span></label>
+          <div class="field" id="bn-phases-field">
+            <label>Phases of flight <span class="admin-sub">— tap to link (only top-level briefings)</span></label>
             <div id="bn-phases" class="sr-phases"></div>
+          </div>
+          <div class="field" id="bn-btypes-field">
+            <label>Briefing types <span class="admin-sub">— tap to link (only top-level briefings)</span></label>
+            <div id="bn-btypes" class="sr-phases"></div>
           </div>
           <div class="field">
             <label for="bn-color">Color</label>
@@ -326,6 +329,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=23"></script>
+  <script type="module" src="./app.js?v=24"></script>
 </body>
 </html>

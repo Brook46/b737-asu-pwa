@@ -32,7 +32,10 @@ const els = {
   briefingNewOverlay: $('briefing-new-overlay'), bnClose: $('bn-close'),
   bnForm: $('bn-form'), bnTitle: $('bn-title'), bnName: $('bn-name'),
   bnParent: $('bn-parent'), bnParentField: $('bn-parent-field'),
-  bnPhases: $('bn-phases'), bnColor: $('bn-color'), bnCancel: $('bn-cancel'),
+  bnParents: $('bn-parents'),
+  bnPhases: $('bn-phases'), bnPhasesField: $('bn-phases-field'),
+  bnBtypes: $('bn-btypes'), bnBtypesField: $('bn-btypes-field'),
+  bnColor: $('bn-color'), bnCancel: $('bn-cancel'),
   settingsOverlay: $('settings-overlay'), settingsClose: $('settings-close'),
   settingsScenarios: $('settings-scenarios'), settingsBtypes: $('settings-btypes'),
   settingsScenarioNew: $('settings-scenario-new'), ssName: $('ss-name'),
@@ -77,10 +80,10 @@ const state = {
   view: 'phase',
   phase: 'dispatch',
   toggle: 'normal',
-  // Home filters: phase is single-select; briefing types multi-select; top-
-  // level briefings multi-select; specific sub-briefings single-select.
+  // Home filters: phase, briefingType and sub-briefing are all single-select.
+  // Top-level briefings remain multi-select (user may want several at once).
   selectedPhase: null,
-  selectedBtypes: new Set(),
+  selectedBtype: null,
   selectedScenarios: new Set(),
   homeQuery: '',
   gpsAuto: false,
@@ -196,7 +199,8 @@ function wireEvents() {
     renderHomeResults();
   }, 200));
   els.homeClear.addEventListener('click', () => {
-    state.selectedPhase = null; state.selectedScenarios.clear(); state.selectedBtypes.clear();
+    state.selectedPhase = null; state.selectedBtype = null;
+    state.selectedScenarios.clear();
     state.homeQuery = ''; els.homeSearch.value = '';
     renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   });
@@ -413,12 +417,12 @@ function initPlaneDrag(planeEl) {
   });
 }
 
-// Briefing-types row — sits between phases and scenarios.
+// Briefing-types row — always shown. Single-select.
 function renderHomeBtypes() {
-  const list = state.briefingTypes || [];
+  const list = (state.briefingTypes || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
   els.homeBtypes.innerHTML = list.length
     ? list.map((b) => {
-        const on = state.selectedBtypes.has(b.id);
+        const on = state.selectedBtype === b.id;
         const c = b.color ? ` style="--c:${escapeHtml(b.color)}"` : '';
         return `<button class="home-chip btype-chip ${on ? 'on' : ''}"${c} data-id="${escapeHtml(b.id)}">
           <span class="hc-label">${escapeHtml(b.name)}</span>
@@ -428,9 +432,22 @@ function renderHomeBtypes() {
   els.homeBtypes.querySelectorAll('.home-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (state.selectedBtypes.has(id)) state.selectedBtypes.delete(id);
-      else state.selectedBtypes.add(id);
-      renderHomeBtypes(); renderHomeResults();
+      // Single-select: tap toggles; tapping another replaces.
+      state.selectedBtype = state.selectedBtype === id ? null : id;
+      // Drop selected scenarios that don't include this type any more.
+      if (state.selectedBtype) {
+        for (const sid of [...state.selectedScenarios]) {
+          const sc = state.scenarios.find((s) => s.id === sid);
+          if (!sc) continue;
+          // Sub-briefings inherit type filtering through their parents.
+          const isSub = (sc.parentIds || (sc.parentId ? [sc.parentId] : [])).length > 0;
+          if (!isSub) {
+            const types = sc.briefingTypes || [];
+            if (types.length && !types.includes(state.selectedBtype)) state.selectedScenarios.delete(sid);
+          }
+        }
+      }
+      renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
     });
   });
 }
@@ -448,28 +465,40 @@ async function openBtypeNewModal() {
   if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsSheet();
 }
 
-// Two-tier scenario rows. Top row = top-level briefings (parentId == null).
-// Sub-row appears only when at least one top-level is selected, listing its
-// children. Both rows are multi-select; the union becomes the active filter.
-function isTopLevel(s) { return !s.parentId; }
-function isChildOf(s, parentId) { return s.parentId === parentId; }
+// Two-tier scenario rows. Top row = top-level briefings (no parents).
+// Sub-row appears only when at least one top-level is selected, listing
+// children of selected tops. Tops filter by phase + briefing type; subs
+// inherit their connection through the parent and do NOT filter by phase.
+function scenarioParents(s) {
+  return s.parentIds && s.parentIds.length ? s.parentIds : (s.parentId ? [s.parentId] : []);
+}
+function isTopLevel(s) { return scenarioParents(s).length === 0; }
+function isChildOf(s, parentId) { return scenarioParents(s).includes(parentId); }
 
-function visibleScenarios(filter) {
-  return (state.scenarios || []).filter((s) =>
-    filter(s) &&
-    (!state.selectedPhase || !(s.phases || []).length || s.phases.includes(state.selectedPhase)));
+function visibleTopLevelBriefings() {
+  return (state.scenarios || []).filter((s) => {
+    if (!isTopLevel(s)) return false;
+    if (state.selectedPhase) {
+      const phases = s.phases || [];
+      if (phases.length && !phases.includes(state.selectedPhase)) return false;
+    }
+    if (state.selectedBtype) {
+      const types = s.briefingTypes || [];
+      if (types.length && !types.includes(state.selectedBtype)) return false;
+    }
+    return true;
+  }).sort((a, b) => (a.sort || 0) - (b.sort || 0));
 }
 
 function renderHomeScenarios() {
-  const tops = visibleScenarios(isTopLevel);
+  const tops = visibleTopLevelBriefings();
   els.homeScenarios.innerHTML = tops.length
     ? tops.map((s) => chipHtmlForScenario(s)).join('')
-    : (state.selectedPhase
-        ? `<span class="admin-sub">No briefings linked to this phase — tap ＋ New.</span>`
-        : `<span class="admin-sub">No briefings yet — tap ＋ New to add one.</span>`);
+    : `<span class="admin-sub">No briefings match — tap ＋ New, or adjust the phase / type filter.</span>`;
   bindScenarioChips(els.homeScenarios);
 
   // Sub-row: union of children of all selected top-level scenarios.
+  // Children show regardless of phase (they inherit through the parent).
   const selectedTops = [...state.selectedScenarios].filter((id) => {
     const s = state.scenarios.find((x) => x.id === id);
     return s && isTopLevel(s);
@@ -477,17 +506,18 @@ function renderHomeScenarios() {
   if (!selectedTops.length) {
     els.homeSubRow.classList.add('hidden');
     els.homeSubScenarios.innerHTML = '';
-    // Drop any child selections that no longer have an active parent.
     for (const sid of [...state.selectedScenarios]) {
       const s = state.scenarios.find((x) => x.id === sid);
-      if (s && s.parentId) state.selectedScenarios.delete(sid);
+      if (s && !isTopLevel(s)) state.selectedScenarios.delete(sid);
     }
   } else {
     els.homeSubRow.classList.remove('hidden');
-    const children = visibleScenarios((s) => selectedTops.includes(s.parentId));
+    const children = (state.scenarios || [])
+      .filter((s) => !isTopLevel(s) && scenarioParents(s).some((p) => selectedTops.includes(p)))
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0));
     els.homeSubScenarios.innerHTML = children.length
       ? children.map((s) => chipHtmlForScenario(s)).join('')
-      : '<span class="admin-sub">No specific briefings under the selected category yet — tap ＋ New.</span>';
+      : '<span class="admin-sub">No specific briefings linked under the selected briefing yet — tap ＋ New.</span>';
     bindScenarioChips(els.homeSubScenarios, { singleSelect: true });
   }
 }
@@ -529,22 +559,40 @@ function openBriefingNewModal({ parentId = null, forceSub = false } = {}) {
   bnContext = { parentId, forceSub };
   els.bnName.value = '';
   els.bnColor.value = '#7aa3ff';
-  // Parent dropdown: all top-level scenarios. Hidden when forceSub is false and
-  // a parent is locked in; shown for sub-briefing creation.
   const tops = (state.scenarios || []).filter(isTopLevel);
-  els.bnParent.innerHTML = '<option value="">(top-level)</option>' +
-    tops.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
-  els.bnParent.value = parentId || '';
-  els.bnParentField.classList.toggle('hidden', !forceSub && !tops.length);
-  els.bnTitle.textContent = forceSub ? 'New sub-briefing' : 'New briefing';
-  // Phases multi-toggle — pre-select the active phase if any.
+  // Parents are now a multi-select chip group. Empty = top-level.
+  const preset = parentId ? [parentId] : [];
+  els.bnParents.innerHTML = tops.length
+    ? tops.map((s) => `<button type="button" class="sr-phase ${preset.includes(s.id) ? 'on' : ''}" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('')
+    : '<span class="admin-sub">— no top-level briefings yet —</span>';
+  const updateMode = () => {
+    const isSub = els.bnParents.querySelectorAll('.sr-phase.on').length > 0;
+    els.bnTitle.textContent = isSub ? 'New sub-briefing' : 'New top-level briefing';
+    // Sub-briefings inherit phase/type filters through their parent → hide
+    // those fields to keep the UI honest.
+    els.bnPhasesField.classList.toggle('hidden', isSub);
+    els.bnBtypesField.classList.toggle('hidden', isSub);
+  };
+  els.bnParents.querySelectorAll('.sr-phase').forEach((b) => {
+    b.addEventListener('click', () => { b.classList.toggle('on'); updateMode(); });
+  });
+  // Pre-fill phases with the active phase.
   els.bnPhases.innerHTML = PHASES.map((p) => {
     const on = state.selectedPhase === p.id;
     return `<button type="button" class="sr-phase ${on ? 'on' : ''}" data-phase="${p.id}">${escapeHtml(p.label)}</button>`;
   }).join('');
-  els.bnPhases.querySelectorAll('.sr-phase').forEach((b) => {
-    b.addEventListener('click', () => b.classList.toggle('on'));
-  });
+  els.bnPhases.querySelectorAll('.sr-phase').forEach((b) =>
+    b.addEventListener('click', () => b.classList.toggle('on')));
+  // Briefing-types chip selector.
+  els.bnBtypes.innerHTML = (state.briefingTypes || []).length
+    ? state.briefingTypes.map((b) => {
+        const on = state.selectedBtype === b.id;
+        return `<button type="button" class="sr-phase ${on ? 'on' : ''}" data-id="${escapeHtml(b.id)}" style="border-color:${escapeHtml(b.color || '#7aa3ff')};">${escapeHtml(b.name)}</button>`;
+      }).join('')
+    : '<span class="admin-sub">— no briefing types yet —</span>';
+  els.bnBtypes.querySelectorAll('.sr-phase').forEach((b) =>
+    b.addEventListener('click', () => b.classList.toggle('on')));
+  updateMode();
   els.briefingNewOverlay.classList.remove('hidden');
   setTimeout(() => els.bnName.focus(), 0);
 }
@@ -553,23 +601,28 @@ async function onCreateBriefing(e) {
   e.preventDefault();
   const name = els.bnName.value.trim();
   if (!name) return;
-  const parentId = els.bnParent.value || null;
-  const phases = [...els.bnPhases.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-phase'));
+  const parentIds = [...els.bnParents.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-id'));
+  const isSub = parentIds.length > 0;
+  const phases = isSub ? [] :
+    [...els.bnPhases.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-phase'));
+  const briefingTypes = isSub ? [] :
+    [...els.bnBtypes.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-id'));
   const sc = {
     id: 'sc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    name, parentId, phases,
+    name, parentIds, parentId: null, phases, briefingTypes,
     color: els.bnColor.value || '#7aa3ff',
     kind: 'normal', sort: Date.now(), createdAt: Date.now(), updatedAt: Date.now(),
   };
   await storage.putScenario(sc);
   await reloadScenarios();
   els.briefingNewOverlay.classList.add('hidden');
-  // If creating a sub-briefing and the parent isn't already active, activate it
-  // so the user sees the new chip immediately on the sub-row.
-  if (parentId && !state.selectedScenarios.has(parentId)) state.selectedScenarios.add(parentId);
+  if (isSub) {
+    // Make sure at least one parent is active so the new chip shows up.
+    if (!parentIds.some((p) => state.selectedScenarios.has(p))) state.selectedScenarios.add(parentIds[0]);
+  }
   renderHomeScenarios(); renderHomeResults();
   if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsSheet();
-  toast(`Created “${name}”${parentId ? ' (sub)' : ''}`);
+  toast(`Created “${name}”${isSub ? ' (sub)' : ''}`);
 }
 
 // Legacy entry kept for older callers that may still reference it.
@@ -578,7 +631,7 @@ async function quickAddScenario() { openBriefingNewModal({ parentId: null }); }
 async function renderHomeResults() {
   const fileIds = activeFileIds();
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
-  const btypes = [...state.selectedBtypes];
+  const btypes = state.selectedBtype ? [state.selectedBtype] : [];
   const scenarios = [...state.selectedScenarios];
   let anchors = [];
   try {
@@ -630,6 +683,8 @@ async function renderHomeResults() {
       minBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
       minBtn.textContent = collapsed ? '▢' : '▭';
       minBtn.title = collapsed ? 'Show preview' : 'Minimise preview';
+      // Render the preview the first time the card is expanded.
+      if (!collapsed) renderCardPreview(row, anchor);
     });
     // Inline page picker — closed by default, opens on the page-button tap.
     const pageBtn = row.querySelector('.hr-page-btn');
@@ -670,7 +725,6 @@ async function renderHomeResults() {
       openAnchorInViewer(anchor);
     });
   });
-  attachPreviewObserver(els.homeResults, anchors);
 }
 
 function homeResultHtml(a) {
@@ -681,7 +735,7 @@ function homeResultHtml(a) {
   const scenTags = (a.scenarios || []).map(scenarioLabel).filter(Boolean).slice(0, 3).join(' · ');
   const itemType = a.itemType === 'bookmark' ? 'bookmark' : 'briefing';
   const kindIcon = itemType === 'bookmark' ? '🔖' : '📋';
-  return `<li class="home-result" data-anchor="${escapeHtml(a.anchorId)}"
+  return `<li class="home-result hr-collapsed" data-anchor="${escapeHtml(a.anchorId)}"
       data-file="${escapeHtml(a.fileId)}" data-page="${a.pageNum}" data-pagecount="${pageCount}">
     <div class="hr-head">
       <span class="hr-kind kind-${itemType}" title="${itemType}">${kindIcon}</span>
@@ -691,7 +745,7 @@ function homeResultHtml(a) {
         <span class="hr-page-of"> / ${pageCount}</span>
       </button>
       <span class="spacer"></span>
-      <button class="btn ghost hr-min" data-act="min" title="Minimise preview" aria-pressed="false">▭</button>
+      <button class="btn ghost hr-min" data-act="min" title="Show preview" aria-pressed="true">▢</button>
       <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶</button>
     </div>
     <div class="hr-page-picker hidden">
@@ -711,32 +765,21 @@ function homeResultHtml(a) {
   </li>`;
 }
 
-// Lazy-render the PDF page into each card as it scrolls into view.
-let previewObserver = null;
-function attachPreviewObserver(container, anchors) {
-  if (previewObserver) previewObserver.disconnect();
-  previewObserver = new IntersectionObserver(async (entries) => {
-    for (const ent of entries) {
-      if (!ent.isIntersecting) continue;
-      const card = ent.target;
-      previewObserver.unobserve(card);
-      const fileId = card.getAttribute('data-file');
-      const pageNum = +card.getAttribute('data-page');
-      const anchor = anchors.find((x) => x.anchorId === card.getAttribute('data-anchor'));
-      const canvas = card.querySelector('.hr-canvas');
-      const wrap = card.querySelector('.hr-preview');
-      try {
-        await renderPreview(canvas, fileId, pageNum, {
-          maxWidthPx: 480,
-          highlightRects: (anchor && anchor.selectionRects) || null,
-        });
-        wrap.removeAttribute('data-pending');
-      } catch (err) {
-        wrap.innerHTML = `<div class="hr-preview-err">Preview unavailable (${escapeHtml(err.message || 'error')})</div>`;
-      }
-    }
-  }, { rootMargin: '120px 0px', threshold: 0.01 });
-  container.querySelectorAll('.home-result').forEach((card) => previewObserver.observe(card));
+// Render-on-demand for previews. Cards start collapsed; rendering only
+// happens when the user expands a card.
+async function renderCardPreview(card, anchor) {
+  const wrap = card.querySelector('.hr-preview');
+  if (!wrap || !wrap.hasAttribute('data-pending')) return; // already rendered
+  const canvas = card.querySelector('.hr-canvas');
+  try {
+    await renderPreview(canvas, card.getAttribute('data-file'), +card.getAttribute('data-page'), {
+      maxWidthPx: 520,
+      highlightRects: (anchor && anchor.selectionRects) || null,
+    });
+    wrap.removeAttribute('data-pending');
+  } catch (err) {
+    wrap.innerHTML = `<div class="hr-preview-err">Preview unavailable (${escapeHtml(err.message || 'error')})</div>`;
+  }
 }
 
 function phaseLabel(id) { const p = PHASES.find((x) => x.id === id); return p ? p.label : ''; }
@@ -770,10 +813,14 @@ function renderSettingsSheet() {
         orphans.map((s) => settingsScenarioRow(s, sList)).join('') : '')
     : '<div class="admin-sub">No briefings yet.</div>');
 
-  // Briefing types: editable name + color + delete.
-  const bList = state.briefingTypes || [];
+  // Briefing types: editable name + color + delete, with reorder arrows.
+  const bList = (state.briefingTypes || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
   els.settingsBtypes.innerHTML = bList.length ? bList.map((b) => `
     <div class="settings-row" data-id="${escapeHtml(b.id)}" data-kind="btype">
+      <div class="sr-reorder">
+        <button class="btn ghost sr-up" data-act="up" title="Move up">▲</button>
+        <button class="btn ghost sr-down" data-act="down" title="Move down">▼</button>
+      </div>
       <input type="text" class="sr-name" value="${escapeHtml(b.name)}" />
       <input type="color" class="sr-color" value="${escapeHtml(b.color || '#7aa3ff')}" title="Color" />
       <button class="btn ghost" data-act="del" title="Delete">🗑</button>
@@ -844,17 +891,34 @@ function settingsScenarioBlock(top, all) {
 }
 
 function settingsScenarioRow(s, all) {
-  const isSub = !!s.parentId;
-  const parentOpts = '<option value="">(top-level)</option>' +
-    all.filter((p) => !p.parentId && p.id !== s.id)
-      .map((p) => `<option value="${escapeHtml(p.id)}" ${p.id === s.parentId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
+  const isSub = !isTopLevel(s);
+  const parents = scenarioParents(s);
+  // Top-level: links to phases + briefing types. Sub: links to parent briefings.
+  const linksHtml = isSub
+    ? `<div class="sr-link-group" data-link="parents">
+        <span class="sr-link-label">parents:</span>
+        ${all.filter((p) => isTopLevel(p) && p.id !== s.id)
+          .map((p) => `<button type="button" class="sr-phase ${parents.includes(p.id) ? 'on' : ''}" data-pid="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`).join('')
+          || '<span class="admin-sub">(no top-level briefings)</span>'}
+      </div>`
+    : `<div class="sr-link-group" data-link="phases">
+        <span class="sr-link-label">phases:</span>
+        ${PHASES.map((p) => `<button type="button" class="sr-phase ${(s.phases || []).includes(p.id) ? 'on' : ''}" data-phase="${p.id}">${escapeHtml(p.label)}</button>`).join('')}
+      </div>
+      <div class="sr-link-group" data-link="btypes">
+        <span class="sr-link-label">types:</span>
+        ${(state.briefingTypes || []).length
+          ? state.briefingTypes.map((b) => `<button type="button" class="sr-phase ${(s.briefingTypes || []).includes(b.id) ? 'on' : ''}" data-btid="${escapeHtml(b.id)}" style="border-color:${escapeHtml(b.color || '#7aa3ff')};">${escapeHtml(b.name)}</button>`).join('')
+          : '<span class="admin-sub">(no briefing types)</span>'}
+      </div>`;
   return `<div class="settings-row ${isSub ? 'is-sub' : ''}" data-id="${escapeHtml(s.id)}" data-kind="scenario">
+    <div class="sr-reorder">
+      <button class="btn ghost sr-up" data-act="up" title="Move up">▲</button>
+      <button class="btn ghost sr-down" data-act="down" title="Move down">▼</button>
+    </div>
     <input type="text" class="sr-name" value="${escapeHtml(s.name)}" />
     <input type="color" class="sr-color" value="${escapeHtml(s.color || '#7aa3ff')}" title="Color" />
-    <select class="sr-parent" title="Parent briefing">${parentOpts}</select>
-    <div class="sr-phases" aria-label="Linked phases">
-      ${PHASES.map((p) => `<button type="button" class="sr-phase ${(s.phases || []).includes(p.id) ? 'on' : ''}" data-phase="${p.id}">${escapeHtml(p.label)}</button>`).join('')}
-    </div>
+    <div class="sr-links">${linksHtml}</div>
     <button class="btn ghost" data-act="del" title="Delete">🗑</button>
   </div>`;
 }
@@ -882,21 +946,66 @@ function bindSettingsRow(row, kind) {
   };
   nameInput.addEventListener('blur', saveName);
   nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
+  // Phase / parent / btype chips for scenario rows.
   row.querySelectorAll('.sr-phase').forEach((chip) => {
     chip.addEventListener('click', async () => {
-      const phaseId = chip.getAttribute('data-phase');
       const sc = state.scenarios.find((x) => x.id === id);
       if (!sc) return;
-      sc.phases = sc.phases || [];
-      if (sc.phases.includes(phaseId)) sc.phases = sc.phases.filter((p) => p !== phaseId);
-      else sc.phases.push(phaseId);
+      const group = chip.closest('.sr-link-group')?.getAttribute('data-link');
+      if (group === 'phases') {
+        const phaseId = chip.getAttribute('data-phase');
+        sc.phases = sc.phases || [];
+        sc.phases = sc.phases.includes(phaseId) ? sc.phases.filter((p) => p !== phaseId) : sc.phases.concat(phaseId);
+      } else if (group === 'parents') {
+        const pid = chip.getAttribute('data-pid');
+        sc.parentIds = scenarioParents(sc);
+        sc.parentIds = sc.parentIds.includes(pid) ? sc.parentIds.filter((p) => p !== pid) : sc.parentIds.concat(pid);
+        sc.parentId = null;
+      } else if (group === 'btypes') {
+        const bt = chip.getAttribute('data-btid');
+        sc.briefingTypes = sc.briefingTypes || [];
+        sc.briefingTypes = sc.briefingTypes.includes(bt) ? sc.briefingTypes.filter((p) => p !== bt) : sc.briefingTypes.concat(bt);
+      }
       sc.updatedAt = Date.now();
-      await storage.putScenario(sc);
-      await reloadScenarios();
+      await storage.putScenario(sc); await reloadScenarios();
       chip.classList.toggle('on');
-      renderHomeScenarios();
+      renderHomeScenarios(); renderHomeResults();
     });
   });
+  // Reorder.
+  const reorder = async (direction) => {
+    const list = (state.scenarios || []).filter((x) => isTopLevel(x) === isTopLevel(state.scenarios.find((s) => s.id === id))).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+    const idx = list.findIndex((x) => x.id === id);
+    const swapWith = idx + direction;
+    if (swapWith < 0 || swapWith >= list.length) return;
+    const a = list[idx], b = list[swapWith];
+    const tmp = a.sort || 0;
+    a.sort = b.sort || 0; b.sort = tmp || Date.now();
+    a.updatedAt = b.updatedAt = Date.now();
+    await storage.putScenario(a); await storage.putScenario(b);
+    await reloadScenarios();
+    renderSettingsSheet(); renderHomeScenarios();
+  };
+  if (kind === 'scenario') {
+    row.querySelector('[data-act="up"]')?.addEventListener('click', () => reorder(-1));
+    row.querySelector('[data-act="down"]')?.addEventListener('click', () => reorder(+1));
+  } else if (kind === 'btype') {
+    const btReorder = async (direction) => {
+      const list = (state.briefingTypes || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
+      const idx = list.findIndex((x) => x.id === id);
+      const swapWith = idx + direction;
+      if (swapWith < 0 || swapWith >= list.length) return;
+      const a = list[idx], b = list[swapWith];
+      const tmp = a.sort || 0;
+      a.sort = b.sort || 0; b.sort = tmp || Date.now();
+      a.updatedAt = b.updatedAt = Date.now();
+      await storage.putBriefingType(a); await storage.putBriefingType(b);
+      state.briefingTypes = await storage.listBriefingTypes();
+      renderSettingsSheet(); renderHomeBtypes();
+    };
+    row.querySelector('[data-act="up"]')?.addEventListener('click', () => btReorder(-1));
+    row.querySelector('[data-act="down"]')?.addEventListener('click', () => btReorder(+1));
+  }
   const colorInput = row.querySelector('.sr-color');
   if (colorInput) colorInput.addEventListener('change', async () => {
     if (kind === 'scenario') {
@@ -912,14 +1021,7 @@ function bindSettingsRow(row, kind) {
       state.briefingTypes = await storage.listBriefingTypes();
     }
   });
-  const parentSel = row.querySelector('.sr-parent');
-  if (parentSel) parentSel.addEventListener('change', async () => {
-    const sc = state.scenarios.find((x) => x.id === id);
-    if (!sc) return;
-    sc.parentId = parentSel.value || null; sc.updatedAt = Date.now();
-    await storage.putScenario(sc); await reloadScenarios();
-    renderSettingsSheet(); renderHomeScenarios();
-  });
+  // Parent linkage moved to chip group above; legacy select removed.
   const delBtn = row.querySelector('[data-act="del"]');
   delBtn?.addEventListener('click', async () => {
     if (!confirm(`Delete ${kind === 'scenario' ? 'scenario' : 'briefing type'} "${nameInput.value}"?`)) return;
