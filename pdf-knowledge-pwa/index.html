@@ -12,14 +12,14 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon-180.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>B737 Pilot Companion</title>
-  <link rel="stylesheet" href="./app.css?v=16" />
+  <title>Pilot Companion</title>
+  <link rel="stylesheet" href="./app.css?v=17" />
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-text">B737 Companion</span>
+      <span class="brand-text">Pilot Companion</span>
     </div>
     <div class="header-status">
       <select id="tail-select" class="tail-select" aria-label="Active aircraft"></select>
@@ -46,10 +46,14 @@
         <input id="home-search" type="search" placeholder="Search within selected boxes…" enterkeyhint="search" />
         <button class="btn ghost" id="home-clear" title="Clear selection">Clear</button>
       </div>
-      <div id="home-phases" class="home-phases compact" role="radiogroup" aria-label="Phase of flight"></div>
+      <div id="home-phases" class="home-phases" aria-label="Phase of flight"></div>
       <div class="home-row">
-        <div id="home-scenarios" class="home-scenarios" role="group" aria-label="Scenarios"></div>
-        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New scenario">＋ New</button>
+        <div id="home-scenarios" class="home-scenarios" role="group" aria-label="Top-level briefings"></div>
+        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New top-level briefing">＋ New</button>
+      </div>
+      <div class="home-row home-row-sub hidden" id="home-sub-row">
+        <div id="home-sub-scenarios" class="home-scenarios" role="group" aria-label="Sub-briefings"></div>
+        <button class="btn ghost home-row-btn" id="home-add-sub" title="New sub-briefing">＋ New</button>
       </div>
       <ul id="home-results" class="home-results" aria-label="Filtered indexed paragraphs"></ul>
       <div class="fab-stack">
@@ -265,6 +269,41 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <div id="briefing-new-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <header class="modal-head">
+        <h2 id="bn-title">New briefing</h2>
+        <button class="btn ghost" id="bn-close" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <form id="bn-form" class="settings-body">
+          <div class="field">
+            <label for="bn-name">Name</label>
+            <input id="bn-name" type="text" required placeholder="e.g. Engine Failure" />
+          </div>
+          <div class="field" id="bn-parent-field">
+            <label for="bn-parent">Parent briefing <span class="admin-sub">— leave “(top-level)” for a category</span></label>
+            <select id="bn-parent">
+              <option value="">(top-level)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Phases of flight <span class="admin-sub">— tap to link</span></label>
+            <div id="bn-phases" class="sr-phases"></div>
+          </div>
+          <div class="field">
+            <label for="bn-color">Color</label>
+            <input id="bn-color" type="color" value="#7aa3ff" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn" type="button" id="bn-cancel">Cancel</button>
+            <button class="btn primary" type="submit">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div id="settings-overlay" class="modal-overlay hidden">
     <div class="modal modal-wide settings-sheet">
       <header class="modal-head">
@@ -301,6 +340,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=20"></script>
+  <script type="module" src="./app.js?v=21"></script>
 </body>
 </html>
