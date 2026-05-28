@@ -22,8 +22,14 @@ const els = {
   gpsToggle: $('gps-toggle'), scratchToggle: $('scratch-toggle'), themeToggle: $('theme-toggle'),
   homeSearch: $('home-search'), homeClear: $('home-clear'),
   homePhases: $('home-phases'), homeScenarios: $('home-scenarios'),
-  homeAddScenario: $('home-add-scenario'), homeMngScenario: $('home-mng-scenario'),
+  homeAddScenario: $('home-add-scenario'),
   homeResults: $('home-results'), homeAddFile: $('home-add-file'),
+  homeSettings: $('home-settings'),
+  settingsOverlay: $('settings-overlay'), settingsClose: $('settings-close'),
+  settingsScenarios: $('settings-scenarios'), settingsBtypes: $('settings-btypes'),
+  settingsScenarioNew: $('settings-scenario-new'), ssName: $('ss-name'),
+  settingsBtypeNew: $('settings-btype-new'), sbName: $('sb-name'), sbColor: $('sb-color'),
+  settingsFiles: $('settings-files'), settingsNotes: $('settings-notes'), settingsAircraft: $('settings-aircraft'),
   scenarioOverlay: $('scenario-overlay'), scenarioBody: $('scenario-body'), scenarioClose: $('scenario-close'),
   btypeOverlay: $('btype-overlay'), btypeBody: $('btype-body'), btypeClose: $('btype-close'),
   searchForm: $('search-form'), searchInput: $('search-input'),
@@ -63,8 +69,8 @@ const state = {
   view: 'phase',
   phase: 'dispatch',
   toggle: 'normal',
-  // 3-D home filters (multi-select)
-  selectedPhases: new Set(),
+  // Home filters: phase is single-select; scenarios multi-select.
+  selectedPhase: null,
   selectedScenarios: new Set(),
   homeQuery: '',
   gpsAuto: false,
@@ -179,13 +185,20 @@ function wireEvents() {
     renderHomeResults();
   }, 200));
   els.homeClear.addEventListener('click', () => {
-    state.selectedPhases.clear(); state.selectedScenarios.clear();
+    state.selectedPhase = null; state.selectedScenarios.clear();
     state.homeQuery = ''; els.homeSearch.value = '';
     renderHomePhases(); renderHomeScenarios(); renderHomeResults();
   });
   els.homeAddScenario.addEventListener('click', () => quickAddScenario());
-  els.homeMngScenario.addEventListener('click', openScenarioManager);
   els.homeAddFile.addEventListener('click', () => els.personalInput.click());
+  els.homeSettings.addEventListener('click', openSettingsSheet);
+  els.settingsClose.addEventListener('click', () => els.settingsOverlay.classList.add('hidden'));
+  els.settingsOverlay.addEventListener('click', (e) => { if (e.target === els.settingsOverlay) els.settingsOverlay.classList.add('hidden'); });
+  els.settingsScenarioNew.addEventListener('submit', onSettingsAddScenario);
+  els.settingsBtypeNew.addEventListener('submit', onSettingsAddBtype);
+  els.settingsFiles.addEventListener('click', () => { els.settingsOverlay.classList.add('hidden'); switchView('files'); });
+  els.settingsNotes.addEventListener('click', () => { els.settingsOverlay.classList.add('hidden'); switchView('notes'); });
+  els.settingsAircraft.addEventListener('click', () => { els.settingsOverlay.classList.add('hidden'); switchView('library'); });
   els.scenarioClose.addEventListener('click', () => els.scenarioOverlay.classList.add('hidden'));
   els.scenarioOverlay.addEventListener('click', (e) => { if (e.target === els.scenarioOverlay) els.scenarioOverlay.classList.add('hidden'); });
   els.btypeClose.addEventListener('click', () => els.btypeOverlay.classList.add('hidden'));
@@ -252,6 +265,9 @@ function switchView(view) {
   state.view = view;
   document.querySelectorAll('.view-tab').forEach((t) =>
     t.setAttribute('aria-selected', t.getAttribute('data-view') === view ? 'true' : 'false'));
+  // Top tab nav is hidden on the home view; reveal it whenever the user
+  // navigates into one of the secondary views (so they can return via tabs).
+  document.querySelector('.view-nav').classList.toggle('hidden', view === 'phase');
   $('view-phase').classList.toggle('hidden', view !== 'phase');
   $('view-bookmarks').classList.toggle('hidden', view !== 'bookmarks');
   $('view-notes').classList.toggle('hidden', view !== 'notes');
@@ -269,8 +285,8 @@ function switchView(view) {
 
 function renderHomePhases() {
   els.homePhases.innerHTML = PHASES.map((p) => {
-    const on = state.selectedPhases.has(p.id);
-    return `<button class="home-chip phase-chip ${on ? 'on' : ''}" data-phase="${p.id}">
+    const on = state.selectedPhase === p.id;
+    return `<button class="home-chip phase-chip ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-phase="${p.id}">
       <span class="hc-label">${escapeHtml(p.label)}</span>
       <span class="hc-gps hidden" data-gps="${p.id}">GPS</span>
     </button>`;
@@ -278,11 +294,19 @@ function renderHomePhases() {
   els.homePhases.querySelectorAll('.home-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-phase');
-      if (state.selectedPhases.has(id)) state.selectedPhases.delete(id);
-      else state.selectedPhases.add(id);
-      // Keep legacy state.phase as "last picked" for callers like GPS.
+      // Single-select: tap toggles; tapping any other phase replaces.
+      state.selectedPhase = state.selectedPhase === id ? null : id;
       state.phase = id;
       state.manualPhaseUntil = Date.now() + 60000;
+      // Drop scenario selections that are no longer linked to the active phase.
+      if (state.selectedPhase) {
+        for (const sid of [...state.selectedScenarios]) {
+          const sc = state.scenarios.find((s) => s.id === sid);
+          if (!sc || (sc.phases || []).length && !sc.phases.includes(state.selectedPhase)) {
+            state.selectedScenarios.delete(sid);
+          }
+        }
+      }
       renderHomePhases();
       renderHomeScenarios();
       renderHomeResults();
@@ -290,8 +314,11 @@ function renderHomePhases() {
   });
 }
 
+// Scenarios row: linked to the active phase (if any). When no phase is
+// selected, show all scenarios.
 function renderHomeScenarios() {
-  const list = state.scenarios || [];
+  const list = (state.scenarios || []).filter((s) =>
+    !state.selectedPhase || !(s.phases || []).length || s.phases.includes(state.selectedPhase));
   els.homeScenarios.innerHTML = list.length
     ? list.map((s) => {
         const on = state.selectedScenarios.has(s.id);
@@ -299,7 +326,9 @@ function renderHomeScenarios() {
           <span class="hc-label">${escapeHtml(s.name)}</span>
         </button>`;
       }).join('')
-    : '<span class="admin-sub">No scenarios yet — tap ＋ New to add one.</span>';
+    : (state.selectedPhase
+        ? `<span class="admin-sub">No scenarios linked to this phase — tap ＋ New to add one for it, or open ⚙ Settings to link existing scenarios.</span>`
+        : `<span class="admin-sub">No scenarios yet — tap ＋ New to add one.</span>`);
   els.homeScenarios.querySelectorAll('.home-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
@@ -314,29 +343,31 @@ function renderHomeScenarios() {
 async function quickAddScenario() {
   const name = prompt('New scenario name:');
   if (!name || !name.trim()) return;
+  // If a phase is selected, link the new scenario to it automatically.
+  const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const sc = {
     id: 'sc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    name: name.trim(), phases: [], kind: 'normal', sort: Date.now(), createdAt: Date.now(),
+    name: name.trim(), phases, kind: 'normal', sort: Date.now(), createdAt: Date.now(),
   };
   await storage.putScenario(sc);
   await reloadScenarios();
   renderHomeScenarios();
+  if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsSheet();
 }
 
 async function renderHomeResults() {
   const fileIds = activeFileIds();
-  const phases = [...state.selectedPhases];
+  const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const scenarios = [...state.selectedScenarios];
   let anchors = [];
   try {
     anchors = await kg.indexedAnchors({
       phases: phases.length ? phases : null,
       scenarios: scenarios.length ? scenarios : null,
-      fileIds: fileIds ? [...fileIds] : null,
+      fileIds: fileIds ? fileIds : null,
       query: state.homeQuery || '',
     });
   } catch (e) {
-    // Fallback if knowledge graph doesn't yet expose indexedAnchors.
     const all = await kg.allAnchors();
     anchors = all.filter((a) => {
       if (a.kind !== 'idx') return false;
@@ -372,8 +403,11 @@ function homeResultHtml(a) {
   const fname = file ? file.name : '(file missing)';
   const phaseTags = (a.phases || []).map(phaseLabel).filter(Boolean).slice(0, 3).join(' · ');
   const scenTags = (a.scenarios || []).map(scenarioLabel).filter(Boolean).slice(0, 3).join(' · ');
+  const itemType = a.itemType === 'bookmark' ? 'bookmark' : 'briefing';
+  const kindIcon = itemType === 'bookmark' ? '🔖' : '📋';
   return `<li class="home-result" data-anchor="${escapeHtml(a.anchorId)}">
     <div class="hr-head">
+      <span class="hr-kind kind-${itemType}" title="${itemType}">${kindIcon}</span>
       <span class="hr-file">${escapeHtml(fname)}</span>
       <span class="hr-page">p.${a.pageNum}</span>
     </div>
@@ -388,12 +422,130 @@ function homeResultHtml(a) {
 function phaseLabel(id) { const p = PHASES.find((x) => x.id === id); return p ? p.label : ''; }
 function scenarioLabel(id) { const s = (state.scenarios || []).find((x) => x.id === id); return s ? s.name : ''; }
 
+// --- Settings sheet ---------------------------------------------------------
+// Single hub the user opens from the cog FAB. Lets them rename / delete /
+// re-link scenarios and briefing types, and jump into the library views.
+
+function openSettingsSheet() {
+  els.settingsOverlay.classList.remove('hidden');
+  renderSettingsSheet();
+}
+
+function renderSettingsSheet() {
+  // Scenarios: editable name + multi-select phase links + delete.
+  const sList = state.scenarios || [];
+  els.settingsScenarios.innerHTML = sList.length ? sList.map((s) => `
+    <div class="settings-row" data-id="${escapeHtml(s.id)}" data-kind="scenario">
+      <input type="text" class="sr-name" value="${escapeHtml(s.name)}" />
+      <div class="sr-phases" aria-label="Linked phases">
+        ${PHASES.map((p) => `<button type="button" class="sr-phase ${(s.phases || []).includes(p.id) ? 'on' : ''}" data-phase="${p.id}">${escapeHtml(p.label)}</button>`).join('')}
+      </div>
+      <button class="btn ghost" data-act="del" title="Delete">🗑</button>
+    </div>`).join('') : '<div class="admin-sub">No scenarios yet.</div>';
+
+  // Briefing types: editable name + color + delete.
+  const bList = state.briefingTypes || [];
+  els.settingsBtypes.innerHTML = bList.length ? bList.map((b) => `
+    <div class="settings-row" data-id="${escapeHtml(b.id)}" data-kind="btype">
+      <input type="text" class="sr-name" value="${escapeHtml(b.name)}" />
+      <input type="color" class="sr-color" value="${escapeHtml(b.color || '#7aa3ff')}" title="Color" />
+      <button class="btn ghost" data-act="del" title="Delete">🗑</button>
+    </div>`).join('') : '<div class="admin-sub">No briefing types yet.</div>';
+
+  // Bind row interactions: name edit (blur saves), phase chip toggle, delete, color change.
+  els.settingsScenarios.querySelectorAll('.settings-row').forEach((row) => bindSettingsRow(row, 'scenario'));
+  els.settingsBtypes.querySelectorAll('.settings-row').forEach((row) => bindSettingsRow(row, 'btype'));
+}
+
+function bindSettingsRow(row, kind) {
+  const id = row.getAttribute('data-id');
+  const nameInput = row.querySelector('.sr-name');
+  const saveName = async () => {
+    const v = nameInput.value.trim();
+    if (!v) { nameInput.value = (kind === 'scenario' ? state.scenarios : state.briefingTypes).find((x) => x.id === id)?.name || ''; return; }
+    if (kind === 'scenario') {
+      const sc = state.scenarios.find((x) => x.id === id);
+      if (!sc || sc.name === v) return;
+      sc.name = v; sc.updatedAt = Date.now();
+      await storage.putScenario(sc);
+      await reloadScenarios();
+      renderHomeScenarios();
+    } else {
+      const bt = state.briefingTypes.find((x) => x.id === id);
+      if (!bt || bt.name === v) return;
+      bt.name = v; bt.updatedAt = Date.now();
+      await storage.putBriefingType(bt);
+      state.briefingTypes = await storage.listBriefingTypes();
+    }
+  };
+  nameInput.addEventListener('blur', saveName);
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
+  row.querySelectorAll('.sr-phase').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      const phaseId = chip.getAttribute('data-phase');
+      const sc = state.scenarios.find((x) => x.id === id);
+      if (!sc) return;
+      sc.phases = sc.phases || [];
+      if (sc.phases.includes(phaseId)) sc.phases = sc.phases.filter((p) => p !== phaseId);
+      else sc.phases.push(phaseId);
+      sc.updatedAt = Date.now();
+      await storage.putScenario(sc);
+      await reloadScenarios();
+      chip.classList.toggle('on');
+      renderHomeScenarios();
+    });
+  });
+  const colorInput = row.querySelector('.sr-color');
+  if (colorInput) colorInput.addEventListener('change', async () => {
+    const bt = state.briefingTypes.find((x) => x.id === id);
+    if (!bt) return;
+    bt.color = colorInput.value; bt.updatedAt = Date.now();
+    await storage.putBriefingType(bt);
+    state.briefingTypes = await storage.listBriefingTypes();
+  });
+  const delBtn = row.querySelector('[data-act="del"]');
+  delBtn?.addEventListener('click', async () => {
+    if (!confirm(`Delete ${kind === 'scenario' ? 'scenario' : 'briefing type'} "${nameInput.value}"?`)) return;
+    if (kind === 'scenario') { await storage.deleteScenario(id); await reloadScenarios(); renderHomeScenarios(); }
+    else { await storage.deleteBriefingType(id); state.briefingTypes = await storage.listBriefingTypes(); }
+    renderSettingsSheet();
+  });
+}
+
+async function onSettingsAddScenario(e) {
+  e.preventDefault();
+  const name = els.ssName.value.trim();
+  if (!name) return;
+  const sc = {
+    id: 'sc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    name, phases: state.selectedPhase ? [state.selectedPhase] : [],
+    kind: 'normal', sort: Date.now(), createdAt: Date.now(),
+  };
+  await storage.putScenario(sc);
+  await reloadScenarios();
+  els.ssName.value = '';
+  renderSettingsSheet(); renderHomeScenarios();
+}
+
+async function onSettingsAddBtype(e) {
+  e.preventDefault();
+  const name = els.sbName.value.trim();
+  if (!name) return;
+  const bt = {
+    id: 'bt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    name, color: els.sbColor.value || '#7aa3ff', sort: Date.now(), createdAt: Date.now(),
+  };
+  await storage.putBriefingType(bt);
+  state.briefingTypes = await storage.listBriefingTypes();
+  els.sbName.value = '';
+  renderSettingsSheet();
+}
+
 // Back-compat shims so existing callers (GPS, scenario-manager close, file
 // ingest, etc.) keep working against the rebuilt home view.
 function setPhase(phaseId) {
   state.phase = phaseId;
-  // Treat GPS-driven phase changes as "make this the only selected phase".
-  state.selectedPhases = new Set([phaseId]);
+  state.selectedPhase = phaseId;
   renderHomePhases();
   renderHomeScenarios();
   renderHomeResults();
@@ -998,7 +1150,15 @@ function openIndexerFromSelection(fileId, pageNum, text, rects) {
 function openIndexerModal(preset) {
   if (!preset || !preset.fileId || !preset.pageNum) { toast('Missing file/page.'); return; }
   const startText = preset.text || '';
+  const startType = preset.itemType || 'briefing';
   els.indexerBody.innerHTML = `
+    <div class="field">
+      <label>Type</label>
+      <div class="itemtype-row" id="ix-itemtype">
+        <button type="button" class="itemtype-btn ${startType === 'briefing' ? 'on' : ''}" data-type="briefing">📋 Briefing</button>
+        <button type="button" class="itemtype-btn ${startType === 'bookmark' ? 'on' : ''}" data-type="bookmark">🔖 Bookmark</button>
+      </div>
+    </div>
     <div class="field">
       <label for="ix-text">Excerpt <span class="admin-sub">— page ${preset.pageNum}</span></label>
       <textarea id="ix-text" rows="4">${escapeHtml(startText)}</textarea>
@@ -1042,11 +1202,12 @@ function openIndexerModal(preset) {
     const phases = [...els.indexerBody.querySelectorAll('#ix-phases .dim-chip.on')].map((c) => c.getAttribute('data-id'));
     const btypes = [...els.indexerBody.querySelectorAll('#ix-btypes .dim-chip.on')].map((c) => c.getAttribute('data-id'));
     const sits   = [...els.indexerBody.querySelectorAll('#ix-situations .dim-chip.on')].map((c) => c.getAttribute('data-id'));
+    const itemType = els.indexerBody.querySelector('#ix-itemtype .itemtype-btn.on')?.getAttribute('data-type') || 'briefing';
     const m = state.manuals.get(preset.fileId);
     await storage.putAnchor({
       anchorId: 'idx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       fileId: preset.fileId, manualType: m ? m.manualType : 'PERSONAL',
-      kind: 'idx',
+      kind: 'idx', itemType,
       source: preset.selectionRects ? 'selection' : (preset.paraIndex != null ? 'auto-para' : 'manual'),
       paraIndex: preset.paraIndex ?? null,
       selectionRects: preset.selectionRects || null,
@@ -1069,6 +1230,11 @@ function openIndexerModal(preset) {
   const onBodyClick = (e) => {
     const chip = e.target.closest('.dim-chip');
     if (chip && els.indexerBody.contains(chip)) { chip.classList.toggle('on'); return; }
+    const tbtn = e.target.closest('.itemtype-btn');
+    if (tbtn && els.indexerBody.contains(tbtn)) {
+      els.indexerBody.querySelectorAll('.itemtype-btn').forEach((b) => b.classList.toggle('on', b === tbtn));
+      return;
+    }
     if (e.target.id === 'ix-mng-bt') { els.indexerOverlay.classList.add('hidden'); openBriefingTypeManager(); return; }
     if (e.target.id === 'ix-mng-sc') { els.indexerOverlay.classList.add('hidden'); openScenarioManager(); return; }
     if (e.target.id === 'ix-cancel') { els.indexerOverlay.classList.add('hidden'); return; }
