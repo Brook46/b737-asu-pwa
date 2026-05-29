@@ -315,35 +315,28 @@ function switchView(view) {
 // AND the search query. Bottom-right: floating "add file" button. Tap a result
 // to open the file full-window at its page.
 
-// EFB-style three-box flight strip: Departure / Enroute / Arrival.
-// Phase dots sit along a smooth curve that threads through the boxes.
-// The curve is flat-low inside the departure and arrival boxes; inside the
-// enroute box it climbs to a cruise apex and descends back down.
+// Single smooth S-curve flight strip, matching the EFB reference photo:
+// flat-low across the departure side, smooth rise into a cruise plateau,
+// smooth fall back down, flat-low across the arrival side. No zone boxes.
 const STRIP_VB_W = 1000;
-const STRIP_VB_H = 130;
+const STRIP_VB_H = 110;
 
-const STRIP_ZONES = [
-  { id: 'dep',   label: 'Departure', x: 8,   w: 312, phases: ['dispatch', 'takeoff'] },
-  { id: 'enr',   label: 'Enroute',   x: 328, w: 344, phases: ['climb', 'cruise', 'descent'] },
-  { id: 'arr',   label: 'Arrival',   x: 680, w: 312, phases: ['approach', 'landing', 'afterLanding'] },
-];
-const ZONE_TOP = 18, ZONE_BOT = 96;       // box bounds in vb units
-const FLAT_Y = 78;                         // ground-ops dot y
-const CRUISE_Y = 38;                       // peak dot y
-const CLIMB_Y = 56, DESCENT_Y = 56;        // climbing/descending dots
+const FLAT_Y     = 80;   // ground-ops dot y (flat segments)
+const CRUISE_Y   = 25;   // plateau dot y
+const RISE_Y     = 52;   // mid-climb / mid-descent y (lies on the S-curve)
 
+// Phase positions are chosen so each dot lies exactly on the line below.
+// The line uses cubic beziers whose midpoint at t=0.5 happens to be the
+// climb / descent x,y — see flightProfilePath() for the math.
 const PHASE_PROFILE = {
-  // Departure box (flat low)
-  dispatch:     { x:  60,  y: FLAT_Y },
-  takeoff:      { x: 240,  y: FLAT_Y },
-  // Enroute box (climb peak descent)
-  climb:        { x: 380,  y: CLIMB_Y },
-  cruise:       { x: 500,  y: CRUISE_Y },
-  descent:      { x: 620,  y: DESCENT_Y },
-  // Arrival box (flat low)
-  approach:     { x: 740,  y: FLAT_Y },
-  landing:      { x: 845,  y: FLAT_Y },
-  afterLanding: { x: 950,  y: FLAT_Y },
+  dispatch:     { x:  60, y: FLAT_Y },
+  takeoff:      { x: 200, y: FLAT_Y },
+  climb:        { x: 350, y: RISE_Y },
+  cruise:       { x: 500, y: CRUISE_Y },
+  descent:      { x: 650, y: RISE_Y },
+  approach:     { x: 775, y: FLAT_Y },
+  landing:      { x: 870, y: FLAT_Y },
+  afterLanding: { x: 970, y: FLAT_Y },
 };
 function phasePos(idOrIdx) {
   const id = typeof idOrIdx === 'number' ? PHASES[idOrIdx].id : idOrIdx;
@@ -360,73 +353,47 @@ function nearestPhaseFromX(x) {
   return PHASES[best];
 }
 
-// Build a smooth flight-profile path through every phase point. Each segment
-// is a quadratic curve whose control sits halfway in x at the source y, then
-// halfway in y of the previous control — looks like a smooth climb/descent.
+// Single S-curve: flat-low to (280,80), smooth cubic rise to the cruise
+// plateau (420→580 at y=25), smooth cubic descent, flat-low to (970,80).
+// The cubic bezier midpoints at t=0.5 land exactly on (350,52) and
+// (650,52), which is where Climb and Descent dots sit.
 function flightProfilePath() {
-  const pts = PHASES.map((_, i) => phasePos(i));
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1], cur = pts[i];
-    const midX = (prev.x + cur.x) / 2;
-    d += ` Q ${midX} ${prev.y} ${midX} ${(prev.y + cur.y) / 2}`;
-    d += ` T ${cur.x} ${cur.y}`;
-  }
-  return d;
+  return [
+    'M 30 80',
+    'L 280 80',
+    'C 320 80, 380 25, 420 25',
+    'L 580 25',
+    'C 620 25, 680 80, 720 80',
+    'L 970 80',
+  ].join(' ');
 }
 
-// Partial profile path up to a given x coordinate, used to draw the
-// "travelled" portion in accent colour. We approximate by walking the same
-// segment list and stopping at / interpolating to the target phase index.
-function flightProfilePathUpTo(stopIdx) {
-  if (stopIdx <= 0) return `M ${phasePos(0).x} ${phasePos(0).y}`;
-  const pts = PHASES.slice(0, stopIdx + 1).map((_, i) => phasePos(i));
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1], cur = pts[i];
-    const midX = (prev.x + cur.x) / 2;
-    d += ` Q ${midX} ${prev.y} ${midX} ${(prev.y + cur.y) / 2}`;
-    d += ` T ${cur.x} ${cur.y}`;
-  }
-  return d;
-}
-
-// X-wing fighter silhouette, top-down, nose to the right. The 4 wings form
-// an X centred behind the cockpit; small dots at each wing tip stand in for
-// the laser cannons.
+// Commercial twin-engine jet, top-down, nose to the right, sitting inside
+// a dark circular plate (matches the icon reference).
 const PLANE_SVG = `
-  <g class="fp-plane-glyph" fill="currentColor">
-    <!-- Top-aft wing -->
-    <path d="M -8 -1.8 L -16 -8 L -14 -10 L -5 -2.4 Z" />
-    <!-- Top-fore wing -->
-    <path d="M -6 -1.8 L 0 -10 L 2 -8 L -3 -1.5 Z" />
-    <!-- Bottom-aft wing -->
-    <path d="M -8 1.8 L -16 8 L -14 10 L -5 2.4 Z" />
-    <!-- Bottom-fore wing -->
-    <path d="M -6 1.8 L 0 10 L 2 8 L -3 1.5 Z" />
-    <!-- Fuselage with pointed nose + tapered tail -->
-    <path d="M 14 0 L 4 -2 L -10 -2 L -12 -1 L -12 1 L -10 2 L 4 2 Z" />
-    <!-- Cockpit highlight -->
-    <path d="M 8 -1.2 L 3 -1.2 L 2 0 L 3 1.2 L 8 1.2 Z" opacity="0.45" fill="#fff" />
-    <!-- Wing-tip cannons (4 of them) -->
-    <circle cx="-15" cy="-9" r="0.9" />
-    <circle cx="1"   cy="-9" r="0.9" />
-    <circle cx="-15" cy="9"  r="0.9" />
-    <circle cx="1"   cy="9"  r="0.9" />
+  <g class="fp-plane-glyph">
+    <!-- Dark circle plate -->
+    <circle class="fp-plane-bg" r="13" />
+    <!-- Thin accent ring -->
+    <circle class="fp-plane-ring" r="13" fill="none" />
+    <g fill="#fff" stroke="none">
+      <!-- Fuselage (pointed nose right, rounded tail left) -->
+      <path d="M 9.5 0 L 5 -1.6 L -5.5 -1.6 Q -8.5 -1.6 -8.5 0 Q -8.5 1.6 -5.5 1.6 L 5 1.6 Z"/>
+      <!-- Wings — swept slightly back, extending up/down -->
+      <path d="M 1.2 -1.4 L -4.5 -7.5 L -6.5 -7.5 L -2.2 -1.4 Z"/>
+      <path d="M 1.2 1.4 L -4.5 7.5 L -6.5 7.5 L -2.2 1.4 Z"/>
+      <!-- Tail horizontal stabilisers -->
+      <path d="M -6.5 -1 L -9 -4 L -10.5 -4 L -8 -1 Z"/>
+      <path d="M -6.5 1 L -9 4 L -10.5 4 L -8 1 Z"/>
+      <!-- Engine nacelles on each wing -->
+      <ellipse cx="-1.5" cy="-4.6" rx="0.6" ry="1.4"/>
+      <ellipse cx="-1.5" cy="4.6"  rx="0.6" ry="1.4"/>
+    </g>
   </g>`;
 
 function renderHomePhases() {
   const hasActive = state.selectedPhase != null;
   const activeIdx = hasActive ? PHASES.findIndex((p) => p.id === state.selectedPhase) : -1;
-  // Three EFB-style zone boxes.
-  const boxes = STRIP_ZONES.map((z) => {
-    const containsActive = hasActive && z.phases.includes(state.selectedPhase);
-    return `
-      <g class="fp-zone ${containsActive ? 'on' : ''}" data-zone="${z.id}">
-        <rect class="fp-zone-bg" x="${z.x}" y="${ZONE_TOP}" width="${z.w}" height="${ZONE_BOT - ZONE_TOP}" rx="10" ry="10" />
-        <text class="fp-zone-label" x="${z.x + 12}" y="${ZONE_TOP + 16}">${escapeHtml(z.label.toUpperCase())}</text>
-      </g>`;
-  }).join('');
   const ticks = PHASES.map((p, i) => {
     const pos = phasePos(i);
     const on = i === activeIdx;
@@ -434,19 +401,16 @@ function renderHomePhases() {
     return `
       <g class="fp-tick ${on ? 'on' : ''} ${passed ? 'passed' : ''}" data-phase="${p.id}" transform="translate(${pos.x} ${pos.y})">
         <circle class="fp-hit" r="22" />
-        <circle class="fp-dot-outer" r="${on ? 9 : 7}" />
-        <circle class="fp-dot" r="${on ? 5 : 4}" />
+        <circle class="fp-dot" r="${on ? 6 : 4.5}" />
         <text class="fp-label" text-anchor="middle" y="22">${escapeHtml(p.label)}</text>
         <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="34">GPS</text>
       </g>`;
   }).join('');
   const planePos = hasActive ? phasePos(activeIdx) : phasePos(0);
-  const planeY = planePos.y - 14;
+  const planeY = planePos.y - 18;
   els.homePhases.innerHTML = `
     <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="none" role="radiogroup" aria-label="Phase of flight">
-      ${boxes}
       <path class="fp-line" d="${flightProfilePath()}" />
-      <path class="fp-line-passed" d="${flightProfilePathUpTo(Math.max(0, activeIdx))}" />
       ${ticks}
       <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planePos.x} ${planeY})">
         <title>Drag to change phase</title>
@@ -492,7 +456,7 @@ function initPlaneDrag(planeEl) {
     // Plane rides the profile curve: take the y of the nearest phase node so
     // dragging feels like sliding along the path.
     const near = nearestPhaseFromX(x);
-    const y = phasePos(near.id).y - 14;
+    const y = phasePos(near.id).y - 18;
     planeEl.setAttribute('transform', `translate(${x} ${y})`);
     els.homePhases.querySelectorAll('.fp-tick').forEach((g) =>
       g.classList.toggle('drag-hover', g.getAttribute('data-phase') === near.id));

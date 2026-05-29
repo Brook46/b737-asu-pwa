@@ -853,65 +853,33 @@ body.has-dock .app-main { padding-bottom: 60px; }
   background: var(--bg-elev-1); color: var(--fg); border: 1px solid var(--border);
 }
 .home-phases {
-  width: 100%; padding: 12px 4px 4px; margin: 0;
+  width: 100%; padding: 14px 8px 4px; margin: 0;
   background:
-    radial-gradient(140% 90% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 70%);
-  position: relative;
+    radial-gradient(140% 90% at 50% 0%, color-mix(in srgb, var(--accent) 5%, transparent) 0%, transparent 70%);
 }
 .home-phases .flight-strip {
-  width: 100%; height: 130px; display: block; touch-action: pan-y; overflow: visible;
+  width: 100%; height: 110px; display: block; touch-action: pan-y; overflow: visible;
 }
-/* EFB zone boxes (Departure / Enroute / Arrival) */
-.home-phases .fp-zone-bg {
-  fill: color-mix(in srgb, var(--bg-elev) 88%, var(--accent) 4%);
-  stroke: color-mix(in srgb, var(--accent) 40%, var(--border));
-  stroke-width: 1; vector-effect: non-scaling-stroke;
-  transition: fill .15s ease, stroke .15s ease;
-}
-.home-phases .fp-zone.on .fp-zone-bg {
-  fill: color-mix(in srgb, var(--bg-elev) 70%, var(--accent) 18%);
-  stroke: var(--accent); stroke-width: 1.5;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 35%, transparent));
-}
-.home-phases .fp-zone-label {
-  font: 700 9px 'Inter', sans-serif; letter-spacing: 0.18em;
-  fill: color-mix(in srgb, var(--accent) 65%, var(--fg-muted));
-  text-transform: uppercase;
-}
-.home-phases .fp-zone.on .fp-zone-label { fill: var(--accent); }
 .home-phases .fp-line {
   fill: none;
-  stroke: color-mix(in srgb, var(--accent) 55%, transparent);
-  stroke-width: 1.6; vector-effect: non-scaling-stroke;
-  stroke-linecap: round; stroke-linejoin: round;
-}
-.home-phases .fp-line-passed {
-  fill: none;
-  stroke: var(--accent); stroke-width: 1.8;
-  vector-effect: non-scaling-stroke;
+  stroke: color-mix(in srgb, var(--accent) 75%, transparent);
+  stroke-width: 2; vector-effect: non-scaling-stroke;
   stroke-linecap: round; stroke-linejoin: round;
 }
 .home-phases .fp-tick { cursor: pointer; }
 .home-phases .fp-hit { fill: transparent; }
-.home-phases .fp-dot-outer {
-  fill: var(--bg-elev); stroke: color-mix(in srgb, var(--accent) 50%, var(--fg-muted));
-  stroke-width: 1.4; vector-effect: non-scaling-stroke;
-  transition: fill .15s ease, stroke .15s ease;
-}
 .home-phases .fp-dot {
-  fill: color-mix(in srgb, var(--accent) 60%, var(--fg-muted));
-  transition: fill .15s ease;
+  fill: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
+  transition: fill .15s ease, r .15s ease;
 }
-.home-phases .fp-tick:hover .fp-dot-outer,
-.home-phases .fp-tick.drag-hover .fp-dot-outer { stroke: var(--accent); }
+.home-phases .fp-tick:hover .fp-dot,
+.home-phases .fp-tick.drag-hover .fp-dot { fill: var(--accent); }
 .home-phases .fp-tick.passed .fp-dot { fill: var(--accent); }
-.home-phases .fp-tick.passed .fp-dot-outer { stroke: var(--accent); }
 .home-phases .fp-tick.passed .fp-label { fill: color-mix(in srgb, var(--accent) 75%, var(--fg)); }
 .home-phases .fp-tick.on .fp-dot {
   fill: var(--accent);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 75%, transparent));
 }
-.home-phases .fp-tick.on .fp-dot-outer { stroke: var(--accent); stroke-width: 2; fill: var(--bg); }
 .home-phases .fp-label {
   font: 600 14px 'Inter', sans-serif; fill: var(--fg); letter-spacing: -0.01em;
   paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round;
@@ -921,11 +889,18 @@ body.has-dock .app-main { padding-bottom: 60px; }
 .home-phases .fp-plane {
   cursor: grab; touch-action: none;
   transition: transform .3s cubic-bezier(.4,1.4,.5,1);
-  color: var(--accent);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 55%, transparent));
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.35));
 }
 .home-phases .fp-plane:active { cursor: grabbing; transition: none; }
-.home-phases .fp-plane.inactive { color: var(--fg-muted); opacity: .55; }
+.home-phases .fp-plane-bg {
+  fill: #15192a; /* deep navy plate like the reference icon */
+}
+.home-phases .fp-plane-ring {
+  stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke;
+  opacity: .85;
+}
+.home-phases .fp-plane.inactive .fp-plane-ring { stroke: var(--fg-muted); opacity: .55; }
+.home-phases .fp-plane.inactive .fp-plane-bg { fill: color-mix(in srgb, #15192a 70%, var(--bg-elev)); }
 .home-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .home-row-label {
   display: inline-flex; align-items: center; justify-content: center;
