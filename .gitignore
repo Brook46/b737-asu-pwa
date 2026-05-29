@@ -18,6 +18,9 @@ node_modules/
 .claude/*
 !.claude/launch.json
 
-# Source PDF is not redistributed
+# Source PDFs are not redistributed by default
 *.pdf
 QRH.pdf
+
+# ...except the bundled seed PDF that ships with the app
+!pdf-knowledge-pwa/seed-data/tanchum-737-upgrade.pdf
