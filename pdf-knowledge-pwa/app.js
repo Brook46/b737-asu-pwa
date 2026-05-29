@@ -724,33 +724,22 @@ async function renderHomeResults() {
   els.homeResults.querySelectorAll('.home-result').forEach((row) => {
     const anchor = anchors.find((x) => x.anchorId === row.getAttribute('data-anchor'));
     if (!anchor) return;
+    // Row tap → toggle expand (and lazy-render preview on first expand).
+    row.querySelector('.hr-row')?.addEventListener('click', () => {
+      const collapsed = row.classList.toggle('hr-collapsed');
+      if (!collapsed) renderCardPreview(row, anchor);
+    });
     row.querySelector('.hr-open')?.addEventListener('click', (e) => {
       e.stopPropagation();
       openAnchorInViewer(anchor);
-    });
-    const minBtn = row.querySelector('.hr-min');
-    minBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const collapsed = row.classList.toggle('hr-collapsed');
-      minBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
-      minBtn.textContent = collapsed ? '▢' : '▭';
-      minBtn.title = collapsed ? 'Show preview' : 'Minimise preview';
-      // Render the preview the first time the card is expanded.
-      if (!collapsed) renderCardPreview(row, anchor);
-    });
-    // Inline page picker — closed by default, opens on the page-button tap.
-    const pageBtn = row.querySelector('.hr-page-btn');
-    const picker = row.querySelector('.hr-page-picker');
-    pageBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      picker.classList.toggle('hidden');
     });
     const pgInput = row.querySelector('.hr-pg-input');
     const totalPages = +row.getAttribute('data-pagecount') || 1;
     const goToPage = async (n) => {
       const target = Math.max(1, Math.min(totalPages, n | 0));
       row.setAttribute('data-page', String(target));
-      row.querySelector('.hr-page-current').textContent = 'p.' + target;
+      const pageBadge = row.querySelector('.hr-row-page');
+      if (pageBadge) pageBadge.textContent = 'p.' + target + ' / ' + totalPages;
       pgInput.value = target;
       const canvas = row.querySelector('.hr-canvas');
       const wrap = row.querySelector('.hr-preview');
@@ -765,16 +754,12 @@ async function renderHomeResults() {
     };
     pgInput?.addEventListener('change', () => goToPage(+pgInput.value));
     pgInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); goToPage(+pgInput.value); } });
+    pgInput?.addEventListener('click', (e) => e.stopPropagation());
     row.querySelector('[data-act="prev"]')?.addEventListener('click', (e) => {
       e.stopPropagation(); goToPage((+row.getAttribute('data-page')) - 1);
     });
     row.querySelector('[data-act="next"]')?.addEventListener('click', (e) => {
       e.stopPropagation(); goToPage((+row.getAttribute('data-page')) + 1);
-    });
-    // Clicking the header (file name) also opens full-screen.
-    row.querySelector('.hr-head')?.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      openAnchorInViewer(anchor);
     });
   });
 }
@@ -787,32 +772,39 @@ function homeResultHtml(a) {
   const scenTags = (a.scenarios || []).map(scenarioLabel).filter(Boolean).slice(0, 3).join(' · ');
   const itemType = a.itemType === 'bookmark' ? 'bookmark' : 'briefing';
   const kindIcon = itemType === 'bookmark' ? '🔖' : '📋';
+  // Row-list look (EFB-style): collapsed by default, chevron on the right.
+  // Tap the row to expand → reveal page picker + preview + tags + open button.
+  const headline = a.excerpt ? a.excerpt.slice(0, 96) : fname;
   return `<li class="home-result hr-collapsed" data-anchor="${escapeHtml(a.anchorId)}"
       data-file="${escapeHtml(a.fileId)}" data-page="${a.pageNum}" data-pagecount="${pageCount}">
-    <div class="hr-head">
+    <button type="button" class="hr-row" data-act="expand">
       <span class="hr-kind kind-${itemType}" title="${itemType}">${kindIcon}</span>
-      <span class="hr-file">${escapeHtml(fname)}</span>
-      <button class="hr-page-btn" data-act="page-toggle" title="Jump to page">
-        <span class="hr-page-current">p.${a.pageNum}</span>
-        <span class="hr-page-of"> / ${pageCount}</span>
-      </button>
-      <span class="spacer"></span>
-      <button class="btn ghost hr-min" data-act="min" title="Show preview" aria-pressed="true">▢</button>
-      <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶</button>
-    </div>
-    <div class="hr-page-picker hidden">
-      <button class="hr-pg-step" data-act="prev" title="Previous page">‹</button>
-      <input class="hr-pg-input" type="number" min="1" max="${pageCount}" value="${a.pageNum}" />
-      <span class="hr-pg-of">of ${pageCount}</span>
-      <button class="hr-pg-step" data-act="next" title="Next page">›</button>
-    </div>
-    ${a.excerpt ? `<div class="hr-excerpt">${escapeHtml(a.excerpt.slice(0, 240))}</div>` : ''}
-    <div class="hr-preview" data-pending="1">
-      <canvas class="hr-canvas"></canvas>
-    </div>
-    <div class="hr-tags">
-      ${phaseTags ? `<span class="hr-tag">✈ ${escapeHtml(phaseTags)}</span>` : ''}
-      ${scenTags ? `<span class="hr-tag">✦ ${escapeHtml(scenTags)}</span>` : ''}
+      <span class="hr-row-main">
+        <span class="hr-row-title">${escapeHtml(headline)}</span>
+        <span class="hr-row-meta">
+          <span class="hr-row-file">${escapeHtml(fname)}</span>
+          <span class="hr-row-dot">·</span>
+          <span class="hr-row-page">p.${a.pageNum} / ${pageCount}</span>
+          ${phaseTags ? `<span class="hr-row-dot">·</span><span>✈ ${escapeHtml(phaseTags)}</span>` : ''}
+          ${scenTags ? `<span class="hr-row-dot">·</span><span>✦ ${escapeHtml(scenTags)}</span>` : ''}
+        </span>
+      </span>
+      <span class="hr-chev" aria-hidden="true">›</span>
+    </button>
+    <div class="hr-expanded">
+      <div class="hr-controls">
+        <div class="hr-page-picker">
+          <button class="hr-pg-step" data-act="prev" title="Previous page">‹</button>
+          <input class="hr-pg-input" type="number" min="1" max="${pageCount}" value="${a.pageNum}" />
+          <span class="hr-pg-of">of ${pageCount}</span>
+          <button class="hr-pg-step" data-act="next" title="Next page">›</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶ Open</button>
+      </div>
+      <div class="hr-preview" data-pending="1">
+        <canvas class="hr-canvas"></canvas>
+      </div>
     </div>
   </li>`;
 }
