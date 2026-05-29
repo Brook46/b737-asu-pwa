@@ -303,21 +303,35 @@ function switchView(view) {
 // AND the search query. Bottom-right: floating "add file" button. Tap a result
 // to open the file full-window at its page.
 
-// Thin horizontal phase strip with a real flight profile: ground at dispatch,
-// climb to cruise, descent through approach, back to ground at landing.
-// An airplane glyph sits on the active phase and can be dragged or tapped.
+// EFB-style three-box flight strip: Departure / Enroute / Arrival.
+// Phase dots sit along a smooth curve that threads through the boxes.
+// The curve is flat-low inside the departure and arrival boxes; inside the
+// enroute box it climbs to a cruise apex and descends back down.
 const STRIP_VB_W = 1000;
-const STRIP_VB_H = 110;
-// Per-phase x/y positions along the profile (y in SVG = bigger means lower).
+const STRIP_VB_H = 130;
+
+const STRIP_ZONES = [
+  { id: 'dep',   label: 'Departure', x: 8,   w: 312, phases: ['dispatch', 'takeoff'] },
+  { id: 'enr',   label: 'Enroute',   x: 328, w: 344, phases: ['climb', 'cruise', 'descent'] },
+  { id: 'arr',   label: 'Arrival',   x: 680, w: 312, phases: ['approach', 'landing', 'afterLanding'] },
+];
+const ZONE_TOP = 18, ZONE_BOT = 96;       // box bounds in vb units
+const FLAT_Y = 78;                         // ground-ops dot y
+const CRUISE_Y = 38;                       // peak dot y
+const CLIMB_Y = 56, DESCENT_Y = 56;        // climbing/descending dots
+
 const PHASE_PROFILE = {
-  dispatch:     { x: 40,  y: 70 },
-  takeoff:      { x: 140, y: 68 },
-  climb:        { x: 290, y: 36 },
-  cruise:       { x: 480, y: 22 },
-  descent:      { x: 670, y: 36 },
-  approach:     { x: 800, y: 60 },
-  landing:      { x: 875, y: 70 },
-  afterLanding: { x: 970, y: 70 },
+  // Departure box (flat low)
+  dispatch:     { x:  60,  y: FLAT_Y },
+  takeoff:      { x: 240,  y: FLAT_Y },
+  // Enroute box (climb peak descent)
+  climb:        { x: 380,  y: CLIMB_Y },
+  cruise:       { x: 500,  y: CRUISE_Y },
+  descent:      { x: 620,  y: DESCENT_Y },
+  // Arrival box (flat low)
+  approach:     { x: 740,  y: FLAT_Y },
+  landing:      { x: 845,  y: FLAT_Y },
+  afterLanding: { x: 950,  y: FLAT_Y },
 };
 function phasePos(idOrIdx) {
   const id = typeof idOrIdx === 'number' ? PHASES[idOrIdx].id : idOrIdx;
@@ -373,6 +387,15 @@ const PLANE_SVG = `
 function renderHomePhases() {
   const hasActive = state.selectedPhase != null;
   const activeIdx = hasActive ? PHASES.findIndex((p) => p.id === state.selectedPhase) : -1;
+  // Three EFB-style zone boxes.
+  const boxes = STRIP_ZONES.map((z) => {
+    const containsActive = hasActive && z.phases.includes(state.selectedPhase);
+    return `
+      <g class="fp-zone ${containsActive ? 'on' : ''}" data-zone="${z.id}">
+        <rect class="fp-zone-bg" x="${z.x}" y="${ZONE_TOP}" width="${z.w}" height="${ZONE_BOT - ZONE_TOP}" rx="10" ry="10" />
+        <text class="fp-zone-label" x="${z.x + 12}" y="${ZONE_TOP + 16}">${escapeHtml(z.label.toUpperCase())}</text>
+      </g>`;
+  }).join('');
   const ticks = PHASES.map((p, i) => {
     const pos = phasePos(i);
     const on = i === activeIdx;
@@ -380,22 +403,17 @@ function renderHomePhases() {
     return `
       <g class="fp-tick ${on ? 'on' : ''} ${passed ? 'passed' : ''}" data-phase="${p.id}" transform="translate(${pos.x} ${pos.y})">
         <circle class="fp-hit" r="22" />
-        <circle class="fp-dot" r="${on ? 7 : passed ? 6 : 5}" />
+        <circle class="fp-dot-outer" r="${on ? 9 : 7}" />
+        <circle class="fp-dot" r="${on ? 5 : 4}" />
         <text class="fp-label" text-anchor="middle" y="22">${escapeHtml(p.label)}</text>
         <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="34">GPS</text>
       </g>`;
   }).join('');
   const planePos = hasActive ? phasePos(activeIdx) : phasePos(0);
-  // The plane sits just above its phase node.
   const planeY = planePos.y - 14;
   els.homePhases.innerHTML = `
     <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="none" role="radiogroup" aria-label="Phase of flight">
-      <defs>
-        <linearGradient id="fp-grad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stop-color="var(--accent)" stop-opacity=".25"/>
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity=".55"/>
-        </linearGradient>
-      </defs>
+      ${boxes}
       <path class="fp-line" d="${flightProfilePath()}" />
       <path class="fp-line-passed" d="${flightProfilePathUpTo(Math.max(0, activeIdx))}" />
       ${ticks}
