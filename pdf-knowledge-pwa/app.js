@@ -785,6 +785,50 @@ async function renderHomeResults() {
         await openManualReference(mtype, mval);
       });
     });
+    // Per-chip delete buttons.
+    row.querySelectorAll('[data-act="del-link"]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const idx = +btn.getAttribute('data-idx');
+        const links = (anchor.links || []).slice();
+        const removed = links.splice(idx, 1)[0];
+        anchor.links = links;
+        anchor.updatedAt = Date.now();
+        await storage.putAnchor(anchor);
+        kg.invalidate(); await kg.load(true);
+        renderHomeResults();
+        toast(`Removed ${removed?.manualType || ''} ${removed?.value || ''}`);
+      });
+    });
+    // Add-link button — reveals the small form.
+    const addBtn = row.querySelector('[data-act="add-link"]');
+    const linkForm = row.querySelector('[data-act="link-form"]');
+    addBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addBtn.classList.add('hidden');
+      linkForm?.classList.remove('hidden');
+      linkForm?.querySelector('.hr-link-val-input')?.focus();
+    });
+    linkForm?.querySelector('[data-act="link-cancel"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      linkForm.classList.add('hidden');
+      addBtn?.classList.remove('hidden');
+    });
+    linkForm?.addEventListener('click', (e) => e.stopPropagation());
+    linkForm?.addEventListener('submit', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const mtype = linkForm.querySelector('.hr-link-type-sel').value;
+      const mval = linkForm.querySelector('.hr-link-val-input').value.trim();
+      if (!mval) return;
+      const links = (anchor.links || []).slice();
+      links.push({ manualType: mtype, value: mval });
+      anchor.links = links;
+      anchor.updatedAt = Date.now();
+      await storage.putAnchor(anchor);
+      kg.invalidate(); await kg.load(true);
+      renderHomeResults();
+      toast(`Linked ${mtype} ${mval}`);
+    });
   });
 }
 
@@ -829,12 +873,33 @@ function homeResultHtml(a) {
       <div class="hr-preview" data-pending="1">
         <canvas class="hr-canvas"></canvas>
       </div>
-      ${a.links && a.links.length ? `<div class="hr-links" aria-label="Cross references">
-        ${a.links.map((l) => `<button class="hr-link-chip" data-mtype="${escapeHtml(l.manualType || '')}" data-mval="${escapeHtml(l.value || '')}" title="Open ${escapeHtml(l.manualType || '')} ${escapeHtml(l.value || '')}">
-          <span class="hr-link-type">${escapeHtml(l.manualType || '')}</span>
-          <span class="hr-link-val">${escapeHtml(l.value || '')}</span>
-        </button>`).join('')}
-      </div>` : ''}
+      <div class="hr-links" aria-label="Cross references">
+        ${(a.links || []).map((l, idx) => `<span class="hr-link-chip-wrap" data-idx="${idx}">
+          <button class="hr-link-chip" data-mtype="${escapeHtml(l.manualType || '')}" data-mval="${escapeHtml(l.value || '')}" title="Open ${escapeHtml(l.manualType || '')} ${escapeHtml(l.value || '')}">
+            <span class="hr-link-type">${escapeHtml(l.manualType || '')}</span>
+            <span class="hr-link-val">${escapeHtml(l.value || '')}</span>
+          </button>
+          <button class="hr-link-del" data-act="del-link" data-idx="${idx}" title="Remove link" aria-label="Remove link">×</button>
+        </span>`).join('')}
+        <button class="hr-link-add" data-act="add-link" title="Add cross-reference">＋ link</button>
+        <form class="hr-link-form hidden" data-act="link-form">
+          <select class="hr-link-type-sel">
+            <option value="OMA">OMA</option><option value="OMB">OMB</option>
+            <option value="OMC">OMC</option><option value="OMD">OMD</option>
+            <option value="QRH">QRH</option><option value="QRH CI">QRH CI</option>
+            <option value="QRH OI">QRH OI</option><option value="QRH NNC">QRH NNC</option>
+            <option value="FCOM">FCOM</option><option value="FCTM">FCTM</option>
+            <option value="CSFM">CSFM</option><option value="CFSM">CFSM</option>
+            <option value="OPS INFO">OPS INFO</option>
+            <option value="OI">OI</option><option value="SP">SP</option>
+            <option value="NP">NP</option><option value="EI">EI</option>
+            <option value="MEL">MEL</option>
+          </select>
+          <input class="hr-link-val-input" type="text" placeholder="e.g. 8.5.11.4" required />
+          <button class="btn primary" type="submit">Add</button>
+          <button class="btn ghost" type="button" data-act="link-cancel">✕</button>
+        </form>
+      </div>
     </div>
   </li>`;
 }
