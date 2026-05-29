@@ -379,9 +379,28 @@ function flightProfilePathUpTo(stopIdx) {
   return d;
 }
 
+// X-wing fighter silhouette, top-down, nose to the right. The 4 wings form
+// an X centred behind the cockpit; small dots at each wing tip stand in for
+// the laser cannons.
 const PLANE_SVG = `
-  <g class="fp-plane-glyph">
-    <path d="M -16 0 L -2 -3 L -2 -10 L 1 -11 L 3 -3 L 14 -3 L 16 0 L 14 3 L 3 3 L 1 11 L -2 10 L -2 3 Z" fill="currentColor"/>
+  <g class="fp-plane-glyph" fill="currentColor">
+    <!-- Top-aft wing -->
+    <path d="M -8 -1.8 L -16 -8 L -14 -10 L -5 -2.4 Z" />
+    <!-- Top-fore wing -->
+    <path d="M -6 -1.8 L 0 -10 L 2 -8 L -3 -1.5 Z" />
+    <!-- Bottom-aft wing -->
+    <path d="M -8 1.8 L -16 8 L -14 10 L -5 2.4 Z" />
+    <!-- Bottom-fore wing -->
+    <path d="M -6 1.8 L 0 10 L 2 8 L -3 1.5 Z" />
+    <!-- Fuselage with pointed nose + tapered tail -->
+    <path d="M 14 0 L 4 -2 L -10 -2 L -12 -1 L -12 1 L -10 2 L 4 2 Z" />
+    <!-- Cockpit highlight -->
+    <path d="M 8 -1.2 L 3 -1.2 L 2 0 L 3 1.2 L 8 1.2 Z" opacity="0.45" fill="#fff" />
+    <!-- Wing-tip cannons (4 of them) -->
+    <circle cx="-15" cy="-9" r="0.9" />
+    <circle cx="1"   cy="-9" r="0.9" />
+    <circle cx="-15" cy="9"  r="0.9" />
+    <circle cx="1"   cy="9"  r="0.9" />
   </g>`;
 
 function renderHomePhases() {
