@@ -1,7 +1,7 @@
 // Service worker: cache the app shell + vendored PDF.js + MiniSearch so the
 // app loads fully offline. Bump CACHE_VERSION whenever shell assets change.
 
-const CACHE_VERSION = 'pkpwa-v24';
+const CACHE_VERSION = 'pkpwa-v25';
 const APP_SHELL = [
   './',
   './index.html',

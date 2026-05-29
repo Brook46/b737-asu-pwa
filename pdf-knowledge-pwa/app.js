@@ -115,6 +115,18 @@ async function bootstrap() {
   state.briefingTypes = briefingTypes;
   state.activeTail = activeTail || null;
 
+  // Seed the briefing-types row on first launch with the three categories
+  // every pilot starts from: Normal / Non-Normal / Briefing.
+  if (!state.briefingTypes.length) {
+    const defaults = [
+      { id: 'bt_default_normal',    name: 'Normal Operation',     color: '#3ddc97', sort: 1 },
+      { id: 'bt_default_nonnormal', name: 'Non-Normal Operation', color: '#ff6b6b', sort: 2 },
+      { id: 'bt_default_briefing',  name: 'Briefing',             color: '#7aa3ff', sort: 3 },
+    ];
+    for (const bt of defaults) await storage.putBriefingType({ ...bt, createdAt: Date.now() });
+    state.briefingTypes = await storage.listBriefingTypes();
+  }
+
   await searchMod.rebuildIndex(state.files);
   await kg.load(true);
   await refreshNoteCounts();
