@@ -303,17 +303,27 @@ function switchView(view) {
 // AND the search query. Bottom-right: floating "add file" button. Tap a result
 // to open the file full-window at its page.
 
-// Thin horizontal phase strip. A horizontal line with one tick per phase.
-// An airplane glyph sits on the active phase and can be dragged left/right
-// to snap to the nearest phase. Tapping any phase label also selects it.
+// Thin horizontal phase strip with a real flight profile: ground at dispatch,
+// climb to cruise, descent through approach, back to ground at landing.
+// An airplane glyph sits on the active phase and can be dragged or tapped.
 const STRIP_VB_W = 1000;
-const STRIP_VB_H = 70;
-
-function phaseXAt(idx) {
-  const n = PHASES.length;
-  const inset = 60;
-  return inset + (STRIP_VB_W - inset * 2) * (idx / Math.max(1, n - 1));
+const STRIP_VB_H = 110;
+// Per-phase x/y positions along the profile (y in SVG = bigger means lower).
+const PHASE_PROFILE = {
+  dispatch:     { x: 40,  y: 70 },
+  takeoff:      { x: 140, y: 68 },
+  climb:        { x: 290, y: 36 },
+  cruise:       { x: 480, y: 22 },
+  descent:      { x: 670, y: 36 },
+  approach:     { x: 800, y: 60 },
+  landing:      { x: 875, y: 70 },
+  afterLanding: { x: 970, y: 70 },
+};
+function phasePos(idOrIdx) {
+  const id = typeof idOrIdx === 'number' ? PHASES[idOrIdx].id : idOrIdx;
+  return PHASE_PROFILE[id] || { x: 500, y: 50 };
 }
+function phaseXAt(idx) { return phasePos(idx).x; }
 
 function nearestPhaseFromX(x) {
   let best = 0, bestDist = Infinity;
@@ -324,34 +334,74 @@ function nearestPhaseFromX(x) {
   return PHASES[best];
 }
 
+// Build a smooth flight-profile path through every phase point. Each segment
+// is a quadratic curve whose control sits halfway in x at the source y, then
+// halfway in y of the previous control — looks like a smooth climb/descent.
+function flightProfilePath() {
+  const pts = PHASES.map((_, i) => phasePos(i));
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1], cur = pts[i];
+    const midX = (prev.x + cur.x) / 2;
+    d += ` Q ${midX} ${prev.y} ${midX} ${(prev.y + cur.y) / 2}`;
+    d += ` T ${cur.x} ${cur.y}`;
+  }
+  return d;
+}
+
+// Partial profile path up to a given x coordinate, used to draw the
+// "travelled" portion in accent colour. We approximate by walking the same
+// segment list and stopping at / interpolating to the target phase index.
+function flightProfilePathUpTo(stopIdx) {
+  if (stopIdx <= 0) return `M ${phasePos(0).x} ${phasePos(0).y}`;
+  const pts = PHASES.slice(0, stopIdx + 1).map((_, i) => phasePos(i));
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1], cur = pts[i];
+    const midX = (prev.x + cur.x) / 2;
+    d += ` Q ${midX} ${prev.y} ${midX} ${(prev.y + cur.y) / 2}`;
+    d += ` T ${cur.x} ${cur.y}`;
+  }
+  return d;
+}
+
+const PLANE_SVG = `
+  <g class="fp-plane-glyph">
+    <path d="M -16 0 L -2 -3 L -2 -10 L 1 -11 L 3 -3 L 14 -3 L 16 0 L 14 3 L 3 3 L 1 11 L -2 10 L -2 3 Z" fill="currentColor"/>
+  </g>`;
+
 function renderHomePhases() {
   const hasActive = state.selectedPhase != null;
   const activeIdx = hasActive ? PHASES.findIndex((p) => p.id === state.selectedPhase) : -1;
   const ticks = PHASES.map((p, i) => {
-    const x = phaseXAt(i);
+    const pos = phasePos(i);
     const on = i === activeIdx;
     const passed = hasActive && i < activeIdx;
     return `
-      <g class="fp-tick ${on ? 'on' : ''} ${passed ? 'passed' : ''}" data-phase="${p.id}" transform="translate(${x} 28)">
-        <circle class="fp-hit" r="20" />
+      <g class="fp-tick ${on ? 'on' : ''} ${passed ? 'passed' : ''}" data-phase="${p.id}" transform="translate(${pos.x} ${pos.y})">
+        <circle class="fp-hit" r="22" />
         <circle class="fp-dot" r="${on ? 7 : passed ? 6 : 5}" />
         <text class="fp-label" text-anchor="middle" y="22">${escapeHtml(p.label)}</text>
-        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="36">GPS</text>
+        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="34">GPS</text>
       </g>`;
   }).join('');
-  const planeX = hasActive ? phaseXAt(activeIdx) : phaseXAt(0);
-  // Travelled portion of the line (left of the active phase) drawn over the
-  // base line in the accent colour so the user sees where they are.
-  const traveledTo = hasActive ? planeX : 40;
+  const planePos = hasActive ? phasePos(activeIdx) : phasePos(0);
+  // The plane sits just above its phase node.
+  const planeY = planePos.y - 14;
   els.homePhases.innerHTML = `
     <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="none" role="radiogroup" aria-label="Phase of flight">
-      <line class="fp-line" x1="40" y1="28" x2="${STRIP_VB_W - 40}" y2="28" />
-      <line class="fp-line-passed" x1="40" y1="28" x2="${traveledTo}" y2="28" />
+      <defs>
+        <linearGradient id="fp-grad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stop-color="var(--accent)" stop-opacity=".25"/>
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity=".55"/>
+        </linearGradient>
+      </defs>
+      <path class="fp-line" d="${flightProfilePath()}" />
+      <path class="fp-line-passed" d="${flightProfilePathUpTo(Math.max(0, activeIdx))}" />
       ${ticks}
-      <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planeX} 18)">
+      <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planePos.x} ${planeY})">
         <title>Drag to change phase</title>
-        <circle class="fp-plane-bg" r="14" />
-        <text class="fp-plane-glyph" text-anchor="middle" y="5">✈</text>
+        ${PLANE_SVG}
       </g>
     </svg>`;
   els.homePhases.querySelectorAll('.fp-tick').forEach((g) => {
@@ -390,9 +440,11 @@ function initPlaneDrag(planeEl) {
     if (!dragging) return;
     e.preventDefault();
     const x = Math.max(0, Math.min(STRIP_VB_W, xFromEvent(e)));
-    planeEl.setAttribute('transform', `translate(${x} 18)`);
-    // Highlight the nearest tick while dragging.
+    // Plane rides the profile curve: take the y of the nearest phase node so
+    // dragging feels like sliding along the path.
     const near = nearestPhaseFromX(x);
+    const y = phasePos(near.id).y - 14;
+    planeEl.setAttribute('transform', `translate(${x} ${y})`);
     els.homePhases.querySelectorAll('.fp-tick').forEach((g) =>
       g.classList.toggle('drag-hover', g.getAttribute('data-phase') === near.id));
   };
