@@ -1227,3 +1227,20 @@ body.has-dock .app-main { padding-bottom: 60px; }
   background: var(--bg-elev-1); color: var(--fg); font-size: 0.85em;
 }
 .lib-empty { padding: 4px 6px; font-style: italic; }
+.ai-key-row { margin-bottom: 14px; padding: 10px 12px; background: var(--bg-elev-2); border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.ai-key-row label { font-weight: 600; font-size: 0.92em; }
+.ai-key-input-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-key-input-row input {
+  flex: 1; min-width: 180px; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg-elev-1); color: var(--fg);
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-size: 0.85em;
+}
+.ai-key-status { font-size: 0.78em; color: var(--fg-muted); }
+.ai-key-status.ok { color: var(--ok, #3ddc97); font-weight: 600; }
+.ai-gen-btn {
+  font-size: 0.82em; padding: 4px 10px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.ai-gen-btn:hover { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.ai-gen-btn:disabled { opacity: .6; cursor: wait; }

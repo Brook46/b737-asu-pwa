@@ -224,13 +224,10 @@ function wireEvents() {
   els.homeAddBtype.addEventListener('click', () => openBtypeNewModal());
   els.homeAddScenario.addEventListener('click', () => openBriefingNewModal({ parentId: null }));
   els.homeAddSub.addEventListener('click', () => {
-    // Sub-briefing defaults its parent to the currently-active top-level (first
-    // selected top-level scenario, if any).
-    const firstTopSelected = [...state.selectedScenarios].find((id) => {
-      const s = state.scenarios.find((x) => x.id === id);
-      return s && !s.parentId;
-    });
-    openBriefingNewModal({ parentId: firstTopSelected || null, forceSub: true });
+    // Sub-briefing defaults its parent to the currently-active top-level
+    // briefing (if any). If none is selected, the modal opens with no
+    // pre-selected parent and the user picks one inside.
+    openBriefingNewModal({ parentId: state.selectedTopBriefing || null, forceSub: true });
   });
   els.bnClose.addEventListener('click', () => els.briefingNewOverlay.classList.add('hidden'));
   els.bnCancel.addEventListener('click', () => els.briefingNewOverlay.classList.add('hidden'));
@@ -643,12 +640,20 @@ function openBriefingNewModal({ parentId = null, forceSub = false } = {}) {
     ? tops.map((s) => `<button type="button" class="sr-phase ${preset.includes(s.id) ? 'on' : ''}" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('')
     : '<span class="admin-sub">— no top-level briefings yet —</span>';
   const updateMode = () => {
-    const isSub = els.bnParents.querySelectorAll('.sr-phase.on').length > 0;
+    const anyParentOn = els.bnParents.querySelectorAll('.sr-phase.on').length > 0;
+    // forceSub locks the modal into sub-briefing mode; otherwise mode is
+    // inferred from whether a parent chip is selected.
+    const isSub = forceSub || anyParentOn;
     els.bnTitle.textContent = isSub ? 'New sub-briefing' : 'New top-level briefing';
-    // Sub-briefings inherit phase/type filters through their parent → hide
-    // those fields to keep the UI honest.
     els.bnPhasesField.classList.toggle('hidden', isSub);
     els.bnBtypesField.classList.toggle('hidden', isSub);
+    // In forceSub mode, hint that picking a parent is required.
+    const parentLabel = els.bnParentField.querySelector('label .admin-sub');
+    if (parentLabel) {
+      parentLabel.textContent = isSub
+        ? '— tap at least one parent briefing'
+        : '— tap to link, leave empty for a top-level briefing';
+    }
   };
   els.bnParents.querySelectorAll('.sr-phase').forEach((b) => {
     b.addEventListener('click', () => { b.classList.toggle('on'); updateMode(); });
@@ -679,7 +684,11 @@ async function onCreateBriefing(e) {
   const name = els.bnName.value.trim();
   if (!name) return;
   const parentIds = [...els.bnParents.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-id'));
-  const isSub = parentIds.length > 0;
+  if (bnContext.forceSub && !parentIds.length) {
+    toast('Pick at least one parent briefing for this sub-briefing.');
+    return;
+  }
+  const isSub = bnContext.forceSub || parentIds.length > 0;
   const phases = isSub ? [] :
     [...els.bnPhases.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-phase'));
   const briefingTypes = isSub ? [] :
@@ -694,8 +703,8 @@ async function onCreateBriefing(e) {
   await reloadScenarios();
   els.briefingNewOverlay.classList.add('hidden');
   if (isSub) {
-    // Make sure at least one parent is active so the new chip shows up.
-    if (!parentIds.some((p) => state.selectedScenarios.has(p))) state.selectedScenarios.add(parentIds[0]);
+    // Activate one of the parents so the new chip shows up on the sub-row.
+    if (!parentIds.includes(state.selectedTopBriefing)) state.selectedTopBriefing = parentIds[0];
   }
   renderHomeScenarios(); renderHomeResults();
   if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsSheet();
@@ -1040,7 +1049,20 @@ async function renderSettingsLibrary() {
   const groups = DOC_TYPES.map((dt) => ({
     ...dt, files: files.filter((f) => (f.docType || 'manual') === dt.id),
   }));
-  els.settingsLibrary.innerHTML = groups.map((g) => `
+  const apiKey = (await storage.getKV('anthropicApiKey')) || '';
+  const keyHint = apiKey
+    ? `<span class="ai-key-status ok">AI key set</span>`
+    : `<span class="ai-key-status">no AI key</span>`;
+  els.settingsLibrary.innerHTML = `
+    <div class="ai-key-row">
+      <label for="settings-ai-key">Anthropic API key <span class="admin-sub">— enables ✨ AI sub-briefing generation; stored on this device only.</span></label>
+      <div class="ai-key-input-row">
+        <input id="settings-ai-key" type="password" autocomplete="off" placeholder="sk-ant-..." value="${escapeHtml(apiKey)}" />
+        <button class="btn primary" type="button" id="settings-ai-key-save">Save key</button>
+        ${keyHint}
+      </div>
+    </div>
+  ` + groups.map((g) => `
     <div class="lib-group" data-doctype="${escapeHtml(g.id)}">
       <div class="lib-group-head">${escapeHtml(g.label)} <span class="admin-sub">(${g.files.length})</span></div>
       ${g.files.length
@@ -1050,10 +1072,20 @@ async function renderSettingsLibrary() {
             <select class="lib-type" title="Document category">
               ${DOC_TYPES.map((t) => `<option value="${t.id}" ${t.id === (f.docType || 'manual') ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
             </select>
+            <button class="btn ghost ai-gen-btn" data-act="ai-gen" title="Auto-generate briefings from this file">✨ AI briefings</button>
             <button class="btn ghost" data-act="del-file" title="Delete">🗑</button>
           </div>`).join('')
         : '<div class="admin-sub lib-empty">— none —</div>'}
     </div>`).join('');
+
+  // Save API key.
+  els.settingsLibrary.querySelector('#settings-ai-key-save')?.addEventListener('click', async () => {
+    const key = els.settingsLibrary.querySelector('#settings-ai-key').value.trim();
+    await storage.setKV('anthropicApiKey', key);
+    toast(key ? 'AI key saved.' : 'AI key cleared.');
+    renderSettingsLibrary();
+  });
+
   els.settingsLibrary.querySelectorAll('.lib-row').forEach((row) => {
     const fileId = row.getAttribute('data-fileid');
     row.querySelector('.lib-type')?.addEventListener('change', async (e) => {
@@ -1072,6 +1104,9 @@ async function renderSettingsLibrary() {
       state.files.delete(fileId);
       kg.invalidate(); await kg.load(true);
       renderSettingsLibrary(); renderHomeResults();
+    });
+    row.querySelector('[data-act="ai-gen"]')?.addEventListener('click', async () => {
+      await aiGenerateBriefingsForFile(fileId, row.querySelector('[data-act="ai-gen"]'));
     });
   });
 }
@@ -2785,6 +2820,128 @@ function onGpsUpdate(s) {
 }
 
 // --- Helpers -----------------------------------------------------------------
+
+// --- AI: auto-generate briefings + sub-briefings from a file ---------------
+// Sends the file's page text to Claude Haiku, asks for a structured
+// chapter / sub-topic tree, and writes the result as scenarios.
+async function aiGenerateBriefingsForFile(fileId, btn) {
+  const apiKey = (await storage.getKV('anthropicApiKey')) || '';
+  if (!apiKey) {
+    toast('Set your Anthropic API key in Settings first.');
+    return;
+  }
+  if (!navigator.onLine) { toast('Offline — connect to the internet to run AI.'); return; }
+  const file = state.files.get(fileId);
+  if (!file) { toast('File not found.'); return; }
+  if (!confirm(`Use Claude to auto-generate briefings + sub-briefings from "${file.name}"?`)) return;
+  const origLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '… thinking'; }
+  try {
+    // Build the input: page-by-page text, capped so the request stays small.
+    const pages = await storage.getPagesForFile(fileId);
+    const sample = pages.slice(0, 60).map((p) => `[p.${p.pageNum}]\n${(p.text || '').slice(0, 900)}`).join('\n\n').slice(0, 60000);
+    const btypeList = (state.briefingTypes || []).map((b) => b.name).join(', ') || '(none)';
+    const phaseList = PHASES.map((p) => p.label).join(', ');
+    const userPrompt = [
+      'You are organising a pilot study book into briefings and sub-briefings.',
+      'Read the page content below and return a STRICT JSON object with this shape:',
+      '{ "briefings": [ { "name": "...", "phases": ["..."], "briefingType": "Normal Operation|Non-Normal Operation|Briefing", "subBriefings": [ { "name": "...", "pageNum": <int> } ] } ] }',
+      'Rules:',
+      `- Phases must be drawn from: ${phaseList}.`,
+      `- briefingType must match one of: ${btypeList}.`,
+      '- Each top-level "briefing" should match a chapter in the book; each sub-briefing should be one of its topics.',
+      '- Use clear concise English titles (translate from Hebrew if needed).',
+      '- Skip generic intros (like "General"); only meaningful topics.',
+      '- Return AT MOST 10 top-level briefings and AT MOST 12 sub-briefings each.',
+      '- Return ONLY the JSON object, no prose, no markdown fences.',
+      '',
+      'PAGES:',
+      sample,
+    ].join('\n');
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Claude error ${resp.status}: ${err.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    const text = (data.content || []).map((c) => c.text || '').join('').trim();
+    // Strip code fences if the model added any despite instructions.
+    const jsonText = text.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(jsonText);
+    const briefings = parsed.briefings || [];
+    if (!briefings.length) { toast('Claude returned no briefings.'); return; }
+
+    // Map briefing-type name → id (best-effort).
+    const btypeByName = new Map((state.briefingTypes || []).map((b) => [b.name.toLowerCase(), b.id]));
+    let created = 0;
+    for (const b of briefings) {
+      const name = (b.name || '').trim();
+      if (!name) continue;
+      const topId = 'sc_ai_' + Math.random().toString(36).slice(2, 9);
+      const phaseIds = (b.phases || []).map((p) => PHASES.find((ph) => ph.label.toLowerCase() === String(p).toLowerCase())?.id).filter(Boolean);
+      const btId = btypeByName.get(String(b.briefingType || '').toLowerCase());
+      await storage.putScenario({
+        id: topId, name, parentId: null, parentIds: [],
+        phases: phaseIds, briefingTypes: btId ? [btId] : [],
+        color: '#7aa3ff', kind: 'normal',
+        sort: Date.now() + (created * 10), createdAt: Date.now(), updatedAt: Date.now(),
+      });
+      created++;
+      for (const sub of (b.subBriefings || [])) {
+        const subName = (sub.name || '').trim();
+        if (!subName) continue;
+        const subId = 'sc_ai_' + Math.random().toString(36).slice(2, 9);
+        await storage.putScenario({
+          id: subId, name: subName, parentId: null, parentIds: [topId],
+          phases: [], briefingTypes: [],
+          color: '#ffb84d', kind: 'normal',
+          sort: Date.now() + created, createdAt: Date.now(), updatedAt: Date.now(),
+        });
+        // If a pageNum was provided, also seed a quick indexed anchor.
+        const pageNum = parseInt(sub.pageNum, 10);
+        if (Number.isFinite(pageNum) && pageNum >= 1) {
+          await storage.putAnchor({
+            anchorId: 'idx_ai_' + Math.random().toString(36).slice(2, 9),
+            fileId, manualType: file.manualType || 'PERSONAL',
+            kind: 'idx', itemType: 'briefing', source: 'manual',
+            paraIndex: null, selectionRects: null,
+            pageNum, anchorType: 'page', value: 'p.' + pageNum,
+            title: subName, excerpt: subName,
+            textHash: 'h_ai_' + Math.random().toString(36).slice(2, 9),
+            phases: phaseIds,
+            briefingTypes: btId ? [btId] : [],
+            scenarios: [topId, subId], links: [],
+            aiSuggested: null, aiAccepted: true,
+            createdAt: Date.now(), updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+    await reloadScenarios();
+    kg.invalidate(); await kg.load(true);
+    renderHomeScenarios(); renderHomeResults(); renderSettingsSheet();
+    toast(`AI created ${created} briefing${created === 1 ? '' : 's'}.`);
+  } catch (e) {
+    console.error('ai-gen failed', e);
+    toast('AI failed: ' + (e.message || e).slice(0, 100));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+  }
+}
 
 let toastTimer = null;
 function toast(msg) {
