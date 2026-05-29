@@ -775,6 +775,15 @@ async function renderHomeResults() {
     row.querySelector('[data-act="next"]')?.addEventListener('click', (e) => {
       e.stopPropagation(); goToPage((+row.getAttribute('data-page')) + 1);
     });
+    // Cross-reference link chips → resolve & open the target manual.
+    row.querySelectorAll('.hr-link-chip').forEach((chip) => {
+      chip.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const mtype = chip.getAttribute('data-mtype');
+        const mval = chip.getAttribute('data-mval');
+        await openManualReference(mtype, mval);
+      });
+    });
   });
 }
 
@@ -819,6 +828,12 @@ function homeResultHtml(a) {
       <div class="hr-preview" data-pending="1">
         <canvas class="hr-canvas"></canvas>
       </div>
+      ${a.links && a.links.length ? `<div class="hr-links" aria-label="Cross references">
+        ${a.links.map((l) => `<button class="hr-link-chip" data-mtype="${escapeHtml(l.manualType || '')}" data-mval="${escapeHtml(l.value || '')}" title="Open ${escapeHtml(l.manualType || '')} ${escapeHtml(l.value || '')}">
+          <span class="hr-link-type">${escapeHtml(l.manualType || '')}</span>
+          <span class="hr-link-val">${escapeHtml(l.value || '')}</span>
+        </button>`).join('')}
+      </div>` : ''}
     </div>
   </li>`;
 }
@@ -838,6 +853,22 @@ async function renderCardPreview(card, anchor) {
   } catch (err) {
     wrap.innerHTML = `<div class="hr-preview-err">Preview unavailable (${escapeHtml(err.message || 'error')})</div>`;
   }
+}
+
+// Resolve a cross-reference (e.g. {manualType:'QRH', value:'CI 2.6'}) and
+// open the relevant manual page if any matching anchor exists. Otherwise
+// surface a helpful toast so the user knows to add that manual.
+async function openManualReference(manualType, value) {
+  if (!manualType && !value) return;
+  try {
+    const anchor = await kg.resolveAnchor(manualType, value);
+    if (anchor) { openAnchorInViewer(anchor); return; }
+  } catch (_) { /* fall through */ }
+  // No direct anchor; if a manual of that type is loaded, just open page 1.
+  for (const [fileId, m] of state.manuals.entries()) {
+    if (m.manualType === manualType) { openFileInViewer(fileId, 1); return; }
+  }
+  toast(`${manualType} ${value} — manual not loaded yet. Add ${manualType} via ⚙ Settings.`);
 }
 
 function phaseLabel(id) { const p = PHASES.find((x) => x.id === id); return p ? p.label : ''; }

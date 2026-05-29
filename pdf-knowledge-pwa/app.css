@@ -1024,6 +1024,21 @@ body.has-dock .app-main { padding-bottom: 60px; }
 @keyframes shimmer { 0% { background-position: -100% 0 } 100% { background-position: 100% 0 } }
 .hr-preview .hr-canvas { display: block; margin: 0 auto; }
 .hr-preview-err { color: var(--fg-muted); font-size: 0.85em; padding: 12px; text-align: center; background: var(--bg-elev-2); }
+.hr-links {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 4px;
+}
+.hr-link-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--fg); cursor: pointer; font-size: 0.8em;
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  letter-spacing: -0.01em; transition: background .12s ease, border-color .12s ease;
+}
+.hr-link-chip:hover { background: color-mix(in srgb, var(--accent) 25%, var(--bg-elev-2)); border-color: var(--accent); }
+.hr-link-type { font-weight: 700; color: var(--accent); }
+.hr-link-val { color: var(--fg); }
 .hr-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .hr-file { font-weight: 600; color: var(--fg); }
 .hr-page { font-size: 0.82em; color: var(--fg-muted); }
