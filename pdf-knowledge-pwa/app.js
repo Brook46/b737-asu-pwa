@@ -80,11 +80,13 @@ const state = {
   view: 'phase',
   phase: 'dispatch',
   toggle: 'normal',
-  // Home filters: phase, briefingType and sub-briefing are all single-select.
-  // Top-level briefings remain multi-select (user may want several at once).
+  // Home filters: every level is single-select. The sub-briefing takes
+  // precedence over the top-level briefing when both are picked — the user
+  // sees only what's relevant to the most specific scope.
   selectedPhase: null,
   selectedBtype: null,
-  selectedScenarios: new Set(),
+  selectedTopBriefing: null,
+  selectedSubBriefing: null,
   homeQuery: '',
   gpsAuto: false,
   manualPhaseUntil: 0,
@@ -212,7 +214,7 @@ function wireEvents() {
   }, 200));
   els.homeClear.addEventListener('click', () => {
     state.selectedPhase = null; state.selectedBtype = null;
-    state.selectedScenarios.clear();
+    state.selectedTopBriefing = null; state.selectedSubBriefing = null;
     state.homeQuery = ''; els.homeSearch.value = '';
     renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   });
@@ -428,12 +430,14 @@ function selectPhaseById(id) {
   state.selectedPhase = state.selectedPhase === id ? null : id;
   state.phase = id;
   state.manualPhaseUntil = Date.now() + 60000;
-  if (state.selectedPhase) {
-    for (const sid of [...state.selectedScenarios]) {
-      const sc = state.scenarios.find((s) => s.id === sid);
-      if (!sc || (sc.phases || []).length && !sc.phases.includes(state.selectedPhase)) {
-        state.selectedScenarios.delete(sid);
-      }
+  // If the active top-level briefing no longer matches this phase, drop it
+  // (and any sub-briefing under it).
+  if (state.selectedPhase && state.selectedTopBriefing) {
+    const top = state.scenarios.find((s) => s.id === state.selectedTopBriefing);
+    const phs = top?.phases || [];
+    if (phs.length && !phs.includes(state.selectedPhase)) {
+      state.selectedTopBriefing = null;
+      state.selectedSubBriefing = null;
     }
   }
   renderHomePhases();
@@ -498,19 +502,15 @@ function renderHomeBtypes() {
   els.homeBtypes.querySelectorAll('.home-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      // Single-select: tap toggles; tapping another replaces.
       state.selectedBtype = state.selectedBtype === id ? null : id;
-      // Drop selected scenarios that don't include this type any more.
-      if (state.selectedBtype) {
-        for (const sid of [...state.selectedScenarios]) {
-          const sc = state.scenarios.find((s) => s.id === sid);
-          if (!sc) continue;
-          // Sub-briefings inherit type filtering through their parents.
-          const isSub = (sc.parentIds || (sc.parentId ? [sc.parentId] : [])).length > 0;
-          if (!isSub) {
-            const types = sc.briefingTypes || [];
-            if (types.length && !types.includes(state.selectedBtype)) state.selectedScenarios.delete(sid);
-          }
+      // If the active top-level briefing no longer matches this type, drop
+      // the selection (and any sub under it).
+      if (state.selectedBtype && state.selectedTopBriefing) {
+        const top = state.scenarios.find((s) => s.id === state.selectedTopBriefing);
+        const types = top?.briefingTypes || [];
+        if (types.length && !types.includes(state.selectedBtype)) {
+          state.selectedTopBriefing = null;
+          state.selectedSubBriefing = null;
         }
       }
       renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
@@ -559,60 +559,62 @@ function visibleTopLevelBriefings() {
 function renderHomeScenarios() {
   const tops = visibleTopLevelBriefings();
   els.homeScenarios.innerHTML = tops.length
-    ? tops.map((s) => chipHtmlForScenario(s)).join('')
+    ? tops.map((s) => chipHtmlForScenario(s, state.selectedTopBriefing === s.id)).join('')
     : `<span class="admin-sub">No briefings match — tap ＋ New, or adjust the phase / type filter.</span>`;
-  bindScenarioChips(els.homeScenarios);
+  bindTopBriefingChips(els.homeScenarios);
 
-  // Sub-row: union of children of all selected top-level scenarios.
-  // Children show regardless of phase (they inherit through the parent).
-  const selectedTops = [...state.selectedScenarios].filter((id) => {
-    const s = state.scenarios.find((x) => x.id === id);
-    return s && isTopLevel(s);
-  });
-  if (!selectedTops.length) {
+  // Sub-row only when a top-level briefing is selected.
+  const topId = state.selectedTopBriefing;
+  const top = topId ? state.scenarios.find((s) => s.id === topId) : null;
+  if (!top) {
     els.homeSubRow.classList.add('hidden');
     els.homeSubScenarios.innerHTML = '';
-    for (const sid of [...state.selectedScenarios]) {
-      const s = state.scenarios.find((x) => x.id === sid);
-      if (s && !isTopLevel(s)) state.selectedScenarios.delete(sid);
-    }
+    state.selectedSubBriefing = null;
   } else {
     els.homeSubRow.classList.remove('hidden');
     const children = (state.scenarios || [])
-      .filter((s) => !isTopLevel(s) && scenarioParents(s).some((p) => selectedTops.includes(p)))
+      .filter((s) => !isTopLevel(s) && scenarioParents(s).includes(topId))
       .sort((a, b) => (a.sort || 0) - (b.sort || 0));
+    // Drop sub-selection if the active top changed and it no longer exists.
+    if (state.selectedSubBriefing && !children.some((c) => c.id === state.selectedSubBriefing)) {
+      state.selectedSubBriefing = null;
+    }
     els.homeSubScenarios.innerHTML = children.length
-      ? children.map((s) => chipHtmlForScenario(s)).join('')
-      : '<span class="admin-sub">No specific briefings linked under the selected briefing yet — tap ＋ New.</span>';
-    bindScenarioChips(els.homeSubScenarios, { singleSelect: true });
+      ? children.map((s) => chipHtmlForScenario(s, state.selectedSubBriefing === s.id)).join('')
+      : '<span class="admin-sub">No sub-briefings linked yet — tap ＋ New.</span>';
+    bindSubBriefingChips(els.homeSubScenarios);
   }
 }
 
-function chipHtmlForScenario(s) {
-  const on = state.selectedScenarios.has(s.id);
+function chipHtmlForScenario(s, on = false) {
   const color = s.color ? ` style="--c:${escapeHtml(s.color)}"` : '';
   return `<button class="home-chip scenario-chip ${on ? 'on' : ''}"${color} data-id="${escapeHtml(s.id)}">
     <span class="hc-label">${escapeHtml(s.name)}</span>
   </button>`;
 }
 
-function bindScenarioChips(root, { singleSelect = false } = {}) {
+// Single-select binding for top-level briefings.
+function bindTopBriefingChips(root) {
   root.querySelectorAll('.home-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
-      if (singleSelect) {
-        // Drop sibling sub-briefing selections so only one remains active for
-        // this phase.
-        const myParent = state.scenarios.find((s) => s.id === id)?.parentId;
-        const siblings = state.scenarios.filter((s) => s.parentId === myParent && s.id !== id);
-        for (const sib of siblings) state.selectedScenarios.delete(sib.id);
-        // Toggle this one.
-        if (state.selectedScenarios.has(id)) state.selectedScenarios.delete(id);
-        else state.selectedScenarios.add(id);
-      } else {
-        if (state.selectedScenarios.has(id)) state.selectedScenarios.delete(id);
-        else state.selectedScenarios.add(id);
-      }
+      state.selectedTopBriefing = state.selectedTopBriefing === id ? null : id;
+      // Picking a new top resets the sub.
+      state.selectedSubBriefing = null;
+      renderHomeScenarios();
+      renderHomeResults();
+    });
+  });
+}
+
+// Single-select binding for sub-briefings. Sub takes precedence over top
+// when filtering results, so the chip stays highlighted and the result list
+// narrows to just that sub's anchors.
+function bindSubBriefingChips(root) {
+  root.querySelectorAll('.home-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      state.selectedSubBriefing = state.selectedSubBriefing === id ? null : id;
       renderHomeScenarios();
       renderHomeResults();
     });
@@ -698,38 +700,37 @@ async function renderHomeResults() {
   const fileIds = activeFileIds();
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const btypes = state.selectedBtype ? [state.selectedBtype] : [];
-  const scenarios = [...state.selectedScenarios];
-  let anchors = [];
-  try {
-    anchors = await kg.indexedAnchors({
-      phases: phases.length ? phases : null,
-      briefingTypes: btypes.length ? btypes : null,
-      scenarios: scenarios.length ? scenarios : null,
-      fileIds: fileIds ? fileIds : null,
-      query: state.homeQuery || '',
-    });
-  } catch (e) {
-    const all = await kg.allAnchors();
-    anchors = all.filter((a) => {
-      if (a.kind !== 'idx') return false;
-      if (phases.length && !phases.some((p) => (a.phases || []).includes(p))) return false;
-      if (btypes.length && !btypes.some((b) => (a.briefingTypes || []).includes(b))) return false;
-      if (scenarios.length && !scenarios.some((s) => (a.scenarios || []).includes(s))) return false;
-      if (fileIds && !fileIds.has(a.fileId)) return false;
-      if (state.homeQuery) {
-        const q = state.homeQuery.toLowerCase();
-        const hay = ((a.title || '') + ' ' + (a.excerpt || '')).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }
+  // Sub-briefing wins over top-level — show only the most specific scope.
+  const scopeScenario = state.selectedSubBriefing || state.selectedTopBriefing || null;
+  const scenarios = scopeScenario ? [scopeScenario] : [];
+  const hasAnyFilter = !!(phases.length || btypes.length || scopeScenario || state.homeQuery);
+  // GENERAL-ONLY default: with nothing picked, surface only the overview
+  // items (anchor title is exactly "General" or ends with "— General").
+  const generalOnly = !hasAnyFilter;
+  const all = await kg.allAnchors();
+  let anchors = all.filter((a) => {
+    if (a.kind !== 'idx') return false;
+    if (fileIds && !fileIds.has(a.fileId)) return false;
+    if (phases.length && !phases.some((p) => (a.phases || []).includes(p))) return false;
+    if (btypes.length && !btypes.some((b) => (a.briefingTypes || []).includes(b))) return false;
+    if (scenarios.length && !scenarios.some((s) => (a.scenarios || []).includes(s))) return false;
+    if (state.homeQuery) {
+      const q = state.homeQuery.toLowerCase();
+      const hay = ((a.title || '') + ' ' + (a.excerpt || '')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (generalOnly) {
+      const t = (a.title || '').trim();
+      if (!(t === 'General' || /[—-]\s*General$/i.test(t))) return false;
+    }
+    return true;
+  });
 
-  const hasFilters = phases.length || btypes.length || scenarios.length || state.homeQuery;
+  const hasFilters = hasAnyFilter;
   if (!anchors.length) {
     els.homeResults.innerHTML = hasFilters
-      ? '<li class="home-empty">No indexed paragraphs match. Try other phases/scenarios, or tap “Clear”.</li>'
-      : '<li class="home-empty">Nothing indexed yet. Open a file → 📑 Index → tap a paragraph to tag it across phases & scenarios.</li>';
+      ? '<li class="home-empty">No briefings match. Try a different phase, type or briefing — or tap “Clear”.</li>'
+      : '<li class="home-empty">Pick a phase, briefing type, or briefing above to see relevant content. (General overviews show here when nothing matches.)</li>';
     return;
   }
   els.homeResults.innerHTML = anchors.map((a) => homeResultHtml(a)).join('');
