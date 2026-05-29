@@ -709,20 +709,34 @@ async function renderHomeResults() {
   const fileIds = activeFileIds();
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const btypes = state.selectedBtype ? [state.selectedBtype] : [];
-  // Sub-briefing wins over top-level — show only the most specific scope.
-  const scopeScenario = state.selectedSubBriefing || state.selectedTopBriefing || null;
-  const scenarios = scopeScenario ? [scopeScenario] : [];
-  const hasAnyFilter = !!(phases.length || btypes.length || scopeScenario || state.homeQuery);
-  // GENERAL-ONLY default: with nothing picked, surface only the overview
-  // items (anchor title is exactly "General" or ends with "— General").
+  const topId = state.selectedTopBriefing;
+  const subId = state.selectedSubBriefing;
+  const hasAnyFilter = !!(phases.length || btypes.length || topId || subId || state.homeQuery);
   const generalOnly = !hasAnyFilter;
+  // When a top-level is picked WITHOUT a sub, only show anchors linked
+  // directly to that top (i.e. their scenarios include the top but none of
+  // its child sub-briefings). The detailed per-sub content is revealed only
+  // once a sub-briefing is selected.
+  const topOnly = !!topId && !subId;
+  const childSubIds = topOnly
+    ? new Set((state.scenarios || []).filter((s) => scenarioParents(s).includes(topId)).map((s) => s.id))
+    : null;
   const all = await kg.allAnchors();
   let anchors = all.filter((a) => {
     if (a.kind !== 'idx') return false;
     if (fileIds && !fileIds.has(a.fileId)) return false;
     if (phases.length && !phases.some((p) => (a.phases || []).includes(p))) return false;
     if (btypes.length && !btypes.some((b) => (a.briefingTypes || []).includes(b))) return false;
-    if (scenarios.length && !scenarios.some((s) => (a.scenarios || []).includes(s))) return false;
+    const aScens = a.scenarios || [];
+    if (subId) {
+      // Sub-briefing scope: anchor must be linked to this sub.
+      if (!aScens.includes(subId)) return false;
+    } else if (topOnly) {
+      // Top-only scope: anchor must be directly on the top, NOT inside any
+      // sub-briefing under it.
+      if (!aScens.includes(topId)) return false;
+      for (const sid of aScens) { if (childSubIds.has(sid)) return false; }
+    }
     if (state.homeQuery) {
       const q = state.homeQuery.toLowerCase();
       const hay = ((a.title || '') + ' ' + (a.excerpt || '')).toLowerCase();
@@ -737,9 +751,15 @@ async function renderHomeResults() {
 
   const hasFilters = hasAnyFilter;
   if (!anchors.length) {
-    els.homeResults.innerHTML = hasFilters
-      ? '<li class="home-empty">No briefings match. Try a different phase, type or briefing — or tap “Clear”.</li>'
-      : '<li class="home-empty">Pick a phase, briefing type, or briefing above to see relevant content. (General overviews show here when nothing matches.)</li>';
+    let hint;
+    if (topOnly) {
+      hint = '<li class="home-empty">Pick a sub-briefing above to see its files. (Files linked directly to this briefing would show here.)</li>';
+    } else if (hasFilters) {
+      hint = '<li class="home-empty">No briefings match. Try a different phase, type or briefing — or tap “Clear”.</li>';
+    } else {
+      hint = '<li class="home-empty">Pick a phase, briefing type, or briefing above to see relevant content. (General overviews show here when nothing matches.)</li>';
+    }
+    els.homeResults.innerHTML = hint;
     return;
   }
   els.homeResults.innerHTML = anchors.map((a) => homeResultHtml(a)).join('');
