@@ -900,6 +900,10 @@ function homeResultHtml(a) {
         <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶ Open</button>
       </div>
       <div class="hr-preview" data-pending="1">
+        <div class="hr-preview-headline">
+          <span class="hr-preview-headline-icon" aria-hidden="true">${kindIcon}</span>
+          <span class="hr-preview-headline-text">${escapeHtml(a.title || '')}</span>
+        </div>
         <canvas class="hr-canvas"></canvas>
       </div>
       <div class="hr-links" aria-label="Cross references">
