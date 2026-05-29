@@ -29,6 +29,9 @@ const els = {
   homeSubScenarios: $('home-sub-scenarios'), homeAddSub: $('home-add-sub'),
   homeResults: $('home-results'), homeAddFile: $('home-add-file'),
   homeSettings: $('header-settings'),
+  btypeNewOverlay: $('btype-new-overlay'), btnClose: $('btn-close'),
+  btnForm: $('btn-form'), btnName: $('btn-name'),
+  btnColor: $('btn-color'), btnCancel: $('btn-cancel'),
   briefingNewOverlay: $('briefing-new-overlay'), bnClose: $('bn-close'),
   bnForm: $('bn-form'), bnTitle: $('bn-title'), bnName: $('bn-name'),
   bnParent: $('bn-parent'), bnParentField: $('bn-parent-field'),
@@ -233,6 +236,10 @@ function wireEvents() {
   els.bnCancel.addEventListener('click', () => els.briefingNewOverlay.classList.add('hidden'));
   els.briefingNewOverlay.addEventListener('click', (e) => { if (e.target === els.briefingNewOverlay) els.briefingNewOverlay.classList.add('hidden'); });
   els.bnForm.addEventListener('submit', onCreateBriefing);
+  els.btnClose.addEventListener('click', () => els.btypeNewOverlay.classList.add('hidden'));
+  els.btnCancel.addEventListener('click', () => els.btypeNewOverlay.classList.add('hidden'));
+  els.btypeNewOverlay.addEventListener('click', (e) => { if (e.target === els.btypeNewOverlay) els.btypeNewOverlay.classList.add('hidden'); });
+  els.btnForm.addEventListener('submit', onCreateBtype);
   els.homeAddFile.addEventListener('click', () => els.personalInput.click());
   els.homeSettings.addEventListener('click', openSettingsSheet);
   els.settingsClose.addEventListener('click', () => els.settingsOverlay.classList.add('hidden'));
@@ -370,27 +377,18 @@ function flightProfilePath() {
   ].join(' ');
 }
 
-// Commercial twin-engine jet, top-down, nose to the right, sitting inside
-// a dark circular plate (matches the icon reference).
+// Clean top-down airliner silhouette (single symmetric path), nose-right,
+// sitting on a dark circular plate with a thin accent ring.
 const PLANE_SVG = `
   <g class="fp-plane-glyph">
-    <!-- Dark circle plate -->
-    <circle class="fp-plane-bg" r="13" />
-    <!-- Thin accent ring -->
-    <circle class="fp-plane-ring" r="13" fill="none" />
-    <g fill="#fff" stroke="none">
-      <!-- Fuselage (pointed nose right, rounded tail left) -->
-      <path d="M 9.5 0 L 5 -1.6 L -5.5 -1.6 Q -8.5 -1.6 -8.5 0 Q -8.5 1.6 -5.5 1.6 L 5 1.6 Z"/>
-      <!-- Wings — swept slightly back, extending up/down -->
-      <path d="M 1.2 -1.4 L -4.5 -7.5 L -6.5 -7.5 L -2.2 -1.4 Z"/>
-      <path d="M 1.2 1.4 L -4.5 7.5 L -6.5 7.5 L -2.2 1.4 Z"/>
-      <!-- Tail horizontal stabilisers -->
-      <path d="M -6.5 -1 L -9 -4 L -10.5 -4 L -8 -1 Z"/>
-      <path d="M -6.5 1 L -9 4 L -10.5 4 L -8 1 Z"/>
-      <!-- Engine nacelles on each wing -->
-      <ellipse cx="-1.5" cy="-4.6" rx="0.6" ry="1.4"/>
-      <ellipse cx="-1.5" cy="4.6"  rx="0.6" ry="1.4"/>
-    </g>
+    <circle class="fp-plane-bg" r="14" />
+    <circle class="fp-plane-ring" r="14" fill="none" />
+    <path class="fp-plane-shape" d="
+      M 12 0
+      L 4 -1.4 L 1 -1.4 L -3 -8 L -5 -8 L -2 -1.4 L -7 -1.4
+      L -9 -4 L -10.5 -4 L -9.5 -1.4 L -12 -0.5 L -12 0.5 L -9.5 1.4
+      L -10.5 4 L -9 4 L -7 1.4 L -2 1.4 L -5 8 L -3 8 L 1 1.4 L 4 1.4
+      Z" />
   </g>`;
 
 function renderHomePhases() {
@@ -518,17 +516,28 @@ function renderHomeBtypes() {
   });
 }
 
-async function openBtypeNewModal() {
-  const name = prompt('New briefing type (e.g. Normal Ops, Memory Items):');
-  if (!name || !name.trim()) return;
+function openBtypeNewModal() {
+  els.btnName.value = '';
+  els.btnColor.value = '#7aa3ff';
+  els.btypeNewOverlay.classList.remove('hidden');
+  setTimeout(() => els.btnName.focus(), 0);
+}
+
+async function onCreateBtype(e) {
+  e.preventDefault();
+  const name = els.btnName.value.trim();
+  if (!name) return;
   const bt = {
     id: 'bt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-    name: name.trim(), color: '#7aa3ff', sort: Date.now(), createdAt: Date.now(),
+    name, color: els.btnColor.value || '#7aa3ff',
+    sort: Date.now(), createdAt: Date.now(), updatedAt: Date.now(),
   };
   await storage.putBriefingType(bt);
   state.briefingTypes = await storage.listBriefingTypes();
+  els.btypeNewOverlay.classList.add('hidden');
   renderHomeBtypes();
   if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsSheet();
+  toast(`Created "${name}"`);
 }
 
 // Two-tier scenario rows. Top row = top-level briefings (no parents).

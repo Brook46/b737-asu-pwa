@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=28" />
+  <link rel="stylesheet" href="./app.css?v=29" />
 </head>
 <body>
   <header class="app-header">
@@ -54,16 +54,17 @@
       <div class="home-row home-row-btypes">
         <span class="home-row-label" title="Briefing types">🏷</span>
         <div id="home-btypes" class="home-scenarios" role="group" aria-label="Briefing types"></div>
-        <button class="btn ghost home-row-btn" id="home-add-btype" title="New briefing type">＋</button>
+        <button class="home-row-btn" id="home-add-btype" title="New briefing type" aria-label="New briefing type">+</button>
       </div>
       <div class="home-row">
         <span class="home-row-label" title="Briefings">✦</span>
         <div id="home-scenarios" class="home-scenarios" role="group" aria-label="Top-level briefings"></div>
-        <button class="btn ghost home-row-btn" id="home-add-scenario" title="New top-level briefing">＋</button>
+        <button class="home-row-btn" id="home-add-scenario" title="New briefing" aria-label="New briefing">+</button>
       </div>
       <div class="home-row home-row-sub hidden" id="home-sub-row">
+        <span class="home-row-label" title="Sub-briefings">↳</span>
         <div id="home-sub-scenarios" class="home-scenarios" role="group" aria-label="Sub-briefings"></div>
-        <button class="btn ghost home-row-btn" id="home-add-sub" title="New sub-briefing">＋ New</button>
+        <button class="home-row-btn" id="home-add-sub" title="New sub-briefing" aria-label="New sub-briefing">+</button>
       </div>
       <ul id="home-results" class="home-results" aria-label="Filtered indexed paragraphs"></ul>
       <button id="home-add-file" class="fab" title="Add files" aria-label="Add files">＋</button>
@@ -261,6 +262,31 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <div id="btype-new-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <header class="modal-head">
+        <h2>New briefing type</h2>
+        <button class="btn ghost" id="btn-close" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <form id="btn-form" class="settings-body">
+          <div class="field">
+            <label for="btn-name">Name</label>
+            <input id="btn-name" type="text" required placeholder="e.g. Normal Operation" />
+          </div>
+          <div class="field">
+            <label for="btn-color">Color</label>
+            <input id="btn-color" type="color" value="#7aa3ff" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn" type="button" id="btn-cancel">Cancel</button>
+            <button class="btn primary" type="submit">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div id="briefing-new-overlay" class="modal-overlay hidden">
     <div class="modal">
       <header class="modal-head">
@@ -332,6 +358,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=35"></script>
+  <script type="module" src="./app.js?v=36"></script>
 </body>
 </html>
