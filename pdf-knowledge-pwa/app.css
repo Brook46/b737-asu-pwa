@@ -108,20 +108,15 @@ body {
   color: transparent;
 }
 .brand-mark {
-  width: 30px; height: 30px; border-radius: 9px;
-  background:
-    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--accent) 80%, #fff) 0%, var(--accent) 50%, color-mix(in srgb, var(--accent) 70%, #000) 100%);
+  width: 32px; height: 32px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.35),
-    inset 0 -1px 0 rgba(0,0,0,.18),
-    0 4px 10px -2px color-mix(in srgb, var(--accent) 50%, transparent);
-  position: relative;
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 4px 12px -2px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 1px 0 rgba(0,0,0,.4);
 }
-.brand-mark::after {
-  /* tiny airplane silhouette inside the brand chip */
-  content: ""; position: absolute; inset: 0;
-  background: no-repeat center/14px url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'><path d='M2 16l9-5V4l2 0 0 7 9 5v2l-9-3-1 5 2 2v1H7v-1l2-2-1-5-6 3z'/></svg>");
-}
+.brand-mark svg { width: 100%; height: 100%; display: block; }
 .header-status {
   display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
 }

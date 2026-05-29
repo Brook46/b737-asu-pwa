@@ -132,6 +132,13 @@ async function bootstrap() {
     state.briefingTypes = await storage.listBriefingTypes();
   }
 
+  // First-launch demo content: ship the Tanchum 737 upgrade book + its
+  // briefing tree so the app isn't empty on a fresh install. Only runs
+  // when storage has no files at all (i.e. truly first launch).
+  if (!state.files.size && !state.scenarios.length) {
+    try { await loadBundledTanchumOnce(); } catch (e) { console.warn('bundled seed skipped:', e); }
+  }
+
   await searchMod.rebuildIndex(state.files);
   await kg.load(true);
   await refreshNoteCounts();
@@ -2820,6 +2827,59 @@ function onGpsUpdate(s) {
 }
 
 // --- Helpers -----------------------------------------------------------------
+
+// First-launch bundled content. Fetches the Tanchum 737 upgrade PDF +
+// pre-built scenario tree from /seed-data and writes them into storage,
+// so a freshly installed app already has working briefings + indexed
+// anchors with cross-reference chips.
+async function loadBundledTanchumOnce() {
+  const resp = await fetch('./seed-data/tanchum-737-upgrade.pdf', { cache: 'force-cache' });
+  if (!resp.ok) throw new Error('bundled pdf missing');
+  const blob = await resp.blob();
+  const file = new File([blob], 'Pilot 737 Upgrade.pdf', { type: 'application/pdf' });
+  toast('Setting up your briefings…');
+  const fileId = await processImport(file, {
+    manualType: 'PERSONAL', revision: '', effectivity: [], docType: 'personal',
+  });
+  if (!fileId) throw new Error('ingest failed');
+  // Pull in the precomputed scenario tree.
+  const seedMod = await import('./seed-data/tanchum-seed.js');
+  const seed = seedMod.TANCHUM_SEED;
+  const btypes = await storage.listBriefingTypes();
+  const btypeMap = {
+    normal:    btypes.find((b) => /^normal/i.test(b.name))?.id,
+    nonnormal: btypes.find((b) => /non.?normal/i.test(b.name))?.id,
+    briefing:  btypes.find((b) => /^briefing/i.test(b.name))?.id,
+  };
+  for (const s of seed.scenarios) {
+    const btypeIds = (s.briefingTypes || []).map((slug) => btypeMap[slug]).filter(Boolean);
+    await storage.putScenario({
+      id: s.id, name: s.name, parentId: s.parentId, parentIds: s.parentIds || [],
+      phases: s.phases || [], briefingTypes: btypeIds,
+      color: s.color, kind: s.kind || 'normal',
+      sort: s.sort, createdAt: Date.now(), updatedAt: Date.now(),
+    });
+  }
+  for (const a of seed.anchors) {
+    await storage.putAnchor({
+      anchorId: a.id, fileId, manualType: 'PERSONAL',
+      kind: 'idx', itemType: 'briefing', source: 'manual',
+      paraIndex: null, selectionRects: null,
+      pageNum: a.pageNum, anchorType: 'page', value: 'p.' + a.pageNum,
+      title: a.title, excerpt: a.title,
+      textHash: 'h_bundled_' + a.id,
+      phases: a.phases || [],
+      briefingTypes: btypeMap[a.btype] ? [btypeMap[a.btype]] : [],
+      scenarios: a.scenarios || [],
+      links: a.refs || [],
+      aiSuggested: null, aiAccepted: false,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+  }
+  // Refresh in-memory state for the rest of bootstrap to pick up.
+  state.scenarios = await storage.listScenarios();
+  toast('Briefings ready.');
+}
 
 // --- AI: auto-generate briefings + sub-briefings from a file ---------------
 // Sends the file's page text to Claude Haiku, asks for a structured

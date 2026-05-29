@@ -16,12 +16,32 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=31" />
+  <link rel="stylesheet" href="./app.css?v=32" />
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bm-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"  stop-color="#5fa8ff"/>
+              <stop offset="55%" stop-color="#1e6fd1"/>
+              <stop offset="100%" stop-color="#0a3a8c"/>
+            </linearGradient>
+            <linearGradient id="bm-shine" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fff" stop-opacity=".35"/>
+              <stop offset="60%" stop-color="#fff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="32" height="32" rx="8" ry="8" fill="url(#bm-grad)"/>
+          <rect x="0" y="0" width="32" height="16" rx="8" ry="8" fill="url(#bm-shine)"/>
+          <!-- Airplane silhouette, slight upward angle (climbing) -->
+          <g transform="translate(16 16) rotate(-30)" fill="#fff">
+            <path d="M -10 0 L -3 -1.2 L -2 -7 L 0 -7 L 1 -1 L 9 -1 L 10 0 L 9 1 L 1 1 L 0 7 L -2 7 L -3 1.2 Z"/>
+          </g>
+        </svg>
+      </span>
       <span class="brand-text">Pilot Companion</span>
     </div>
     <div class="header-status">
@@ -358,6 +378,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=40"></script>
+  <script type="module" src="./app.js?v=41"></script>
 </body>
 </html>
