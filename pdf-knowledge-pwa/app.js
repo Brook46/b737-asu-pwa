@@ -884,16 +884,7 @@ function homeResultHtml(a) {
         <button class="hr-link-add" data-act="add-link" title="Add cross-reference">＋ link</button>
         <form class="hr-link-form hidden" data-act="link-form">
           <select class="hr-link-type-sel">
-            <option value="OMA">OMA</option><option value="OMB">OMB</option>
-            <option value="OMC">OMC</option><option value="OMD">OMD</option>
-            <option value="QRH">QRH</option><option value="QRH CI">QRH CI</option>
-            <option value="QRH OI">QRH OI</option><option value="QRH NNC">QRH NNC</option>
-            <option value="FCOM">FCOM</option><option value="FCTM">FCTM</option>
-            <option value="CSFM">CSFM</option><option value="CFSM">CFSM</option>
-            <option value="OPS INFO">OPS INFO</option>
-            <option value="OI">OI</option><option value="SP">SP</option>
-            <option value="NP">NP</option><option value="EI">EI</option>
-            <option value="MEL">MEL</option>
+            ${availableManualTypeOptions()}
           </select>
           <input class="hr-link-val-input" type="text" placeholder="e.g. 8.5.11.4" required />
           <button class="btn primary" type="submit">Add</button>
@@ -919,6 +910,24 @@ async function renderCardPreview(card, anchor) {
   } catch (err) {
     wrap.innerHTML = `<div class="hr-preview-err">Preview unavailable (${escapeHtml(err.message || 'error')})</div>`;
   }
+}
+
+// Manual-type dropdown options for the link editor. Only shows types
+// the user has actually uploaded a file for, deduplicated by id, sorted.
+function availableManualTypeOptions() {
+  const seen = new Map();
+  for (const m of state.manuals.values()) {
+    const t = (m.manualType || '').toUpperCase();
+    if (!t) continue;
+    if (!seen.has(t)) seen.set(t, t);
+  }
+  if (!seen.size) {
+    // No manuals at all → fall back to a one-line hint so the form stays
+    // usable but the user knows what's missing.
+    return '<option value="" disabled selected>— add a manual first —</option>';
+  }
+  return [...seen.keys()].sort().map((t) =>
+    `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
 }
 
 // Resolve a cross-reference (e.g. {manualType:'QRH', value:'CI 2.6'}) and
