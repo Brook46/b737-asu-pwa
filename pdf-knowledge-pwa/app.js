@@ -407,12 +407,13 @@ function renderHomePhases() {
       </g>`;
   }).join('');
   const planePos = hasActive ? phasePos(activeIdx) : phasePos(0);
-  const planeY = planePos.y - 18;
+  // Plane sits centred on the active phase's dot — the airplane glyph IS
+  // the current-phase marker.
   els.homePhases.innerHTML = `
-    <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="none" role="radiogroup" aria-label="Phase of flight">
+    <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="xMidYMid meet" role="radiogroup" aria-label="Phase of flight">
       <path class="fp-line" d="${flightProfilePath()}" />
       ${ticks}
-      <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planePos.x} ${planeY})">
+      <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planePos.x} ${planePos.y})">
         <title>Drag to change phase</title>
         ${PLANE_SVG}
       </g>
@@ -456,7 +457,7 @@ function initPlaneDrag(planeEl) {
     // Plane rides the profile curve: take the y of the nearest phase node so
     // dragging feels like sliding along the path.
     const near = nearestPhaseFromX(x);
-    const y = phasePos(near.id).y - 18;
+    const y = phasePos(near.id).y;
     planeEl.setAttribute('transform', `translate(${x} ${y})`);
     els.homePhases.querySelectorAll('.fp-tick').forEach((g) =>
       g.classList.toggle('drag-hover', g.getAttribute('data-phase') === near.id));
