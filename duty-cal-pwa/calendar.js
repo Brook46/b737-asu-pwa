@@ -233,6 +233,8 @@ function chipKind(kind) {
   if (kind === 'pickup' || kind === 'driveHome') return 'pickup';
   if (kind === 'flight') return 'flight';
   if (kind === 'restEnd') return 'rest';
+  if (kind === 'miluim') return 'miluim';
+  if (kind === 'custom') return 'custom';
   return 'other';
 }
 function shortTitle(ev) {
