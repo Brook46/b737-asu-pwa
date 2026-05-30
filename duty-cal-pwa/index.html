@@ -63,11 +63,11 @@
     </div>
   </main>
 
-  <div class="legend">
-    <span class="lg pickup">Pickup / drive home</span>
-    <span class="lg flight">Flight</span>
-    <span class="lg rest">End of rest</span>
-    <span class="lg other">Dummy / training / vacation</span>
+  <div class="legend" role="group" aria-label="Toggle event categories">
+    <button type="button" class="lg pickup" data-kind="pickup" aria-pressed="true" title="Tap to hide / show">Pickup / drive home</button>
+    <button type="button" class="lg flight" data-kind="flight" aria-pressed="true" title="Tap to hide / show">Flight</button>
+    <button type="button" class="lg rest"   data-kind="rest"   aria-pressed="true" title="Tap to hide / show">End of rest</button>
+    <button type="button" class="lg other"  data-kind="other"  aria-pressed="true" title="Tap to hide / show">Dummy / training / vacation</button>
   </div>
 
   <!-- Event details / edit modal -->

@@ -49,6 +49,9 @@ function renderMonth(container, anchor, events) {
   // Group events into each day they overlap (multi-day sessions show every day)
   const eventsByDay = groupByOverlappingDays(events);
 
+  // Outer scroll wrapper so the grid can overflow horizontally on narrow screens.
+  const scroll = document.createElement('div');
+  scroll.className = 'month-scroll';
   const wrap = document.createElement('div');
   wrap.className = 'month-grid';
 
@@ -103,7 +106,8 @@ function renderMonth(container, anchor, events) {
     wrap.appendChild(cell);
   }
 
-  container.appendChild(wrap);
+  scroll.appendChild(wrap);
+  container.appendChild(scroll);
 }
 
 function renderTimeline(container, days, events) {
@@ -125,10 +129,14 @@ function renderTimeline(container, days, events) {
   }
   wrap.appendChild(hoursCol);
 
-  // Days
+  // Days — wrap in a horizontal scroller so a full week stays visible on phones
+  const daysScroll = document.createElement('div');
+  daysScroll.className = 'tl-days-scroll';
   const daysWrap = document.createElement('div');
   daysWrap.className = 'tl-days';
-  daysWrap.style.gridTemplateColumns = `repeat(${days.length}, 1fr)`;
+  daysWrap.style.gridTemplateColumns = days.length === 1
+    ? '1fr'
+    : `repeat(${days.length}, minmax(140px, 1fr))`;
 
   for (const day of days) {
     const col = document.createElement('div');
@@ -163,7 +171,8 @@ function renderTimeline(container, days, events) {
     col.appendChild(body);
     daysWrap.appendChild(col);
   }
-  wrap.appendChild(daysWrap);
+  daysScroll.appendChild(daysWrap);
+  wrap.appendChild(daysScroll);
   container.appendChild(wrap);
 }
 

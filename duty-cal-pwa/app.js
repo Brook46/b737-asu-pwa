@@ -7,11 +7,12 @@ import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).toString();
 
 const state = {
-  view: 'week',
+  view: 'month', // default — overridable from saved UI state in loadUi()
   anchor: startOfDay(new Date()),
   events: [],
   period: null,
   notes: loadNotes(),
+  hiddenKinds: new Set(), // chip-kind groups currently hidden via the legend
 };
 
 const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -85,6 +86,7 @@ function loadUi() {
     const j = JSON.parse(s);
     if (j.view && ['day','week','month'].includes(j.view)) state.view = j.view;
     if (j.anchor) state.anchor = startOfDay(new Date(j.anchor));
+    if (Array.isArray(j.hiddenKinds)) state.hiddenKinds = new Set(j.hiddenKinds);
   } catch {}
 }
 function saveUi() {
@@ -92,8 +94,22 @@ function saveUi() {
     localStorage.setItem('duty-cal:ui', JSON.stringify({
       view: state.view,
       anchor: state.anchor.toISOString(),
+      hiddenKinds: [...state.hiddenKinds],
     }));
   } catch {}
+}
+
+// Map an event's internal kind to its legend group.
+function legendGroupOf(kind) {
+  if (kind === 'pickup' || kind === 'driveHome') return 'pickup';
+  if (kind === 'flight')  return 'flight';
+  if (kind === 'restEnd') return 'rest';
+  return 'other';
+}
+
+function visibleEvents() {
+  if (state.hiddenKinds.size === 0) return state.events;
+  return state.events.filter(ev => !state.hiddenKinds.has(legendGroupOf(ev.kind)));
 }
 
 // --- PDF flow ---
@@ -169,7 +185,7 @@ function render() {
     els.root.innerHTML = emptyStateHtml;
     els.rangeLabel.textContent = '—';
   } else {
-    renderInto(els.root, { view: state.view, anchor: state.anchor, events: state.events });
+    renderInto(els.root, { view: state.view, anchor: state.anchor, events: visibleEvents() });
     els.rangeLabel.textContent = rangeLabel(state.view, state.anchor);
   }
   for (const b of els.viewBtns) {
@@ -339,6 +355,28 @@ els.fileInput.addEventListener('change', e => {
   if (f) onPdfChosen(f);
   e.target.value = '';
 });
+
+// Legend filters: click toggles visibility of that category. Saved across reloads.
+for (const lg of document.querySelectorAll('.legend .lg')) {
+  const kind = lg.dataset.kind;
+  if (state.hiddenKinds.has(kind)) {
+    lg.classList.add('off');
+    lg.setAttribute('aria-pressed', 'false');
+  }
+  lg.addEventListener('click', () => {
+    if (state.hiddenKinds.has(kind)) {
+      state.hiddenKinds.delete(kind);
+      lg.classList.remove('off');
+      lg.setAttribute('aria-pressed', 'true');
+    } else {
+      state.hiddenKinds.add(kind);
+      lg.classList.add('off');
+      lg.setAttribute('aria-pressed', 'false');
+    }
+    saveUi();
+    render();
+  });
+}
 
 // Drag-and-drop a PDF onto the page (works on desktop and iPad in split view)
 function isPdf(f) { return f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)); }

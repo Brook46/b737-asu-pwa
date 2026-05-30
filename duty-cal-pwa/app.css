@@ -63,8 +63,11 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .iphone-hint li { margin: 4px 0; }
 .iphone-hint .muted { font-size: 12px; margin-top: 8px; }
 
-.legend { display: flex; gap: 14px; padding: 8px 14px 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
-.lg { display: inline-flex; align-items: center; gap: 6px; }
+.legend { display: flex; gap: 8px; padding: 8px 14px 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+.lg { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; padding: 4px 8px; border-radius: 6px; border: 1px solid transparent; transition: background .12s, opacity .12s, border-color .12s; background: transparent; color: var(--muted); font: inherit; }
+.lg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lg:hover { background: var(--panel-2); }
+.lg.off { opacity: 0.35; text-decoration: line-through; }
 .lg::before { content: ""; width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .lg.pickup::before { background: var(--c-pickup); }
 .lg.flight::before { background: var(--c-flight); }
@@ -72,7 +75,8 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .lg.other::before  { background: var(--c-other); }
 
 /* ------- Month view ------- */
-.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.month-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 6px; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 6px; }
 .month-grid .dow { background: var(--panel); padding: 6px 8px; font-size: 12px; color: var(--muted); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .month-cell { background: var(--panel-2); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-height: 96px; padding: 4px 5px; cursor: pointer; }
 .month-cell.other-month { opacity: 0.4; }
@@ -86,8 +90,9 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .chip-other  { background: var(--c-other); }
 
 /* ------- Day & Week view ------- */
-.tl-wrap { display: grid; grid-template-columns: 56px 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
-.tl-hours { background: var(--panel); border-right: 1px solid var(--line); }
+.tl-wrap { display: grid; grid-template-columns: 56px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
+.tl-hours { background: var(--panel); border-right: 1px solid var(--line); position: relative; z-index: 1; }
+.tl-days-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .tl-hour { height: var(--row-h); padding: 2px 6px 0 0; text-align: right; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); position: relative; }
 .tl-days { display: grid; }
 .tl-day { position: relative; border-right: 1px solid var(--line); }
