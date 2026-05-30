@@ -12,7 +12,9 @@ const state = {
   events: [],
   period: null,
   notes: loadNotes(),
-  hiddenKinds: new Set(), // chip-kind groups currently hidden via the legend
+  // Hide rest + dummy/vacation by default so first-timers see a focused calendar.
+  // loadUi() respects any saved choice and overrides this.
+  hiddenKinds: new Set(['rest', 'other']),
 };
 
 const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

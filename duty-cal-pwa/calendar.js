@@ -84,8 +84,9 @@ function renderMonth(container, anchor, events) {
       // For multi-day events: show start time only on the first day, otherwise mark continuation
       const dStart = startOfDay(d);
       const isFirstDay = ev.start >= dStart && ev.start < addDays(dStart, 1);
+      const icon = isFirstDay ? iconFor(ev) : '';
       const label = isFirstDay
-        ? `${fmt(ev.start)} ${shortTitle(ev)}`
+        ? `${fmt(ev.start)} ${icon ? icon + ' ' : ''}${shortTitle(ev)}`
         : `↳ ${shortTitle(ev)}`;
       chip.textContent = label;
       chip.title = `${ev.title} — ${ev.sub || ''}`;
@@ -199,8 +200,9 @@ function renderEventChip(ev, dayStart) {
     return node;
   }
 
+  const icon = iconFor(ev);
   const title = document.createElement('b');
-  title.textContent = ev.title;
+  title.textContent = icon ? `${icon}  ${ev.title}` : ev.title;
   const sub = document.createElement('div');
   sub.className = 'sub';
   sub.textContent = ev.sub || `${fmt(ev.start)} – ${fmt(ev.end)}`;
@@ -208,6 +210,22 @@ function renderEventChip(ev, dayStart) {
   node.appendChild(sub);
   return node;
 }
+
+// Pick a time-of-day icon for a flight chip, using TLV-local hours.
+// - 🌙 22:00–04:00 (overnight)
+// - ☀️ 04:00–22:00 (daytime)
+// - 🌅 crosses dawn  (night → day)
+// - 🌇 crosses dusk  (day → night)
+function iconFor(ev) {
+  if (ev.kind !== 'flight') return '';
+  const sDay = isDayHour(ev.start.getHours());
+  const eDay = isDayHour(ev.end.getHours());
+  if (sDay && eDay)   return '☀️';
+  if (!sDay && !eDay) return '🌙';
+  if (!sDay && eDay)  return '🌅';
+  return '🌇';
+}
+function isDayHour(h) { return h >= 4 && h < 22; }
 
 function spacer() { const s = document.createElement('div'); s.className = 'tl-day-header'; s.style.background = 'transparent'; s.style.borderBottomColor = 'transparent'; return s; }
 
