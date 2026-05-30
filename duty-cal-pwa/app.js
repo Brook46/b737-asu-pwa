@@ -32,6 +32,20 @@ const els = {
   modalNotes: document.getElementById('modal-notes'),
   exportBtn: document.getElementById('export-btn'),
   exportAllBtn: document.getElementById('export-all-btn'),
+  addBtn: document.getElementById('add-event-btn'),
+  editBtn: document.getElementById('edit-btn'),
+  deleteBtn: document.getElementById('delete-btn'),
+  modalView: document.getElementById('modal-view'),
+  modalEdit: document.getElementById('modal-edit'),
+  editModeTitle: document.getElementById('edit-mode-title'),
+  editKind: document.getElementById('edit-kind'),
+  editTitle: document.getElementById('edit-title'),
+  editDate: document.getElementById('edit-date'),
+  editStart: document.getElementById('edit-start'),
+  editEnd: document.getElementById('edit-end'),
+  editNotes: document.getElementById('edit-notes'),
+  saveEditBtn: document.getElementById('save-edit-btn'),
+  cancelEditBtn: document.getElementById('cancel-edit-btn'),
 };
 
 let currentEvent = null;
@@ -129,15 +143,18 @@ async function onPdfChosen(file) {
   }
 }
 
-// Replace events that fall within the new period (inclusive). Events outside
-// the period are preserved. Same-content events keep their stable id, so
-// re-uploading a corrected PDF preserves notes attached to unchanged events.
+// Replace PDF-origin events that fall within the new period. Events outside
+// the period — and manually-added/edited events anywhere — are preserved.
+// Same-content PDF events keep their stable id, so re-uploading a corrected
+// PDF preserves notes attached to unchanged events.
 function mergeIntoState(newEvents, period) {
   const startMs = period.startDate.getTime();
   const endExclusiveMs = new Date(period.endDate.getTime() + 24*60*60*1000).getTime();
   const preserved = state.events.filter(ev => {
     const t = ev.start.getTime();
-    return t < startMs || t >= endExclusiveMs;
+    const inPeriod = t >= startMs && t < endExclusiveMs;
+    if (!inPeriod) return true;
+    return ev.origin === 'manual'; // keep manual edits across re-uploads
   });
   // Union by stable id — new wins
   const byId = new Map();
@@ -167,6 +184,7 @@ function render() {
 // --- Modal ---
 function openModal(ev) {
   currentEvent = ev;
+  setEditMode(false);
   els.modalTitle.textContent = ev.title;
   els.modalWhen.textContent = formatWhen(ev);
 
@@ -196,7 +214,7 @@ function openModal(ev) {
   els.modal.hidden = false;
 }
 function closeModal() {
-  if (currentEvent) {
+  if (currentEvent && !els.modalView.hidden) {
     const v = els.modalNotes.value.trim();
     if (v) state.notes[currentEvent.id] = v;
     else delete state.notes[currentEvent.id];
@@ -204,6 +222,109 @@ function closeModal() {
   }
   els.modal.hidden = true;
   currentEvent = null;
+  editingEvent = null;
+  setEditMode(false);
+}
+
+// --- Add / Edit / Delete ---
+let editingEvent = null; // the event being edited; null when adding new
+
+function setEditMode(on) {
+  els.modalView.hidden = on;
+  els.modalEdit.hidden = !on;
+}
+
+function openAddModal() {
+  editingEvent = null;
+  currentEvent = null;
+  populateEditForm(null);
+  setEditMode(true);
+  els.modal.hidden = false;
+  setTimeout(() => els.editTitle.focus(), 50);
+}
+
+function openEditModal() {
+  if (!currentEvent) return;
+  editingEvent = currentEvent;
+  populateEditForm(editingEvent);
+  setEditMode(true);
+}
+
+function populateEditForm(ev) {
+  els.editModeTitle.textContent = ev ? 'Edit event' : 'New event';
+  const anchor = ev ? ev.start : state.anchor;
+  els.editKind.value = ev ? ev.kind : 'flight';
+  els.editTitle.value = ev ? ev.title : '';
+  els.editDate.value  = ymdLabel(anchor);
+  els.editStart.value = ev ? hhmm(ev.start) : '08:00';
+  els.editEnd.value   = ev ? hhmm(ev.end)   : '10:00';
+  els.editNotes.value = ev ? (state.notes[ev.id] || '') : '';
+}
+
+function hhmm(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+
+function saveFromForm() {
+  const kind = els.editKind.value;
+  const title = els.editTitle.value.trim();
+  const dateStr = els.editDate.value;
+  const startStr = els.editStart.value;
+  const endStr = els.editEnd.value;
+  const noteStr = els.editNotes.value.trim();
+  if (!title || !dateStr || !startStr || !endStr) {
+    toast('Title, date, start and end are required.');
+    return;
+  }
+  const start = new Date(`${dateStr}T${startStr}`);
+  let end = new Date(`${dateStr}T${endStr}`);
+  if (end <= start) end = new Date(end.getTime() + 24*60*60*1000); // wrap past midnight
+
+  if (editingEvent) {
+    // Edit in place — keep id, flip origin to manual so PDF re-uploads don't overwrite
+    Object.assign(editingEvent, {
+      kind, title,
+      start, end,
+      dayKey: ymdLabel(start),
+      sub: `${hhmm(start)} → ${hhmm(end)}`,
+      origin: 'manual',
+    });
+    if (noteStr) state.notes[editingEvent.id] = noteStr;
+    else delete state.notes[editingEvent.id];
+  } else {
+    const id = 'manual-' + Math.random().toString(36).slice(2, 12);
+    state.events.push({
+      id, kind, title,
+      start, end,
+      dayKey: ymdLabel(start),
+      sub: `${hhmm(start)} → ${hhmm(end)}`,
+      details: {},
+      origin: 'manual',
+    });
+    if (noteStr) state.notes[id] = noteStr;
+  }
+  state.events.sort((a, b) => a.start - b.start);
+  saveEvents();
+  saveNotes();
+  // Jump the calendar to the affected day so the user sees their change
+  state.anchor = startOfDay(start);
+  editingEvent = null;
+  currentEvent = null;
+  els.modal.hidden = true;
+  setEditMode(false);
+  render();
+  toast('Saved.');
+}
+
+function deleteCurrent() {
+  if (!currentEvent) return;
+  if (!confirm(`Delete "${currentEvent.title}"?`)) return;
+  state.events = state.events.filter(e => e.id !== currentEvent.id);
+  delete state.notes[currentEvent.id];
+  saveEvents();
+  saveNotes();
+  currentEvent = null;
+  els.modal.hidden = true;
+  render();
+  toast('Deleted.');
 }
 function formatWhen(ev) {
   const p = n => String(n).padStart(2,'0');
@@ -253,6 +374,19 @@ els.root.addEventListener('day-click', e => {
 });
 els.modalClose.addEventListener('click', closeModal);
 els.modal.addEventListener('click', e => { if (e.target === els.modal) closeModal(); });
+els.addBtn.addEventListener('click', openAddModal);
+els.editBtn.addEventListener('click', openEditModal);
+els.deleteBtn.addEventListener('click', deleteCurrent);
+els.saveEditBtn.addEventListener('click', saveFromForm);
+els.cancelEditBtn.addEventListener('click', () => {
+  if (editingEvent) {
+    // Going back to view of the original event
+    setEditMode(false);
+    return;
+  }
+  els.modal.hidden = true;
+  setEditMode(false);
+});
 els.exportBtn.addEventListener('click', () => {
   if (!currentEvent) return;
   const note = els.modalNotes.value.trim();
@@ -311,7 +445,7 @@ function showBusy(on) {
 // --- Keyboard shortcuts ---
 document.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   switch (e.key) {
     case 'ArrowLeft':  els.prevBtn.click(); break;

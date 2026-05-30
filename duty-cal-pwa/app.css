@@ -128,7 +128,22 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .modal-body .lbl { color: var(--muted); min-width: 110px; }
 .notes-label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
 .notes { width: 100%; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; resize: vertical; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.btn.danger { background: #b54141; color: #fff; border-color: transparent; }
+.btn.danger:hover { background: #c14d4d; }
+
+/* Edit form */
+.form-row { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.form-row label { font-size: 12px; color: var(--muted); }
+.form-row input, .form-row select, .form-row textarea {
+  background: var(--panel-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 9px 10px; font: inherit;
+  min-height: 40px; /* touch target */
+}
+.form-row input[type="time"], .form-row input[type="date"] { font-variant-numeric: tabular-nums; }
+.form-row.two-col { flex-direction: row; gap: 12px; }
+.form-row.two-col > div { flex: 1; display: flex; flex-direction: column; gap: 4px; }
 
 .muted { color: var(--muted); }
 

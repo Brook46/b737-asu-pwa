@@ -321,8 +321,12 @@ export function parseDutyPlan(rawText) {
   // (e.g. TLV→FRA on Wed, FRA→TLV on Thu becomes one block).
   const merged = mergeFlightsByDuty(events);
 
-  // Assign stable, content-based IDs so the same event keeps the same id across re-parses.
-  for (const ev of merged) ev.id = stableEventId(ev);
+  // Tag origin and assign stable, content-based IDs so the same event keeps
+  // the same id across re-parses.
+  for (const ev of merged) {
+    ev.id = stableEventId(ev);
+    ev.origin = 'pdf';
+  }
 
   return {
     period: { startDate: periodStart, endDate: periodEnd, name: pilotName },

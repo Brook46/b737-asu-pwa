@@ -24,6 +24,7 @@
         <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden />
         <span>⤓ Load PDF</span>
       </label>
+      <button id="add-event-btn" class="btn" title="Add a new event">＋ Add</button>
       <button id="export-all-btn" class="btn" title="Export the current view to .ics">⤒ Export</button>
     </div>
   </header>
@@ -69,18 +70,63 @@
     <span class="lg other">Dummy / training / vacation</span>
   </div>
 
-  <!-- Event details modal -->
+  <!-- Event details / edit modal -->
   <div id="modal" class="modal" hidden>
     <div class="modal-card">
       <button class="modal-close" id="modal-close" aria-label="Close">×</button>
-      <h2 id="modal-title">—</h2>
-      <div id="modal-when" class="modal-when muted"></div>
-      <div id="modal-body" class="modal-body"></div>
-      <label class="notes-label" for="modal-notes">Notes</label>
-      <textarea id="modal-notes" class="notes" rows="3" placeholder="Add a note for this duty…"></textarea>
-      <div class="modal-actions">
-        <button id="export-btn" class="btn primary">Export .ics</button>
-      </div>
+
+      <!-- View mode -->
+      <section id="modal-view">
+        <h2 id="modal-title">—</h2>
+        <div id="modal-when" class="modal-when muted"></div>
+        <div id="modal-body" class="modal-body"></div>
+        <label class="notes-label" for="modal-notes">Notes</label>
+        <textarea id="modal-notes" class="notes" rows="3" placeholder="Add a note for this duty…"></textarea>
+        <div class="modal-actions">
+          <button id="delete-btn" class="btn danger">Delete</button>
+          <button id="edit-btn" class="btn">Edit</button>
+          <button id="export-btn" class="btn primary">Export .ics</button>
+        </div>
+      </section>
+
+      <!-- Edit / add mode -->
+      <section id="modal-edit" hidden>
+        <h2 id="edit-mode-title">New event</h2>
+        <div class="form-row">
+          <label for="edit-kind">Type</label>
+          <select id="edit-kind">
+            <option value="flight">Flight</option>
+            <option value="pickup">Pickup</option>
+            <option value="driveHome">Drive home</option>
+            <option value="restEnd">End of rest</option>
+            <option value="other">Other (training / dummy / vacation)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="edit-title">Title</label>
+          <input id="edit-title" type="text" placeholder="e.g. TLV → CDG → TLV" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label for="edit-date">Date</label>
+          <input id="edit-date" type="date" />
+        </div>
+        <div class="form-row two-col">
+          <div>
+            <label for="edit-start">Start</label>
+            <input id="edit-start" type="time" />
+          </div>
+          <div>
+            <label for="edit-end">End</label>
+            <input id="edit-end" type="time" />
+          </div>
+        </div>
+        <label class="notes-label" for="edit-notes">Notes</label>
+        <textarea id="edit-notes" class="notes" rows="2" placeholder="Optional note…"></textarea>
+        <div class="modal-actions">
+          <button id="cancel-edit-btn" class="btn">Cancel</button>
+          <button id="save-edit-btn" class="btn primary">Save</button>
+        </div>
+      </section>
     </div>
   </div>
 
