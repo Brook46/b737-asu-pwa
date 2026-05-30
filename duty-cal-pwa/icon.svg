@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#0b1220"/>
+      <stop offset="1"   stop-color="#101a2c"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#3b82f6"/>
+      <stop offset="1"   stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="plane" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#ffffff"/>
+      <stop offset="1"   stop-color="#cfd8e3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Sky panel (calendar header) -->
+  <path d="M64 144 h384 a16 16 0 0 1 16 16 v40 H48 v-40 a16 16 0 0 1 16 -16 z" fill="url(#sky)"/>
+  <!-- Binder rings -->
+  <rect x="148" y="116" width="14" height="48" rx="5" fill="#e6edf3"/>
+  <rect x="350" y="116" width="14" height="48" rx="5" fill="#e6edf3"/>
+
+  <!-- Calendar body -->
+  <rect x="48" y="200" width="416" height="272" rx="20" fill="#1d242d"/>
+
+  <!-- Time bars (legend echo) -->
+  <rect x="84"  y="244" width="120" height="22" rx="6" fill="#f59e0b"/>
+  <rect x="220" y="244" width="208" height="22" rx="6" fill="#3b82f6" opacity="0.85"/>
+
+  <rect x="84"  y="290" width="280" height="22" rx="6" fill="#3b82f6"/>
+
+  <rect x="84"  y="336" width="120" height="22" rx="6" fill="#f59e0b"/>
+  <rect x="220" y="336" width="100" height="22" rx="6" fill="#22c55e"/>
+
+  <!-- Stylized airplane (diagonal, climbing) -->
+  <g transform="translate(346 412) rotate(-30)">
+    <path d="M-92 0 L60 -10 L92 0 L60 10 L-92 0 Z" fill="url(#plane)"/>
+    <path d="M-20 -8 L8 -34 L22 -34 L4 -8 Z" fill="url(#plane)"/>
+    <path d="M-20  8 L8  34 L22  34 L4  8 Z" fill="url(#plane)"/>
+    <path d="M-72 -6 L-58 -22 L-44 -22 L-54 -6 Z" fill="url(#plane)"/>
+    <path d="M-72  6 L-58  22 L-44  22 L-54  6 Z" fill="url(#plane)"/>
+  </g>
+</svg>

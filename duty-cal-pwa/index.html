@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Duty Calendar</title>
+  <meta name="theme-color" content="#0e1116" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="brand">Duty Calendar</div>
+      <div id="subhead" class="subhead muted"></div>
+    </div>
+    <div class="topbar-actions">
+      <label class="file-btn" title="Load duty-plan PDF">
+        <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden />
+        <span>⤓ Load PDF</span>
+      </label>
+      <button id="export-all-btn" class="btn" title="Export the current view to .ics">⤒ Export</button>
+    </div>
+  </header>
+
+  <div class="nav-row">
+    <button id="prev-btn" class="btn nav-btn" aria-label="Previous">‹</button>
+    <div id="range-label" class="range-label">—</div>
+    <button id="next-btn" class="btn nav-btn" aria-label="Next">›</button>
+    <button id="today-btn" class="btn today-btn" title="Jump to today (T)">Today</button>
+    <div class="view-switch" role="tablist">
+      <button data-view="day"   class="btn view-btn" title="Day view (D)">Day</button>
+      <button data-view="week"  class="btn view-btn active" title="Week view (W)">Week</button>
+      <button data-view="month" class="btn view-btn" title="Month view (M)">Month</button>
+    </div>
+  </div>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <main id="cal-root" class="cal-root">
+    <div class="empty-hint">
+      <div class="drop-zone" id="drop-zone">
+        <div class="dz-title">Drop a duty-plan PDF here</div>
+        <div class="dz-sub">or tap <b>Load PDF</b> above</div>
+      </div>
+      <details class="iphone-hint">
+        <summary>On iPhone / iPad?</summary>
+        <ol>
+          <li>Open the duty-plan PDF in <b>Mail</b>, <b>Files</b>, or any app.</li>
+          <li>Tap <b>Share</b> → <b>Save to Files</b> (any folder is fine).</li>
+          <li>Come back here, tap <b>Load PDF</b>, and pick the file.</li>
+        </ol>
+        <p class="muted">Tip: tap Share in Safari → <b>Add to Home Screen</b> to keep this app one tap away.</p>
+      </details>
+      <p class="muted small">Everything stays on this device — the PDF never leaves your phone.</p>
+    </div>
+  </main>
+
+  <div class="legend">
+    <span class="lg pickup">Pickup / drive home</span>
+    <span class="lg flight">Flight</span>
+    <span class="lg rest">End of rest</span>
+    <span class="lg other">Dummy / training / vacation</span>
+  </div>
+
+  <!-- Event details modal -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+      <h2 id="modal-title">—</h2>
+      <div id="modal-when" class="modal-when muted"></div>
+      <div id="modal-body" class="modal-body"></div>
+      <label class="notes-label" for="modal-notes">Notes</label>
+      <textarea id="modal-notes" class="notes" rows="3" placeholder="Add a note for this duty…"></textarea>
+      <div class="modal-actions">
+        <button id="export-btn" class="btn primary">Export .ics</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
