@@ -45,12 +45,8 @@ function startClocks() {
 }
 function tickClocks() {
   const now = new Date();
-  const utc = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
-  const lcl = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const u = $('clock-utc');
-  const l = $('clock-lcl');
-  if (u) u.textContent = utc;
-  if (l) l.textContent = lcl;
+  if (u) u.textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
 }
 function pad(n) { return String(n).padStart(2, '0'); }
 

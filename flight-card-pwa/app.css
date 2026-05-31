@@ -79,14 +79,18 @@ body {
   backdrop-filter: saturate(180%) blur(8px);
 }
 .hdr-clocks {
-  display: flex; flex-direction: column; align-items: flex-start;
+  display: flex; align-items: center;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
   flex-shrink: 0;
-  padding: 2px 0;
 }
-.clock-utc { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
-.clock-lcl { font-size: 11px; color: var(--fg-mute); margin-top: 3px; }
+.clock-utc {
+  font-size: 16px; font-weight: 800; color: var(--accent);
+  letter-spacing: .02em;
+  padding: 4px 8px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  white-space: nowrap;
+}
 
 .hdr-input {
   -webkit-appearance: none; appearance: none;
@@ -466,6 +470,44 @@ body {
 .muted { color: var(--fg-mute); }
 .small { font-size: 12px; }
 .hidden { display: none !important; }
+
+/* ---------- CTOT / UTC time cell ---------- */
+.utc-cell .utc-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 2px;
+}
+.utc-cell input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0;
+  font: inherit; font-size: 22px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+  color: var(--fg);
+  padding: 4px 0;
+  text-align: left;
+}
+.utc-cell input:focus { outline: none; }
+.utc-cell input::placeholder { color: var(--fg-dim); font-weight: 500; letter-spacing: .02em; }
+.utc-cell .utc-z {
+  font-size: 14px; font-weight: 800; color: var(--accent);
+  background: var(--accent-soft);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: .04em;
+}
+.utc-cell .utc-now {
+  -webkit-appearance: none; appearance: none;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit; font-size: 13px; font-weight: 700;
+  min-height: 36px;
+  cursor: pointer;
+  letter-spacing: .03em;
+}
+.utc-cell .utc-now:active { filter: brightness(.92); transform: scale(0.96); }
 
 /* ---------- ATIS on-demand picker ---------- */
 .atis-cell { padding: 0; background: transparent; border: 0; }

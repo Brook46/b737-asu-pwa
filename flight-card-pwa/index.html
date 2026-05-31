@@ -13,13 +13,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=5" />
+  <link rel="stylesheet" href="./app.css?v=6" />
 </head>
 <body>
   <header class="app-header">
     <div class="hdr-clocks">
-      <span id="clock-utc" class="clock-utc" title="UTC">— Z</span>
-      <span id="clock-lcl" class="clock-lcl" title="Local">—</span>
+      <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
     </div>
     <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
     <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
@@ -149,6 +148,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=5"></script>
+  <script type="module" src="./app.js?v=6"></script>
 </body>
 </html>

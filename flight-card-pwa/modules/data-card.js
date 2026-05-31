@@ -26,6 +26,7 @@ export const FIELDS = [
   { id: 'g-flt',   group: 'Flight',    cells: [
     { key: 'dep',         label: 'Dep',         kind: 'text' },
     { key: 'arr',         label: 'Arr',         kind: 'text' },
+    { key: 'ctot',        label: 'CTOT (UTC)',  kind: 'utctime', wide: true },
     { key: 'eta',         label: 'ETA',         kind: 'text' },
     { key: 'flight_time', label: 'Flight time', kind: 'text' },
   ]},
@@ -79,7 +80,8 @@ export function render(root) {
 }
 
 function renderCell(c, raw) {
-  if (c.kind === 'atis') return renderAtisCell(c, raw);
+  if (c.kind === 'atis')    return renderAtisCell(c, raw);
+  if (c.kind === 'utctime') return renderUtcCell(c, raw);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -101,6 +103,34 @@ function renderCell(c, raw) {
         value="${escapeAttr(v)}"
         placeholder="—"
       />
+    </label>
+  `;
+}
+
+function renderUtcCell(c, raw) {
+  const v = raw == null ? '' : String(raw);
+  const cls = ['data-cell','utc-cell'];
+  if (c.wide) cls.push('span2');
+  return `
+    <label class="${cls.join(' ')}">
+      <span class="lbl">${escape(c.label)}</span>
+      <div class="utc-row">
+        <input
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+          data-key="${c.key}"
+          data-kind="utctime"
+          value="${escapeAttr(v)}"
+          placeholder="HH:MM"
+          maxlength="5"
+        />
+        <span class="utc-z">Z</span>
+        <button type="button" class="utc-now" data-utc-now="${c.key}" title="Record current UTC">Now</button>
+      </div>
     </label>
   `;
 }
@@ -181,6 +211,21 @@ function wire(root) {
       inp.value = formatValue(def, raw);
     });
   });
+  // CTOT "Now" — fill the current UTC HH:MM
+  root.querySelectorAll('[data-utc-now]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const key = b.dataset.utcNow;
+      const now = new Date();
+      const val = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`;
+      storage.setDataField(key, val);
+      const inp = root.querySelector(`input[data-key="${key}"]`);
+      if (inp) inp.value = val;
+      updateGroupMeta(root, key);
+      if (onChange) onChange(key);
+    });
+  });
+
   // ATIS — open the picker on demand
   root.querySelectorAll('[data-atis-open]').forEach(b => {
     b.addEventListener('click', () => { atisPickerOpen = true; render(root); });
@@ -233,6 +278,16 @@ function normalize(def, raw) {
     return Number.isFinite(n) ? n : '';
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
+  if (def.kind === 'utctime') {
+    // Accept "1145", "11:45", "11.45" → store as "11:45"
+    const digits = s.replace(/[^\d]/g, '').slice(0, 4);
+    if (digits.length < 3) return digits;     // partial — let user keep typing
+    const hh = digits.slice(0, digits.length - 2);
+    const mm = digits.slice(-2);
+    const h = parseInt(hh, 10), m = parseInt(mm, 10);
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return s;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
   return s;
 }
 
