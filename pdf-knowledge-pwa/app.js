@@ -260,6 +260,7 @@ function wireEvents() {
   // (no add-file FAB on the home view — files are added from ⚙ Settings → Library)
   els.homeSettings.addEventListener('click', openSettingsSheet);
   els.settingsClose.addEventListener('click', () => els.settingsOverlay.classList.add('hidden'));
+  $('settings-reset-briefings')?.addEventListener('click', resetToCuratedBriefings);
   $('settings-apply')?.addEventListener('click', () => {
     // Force a full home re-render so any colour / order / link change is
     // reflected immediately, then close.
@@ -326,43 +327,32 @@ function pressGroup(nodes, active) {
   nodes.forEach((n) => n.setAttribute('aria-pressed', n === active ? 'true' : 'false'));
 }
 
-// Body-scroll lock for modals. On iPad Safari, a hidden-overflow modal
-// otherwise lets touch-scroll fall through to the home behind it. We watch
-// every .modal-overlay for the `.hidden` toggle and freeze the body while
-// any of them is open, restoring the user's previous scroll afterwards.
-let _scrollLockSaved = 0;
-let _scrollLockCount = 0;
-function applyScrollLock(open) {
-  if (open) {
-    if (_scrollLockCount++ > 0) return;
-    _scrollLockSaved = window.scrollY;
-    Object.assign(document.body.style, {
-      position: 'fixed', top: -_scrollLockSaved + 'px',
-      left: '0', right: '0', width: '100%', overflow: 'hidden',
-    });
-  } else {
-    if (--_scrollLockCount > 0) return;
-    if (_scrollLockCount < 0) _scrollLockCount = 0;
-    Object.assign(document.body.style, {
-      position: '', top: '', left: '', right: '', width: '', overflow: '',
-    });
-    window.scrollTo(0, _scrollLockSaved);
-  }
-}
+// Modal background-scroll control. Setting body { position: fixed } turned
+// out to break the modal-body's own overflow scroll on iPad Safari, so we
+// now just toggle the .modal-open class on <html> and let the CSS decide:
+//   - touch-action: none on the backdrop blocks touch-scrolling the page
+//   - touch-action: pan-y on .modal-body still allows the modal to scroll
+let _modalOpenCount = 0;
 function installModalScrollLock() {
   const overlays = document.querySelectorAll('.modal-overlay');
+  const update = () => {
+    document.documentElement.classList.toggle('modal-open', _modalOpenCount > 0);
+  };
   const obs = new MutationObserver((mutations) => {
     for (const m of mutations) {
       if (m.attributeName !== 'class') continue;
       const open = !m.target.classList.contains('hidden');
       const wasOpen = m.oldValue == null ? false : !m.oldValue.includes('hidden');
-      if (open !== wasOpen) applyScrollLock(open);
+      if (open && !wasOpen) _modalOpenCount++;
+      else if (!open && wasOpen) _modalOpenCount = Math.max(0, _modalOpenCount - 1);
     }
+    update();
   });
   overlays.forEach((ov) => {
     obs.observe(ov, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-    if (!ov.classList.contains('hidden')) applyScrollLock(true);
+    if (!ov.classList.contains('hidden')) _modalOpenCount++;
   });
+  update();
 }
 
 function switchView(view) {
@@ -3205,6 +3195,78 @@ function onGpsUpdate(s) {
 }
 
 // --- Helpers -----------------------------------------------------------------
+
+// Wipe every scenario + indexed anchor and replay the curated Tanchum seed.
+// Resolves to the first personal file (or imports the bundled PDF if there
+// isn't one yet) so the new anchors all point at a real document.
+async function resetToCuratedBriefings() {
+  if (!confirm('Wipe every briefing & indexed paragraph, then re-create the curated set from the Tanchum book?')) return;
+  toast('Resetting briefings…');
+  try {
+    // Drop all existing scenarios + idx anchors.
+    const scenarios = await storage.listScenarios();
+    for (const s of scenarios) await storage.deleteScenario(s.id);
+    const anchors = await storage.getAllAnchors();
+    for (const a of anchors) if (a.kind === 'idx') await storage.deleteAnchor(a.anchorId);
+    state.scenarios = [];
+
+    // Pick a target file. Prefer one already imported; otherwise ingest the
+    // bundled PDF.
+    let fileId = [...state.files.values()].find((f) => /tanchum|nachum|pilot 737/i.test(f.name || ''))?.id;
+    if (!fileId) fileId = [...state.files.values()][0]?.id;
+    if (!fileId) {
+      const resp = await fetch('./seed-data/tanchum-737-upgrade.pdf', { cache: 'force-cache' });
+      if (!resp.ok) throw new Error('bundled pdf missing');
+      const blob = await resp.blob();
+      const file = new File([blob], 'Pilot 737 Upgrade.pdf', { type: 'application/pdf' });
+      fileId = await processImport(file, { manualType: 'PERSONAL', revision: '', effectivity: [], docType: 'personal' });
+    }
+
+    const seedMod = await import('./seed-data/tanchum-seed.js?t=' + Date.now());
+    const seed = seedMod.TANCHUM_SEED;
+    const btypes = await storage.listBriefingTypes();
+    const btypeMap = {
+      normal:    btypes.find((b) => /^normal/i.test(b.name))?.id,
+      nonnormal: btypes.find((b) => /non.?normal/i.test(b.name))?.id,
+      briefing:  btypes.find((b) => /^briefing/i.test(b.name))?.id,
+    };
+    for (const s of seed.scenarios) {
+      const btypeIds = (s.briefingTypes || []).map((slug) => btypeMap[slug]).filter(Boolean);
+      await storage.putScenario({
+        id: s.id, name: s.name, parentId: s.parentId, parentIds: s.parentIds || [],
+        phases: s.phases || [], briefingTypes: btypeIds,
+        color: s.color, kind: s.kind || 'normal',
+        sort: s.sort, createdAt: Date.now(), updatedAt: Date.now(),
+      });
+    }
+    for (const a of seed.anchors) {
+      await storage.putAnchor({
+        anchorId: a.id, fileId, manualType: 'PERSONAL',
+        kind: 'idx', itemType: 'briefing', source: 'manual',
+        paraIndex: null, selectionRects: null,
+        pageNum: a.pageNum, anchorType: 'page', value: 'p.' + a.pageNum,
+        title: a.title, excerpt: a.title,
+        textHash: 'h_curated_' + a.id,
+        phases: a.phases || [],
+        briefingTypes: btypeMap[a.btype] ? [btypeMap[a.btype]] : [],
+        scenarios: a.scenarios || [],
+        links: a.refs || [],
+        aiSuggested: null, aiAccepted: false,
+        createdAt: Date.now(), updatedAt: Date.now(),
+      });
+    }
+    await reloadScenarios();
+    kg.invalidate(); await kg.load(true);
+    // Drop any home-state selections that referred to deleted ids.
+    state.selectedTopBriefing = null; state.selectedSubBriefing = null;
+    renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
+    renderSettingsSheet();
+    toast(`Reset: ${seed.scenarios.length} briefings, ${seed.anchors.length} indexed topics.`);
+  } catch (e) {
+    console.error('reset failed', e);
+    toast('Reset failed: ' + (e.message || e).slice(0, 100));
+  }
+}
 
 // Walks a freshly-ingested personal PDF's bookmark outline and writes its
 // structure as briefings + sub-briefings + indexed anchors. Skips silently

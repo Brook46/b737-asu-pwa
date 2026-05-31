@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=36" />
+  <link rel="stylesheet" href="./app.css?v=37" />
 </head>
 <body>
   <header class="app-header">
@@ -394,6 +394,9 @@
         </details>
         <details class="settings-section">
           <summary><h3>Briefings &amp; specific briefings <span class="admin-sub">— top-level briefings can have sub-briefings</span></h3></summary>
+          <div class="settings-actions-row">
+            <button class="btn ghost" id="settings-reset-briefings" type="button" title="Wipe everything and re-seed from the curated Tanchum book">↺ Reset to curated briefings</button>
+          </div>
           <div id="settings-scenarios" class="settings-list"></div>
           <form id="settings-scenario-new" class="settings-new-form">
             <input id="ss-name" placeholder="New top-level briefing" required />
@@ -408,6 +411,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=45"></script>
+  <script type="module" src="./app.js?v=46"></script>
 </body>
 </html>

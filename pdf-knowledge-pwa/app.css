@@ -437,6 +437,20 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;       /* explicitly allow vertical pan */
+}
+.modal-overlay {
+  /* Block touch-scroll on the backdrop so it doesn't scroll the home
+     view behind the modal — but the modal box itself sets its own
+     touch-action back to auto, so taps still register inside. */
+  touch-action: none;
+}
+.modal { touch-action: auto; }
+/* Belt + braces for iPad Safari: when any modal is open, prevent the page
+   itself from scrolling at all. */
+html.modal-open, html.modal-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; }
@@ -1259,7 +1273,11 @@ body.has-dock .app-main { padding-bottom: 60px; }
 
 /* Settings sheet */
 .settings-sheet { max-width: 720px; }
-.settings-body { display: flex; flex-direction: column; gap: 20px; }
+/* Plain block flow so the modal-body owns the scroll height. (Flex column
+   on a scrollable container makes iOS Safari miscompute the inner extent
+   and silently skip touch scroll.) */
+.settings-body { display: block; }
+.settings-body > * + * { margin-top: 16px; }
 .settings-section h3 { margin: 0; font-size: 1em; display: inline; }
 .settings-section { background: var(--bg-elev-1); border: 1px solid var(--border); border-radius: 12px; padding: 0; overflow: hidden; }
 .settings-section > summary {
@@ -1337,6 +1355,14 @@ body.has-dock .app-main { padding-bottom: 60px; }
 }
 .settings-new-form input[type="color"] { width: 36px; height: 36px; padding: 0; border-radius: 8px; border: 1px solid var(--border); background: transparent; cursor: pointer; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-actions-row { padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px dashed var(--border); }
+#settings-reset-briefings {
+  font-size: 0.85em; color: var(--danger, #ff6b6b);
+  border-color: color-mix(in srgb, var(--danger, #ff6b6b) 40%, var(--border));
+}
+#settings-reset-briefings:hover {
+  background: color-mix(in srgb, var(--danger, #ff6b6b) 15%, transparent);
+}
 .settings-library { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
 .lib-group { background: var(--bg-elev-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
 .lib-group-head { font-weight: 700; margin-bottom: 6px; }
