@@ -1003,7 +1003,43 @@ async function renderHomeResults() {
     els.homeResults.innerHTML = hint;
     return;
   }
-  els.homeResults.innerHTML = anchors.map((a) => homeResultHtml(a)).join('');
+  // When searching, surface matching briefings + sub-briefings on top so
+  // the user can jump straight to them. Each chip applies its own scope
+  // (and clears the query) on tap.
+  let briefingsHeader = '';
+  if (state.homeQuery && state.homeQuery.trim().length >= 2) {
+    const q = state.homeQuery.toLowerCase();
+    const matches = (state.scenarios || [])
+      .filter((s) => (s.name || '').toLowerCase().includes(q))
+      .slice(0, 12);
+    if (matches.length) {
+      briefingsHeader = `<li class="home-results-header">Briefings matching “${escapeHtml(state.homeQuery)}”</li>
+        <li class="home-results-matches">
+          ${matches.map((s) => `<button class="home-chip ${isTopLevel(s) ? 'top-chip' : 'sub-chip'}" style="--c:${escapeHtml(s.color || '#7aa3ff')}" data-jump="${escapeHtml(s.id)}" data-jump-kind="${isTopLevel(s) ? 'top' : 'sub'}">${escapeHtml(s.name)}</button>`).join('')}
+        </li>
+        <li class="home-results-header">Indexed paragraphs</li>`;
+    }
+  }
+  els.homeResults.innerHTML = briefingsHeader + anchors.map((a) => homeResultHtml(a)).join('');
+  // Wire jump-chips: select that briefing as the active scope.
+  els.homeResults.querySelectorAll('[data-jump]').forEach((chip) => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = chip.getAttribute('data-jump');
+      const kind = chip.getAttribute('data-jump-kind');
+      if (kind === 'sub') {
+        const sub = state.scenarios.find((s) => s.id === id);
+        const parent = sub && scenarioParents(sub)[0];
+        state.selectedTopBriefing = parent || null;
+        state.selectedSubBriefing = id;
+      } else {
+        state.selectedTopBriefing = id;
+        state.selectedSubBriefing = null;
+      }
+      state.homeQuery = ''; els.homeSearch.value = '';
+      renderHomeScenarios(); renderHomeResults();
+    });
+  });
   // Clicks on the inline preview just keep scrolling; the explicit ⤢ button
   // opens the file in the full viewer. The header / excerpt still open it too.
   els.homeResults.querySelectorAll('.home-result').forEach((row) => {
@@ -1298,6 +1334,7 @@ async function renderSettingsLibrary() {
             <select class="lib-type" title="Document category">
               ${DOC_TYPES.map((t) => `<option value="${t.id}" ${t.id === (f.docType || 'manual') ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
             </select>
+            <button class="btn ghost" data-act="open-file" title="Open in viewer">⛶</button>
             <button class="btn ghost" data-act="del-file" title="Delete">🗑</button>
           </div>`).join('')
         : '<div class="admin-sub lib-empty">— none —</div>'}
@@ -1316,6 +1353,10 @@ async function renderSettingsLibrary() {
       await storage.putFile(file);
       state.files.set(fileId, file);
       renderSettingsLibrary();
+    });
+    row.querySelector('[data-act="open-file"]')?.addEventListener('click', async () => {
+      els.settingsOverlay.classList.add('hidden');
+      await openFileInViewer(fileId, 1);
     });
     row.querySelector('[data-act="del-file"]')?.addEventListener('click', async () => {
       const file = state.files.get(fileId);
@@ -1742,9 +1783,6 @@ async function handleFiles(files) {
 }
 
 async function handlePersonalFiles(files) {
-  // input.dataset.docType lets Settings → "+ Add" route to a specific bucket
-  // (manual / personal / fleet-update). Read once and clear so the next
-  // generic invocation defaults to 'personal'.
   const docType = els.personalInput.dataset.docType || 'personal';
   delete els.personalInput.dataset.docType;
   for (const file of files) {
@@ -1753,10 +1791,18 @@ async function handlePersonalFiles(files) {
       continue;
     }
     const manualType = docType === 'manual' ? 'FCOM' : 'PERSONAL';
-    await processImport(file, { manualType, revision: '', effectivity: [], docType });
+    const fileId = await processImport(file, { manualType, revision: '', effectivity: [], docType });
+    // Personal briefings auto-catalogue from their PDF outline. Manual /
+    // fleet uploads skip this — they're reference material that doesn't
+    // map cleanly onto briefings/sub-briefings.
+    if (fileId && docType === 'personal') {
+      const created = await autoCatalogFromOutline(fileId, file.name);
+      if (created > 0) toast(`Cataloged ${created} briefing${created === 1 ? '' : 's'} from ${file.name}.`);
+    }
   }
   await storage.requestPersistent();
-  renderLibrary(); renderStorageInfo(); renderHomeResults();
+  renderLibrary(); renderStorageInfo();
+  renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   if (els.settingsOverlay && !els.settingsOverlay.classList.contains('hidden')) renderSettingsLibrary();
 }
 
@@ -3051,6 +3097,105 @@ function onGpsUpdate(s) {
 }
 
 // --- Helpers -----------------------------------------------------------------
+
+// Walks a freshly-ingested personal PDF's bookmark outline and writes its
+// structure as briefings + sub-briefings + indexed anchors. Skips silently
+// when the PDF carries no outline. Cross-reference extraction stays for
+// the desktop seed builder — here we only seed the structure.
+async function autoCatalogFromOutline(fileId, fileName) {
+  try {
+    const { pdfjsLib } = await import('./modules/pdf-ingest.js');
+    const file = await storage.getFile(fileId);
+    if (!file || !file.blob) return 0;
+    const buf = await file.blob.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+    const outline = await doc.getOutline();
+    if (!outline || !outline.length) return 0;
+
+    // Resolve a destination to its page number (1-based).
+    const pageOf = async (item) => {
+      let dest = item.dest;
+      if (typeof dest === 'string') dest = await doc.getDestination(dest);
+      if (!Array.isArray(dest)) return null;
+      const idx = await doc.getPageIndex(dest[0]);
+      return Number.isFinite(idx) ? idx + 1 : null;
+    };
+
+    // Flatten to {depth, title, page} with the bookmark tree's natural order.
+    const flat = [];
+    const walk = async (items, depth) => {
+      for (const it of items || []) {
+        const page = await pageOf(it);
+        flat.push({ depth, title: String(it.title || '').trim(), page });
+        if (it.items && it.items.length) await walk(it.items, depth + 1);
+      }
+    };
+    await walk(outline, 0);
+    if (!flat.length) return 0;
+
+    // Re-use the same depth → kind mapping as _build_seed.py: depth 0 →
+    // top-level briefing; depth 1 with depth-2 children → sub-briefing;
+    // leaves at any depth → indexed anchor on that page.
+    let curTop = null, curSub = null;
+    let created = 0;
+    for (let i = 0; i < flat.length; i++) {
+      const o = flat[i];
+      if (!o.page || !o.title) continue;
+      if (o.depth === 0) {
+        const id = 'sc_auto_' + Math.random().toString(36).slice(2, 9);
+        curTop = id; curSub = null;
+        await storage.putScenario({
+          id, name: o.title, parentId: null, parentIds: [],
+          phases: [], briefingTypes: [],
+          color: '#7aa3ff', kind: 'normal',
+          sort: Date.now() + i, createdAt: Date.now(), updatedAt: Date.now(),
+        });
+        created++;
+      } else if (o.depth === 1) {
+        const hasKids = i + 1 < flat.length && flat[i + 1].depth >= 2;
+        if (hasKids && curTop) {
+          const id = 'sc_auto_' + Math.random().toString(36).slice(2, 9);
+          curSub = id;
+          await storage.putScenario({
+            id, name: o.title, parentId: null, parentIds: [curTop],
+            phases: [], briefingTypes: [],
+            color: '#ffb84d', kind: 'normal',
+            sort: Date.now() + i, createdAt: Date.now(), updatedAt: Date.now(),
+          });
+        } else {
+          // Leaf at depth 1 → anchor under the current top.
+          curSub = null;
+          await putAnchorForOutlineLeaf({ fileId, fileName, title: o.title, pageNum: o.page, scenarios: curTop ? [curTop] : [] });
+        }
+      } else {
+        await putAnchorForOutlineLeaf({
+          fileId, fileName, title: o.title, pageNum: o.page,
+          scenarios: [curSub, curTop].filter(Boolean),
+        });
+      }
+    }
+    await reloadScenarios();
+    kg.invalidate(); await kg.load(true);
+    return created;
+  } catch (e) {
+    console.warn('autoCatalogFromOutline failed:', e);
+    return 0;
+  }
+}
+async function putAnchorForOutlineLeaf({ fileId, fileName, title, pageNum, scenarios }) {
+  await storage.putAnchor({
+    anchorId: 'idx_auto_' + Math.random().toString(36).slice(2, 9),
+    fileId, manualType: 'PERSONAL',
+    kind: 'idx', itemType: 'briefing', source: 'manual',
+    paraIndex: null, selectionRects: null,
+    pageNum, anchorType: 'page', value: 'p.' + pageNum,
+    title, excerpt: title,
+    textHash: 'h_auto_' + Math.random().toString(36).slice(2, 9),
+    phases: [], briefingTypes: [], scenarios,
+    links: [], aiSuggested: null, aiAccepted: false,
+    createdAt: Date.now(), updatedAt: Date.now(),
+  });
+}
 
 // First-launch bundled content. Fetches the Tanchum 737 upgrade PDF +
 // pre-built scenario tree from /seed-data and writes them into storage,
