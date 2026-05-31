@@ -1,35 +1,52 @@
-// speeches.js — passenger announcement editor with tabs.
+// speeches.js — passenger PA editor with EN/HE tabs and live variable substitution.
 //
-// Tabs: one per saved speech ({ id, name, body }).
-// Body: edit mode shows a textarea (raw template with @vars).
-//       Display mode renders @cpt, @fo, @PU, @tail, @flight, @dep, @arr replaced
-//       with the current data-card values.
+// Each speech: { id, name, bodyEn, bodyHe }
+// Edit mode: textarea for the active language
+// Display: substitute @vars and render with each @var highlighted.
 
 import * as storage from './storage.js';
 
 let activeId = null;
 let editing = false;
+let lang = 'en'; // 'en' | 'he'
+let liveTick = null;
 
-// Map @token (case-insensitive) → data-card field key
+// @token → data-card field key. (PU = purser = CC1.)
 const VAR_MAP = {
   cpt:    'cpt',
   fo:     'fo',
-  pu:     'cc1',       // PU = Purser; we keep CPT/FO/CC1 in dataCard via the header / future crew section
+  pu:     'cc1',
   cc1:    'cc1',
   cc2:    'cc2',
   cc3:    'cc3',
   cc4:    'cc4',
   tail:   'tail',
   flight: 'flight',
+  flt:    'flight',
   dep:    'dep',
   arr:    'arr',
+  eta:    'eta',
+  flighttime: 'flight_time',
 };
 
-const VAR_RE = /@([a-zA-Z]{2,8})\b/g;
+const VAR_RE = /@([a-zA-Z]{2,10})\b/g;
+
+function dynamicValue(token, data) {
+  // Auto values that are computed (not from dataCard).
+  const t = token.toLowerCase();
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  if (t === 'time' || t === 'localtime') return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (t === 'utc' || t === 'zulu') return `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
+  if (t === 'date') return `${pad(now.getDate())}/${pad(now.getMonth()+1)}`;
+  return null;
+}
 
 export function substitute(body, data) {
   if (!body) return '';
   return body.replace(VAR_RE, (whole, token) => {
+    const dyn = dynamicValue(token, data);
+    if (dyn != null) return dyn;
     const key = VAR_MAP[token.toLowerCase()];
     if (!key) return whole;
     const val = data[key];
@@ -37,25 +54,52 @@ export function substitute(body, data) {
   });
 }
 
+// Render mode — also wrap each resolved value in a span so we can highlight.
+function renderHtml(body, data) {
+  if (!body) return '';
+  let html = '';
+  let lastIdx = 0;
+  body.replace(VAR_RE, (whole, token, idx) => {
+    html += escape(body.slice(lastIdx, idx));
+    const dyn = dynamicValue(token, data);
+    if (dyn != null) {
+      html += `<span class="pa-var" data-auto="1">${escape(dyn)}</span>`;
+    } else {
+      const key = VAR_MAP[token.toLowerCase()];
+      const val = key ? data[key] : null;
+      if (val && String(val).trim()) {
+        html += `<span class="pa-var">${escape(String(val))}</span>`;
+      } else {
+        html += `<span class="pa-var pa-var-empty">${escape(whole)}</span>`;
+      }
+    }
+    lastIdx = idx + whole.length;
+    return whole;
+  });
+  html += escape(body.slice(lastIdx));
+  return html.replace(/\n/g, '<br/>');
+}
+
 export function open() {
   ensureActive();
   editing = false;
   document.getElementById('pa-overlay').classList.remove('hidden');
   render();
+  // Re-render every 30s so @time and @utc stay live.
+  if (liveTick) clearInterval(liveTick);
+  liveTick = setInterval(() => {
+    if (!document.getElementById('pa-overlay').classList.contains('hidden') && !editing) render();
+  }, 30 * 1000);
 }
 export function close() {
   document.getElementById('pa-overlay').classList.add('hidden');
+  if (liveTick) { clearInterval(liveTick); liveTick = null; }
 }
 
 function ensureActive() {
   const list = storage.getSpeeches();
-  if (!list.length) {
-    activeId = storage.addSpeech('PA');
-    return;
-  }
-  if (!activeId || !list.find(s => s.id === activeId)) {
-    activeId = list[0].id;
-  }
+  if (!list.length) { activeId = storage.addSpeech('PA'); return; }
+  if (!activeId || !list.find(s => s.id === activeId)) activeId = list[0].id;
 }
 
 function render() {
@@ -67,18 +111,10 @@ function render() {
   // Tabs
   const tabs = document.getElementById('pa-tabs');
   tabs.innerHTML = list.map(s => `
-    <button type="button"
-            class="pa-tab ${s.id === activeId ? 'on' : ''}"
-            data-tab="${s.id}">${escape(s.name)}</button>
+    <button type="button" class="pa-tab ${s.id === activeId ? 'on' : ''}" data-tab="${s.id}">${escape(s.name)}</button>
   `).join('') + `<button type="button" class="pa-tab add" id="pa-add">＋</button>`;
   tabs.querySelectorAll('[data-tab]').forEach(b => {
     b.addEventListener('click', () => { activeId = b.dataset.tab; editing = false; render(); });
-    let pressT = null;
-    b.addEventListener('touchstart', () => {
-      pressT = setTimeout(() => { pressT = null; renameOrDelete(b.dataset.tab); }, 600);
-    }, { passive: true });
-    b.addEventListener('touchend',  () => { if (pressT) clearTimeout(pressT); pressT = null; });
-    b.addEventListener('touchmove', () => { if (pressT) clearTimeout(pressT); pressT = null; });
   });
   document.getElementById('pa-add').addEventListener('click', () => {
     const name = prompt('PA name', 'New PA');
@@ -88,59 +124,56 @@ function render() {
     render();
   });
 
-  // Title row + edit toggle
+  // Title + lang + actions
   document.getElementById('pa-title').textContent = sp.name;
+  const langWrap = document.getElementById('pa-lang');
+  langWrap.innerHTML = `
+    <button type="button" class="${lang === 'en' ? 'on' : ''}" data-lang="en">EN</button>
+    <button type="button" class="${lang === 'he' ? 'on' : ''}" data-lang="he">עב</button>
+  `;
+  langWrap.querySelectorAll('[data-lang]').forEach(b => {
+    b.addEventListener('click', () => { lang = b.dataset.lang; render(); });
+  });
+
   const editBtn = document.getElementById('pa-edit');
   editBtn.textContent = editing ? '✓' : '✎';
   editBtn.title = editing ? 'Done editing' : 'Edit';
   editBtn.onclick = () => { editing = !editing; render(); };
-
-  // Rename / delete buttons
-  const renameBtn = document.getElementById('pa-rename');
-  renameBtn.onclick = () => renameOrDelete(activeId, 'rename');
-  const delBtn = document.getElementById('pa-delete');
-  delBtn.onclick = () => renameOrDelete(activeId, 'delete');
+  document.getElementById('pa-rename').onclick = () => doRename(activeId);
+  document.getElementById('pa-delete').onclick = () => doDelete(activeId);
 
   // Body
   const body = document.getElementById('pa-body');
+  body.classList.toggle('rtl', lang === 'he');
   const data = storage.getCurrent().dataCard;
+  const text = (lang === 'he' ? sp.bodyHe : sp.bodyEn) || '';
   if (editing) {
-    body.innerHTML = `<textarea id="pa-textarea" placeholder="Write the PA here. Use @cpt, @fo, @PU, @tail, @flight, @dep, @arr — they auto-fill from the data card.">${escape(sp.body || '')}</textarea>`;
+    body.innerHTML = `<textarea id="pa-textarea" dir="${lang === 'he' ? 'rtl' : 'ltr'}" placeholder="Write the PA here. Use @cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc — they auto-fill.">${escape(text)}</textarea>`;
     const ta = document.getElementById('pa-textarea');
-    ta.addEventListener('input', () => storage.setSpeechBody(sp.id, ta.value));
+    ta.addEventListener('input', () => storage.setSpeechBody(sp.id, lang, ta.value));
   } else {
-    const rendered = substitute(sp.body || '', data);
-    body.innerHTML = `<div class="pa-rendered">${escape(rendered).replace(/\n/g, '<br/>')}</div>`;
+    body.innerHTML = `<div class="pa-rendered" dir="${lang === 'he' ? 'rtl' : 'ltr'}">${renderHtml(text, data)}</div>`;
   }
-
-  // Show the var legend only in edit mode
   document.getElementById('pa-legend').classList.toggle('hidden', !editing);
 }
 
-function renameOrDelete(id, forceMode) {
+function doRename(id) {
+  const sp = storage.getSpeech(id);
+  if (!sp) return;
+  const name = prompt('Rename PA', sp.name);
+  if (name == null || !name.trim()) return;
+  storage.renameSpeech(id, name.trim());
+  render();
+}
+function doDelete(id) {
   const sp = storage.getSpeech(id);
   if (!sp) return;
   const list = storage.getSpeeches();
-  if (forceMode === 'delete') {
-    if (list.length <= 1) { alert('At least one PA must remain.'); return; }
-    if (!confirm(`Delete "${sp.name}"?`)) return;
-    storage.deleteSpeech(id);
-    activeId = storage.getSpeeches()[0]?.id;
-    render();
-    return;
-  }
-  if (forceMode === 'rename') {
-    const name = prompt('Rename PA', sp.name);
-    if (name == null) return;
-    if (!name.trim()) return;
-    storage.renameSpeech(id, name.trim());
-    render();
-    return;
-  }
-  // Long-press path: small choice
-  const choice = prompt('Type "r" to rename or "d" to delete', '');
-  if (choice === 'r') renameOrDelete(id, 'rename');
-  else if (choice === 'd') renameOrDelete(id, 'delete');
+  if (list.length <= 1) { alert('At least one PA must remain.'); return; }
+  if (!confirm(`Delete "${sp.name}"?`)) return;
+  storage.deleteSpeech(id);
+  activeId = storage.getSpeeches()[0]?.id;
+  render();
 }
 
 function escape(s) {
@@ -149,8 +182,7 @@ function escape(s) {
   })[ch]);
 }
 
-// Re-render when the data card changes (so substitutions stay live).
 export function notifyDataChange() {
   if (document.getElementById('pa-overlay')?.classList.contains('hidden')) return;
-  render();
+  if (!editing) render();
 }

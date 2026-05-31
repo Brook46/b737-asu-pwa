@@ -5,14 +5,12 @@ import * as storage from './storage.js';
 
 // kind: 'int' | 'dec' | 'text' | 'atis'
 export const FIELDS = [
-  { id: 'g-v',     group: 'V-speeds',  cells: [
-    { key: 'v1',   label: 'V1',    kind: 'int', suffix: 'kt' },
-    { key: 'vr',   label: 'VR',    kind: 'int', suffix: 'kt' },
-    { key: 'v2',   label: 'V2',    kind: 'int', suffix: 'kt' },
-  ]},
-  { id: 'g-to',    group: 'Takeoff',   cells: [
-    { key: 'n1',    label: 'N1 TO',  kind: 'dec', suffix: '%' },
-    { key: 'flaps', label: 'Flaps',  kind: 'int' },
+  { id: 'g-to',    group: 'Takeoff numbers', cells: [
+    { key: 'v1',    label: 'V1',    kind: 'int', suffix: 'kt' },
+    { key: 'vr',    label: 'VR',    kind: 'int', suffix: 'kt' },
+    { key: 'v2',    label: 'V2',    kind: 'int', suffix: 'kt' },
+    { key: 'n1',    label: 'N1 TO', kind: 'dec', suffix: '%' },
+    { key: 'flaps', label: 'Flaps', kind: 'int' },
   ]},
   { id: 'g-fuel',  group: 'Fuel',      cells: [
     { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'int', suffix: 'kg' },
@@ -22,21 +20,22 @@ export const FIELDS = [
     { key: 'sob_total', label: 'Total', kind: 'int' },
   ]},
   { id: 'g-atis',  group: 'ATIS',      cells: [
-    { key: 'atis',   label: 'ATIS letter', kind: 'atis', wide: true },
-    { key: 'atis_note', label: 'Notes', kind: 'text', wide: true },
+    { key: 'atis',      label: 'ATIS letter', kind: 'atis', wide: true },
+    { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
-    { key: 'dep',     label: 'Dep',      kind: 'text' },
-    { key: 'arr',     label: 'Arr',      kind: 'text' },
-    { key: 'eta',     label: 'ETA',      kind: 'text' },
+    { key: 'dep',         label: 'Dep',         kind: 'text' },
+    { key: 'arr',         label: 'Arr',         kind: 'text' },
+    { key: 'eta',         label: 'ETA',         kind: 'text' },
+    { key: 'flight_time', label: 'Flight time', kind: 'text' },
   ]},
   { id: 'g-crew',  group: 'Crew',      cells: [
-    { key: 'cpt',  label: 'CPT',        kind: 'text', wide: true },
-    { key: 'fo',   label: 'FO',         kind: 'text', wide: true },
+    { key: 'cpt',  label: 'CPT',         kind: 'text', wide: true },
+    { key: 'fo',   label: 'FO',          kind: 'text', wide: true },
     { key: 'cc1',  label: 'Purser (PU)', kind: 'text', wide: true },
-    { key: 'cc2',  label: 'CC2',        kind: 'text', wide: true },
-    { key: 'cc3',  label: 'CC3',        kind: 'text', wide: true },
-    { key: 'cc4',  label: 'CC4',        kind: 'text', wide: true },
+    { key: 'cc2',  label: 'CC2',         kind: 'text', wide: true },
+    { key: 'cc3',  label: 'CC3',         kind: 'text', wide: true },
+    { key: 'cc4',  label: 'CC4',         kind: 'text', wide: true },
   ]},
 ];
 
@@ -48,6 +47,10 @@ const CELL_INDEX = (() => {
 
 const DEFAULT_COLLAPSED = new Set(['g-flt', 'g-crew']);
 let collapsed = new Set(DEFAULT_COLLAPSED);
+
+// ATIS picker state: closed by default. Tap the cell to open the chip grid,
+// tap a letter to commit AND auto-close.
+let atisPickerOpen = false;
 
 let onChange = null;
 export function setOnChange(fn) { onChange = fn; }
@@ -104,20 +107,44 @@ function renderCell(c, raw) {
 
 function renderAtisCell(c, raw) {
   const v = (raw || '').toString().toUpperCase().slice(0, 1);
+  if (!atisPickerOpen) {
+    return `
+      <div class="data-cell atis-cell span2">
+        <button type="button" class="atis-collapsed ${v ? 'has-letter' : ''}" data-atis-open="1">
+          <div class="atis-big">${v || '—'}</div>
+          <div class="atis-meta">
+            <span class="lbl">ATIS letter</span>
+            <span class="val">${v ? `Information ${atisPhonetic(v)}` : 'Tap to choose…'}</span>
+          </div>
+          <span class="atis-cta">${v ? 'Change' : 'Pick'}</span>
+        </button>
+      </div>
+    `;
+  }
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const chips = letters.map(L =>
     `<button type="button" class="atis-chip ${L === v ? 'on' : ''}" data-atis="${L}">${L}</button>`
   ).join('');
   return `
     <div class="data-cell atis-cell span2">
-      <span class="lbl">${escape(c.label)}</span>
-      <div class="atis-row">
-        <div class="atis-current">${v || '—'}</div>
+      <div class="atis-expanded">
+        <div class="atis-head">
+          <span class="lbl">Choose ATIS letter</span>
+          <button class="close" data-atis-close="1" aria-label="Close">✕</button>
+        </div>
         <div class="atis-chips">${chips}</div>
       </div>
     </div>
   `;
 }
+
+const PHONETIC = {
+  A:'Alpha',B:'Bravo',C:'Charlie',D:'Delta',E:'Echo',F:'Foxtrot',G:'Golf',
+  H:'Hotel',I:'India',J:'Juliet',K:'Kilo',L:'Lima',M:'Mike',N:'November',
+  O:'Oscar',P:'Papa',Q:'Quebec',R:'Romeo',S:'Sierra',T:'Tango',U:'Uniform',
+  V:'Victor',W:'Whiskey',X:'X-ray',Y:'Yankee',Z:'Zulu',
+};
+function atisPhonetic(L) { return PHONETIC[L.toUpperCase()] || L; }
 
 function renderSummary(group, data) {
   const filled = group.cells.filter(c => has(data[c.key]));
@@ -154,18 +181,23 @@ function wire(root) {
       inp.value = formatValue(def, raw);
     });
   });
-  // ATIS chip picker
+  // ATIS — open the picker on demand
+  root.querySelectorAll('[data-atis-open]').forEach(b => {
+    b.addEventListener('click', () => { atisPickerOpen = true; render(root); });
+  });
+  root.querySelectorAll('[data-atis-close]').forEach(b => {
+    b.addEventListener('click', () => { atisPickerOpen = false; render(root); });
+  });
+  // ATIS chip → save AND auto-close the picker, then re-render so the
+  // collapsed cell shows the highlighted letter.
   root.querySelectorAll('.atis-chip').forEach(b => {
     b.addEventListener('click', () => {
       const letter = b.dataset.atis;
       const current = storage.getCurrent().dataCard.atis || '';
-      // Tap the active chip again → clear
       const next = (current === letter) ? '' : letter;
       storage.setDataField('atis', next);
-      // Update visible state without full re-render to keep scroll position
-      const cell = b.closest('.atis-cell');
-      cell.querySelectorAll('.atis-chip').forEach(c => c.classList.toggle('on', c.dataset.atis === next));
-      cell.querySelector('.atis-current').textContent = next || '—';
+      atisPickerOpen = false;
+      render(root);
       updateGroupMeta(root, 'atis');
       if (onChange) onChange('atis');
     });

@@ -10,7 +10,7 @@
 // }
 
 const KEY = 'fc.state';
-const VERSION = 2;
+const VERSION = 3;
 const HISTORY_MAX = 20;
 
 const DEFAULT_TEMPLATE = {
@@ -31,40 +31,77 @@ const DEFAULT_TEMPLATE = {
 };
 
 const DEFAULT_SPEECHES = [
-  { id: 'sp-welcome', name: 'Welcome', body:
-`Good [morning/afternoon/evening] ladies and gentlemen, welcome on board.
+  {
+    id: 'sp-welcome', name: 'Welcome',
+    bodyEn:
+`Good [morning/afternoon/evening] ladies and gentlemen, welcome on board flight @flight.
 
-This is Captain @cpt speaking. With me on the flight deck today is First Officer @fo. Looking after you in the cabin is our purser @PU and the rest of the cabin crew.
+This is Captain @cpt speaking. With me on the flight deck is First Officer @fo. Looking after you in the cabin is our purser @PU and the rest of the cabin crew.
 
-Our flight time to @arr is approximately [X] hours [Y] minutes. We expect a [smooth/bumpy] ride at cruise altitude FL[XXX].
+Our flight time to @arr is approximately @flighttime. The local time is @time.
 
-Sit back, relax, and enjoy the flight.` },
-  { id: 'sp-climb', name: 'After takeoff', body:
-`Ladies and gentlemen, this is the flight deck. We've now reached our initial cruising altitude.
+Sit back, relax, and enjoy the flight.`,
+    bodyHe:
+`גבירותיי ורבותיי, ברוכים הבאים לטיסה @flight.
+מדבר אליכם הקפטן @cpt. יחד איתי בקבינת הטייס קצין ראשון @fo. הצוות בקבינה בהובלת המנהלת @PU.
+זמן הטיסה ל-@arr הוא @flighttime. השעה המקומית @time.
+שבו, הירגעו, ותהנו מהטיסה.`
+  },
+  {
+    id: 'sp-climb', name: 'After takeoff',
+    bodyEn:
+`Ladies and gentlemen, this is Captain @cpt from the flight deck. We've reached our initial cruise altitude.
 
-Captain @cpt and First Officer @fo wish you a pleasant flight. The seatbelt sign will remain on for now.
+The local time is @time. Our flight time to @arr is approximately @flighttime.
 
-Cabin crew, please begin your service.` },
-  { id: 'sp-cruise', name: 'Cruise', body:
-`Ladies and gentlemen, from the flight deck — @cpt speaking.
+Cabin crew, please begin your service.`,
+    bodyHe:
+`גבירותיי ורבותיי, מדבר הקפטן @cpt מקבינת הטייס. הגענו לגובה השיוט הראשוני.
+השעה המקומית @time. זמן הטיסה הצפוי ל-@arr הוא @flighttime.
+צוות, מותר להתחיל את השירות.`
+  },
+  {
+    id: 'sp-cruise', name: 'Cruise',
+    bodyEn:
+`Ladies and gentlemen, this is @cpt from the flight deck.
 
-We're currently cruising at FL[XXX], ground speed [XXX] knots. Outside temperature is [-XX]°C. We expect to land in @arr at approximately [HH:MM] local time.
+We're cruising at FL[XXX], ground speed [XXX] knots. Local time is @time. Expected landing in @arr in approximately @flighttime.
 
-[Weather / sights / turbulence note]` },
-  { id: 'sp-descent', name: 'Descent', body:
-`Ladies and gentlemen, this is your captain speaking. We've started our descent towards @arr.
+[Weather / sights / turbulence note]`,
+    bodyHe:
+`גבירותיי ורבותיי, מדבר @cpt מקבינת הטייס.
+אנו טסים בגובה השיוט. השעה המקומית @time. הנחיתה ב-@arr צפויה בעוד @flighttime.
+[הערות מזג אוויר / נוף / מערבולות]`
+  },
+  {
+    id: 'sp-descent', name: 'Descent',
+    bodyEn:
+`Ladies and gentlemen, this is the captain speaking. We've started our descent towards @arr.
 
-The local time is [HH:MM]. The weather in @arr is [clear/cloudy], temperature [XX]°C.
+The local time at @arr is @time. Approximately @flighttime to landing.
 
 Please return to your seats, fasten your seatbelt, stow your tray table, and bring your seat back to the upright position.
 
-Cabin crew, prepare the cabin for landing.` },
-  { id: 'sp-landing', name: 'Welcome home', body:
-`Ladies and gentlemen, welcome to @arr. The local time is [HH:MM] and the temperature is [XX]°C.
+Cabin crew, prepare the cabin for landing.`,
+    bodyHe:
+`גבירותיי ורבותיי, מדבר הקפטן. התחלנו בירידה לקראת @arr.
+השעה ב-@arr היא @time. נחיתה בעוד @flighttime.
+אנא חיזרו למקומותיכם, חיגרו חגורות, סגרו את שולחנות האוכל והחזירו את גב הכיסא למצב זקוף.
+צוות, הכינו את הקבינה לנחיתה.`
+  },
+  {
+    id: 'sp-landing', name: 'Welcome home',
+    bodyEn:
+`Ladies and gentlemen, welcome to @arr. The local time is @time.
 
 On behalf of Captain @cpt, First Officer @fo, purser @PU, and the entire crew — thank you for flying with us today. We hope to see you again soon.
 
-Please remain seated until the seatbelt sign is switched off.` },
+Please remain seated until the seatbelt sign is switched off.`,
+    bodyHe:
+`גבירותיי ורבותיי, ברוכים הבאים ל-@arr. השעה המקומית @time.
+בשמו של הקפטן @cpt, קצין ראשון @fo, המנהלת @PU וכל הצוות — תודה שטסתם איתנו. נשמח לראות אתכם שוב.
+אנא הישארו במקומותיכם עד לכיבוי שלט חגורות הבטיחות.`
+  },
 ];
 
 function newFlightRecord() {
@@ -118,12 +155,27 @@ function read() {
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshState();
   if (s.v === VERSION) return s;
-  // v1 → v2: template was trimmed and renamed; reseed it.
-  // Keep current flight + history so the user doesn't lose their numbers.
+  // v1/v2 → v3:
+  //   - v1 templates were already wiped on v1→v2; we keep the v2 user template
+  //     if it exists, otherwise reseed.
+  //   - Speeches: convert legacy { body } to { bodyEn, bodyHe }. Seed bodyHe
+  //     from defaults when the speech name matches, otherwise leave empty.
+  const upgradedSpeeches = (Array.isArray(s.speeches) && s.speeches.length)
+    ? s.speeches.map(sp => {
+        if (sp.bodyEn || sp.bodyHe) return sp;
+        const dflt = DEFAULT_SPEECHES.find(d => d.name === sp.name);
+        return {
+          id: sp.id,
+          name: sp.name || 'PA',
+          bodyEn: sp.body || dflt?.bodyEn || '',
+          bodyHe: dflt?.bodyHe || '',
+        };
+      })
+    : clone(DEFAULT_SPEECHES);
   return {
     v: VERSION,
-    template: clone(DEFAULT_TEMPLATE),
-    speeches: clone(DEFAULT_SPEECHES),
+    template: (s.template && Array.isArray(s.template.sections)) ? s.template : clone(DEFAULT_TEMPLATE),
+    speeches: upgradedSpeeches,
     current: s.current || newFlightRecord(),
     history: Array.isArray(s.history) ? s.history : [],
   };
@@ -242,7 +294,7 @@ export function getSpeech(id) { return read().speeches.find(s => s.id === id); }
 export function addSpeech(name) {
   const s = read();
   const id = 'sp-' + Math.random().toString(36).slice(2, 8);
-  s.speeches.push({ id, name: name || 'New PA', body: '' });
+  s.speeches.push({ id, name: name || 'New PA', bodyEn: '', bodyHe: '' });
   scheduleWrite();
   return id;
 }
@@ -250,9 +302,12 @@ export function renameSpeech(id, name) {
   const sp = read().speeches.find(x => x.id === id);
   if (sp) { sp.name = name; scheduleWrite(); }
 }
-export function setSpeechBody(id, body) {
+export function setSpeechBody(id, lang, body) {
   const sp = read().speeches.find(x => x.id === id);
-  if (sp) { sp.body = body; scheduleWrite(); }
+  if (!sp) return;
+  if (lang === 'he') sp.bodyHe = body;
+  else sp.bodyEn = body;
+  scheduleWrite();
 }
 export function deleteSpeech(id) {
   const s = read();
