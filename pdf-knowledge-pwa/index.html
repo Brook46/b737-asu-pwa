@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=33" />
+  <link rel="stylesheet" href="./app.css?v=34" />
 </head>
 <body>
   <header class="app-header">
@@ -67,8 +67,26 @@
   <main class="app-main">
     <section id="view-phase" class="view">
       <div class="home-search-row">
-        <input id="home-search" type="search" placeholder="Search within selected boxes…" enterkeyhint="search" />
+        <label class="home-search-field" for="home-search">
+          <svg class="home-search-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <line x1="16" y1="16" x2="20.5" y2="20.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input id="home-search" type="search" placeholder="Search everything…" enterkeyhint="search" />
+        </label>
+        <button class="btn ghost icon-btn" id="search-tools-toggle" title="Search tools" aria-label="Search tools" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M4 6h16M7 12h10M10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button class="btn ghost" id="home-clear" title="Clear selection">Clear</button>
+      </div>
+      <div id="search-scope-panel" class="search-scope-panel hidden" aria-hidden="true">
+        <div class="search-scope-head">
+          <span>Search in:</span>
+          <button class="btn ghost search-scope-all" type="button" data-act="all">All files</button>
+        </div>
+        <div id="search-scope-list" class="search-scope-list"></div>
       </div>
       <div id="home-phases" class="home-phases" aria-label="Phase of flight"></div>
       <div class="home-row home-row-btypes">
@@ -390,6 +408,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=42"></script>
+  <script type="module" src="./app.js?v=43"></script>
 </body>
 </html>

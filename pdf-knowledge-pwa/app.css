@@ -426,7 +426,13 @@ body {
   padding: 14px 16px; border-bottom: 1px solid var(--border);
 }
 .modal-head h2 { margin: 0; font-size: 1.05em; }
-.modal-body { padding: 16px; overflow: auto; }
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
 .field { margin-bottom: 14px; }
 .field label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9em; }
 .field select, .field input[type="text"] {
@@ -847,10 +853,39 @@ body.has-dock .app-main { padding-bottom: 60px; }
   max-width: 1080px; margin: 0 auto; width: 100%;
 }
 .home-search-row { display: flex; gap: 8px; align-items: center; }
-.home-search-row #home-search {
-  flex: 1; padding: 10px 12px; font-size: 0.96em; border-radius: 10px;
-  background: var(--bg-elev-1); color: var(--fg); border: 1px solid var(--border);
+/* Field wraps the icon + input so the icon sits inside, on the left. */
+.home-search-field {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; border-radius: 10px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  transition: border-color .12s ease;
 }
+.home-search-field:focus-within { border-color: var(--accent); }
+.home-search-icon { color: var(--fg-muted); flex-shrink: 0; }
+.home-search-field:focus-within .home-search-icon { color: var(--accent); }
+.home-search-row #home-search {
+  flex: 1; padding: 10px 0; font-size: 0.96em;
+  background: transparent; color: var(--fg); border: none; outline: none;
+}
+#search-tools-toggle.has-scope {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-elev-2));
+  color: var(--accent); border-color: var(--accent);
+}
+.search-scope-panel {
+  margin-top: 4px; padding: 12px; border-radius: 10px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow: auto;
+}
+.search-scope-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.88em; color: var(--fg-muted); }
+.search-scope-all { padding: 4px 10px; font-size: 0.84em; }
+.search-scope-list { display: flex; flex-direction: column; gap: 4px; }
+.search-scope-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer; transition: background .1s ease;
+}
+.search-scope-row:hover { background: var(--bg-elev-2); }
+.search-scope-row input[type="checkbox"] { accent-color: var(--accent); }
+.search-scope-name { font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-phases {
   width: 100%; padding: 14px 8px 4px; margin: 0;
   background:

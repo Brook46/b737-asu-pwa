@@ -22,6 +22,8 @@ const els = {
   tailSelect: $('tail-select'), gpsReadout: $('gps-readout'),
   gpsToggle: $('gps-toggle'), scratchToggle: $('scratch-toggle'), themeToggle: $('theme-toggle'),
   homeSearch: $('home-search'), homeClear: $('home-clear'),
+  searchToolsToggle: $('search-tools-toggle'),
+  searchScopePanel: $('search-scope-panel'), searchScopeList: $('search-scope-list'),
   homePhases: $('home-phases'),
   homeBtypes: $('home-btypes'), homeAddBtype: $('home-add-btype'),
   homeScenarios: $('home-scenarios'), homeAddScenario: $('home-add-scenario'),
@@ -91,6 +93,8 @@ const state = {
   selectedTopBriefing: null,
   selectedSubBriefing: null,
   homeQuery: '',
+  // Optional per-file search scope. When empty, search runs over every file.
+  searchFileScope: new Set(),
   gpsAuto: false,
   manualPhaseUntil: 0,
   viewer: { tabs: [], panes: [], focused: 0, split: false },
@@ -226,8 +230,10 @@ function wireEvents() {
     state.selectedPhase = null; state.selectedBtype = null;
     state.selectedTopBriefing = null; state.selectedSubBriefing = null;
     state.homeQuery = ''; els.homeSearch.value = '';
+    state.searchFileScope.clear();
     renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   });
+  els.searchToolsToggle.addEventListener('click', toggleSearchScopePanel);
   els.homeAddBtype.addEventListener('click', () => openBtypeNewModal());
   els.homeAddScenario.addEventListener('click', () => openBriefingNewModal({ parentId: null }));
   els.homeAddSub.addEventListener('click', () => {
@@ -642,6 +648,50 @@ function bindSubBriefingChips(root) {
   });
 }
 
+// --- Search-scope panel: restrict search to a subset of the library ------
+function toggleSearchScopePanel() {
+  const open = els.searchScopePanel.classList.toggle('hidden') === false;
+  els.searchScopePanel.setAttribute('aria-hidden', open ? 'false' : 'true');
+  els.searchToolsToggle.setAttribute('aria-pressed', open ? 'true' : 'false');
+  if (open) renderSearchScopeList();
+}
+
+function renderSearchScopeList() {
+  const files = [...state.files.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  if (!files.length) {
+    els.searchScopeList.innerHTML = '<div class="admin-sub">No files yet — add documents in ⚙ Settings.</div>';
+    return;
+  }
+  els.searchScopeList.innerHTML = files.map((f) => {
+    const on = state.searchFileScope.has(f.id);
+    return `<label class="search-scope-row">
+      <input type="checkbox" data-fileid="${escapeHtml(f.id)}" ${on ? 'checked' : ''} />
+      <span class="search-scope-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+    </label>`;
+  }).join('');
+  els.searchScopeList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const fid = cb.getAttribute('data-fileid');
+      if (cb.checked) state.searchFileScope.add(fid);
+      else state.searchFileScope.delete(fid);
+      renderHomeResults();
+      updateSearchToolsBadge();
+    });
+  });
+  els.searchScopePanel.querySelector('[data-act="all"]')?.addEventListener('click', () => {
+    state.searchFileScope.clear();
+    renderSearchScopeList();
+    renderHomeResults();
+    updateSearchToolsBadge();
+  });
+}
+
+function updateSearchToolsBadge() {
+  const n = state.searchFileScope.size;
+  els.searchToolsToggle.classList.toggle('has-scope', n > 0);
+  els.searchToolsToggle.title = n > 0 ? `Searching in ${n} file${n === 1 ? '' : 's'}` : 'Search tools';
+}
+
 // --- Long-press → context menu (rename / colour / reorder / delete) -------
 // Bound on every editable home chip (briefing types, top briefings, sub
 // briefings). After ~500ms of hold without moving the menu opens, and the
@@ -888,7 +938,12 @@ async function quickAddScenario() { openBriefingNewModal({ parentId: null }); }
 
 async function renderHomeResults() {
   invalidateManualTypeCache();
-  const fileIds = activeFileIds();
+  // Effective file scope: aircraft effectivity ∩ user's search-scope picks.
+  let fileIds = activeFileIds();
+  if (state.searchFileScope.size) {
+    const scoped = new Set(state.searchFileScope);
+    fileIds = fileIds ? new Set([...fileIds].filter((id) => scoped.has(id))) : scoped;
+  }
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const btypes = state.selectedBtype ? [state.selectedBtype] : [];
   const topId = state.selectedTopBriefing;
