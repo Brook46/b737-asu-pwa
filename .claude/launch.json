@@ -6,6 +6,24 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8000"],
       "port": 8000
+    },
+    {
+      "name": "B737 Companion",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8080", "/Users/alonbrookstein/Claude AS/pdf-knowledge-pwa"],
+      "port": 8080
+    },
+    {
+      "name": "Duty Calendar",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8090", "--directory", "/Users/alonbrookstein/Claude AS/duty-cal-pwa"],
+      "port": 8090
+    },
+    {
+      "name": "Flight Card",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8095", "--directory", "/Users/alonbrookstein/Claude AS/flight-card-pwa"],
+      "port": 8095
     }
   ]
 }

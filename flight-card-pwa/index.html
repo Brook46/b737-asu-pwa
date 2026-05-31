@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05080f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" sizes="152x152" href="./icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="./icons/icon-167.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Flight Card</title>
+  <link rel="stylesheet" href="./app.css?v=1" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="flight-id">
+      <button id="flight-id-btn" class="flight-id-btn" aria-label="Flight identifier">
+        <span id="flight-date" class="flight-date">—</span>
+        <span id="flight-tag" class="flight-tag">NEW FLIGHT</span>
+      </button>
+    </div>
+    <div class="actions">
+      <button id="new-flight" class="btn icon-btn" title="New flight" aria-label="New flight">＋</button>
+      <button id="theme-toggle" class="btn icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <button id="settings-toggle" class="btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main id="main" class="main">
+    <!-- Data card -->
+    <section class="card" id="card-data" data-section="data">
+      <header class="card-head">
+        <button class="card-toggle" data-target="data" aria-expanded="true">
+          <span class="chev">▾</span>
+          <span class="card-title">Data card</span>
+        </button>
+        <button id="ocr-btn" class="btn ghost-btn" title="Auto-fill from FMC">⌖ FMC</button>
+      </header>
+      <div class="card-body" id="data-body">
+        <!-- data-card.js renders fields here -->
+      </div>
+    </section>
+
+    <!-- Checklist -->
+    <section class="card" id="card-checklist" data-section="checklist">
+      <header class="card-head">
+        <button class="card-toggle" data-target="checklist" aria-expanded="true">
+          <span class="chev">▾</span>
+          <span class="card-title">Checklist</span>
+        </button>
+        <button id="checklist-edit" class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
+      </header>
+      <div class="card-body" id="checklist-body">
+        <!-- checklist.js renders sections + items here -->
+      </div>
+    </section>
+
+    <!-- History -->
+    <section class="card collapsed" id="card-history" data-section="history">
+      <header class="card-head">
+        <button class="card-toggle" data-target="history" aria-expanded="false">
+          <span class="chev">▸</span>
+          <span class="card-title">History</span>
+        </button>
+      </header>
+      <div class="card-body" id="history-body">
+        <!-- history list -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Numeric / text pad overlay -->
+  <div id="pad-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pad-label">
+    <div class="pad-sheet">
+      <div class="pad-head">
+        <span id="pad-label" class="pad-label"></span>
+        <button id="pad-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="pad-value-row">
+        <input id="pad-value" class="pad-value" autocomplete="off" autocapitalize="off" />
+        <button id="pad-clear" class="btn ghost-btn">CLR</button>
+      </div>
+      <div id="pad-grid" class="pad-grid"></div>
+      <div class="pad-actions">
+        <button id="pad-cancel" class="btn">Cancel</button>
+        <button id="pad-save" class="btn primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OCR / FMC review overlay -->
+  <div id="ocr-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ocr-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="ocr-label" class="pad-label">Auto-fill from FMC</span>
+        <button id="ocr-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="ocr-source" class="ocr-source">
+        <p class="muted small">Pick a source — screenshot, camera, or paste text. iOS Live Text already runs on every screenshot; if you copied text from the screenshot preview, just paste it.</p>
+        <div class="ocr-source-row">
+          <label class="btn primary block">
+            <input id="ocr-file" type="file" accept="image/*" hidden />
+            Upload screenshot
+          </label>
+          <label class="btn block">
+            <input id="ocr-camera" type="file" accept="image/*" capture="environment" hidden />
+            Camera (FMC photo)
+          </label>
+        </div>
+        <details class="ocr-paste">
+          <summary>Paste text instead</summary>
+          <textarea id="ocr-paste-text" rows="6" placeholder="Paste text copied from iOS Live Text…"></textarea>
+          <button id="ocr-paste-parse" class="btn primary">Parse pasted text</button>
+        </details>
+      </div>
+
+      <div id="ocr-progress" class="ocr-progress hidden">
+        <div class="ocr-spinner"></div>
+        <span id="ocr-progress-text">Loading OCR engine…</span>
+      </div>
+
+      <div id="ocr-review" class="ocr-review hidden">
+        <p class="muted small">Review parsed values — anything off, just type over it. Tap Apply to commit.</p>
+        <div id="ocr-fields" class="ocr-fields"></div>
+        <div class="pad-actions">
+          <button id="ocr-cancel" class="btn">Cancel</button>
+          <button id="ocr-apply" class="btn primary">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings overlay -->
+  <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span class="pad-label">Settings</span>
+        <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="settings-body">
+        <label class="settings-row">
+          <span>On New Flight, also wipe data card</span>
+          <input id="setting-wipe-data" type="checkbox" />
+        </label>
+        <label class="settings-row">
+          <span>Flight ID format</span>
+          <select id="setting-id-format">
+            <option value="date-tail">Date + Tail</option>
+            <option value="date-flight">Date + Flight#</option>
+            <option value="date-only">Date only</option>
+          </select>
+        </label>
+        <div class="settings-row stack">
+          <span class="muted small">Storage</span>
+          <button id="settings-export" class="btn block">Export all data (JSON)</button>
+          <button id="settings-import" class="btn block">Import JSON…</button>
+          <button id="settings-reset" class="btn danger block">Reset to defaults</button>
+          <input id="settings-import-file" type="file" accept="application/json" hidden />
+        </div>
+        <p class="muted small footer-note">
+          Flight Card — personal pre-flight scratchpad. Not a substitute for any approved checklist.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./app.js?v=1"></script>
+</body>
+</html>
