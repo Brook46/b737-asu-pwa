@@ -1,13 +1,31 @@
-// checklist.js — render template + ticks, handle toggle / edit mode.
+// checklist.js — collapsible sections with auto-collapse when 100% ticked.
 
 import * as storage from './storage.js';
 
 let editMode = false;
 
+// Manual collapse overrides (per section id). Tri-state:
+//   true   → user-forced collapsed
+//   false  → user-forced expanded
+//   undef  → automatic (collapsed iff all items done)
+const manualCollapse = new Map();
+
 export function setEditMode(on) {
   editMode = !!on;
+  // Edit mode forces all sections expanded for visibility
+  if (on) manualCollapse.clear();
 }
 export function isEditMode() { return editMode; }
+
+function sectionAllDone(sec, ticks) {
+  return sec.items.length > 0 && sec.items.every(i => !!ticks[i.id]);
+}
+
+function isCollapsed(sec, ticks) {
+  if (editMode) return false;
+  if (manualCollapse.has(sec.id)) return manualCollapse.get(sec.id);
+  return sectionAllDone(sec, ticks);
+}
 
 export function render(root) {
   const template = storage.getTemplate();
@@ -22,40 +40,47 @@ export function render(root) {
   }
 
   const parts = [];
-  template.sections.forEach((sec, sIdx) => {
+  template.sections.forEach((sec) => {
     const total = sec.items.length;
     const done  = sec.items.filter(i => !!ticks[i.id]).length;
-    const progress = total > 0 ? `${done}/${total}` : '';
+    const allDone = sectionAllDone(sec, ticks);
+    const collapsed = isCollapsed(sec, ticks);
 
-    parts.push(`<div class="cl-section" data-section="${sec.id}">`);
-    parts.push(`<div class="cl-section-head">`);
+    const cls = ['cl-section'];
+    if (collapsed) cls.push('collapsed');
+    if (allDone)   cls.push('all-done');
+
+    parts.push(`<div class="${cls.join(' ')}" data-section="${sec.id}">`);
+
     if (editMode) {
-      parts.push(`
+      parts.push(`<div class="cl-section-head edit">
         <input class="rename" data-rename-section="${sec.id}" value="${escape(sec.name)}" />
-        <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="-1" aria-label="Move section up">▲</button>
-        <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="1"  aria-label="Move section down">▼</button>
-        <button class="btn ghost-btn" data-del-section="${sec.id}" aria-label="Delete section" style="color:var(--danger)">✕</button>
-      `);
+        <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="-1" aria-label="Up">▲</button>
+        <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="1"  aria-label="Down">▼</button>
+        <button class="btn ghost-btn" data-del-section="${sec.id}" aria-label="Delete" style="color:var(--danger)">✕</button>
+      </div>`);
     } else {
-      parts.push(`<span class="cl-section-name">${escape(sec.name)}</span>`);
-      parts.push(`<span class="cl-progress">${progress}</span>`);
+      parts.push(`<button class="cl-section-head" data-toggle-section="${sec.id}">
+        <span class="cl-section-mark">${allDone ? '✓' : ''}</span>
+        <span class="cl-section-name">${escape(sec.name)}</span>
+        <span class="cl-progress">${done}/${total}</span>
+        <span class="chev">${collapsed ? '▸' : '▾'}</span>
+      </button>`);
     }
-    parts.push(`</div>`);
 
+    parts.push(`<div class="cl-items">`);
     sec.items.forEach((it) => {
       const done = !!ticks[it.id];
       const note = notes[it.id];
-      const cls = ['cl-item'];
-      if (done && !editMode) cls.push('done');
-      parts.push(`<div class="${cls.join(' ')}" data-item="${it.id}">`);
+      const cls2 = ['cl-item'];
+      if (done && !editMode) cls2.push('done');
+      parts.push(`<div class="${cls2.join(' ')}" data-item="${it.id}">`);
       if (editMode) {
         parts.push(`
-          <div class="item-edit-row">
-            <input class="rename" data-rename-item="${it.id}" value="${escape(it.label)}" />
-          </div>
-          <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="-1" aria-label="Move up">▲</button>
-          <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="1"  aria-label="Move down">▼</button>
-          <button class="del" data-del-item="${it.id}" aria-label="Delete item">✕</button>
+          <input class="rename" data-rename-item="${it.id}" value="${escape(it.label)}" />
+          <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="-1" aria-label="Up">▲</button>
+          <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="1"  aria-label="Down">▼</button>
+          <button class="del" data-del-item="${it.id}" aria-label="Delete">✕</button>
         `);
       } else {
         parts.push(`<span class="box" aria-hidden="true"></span>`);
@@ -66,6 +91,7 @@ export function render(root) {
       }
       parts.push(`</div>`);
     });
+    parts.push(`</div>`); // .cl-items
 
     if (editMode) {
       parts.push(`<div class="cl-add">
@@ -74,7 +100,7 @@ export function render(root) {
       </div>`);
     }
 
-    parts.push(`</div>`);
+    parts.push(`</div>`); // .cl-section
   });
 
   if (editMode) {
@@ -89,29 +115,48 @@ export function render(root) {
 }
 
 function wire(root) {
-  // Toggle items
+  // Section header toggle (non-edit mode)
+  root.querySelectorAll('[data-toggle-section]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.toggleSection;
+      const sec = storage.getTemplate().sections.find(s => s.id === id);
+      const ticks = storage.getCurrent().ticks;
+      const autoCollapsed = sectionAllDone(sec, ticks);
+      const current = isCollapsed(sec, ticks);
+      // Toggle to opposite, store as manual override (or clear if it matches auto)
+      const next = !current;
+      if (next === autoCollapsed) manualCollapse.delete(id);
+      else manualCollapse.set(id, next);
+      render(root);
+    });
+  });
+
+  // Item tap → toggle, with auto-collapse logic
   root.querySelectorAll('.cl-item').forEach(el => {
     el.addEventListener('click', (e) => {
       if (editMode) return;
-      // Don't trigger on long-press buttons
       if (e.target.closest('button, input')) return;
       const id = el.dataset.item;
       const current = storage.getCurrent();
       const on = !current.ticks[id];
       storage.setTick(id, on);
-      el.classList.toggle('done', on);
-      // Update progress label live
-      const sec = el.closest('.cl-section');
-      const head = sec?.querySelector('.cl-progress');
-      if (head) {
-        const total = sec.querySelectorAll('.cl-item').length;
-        const done  = sec.querySelectorAll('.cl-item.done').length;
-        head.textContent = `${done}/${total}`;
+
+      // If section now 100% done, clear any manual-expanded override so
+      // the auto-collapse takes effect on next render.
+      const sec = sectionFor(id);
+      if (sec && sectionAllDone(sec, storage.getCurrent().ticks)) {
+        manualCollapse.delete(sec.id);
       }
+      // If user unticked an item, clear any manual-collapse override so
+      // the section re-expands automatically.
+      if (!on && sec) manualCollapse.delete(sec.id);
+
+      render(root);
     });
+
     // Long-press to add/edit note (non-edit mode)
     let pressT = null;
-    el.addEventListener('touchstart', (e) => {
+    el.addEventListener('touchstart', () => {
       if (editMode) return;
       pressT = setTimeout(() => {
         pressT = null;
@@ -188,6 +233,14 @@ function wire(root) {
   }
 }
 
+function sectionFor(itemId) {
+  const t = storage.getTemplate();
+  for (const sec of t.sections) {
+    if (sec.items.some(i => i.id === itemId)) return sec;
+  }
+  return null;
+}
+
 function promptNote(itemId, root) {
   const cur = storage.getCurrent().notes[itemId] || '';
   const v = prompt('Note for this item (empty to clear):', cur);
@@ -200,4 +253,9 @@ function escape(s) {
   return String(s).replace(/[&<>"']/g, ch => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   })[ch]);
+}
+
+// Called externally on New Flight to reset overrides
+export function resetOverrides() {
+  manualCollapse.clear();
 }

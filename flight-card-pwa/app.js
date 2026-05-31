@@ -1,15 +1,17 @@
 // app.js — bootstrap: theme, header, sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=1';
-import * as dataCard from './modules/data-card.js?v=1';
-import * as checklist from './modules/checklist.js?v=1';
-import { initTheme, cycleTheme, wirePadControls, toast, fmtDate, fmtTime, showOverlay, hideOverlay } from './modules/ui.js?v=1';
+import * as storage from './modules/storage.js?v=2';
+import * as dataCard from './modules/data-card.js?v=2';
+import * as checklist from './modules/checklist.js?v=2';
+import { initTheme, cycleTheme, toast, fmtDate, fmtTime, showOverlay, hideOverlay } from './modules/ui.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 
 // ---------- Init theme + register SW ----------
 initTheme();
-wirePadControls();
+
+// Re-render the header whenever the data card changes (live as you type)
+dataCard.setOnChange(() => renderFlightHeader());
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -109,7 +111,7 @@ async function handleOcrFile(file) {
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
-    const { ocrImage } = await import('./modules/ocr.js?v=1');
+    const { ocrImage } = await import('./modules/ocr.js?v=2');
     const text = await ocrImage(file, (msg, frac) => {
       $('ocr-progress-text').textContent = `${msg} ${(frac * 100).toFixed(0)}%`;
     });
@@ -122,7 +124,7 @@ async function handleOcrFile(file) {
 }
 
 async function runParse(text) {
-  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=1');
+  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=2');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
   // Show only matched fields by default, plus a few headline always-on ones
@@ -261,9 +263,3 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
 }
 
-// Re-render header when data card changes (data-card.render re-binds on its own;
-// we listen to clicks bubbling so we can refresh the title).
-dataBody.addEventListener('click', () => {
-  // After pad save flushes back into the cell, schedule a header re-render.
-  setTimeout(renderFlightHeader, 0);
-});
