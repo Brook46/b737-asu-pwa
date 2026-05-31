@@ -13,20 +13,28 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=2" />
+  <link rel="stylesheet" href="./app.css?v=4" />
 </head>
 <body>
   <header class="app-header">
-    <div class="flight-id">
-      <button id="flight-id-btn" class="flight-id-btn" aria-label="Flight identifier">
-        <span id="flight-date" class="flight-date">—</span>
-        <span id="flight-tag" class="flight-tag">NEW FLIGHT</span>
-      </button>
+    <div class="hdr-clocks">
+      <span id="clock-utc" class="clock-utc" title="UTC">— Z</span>
+      <span id="clock-lcl" class="clock-lcl" title="Local">—</span>
+    </div>
+    <div class="hdr-inputs">
+      <label class="hdr-field">
+        <span class="hdr-lbl">Tail</span>
+        <input id="hdr-tail"   type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="4X-EHF" />
+      </label>
+      <label class="hdr-field">
+        <span class="hdr-lbl">Flt #</span>
+        <input id="hdr-flight" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="LY001" />
+      </label>
     </div>
     <div class="actions">
-      <button id="new-flight" class="btn icon-btn" title="New flight" aria-label="New flight">＋</button>
-      <button id="theme-toggle" class="btn icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
-      <button id="settings-toggle" class="btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      <button id="pa-toggle"     class="btn icon-btn" title="Passenger speech (PA)" aria-label="Passenger speech">📣</button>
+      <button id="new-flight"    class="btn icon-btn" title="New flight" aria-label="New flight">＋</button>
+      <button id="theme-toggle"  class="btn icon-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
     </div>
   </header>
 
@@ -40,9 +48,7 @@
         </button>
         <button id="ocr-btn" class="btn ghost-btn" title="Auto-fill from FMC / OPT / OFP">⌖ FMC / OPT / OFP</button>
       </header>
-      <div class="card-body" id="data-body">
-        <!-- data-card.js renders fields here -->
-      </div>
+      <div class="card-body" id="data-body"></div>
     </section>
 
     <!-- Checklist -->
@@ -54,9 +60,7 @@
         </button>
         <button id="checklist-edit" class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
       </header>
-      <div class="card-body" id="checklist-body">
-        <!-- checklist.js renders sections + items here -->
-      </div>
+      <div class="card-body" id="checklist-body"></div>
     </section>
 
     <!-- History -->
@@ -67,17 +71,15 @@
           <span class="card-title">History</span>
         </button>
       </header>
-      <div class="card-body" id="history-body">
-        <!-- history list -->
-      </div>
+      <div class="card-body" id="history-body"></div>
     </section>
   </main>
 
-  <!-- OCR / FMC review overlay -->
+  <!-- OCR overlay -->
   <div id="ocr-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ocr-label">
     <div class="ocr-sheet">
       <div class="pad-head">
-        <span id="ocr-label" class="pad-label">Auto-fill from FMC</span>
+        <span id="ocr-label" class="pad-label">Auto-fill from FMC / OPT / OFP</span>
         <button id="ocr-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
 
@@ -116,42 +118,33 @@
     </div>
   </div>
 
-  <!-- Settings overlay -->
-  <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true">
-    <div class="ocr-sheet">
+  <!-- Passenger speech overlay -->
+  <div id="pa-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pa-label">
+    <div class="ocr-sheet pa-sheet">
       <div class="pad-head">
-        <span class="pad-label">Settings</span>
-        <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
+        <span id="pa-label" class="pad-label">Passenger speech (PA)</span>
+        <button id="pa-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
-      <div class="settings-body">
-        <label class="settings-row">
-          <span>On New Flight, also wipe data card</span>
-          <input id="setting-wipe-data" type="checkbox" />
-        </label>
-        <label class="settings-row">
-          <span>Flight ID format</span>
-          <select id="setting-id-format">
-            <option value="date-tail">Date + Tail</option>
-            <option value="date-flight">Date + Flight#</option>
-            <option value="date-only">Date only</option>
-          </select>
-        </label>
-        <div class="settings-row stack">
-          <span class="muted small">Storage</span>
-          <button id="settings-export" class="btn block">Export all data (JSON)</button>
-          <button id="settings-import" class="btn block">Import JSON…</button>
-          <button id="settings-reset" class="btn danger block">Reset to defaults</button>
-          <input id="settings-import-file" type="file" accept="application/json" hidden />
-        </div>
-        <p class="muted small footer-note">
-          Flight Card — personal pre-flight scratchpad. Not a substitute for any approved checklist.
-        </p>
+
+      <div id="pa-tabs" class="pa-tabs"></div>
+
+      <div class="pa-title-row">
+        <span id="pa-title" class="pa-title">—</span>
+        <button id="pa-rename" class="btn ghost-btn" title="Rename PA">Rename</button>
+        <button id="pa-delete" class="btn ghost-btn" title="Delete PA">Delete</button>
+        <button id="pa-edit"   class="btn ghost-btn" title="Edit body">✎</button>
       </div>
+
+      <div id="pa-legend" class="pa-legend hidden">
+        Variables: <code>@cpt</code> <code>@fo</code> <code>@PU</code> <code>@tail</code> <code>@flight</code> <code>@dep</code> <code>@arr</code>
+      </div>
+
+      <div id="pa-body" class="pa-body"></div>
     </div>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=2"></script>
+  <script type="module" src="./app.js?v=3"></script>
 </body>
 </html>

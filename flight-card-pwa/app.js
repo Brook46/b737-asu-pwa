@@ -1,17 +1,21 @@
-// app.js — bootstrap: theme, header, sections, overlays, SW.
+// app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=2';
-import * as dataCard from './modules/data-card.js?v=2';
-import * as checklist from './modules/checklist.js?v=2';
-import { initTheme, cycleTheme, toast, fmtDate, fmtTime, showOverlay, hideOverlay } from './modules/ui.js?v=2';
+import * as storage from './modules/storage.js';
+import * as dataCard from './modules/data-card.js';
+import * as checklist from './modules/checklist.js';
+import * as speeches from './modules/speeches.js';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
 
 const $ = (id) => document.getElementById(id);
 
 // ---------- Init theme + register SW ----------
 initTheme();
 
-// Re-render the header whenever the data card changes (live as you type)
-dataCard.setOnChange(() => renderFlightHeader());
+// Re-render the header whenever data card changes (live as you type)
+dataCard.setOnChange((key) => {
+  if (key === 'tail' || key === 'flight') syncHeaderInputs();
+  speeches.notifyDataChange();
+});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -25,40 +29,64 @@ const checklistBody = $('checklist-body');
 const historyBody = $('history-body');
 
 renderAll();
+startClocks();
+syncHeaderInputs();
 
 function renderAll() {
   dataCard.render(dataBody);
   checklist.render(checklistBody);
   renderHistory();
-  renderFlightHeader();
 }
 
-function renderFlightHeader() {
-  const cur = storage.getCurrent();
-  const settings = storage.getSettings();
-  const d = cur.dataCard;
-  let tag = 'NEW FLIGHT';
-  const tail = (d.tail || '').toString().toUpperCase();
-  const flt  = (d.flight || '').toString().toUpperCase();
-  if (settings.idFormat === 'date-tail' && tail) tag = tail + (flt ? ` · ${flt}` : '');
-  else if (settings.idFormat === 'date-flight' && flt) tag = flt + (tail ? ` · ${tail}` : '');
-  else if (tail || flt) tag = [tail, flt].filter(Boolean).join(' · ');
-  $('flight-date').textContent = fmtDate(cur.started) + ' · ' + fmtTime(cur.started);
-  $('flight-tag').textContent = tag;
+// ---------- Clocks ----------
+function startClocks() {
+  tickClocks();
+  setInterval(tickClocks, 1000);
 }
+function tickClocks() {
+  const now = new Date();
+  const utc = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
+  const lcl = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const u = $('clock-utc');
+  const l = $('clock-lcl');
+  if (u) u.textContent = utc;
+  if (l) l.textContent = lcl;
+}
+function pad(n) { return String(n).padStart(2, '0'); }
 
-// ---------- Header buttons ----------
+// ---------- Header tail/flight inputs ----------
+function syncHeaderInputs() {
+  const data = storage.getCurrent().dataCard;
+  const tail = $('hdr-tail');
+  const flt  = $('hdr-flight');
+  if (tail && document.activeElement !== tail) tail.value = data.tail || '';
+  if (flt  && document.activeElement !== flt)  flt.value  = data.flight || '';
+}
+$('hdr-tail').addEventListener('input', () => {
+  storage.setDataField('tail', $('hdr-tail').value.toUpperCase());
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+});
+$('hdr-flight').addEventListener('input', () => {
+  storage.setDataField('flight', $('hdr-flight').value.toUpperCase());
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+});
+
+// ---------- Header actions ----------
 $('theme-toggle').addEventListener('click', cycleTheme);
 $('new-flight').addEventListener('click', () => {
-  if (!confirm('Start a new flight? Current ticks will be archived.')) return;
+  if (!confirm('Start a new flight? Current data and ticks will be archived.')) return;
   storage.newFlight();
+  checklist.resetOverrides();
   renderAll();
+  syncHeaderInputs();
   toast('New flight started');
 });
-$('settings-toggle').addEventListener('click', openSettings);
-$('flight-id-btn').addEventListener('click', () => {
-  // Quick jump to scroll data card into view
-  $('card-data').scrollIntoView({ behavior: 'smooth', block: 'start' });
+$('pa-toggle').addEventListener('click', () => speeches.open());
+$('pa-close').addEventListener('click', () => speeches.close());
+$('pa-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'pa-overlay') speeches.close();
 });
 
 // ---------- Card collapsibles ----------
@@ -111,7 +139,7 @@ async function handleOcrFile(file) {
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
-    const { ocrImage } = await import('./modules/ocr.js?v=2');
+    const { ocrImage } = await import('./modules/ocr.js');
     const text = await ocrImage(file, (msg, frac) => {
       $('ocr-progress-text').textContent = `${msg} ${(frac * 100).toFixed(0)}%`;
     });
@@ -124,11 +152,10 @@ async function handleOcrFile(file) {
 }
 
 async function runParse(text) {
-  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=2');
+  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
-  // Show only matched fields by default, plus a few headline always-on ones
-  const headline = ['v1','vr','v2','vref','n1','flaps','trim','cg','tow','zfw','fuel','tail','flight','rwy'];
+  const headline = ['v1','vr','v2','n1','flaps','trip_fuel','block_fuel','sob_total','atis','tail','flight','dep','arr'];
   const fields = buildReviewFields(parsed, headline);
   const matchedCount = fields.filter(f => f.matched).length;
   $('ocr-review').classList.remove('hidden');
@@ -157,7 +184,8 @@ $('ocr-apply').addEventListener('click', () => {
     return;
   }
   dataCard.applyExternal(out, dataBody);
-  renderFlightHeader();
+  syncHeaderInputs();
+  speeches.notifyDataChange();
   hideOverlay('ocr-overlay');
   toast(`Applied ${Object.keys(out).length} field${Object.keys(out).length === 1 ? '' : 's'}`);
 });
@@ -170,56 +198,6 @@ function resetOcrOverlay() {
   $('ocr-camera').value = '';
   $('ocr-paste-text').value = '';
 }
-
-// ---------- Settings overlay ----------
-function openSettings() {
-  const s = storage.getSettings();
-  $('setting-wipe-data').checked = !!s.wipeDataOnNewFlight;
-  $('setting-id-format').value = s.idFormat || 'date-tail';
-  showOverlay('settings-overlay');
-}
-$('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
-$('settings-overlay').addEventListener('click', (e) => {
-  if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
-});
-$('setting-wipe-data').addEventListener('change', (e) => storage.setSetting('wipeDataOnNewFlight', e.target.checked));
-$('setting-id-format').addEventListener('change', (e) => {
-  storage.setSetting('idFormat', e.target.value);
-  renderFlightHeader();
-});
-$('settings-export').addEventListener('click', () => {
-  const json = storage.exportJson();
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `flight-card-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-});
-$('settings-import').addEventListener('click', () => $('settings-import-file').click());
-$('settings-import-file').addEventListener('change', (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const fr = new FileReader();
-  fr.onload = () => {
-    try {
-      storage.importJson(String(fr.result));
-      renderAll();
-      hideOverlay('settings-overlay');
-      toast('Imported');
-    } catch (err) {
-      toast('Import failed: ' + err.message);
-    }
-  };
-  fr.readAsText(file);
-});
-$('settings-reset').addEventListener('click', () => {
-  if (!confirm('Reset everything? Template, current flight, and history will all be wiped.')) return;
-  storage.resetAll();
-  renderAll();
-  hideOverlay('settings-overlay');
-  toast('Reset');
-});
 
 // ---------- History ----------
 function renderHistory() {
@@ -237,11 +215,12 @@ function renderHistory() {
       d.vr ? `VR ${d.vr}` : '',
       d.v2 ? `V2 ${d.v2}` : '',
       d.flaps ? `FL ${d.flaps}` : '',
+      d.atis ? `ATIS ${d.atis}` : '',
     ].filter(Boolean).join(' · ');
     return `<div class="history-item" data-id="${h.id}">
       <div class="hi-top">
         <span class="hi-id">${escapeHtml(id)}</span>
-        <span class="hi-date">${fmtDate(h.started)} ${fmtTime(h.started)}</span>
+        <span class="hi-date">${fmtDateShort(h.started)}</span>
       </div>
       <div class="hi-line">${escapeHtml(summary || '—')}</div>
     </div>`;
@@ -252,9 +231,14 @@ function renderHistory() {
       if (!h) return;
       const d = h.dataCard;
       const summary = Object.entries(d).map(([k,v]) => `${k.toUpperCase()}: ${v}`).join('\n');
-      alert(`${fmtDate(h.started)} ${fmtTime(h.started)}\n\n${summary || '(no data)'}`);
+      alert(`${fmtDateShort(h.started)}\n\n${summary || '(no data)'}`);
     });
   });
+}
+
+function fmtDateShort(ts) {
+  const d = new Date(ts);
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ---------- Helpers ----------
@@ -262,4 +246,3 @@ function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
 }
-

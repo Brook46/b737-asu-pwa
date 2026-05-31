@@ -72,25 +72,55 @@ body {
 /* ---------- Header ---------- */
 .app-header {
   position: sticky; top: 0; z-index: 5;
-  display: flex; align-items: center; gap: 8px;
-  padding: env(safe-area-inset-top, 0) 10px 0;
-  padding-top: max(env(safe-area-inset-top, 0), 6px);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px; row-gap: 4px;
+  padding: max(env(safe-area-inset-top, 0), 6px) 10px 6px;
   background: var(--bg-elev);
   border-bottom: 1px solid var(--line);
-  min-height: 52px;
 }
-.app-header > .flight-id { flex: 1; min-width: 0; }
-.flight-id-btn {
+.hdr-clocks {
+  grid-column: 1; grid-row: 1;
   display: flex; flex-direction: column; align-items: flex-start;
-  gap: 2px; padding: 6px 8px; background: transparent;
-  border: 0; border-radius: 8px; color: var(--fg);
-  font: inherit; max-width: 100%;
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
 }
-.flight-id-btn:active { background: var(--bg-sunk); }
-.flight-date { font-size: 12px; color: var(--fg-mute); letter-spacing: .02em; }
-.flight-tag { font-size: 15px; font-weight: 700; letter-spacing: .01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.actions { display: flex; gap: 4px; padding-bottom: 4px; }
+.clock-utc { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+.clock-lcl { font-size: 11px; color: var(--fg-mute); }
+
+.hdr-inputs {
+  grid-column: 1 / -1; grid-row: 2;
+  display: flex; gap: 6px; align-items: center; min-width: 0;
+}
+.hdr-field {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+.hdr-field:focus-within { border-color: var(--accent); background: var(--accent-soft); }
+.hdr-field .hdr-lbl {
+  font-size: 10px; letter-spacing: .06em; color: var(--fg-mute);
+  text-transform: uppercase; flex-shrink: 0;
+}
+.hdr-field input {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0; padding: 2px 0;
+  font: inherit; font-size: 14px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  flex: 1; width: 100%; min-width: 0;
+}
+.hdr-field input:focus { outline: none; }
+.hdr-field input::placeholder { color: var(--fg-dim); font-weight: 400; }
+
+.actions {
+  grid-column: 3; grid-row: 1;
+  display: flex; gap: 4px; align-items: center;
+}
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -430,6 +460,123 @@ body {
 .muted { color: var(--fg-mute); }
 .small { font-size: 12px; }
 .hidden { display: none !important; }
+
+/* ---------- ATIS chip picker ---------- */
+.atis-cell .atis-row {
+  display: flex; gap: 8px; align-items: stretch;
+  margin-top: 2px;
+}
+.atis-cell .atis-current {
+  flex-shrink: 0;
+  width: 52px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 10px;
+  font-size: 28px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.atis-cell .atis-chips {
+  flex: 1; min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.atis-chip {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-height: 28px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  cursor: pointer;
+}
+.atis-chip:active { background: var(--bg-sunk); }
+.atis-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ---------- Passenger speech overlay ---------- */
+.pa-sheet { gap: 8px; }
+.pa-tabs {
+  display: flex; gap: 4px; overflow-x: auto;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  scrollbar-width: thin;
+}
+.pa-tab {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-mute);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.pa-tab.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pa-tab.add {
+  background: transparent; color: var(--fg-mute);
+  border-style: dashed; padding: 6px 8px;
+}
+.pa-title-row {
+  display: flex; gap: 6px; align-items: center;
+}
+.pa-title {
+  flex: 1; font-weight: 700; font-size: 15px; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pa-legend {
+  font-size: 11px; color: var(--fg-mute);
+  padding: 4px 6px;
+  background: var(--bg-sunk);
+  border-radius: 8px;
+}
+.pa-legend code {
+  background: var(--bg-elev);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 11px;
+  color: var(--accent);
+  margin: 0 1px;
+}
+.pa-body { min-height: 240px; }
+.pa-body textarea {
+  width: 100%; min-height: 280px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px; line-height: 1.5;
+  color: var(--fg);
+  resize: vertical;
+}
+.pa-rendered {
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px; line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  min-height: 280px;
+}
 
 /* ---------- Width breakpoints ---------- */
 @media (min-width: 600px) {

@@ -1,49 +1,42 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
-// Each cell is a real <input> that saves on every keystroke (debounced in storage).
+// Cells autosave on every keystroke (debounced inside storage).
 
 import * as storage from './storage.js';
 
-// kind: 'int' | 'dec' | 'text'  → drives the inputmode and normalize step
+// kind: 'int' | 'dec' | 'text' | 'atis'
 export const FIELDS = [
   { id: 'g-v',     group: 'V-speeds',  cells: [
     { key: 'v1',   label: 'V1',    kind: 'int', suffix: 'kt' },
     { key: 'vr',   label: 'VR',    kind: 'int', suffix: 'kt' },
     { key: 'v2',   label: 'V2',    kind: 'int', suffix: 'kt' },
-    { key: 'vref', label: 'Vref',  kind: 'int', suffix: 'kt' },
   ]},
   { id: 'g-to',    group: 'Takeoff',   cells: [
     { key: 'n1',    label: 'N1 TO',  kind: 'dec', suffix: '%' },
     { key: 'flaps', label: 'Flaps',  kind: 'int' },
-    { key: 'trim',  label: 'Trim',   kind: 'dec', suffix: 'units' },
-    { key: 'cg',    label: 'CG',     kind: 'dec', suffix: '%MAC' },
   ]},
-  { id: 'g-wt',    group: 'Weights',   cells: [
-    { key: 'tow',  label: 'TOW',  kind: 'int', suffix: 'kg' },
-    { key: 'lw',   label: 'LW',   kind: 'int', suffix: 'kg' },
-    { key: 'zfw',  label: 'ZFW',  kind: 'int', suffix: 'kg' },
-    { key: 'fuel', label: 'Fuel', kind: 'int', suffix: 'kg' },
+  { id: 'g-fuel',  group: 'Fuel',      cells: [
+    { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'int', suffix: 'kg' },
+    { key: 'block_fuel', label: 'Block fuel', kind: 'int', suffix: 'kg' },
   ]},
   { id: 'g-sob',   group: 'Souls on board', cells: [
-    { key: 'sob_total', label: 'Total',    kind: 'int' },
-    { key: 'sob_adt',   label: 'Adults',   kind: 'int' },
-    { key: 'sob_chd',   label: 'Children', kind: 'int' },
-    { key: 'sob_inf',   label: 'Infants',  kind: 'int' },
+    { key: 'sob_total', label: 'Total', kind: 'int' },
+  ]},
+  { id: 'g-atis',  group: 'ATIS',      cells: [
+    { key: 'atis',   label: 'ATIS letter', kind: 'atis', wide: true },
+    { key: 'atis_note', label: 'Notes', kind: 'text', wide: true },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
-    { key: 'tail',    label: 'Tail',     kind: 'text' },
-    { key: 'flight',  label: 'Flight #', kind: 'text' },
     { key: 'dep',     label: 'Dep',      kind: 'text' },
     { key: 'arr',     label: 'Arr',      kind: 'text' },
-    { key: 'rwy',     label: 'Runway',   kind: 'text' },
     { key: 'eta',     label: 'ETA',      kind: 'text' },
   ]},
   { id: 'g-crew',  group: 'Crew',      cells: [
-    { key: 'cpt',  label: 'CPT',  kind: 'text', wide: true },
-    { key: 'fo',   label: 'FO',   kind: 'text', wide: true },
-    { key: 'cc1',  label: 'CC1 / Purser', kind: 'text', wide: true },
-    { key: 'cc2',  label: 'CC2',  kind: 'text', wide: true },
-    { key: 'cc3',  label: 'CC3',  kind: 'text', wide: true },
-    { key: 'cc4',  label: 'CC4',  kind: 'text', wide: true },
+    { key: 'cpt',  label: 'CPT',        kind: 'text', wide: true },
+    { key: 'fo',   label: 'FO',         kind: 'text', wide: true },
+    { key: 'cc1',  label: 'Purser (PU)', kind: 'text', wide: true },
+    { key: 'cc2',  label: 'CC2',        kind: 'text', wide: true },
+    { key: 'cc3',  label: 'CC3',        kind: 'text', wide: true },
+    { key: 'cc4',  label: 'CC4',        kind: 'text', wide: true },
   ]},
 ];
 
@@ -53,13 +46,10 @@ const CELL_INDEX = (() => {
   return m;
 })();
 
-// In-memory collapsed state for data-card sub-groups.
-// Defaults: V-speeds + Takeoff expanded, the rest collapsed (less common).
-const DEFAULT_COLLAPSED = new Set(['g-wt', 'g-sob', 'g-flt', 'g-crew']);
+const DEFAULT_COLLAPSED = new Set(['g-flt', 'g-crew']);
 let collapsed = new Set(DEFAULT_COLLAPSED);
 
-let onChange = null; // optional callback fired after any cell write
-
+let onChange = null;
 export function setOnChange(fn) { onChange = fn; }
 
 export function render(root) {
@@ -86,6 +76,7 @@ export function render(root) {
 }
 
 function renderCell(c, raw) {
+  if (c.kind === 'atis') return renderAtisCell(c, raw);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -111,8 +102,24 @@ function renderCell(c, raw) {
   `;
 }
 
+function renderAtisCell(c, raw) {
+  const v = (raw || '').toString().toUpperCase().slice(0, 1);
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const chips = letters.map(L =>
+    `<button type="button" class="atis-chip ${L === v ? 'on' : ''}" data-atis="${L}">${L}</button>`
+  ).join('');
+  return `
+    <div class="data-cell atis-cell span2">
+      <span class="lbl">${escape(c.label)}</span>
+      <div class="atis-row">
+        <div class="atis-current">${v || '—'}</div>
+        <div class="atis-chips">${chips}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderSummary(group, data) {
-  // Short one-liner shown only when the group is collapsed.
   const filled = group.cells.filter(c => has(data[c.key]));
   if (!filled.length) return '';
   return filled.slice(0, 4).map(c => `${c.label} ${formatValue(c, data[c.key])}`).join(' · ');
@@ -129,19 +136,16 @@ function wire(root) {
       render(root);
     });
   });
-  // Inline input — autosave on input (debounced inside storage)
+  // Inline inputs (autosave on input)
   root.querySelectorAll('input[data-key]').forEach(inp => {
     inp.addEventListener('input', () => {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
       const normalized = normalize(def, inp.value);
       storage.setDataField(key, normalized);
-      // Update the per-group filled count without a full re-render,
-      // so focus stays in the input and iOS keyboard doesn't drop.
       updateGroupMeta(root, key);
       if (onChange) onChange(key);
     });
-    // On blur, snap visible text to the formatted value if it differs.
     inp.addEventListener('blur', () => {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
@@ -150,10 +154,25 @@ function wire(root) {
       inp.value = formatValue(def, raw);
     });
   });
+  // ATIS chip picker
+  root.querySelectorAll('.atis-chip').forEach(b => {
+    b.addEventListener('click', () => {
+      const letter = b.dataset.atis;
+      const current = storage.getCurrent().dataCard.atis || '';
+      // Tap the active chip again → clear
+      const next = (current === letter) ? '' : letter;
+      storage.setDataField('atis', next);
+      // Update visible state without full re-render to keep scroll position
+      const cell = b.closest('.atis-cell');
+      cell.querySelectorAll('.atis-chip').forEach(c => c.classList.toggle('on', c.dataset.atis === next));
+      cell.querySelector('.atis-current').textContent = next || '—';
+      updateGroupMeta(root, 'atis');
+      if (onChange) onChange('atis');
+    });
+  });
 }
 
 function updateGroupMeta(root, changedKey) {
-  // Find the group containing this key, recount filled cells.
   const data = storage.getCurrent().dataCard;
   for (const g of FIELDS) {
     if (!g.cells.some(c => c.key === changedKey)) continue;
@@ -181,6 +200,7 @@ function normalize(def, raw) {
     const n = parseFloat(s.replace(/[^\d.\-]/g, ''));
     return Number.isFinite(n) ? n : '';
   }
+  if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
   return s;
 }
 
@@ -199,7 +219,6 @@ function escape(s) {
 }
 function escapeAttr(s) { return String(s).replace(/"/g, '&quot;'); }
 
-// Allow OCR / external sources to bulk-apply values and re-render.
 export function applyExternal(fields, root) {
   const out = {};
   for (const [k, v] of Object.entries(fields)) {
@@ -208,7 +227,6 @@ export function applyExternal(fields, root) {
     out[k] = normalize(def, v);
   }
   storage.setDataBulk(out);
-  // Expand any groups that received values so the user sees what just landed.
   for (const k of Object.keys(out)) {
     for (const g of FIELDS) if (g.cells.some(c => c.key === k)) collapsed.delete(g.id);
   }

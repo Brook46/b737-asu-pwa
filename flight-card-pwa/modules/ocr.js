@@ -94,27 +94,26 @@ const TOKEN_PATTERNS = [
   { key: 'v1',    re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i },
   { key: 'vr',    re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i },
   { key: 'v2',    re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i },
-  { key: 'vref', re: /\bV\s*REF\b[^\d]{0,8}(\d{2,3})\b/i },
 
   // Takeoff perf
   { key: 'n1',    re: /\bN\s*1\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i },
-  // Flaps: "FLAP 5" or "FLAPS 5"
   { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,4}(\d{1,2})\b/i },
-  // Stab trim: "TRIM 5.25" (units)
-  { key: 'trim',  re: /\bTRIM\b[^\d-]{0,6}(-?\d{1,2}(?:\.\d{1,2})?)\b/i },
-  // CG percent (e.g. "CG 23.5", "CG 23.5%")
-  { key: 'cg',    re: /\bCG\b[^\d-]{0,6}(\d{1,2}(?:\.\d{1,2})?)\b/i },
 
-  // Weights — these may show up as TOGW / GW / ZFW with kg or lb units
-  { key: 'tow',   re: /\b(?:TOGW|TOW|GW)\b[^\d]{0,6}(\d{2,3}(?:[.,]\d)?)\b/i, scale: 1000 },
-  { key: 'zfw',   re: /\bZFW\b[^\d]{0,6}(\d{2,3}(?:[.,]\d)?)\b/i, scale: 1000 },
-  // Fuel: total fuel or block fuel; FMC shows tonnes — scale to kg
-  { key: 'fuel',  re: /\b(?:FUEL|BLOCK)\b[^\d]{0,6}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
+  // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
+  { key: 'trip_fuel',  re: /\bTRIP\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
+  { key: 'block_fuel', re: /\bBLOCK\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
+
+  // Souls on board (total)
+  { key: 'sob_total',  re: /\b(?:SOB|TTL\s*PAX|PAX)\b[^\d]{0,6}(\d{1,3})\b/i },
+
+  // ATIS letter (info Charlie / ATIS C / INFO C)
+  { key: 'atis',  re: /\b(?:ATIS|INFO)\b[^A-Z]{0,4}([A-Z])\b/i, asString: true },
 
   // Text-ish
   { key: 'flight',re: /\bFLT\b\s*[:#]?\s*([A-Z0-9]{2,7})\b/i, asString: true },
   { key: 'tail',  re: /\b(REG|TAIL)\b\s*[:#]?\s*([A-Z0-9-]{3,8})\b/i, asString: true, group: 2 },
-  { key: 'rwy',   re: /\b(?:RW|RWY|RUNWAY)\b[^\dA-Z]{0,4}(\d{2}[LRC]?)\b/i, asString: true },
+  { key: 'dep',   re: /\b(?:DEP|FROM|ORIG)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
+  { key: 'arr',   re: /\b(?:ARR|TO|DEST)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
 ];
 
 export function parseFmcText(rawText) {
@@ -131,10 +130,9 @@ export function parseFmcText(rawText) {
     }
     out[tok.key] = val;
   }
-  // Heuristic: if TOW looks tiny (<2000), it was probably already in kg and we
-  // mis-scaled. Drop it back.
-  for (const k of ['tow','zfw','fuel']) {
-    if (out[k] && Number(out[k]) < 2000) out[k] = String(Number(out[k]));
+  // Heuristic: if trip/block fuel looks tiny (<200), keep as-is — already kg.
+  for (const k of ['trip_fuel','block_fuel']) {
+    if (out[k] && Number(out[k]) < 200) out[k] = String(Number(out[k]));
   }
   return out;
 }
