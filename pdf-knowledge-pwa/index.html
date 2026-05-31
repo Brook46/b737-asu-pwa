@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=32" />
+  <link rel="stylesheet" href="./app.css?v=33" />
 </head>
 <body>
   <header class="app-header">
@@ -87,7 +87,7 @@
         <button class="home-row-btn" id="home-add-sub" title="New sub-briefing" aria-label="New sub-briefing">+</button>
       </div>
       <ul id="home-results" class="home-results" aria-label="Filtered indexed paragraphs"></ul>
-      <button id="home-add-file" class="fab" title="Add files" aria-label="Add files">＋</button>
+      <!-- Files are added from ⚙ Settings → Library. No FAB on the home view. -->
     </section>
 
     <section id="view-bookmarks" class="view hidden">
@@ -280,6 +280,15 @@
 
   <div id="tab-dock" class="tab-dock hidden" aria-label="Open documents"></div>
 
+  <div id="chip-action-menu" class="chip-action-menu hidden" role="menu" aria-hidden="true">
+    <button class="chip-act" data-act="rename">✎ Rename</button>
+    <button class="chip-act" data-act="color">🎨 Colour…</button>
+    <button class="chip-act" data-act="move-left">← Move left</button>
+    <button class="chip-act" data-act="move-right">→ Move right</button>
+    <button class="chip-act danger" data-act="delete">🗑 Delete</button>
+    <input class="chip-act-color" type="color" hidden />
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <div id="btype-new-overlay" class="modal-overlay hidden">
@@ -352,32 +361,35 @@
         <button class="btn ghost" id="settings-close" aria-label="Close">✕</button>
       </header>
       <div class="modal-body settings-body">
-        <section class="settings-section">
-          <h3>Library <span class="admin-sub">— pick the right category per document</span></h3>
+        <details class="settings-section" open>
+          <summary><h3>Library <span class="admin-sub">— pick the right category per document</span></h3></summary>
           <div id="settings-library" class="settings-library"></div>
-          <button class="btn primary" id="settings-add-file" type="button">＋ Add documents</button>
-        </section>
-        <section class="settings-section">
-          <h3>Briefing types <span class="admin-sub">— labels (e.g. Normal Ops, Memory Items)</span></h3>
+        </details>
+        <details class="settings-section">
+          <summary><h3>Briefing types <span class="admin-sub">— labels (e.g. Normal Ops, Memory Items)</span></h3></summary>
           <div id="settings-btypes" class="settings-list"></div>
           <form id="settings-btype-new" class="settings-new-form">
             <input id="sb-name" placeholder="New briefing-type name" required />
             <input id="sb-color" type="color" value="#7aa3ff" />
             <button class="btn primary" type="submit">Add</button>
           </form>
-        </section>
-        <section class="settings-section">
-          <h3>Briefings &amp; specific briefings <span class="admin-sub">— top-level briefings can have sub-briefings</span></h3>
+        </details>
+        <details class="settings-section">
+          <summary><h3>Briefings &amp; specific briefings <span class="admin-sub">— top-level briefings can have sub-briefings</span></h3></summary>
           <div id="settings-scenarios" class="settings-list"></div>
           <form id="settings-scenario-new" class="settings-new-form">
             <input id="ss-name" placeholder="New top-level briefing" required />
             <button class="btn primary" type="submit">Add</button>
           </form>
-        </section>
+        </details>
       </div>
+      <footer class="modal-foot settings-foot">
+        <span class="admin-sub">Changes save as you go.</span>
+        <button class="btn primary" id="settings-apply" type="button">Apply &amp; close</button>
+      </footer>
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=41"></script>
+  <script type="module" src="./app.js?v=42"></script>
 </body>
 </html>

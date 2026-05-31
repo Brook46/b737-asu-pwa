@@ -27,7 +27,7 @@ const els = {
   homeScenarios: $('home-scenarios'), homeAddScenario: $('home-add-scenario'),
   homeSubRow: $('home-sub-row'),
   homeSubScenarios: $('home-sub-scenarios'), homeAddSub: $('home-add-sub'),
-  homeResults: $('home-results'), homeAddFile: $('home-add-file'),
+  homeResults: $('home-results'),
   homeSettings: $('header-settings'),
   btypeNewOverlay: $('btype-new-overlay'), btnClose: $('btn-close'),
   btnForm: $('btn-form'), btnName: $('btn-name'),
@@ -43,7 +43,7 @@ const els = {
   settingsScenarios: $('settings-scenarios'), settingsBtypes: $('settings-btypes'),
   settingsScenarioNew: $('settings-scenario-new'), ssName: $('ss-name'),
   settingsBtypeNew: $('settings-btype-new'), sbName: $('sb-name'), sbColor: $('sb-color'),
-  settingsLibrary: $('settings-library'), settingsAddFile: $('settings-add-file'),
+  settingsLibrary: $('settings-library'),
   scenarioOverlay: $('scenario-overlay'), scenarioBody: $('scenario-body'), scenarioClose: $('scenario-close'),
   btypeOverlay: $('btype-overlay'), btypeBody: $('btype-body'), btypeClose: $('btype-close'),
   searchForm: $('search-form'), searchInput: $('search-input'),
@@ -244,13 +244,20 @@ function wireEvents() {
   els.btnCancel.addEventListener('click', () => els.btypeNewOverlay.classList.add('hidden'));
   els.btypeNewOverlay.addEventListener('click', (e) => { if (e.target === els.btypeNewOverlay) els.btypeNewOverlay.classList.add('hidden'); });
   els.btnForm.addEventListener('submit', onCreateBtype);
-  els.homeAddFile.addEventListener('click', () => els.personalInput.click());
+  // (no add-file FAB on the home view — files are added from ⚙ Settings → Library)
   els.homeSettings.addEventListener('click', openSettingsSheet);
   els.settingsClose.addEventListener('click', () => els.settingsOverlay.classList.add('hidden'));
+  $('settings-apply')?.addEventListener('click', () => {
+    // Force a full home re-render so any colour / order / link change is
+    // reflected immediately, then close.
+    renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
+    els.settingsOverlay.classList.add('hidden');
+    toast('Changes applied.');
+  });
   els.settingsOverlay.addEventListener('click', (e) => { if (e.target === els.settingsOverlay) els.settingsOverlay.classList.add('hidden'); });
   els.settingsScenarioNew.addEventListener('submit', onSettingsAddScenario);
   els.settingsBtypeNew.addEventListener('submit', onSettingsAddBtype);
-  els.settingsAddFile.addEventListener('click', () => els.personalInput.click());
+  // (Add buttons live per-category inside renderSettingsLibrary)
   els.scenarioClose.addEventListener('click', () => els.scenarioOverlay.classList.add('hidden'));
   els.scenarioOverlay.addEventListener('click', (e) => { if (e.target === els.scenarioOverlay) els.scenarioOverlay.classList.add('hidden'); });
   els.btypeClose.addEventListener('click', () => els.btypeOverlay.classList.add('hidden'));
@@ -502,6 +509,7 @@ function renderHomeBtypes() {
       }).join('')
     : '<span class="admin-sub">No briefing types yet — tap ＋ to add one (e.g. Normal Ops, Memory Items).</span>';
   els.homeBtypes.querySelectorAll('.home-chip').forEach((btn) => {
+    bindChipLongPress(btn, 'btype');
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
       state.selectedBtype = state.selectedBtype === id ? null : id;
@@ -601,7 +609,8 @@ function renderHomeScenarios() {
 
 function chipHtmlForScenario(s, on = false) {
   const color = s.color ? ` style="--c:${escapeHtml(s.color)}"` : '';
-  return `<button class="home-chip scenario-chip ${on ? 'on' : ''}"${color} data-id="${escapeHtml(s.id)}">
+  const levelClass = isTopLevel(s) ? 'top-chip' : 'sub-chip';
+  return `<button class="home-chip scenario-chip ${levelClass} ${on ? 'on' : ''}"${color} data-id="${escapeHtml(s.id)}">
     <span class="hc-label">${escapeHtml(s.name)}</span>
   </button>`;
 }
@@ -609,10 +618,10 @@ function chipHtmlForScenario(s, on = false) {
 // Single-select binding for top-level briefings.
 function bindTopBriefingChips(root) {
   root.querySelectorAll('.home-chip').forEach((btn) => {
+    bindChipLongPress(btn, 'briefing');
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
       state.selectedTopBriefing = state.selectedTopBriefing === id ? null : id;
-      // Picking a new top resets the sub.
       state.selectedSubBriefing = null;
       renderHomeScenarios();
       renderHomeResults();
@@ -620,11 +629,10 @@ function bindTopBriefingChips(root) {
   });
 }
 
-// Single-select binding for sub-briefings. Sub takes precedence over top
-// when filtering results, so the chip stays highlighted and the result list
-// narrows to just that sub's anchors.
+// Single-select binding for sub-briefings.
 function bindSubBriefingChips(root) {
   root.querySelectorAll('.home-chip').forEach((btn) => {
+    bindChipLongPress(btn, 'briefing');
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-id');
       state.selectedSubBriefing = state.selectedSubBriefing === id ? null : id;
@@ -632,6 +640,162 @@ function bindSubBriefingChips(root) {
       renderHomeResults();
     });
   });
+}
+
+// --- Long-press → context menu (rename / colour / reorder / delete) -------
+// Bound on every editable home chip (briefing types, top briefings, sub
+// briefings). After ~500ms of hold without moving the menu opens, and the
+// synthetic click that follows the pointerup is swallowed in-place so the
+// chip's selection toggle doesn't fire.
+function bindChipLongPress(chipEl, kind /* 'briefing' | 'btype' */) {
+  let timer = null, startX = 0, startY = 0;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  chipEl.addEventListener('pointerdown', (e) => {
+    if (e.button != null && e.button !== 0) return;
+    startX = e.clientX; startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      // Swallow exactly one upcoming click on this chip.
+      chipEl.addEventListener('click', (ev) => {
+        ev.stopImmediatePropagation(); ev.preventDefault();
+      }, { capture: true, once: true });
+      openChipActionMenu(chipEl, kind);
+    }, 500);
+  });
+  chipEl.addEventListener('pointermove', (e) => {
+    if (timer && Math.hypot((e.clientX || 0) - startX, (e.clientY || 0) - startY) > 8) cancel();
+  });
+  chipEl.addEventListener('pointerup', cancel);
+  chipEl.addEventListener('pointerleave', cancel);
+  chipEl.addEventListener('pointercancel', cancel);
+}
+
+function openChipActionMenu(chipEl, kind) {
+  const menu = document.getElementById('chip-action-menu');
+  if (!menu) return;
+  const id = chipEl.getAttribute('data-id');
+  const item = kind === 'btype'
+    ? (state.briefingTypes || []).find((b) => b.id === id)
+    : (state.scenarios || []).find((s) => s.id === id);
+  if (!item) return;
+  const rect = chipEl.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(window.innerWidth - 220, rect.left)) + 'px';
+  menu.style.top = (rect.bottom + 6) + 'px';
+  menu.classList.remove('hidden');
+  menu.setAttribute('aria-hidden', 'false');
+
+  const close = () => {
+    menu.classList.add('hidden');
+    menu.setAttribute('aria-hidden', 'true');
+    document.removeEventListener('pointerdown', outside, true);
+  };
+  const outside = (e) => { if (!menu.contains(e.target) && e.target !== chipEl) close(); };
+  setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+
+  const onAction = async (e) => {
+    const act = e.target.getAttribute('data-act');
+    if (!act) return;
+    e.stopPropagation();
+    if (act === 'rename') {
+      const next = prompt('Rename:', item.name);
+      if (next && next.trim() && next.trim() !== item.name) {
+        item.name = next.trim(); item.updatedAt = Date.now();
+        await saveItem(item, kind);
+      }
+      close(); return;
+    }
+    if (act === 'color') {
+      const colourInput = menu.querySelector('.chip-act-color');
+      colourInput.value = item.color || '#7aa3ff';
+      colourInput.onchange = async () => {
+        item.color = colourInput.value; item.updatedAt = Date.now();
+        await saveItem(item, kind);
+        close();
+      };
+      colourInput.click();
+      return;
+    }
+    if (act === 'delete') {
+      if (!confirm(`Delete "${item.name}"?`)) { close(); return; }
+      await deleteItem(item, kind);
+      close(); return;
+    }
+    if (act === 'move-left' || act === 'move-right') {
+      const direction = act === 'move-left' ? -1 : 1;
+      await reorderItem(item, kind, direction);
+      close(); return;
+    }
+  };
+  if (menu._onAction) menu.removeEventListener('click', menu._onAction);
+  menu._onAction = onAction;
+  menu.addEventListener('click', onAction);
+}
+
+async function saveItem(item, kind) {
+  if (kind === 'btype') {
+    await storage.putBriefingType(item);
+    state.briefingTypes = await storage.listBriefingTypes();
+    renderHomeBtypes();
+  } else {
+    await storage.putScenario(item);
+    await reloadScenarios();
+    renderHomeScenarios();
+  }
+  renderHomeResults();
+}
+
+async function deleteItem(item, kind) {
+  if (kind === 'btype') {
+    await storage.deleteBriefingType(item.id);
+    state.briefingTypes = await storage.listBriefingTypes();
+    if (state.selectedBtype === item.id) state.selectedBtype = null;
+    renderHomeBtypes();
+    // No need to reload the knowledge graph — anchors are untouched. A stale
+    // btype id in an anchor's briefingTypes[] is harmless (the chip just
+    // doesn't render, and the filter no-ops against a missing chip).
+  } else {
+    await storage.deleteScenario(item.id);
+    await reloadScenarios();
+    if (state.selectedTopBriefing === item.id) state.selectedTopBriefing = null;
+    if (state.selectedSubBriefing === item.id) state.selectedSubBriefing = null;
+    renderHomeScenarios();
+    kg.invalidate(); await kg.load(true);
+  }
+  renderHomeResults();
+}
+
+async function reorderItem(item, kind, direction) {
+  // Peers among which we swap sort order:
+  //   btype       → all briefing types
+  //   top-level   → all top-level briefings
+  //   sub-briefing → siblings under any shared parent
+  let peers;
+  if (kind === 'btype') peers = (state.briefingTypes || []).slice();
+  else if (isTopLevel(item)) peers = state.scenarios.filter(isTopLevel);
+  else {
+    const myParents = scenarioParents(item);
+    peers = state.scenarios.filter((s) => !isTopLevel(s) && scenarioParents(s).some((p) => myParents.includes(p)));
+  }
+  peers.sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const idx = peers.findIndex((x) => x.id === item.id);
+  const swap = idx + direction;
+  if (swap < 0 || swap >= peers.length) return;
+  const a = peers[idx], b = peers[swap];
+  const tmp = a.sort || 0;
+  a.sort = b.sort || 0; b.sort = tmp || Date.now();
+  a.updatedAt = b.updatedAt = Date.now();
+  // Persist both writes; only refresh state + repaint once at the end.
+  if (kind === 'btype') {
+    await storage.putBriefingType(a); await storage.putBriefingType(b);
+    state.briefingTypes = await storage.listBriefingTypes();
+    renderHomeBtypes();
+  } else {
+    await storage.putScenario(a); await storage.putScenario(b);
+    await reloadScenarios();
+    renderHomeScenarios();
+  }
+  renderHomeResults();
 }
 
 // New briefing modal --------------------------------------------------------
@@ -644,27 +808,26 @@ function openBriefingNewModal({ parentId = null, forceSub = false } = {}) {
   // Parents are now a multi-select chip group. Empty = top-level.
   const preset = parentId ? [parentId] : [];
   els.bnParents.innerHTML = tops.length
-    ? tops.map((s) => `<button type="button" class="sr-phase ${preset.includes(s.id) ? 'on' : ''}" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('')
+    ? tops.map((s) => `<button type="button" class="sr-phase colour-chip ${preset.includes(s.id) ? 'on' : ''}" style="--c:${escapeHtml(s.color || '#7aa3ff')}" data-id="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('')
     : '<span class="admin-sub">— no top-level briefings yet —</span>';
   const updateMode = () => {
-    const anyParentOn = els.bnParents.querySelectorAll('.sr-phase.on').length > 0;
-    // forceSub locks the modal into sub-briefing mode; otherwise mode is
-    // inferred from whether a parent chip is selected.
-    const isSub = forceSub || anyParentOn;
+    // forceSub determines mode up-front. We no longer flip mode based on chip
+    // taps: top-level mode never shows the parent-briefings picker, and sub
+    // mode never shows phases / briefing-types (those inherit through parent).
+    const isSub = !!forceSub;
     els.bnTitle.textContent = isSub ? 'New sub-briefing' : 'New top-level briefing';
+    // Each level only links to the level above it:
+    //   top-level  → briefing TYPES   (parents row hidden, phases shown for filter context, btypes shown)
+    //   sub-briefing → parent BRIEFINGS (parents row shown, phases/btypes hidden)
+    els.bnParentField.classList.toggle('hidden', !isSub);
     els.bnPhasesField.classList.toggle('hidden', isSub);
     els.bnBtypesField.classList.toggle('hidden', isSub);
-    // In forceSub mode, hint that picking a parent is required.
     const parentLabel = els.bnParentField.querySelector('label .admin-sub');
-    if (parentLabel) {
-      parentLabel.textContent = isSub
-        ? '— tap at least one parent briefing'
-        : '— tap to link, leave empty for a top-level briefing';
-    }
+    if (parentLabel) parentLabel.textContent = '— tap at least one parent briefing';
   };
-  els.bnParents.querySelectorAll('.sr-phase').forEach((b) => {
-    b.addEventListener('click', () => { b.classList.toggle('on'); updateMode(); });
-  });
+  // updateMode() now keys off forceSub only, so chip taps just toggle.
+  els.bnParents.querySelectorAll('.sr-phase').forEach((b) =>
+    b.addEventListener('click', () => b.classList.toggle('on')));
   // Pre-fill phases with the active phase.
   els.bnPhases.innerHTML = PHASES.map((p) => {
     const on = state.selectedPhase === p.id;
@@ -676,7 +839,7 @@ function openBriefingNewModal({ parentId = null, forceSub = false } = {}) {
   els.bnBtypes.innerHTML = (state.briefingTypes || []).length
     ? state.briefingTypes.map((b) => {
         const on = state.selectedBtype === b.id;
-        return `<button type="button" class="sr-phase ${on ? 'on' : ''}" data-id="${escapeHtml(b.id)}" style="border-color:${escapeHtml(b.color || '#7aa3ff')};">${escapeHtml(b.name)}</button>`;
+        return `<button type="button" class="sr-phase colour-chip ${on ? 'on' : ''}" data-id="${escapeHtml(b.id)}" style="--c:${escapeHtml(b.color || '#7aa3ff')}">${escapeHtml(b.name)}</button>`;
       }).join('')
     : '<span class="admin-sub">— no briefing types yet —</span>';
   els.bnBtypes.querySelectorAll('.sr-phase').forEach((b) =>
@@ -695,7 +858,9 @@ async function onCreateBriefing(e) {
     toast('Pick at least one parent briefing for this sub-briefing.');
     return;
   }
-  const isSub = bnContext.forceSub || parentIds.length > 0;
+  // Mode is fully determined by forceSub now — parents are only shown in
+  // sub-mode, so parentIds.length is always 0 in top-level mode.
+  const isSub = !!bnContext.forceSub;
   const phases = isSub ? [] :
     [...els.bnPhases.querySelectorAll('.sr-phase.on')].map((b) => b.getAttribute('data-phase'));
   const briefingTypes = isSub ? [] :
@@ -722,12 +887,17 @@ async function onCreateBriefing(e) {
 async function quickAddScenario() { openBriefingNewModal({ parentId: null }); }
 
 async function renderHomeResults() {
+  invalidateManualTypeCache();
   const fileIds = activeFileIds();
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
   const btypes = state.selectedBtype ? [state.selectedBtype] : [];
   const topId = state.selectedTopBriefing;
   const subId = state.selectedSubBriefing;
-  const hasAnyFilter = !!(phases.length || btypes.length || topId || subId || state.homeQuery);
+  const hasAnyFilter = !!(phases.length || btypes.length || topId || subId
+    || (state.homeQuery && state.homeQuery.trim()));
+  // GENERAL-ONLY default kicks in only when nothing at all is active. Once
+  // the user types into the search box, the result set opens up to the
+  // whole library.
   const generalOnly = !hasAnyFilter;
   // When a top-level is picked WITHOUT a sub, only show anchors linked
   // directly to that top (i.e. their scenarios include the top but none of
@@ -962,22 +1132,23 @@ async function renderCardPreview(card, anchor) {
 }
 
 // Manual-type dropdown options for the link editor. Only shows types
-// the user has actually uploaded a file for, deduplicated by id, sorted.
+// the user has actually uploaded a file for, deduplicated and sorted.
+// Result is memoised inside one renderHomeResults pass (~200 cards build
+// the same string otherwise).
+let _manualTypeOptionsCache = null;
 function availableManualTypeOptions() {
-  const seen = new Map();
+  if (_manualTypeOptionsCache != null) return _manualTypeOptionsCache;
+  const seen = new Set();
   for (const m of state.manuals.values()) {
     const t = (m.manualType || '').toUpperCase();
-    if (!t) continue;
-    if (!seen.has(t)) seen.set(t, t);
+    if (t) seen.add(t);
   }
-  if (!seen.size) {
-    // No manuals at all → fall back to a one-line hint so the form stays
-    // usable but the user knows what's missing.
-    return '<option value="" disabled selected>— add a manual first —</option>';
-  }
-  return [...seen.keys()].sort().map((t) =>
-    `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  _manualTypeOptionsCache = seen.size
+    ? [...seen].sort().map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')
+    : '<option value="" disabled selected>— add a manual first —</option>';
+  return _manualTypeOptionsCache;
 }
+function invalidateManualTypeCache() { _manualTypeOptionsCache = null; }
 
 // Resolve a cross-reference (e.g. {manualType:'QRH', value:'CI 2.6'}) and
 // open the relevant manual page if any matching anchor exists. Otherwise
@@ -1056,22 +1227,15 @@ async function renderSettingsLibrary() {
   const groups = DOC_TYPES.map((dt) => ({
     ...dt, files: files.filter((f) => (f.docType || 'manual') === dt.id),
   }));
-  const apiKey = (await storage.getKV('anthropicApiKey')) || '';
-  const keyHint = apiKey
-    ? `<span class="ai-key-status ok">AI key set</span>`
-    : `<span class="ai-key-status">no AI key</span>`;
-  els.settingsLibrary.innerHTML = `
-    <div class="ai-key-row">
-      <label for="settings-ai-key">Anthropic API key <span class="admin-sub">— enables ✨ AI sub-briefing generation; stored on this device only.</span></label>
-      <div class="ai-key-input-row">
-        <input id="settings-ai-key" type="password" autocomplete="off" placeholder="sk-ant-..." value="${escapeHtml(apiKey)}" />
-        <button class="btn primary" type="button" id="settings-ai-key-save">Save key</button>
-        ${keyHint}
-      </div>
-    </div>
-  ` + groups.map((g) => `
+  // Per-category "+ Add" buttons let the user upload a file straight into
+  // its bucket (Manuals / Personal briefings / Fleet updates) without going
+  // through the home-screen + first.
+  els.settingsLibrary.innerHTML = groups.map((g) => `
     <div class="lib-group" data-doctype="${escapeHtml(g.id)}">
-      <div class="lib-group-head">${escapeHtml(g.label)} <span class="admin-sub">(${g.files.length})</span></div>
+      <div class="lib-group-head">
+        <span>${escapeHtml(g.label)} <span class="admin-sub">(${g.files.length})</span></span>
+        <button class="btn ghost lib-add" data-doctype="${escapeHtml(g.id)}" title="Add a document to ${escapeHtml(g.label)}">＋ Add</button>
+      </div>
       ${g.files.length
         ? g.files.map((f) => `
           <div class="settings-row lib-row" data-fileid="${escapeHtml(f.id)}">
@@ -1079,18 +1243,13 @@ async function renderSettingsLibrary() {
             <select class="lib-type" title="Document category">
               ${DOC_TYPES.map((t) => `<option value="${t.id}" ${t.id === (f.docType || 'manual') ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
             </select>
-            <button class="btn ghost ai-gen-btn" data-act="ai-gen" title="Auto-generate briefings from this file">✨ AI briefings</button>
             <button class="btn ghost" data-act="del-file" title="Delete">🗑</button>
           </div>`).join('')
         : '<div class="admin-sub lib-empty">— none —</div>'}
     </div>`).join('');
 
-  // Save API key.
-  els.settingsLibrary.querySelector('#settings-ai-key-save')?.addEventListener('click', async () => {
-    const key = els.settingsLibrary.querySelector('#settings-ai-key').value.trim();
-    await storage.setKV('anthropicApiKey', key);
-    toast(key ? 'AI key saved.' : 'AI key cleared.');
-    renderSettingsLibrary();
+  els.settingsLibrary.querySelectorAll('.lib-add').forEach((btn) => {
+    btn.addEventListener('click', () => triggerFilePickerFor(btn.getAttribute('data-doctype')));
   });
 
   els.settingsLibrary.querySelectorAll('.lib-row').forEach((row) => {
@@ -1112,10 +1271,14 @@ async function renderSettingsLibrary() {
       kg.invalidate(); await kg.load(true);
       renderSettingsLibrary(); renderHomeResults();
     });
-    row.querySelector('[data-act="ai-gen"]')?.addEventListener('click', async () => {
-      await aiGenerateBriefingsForFile(fileId, row.querySelector('[data-act="ai-gen"]'));
-    });
   });
+}
+
+// Trigger the file picker with a target docType (stored on the input's
+// dataset so it dies with the next render and can't contaminate other flows).
+function triggerFilePickerFor(docType) {
+  els.personalInput.dataset.docType = docType || 'manual';
+  els.personalInput.click();
 }
 
 function settingsScenarioBlock(top, all) {
@@ -1524,12 +1687,18 @@ async function handleFiles(files) {
 }
 
 async function handlePersonalFiles(files) {
+  // input.dataset.docType lets Settings → "+ Add" route to a specific bucket
+  // (manual / personal / fleet-update). Read once and clear so the next
+  // generic invocation defaults to 'personal'.
+  const docType = els.personalInput.dataset.docType || 'personal';
+  delete els.personalInput.dataset.docType;
   for (const file of files) {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       setIngestStatus(`Skipped ${file.name}: not a PDF`, 'warn');
       continue;
     }
-    await processImport(file, { manualType: 'PERSONAL', revision: '', effectivity: [], docType: 'personal' });
+    const manualType = docType === 'manual' ? 'FCOM' : 'PERSONAL';
+    await processImport(file, { manualType, revision: '', effectivity: [], docType });
   }
   await storage.requestPersistent();
   renderLibrary(); renderStorageInfo(); renderHomeResults();
@@ -2879,128 +3048,6 @@ async function loadBundledTanchumOnce() {
   // Refresh in-memory state for the rest of bootstrap to pick up.
   state.scenarios = await storage.listScenarios();
   toast('Briefings ready.');
-}
-
-// --- AI: auto-generate briefings + sub-briefings from a file ---------------
-// Sends the file's page text to Claude Haiku, asks for a structured
-// chapter / sub-topic tree, and writes the result as scenarios.
-async function aiGenerateBriefingsForFile(fileId, btn) {
-  const apiKey = (await storage.getKV('anthropicApiKey')) || '';
-  if (!apiKey) {
-    toast('Set your Anthropic API key in Settings first.');
-    return;
-  }
-  if (!navigator.onLine) { toast('Offline — connect to the internet to run AI.'); return; }
-  const file = state.files.get(fileId);
-  if (!file) { toast('File not found.'); return; }
-  if (!confirm(`Use Claude to auto-generate briefings + sub-briefings from "${file.name}"?`)) return;
-  const origLabel = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = '… thinking'; }
-  try {
-    // Build the input: page-by-page text, capped so the request stays small.
-    const pages = await storage.getPagesForFile(fileId);
-    const sample = pages.slice(0, 60).map((p) => `[p.${p.pageNum}]\n${(p.text || '').slice(0, 900)}`).join('\n\n').slice(0, 60000);
-    const btypeList = (state.briefingTypes || []).map((b) => b.name).join(', ') || '(none)';
-    const phaseList = PHASES.map((p) => p.label).join(', ');
-    const userPrompt = [
-      'You are organising a pilot study book into briefings and sub-briefings.',
-      'Read the page content below and return a STRICT JSON object with this shape:',
-      '{ "briefings": [ { "name": "...", "phases": ["..."], "briefingType": "Normal Operation|Non-Normal Operation|Briefing", "subBriefings": [ { "name": "...", "pageNum": <int> } ] } ] }',
-      'Rules:',
-      `- Phases must be drawn from: ${phaseList}.`,
-      `- briefingType must match one of: ${btypeList}.`,
-      '- Each top-level "briefing" should match a chapter in the book; each sub-briefing should be one of its topics.',
-      '- Use clear concise English titles (translate from Hebrew if needed).',
-      '- Skip generic intros (like "General"); only meaningful topics.',
-      '- Return AT MOST 10 top-level briefings and AT MOST 12 sub-briefings each.',
-      '- Return ONLY the JSON object, no prose, no markdown fences.',
-      '',
-      'PAGES:',
-      sample,
-    ].join('\n');
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    });
-    if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`Claude error ${resp.status}: ${err.slice(0, 200)}`);
-    }
-    const data = await resp.json();
-    const text = (data.content || []).map((c) => c.text || '').join('').trim();
-    // Strip code fences if the model added any despite instructions.
-    const jsonText = text.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '').trim();
-    const parsed = JSON.parse(jsonText);
-    const briefings = parsed.briefings || [];
-    if (!briefings.length) { toast('Claude returned no briefings.'); return; }
-
-    // Map briefing-type name → id (best-effort).
-    const btypeByName = new Map((state.briefingTypes || []).map((b) => [b.name.toLowerCase(), b.id]));
-    let created = 0;
-    for (const b of briefings) {
-      const name = (b.name || '').trim();
-      if (!name) continue;
-      const topId = 'sc_ai_' + Math.random().toString(36).slice(2, 9);
-      const phaseIds = (b.phases || []).map((p) => PHASES.find((ph) => ph.label.toLowerCase() === String(p).toLowerCase())?.id).filter(Boolean);
-      const btId = btypeByName.get(String(b.briefingType || '').toLowerCase());
-      await storage.putScenario({
-        id: topId, name, parentId: null, parentIds: [],
-        phases: phaseIds, briefingTypes: btId ? [btId] : [],
-        color: '#7aa3ff', kind: 'normal',
-        sort: Date.now() + (created * 10), createdAt: Date.now(), updatedAt: Date.now(),
-      });
-      created++;
-      for (const sub of (b.subBriefings || [])) {
-        const subName = (sub.name || '').trim();
-        if (!subName) continue;
-        const subId = 'sc_ai_' + Math.random().toString(36).slice(2, 9);
-        await storage.putScenario({
-          id: subId, name: subName, parentId: null, parentIds: [topId],
-          phases: [], briefingTypes: [],
-          color: '#ffb84d', kind: 'normal',
-          sort: Date.now() + created, createdAt: Date.now(), updatedAt: Date.now(),
-        });
-        // If a pageNum was provided, also seed a quick indexed anchor.
-        const pageNum = parseInt(sub.pageNum, 10);
-        if (Number.isFinite(pageNum) && pageNum >= 1) {
-          await storage.putAnchor({
-            anchorId: 'idx_ai_' + Math.random().toString(36).slice(2, 9),
-            fileId, manualType: file.manualType || 'PERSONAL',
-            kind: 'idx', itemType: 'briefing', source: 'manual',
-            paraIndex: null, selectionRects: null,
-            pageNum, anchorType: 'page', value: 'p.' + pageNum,
-            title: subName, excerpt: subName,
-            textHash: 'h_ai_' + Math.random().toString(36).slice(2, 9),
-            phases: phaseIds,
-            briefingTypes: btId ? [btId] : [],
-            scenarios: [topId, subId], links: [],
-            aiSuggested: null, aiAccepted: true,
-            createdAt: Date.now(), updatedAt: Date.now(),
-          });
-        }
-      }
-    }
-    await reloadScenarios();
-    kg.invalidate(); await kg.load(true);
-    renderHomeScenarios(); renderHomeResults(); renderSettingsSheet();
-    toast(`AI created ${created} briefing${created === 1 ? '' : 's'}.`);
-  } catch (e) {
-    console.error('ai-gen failed', e);
-    toast('AI failed: ' + (e.message || e).slice(0, 100));
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = origLabel; }
-  }
 }
 
 let toastTimer = null;
