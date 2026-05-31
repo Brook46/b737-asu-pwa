@@ -93,8 +93,12 @@ const state = {
   selectedTopBriefing: null,
   selectedSubBriefing: null,
   homeQuery: '',
-  // Optional per-file search scope. When empty, search runs over every file.
-  searchFileScope: new Set(),
+  // Search scope: which slices of the library the user wants to look in.
+  // Briefings (= scenario names) are on by default; the file categories are
+  // off so the result list isn't immediately flooded by every page.
+  searchBriefingsOn: true,
+  searchDocTypes: new Set(),  // 'manual' | 'personal' | 'fleet-update'
+  searchFileScope: new Set(), // overrides per-file even when category is off
   gpsAuto: false,
   manualPhaseUntil: 0,
   viewer: { tabs: [], panes: [], focused: 0, split: false },
@@ -159,6 +163,7 @@ async function bootstrap() {
   renderTabDock();
 
   wireEvents();
+  installModalScrollLock();
   initScratchpad(els.scratchpad, {
     handle: els.scratchHead, textarea: els.scratchText,
     closeBtn: els.scratchClose, toggleBtn: els.scratchToggle,
@@ -231,6 +236,8 @@ function wireEvents() {
     state.selectedTopBriefing = null; state.selectedSubBriefing = null;
     state.homeQuery = ''; els.homeSearch.value = '';
     state.searchFileScope.clear();
+    state.searchDocTypes.clear();
+    state.searchBriefingsOn = true;
     renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   });
   els.searchToolsToggle.addEventListener('click', toggleSearchScopePanel);
@@ -317,6 +324,45 @@ function wireEvents() {
 
 function pressGroup(nodes, active) {
   nodes.forEach((n) => n.setAttribute('aria-pressed', n === active ? 'true' : 'false'));
+}
+
+// Body-scroll lock for modals. On iPad Safari, a hidden-overflow modal
+// otherwise lets touch-scroll fall through to the home behind it. We watch
+// every .modal-overlay for the `.hidden` toggle and freeze the body while
+// any of them is open, restoring the user's previous scroll afterwards.
+let _scrollLockSaved = 0;
+let _scrollLockCount = 0;
+function applyScrollLock(open) {
+  if (open) {
+    if (_scrollLockCount++ > 0) return;
+    _scrollLockSaved = window.scrollY;
+    Object.assign(document.body.style, {
+      position: 'fixed', top: -_scrollLockSaved + 'px',
+      left: '0', right: '0', width: '100%', overflow: 'hidden',
+    });
+  } else {
+    if (--_scrollLockCount > 0) return;
+    if (_scrollLockCount < 0) _scrollLockCount = 0;
+    Object.assign(document.body.style, {
+      position: '', top: '', left: '', right: '', width: '', overflow: '',
+    });
+    window.scrollTo(0, _scrollLockSaved);
+  }
+}
+function installModalScrollLock() {
+  const overlays = document.querySelectorAll('.modal-overlay');
+  const obs = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.attributeName !== 'class') continue;
+      const open = !m.target.classList.contains('hidden');
+      const wasOpen = m.oldValue == null ? false : !m.oldValue.includes('hidden');
+      if (open !== wasOpen) applyScrollLock(open);
+    }
+  });
+  overlays.forEach((ov) => {
+    obs.observe(ov, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    if (!ov.classList.contains('hidden')) applyScrollLock(true);
+  });
 }
 
 function switchView(view) {
@@ -658,28 +704,55 @@ function toggleSearchScopePanel() {
 
 function renderSearchScopeList() {
   const files = [...state.files.values()].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  if (!files.length) {
-    els.searchScopeList.innerHTML = '<div class="admin-sub">No files yet — add documents in ⚙ Settings.</div>';
-    return;
-  }
-  els.searchScopeList.innerHTML = files.map((f) => {
-    const on = state.searchFileScope.has(f.id);
-    return `<label class="search-scope-row">
-      <input type="checkbox" data-fileid="${escapeHtml(f.id)}" ${on ? 'checked' : ''} />
-      <span class="search-scope-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+  // Group files by their docType so the user picks a category first, then
+  // optionally drills into individual files.
+  const groups = DOC_TYPES.map((dt) => ({
+    ...dt, files: files.filter((f) => (f.docType || 'manual') === dt.id),
+  }));
+  const briefingRow = `<label class="search-scope-row search-scope-top">
+      <input type="checkbox" data-act="search-briefings" ${state.searchBriefingsOn ? 'checked' : ''} />
+      <span class="search-scope-name">✦ Search briefings <span class="admin-sub">— scenario + sub-briefing names</span></span>
     </label>`;
+  const groupHtml = groups.map((g) => {
+    if (!g.files.length) return '';
+    const catOn = state.searchDocTypes.has(g.id);
+    const childRows = g.files.map((f) => {
+      const on = state.searchFileScope.has(f.id);
+      return `<label class="search-scope-row search-scope-sub">
+        <input type="checkbox" data-fileid="${escapeHtml(f.id)}" ${on ? 'checked' : ''} />
+        <span class="search-scope-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+      </label>`;
+    }).join('');
+    return `<div class="search-scope-group">
+      <label class="search-scope-row">
+        <input type="checkbox" data-doctype="${escapeHtml(g.id)}" ${catOn ? 'checked' : ''} />
+        <span class="search-scope-name"><strong>${escapeHtml(g.label)}</strong> <span class="admin-sub">(${g.files.length})</span></span>
+      </label>
+      <div class="search-scope-children">${childRows}</div>
+    </div>`;
   }).join('');
+  els.searchScopeList.innerHTML = briefingRow + (groupHtml || '<div class="admin-sub">No files yet — add documents in ⚙ Settings.</div>');
+
   els.searchScopeList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', () => {
-      const fid = cb.getAttribute('data-fileid');
-      if (cb.checked) state.searchFileScope.add(fid);
-      else state.searchFileScope.delete(fid);
-      renderHomeResults();
+      if (cb.dataset.act === 'search-briefings') state.searchBriefingsOn = cb.checked;
+      else if (cb.dataset.doctype) {
+        const dt = cb.dataset.doctype;
+        if (cb.checked) state.searchDocTypes.add(dt);
+        else state.searchDocTypes.delete(dt);
+      } else if (cb.dataset.fileid) {
+        const fid = cb.dataset.fileid;
+        if (cb.checked) state.searchFileScope.add(fid);
+        else state.searchFileScope.delete(fid);
+      }
       updateSearchToolsBadge();
+      renderHomeResults();
     });
   });
   els.searchScopePanel.querySelector('[data-act="all"]')?.addEventListener('click', () => {
+    state.searchDocTypes.clear();
     state.searchFileScope.clear();
+    state.searchBriefingsOn = true;
     renderSearchScopeList();
     renderHomeResults();
     updateSearchToolsBadge();
@@ -687,9 +760,13 @@ function renderSearchScopeList() {
 }
 
 function updateSearchToolsBadge() {
-  const n = state.searchFileScope.size;
-  els.searchToolsToggle.classList.toggle('has-scope', n > 0);
-  els.searchToolsToggle.title = n > 0 ? `Searching in ${n} file${n === 1 ? '' : 's'}` : 'Search tools';
+  const fileCount = state.searchFileScope.size;
+  const catCount = state.searchDocTypes.size;
+  const total = fileCount + catCount + (state.searchBriefingsOn ? 0 : 0); // briefings on = default
+  els.searchToolsToggle.classList.toggle('has-scope', fileCount > 0 || catCount > 0 || !state.searchBriefingsOn);
+  els.searchToolsToggle.title = (fileCount + catCount)
+    ? `Searching ${catCount ? catCount + ' categor' + (catCount === 1 ? 'y' : 'ies') : ''}${catCount && fileCount ? ' + ' : ''}${fileCount ? fileCount + ' file' + (fileCount === 1 ? '' : 's') : ''}`
+    : 'Search tools';
 }
 
 // --- Long-press → context menu (rename / colour / reorder / delete) -------
@@ -938,10 +1015,22 @@ async function quickAddScenario() { openBriefingNewModal({ parentId: null }); }
 
 async function renderHomeResults() {
   invalidateManualTypeCache();
-  // Effective file scope: aircraft effectivity ∩ user's search-scope picks.
+  // Effective file scope:
+  //   start from aircraft effectivity (or all files),
+  //   ∩ union(search docType filter, per-file picks).
+  // If neither category nor file is picked AND there's a search query, the
+  // user only wants briefing matches — no anchor cards.
   let fileIds = activeFileIds();
-  if (state.searchFileScope.size) {
-    const scoped = new Set(state.searchFileScope);
+  const querying = !!(state.homeQuery && state.homeQuery.trim());
+  const anyFileScope = state.searchDocTypes.size || state.searchFileScope.size;
+  if (querying && !anyFileScope) {
+    fileIds = new Set();  // briefings-only mode
+  } else if (anyFileScope) {
+    const scoped = new Set();
+    for (const f of state.files.values()) {
+      if (state.searchFileScope.has(f.id)) scoped.add(f.id);
+      else if (state.searchDocTypes.has(f.docType || 'manual')) scoped.add(f.id);
+    }
     fileIds = fileIds ? new Set([...fileIds].filter((id) => scoped.has(id))) : scoped;
   }
   const phases = state.selectedPhase ? [state.selectedPhase] : [];
@@ -1007,7 +1096,7 @@ async function renderHomeResults() {
   // the user can jump straight to them. Each chip applies its own scope
   // (and clears the query) on tap.
   let briefingsHeader = '';
-  if (state.homeQuery && state.homeQuery.trim().length >= 2) {
+  if (state.searchBriefingsOn && state.homeQuery && state.homeQuery.trim().length >= 2) {
     const q = state.homeQuery.toLowerCase();
     const matches = (state.scenarios || [])
       .filter((s) => (s.name || '').toLowerCase().includes(q))
@@ -1330,12 +1419,16 @@ async function renderSettingsLibrary() {
       ${g.files.length
         ? g.files.map((f) => `
           <div class="settings-row lib-row" data-fileid="${escapeHtml(f.id)}">
+            <button class="btn ghost lib-preview-toggle" data-act="toggle-preview" aria-pressed="false" title="Show preview">▸</button>
             <span class="lib-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
             <select class="lib-type" title="Document category">
               ${DOC_TYPES.map((t) => `<option value="${t.id}" ${t.id === (f.docType || 'manual') ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
             </select>
             <button class="btn ghost" data-act="open-file" title="Open in viewer">⛶</button>
             <button class="btn ghost" data-act="del-file" title="Delete">🗑</button>
+          </div>
+          <div class="lib-preview hidden" data-pending="1" data-for="${escapeHtml(f.id)}">
+            <canvas></canvas>
           </div>`).join('')
         : '<div class="admin-sub lib-empty">— none —</div>'}
     </div>`).join('');
@@ -1357,6 +1450,21 @@ async function renderSettingsLibrary() {
     row.querySelector('[data-act="open-file"]')?.addEventListener('click', async () => {
       els.settingsOverlay.classList.add('hidden');
       await openFileInViewer(fileId, 1);
+    });
+    row.querySelector('[data-act="toggle-preview"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const preview = row.nextElementSibling;
+      if (!preview || !preview.classList.contains('lib-preview')) return;
+      const opening = preview.classList.toggle('hidden') === false;
+      btn.setAttribute('aria-pressed', opening ? 'true' : 'false');
+      btn.textContent = opening ? '▾' : '▸';
+      btn.title = opening ? 'Hide preview' : 'Show preview';
+      if (opening && preview.hasAttribute('data-pending')) {
+        try {
+          await renderPreview(preview.querySelector('canvas'), fileId, 1, { maxWidthPx: 460 });
+          preview.removeAttribute('data-pending');
+        } catch (_) { /* swallow */ }
+      }
     });
     row.querySelector('[data-act="del-file"]')?.addEventListener('click', async () => {
       const file = state.files.get(fileId);
