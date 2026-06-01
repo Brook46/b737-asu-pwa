@@ -13,7 +13,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=10" />
+  <link rel="stylesheet" href="./app.css?v=11" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <header class="app-header">
@@ -178,25 +179,32 @@
 
       <div class="settings-body">
         <section class="settings-section">
-          <h3 class="settings-h">Calendar sync</h3>
+          <h3 class="settings-h">Google Calendar sync</h3>
           <p class="muted small">
-            Paste your Google Calendar <strong>secret iCal URL</strong>. Flight Card fetches it on every open
-            and applies the latest roster event.
-          </p>
-          <p class="muted small">
-            How to get it: open Google Calendar in a browser → click your roster calendar →
-            <em>Settings and sharing</em> → scroll to <em>Integrate calendar</em> → copy
-            <em>Secret address in iCal format</em>. Anyone with this URL can read your calendar — keep it private.
+            Connects to your private Google Calendar using a one-time sign-in. Needs an OAuth Client ID
+            from a Google Cloud project — see the setup guide link below.
           </p>
           <label class="settings-field">
-            <span class="settings-lbl">iCal feed URL</span>
-            <input id="cal-url" type="url" inputmode="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" />
+            <span class="settings-lbl">OAuth Client ID</span>
+            <input id="cal-client-id" type="text" autocomplete="off" autocorrect="off" spellcheck="false"
+                   placeholder="123456789-abc….apps.googleusercontent.com" />
+          </label>
+          <label class="settings-field">
+            <span class="settings-lbl">Calendar ID (e.g. <code>primary</code> or your roster calendar's address)</span>
+            <input id="cal-calendar-id" type="text" autocomplete="off" autocorrect="off" spellcheck="false"
+                   placeholder="primary" />
           </label>
           <div class="settings-row-btns">
-            <button id="cal-test"     class="btn">Test</button>
-            <button id="cal-sync-now" class="btn primary">Sync now</button>
+            <button id="cal-signin"   class="btn primary">Sign in with Google</button>
+            <button id="cal-sync-now" class="btn">Sync now</button>
+            <button id="cal-signout"  class="btn">Sign out</button>
           </div>
           <p class="muted small" id="cal-status">—</p>
+          <p class="muted small">
+            <a id="cal-help-link" href="./google-setup.html" target="_blank" rel="noopener">
+              Setup guide — how to get a Client ID (5 min)
+            </a>
+          </p>
         </section>
       </div>
     </div>
@@ -204,6 +212,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=10"></script>
+  <script type="module" src="./app.js?v=11"></script>
 </body>
 </html>

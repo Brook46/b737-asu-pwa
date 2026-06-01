@@ -126,7 +126,7 @@ function makeFlightId() {
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 const DEFAULT_SETTINGS = {
-  calendar: { url: '' },
+  calendar: { clientId: '', calendarId: 'primary', accessToken: '', tokenExpiry: 0 },
 };
 
 function freshState() {
@@ -158,7 +158,11 @@ function read() {
   cache.speeches = Array.isArray(cache.speeches) && cache.speeches.length ? cache.speeches : clone(DEFAULT_SPEECHES);
   cache.settings = cache.settings || clone(DEFAULT_SETTINGS);
   cache.settings.calendar = cache.settings.calendar || clone(DEFAULT_SETTINGS.calendar);
-  if (typeof cache.settings.calendar.url !== 'string') cache.settings.calendar.url = '';
+  const cal = cache.settings.calendar;
+  if (typeof cal.clientId    !== 'string') cal.clientId    = '';
+  if (typeof cal.calendarId  !== 'string') cal.calendarId  = 'primary';
+  if (typeof cal.accessToken !== 'string') cal.accessToken = '';
+  if (typeof cal.tokenExpiry !== 'number') cal.tokenExpiry = 0;
   cache.current  = cache.current  || newFlightRecord();
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
@@ -313,15 +317,32 @@ export function setDataBulk(fields) {
 // ---------- Settings ----------
 export function getSettings() { return read().settings || {}; }
 export function getCalendarConfig() {
-  const s = read().settings;
-  return { url: s.calendar?.url || '' };
+  const cal = read().settings?.calendar || {};
+  return {
+    clientId:    cal.clientId    || '',
+    calendarId:  cal.calendarId  || 'primary',
+    accessToken: cal.accessToken || '',
+    tokenExpiry: cal.tokenExpiry || 0,
+  };
 }
-export function setCalendarConfig({ url }) {
+export function setCalendarConfig(patch) {
   const s = read();
   s.settings = s.settings || {};
   s.settings.calendar = s.settings.calendar || {};
-  if (typeof url === 'string') s.settings.calendar.url = url.trim();
+  const cal = s.settings.calendar;
+  if (typeof patch.clientId    === 'string') cal.clientId    = patch.clientId.trim();
+  if (typeof patch.calendarId  === 'string') cal.calendarId  = patch.calendarId.trim() || 'primary';
+  if (typeof patch.accessToken === 'string') cal.accessToken = patch.accessToken;
+  if (typeof patch.tokenExpiry === 'number') cal.tokenExpiry = patch.tokenExpiry;
   scheduleWrite();
+}
+export function clearCalendarToken() {
+  const s = read();
+  if (s.settings?.calendar) {
+    s.settings.calendar.accessToken = '';
+    s.settings.calendar.tokenExpiry = 0;
+    scheduleWrite();
+  }
 }
 
 // ---------- Legs (multi-flight roster) ----------

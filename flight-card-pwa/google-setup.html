@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flight Card — Google Calendar setup</title>
+  <link rel="stylesheet" href="./app.css?v=11" />
+  <style>
+    .guide {
+      max-width: 720px; margin: 0 auto;
+      padding: 20px 16px calc(env(safe-area-inset-bottom, 0) + 24px);
+    }
+    .guide h1 { font-size: 22px; margin: 8px 0 4px; }
+    .guide h2 { font-size: 16px; margin: 24px 0 6px; }
+    .guide p, .guide li { font-size: 14px; line-height: 1.55; color: var(--fg); }
+    .guide ol { padding-left: 22px; }
+    .guide li { margin: 4px 0; }
+    .guide code {
+      background: var(--bg-sunk);
+      border: 1px solid var(--line-soft);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .guide .callout {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--fg);
+      margin: 16px 0;
+    }
+    .guide .warn {
+      background: rgba(192, 57, 43, .08);
+      border: 1px solid var(--danger);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin: 16px 0;
+      color: var(--fg);
+    }
+    .guide a { color: var(--accent); }
+    .guide .back-link {
+      display: inline-block; margin-top: 24px; padding: 8px 14px;
+      border: 1px solid var(--line); border-radius: 8px;
+      text-decoration: none; color: var(--fg);
+    }
+  </style>
+</head>
+<body>
+  <div class="guide">
+    <h1>Google Calendar setup (5 min)</h1>
+    <p class="muted">
+      Flight Card needs a one-time OAuth Client ID to read your Google Calendar.
+      All the work below happens in <a href="https://console.cloud.google.com" target="_blank" rel="noopener">Google Cloud Console</a> on a laptop or desktop browser.
+    </p>
+
+    <h2>1. Create a Google Cloud project</h2>
+    <ol>
+      <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> and sign in with the same Google account that owns your roster calendar.</li>
+      <li>Top bar → project picker → <strong>New Project</strong>. Name it anything (e.g. "Flight Card"). Create.</li>
+    </ol>
+
+    <h2>2. Enable the Calendar API</h2>
+    <ol>
+      <li>Side menu → <strong>APIs &amp; Services</strong> → <strong>Library</strong>.</li>
+      <li>Search "Google Calendar API" → click it → <strong>Enable</strong>.</li>
+    </ol>
+
+    <h2>3. Configure the consent screen</h2>
+    <ol>
+      <li>Side menu → <strong>APIs &amp; Services</strong> → <strong>OAuth consent screen</strong>.</li>
+      <li>User type: <strong>External</strong> → Create.</li>
+      <li>App name: "Flight Card" (or whatever you want). User support email + developer email: your email. <strong>Save and continue</strong>.</li>
+      <li>Scopes: skip (you'll request scopes from code). Save and continue.</li>
+      <li>Test users: add the Google account whose calendar you're reading. Save and continue.</li>
+    </ol>
+    <div class="callout">
+      <strong>Note:</strong> while the consent screen is in "testing" mode, only the listed test-user accounts can sign in. That's fine — it's your account.
+    </div>
+
+    <h2>4. Create the OAuth Client ID</h2>
+    <ol>
+      <li>Side menu → <strong>APIs &amp; Services</strong> → <strong>Credentials</strong>.</li>
+      <li><strong>+ Create credentials</strong> → <strong>OAuth client ID</strong>.</li>
+      <li>Application type: <strong>Web application</strong>.</li>
+      <li>Name: "Flight Card PWA" (anything).</li>
+      <li>Authorised JavaScript origins → <strong>+ Add URI</strong> → enter the origins below, one per row:
+        <ul>
+          <li><code>https://brook46.github.io</code> (the GitHub Pages URL where the PWA is hosted)</li>
+          <li><code>http://localhost:8095</code> (only if you want to test locally)</li>
+        </ul>
+      </li>
+      <li>Authorised redirect URIs: leave blank (we're using the token flow, not redirect).</li>
+      <li>Create. Copy the <strong>Client ID</strong> — it ends in <code>.apps.googleusercontent.com</code>.</li>
+    </ol>
+
+    <h2>5. Find your Calendar ID</h2>
+    <ol>
+      <li>Open <a href="https://calendar.google.com" target="_blank" rel="noopener">calendar.google.com</a>.</li>
+      <li>In the left side bar, hover the calendar with your roster → 3 dots → <strong>Settings and sharing</strong>.</li>
+      <li>Scroll to <strong>Integrate calendar</strong>. Copy the value labelled <strong>Calendar ID</strong>. It usually looks like an email — e.g. <code>abc123@group.calendar.google.com</code>, or just your gmail address for your primary calendar.</li>
+    </ol>
+    <div class="callout">
+      <strong>Tip:</strong> if you want to read your default calendar, you can just use <code>primary</code> instead of the long ID.
+    </div>
+
+    <h2>6. Paste into Flight Card</h2>
+    <ol>
+      <li>Open Flight Card on the iPad → ⚙ Settings.</li>
+      <li>Paste the <strong>Client ID</strong> into the OAuth Client ID field.</li>
+      <li>Paste the <strong>Calendar ID</strong> (or leave <code>primary</code>) into the Calendar ID field.</li>
+      <li>Tap <strong>Sign in with Google</strong>. A Google sign-in popup appears — pick your account and approve the read-only Calendar permission.</li>
+      <li>Tap <strong>Sync now</strong>. The latest roster event lands in the data card and the leg switcher appears.</li>
+    </ol>
+
+    <div class="warn">
+      <strong>If sign-in shows "App not verified" or "Access blocked":</strong>
+      that means your Google account isn't on the test-users list. Go back to step 3 and add it.
+      Once added, retry.
+    </div>
+
+    <h2>What Flight Card sees</h2>
+    <p>
+      The token grants <strong>read-only</strong> access to your calendar. Flight Card asks the
+      Calendar API for events in the next 14 days, finds the one whose Notes look like a roster
+      (i.e. contains "Cockpit:" or "Slip details"), and parses that text. Nothing leaves your
+      browser — the call is direct from Flight Card to Google.
+    </p>
+
+    <p>
+      <a class="back-link" href="./index.html">← Back to Flight Card</a>
+    </p>
+  </div>
+</body>
+</html>

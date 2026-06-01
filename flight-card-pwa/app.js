@@ -85,15 +85,14 @@ async function consumeRosterFromUrl() {
 
 async function maybeAutoSync() {
   try {
-    const { syncFromIcs, getConfig } = await import('./modules/calendar-sync.js');
+    const { syncFromGoogle, isSignedIn, getConfig } = await import('./modules/calendar-sync.js');
     const cfg = getConfig();
-    if (!cfg.url) return;
-    const result = await syncFromIcs();
+    if (!cfg.clientId || !isSignedIn()) return;
+    const result = await syncFromGoogle();
     if (result.status === 'applied' && result.parsed) {
       await applyRoster(result.parsed);
       toast(`Calendar synced — ${result.parsed.flights.length} leg(s)`);
     } else if (result.status === 'error') {
-      // Quiet on startup — surface via the settings sheet when the user opens it
       console.warn('calendar auto-sync:', result.message);
     }
   } catch (err) {
@@ -228,9 +227,11 @@ $('pa-close').addEventListener('click', () => speeches.close());
 
 // ---------- Settings sheet ----------
 async function openSettings() {
-  const { getConfig } = await import('./modules/calendar-sync.js');
+  const { getConfig, isSignedIn } = await import('./modules/calendar-sync.js');
   const cfg = getConfig();
-  $('cal-url').value = cfg.url || '';
+  $('cal-client-id').value   = cfg.clientId   || '';
+  $('cal-calendar-id').value = cfg.calendarId || 'primary';
+  paintAuthState(isSignedIn());
   setCalStatus('', '');
   showOverlay('settings-overlay');
 }
@@ -240,9 +241,18 @@ function setCalStatus(text, cls) {
   el.classList.remove('ok', 'err');
   if (cls) el.classList.add(cls);
 }
+function paintAuthState(signedIn) {
+  $('cal-signin').textContent = signedIn ? 'Signed in ✓' : 'Sign in with Google';
+  $('cal-signin').classList.toggle('primary', !signedIn);
+  $('cal-signout').classList.toggle('hidden', !signedIn);
+  $('cal-sync-now').classList.toggle('hidden', !signedIn);
+}
 function saveCalConfigFromInputs() {
   return import('./modules/calendar-sync.js').then(({ setConfig }) => {
-    setConfig({ url: $('cal-url').value });
+    setConfig({
+      clientId:   $('cal-client-id').value,
+      calendarId: $('cal-calendar-id').value || 'primary',
+    });
   });
 }
 $('settings-toggle').addEventListener('click', openSettings);
@@ -250,22 +260,38 @@ $('settings-close').addEventListener('click', () => hideOverlay('settings-overla
 $('settings-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
 });
-$('cal-test').addEventListener('click', async () => {
+
+$('cal-signin').addEventListener('click', async () => {
   await saveCalConfigFromInputs();
-  setCalStatus('Fetching…', '');
-  const { syncFromIcs } = await import('./modules/calendar-sync.js');
-  const r = await syncFromIcs({ testOnly: true });
-  if (r.status === 'fetched') setCalStatus(`OK — ${r.eventCount} events found`, 'ok');
-  else                        setCalStatus(r.message, 'err');
+  setCalStatus('Opening Google sign-in…', '');
+  try {
+    const { signIn, isSignedIn } = await import('./modules/calendar-sync.js');
+    await signIn();
+    paintAuthState(isSignedIn());
+    setCalStatus('Signed in. Tap Sync now.', 'ok');
+  } catch (err) {
+    setCalStatus(err?.message || 'Sign-in failed', 'err');
+  }
 });
+
+$('cal-signout').addEventListener('click', async () => {
+  const { signOut, isSignedIn } = await import('./modules/calendar-sync.js');
+  signOut();
+  paintAuthState(isSignedIn());
+  setCalStatus('Signed out', '');
+});
+
 $('cal-sync-now').addEventListener('click', async () => {
   await saveCalConfigFromInputs();
   setCalStatus('Syncing…', '');
-  const { syncFromIcs } = await import('./modules/calendar-sync.js');
-  const r = await syncFromIcs();
+  const { syncFromGoogle, isSignedIn } = await import('./modules/calendar-sync.js');
+  const r = await syncFromGoogle();
   if (r.status === 'applied') {
     await applyRoster(r.parsed);
     setCalStatus(`OK — ${r.message}`, 'ok');
+  } else if (r.status === 'needs-signin') {
+    paintAuthState(false);
+    setCalStatus(r.message, 'err');
   } else {
     setCalStatus(r.message, 'err');
   }
