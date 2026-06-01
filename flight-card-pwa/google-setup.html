@@ -91,6 +91,13 @@
           <li><code>https://brook46.github.io</code> (the GitHub Pages URL where the PWA is hosted)</li>
           <li><code>http://localhost:8095</code> (only if you want to test locally)</li>
         </ul>
+        <div class="warn" style="margin-top: 8px;">
+          <strong>Important:</strong> origin-only — <em>no trailing slash</em>, <em>no path</em>.
+          <code>https://brook46.github.io/</code> (with slash) and
+          <code>https://brook46.github.io/b737-asu-pwa/…</code> (with path) both fail.
+          Google will then surface the error as "Error 401: invalid_client" which is misleading —
+          the real cause is the origin mismatch.
+        </div>
       </li>
       <li>Authorised redirect URIs: leave blank (we're using the token flow, not redirect).</li>
       <li>Create. Copy the <strong>Client ID</strong> — it ends in <code>.apps.googleusercontent.com</code>.</li>
