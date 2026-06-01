@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=8" />
+  <link rel="stylesheet" href="./app.css?v=9" />
 </head>
 <body>
   <header class="app-header">
@@ -36,6 +36,12 @@
         </button>
         <button id="theme-toggle" class="btn icon-btn" title="Cycle theme" aria-label="Cycle theme">
           <svg id="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
+        </button>
+        <button id="settings-toggle" class="btn icon-btn" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -162,8 +168,54 @@
     </div>
   </div>
 
+  <!-- Settings overlay (calendar sync + .ics import) -->
+  <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="settings-label" class="pad-label">Settings</span>
+        <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div class="settings-body">
+        <section class="settings-section">
+          <h3 class="settings-h">Calendar sync</h3>
+          <p class="muted small">
+            iOS does not let a PWA read your Calendar directly. Subscribe Flight Card to your roster calendar
+            by pasting an iCal/.ics URL below — open the app and the latest roster event auto-applies.
+            To get a URL: iOS Calendar → tap the calendar → Public Calendar → Share Link.
+          </p>
+          <label class="settings-field">
+            <span class="settings-lbl">iCal feed URL</span>
+            <input id="cal-url" type="url" inputmode="url" autocomplete="off" placeholder="https://...ics or webcal://..." />
+          </label>
+          <label class="settings-field">
+            <span class="settings-lbl">CORS proxy (advanced)</span>
+            <input id="cal-proxy" type="url" inputmode="url" autocomplete="off" placeholder="https://corsproxy.io/?" />
+            <span class="muted small">Used only when the calendar URL blocks direct browser fetch.</span>
+          </label>
+          <div class="settings-row-btns">
+            <button id="cal-test"     class="btn">Test</button>
+            <button id="cal-sync-now" class="btn primary">Sync now</button>
+          </div>
+          <p class="muted small" id="cal-status">—</p>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-h">Import .ics file</h3>
+          <p class="muted small">
+            One-off import — pick a calendar file exported from iOS Calendar or your crew portal.
+          </p>
+          <label class="btn block">
+            <input id="ics-file" type="file" accept=".ics,text/calendar" hidden />
+            Choose .ics file…
+          </label>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=8"></script>
+  <script type="module" src="./app.js?v=9"></script>
 </body>
 </html>

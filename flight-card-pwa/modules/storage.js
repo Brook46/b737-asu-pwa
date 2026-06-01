@@ -10,7 +10,7 @@
 // }
 
 const KEY = 'fc.state';
-const VERSION = 5;
+const VERSION = 6;
 const HISTORY_MAX = 20;
 
 const DEFAULT_TEMPLATE = {
@@ -125,11 +125,16 @@ function makeFlightId() {
 }
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
+const DEFAULT_SETTINGS = {
+  calendar: { url: '', proxy: 'https://corsproxy.io/?' },
+};
+
 function freshState() {
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: clone(DEFAULT_SPEECHES),
+    settings: clone(DEFAULT_SETTINGS),
     current: newFlightRecord(),
     history: [],
   };
@@ -151,6 +156,10 @@ function read() {
   // Defensive defaults
   cache.template = cache.template || clone(DEFAULT_TEMPLATE);
   cache.speeches = Array.isArray(cache.speeches) && cache.speeches.length ? cache.speeches : clone(DEFAULT_SPEECHES);
+  cache.settings = cache.settings || clone(DEFAULT_SETTINGS);
+  cache.settings.calendar = cache.settings.calendar || clone(DEFAULT_SETTINGS.calendar);
+  if (typeof cache.settings.calendar.url   !== 'string') cache.settings.calendar.url = '';
+  if (typeof cache.settings.calendar.proxy !== 'string') cache.settings.calendar.proxy = DEFAULT_SETTINGS.calendar.proxy;
   cache.current  = cache.current  || newFlightRecord();
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
@@ -178,14 +187,18 @@ function migrate(s) {
       })
     : clone(DEFAULT_SPEECHES);
   // v3→v4: reseed checklist template (new defaults).
-  // v4→v5: seed legs: [] + legIndex: 0 on current flight (new roster feature).
+  // v4→v5: seed legs: [] + legIndex: 0 on current flight.
+  // v5→v6: add settings.calendar block (defaults if missing) — non-destructive.
   const current = s.current || newFlightRecord();
   current.legs = Array.isArray(current.legs) ? current.legs : [];
   current.legIndex = Number.isInteger(current.legIndex) ? current.legIndex : 0;
+  const settings = (s.settings && typeof s.settings === 'object') ? s.settings : {};
+  settings.calendar = settings.calendar || clone(DEFAULT_SETTINGS.calendar);
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: upgradedSpeeches,
+    settings,
     current,
     history: Array.isArray(s.history) ? s.history : [],
   };
@@ -295,6 +308,21 @@ export function setDataBulk(fields) {
     if (v === '' || v == null) delete c.dataCard[k];
     else c.dataCard[k] = v;
   }
+  scheduleWrite();
+}
+
+// ---------- Settings ----------
+export function getSettings() { return read().settings || {}; }
+export function getCalendarConfig() {
+  const s = read().settings;
+  return { url: s.calendar?.url || '', proxy: s.calendar?.proxy || '' };
+}
+export function setCalendarConfig({ url, proxy }) {
+  const s = read();
+  s.settings = s.settings || {};
+  s.settings.calendar = s.settings.calendar || {};
+  if (typeof url   === 'string') s.settings.calendar.url   = url.trim();
+  if (typeof proxy === 'string') s.settings.calendar.proxy = proxy.trim();
   scheduleWrite();
 }
 

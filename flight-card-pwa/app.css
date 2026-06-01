@@ -552,6 +552,48 @@ body {
 .small { font-size: 12px; }
 .hidden { display: none !important; }
 
+/* ---------- Settings sheet ---------- */
+.settings-body { display: flex; flex-direction: column; gap: 18px; }
+.settings-section {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.settings-section:last-child { border-bottom: 0; padding-bottom: 0; }
+.settings-h {
+  margin: 0; font-size: 12px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--fg-mute); font-weight: 700;
+}
+.settings-field {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.settings-field .settings-lbl {
+  font-size: 11px; color: var(--fg-mute); letter-spacing: .04em;
+}
+.settings-field input {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit; font-size: 14px; color: var(--fg);
+  width: 100%; box-sizing: border-box; min-width: 0;
+}
+.settings-field input:focus { outline: none; border-color: var(--accent); background: var(--accent-soft); }
+.settings-row-btns {
+  display: flex; gap: 8px; margin-top: 4px;
+}
+.settings-row-btns .btn { flex: 1; }
+#cal-status {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg-sunk);
+  font-variant-numeric: tabular-nums;
+}
+#cal-status.ok    { background: var(--tick-bg); color: var(--tick-fg); }
+#cal-status.err   { background: rgba(192, 57, 43, .12); color: var(--danger); }
+
 /* ---------- CTOT / UTC time cell ---------- */
 .utc-cell .utc-row {
   display: flex; align-items: center; gap: 6px;

@@ -55,6 +55,51 @@ const historyBody = $('history-body');
 renderAll();
 startClocks();
 syncHeaderInputs();
+consumeRosterFromUrl();
+maybeAutoSync();
+
+// If the user just shared roster text via the iOS Share Sheet → share-roster.html,
+// it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
+async function consumeRosterFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const raw = q.get('roster');
+  if (!raw) return;
+  try {
+    const { parseRoster } = await import('./modules/roster.js');
+    const parsed = parseRoster(raw);
+    if (parsed) {
+      await applyRoster(parsed);
+    } else {
+      toast('Shared text did not look like a roster');
+    }
+  } catch (err) {
+    console.warn('roster ingest failed', err);
+    toast('Roster import failed');
+  } finally {
+    // Clean the URL so reloads don't keep re-applying
+    const url = new URL(location.href);
+    url.search = '';
+    history.replaceState({}, '', url.toString());
+  }
+}
+
+async function maybeAutoSync() {
+  try {
+    const { syncFromIcs, getConfig } = await import('./modules/calendar-sync.js');
+    const cfg = getConfig();
+    if (!cfg.url) return;
+    const result = await syncFromIcs();
+    if (result.status === 'applied' && result.parsed) {
+      await applyRoster(result.parsed);
+      toast(`Calendar synced — ${result.parsed.flights.length} leg(s)`);
+    } else if (result.status === 'error') {
+      // Quiet on startup — surface via the settings sheet when the user opens it
+      console.warn('calendar auto-sync:', result.message);
+    }
+  } catch (err) {
+    console.warn('auto sync failed', err);
+  }
+}
 
 function renderAll() {
   dataCard.render(dataBody);
@@ -180,6 +225,73 @@ $('new-flight').addEventListener('click', () => {
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 $('pa-close').addEventListener('click', () => speeches.close());
+
+// ---------- Settings sheet ----------
+async function openSettings() {
+  const { getConfig } = await import('./modules/calendar-sync.js');
+  const cfg = getConfig();
+  $('cal-url').value   = cfg.url || '';
+  $('cal-proxy').value = cfg.proxy || '';
+  setCalStatus('', '');
+  showOverlay('settings-overlay');
+}
+function setCalStatus(text, cls) {
+  const el = $('cal-status');
+  el.textContent = text || '—';
+  el.classList.remove('ok', 'err');
+  if (cls) el.classList.add(cls);
+}
+function saveCalConfigFromInputs() {
+  return import('./modules/calendar-sync.js').then(({ setConfig }) => {
+    setConfig({ url: $('cal-url').value, proxy: $('cal-proxy').value });
+  });
+}
+$('settings-toggle').addEventListener('click', openSettings);
+$('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
+$('settings-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
+});
+$('cal-test').addEventListener('click', async () => {
+  await saveCalConfigFromInputs();
+  setCalStatus('Fetching…', '');
+  const { syncFromIcs } = await import('./modules/calendar-sync.js');
+  const r = await syncFromIcs({ testOnly: true });
+  if (r.status === 'fetched') setCalStatus(`OK — ${r.eventCount} events found`, 'ok');
+  else                        setCalStatus(r.message, 'err');
+});
+$('cal-sync-now').addEventListener('click', async () => {
+  await saveCalConfigFromInputs();
+  setCalStatus('Syncing…', '');
+  const { syncFromIcs } = await import('./modules/calendar-sync.js');
+  const r = await syncFromIcs();
+  if (r.status === 'applied') {
+    await applyRoster(r.parsed);
+    setCalStatus(`OK — ${r.message}`, 'ok');
+  } else {
+    setCalStatus(r.message, 'err');
+  }
+});
+$('ics-file').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setCalStatus('Reading file…', '');
+  try {
+    const text = await file.text();
+    const { applyIcsText } = await import('./modules/calendar-sync.js');
+    const r = await applyIcsText(text);
+    if (r.status === 'applied') {
+      await applyRoster(r.parsed);
+      setCalStatus(`OK — ${r.message}`, 'ok');
+      toast('Roster imported from .ics');
+    } else {
+      setCalStatus(r.message, 'err');
+    }
+  } catch (err) {
+    setCalStatus('Read failed: ' + (err?.message || err), 'err');
+  } finally {
+    e.target.value = '';  // allow re-picking the same file
+  }
+});
 $('pa-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'pa-overlay') speeches.close();
 });

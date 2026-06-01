@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flight Card — receiving share…</title>
+  <style>
+    body {
+      margin: 0; padding: 40px 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: #05080f; color: #eef2f8;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      min-height: 100vh; box-sizing: border-box;
+    }
+    h1 { font-size: 17px; margin: 0; font-weight: 600; }
+    p  { font-size: 13px; color: #9aa4b6; margin: 0; text-align: center; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #5fa8ff; animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: .3; transform: scale(.8); }
+      50%      { opacity: 1;  transform: scale(1.2); }
+    }
+  </style>
+</head>
+<body>
+  <div class="dot"></div>
+  <h1>Receiving roster…</h1>
+  <p>Routing to Flight Card.</p>
+
+  <script>
+    // The share-target action receives params via the query string.
+    // Concatenate every text-like param (title + text + url) so any
+    // combination iOS sends will reach the parser, then bounce back to
+    // the main app with the text on the URL.
+    (function () {
+      const q = new URLSearchParams(location.search);
+      const parts = [q.get('title'), q.get('text'), q.get('url')]
+        .filter(Boolean)
+        .join('\n\n');
+      const target = './index.html' + (parts ? ('?roster=' + encodeURIComponent(parts)) : '');
+      // Replace so the share-target page doesn't sit in history
+      location.replace(target);
+    })();
+  </script>
+</body>
+</html>
