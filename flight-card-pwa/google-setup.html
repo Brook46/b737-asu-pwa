@@ -99,7 +99,16 @@
           the real cause is the origin mismatch.
         </div>
       </li>
-      <li>Authorised redirect URIs: leave blank (we're using the token flow, not redirect).</li>
+      <li>Authorised <strong>redirect URIs</strong> → <strong>+ Add URI</strong> → enter the full URL Flight Card runs at:
+        <ul>
+          <li><code>https://brook46.github.io/b737-asu-pwa/flight-card-pwa/</code></li>
+          <li><code>http://localhost:8095/</code> (only if testing locally)</li>
+        </ul>
+        <div class="warn" style="margin-top: 8px;">
+          Redirect URIs are <em>full URLs with the path and trailing slash</em>, unlike Authorised JavaScript
+          origins (which are origin-only). Both lists need to be filled in for the redirect sign-in flow to work.
+        </div>
+      </li>
       <li>Create. Copy the <strong>Client ID</strong> — it ends in <code>.apps.googleusercontent.com</code>.</li>
     </ol>
 

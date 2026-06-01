@@ -30,47 +30,73 @@ export function isSignedIn() {
   return !!cfg.accessToken && cfg.tokenExpiry > (Date.now() / 1000 + 60);
 }
 
-// Prompt the user to sign in with Google and grant calendar.readonly scope.
-// Resolves with the access token. Requires window.google.accounts.oauth2
-// (provided by the GIS script in index.html).
+// Build the OAuth URL and do a full-page redirect. Google sends the user back
+// to the same page with #access_token=… in the URL fragment.
+//
+// We use redirect (not popup) because iOS Safari + Intelligent Tracking
+// Prevention break the popup/postMessage flow and surface the failure as a
+// confusing "Error 401: invalid_client".
 export function signIn(clientIdOverride) {
-  return new Promise((resolve, reject) => {
-    const cfg = storage.getCalendarConfig();
-    const clientId = clientIdOverride || cfg.clientId;
-    if (!clientId) return reject(new Error('No OAuth Client ID configured'));
-    const g = window.google && window.google.accounts && window.google.accounts.oauth2;
-    if (!g) return reject(new Error('Google Identity Services not loaded yet'));
-    let timer = setTimeout(() => reject(new Error('Sign-in timed out')), 60_000);
-    const client = g.initTokenClient({
-      client_id: clientId,
-      scope: SCOPE,
-      prompt: '',
-      callback: (resp) => {
-        clearTimeout(timer);
-        if (resp.error) return reject(new Error(resp.error_description || resp.error));
-        const expiresIn = Number(resp.expires_in) || 3600;
-        storage.setCalendarConfig({
-          accessToken: resp.access_token,
-          tokenExpiry: Math.floor(Date.now() / 1000) + expiresIn,
-        });
-        resolve(resp.access_token);
-      },
-      error_callback: (err) => {
-        clearTimeout(timer);
-        reject(new Error(err?.message || err?.type || 'Sign-in failed'));
-      },
-    });
-    // Requesting interactive consent the first time, silent thereafter via
-    // Google's session — `prompt: ''` lets it pick.
-    client.requestAccessToken();
+  const cfg = storage.getCalendarConfig();
+  const clientId = clientIdOverride || cfg.clientId;
+  if (!clientId) throw new Error('No OAuth Client ID configured');
+
+  // Redirect URI = the current page (origin + path, no hash, no query).
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.search = '';
+  const redirectUri = url.toString();
+
+  // A short opaque state so we can recognise the redirect-back.
+  const state = 'fc-' + Math.random().toString(36).slice(2, 10);
+  try { sessionStorage.setItem('fc.oauth.state', state); } catch {}
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'token',
+    scope: SCOPE,
+    include_granted_scopes: 'true',
+    prompt: 'consent',
+    state,
   });
+  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
 }
 
-// Revoke and clear the cached token.
+// Detect a return from the OAuth redirect. If a token is in the URL hash,
+// store it and clean the URL. Returns true if a token was consumed.
+export function consumeRedirectToken() {
+  if (!window.location.hash || window.location.hash.length < 2) return false;
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const token = hash.get('access_token');
+  if (!token) return false;
+  const expiresIn = Number(hash.get('expires_in')) || 3600;
+  const returnedState = hash.get('state');
+  let expectedState = '';
+  try { expectedState = sessionStorage.getItem('fc.oauth.state') || ''; } catch {}
+  // Soft state check: if we have an expected state and it doesn't match, bail.
+  if (expectedState && returnedState && expectedState !== returnedState) {
+    console.warn('OAuth state mismatch — ignoring redirect token');
+    return false;
+  }
+  storage.setCalendarConfig({
+    accessToken: token,
+    tokenExpiry: Math.floor(Date.now() / 1000) + expiresIn,
+  });
+  try { sessionStorage.removeItem('fc.oauth.state'); } catch {}
+  // Strip the hash from the URL so a reload doesn't keep re-processing it.
+  history.replaceState({}, '', window.location.pathname + window.location.search);
+  return true;
+}
+
+// Clear the cached token (best-effort revoke via REST endpoint — no SDK needed).
 export function signOut() {
   const cfg = storage.getCalendarConfig();
-  if (cfg.accessToken && window.google?.accounts?.oauth2?.revoke) {
-    try { window.google.accounts.oauth2.revoke(cfg.accessToken); } catch { /* ignore */ }
+  if (cfg.accessToken) {
+    fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(cfg.accessToken), {
+      method: 'POST',
+      mode: 'no-cors',
+    }).catch(() => {});
   }
   storage.clearCalendarToken();
 }

@@ -56,7 +56,33 @@ renderAll();
 startClocks();
 syncHeaderInputs();
 consumeRosterFromUrl();
+consumeOauthRedirect();
 maybeAutoSync();
+
+// If we just came back from Google OAuth, the URL hash has an access_token.
+// Parse and store, then optionally show the settings sheet so the user can
+// tap "Sync now" without hunting for it.
+async function consumeOauthRedirect() {
+  if (!window.location.hash || !window.location.hash.includes('access_token=')) return;
+  try {
+    const { consumeRedirectToken } = await import('./modules/calendar-sync.js');
+    const got = consumeRedirectToken();
+    if (got) {
+      toast('Signed in to Google');
+      // Auto-pull the latest roster now that we have a token.
+      const { syncFromGoogle, getConfig } = await import('./modules/calendar-sync.js');
+      if (getConfig().clientId) {
+        const r = await syncFromGoogle();
+        if (r.status === 'applied' && r.parsed) {
+          await applyRoster(r.parsed);
+          toast(`Calendar synced — ${r.parsed.flights.length} leg(s)`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('OAuth redirect consume failed', err);
+  }
+}
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -263,12 +289,10 @@ $('settings-overlay').addEventListener('click', (e) => {
 
 $('cal-signin').addEventListener('click', async () => {
   await saveCalConfigFromInputs();
-  setCalStatus('Opening Google sign-in…', '');
+  setCalStatus('Redirecting to Google…', '');
   try {
-    const { signIn, isSignedIn } = await import('./modules/calendar-sync.js');
-    await signIn();
-    paintAuthState(isSignedIn());
-    setCalStatus('Signed in. Tap Sync now.', 'ok');
+    const { signIn } = await import('./modules/calendar-sync.js');
+    signIn();   // full-page redirect — no return
   } catch (err) {
     setCalStatus(err?.message || 'Sign-in failed', 'err');
   }
