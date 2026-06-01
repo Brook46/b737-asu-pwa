@@ -72,25 +72,74 @@ body {
 /* ---------- Header ---------- */
 .app-header {
   position: sticky; top: 0; z-index: 5;
-  display: flex; align-items: center; gap: 6px;
-  padding: max(env(safe-area-inset-top, 0), 8px) 10px 8px;
+  display: flex; flex-direction: column;
+  gap: 6px;
+  /* Left padding leaves room for the iOS Slide Over / Stage Manager
+     close/minimise/maximise pill so it doesn't overlap the UTC clock. */
+  padding: max(env(safe-area-inset-top, 0), 8px) 10px 8px
+           max(env(safe-area-inset-left, 0), 36px);
   background: var(--bg-elev);
   border-bottom: 1px solid var(--line);
   backdrop-filter: saturate(180%) blur(8px);
 }
-.hdr-clocks {
-  display: flex; align-items: center;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
+.hdr-row {
+  display: flex; align-items: center; gap: 6px;
 }
+.hdr-spacer { flex: 1 1 0; }
 .clock-utc {
-  font-size: 16px; font-weight: 800; color: var(--accent);
+  font-size: 15px; font-weight: 800; color: var(--accent);
   letter-spacing: .02em;
   padding: 4px 8px;
   background: var(--accent-soft);
   border-radius: 8px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
+.hdr-ctot {
+  display: flex; align-items: center; gap: 3px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 2px 2px 2px 6px;
+  min-height: 28px;
+}
+.hdr-ctot::before {
+  content: "CTOT";
+  font-size: 9px; font-weight: 800; color: var(--fg-mute);
+  letter-spacing: .06em;
+}
+.hdr-ctot input {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0; padding: 0 2px;
+  font: inherit; font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  color: var(--fg);
+  width: 46px; min-width: 0;
+  text-align: center;
+}
+.hdr-ctot input::placeholder { color: var(--fg-dim); font-weight: 600; font-size: 10px; letter-spacing: .08em; }
+.hdr-ctot input:focus { outline: none; }
+.hdr-ctot button {
+  -webkit-appearance: none; appearance: none;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: inherit; font-size: 10px; font-weight: 800;
+  letter-spacing: .04em;
+  min-height: 22px;
+  cursor: pointer;
+}
+.hdr-ctot button:active { filter: brightness(.92); }
+
+.actions {
+  display: flex; gap: 4px; align-items: center;
+  flex-shrink: 0;
+}
+.actions .btn.icon-btn { width: 34px; height: 34px; min-height: 34px; }
 
 .hdr-input {
   -webkit-appearance: none; appearance: none;
@@ -111,12 +160,6 @@ body {
 .hdr-input::placeholder {
   color: var(--fg-dim); font-weight: 500; letter-spacing: .08em;
 }
-
-.actions {
-  display: flex; gap: 3px; align-items: center;
-  flex-shrink: 0;
-}
-.actions .btn.icon-btn { width: 36px; height: 36px; min-height: 36px; }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -201,10 +244,12 @@ body {
   background: var(--bg-sunk);
 }
 .data-group-summary {
-  font-size: 12px; color: var(--fg-mute);
+  font-size: 13px; color: var(--fg);
+  font-weight: 700;
   padding: 4px 6px 0;
   font-variant-numeric: tabular-nums;
   display: none;
+  letter-spacing: -.01em;
 }
 .data-group.collapsed .data-group-summary { display: block; }
 .data-group .data-grid {
@@ -470,6 +515,34 @@ body {
 .muted { color: var(--fg-mute); }
 .small { font-size: 12px; }
 .hidden { display: none !important; }
+
+/* ---------- Dep cell with locate button ---------- */
+.dep-cell .dep-row {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 2px;
+}
+.dep-cell input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0;
+  font: inherit; font-size: 18px; font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--fg);
+  padding: 2px 0;
+  width: 100%;
+}
+.dep-cell input:focus { outline: none; }
+.dep-cell input::placeholder { color: var(--fg-dim); font-weight: 500; }
+.dep-cell .dep-loc {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font: inherit; font-size: 14px;
+  min-height: 30px;
+  cursor: pointer;
+}
+.dep-cell .dep-loc:active { background: var(--bg-sunk); }
 
 /* ---------- CTOT / UTC time cell ---------- */
 .utc-cell .utc-row {

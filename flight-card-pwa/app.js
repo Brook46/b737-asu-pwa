@@ -10,12 +10,36 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- Init theme + register SW ----------
 initTheme();
+window.fcToast = toast;  // expose for modules that don't import ui
 
 // Re-render the header whenever data card changes (live as you type)
 dataCard.setOnChange((key) => {
-  if (key === 'tail' || key === 'flight') syncHeaderInputs();
+  if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
   speeches.notifyDataChange();
 });
+
+// Auto-collapse the entire checklist card when everything is done.
+let checklistAutoCollapsed = false;
+checklist.setOnAllDoneChange((allDone) => {
+  const card = document.getElementById('card-checklist');
+  if (!card) return;
+  if (allDone && !checklistAutoCollapsed) {
+    card.classList.add('collapsed');
+    checklistAutoCollapsed = true;
+    syncCardChev('checklist');
+  } else if (!allDone && checklistAutoCollapsed) {
+    card.classList.remove('collapsed');
+    checklistAutoCollapsed = false;
+    syncCardChev('checklist');
+  }
+});
+function syncCardChev(target) {
+  const btn = document.querySelector(`.card-toggle[data-target="${target}"]`);
+  if (!btn) return;
+  const open = !document.querySelector(`.card[data-section="${target}"]`).classList.contains('collapsed');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  btn.querySelector('.chev').textContent = open ? '▾' : '▸';
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -55,19 +79,44 @@ function syncHeaderInputs() {
   const data = storage.getCurrent().dataCard;
   const tail = $('hdr-tail');
   const flt  = $('hdr-flight');
+  const ctot = $('hdr-ctot');
   if (tail && document.activeElement !== tail) tail.value = data.tail || '';
   if (flt  && document.activeElement !== flt)  flt.value  = data.flight || '';
+  if (ctot && document.activeElement !== ctot) ctot.value = data.ctot || '';
 }
 $('hdr-tail').addEventListener('input', () => {
   storage.setDataField('tail', $('hdr-tail').value.toUpperCase());
-  dataCard.render(dataBody);
   speeches.notifyDataChange();
 });
 $('hdr-flight').addEventListener('input', () => {
   storage.setDataField('flight', $('hdr-flight').value.toUpperCase());
-  dataCard.render(dataBody);
   speeches.notifyDataChange();
 });
+
+// Header CTOT input — live HH:MM formatting + autosave
+const hdrCtot = $('hdr-ctot');
+hdrCtot.addEventListener('input', () => {
+  const formatted = formatHHMM(hdrCtot.value);
+  if (hdrCtot.value !== formatted) {
+    hdrCtot.value = formatted;
+    try { hdrCtot.setSelectionRange(formatted.length, formatted.length); } catch {}
+  }
+  storage.setDataField('ctot', formatted);
+  speeches.notifyDataChange();
+});
+$('hdr-ctot-now').addEventListener('click', () => {
+  const now = new Date();
+  const v = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
+  hdrCtot.value = v;
+  storage.setDataField('ctot', v);
+  speeches.notifyDataChange();
+  toast(`CTOT ${v}Z recorded`);
+});
+function formatHHMM(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, digits.length - 2) + ':' + digits.slice(-2);
+}
 
 // ---------- Header actions ----------
 $('theme-toggle').addEventListener('click', cycleTheme);

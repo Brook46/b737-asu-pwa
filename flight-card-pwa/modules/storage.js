@@ -10,22 +10,27 @@
 // }
 
 const KEY = 'fc.state';
-const VERSION = 3;
+const VERSION = 4;
 const HISTORY_MAX = 20;
 
 const DEFAULT_TEMPLATE = {
   sections: [
-    { id: 's-cabin', name: 'Cabin & galley', items: [
-      { id: 'i-waste',   label: 'Waste tank empty' },
-      { id: 'i-2c',      label: '2C on board' },
+    { id: 's-cabin', name: 'Cabin', items: [
+      { id: 'i-waste', label: 'Water waste' },
+      { id: 'i-2c',    label: '2C' },
     ]},
-    { id: 's-perf', name: 'Performance', items: [
-      { id: 'i-perf-calc', label: 'Live performance calculation' },
+    { id: 's-papers', name: 'Papers and performance', items: [
+      { id: 'i-ls',         label: 'LS' },
+      { id: 'i-notoc',      label: 'NOTOC' },
+      { id: 'i-atl',        label: 'ATL' },
+      { id: 'i-clearance',  label: 'Clearance' },
+      { id: 'i-opt',        label: 'OPT' },
     ]},
-    { id: 's-start', name: 'Before start', items: [
-      { id: 'i-doors',  label: 'Doors closed' },
-      { id: 'i-beacon', label: 'Beacon on' },
-      { id: 'i-clx',    label: 'Clearance read back' },
+    { id: 's-chk', name: 'Checklist', items: [
+      { id: 'i-preflight',      label: 'Preflight' },
+      { id: 'i-before-start',   label: 'Before start' },
+      { id: 'i-cabin-ready',    label: 'Cabin ready' },
+      { id: 'i-before-takeoff', label: 'Before takeoff' },
     ]},
   ],
 };
@@ -155,11 +160,7 @@ function read() {
 function migrate(s) {
   if (!s || typeof s !== 'object') return freshState();
   if (s.v === VERSION) return s;
-  // v1/v2 → v3:
-  //   - v1 templates were already wiped on v1→v2; we keep the v2 user template
-  //     if it exists, otherwise reseed.
-  //   - Speeches: convert legacy { body } to { bodyEn, bodyHe }. Seed bodyHe
-  //     from defaults when the speech name matches, otherwise leave empty.
+  // Speech upgrade (v2→v3 schema): { body } → { bodyEn, bodyHe }.
   const upgradedSpeeches = (Array.isArray(s.speeches) && s.speeches.length)
     ? s.speeches.map(sp => {
         if (sp.bodyEn || sp.bodyHe) return sp;
@@ -172,9 +173,12 @@ function migrate(s) {
         };
       })
     : clone(DEFAULT_SPEECHES);
+  // v3→v4: reseed checklist template (user explicitly asked for a new default).
+  // Older templates are wiped — current flight ticks may reference old item ids
+  // which simply become orphaned (no harm).
   return {
     v: VERSION,
-    template: (s.template && Array.isArray(s.template.sections)) ? s.template : clone(DEFAULT_TEMPLATE),
+    template: clone(DEFAULT_TEMPLATE),
     speeches: upgradedSpeeches,
     current: s.current || newFlightRecord(),
     history: Array.isArray(s.history) ? s.history : [],

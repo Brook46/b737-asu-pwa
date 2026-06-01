@@ -5,6 +5,7 @@
 // Display: substitute @vars and render with each @var highlighted.
 
 import * as storage from './storage.js';
+import { cityName } from './airports.js';
 
 let activeId = null;
 let editing = false;
@@ -49,8 +50,13 @@ export function substitute(body, data) {
     if (dyn != null) return dyn;
     const key = VAR_MAP[token.toLowerCase()];
     if (!key) return whole;
-    const val = data[key];
-    return (val && String(val).trim()) ? String(val) : whole;
+    let val = data[key];
+    if (!val || !String(val).trim()) return whole;
+    // dep/arr/eta: expand IATA/ICAO airport codes to city names
+    if (key === 'dep' || key === 'arr' || key === 'eta') {
+      val = cityName(val);
+    }
+    return String(val);
   });
 }
 
@@ -66,8 +72,9 @@ function renderHtml(body, data) {
       html += `<span class="pa-var" data-auto="1">${escape(dyn)}</span>`;
     } else {
       const key = VAR_MAP[token.toLowerCase()];
-      const val = key ? data[key] : null;
+      let val = key ? data[key] : null;
       if (val && String(val).trim()) {
+        if (key === 'dep' || key === 'arr' || key === 'eta') val = cityName(val);
         html += `<span class="pa-var">${escape(String(val))}</span>`;
       } else {
         html += `<span class="pa-var pa-var-empty">${escape(whole)}</span>`;

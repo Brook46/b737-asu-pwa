@@ -3,6 +3,9 @@
 import * as storage from './storage.js';
 
 let editMode = false;
+let onAllDoneChange = null;
+
+export function setOnAllDoneChange(fn) { onAllDoneChange = fn; }
 
 // Manual collapse overrides (per section id). Tri-state:
 //   true   → user-forced collapsed
@@ -112,6 +115,12 @@ export function render(root) {
 
   root.innerHTML = parts.join('');
   wire(root);
+
+  // Notify whether the entire checklist is complete (all sections all-done)
+  const everythingDone = !editMode
+    && template.sections.length > 0
+    && template.sections.every(sec => sectionAllDone(sec, ticks));
+  if (onAllDoneChange) onAllDoneChange(everythingDone);
 }
 
 function wire(root) {

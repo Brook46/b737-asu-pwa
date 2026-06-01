@@ -24,10 +24,8 @@ export const FIELDS = [
     { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
-    { key: 'dep',         label: 'Dep',         kind: 'text' },
+    { key: 'dep',         label: 'Dep',         kind: 'dep'  },
     { key: 'arr',         label: 'Arr',         kind: 'text' },
-    { key: 'ctot',        label: 'CTOT (UTC)',  kind: 'utctime', wide: true },
-    { key: 'eta',         label: 'ETA',         kind: 'text' },
     { key: 'flight_time', label: 'Flight time', kind: 'text' },
   ]},
   { id: 'g-crew',  group: 'Crew',      cells: [
@@ -82,6 +80,7 @@ export function render(root) {
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
+  if (c.kind === 'dep')     return renderDepCell(c, raw);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -103,6 +102,31 @@ function renderCell(c, raw) {
         value="${escapeAttr(v)}"
         placeholder="—"
       />
+    </label>
+  `;
+}
+
+function renderDepCell(c, raw) {
+  const v = raw == null ? '' : String(raw);
+  return `
+    <label class="data-cell dep-cell">
+      <span class="lbl">${escape(c.label)}</span>
+      <div class="dep-row">
+        <input
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          data-key="${c.key}"
+          data-kind="dep"
+          value="${escapeAttr(v)}"
+          placeholder="—"
+          maxlength="4"
+        />
+        <button type="button" class="dep-loc" data-dep-locate="1" title="Use my location" aria-label="Use my location">📍</button>
+      </div>
     </label>
   `;
 }
@@ -199,6 +223,12 @@ function wire(root) {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
       const normalized = normalize(def, inp.value);
+      // Live-format utctime so the colon appears as the user types
+      if (def.kind === 'utctime' && inp.value !== normalized) {
+        inp.value = normalized;
+        // Cursor at the end after auto-format
+        try { inp.setSelectionRange(normalized.length, normalized.length); } catch {}
+      }
       storage.setDataField(key, normalized);
       updateGroupMeta(root, key);
       if (onChange) onChange(key);
@@ -211,6 +241,32 @@ function wire(root) {
       inp.value = formatValue(def, raw);
     });
   });
+  // Dep "Use my location"
+  root.querySelectorAll('[data-dep-locate]').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      e.preventDefault();
+      b.disabled = true;
+      const original = b.textContent;
+      b.textContent = '…';
+      try {
+        const { detect } = await import('./airports.js');
+        const hit = await detect();
+        if (!hit) throw new Error('No airport found nearby');
+        storage.setDataField('dep', hit.iata);
+        const inp = root.querySelector('input[data-key="dep"]');
+        if (inp) inp.value = hit.iata;
+        updateGroupMeta(root, 'dep');
+        if (onChange) onChange('dep');
+        if (window.fcToast) window.fcToast(`Dep set to ${hit.iata} (${Math.round(hit.distanceKm)} km)`);
+      } catch (err) {
+        if (window.fcToast) window.fcToast('Location: ' + (err?.message || err));
+      } finally {
+        b.disabled = false;
+        b.textContent = original;
+      }
+    });
+  });
+
   // CTOT "Now" — fill the current UTC HH:MM
   root.querySelectorAll('[data-utc-now]').forEach(b => {
     b.addEventListener('click', (e) => {
@@ -278,17 +334,17 @@ function normalize(def, raw) {
     return Number.isFinite(n) ? n : '';
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
-  if (def.kind === 'utctime') {
-    // Accept "1145", "11:45", "11.45" → store as "11:45"
-    const digits = s.replace(/[^\d]/g, '').slice(0, 4);
-    if (digits.length < 3) return digits;     // partial — let user keep typing
-    const hh = digits.slice(0, digits.length - 2);
-    const mm = digits.slice(-2);
-    const h = parseInt(hh, 10), m = parseInt(mm, 10);
-    if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return s;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-  }
+  if (def.kind === 'utctime') return formatHHMM(s);
+  if (def.kind === 'dep')     return s.toUpperCase().slice(0, 4);
   return s;
+}
+
+// "1" → "1"  · "11" → "11"  · "112" → "1:12"  · "1145" → "11:45"
+// Always treats the last 2 digits as minutes once 3+ are typed.
+export function formatHHMM(raw) {
+  const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, digits.length - 2) + ':' + digits.slice(-2);
 }
 
 function formatValue(def, v) {
