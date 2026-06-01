@@ -126,7 +126,7 @@ function makeFlightId() {
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
 const DEFAULT_SETTINGS = {
-  calendar: { url: '', proxy: 'https://corsproxy.io/?' },
+  calendar: { url: '' },
 };
 
 function freshState() {
@@ -158,8 +158,7 @@ function read() {
   cache.speeches = Array.isArray(cache.speeches) && cache.speeches.length ? cache.speeches : clone(DEFAULT_SPEECHES);
   cache.settings = cache.settings || clone(DEFAULT_SETTINGS);
   cache.settings.calendar = cache.settings.calendar || clone(DEFAULT_SETTINGS.calendar);
-  if (typeof cache.settings.calendar.url   !== 'string') cache.settings.calendar.url = '';
-  if (typeof cache.settings.calendar.proxy !== 'string') cache.settings.calendar.proxy = DEFAULT_SETTINGS.calendar.proxy;
+  if (typeof cache.settings.calendar.url !== 'string') cache.settings.calendar.url = '';
   cache.current  = cache.current  || newFlightRecord();
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
@@ -315,14 +314,13 @@ export function setDataBulk(fields) {
 export function getSettings() { return read().settings || {}; }
 export function getCalendarConfig() {
   const s = read().settings;
-  return { url: s.calendar?.url || '', proxy: s.calendar?.proxy || '' };
+  return { url: s.calendar?.url || '' };
 }
-export function setCalendarConfig({ url, proxy }) {
+export function setCalendarConfig({ url }) {
   const s = read();
   s.settings = s.settings || {};
   s.settings.calendar = s.settings.calendar || {};
-  if (typeof url   === 'string') s.settings.calendar.url   = url.trim();
-  if (typeof proxy === 'string') s.settings.calendar.proxy = proxy.trim();
+  if (typeof url === 'string') s.settings.calendar.url = url.trim();
   scheduleWrite();
 }
 

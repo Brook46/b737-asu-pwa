@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=9" />
+  <link rel="stylesheet" href="./app.css?v=10" />
 </head>
 <body>
   <header class="app-header">
@@ -180,18 +180,17 @@
         <section class="settings-section">
           <h3 class="settings-h">Calendar sync</h3>
           <p class="muted small">
-            iOS does not let a PWA read your Calendar directly. Subscribe Flight Card to your roster calendar
-            by pasting an iCal/.ics URL below — open the app and the latest roster event auto-applies.
-            To get a URL: iOS Calendar → tap the calendar → Public Calendar → Share Link.
+            Paste your Google Calendar <strong>secret iCal URL</strong>. Flight Card fetches it on every open
+            and applies the latest roster event.
+          </p>
+          <p class="muted small">
+            How to get it: open Google Calendar in a browser → click your roster calendar →
+            <em>Settings and sharing</em> → scroll to <em>Integrate calendar</em> → copy
+            <em>Secret address in iCal format</em>. Anyone with this URL can read your calendar — keep it private.
           </p>
           <label class="settings-field">
             <span class="settings-lbl">iCal feed URL</span>
-            <input id="cal-url" type="url" inputmode="url" autocomplete="off" placeholder="https://...ics or webcal://..." />
-          </label>
-          <label class="settings-field">
-            <span class="settings-lbl">CORS proxy (advanced)</span>
-            <input id="cal-proxy" type="url" inputmode="url" autocomplete="off" placeholder="https://corsproxy.io/?" />
-            <span class="muted small">Used only when the calendar URL blocks direct browser fetch.</span>
+            <input id="cal-url" type="url" inputmode="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" />
           </label>
           <div class="settings-row-btns">
             <button id="cal-test"     class="btn">Test</button>
@@ -199,23 +198,12 @@
           </div>
           <p class="muted small" id="cal-status">—</p>
         </section>
-
-        <section class="settings-section">
-          <h3 class="settings-h">Import .ics file</h3>
-          <p class="muted small">
-            One-off import — pick a calendar file exported from iOS Calendar or your crew portal.
-          </p>
-          <label class="btn block">
-            <input id="ics-file" type="file" accept=".ics,text/calendar" hidden />
-            Choose .ics file…
-          </label>
-        </section>
       </div>
     </div>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=9"></script>
+  <script type="module" src="./app.js?v=10"></script>
 </body>
 </html>

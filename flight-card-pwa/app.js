@@ -230,8 +230,7 @@ $('pa-close').addEventListener('click', () => speeches.close());
 async function openSettings() {
   const { getConfig } = await import('./modules/calendar-sync.js');
   const cfg = getConfig();
-  $('cal-url').value   = cfg.url || '';
-  $('cal-proxy').value = cfg.proxy || '';
+  $('cal-url').value = cfg.url || '';
   setCalStatus('', '');
   showOverlay('settings-overlay');
 }
@@ -243,7 +242,7 @@ function setCalStatus(text, cls) {
 }
 function saveCalConfigFromInputs() {
   return import('./modules/calendar-sync.js').then(({ setConfig }) => {
-    setConfig({ url: $('cal-url').value, proxy: $('cal-proxy').value });
+    setConfig({ url: $('cal-url').value });
   });
 }
 $('settings-toggle').addEventListener('click', openSettings);
@@ -269,27 +268,6 @@ $('cal-sync-now').addEventListener('click', async () => {
     setCalStatus(`OK — ${r.message}`, 'ok');
   } else {
     setCalStatus(r.message, 'err');
-  }
-});
-$('ics-file').addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  setCalStatus('Reading file…', '');
-  try {
-    const text = await file.text();
-    const { applyIcsText } = await import('./modules/calendar-sync.js');
-    const r = await applyIcsText(text);
-    if (r.status === 'applied') {
-      await applyRoster(r.parsed);
-      setCalStatus(`OK — ${r.message}`, 'ok');
-      toast('Roster imported from .ics');
-    } else {
-      setCalStatus(r.message, 'err');
-    }
-  } catch (err) {
-    setCalStatus('Read failed: ' + (err?.message || err), 'err');
-  } finally {
-    e.target.value = '';  // allow re-picking the same file
   }
 });
 $('pa-overlay').addEventListener('click', (e) => {
