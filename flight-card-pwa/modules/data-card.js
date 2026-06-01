@@ -24,7 +24,7 @@ export const FIELDS = [
     { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
-    { key: 'dep',         label: 'Dep',         kind: 'dep'  },
+    { key: 'dep',         label: 'Dep',         kind: 'text' },
     { key: 'arr',         label: 'Arr',         kind: 'text' },
     { key: 'flight_time', label: 'Flight time', kind: 'text' },
   ]},
@@ -35,6 +35,7 @@ export const FIELDS = [
     { key: 'cc2',  label: 'CC2',         kind: 'text', wide: true },
     { key: 'cc3',  label: 'CC3',         kind: 'text', wide: true },
     { key: 'cc4',  label: 'CC4',         kind: 'text', wide: true },
+    { key: 'cc5',  label: 'CC5',         kind: 'text', wide: true },
   ]},
 ];
 
@@ -80,7 +81,6 @@ export function render(root) {
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
-  if (c.kind === 'dep')     return renderDepCell(c, raw);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -102,31 +102,6 @@ function renderCell(c, raw) {
         value="${escapeAttr(v)}"
         placeholder="—"
       />
-    </label>
-  `;
-}
-
-function renderDepCell(c, raw) {
-  const v = raw == null ? '' : String(raw);
-  return `
-    <label class="data-cell dep-cell">
-      <span class="lbl">${escape(c.label)}</span>
-      <div class="dep-row">
-        <input
-          type="text"
-          inputmode="text"
-          autocomplete="off"
-          autocapitalize="characters"
-          autocorrect="off"
-          spellcheck="false"
-          data-key="${c.key}"
-          data-kind="dep"
-          value="${escapeAttr(v)}"
-          placeholder="—"
-          maxlength="4"
-        />
-        <button type="button" class="dep-loc" data-dep-locate="1" title="Use my location" aria-label="Use my location">📍</button>
-      </div>
     </label>
   `;
 }
@@ -219,6 +194,11 @@ function wire(root) {
   });
   // Inline inputs (autosave on input)
   root.querySelectorAll('input[data-key]').forEach(inp => {
+    // Select all on focus so a single keystroke replaces the existing value
+    inp.addEventListener('focus', () => {
+      // setTimeout so iOS Safari actually honours the selection on tap
+      setTimeout(() => { try { inp.select(); } catch {} }, 0);
+    });
     inp.addEventListener('input', () => {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
@@ -241,32 +221,6 @@ function wire(root) {
       inp.value = formatValue(def, raw);
     });
   });
-  // Dep "Use my location"
-  root.querySelectorAll('[data-dep-locate]').forEach(b => {
-    b.addEventListener('click', async (e) => {
-      e.preventDefault();
-      b.disabled = true;
-      const original = b.textContent;
-      b.textContent = '…';
-      try {
-        const { detect } = await import('./airports.js');
-        const hit = await detect();
-        if (!hit) throw new Error('No airport found nearby');
-        storage.setDataField('dep', hit.iata);
-        const inp = root.querySelector('input[data-key="dep"]');
-        if (inp) inp.value = hit.iata;
-        updateGroupMeta(root, 'dep');
-        if (onChange) onChange('dep');
-        if (window.fcToast) window.fcToast(`Dep set to ${hit.iata} (${Math.round(hit.distanceKm)} km)`);
-      } catch (err) {
-        if (window.fcToast) window.fcToast('Location: ' + (err?.message || err));
-      } finally {
-        b.disabled = false;
-        b.textContent = original;
-      }
-    });
-  });
-
   // CTOT "Now" — fill the current UTC HH:MM
   root.querySelectorAll('[data-utc-now]').forEach(b => {
     b.addEventListener('click', (e) => {
@@ -335,7 +289,6 @@ function normalize(def, raw) {
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
   if (def.kind === 'utctime') return formatHHMM(s);
-  if (def.kind === 'dep')     return s.toUpperCase().slice(0, 4);
   return s;
 }
 

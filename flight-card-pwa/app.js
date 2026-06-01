@@ -60,7 +60,55 @@ function renderAll() {
   dataCard.render(dataBody);
   checklist.render(checklistBody);
   renderHistory();
+  renderLegSwitcher();
 }
+
+// ---------- Leg switcher ----------
+function renderLegSwitcher() {
+  const sw = $('leg-switcher');
+  const legs = storage.getLegs();
+  if (!sw) return;
+  if (!legs.length || legs.length < 2) {
+    sw.classList.add('hidden');
+    return;
+  }
+  sw.classList.remove('hidden');
+  const idx = storage.getLegIndex();
+  const leg = legs[idx];
+  $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
+  const flight = leg.flight ? `LY${leg.flight}` : '';
+  const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
+  $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
+  $('leg-prev').disabled = idx <= 0;
+  $('leg-next').disabled = idx >= legs.length - 1;
+}
+async function applyLeg(idx) {
+  const legs = storage.getLegs();
+  if (!legs.length) return;
+  const clamped = Math.max(0, Math.min(legs.length - 1, idx));
+  storage.setLegIndex(clamped);
+  const { legToFields } = await import('./modules/roster.js');
+  const fields = legToFields(legs[clamped]);
+  // tail + flight live in the header (not in data-card FIELDS), so write them
+  // directly via setDataBulk; the rest goes through applyExternal which knows
+  // each cell's normalizer.
+  const headerKeys = ['tail', 'flight'];
+  const headerBag = {};
+  for (const k of headerKeys) if (fields[k] != null) headerBag[k] = fields[k];
+  if (Object.keys(headerBag).length) storage.setDataBulk(headerBag);
+  dataCard.applyExternal(fields, dataBody);
+  syncHeaderInputs();
+  renderLegSwitcher();
+  speeches.notifyDataChange();
+}
+async function applyRoster(parsed) {
+  if (!parsed || !parsed.flights?.length) return;
+  storage.setLegs(parsed.flights);
+  await applyLeg(0);
+  toast(`Roster: ${parsed.flights.length} leg${parsed.flights.length === 1 ? '' : 's'} loaded`);
+}
+$('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
+$('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
 
 // ---------- Clocks ----------
 function startClocks() {
@@ -75,6 +123,15 @@ function tickClocks() {
 function pad(n) { return String(n).padStart(2, '0'); }
 
 // ---------- Header tail/flight inputs ----------
+// Select-all on focus for header inputs so a single keystroke replaces the value
+['hdr-tail', 'hdr-flight', 'hdr-ctot'].forEach(id => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('focus', () => {
+    setTimeout(() => { try { el.select(); } catch {} }, 0);
+  });
+});
+
 function syncHeaderInputs() {
   const data = storage.getCurrent().dataCard;
   const tail = $('hdr-tail');
@@ -104,14 +161,6 @@ hdrCtot.addEventListener('input', () => {
   storage.setDataField('ctot', formatted);
   speeches.notifyDataChange();
 });
-$('hdr-ctot-now').addEventListener('click', () => {
-  const now = new Date();
-  const v = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
-  hdrCtot.value = v;
-  storage.setDataField('ctot', v);
-  speeches.notifyDataChange();
-  toast(`CTOT ${v}Z recorded`);
-});
 function formatHHMM(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
   if (digits.length <= 2) return digits;
@@ -123,6 +172,7 @@ $('theme-toggle').addEventListener('click', cycleTheme);
 $('new-flight').addEventListener('click', () => {
   if (!confirm('Start a new flight? Current data and ticks will be archived.')) return;
   storage.newFlight();
+  storage.clearLegs();
   checklist.resetOverrides();
   renderAll();
   syncHeaderInputs();
@@ -172,6 +222,23 @@ $('ocr-overlay').addEventListener('click', (e) => {
 
 $('ocr-file').addEventListener('change', (e) => handleOcrFile(e.target.files?.[0]));
 $('ocr-camera').addEventListener('change', (e) => handleOcrFile(e.target.files?.[0]));
+$('ocr-paste-img').addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard?.read) throw new Error('Clipboard API unavailable');
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const imgType = item.types.find(t => t.startsWith('image/'));
+      if (!imgType) continue;
+      const blob = await item.getType(imgType);
+      const file = new File([blob], 'pasted.png', { type: imgType });
+      await handleOcrFile(file);
+      return;
+    }
+    toast('No image on the clipboard');
+  } catch (err) {
+    toast('Paste image: ' + (err?.message || err));
+  }
+});
 $('ocr-paste-parse').addEventListener('click', async () => {
   const text = $('ocr-paste-text').value || '';
   if (!text.trim()) { toast('Paste some text first'); return; }
@@ -197,6 +264,14 @@ async function handleOcrFile(file) {
 }
 
 async function runParse(text) {
+  // Roster first — if the pasted text is a duty roster, take that branch.
+  const { parseRoster } = await import('./modules/roster.js');
+  const roster = parseRoster(text);
+  if (roster) {
+    await applyRoster(roster);
+    hideOverlay('ocr-overlay');
+    return;
+  }
   const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');

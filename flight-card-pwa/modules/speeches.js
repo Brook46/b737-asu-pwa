@@ -21,6 +21,7 @@ const VAR_MAP = {
   cc2:    'cc2',
   cc3:    'cc3',
   cc4:    'cc4',
+  cc5:    'cc5',
   tail:   'tail',
   flight: 'flight',
   flt:    'flight',

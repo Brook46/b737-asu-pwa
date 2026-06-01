@@ -130,35 +130,3 @@ export function cityName(code) {
   return hit ? hit.city : (code || '');
 }
 
-// Great-circle distance in km.
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const toRad = (d) => d * Math.PI / 180;
-  const φ1 = toRad(lat1), φ2 = toRad(lat2);
-  const dφ = toRad(lat2 - lat1);
-  const dλ = toRad(lon2 - lon1);
-  const a = Math.sin(dφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(dλ/2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-// Find nearest airport to a position. Returns { iata, distanceKm }.
-export function nearest(lat, lon) {
-  let best = null, bestD = Infinity;
-  for (const [iata, a] of Object.entries(AIRPORTS)) {
-    const d = haversine(lat, lon, a.lat, a.lon);
-    if (d < bestD) { bestD = d; best = iata; }
-  }
-  return best ? { iata: best, distanceKm: bestD } : null;
-}
-
-// Detect via geolocation. Returns a Promise<{ iata, distanceKm } | null>.
-export function detect() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(nearest(pos.coords.latitude, pos.coords.longitude)),
-      (err) => reject(err),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
-    );
-  });
-}

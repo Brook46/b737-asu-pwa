@@ -10,7 +10,7 @@
 // }
 
 const KEY = 'fc.state';
-const VERSION = 4;
+const VERSION = 5;
 const HISTORY_MAX = 20;
 
 const DEFAULT_TEMPLATE = {
@@ -116,6 +116,8 @@ function newFlightRecord() {
     dataCard: {},
     ticks: {},
     notes: {},
+    legs: [],
+    legIndex: 0,
   };
 }
 function makeFlightId() {
@@ -153,6 +155,8 @@ function read() {
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
   cache.current.notes    = cache.current.notes    || {};
+  cache.current.legs     = Array.isArray(cache.current.legs) ? cache.current.legs : [];
+  cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
   return cache;
 }
@@ -173,14 +177,16 @@ function migrate(s) {
         };
       })
     : clone(DEFAULT_SPEECHES);
-  // v3→v4: reseed checklist template (user explicitly asked for a new default).
-  // Older templates are wiped — current flight ticks may reference old item ids
-  // which simply become orphaned (no harm).
+  // v3→v4: reseed checklist template (new defaults).
+  // v4→v5: seed legs: [] + legIndex: 0 on current flight (new roster feature).
+  const current = s.current || newFlightRecord();
+  current.legs = Array.isArray(current.legs) ? current.legs : [];
+  current.legIndex = Number.isInteger(current.legIndex) ? current.legIndex : 0;
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: upgradedSpeeches,
-    current: s.current || newFlightRecord(),
+    current,
     history: Array.isArray(s.history) ? s.history : [],
   };
 }
@@ -289,6 +295,33 @@ export function setDataBulk(fields) {
     if (v === '' || v == null) delete c.dataCard[k];
     else c.dataCard[k] = v;
   }
+  scheduleWrite();
+}
+
+// ---------- Legs (multi-flight roster) ----------
+export function getLegs() { return read().current.legs || []; }
+export function getLegIndex() { return read().current.legIndex || 0; }
+export function getLeg(i) {
+  const c = read().current;
+  const idx = (typeof i === 'number') ? i : (c.legIndex || 0);
+  return c.legs?.[idx] || null;
+}
+export function setLegs(legs) {
+  const c = read().current;
+  c.legs = Array.isArray(legs) ? legs.slice() : [];
+  c.legIndex = 0;
+  scheduleWrite();
+}
+export function setLegIndex(i) {
+  const c = read().current;
+  const max = (c.legs?.length || 1) - 1;
+  c.legIndex = Math.max(0, Math.min(max, i | 0));
+  scheduleWrite();
+}
+export function clearLegs() {
+  const c = read().current;
+  c.legs = [];
+  c.legIndex = 0;
   scheduleWrite();
 }
 

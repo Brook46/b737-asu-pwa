@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=7" />
+  <link rel="stylesheet" href="./app.css?v=8" />
 </head>
 <body>
   <header class="app-header">
@@ -21,7 +21,6 @@
       <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
       <div class="hdr-ctot">
         <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" maxlength="5" aria-label="CTOT (UTC)" />
-        <button id="hdr-ctot-now" type="button" title="Record current UTC as CTOT" aria-label="Record CTOT now">Now</button>
       </div>
       <div class="hdr-spacer"></div>
       <div class="actions">
@@ -46,6 +45,15 @@
     </div>
   </header>
 
+  <div id="leg-switcher" class="leg-switcher hidden" role="region" aria-label="Flight leg switcher">
+    <button id="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
+    <div class="leg-info">
+      <span id="leg-pos"   class="leg-pos">Leg 1 / 1</span>
+      <span id="leg-route" class="leg-route">—</span>
+    </div>
+    <button id="leg-next" class="leg-btn" aria-label="Next leg">▶</button>
+  </div>
+
   <main id="main" class="main">
     <!-- Checklist -->
     <section class="card" id="card-checklist" data-section="checklist">
@@ -66,7 +74,7 @@
           <span class="chev">▾</span>
           <span class="card-title">Data card</span>
         </button>
-        <button id="ocr-btn" class="btn ghost-btn" title="Auto-fill from FMC / OPT / OFP">⌖ FMC / OPT / OFP</button>
+        <button id="ocr-btn" class="btn ghost-btn" title="Auto-fill from OPT / FMC photo / paste / roster">OPT / FMC</button>
       </header>
       <div class="card-body" id="data-body"></div>
     </section>
@@ -87,7 +95,7 @@
   <div id="ocr-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ocr-label">
     <div class="ocr-sheet">
       <div class="pad-head">
-        <span id="ocr-label" class="pad-label">Auto-fill from FMC / OPT / OFP</span>
+        <span id="ocr-label" class="pad-label">Auto-fill from OPT / FMC / roster</span>
         <button id="ocr-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
 
@@ -102,6 +110,7 @@
             <input id="ocr-camera" type="file" accept="image/*" capture="environment" hidden />
             Camera photo
           </label>
+          <button id="ocr-paste-img" class="btn block" type="button">Paste image</button>
         </div>
         <details class="ocr-paste">
           <summary>Paste text instead</summary>
@@ -155,6 +164,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=7"></script>
+  <script type="module" src="./app.js?v=8"></script>
 </body>
 </html>
