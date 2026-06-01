@@ -56,33 +56,6 @@ renderAll();
 startClocks();
 syncHeaderInputs();
 consumeRosterFromUrl();
-consumeOauthRedirect();
-maybeAutoSync();
-
-// If we just came back from Google OAuth, the URL hash has an access_token.
-// Parse and store, then optionally show the settings sheet so the user can
-// tap "Sync now" without hunting for it.
-async function consumeOauthRedirect() {
-  if (!window.location.hash || !window.location.hash.includes('access_token=')) return;
-  try {
-    const { consumeRedirectToken } = await import('./modules/calendar-sync.js');
-    const got = consumeRedirectToken();
-    if (got) {
-      toast('Signed in to Google');
-      // Auto-pull the latest roster now that we have a token.
-      const { syncFromGoogle, getConfig } = await import('./modules/calendar-sync.js');
-      if (getConfig().clientId) {
-        const r = await syncFromGoogle();
-        if (r.status === 'applied' && r.parsed) {
-          await applyRoster(r.parsed);
-          toast(`Calendar synced — ${r.parsed.flights.length} leg(s)`);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('OAuth redirect consume failed', err);
-  }
-}
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -109,22 +82,6 @@ async function consumeRosterFromUrl() {
   }
 }
 
-async function maybeAutoSync() {
-  try {
-    const { syncFromGoogle, isSignedIn, getConfig } = await import('./modules/calendar-sync.js');
-    const cfg = getConfig();
-    if (!cfg.clientId || !isSignedIn()) return;
-    const result = await syncFromGoogle();
-    if (result.status === 'applied' && result.parsed) {
-      await applyRoster(result.parsed);
-      toast(`Calendar synced — ${result.parsed.flights.length} leg(s)`);
-    } else if (result.status === 'error') {
-      console.warn('calendar auto-sync:', result.message);
-    }
-  } catch (err) {
-    console.warn('auto sync failed', err);
-  }
-}
 
 function renderAll() {
   dataCard.render(dataBody);
@@ -251,75 +208,6 @@ $('new-flight').addEventListener('click', () => {
 $('pa-toggle').addEventListener('click', () => speeches.open());
 $('pa-close').addEventListener('click', () => speeches.close());
 
-// ---------- Settings sheet ----------
-async function openSettings() {
-  const { getConfig, isSignedIn } = await import('./modules/calendar-sync.js');
-  const cfg = getConfig();
-  $('cal-client-id').value   = cfg.clientId   || '';
-  $('cal-calendar-id').value = cfg.calendarId || 'primary';
-  paintAuthState(isSignedIn());
-  setCalStatus('', '');
-  showOverlay('settings-overlay');
-}
-function setCalStatus(text, cls) {
-  const el = $('cal-status');
-  el.textContent = text || '—';
-  el.classList.remove('ok', 'err');
-  if (cls) el.classList.add(cls);
-}
-function paintAuthState(signedIn) {
-  $('cal-signin').textContent = signedIn ? 'Signed in ✓' : 'Sign in with Google';
-  $('cal-signin').classList.toggle('primary', !signedIn);
-  $('cal-signout').classList.toggle('hidden', !signedIn);
-  $('cal-sync-now').classList.toggle('hidden', !signedIn);
-}
-function saveCalConfigFromInputs() {
-  return import('./modules/calendar-sync.js').then(({ setConfig }) => {
-    setConfig({
-      clientId:   $('cal-client-id').value,
-      calendarId: $('cal-calendar-id').value || 'primary',
-    });
-  });
-}
-$('settings-toggle').addEventListener('click', openSettings);
-$('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
-$('settings-overlay').addEventListener('click', (e) => {
-  if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
-});
-
-$('cal-signin').addEventListener('click', async () => {
-  await saveCalConfigFromInputs();
-  setCalStatus('Redirecting to Google…', '');
-  try {
-    const { signIn } = await import('./modules/calendar-sync.js');
-    signIn();   // full-page redirect — no return
-  } catch (err) {
-    setCalStatus(err?.message || 'Sign-in failed', 'err');
-  }
-});
-
-$('cal-signout').addEventListener('click', async () => {
-  const { signOut, isSignedIn } = await import('./modules/calendar-sync.js');
-  signOut();
-  paintAuthState(isSignedIn());
-  setCalStatus('Signed out', '');
-});
-
-$('cal-sync-now').addEventListener('click', async () => {
-  await saveCalConfigFromInputs();
-  setCalStatus('Syncing…', '');
-  const { syncFromGoogle, isSignedIn } = await import('./modules/calendar-sync.js');
-  const r = await syncFromGoogle();
-  if (r.status === 'applied') {
-    await applyRoster(r.parsed);
-    setCalStatus(`OK — ${r.message}`, 'ok');
-  } else if (r.status === 'needs-signin') {
-    paintAuthState(false);
-    setCalStatus(r.message, 'err');
-  } else {
-    setCalStatus(r.message, 'err');
-  }
-});
 $('pa-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'pa-overlay') speeches.close();
 });

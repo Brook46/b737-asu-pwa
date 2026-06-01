@@ -125,16 +125,11 @@ function makeFlightId() {
 }
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 
-const DEFAULT_SETTINGS = {
-  calendar: { clientId: '', calendarId: 'primary', accessToken: '', tokenExpiry: 0 },
-};
-
 function freshState() {
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: clone(DEFAULT_SPEECHES),
-    settings: clone(DEFAULT_SETTINGS),
     current: newFlightRecord(),
     history: [],
   };
@@ -156,13 +151,6 @@ function read() {
   // Defensive defaults
   cache.template = cache.template || clone(DEFAULT_TEMPLATE);
   cache.speeches = Array.isArray(cache.speeches) && cache.speeches.length ? cache.speeches : clone(DEFAULT_SPEECHES);
-  cache.settings = cache.settings || clone(DEFAULT_SETTINGS);
-  cache.settings.calendar = cache.settings.calendar || clone(DEFAULT_SETTINGS.calendar);
-  const cal = cache.settings.calendar;
-  if (typeof cal.clientId    !== 'string') cal.clientId    = '';
-  if (typeof cal.calendarId  !== 'string') cal.calendarId  = 'primary';
-  if (typeof cal.accessToken !== 'string') cal.accessToken = '';
-  if (typeof cal.tokenExpiry !== 'number') cal.tokenExpiry = 0;
   cache.current  = cache.current  || newFlightRecord();
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
@@ -195,13 +183,10 @@ function migrate(s) {
   const current = s.current || newFlightRecord();
   current.legs = Array.isArray(current.legs) ? current.legs : [];
   current.legIndex = Number.isInteger(current.legIndex) ? current.legIndex : 0;
-  const settings = (s.settings && typeof s.settings === 'object') ? s.settings : {};
-  settings.calendar = settings.calendar || clone(DEFAULT_SETTINGS.calendar);
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: upgradedSpeeches,
-    settings,
     current,
     history: Array.isArray(s.history) ? s.history : [],
   };
@@ -312,37 +297,6 @@ export function setDataBulk(fields) {
     else c.dataCard[k] = v;
   }
   scheduleWrite();
-}
-
-// ---------- Settings ----------
-export function getSettings() { return read().settings || {}; }
-export function getCalendarConfig() {
-  const cal = read().settings?.calendar || {};
-  return {
-    clientId:    cal.clientId    || '',
-    calendarId:  cal.calendarId  || 'primary',
-    accessToken: cal.accessToken || '',
-    tokenExpiry: cal.tokenExpiry || 0,
-  };
-}
-export function setCalendarConfig(patch) {
-  const s = read();
-  s.settings = s.settings || {};
-  s.settings.calendar = s.settings.calendar || {};
-  const cal = s.settings.calendar;
-  if (typeof patch.clientId    === 'string') cal.clientId    = patch.clientId.trim();
-  if (typeof patch.calendarId  === 'string') cal.calendarId  = patch.calendarId.trim() || 'primary';
-  if (typeof patch.accessToken === 'string') cal.accessToken = patch.accessToken;
-  if (typeof patch.tokenExpiry === 'number') cal.tokenExpiry = patch.tokenExpiry;
-  scheduleWrite();
-}
-export function clearCalendarToken() {
-  const s = read();
-  if (s.settings?.calendar) {
-    s.settings.calendar.accessToken = '';
-    s.settings.calendar.tokenExpiry = 0;
-    scheduleWrite();
-  }
 }
 
 // ---------- Legs (multi-flight roster) ----------
