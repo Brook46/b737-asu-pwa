@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=20" />
+  <link rel="stylesheet" href="./app.css?v=21" />
 </head>
 <body>
   <header class="app-header">
@@ -54,12 +54,20 @@
   </header>
 
   <div id="leg-switcher" class="leg-switcher hidden" role="region" aria-label="Flight leg switcher">
-    <button id="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
     <div class="leg-info">
       <span id="leg-pos"   class="leg-pos">Leg 1 / 1</span>
       <span id="leg-route" class="leg-route">—</span>
     </div>
-    <button id="leg-next" class="leg-btn" aria-label="Next leg">▶</button>
+    <div class="leg-ctrls">
+      <button id="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
+      <button id="leg-now"  class="leg-btn leg-now" title="Jump to current-time leg" aria-label="Jump to current-time leg">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <polyline points="12 7 12 12 16 14"/>
+        </svg>
+      </button>
+      <button id="leg-next" class="leg-btn" aria-label="Next leg">▶</button>
+    </div>
   </div>
 
   <main id="main" class="main">
@@ -218,6 +226,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=20"></script>
+  <script type="module" src="./app.js?v=21"></script>
 </body>
 </html>

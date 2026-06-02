@@ -112,10 +112,10 @@ async function applyLeg(idx) {
   storage.setLegIndex(clamped);
   const { legToFields } = await import('./modules/roster.js');
   const fields = legToFields(legs[clamped]);
-  // tail + flight live in the header (not in data-card FIELDS), so write them
-  // directly via setDataBulk; the rest goes through applyExternal which knows
-  // each cell's normalizer.
-  const headerKeys = ['tail', 'flight'];
+  // tail + flight + ctot live in the header (not in data-card FIELDS), so
+  // write them directly via setDataBulk; the rest goes through applyExternal
+  // which knows each cell's normalizer.
+  const headerKeys = ['tail', 'flight', 'ctot'];
   const headerBag = {};
   for (const k of headerKeys) if (fields[k] != null) headerBag[k] = fields[k];
   if (Object.keys(headerBag).length) storage.setDataBulk(headerBag);
@@ -132,6 +132,49 @@ async function applyRoster(parsed) {
 }
 $('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
 $('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
+$('leg-now').addEventListener('click',  () => applyLeg(pickLegForNow()));
+
+// Pick the leg whose UTC dep→arr window contains the current wall clock, or
+// the next upcoming one if we're between legs. Falls back to leg 0 when the
+// roster has no timing data.
+function pickLegForNow() {
+  const legs = storage.getLegs();
+  if (!legs.length) return 0;
+  const now = Date.now();
+  // Resolve a leg's dep/arr as ms-since-epoch by combining dep_date (dd.mm)
+  // with dep_time (HH:MM UTC). Year is heuristically "current year unless the
+  // resulting timestamp is more than 6 months in the past, in which case roll
+  // forward a year" — handles year-end roster bulletins gracefully.
+  function toTs(d, t) {
+    if (!d || !t) return NaN;
+    const dm = d.split('.');
+    if (dm.length !== 2) return NaN;
+    const yearNow = new Date().getUTCFullYear();
+    const iso = `${yearNow}-${dm[1]}-${dm[0]}T${t}:00Z`;
+    let ts = Date.parse(iso);
+    if (!Number.isFinite(ts)) return NaN;
+    // Roll forward if the resulting time is more than 6 months stale
+    if (now - ts > 6 * 30 * 24 * 3600 * 1000) {
+      ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
+    }
+    return ts;
+  }
+  const windows = legs.map((leg, i) => ({
+    i,
+    dep: toTs(leg.dep_date, leg.dep_time),
+    arr: toTs(leg.arr_date, leg.arr_time),
+  }));
+  // In-progress: now is inside [dep, arr]
+  const active = windows.find(w => Number.isFinite(w.dep) && Number.isFinite(w.arr) && w.dep <= now && now <= w.arr);
+  if (active) return active.i;
+  // Otherwise the next upcoming dep
+  const upcoming = windows.filter(w => Number.isFinite(w.dep) && w.dep >= now).sort((a, b) => a.dep - b.dep);
+  if (upcoming.length) return upcoming[0].i;
+  // Everything's in the past — most-recent
+  const past = windows.filter(w => Number.isFinite(w.dep)).sort((a, b) => b.dep - a.dep);
+  if (past.length) return past[0].i;
+  return 0;
+}
 
 // ---------- Clocks ----------
 function startClocks() {
@@ -442,18 +485,16 @@ function paintWxLetter(letter) {
   wxLetterEl.classList.toggle('is-empty', !letter);
 }
 
-// Clear ATIS state when Dep changes (so new airport's letter is fresh / unread)
 dataCard.setOnChange((key) => {
   if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
   // Keep the wx popup's source codes in sync with whatever the user types
   if ((key === 'dep' || key === 'arr') && !document.getElementById('wx-overlay').classList.contains('hidden')) {
     paintWxSrcRow();
   }
-  if (key === 'dep') {
-    storage.setDataField('atis', '');
-    storage.setDataField('atis_read', '');
-    dataCard.render(dataBody);
-  }
+  // NB: Do not re-render the data card here. Previously this fired on every
+  // dep keystroke and destroyed the focused input mid-type — only the first
+  // letter ever made it in. The ATIS cell will resync on its next render
+  // (when the popup is opened or the group is toggled).
   speeches.notifyDataChange();
 });
 
@@ -551,7 +592,9 @@ async function runParse(text) {
   const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
-  const headline = ['v1','vr','v2','n1','flaps','trip_fuel','block_fuel','sob_total','atis','tail','flight','dep','arr'];
+  // dep / arr deliberately excluded — the roster already sets them and a
+  // takeoff-perf screenshot shouldn't overwrite the route.
+  const headline = ['v1','vr','v2','n1','flaps','trip_fuel','block_fuel','sob_total','atis','tail','flight'];
   const fields = buildReviewFields(parsed, headline);
   const matchedCount = fields.filter(f => f.matched).length;
   $('ocr-review').classList.remove('hidden');

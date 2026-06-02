@@ -84,11 +84,27 @@ export function parseRoster(text) {
         dep: dep.toUpperCase(),
         arr: arr.toUpperCase(),
         flight_time: '',
+        // Per-leg UTC schedule, captured so the leg-switcher's "Now" jump can
+        // find which leg the current time belongs to. ctot defaults to dep_time
+        // — the slip's scheduled UTC out-time — which is the closest thing the
+        // roster carries to a slot time.
+        dep_date: '', dep_time: '',
+        arr_date: '', arr_time: '',
+        ctot: '',
         cpt, fo,
         cabin: [], // ordered list of cabin crew names (PUR first, then ST/JU)
       };
       const tm = TIME_BLOCK_RE.exec(block);
-      if (tm) cur.flight_time = tm[7];
+      if (tm) {
+        // tm[1]=dd, tm[2]=mm of dep; tm[3]=HH:MM dep UTC;
+        // tm[4]=dd, tm[5]=mm of arr; tm[6]=HH:MM arr UTC; tm[7]=duration
+        cur.dep_date = `${tm[1]}.${tm[2]}`;
+        cur.dep_time = tm[3].length === 4 ? '0' + tm[3] : tm[3];
+        cur.arr_date = `${tm[4]}.${tm[5]}`;
+        cur.arr_time = tm[6].length === 4 ? '0' + tm[6] : tm[6];
+        cur.flight_time = tm[7];
+        cur.ctot = cur.dep_time;
+      }
       continue;
     }
     if (cur) {
@@ -116,7 +132,7 @@ export function parseRoster(text) {
 export function legToFields(leg) {
   if (!leg) return {};
   const out = {};
-  const keys = ['flight','tail','dep','arr','flight_time','cpt','fo','cc1','cc2','cc3','cc4','cc5'];
+  const keys = ['flight','tail','dep','arr','flight_time','ctot','cpt','fo','cc1','cc2','cc3','cc4','cc5'];
   for (const k of keys) {
     if (leg[k] !== undefined && leg[k] !== '') out[k] = leg[k];
   }
