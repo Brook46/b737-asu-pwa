@@ -579,11 +579,26 @@ $('ocr-apply').addEventListener('click', () => {
     toast('Nothing to apply');
     return;
   }
+  // tail / flight live in the header (not in data-card FIELDS), so applyExternal
+  // would silently drop them. Pull them out and write them directly. Also
+  // normalise a 3-letter Israeli-fleet tail suffix to its full 4X-XXX form.
+  const headerBag = {};
+  if (out.tail) {
+    const t = String(out.tail).toUpperCase().replace(/\s+/g, '');
+    headerBag.tail = /^[A-Z]{3}$/.test(t) ? '4X-' + t : t;
+    delete out.tail;
+  }
+  if (out.flight) {
+    headerBag.flight = String(out.flight).toUpperCase();
+    delete out.flight;
+  }
+  if (Object.keys(headerBag).length) storage.setDataBulk(headerBag);
+  const totalApplied = Object.keys(headerBag).length + Object.keys(out).length;
   dataCard.applyExternal(out, dataBody);
   syncHeaderInputs();
   speeches.notifyDataChange();
   hideOverlay('ocr-overlay');
-  toast(`Applied ${Object.keys(out).length} field${Object.keys(out).length === 1 ? '' : 's'}`);
+  toast(`Applied ${totalApplied} field${totalApplied === 1 ? '' : 's'}`);
 });
 
 function resetOcrOverlay() {

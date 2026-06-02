@@ -110,9 +110,12 @@ const TOKEN_PATTERNS = [
   { key: 'atis',  re: /\b(?:ATIS|INFO)\b[^A-Z]{0,4}([A-Z])\b/i, asString: true },
 
   // Text-ish
+  // OPT writes "PROFILE EKZ" with just the 3-letter Israeli-fleet suffix —
+  // we capture it as tail and let the apply path normalise EKZ → 4X-EKZ.
   { key: 'flight',re: /\bFLT\b\s*[:#]?\s*([A-Z0-9]{2,7})\b/i, asString: true },
-  { key: 'tail',  re: /\b(REG|TAIL)\b\s*[:#]?\s*([A-Z0-9-]{3,8})\b/i, asString: true, group: 2 },
-  { key: 'dep',   re: /\b(?:DEP|FROM|ORIG)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
+  { key: 'tail',  re: /\b(REG|TAIL|PROFILE)\b\s*[:#]?\s*([A-Z0-9-]{2,8})\b/i, asString: true, group: 2 },
+  // OPT writes "ARPT LLBG / TLV" — first ICAO/IATA wins. Same for arr.
+  { key: 'dep',   re: /\b(?:ARPT|DEP|FROM|ORIG)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
   { key: 'arr',   re: /\b(?:ARR|TO|DEST)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
 ];
 
