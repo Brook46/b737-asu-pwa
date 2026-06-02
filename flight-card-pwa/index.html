@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=13" />
+  <link rel="stylesheet" href="./app.css?v=14" />
 </head>
 <body>
   <header class="app-header">
@@ -162,8 +162,42 @@
     </div>
   </div>
 
+  <!-- Live weather overlay: D-ATIS + METAR for the Dep airport -->
+  <div id="wx-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wx-label">
+    <div class="ocr-sheet wx-sheet">
+      <div class="pad-head">
+        <span id="wx-label" class="pad-label">Weather</span>
+        <button id="wx-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div class="wx-current">
+        <div id="wx-letter" class="wx-letter">—</div>
+        <div class="wx-station">
+          <div id="wx-icao" class="wx-icao">—</div>
+          <div id="wx-time" class="wx-time">—</div>
+        </div>
+        <button id="wx-refresh" class="btn ghost-btn" aria-label="Refresh">↻</button>
+      </div>
+
+      <section class="wx-section">
+        <h3 class="wx-h">D-ATIS</h3>
+        <pre id="wx-datis-text" class="wx-text">—</pre>
+      </section>
+
+      <section class="wx-section">
+        <h3 class="wx-h">METAR</h3>
+        <pre id="wx-metar-text" class="wx-text">—</pre>
+      </section>
+
+      <details class="wx-manual">
+        <summary>Set ATIS letter manually</summary>
+        <div id="wx-chips" class="atis-chips"></div>
+      </details>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=13"></script>
+  <script type="module" src="./app.js?v=14"></script>
 </body>
 </html>

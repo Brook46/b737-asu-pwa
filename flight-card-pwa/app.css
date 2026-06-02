@@ -591,6 +591,60 @@ body {
 }
 .utc-cell .utc-now:active { filter: brightness(.92); transform: scale(0.96); }
 
+/* ---------- Weather popup (D-ATIS + METAR) ---------- */
+.wx-sheet { gap: 10px; }
+.wx-current {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 4px;
+}
+.wx-letter {
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 36px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  box-shadow: 0 3px 14px rgba(30, 111, 209, 0.4);
+}
+.wx-letter.is-unread { background: var(--danger); box-shadow: 0 3px 14px rgba(192, 57, 43, 0.45); }
+.wx-letter.is-empty  { background: var(--bg-sunk); color: var(--fg-dim); border: 1px dashed var(--line); box-shadow: none; }
+.wx-station { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wx-icao    { font-size: 15px; font-weight: 700; letter-spacing: .04em; }
+.wx-time    { font-size: 11px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+#wx-refresh { font-size: 16px; }
+.wx-section { display: flex; flex-direction: column; gap: 4px; }
+.wx-h {
+  margin: 0; font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--fg-mute); font-weight: 700;
+}
+.wx-text {
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 1.45;
+  color: var(--fg);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 36vh; overflow: auto;
+}
+.wx-text.empty { color: var(--fg-dim); font-style: italic; }
+.wx-manual {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 8px;
+}
+.wx-manual summary {
+  cursor: pointer; font-size: 12px; color: var(--fg-mute);
+  letter-spacing: .04em; padding: 4px 0;
+}
+.wx-manual .atis-chips {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  margin-top: 8px;
+}
+
 /* ---------- ATIS on-demand picker ---------- */
 .atis-cell { padding: 0; background: transparent; border: 0; }
 .atis-collapsed {
@@ -614,16 +668,28 @@ body {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.atis-collapsed.has-letter .atis-big {
-  background: var(--accent);
+.atis-collapsed.has-letter.is-read .atis-big {
+  background: var(--accent);                  /* blue — already read */
   color: #fff;
   box-shadow: 0 2px 8px rgba(30, 111, 209, 0.35);
+}
+.atis-collapsed.has-letter.is-unread .atis-big {
+  background: var(--danger);                  /* red — new ATIS, not yet read */
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.35);
+  animation: atis-pulse 1.6s ease-in-out infinite;
+}
+@keyframes atis-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
 }
 .atis-collapsed:not(.has-letter) .atis-big {
   background: var(--bg-elev);
   border: 1px dashed var(--line);
   color: var(--fg-dim);
 }
+.atis-collapsed[disabled] { opacity: .55; cursor: not-allowed; }
+.atis-collapsed[disabled] .atis-cta { color: var(--fg-dim); }
 .atis-collapsed .atis-meta {
   flex: 1; display: flex; flex-direction: column; gap: 2px;
 }

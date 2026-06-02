@@ -48,9 +48,8 @@ const CELL_INDEX = (() => {
 const DEFAULT_COLLAPSED = new Set(['g-flt', 'g-crew']);
 let collapsed = new Set(DEFAULT_COLLAPSED);
 
-// ATIS picker state: closed by default. Tap the cell to open the chip grid,
-// tap a letter to commit AND auto-close.
-let atisPickerOpen = false;
+// ATIS cell is now a launcher into the wx (D-ATIS + METAR) overlay.
+// Live letter comes from the popup; manual letter still allowed there.
 
 let onChange = null;
 export function setOnChange(fn) { onChange = fn; }
@@ -135,34 +134,27 @@ function renderUtcCell(c, raw) {
 }
 
 function renderAtisCell(c, raw) {
-  const v = (raw || '').toString().toUpperCase().slice(0, 1);
-  if (!atisPickerOpen) {
-    return `
-      <div class="data-cell atis-cell span2">
-        <button type="button" class="atis-collapsed ${v ? 'has-letter' : ''}" data-atis-open="1">
-          <div class="atis-big">${v || '—'}</div>
-          <div class="atis-meta">
-            <span class="lbl">ATIS letter</span>
-            <span class="val">${v ? `Information ${atisPhonetic(v)}` : 'Tap to choose…'}</span>
-          </div>
-          <span class="atis-cta">${v ? 'Change' : 'Pick'}</span>
-        </button>
-      </div>
-    `;
-  }
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const chips = letters.map(L =>
-    `<button type="button" class="atis-chip ${L === v ? 'on' : ''}" data-atis="${L}">${L}</button>`
-  ).join('');
+  const data = storage.getCurrent().dataCard;
+  const v   = (raw || '').toString().toUpperCase().slice(0, 1);
+  const dep = (data.dep || '').toString().toUpperCase();
+  const read = !!v && data.atis_read === v;
+  const cls = ['atis-collapsed'];
+  if (v) cls.push('has-letter');
+  cls.push(read ? 'is-read' : 'is-unread');
+  const caption = v
+    ? `Information ${atisPhonetic(v)}`
+    : (dep ? 'Tap to fetch live' : 'Set Dep first');
+  const cta = dep ? (v ? 'Open' : 'Fetch') : '—';
   return `
     <div class="data-cell atis-cell span2">
-      <div class="atis-expanded">
-        <div class="atis-head">
-          <span class="lbl">Choose ATIS letter</span>
-          <button class="close" data-atis-close="1" aria-label="Close">✕</button>
+      <button type="button" class="${cls.join(' ')}" data-wx-open="1" ${dep ? '' : 'disabled'}>
+        <div class="atis-big">${v || '—'}</div>
+        <div class="atis-meta">
+          <span class="lbl">ATIS${dep ? ' · ' + escape(dep) : ''}</span>
+          <span class="val">${escape(caption)}</span>
         </div>
-        <div class="atis-chips">${chips}</div>
-      </div>
+        <span class="atis-cta">${cta}</span>
+      </button>
     </div>
   `;
 }
@@ -236,27 +228,8 @@ function wire(root) {
     });
   });
 
-  // ATIS — open the picker on demand
-  root.querySelectorAll('[data-atis-open]').forEach(b => {
-    b.addEventListener('click', () => { atisPickerOpen = true; render(root); });
-  });
-  root.querySelectorAll('[data-atis-close]').forEach(b => {
-    b.addEventListener('click', () => { atisPickerOpen = false; render(root); });
-  });
-  // ATIS chip → save AND auto-close the picker, then re-render so the
-  // collapsed cell shows the highlighted letter.
-  root.querySelectorAll('.atis-chip').forEach(b => {
-    b.addEventListener('click', () => {
-      const letter = b.dataset.atis;
-      const current = storage.getCurrent().dataCard.atis || '';
-      const next = (current === letter) ? '' : letter;
-      storage.setDataField('atis', next);
-      atisPickerOpen = false;
-      render(root);
-      updateGroupMeta(root, 'atis');
-      if (onChange) onChange('atis');
-    });
-  });
+  // ATIS cell click is wired by app.js (opens the wx overlay) — nothing to
+  // do here. Manual letter chips live inside the popup and dispatch back.
 }
 
 function updateGroupMeta(root, changedKey) {

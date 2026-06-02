@@ -12,11 +12,7 @@ const $ = (id) => document.getElementById(id);
 initTheme();
 window.fcToast = toast;  // expose for modules that don't import ui
 
-// Re-render the header whenever data card changes (live as you type)
-dataCard.setOnChange((key) => {
-  if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
-  speeches.notifyDataChange();
-});
+// The header sync + speeches notify is wired below alongside the wx clear-on-dep-change.
 
 // Auto-collapse the entire checklist card when everything is done.
 let checklistAutoCollapsed = false;
@@ -210,6 +206,131 @@ $('pa-close').addEventListener('click', () => speeches.close());
 
 $('pa-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'pa-overlay') speeches.close();
+});
+
+// ---------- Live ATIS / METAR popup ----------
+let wxRefreshTimer = null;
+const WX_REFRESH_MS = 10 * 60 * 1000;
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-wx-open]');
+  if (btn && !btn.disabled) openWx();
+});
+$('wx-close').addEventListener('click', closeWx);
+$('wx-overlay').addEventListener('click', (e) => { if (e.target.id === 'wx-overlay') closeWx(); });
+$('wx-refresh').addEventListener('click', () => loadWx({ force: true }));
+
+async function openWx() {
+  const dep = (storage.getCurrent().dataCard.dep || '').toString().toUpperCase();
+  if (!dep) { toast('Set Dep airport first'); return; }
+  renderManualChips();
+  showOverlay('wx-overlay');
+  await loadWx({ force: false });
+  // Mark current letter as read once popup is open
+  const cur = storage.getCurrent().dataCard.atis;
+  if (cur) {
+    storage.setDataField('atis_read', cur);
+    dataCard.render(dataBody);
+  }
+  // Auto-refresh every 10 minutes while open
+  if (wxRefreshTimer) clearInterval(wxRefreshTimer);
+  wxRefreshTimer = setInterval(() => loadWx({ force: true }), WX_REFRESH_MS);
+}
+
+function closeWx() {
+  hideOverlay('wx-overlay');
+  if (wxRefreshTimer) { clearInterval(wxRefreshTimer); wxRefreshTimer = null; }
+}
+
+async function loadWx(opts) {
+  const dep = (storage.getCurrent().dataCard.dep || '').toString().toUpperCase();
+  if (!dep) return;
+  const refreshBtn = $('wx-refresh');
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = '…';
+  try {
+    const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js');
+    const res = await fetchWx(dep, opts);
+    if (!res) {
+      paintWx({ icao: dep, letter: '', metar: null, datis: null, ts: 0 });
+      return;
+    }
+    const liveLetter = extractLetter(res.datis);
+    // If D-ATIS supplied a letter, store it on the data card so the cell shows it.
+    if (liveLetter) {
+      const prev = storage.getCurrent().dataCard.atis;
+      if (prev !== liveLetter) {
+        storage.setDataField('atis', liveLetter);
+        // Letter changed → mark unread (clear atis_read so cell goes red)
+        storage.setDataField('atis_read', '');
+      }
+    }
+    const cur = storage.getCurrent().dataCard.atis;
+    paintWx({
+      icao: res.icao,
+      letter: cur || liveLetter || '',
+      metar: res.metar,
+      datis: res.datis,
+      ts: res.ts,
+      datisText: extractText(res.datis),
+    });
+    dataCard.render(dataBody);
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = '↻';
+  }
+}
+
+function paintWx({ icao, letter, metar, datis, ts, datisText }) {
+  const read = !!letter && storage.getCurrent().dataCard.atis_read === letter;
+  const wxLetterEl = $('wx-letter');
+  wxLetterEl.textContent = letter || '—';
+  wxLetterEl.classList.toggle('is-unread', !!letter && !read);
+  wxLetterEl.classList.toggle('is-empty', !letter);
+  $('wx-icao').textContent = icao;
+  $('wx-time').textContent = ts ? 'Updated ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const metarEl = $('wx-metar-text');
+  if (metar) { metarEl.textContent = metar; metarEl.classList.remove('empty'); }
+  else       { metarEl.textContent = 'No METAR available'; metarEl.classList.add('empty'); }
+  const datisEl = $('wx-datis-text');
+  if (datisText) { datisEl.textContent = datisText; datisEl.classList.remove('empty'); }
+  else           { datisEl.textContent = `No D-ATIS for ${icao} — use manual letter below`; datisEl.classList.add('empty'); }
+}
+
+function renderManualChips() {
+  const cur = storage.getCurrent().dataCard.atis || '';
+  const chips = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(L =>
+    `<button type="button" class="atis-chip${L === cur ? ' on' : ''}" data-wx-chip="${L}">${L}</button>`
+  ).join('');
+  $('wx-chips').innerHTML = chips;
+  $('wx-chips').querySelectorAll('[data-wx-chip]').forEach(b => {
+    b.addEventListener('click', () => {
+      const next = b.dataset.wxChip;
+      storage.setDataField('atis', next);
+      storage.setDataField('atis_read', next); // user picked it → already read
+      dataCard.render(dataBody);
+      renderManualChips();
+      // Re-paint letter in popup
+      paintWxLetter(next);
+    });
+  });
+}
+function paintWxLetter(letter) {
+  const wxLetterEl = $('wx-letter');
+  wxLetterEl.textContent = letter || '—';
+  wxLetterEl.classList.toggle('is-unread', false);
+  wxLetterEl.classList.toggle('is-empty', !letter);
+}
+
+// Clear ATIS state when Dep changes (so new airport's letter is fresh / unread)
+dataCard.setOnChange((key) => {
+  if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
+  if (key === 'dep') {
+    storage.setDataField('atis', '');
+    storage.setDataField('atis_read', '');
+    dataCard.render(dataBody);
+  }
+  speeches.notifyDataChange();
 });
 
 // ---------- Card collapsibles ----------
