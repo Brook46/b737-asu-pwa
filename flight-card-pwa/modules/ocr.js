@@ -95,8 +95,13 @@ const TOKEN_PATTERNS = [
   { key: 'vr',    re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i },
   { key: 'v2',    re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i },
 
-  // Takeoff perf
+  // Takeoff perf — N1 % target.
+  // OPT FULL-thrust mode prints "N1 92.5". OPT ATM/derate mode hides N1
+  // behind the derate label "D-TO" / "D-TO-1" / "D-TO-2" with the N1 % value
+  // next to it (e.g. "D-TO-2  89.5"). Match both shapes; whichever fires
+  // overwrites the other, which is fine because OPT only shows one at a time.
   { key: 'n1',    re: /\bN\s*1\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i },
+  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i },
   { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,4}(\d{1,2})\b/i },
 
   // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
