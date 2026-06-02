@@ -136,10 +136,14 @@ body {
 .hdr-ctot button:active { filter: brightness(.92); }
 
 .actions {
-  display: flex; gap: 4px; align-items: center;
+  display: flex; gap: 3px; align-items: center;
   flex-shrink: 0;
 }
-.actions .btn.icon-btn { width: 34px; height: 34px; min-height: 34px; }
+.actions .btn.icon-btn {
+  width: 30px; height: 30px; min-height: 30px;
+  border-radius: 8px;
+  padding: 0;
+}
 
 .hdr-input {
   -webkit-appearance: none; appearance: none;
@@ -614,6 +618,14 @@ body {
 .wx-icao    { font-size: 15px; font-weight: 700; letter-spacing: .04em; }
 .wx-time    { font-size: 11px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
 #wx-refresh { font-size: 16px; }
+.wx-chips {
+  /* Sits right under the big letter — no expand toggle. Tighter rows of 7 so it
+     reads as a quick "pick the letter" strip, not a separate hidden picker. */
+  margin-top: 2px;
+  padding: 8px;
+  background: var(--bg-sunk);
+  border-radius: 12px;
+}
 .wx-section { display: flex; flex-direction: column; gap: 4px; }
 .wx-section-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;

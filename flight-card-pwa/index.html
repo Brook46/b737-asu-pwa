@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=15" />
+  <link rel="stylesheet" href="./app.css?v=16" />
 </head>
 <body>
   <header class="app-header">
@@ -36,6 +36,14 @@
         </button>
         <button id="theme-toggle" class="btn icon-btn" title="Cycle theme" aria-label="Cycle theme">
           <svg id="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
+        </button>
+        <button id="fr24-btn" class="btn icon-btn" title="Track tail on Flightradar24" aria-label="Track tail on Flightradar24">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="5"/>
+            <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+            <line x1="12" y1="12" x2="19" y2="6.5"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -179,6 +187,10 @@
         <button id="wx-refresh" class="btn ghost-btn" aria-label="Refresh">↻</button>
       </div>
 
+      <!-- Manual letter chips sit RIGHT under the big letter so a tap is
+           one motion away from the displayed letter — no expand required. -->
+      <div id="wx-chips" class="atis-chips wx-chips"></div>
+
       <section class="wx-section">
         <div class="wx-section-head">
           <h3 class="wx-h">D-ATIS</h3>
@@ -191,16 +203,11 @@
         <h3 class="wx-h">METAR</h3>
         <pre id="wx-metar-text" class="wx-text">—</pre>
       </section>
-
-      <details class="wx-manual">
-        <summary>Set ATIS letter manually</summary>
-        <div id="wx-chips" class="atis-chips"></div>
-      </details>
     </div>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=15"></script>
+  <script type="module" src="./app.js?v=16"></script>
 </body>
 </html>

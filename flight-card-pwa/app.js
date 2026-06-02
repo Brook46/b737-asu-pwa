@@ -202,6 +202,26 @@ $('new-flight').addEventListener('click', () => {
   toast('New flight started');
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
+
+// ---------- Flightradar24 quick-track ----------
+// Three-letter input (e.g. "EHE") is treated as an Israeli-fleet registration
+// suffix and prefixed with "4X-". Anything else passes through untouched.
+function normaliseRegistration(raw) {
+  const s = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!s) return '';
+  if (/^[A-Z]{3}$/.test(s)) return '4X-' + s;
+  return s;
+}
+$('fr24-btn').addEventListener('click', () => {
+  const tail = storage.getCurrent().dataCard.tail || $('hdr-tail').value;
+  const reg = normaliseRegistration(tail);
+  if (!reg) {
+    toast('Set tail # first');
+    return;
+  }
+  const url = 'https://www.flightradar24.com/data/aircraft/' + encodeURIComponent(reg.toLowerCase());
+  window.open(url, '_blank', 'noopener,noreferrer');
+});
 $('pa-close').addEventListener('click', () => speeches.close());
 
 $('pa-overlay').addEventListener('click', (e) => {
