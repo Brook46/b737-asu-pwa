@@ -232,6 +232,11 @@ $('pa-overlay').addEventListener('click', (e) => {
 let wxRefreshTimer = null;
 const WX_REFRESH_MS = 10 * 60 * 1000;
 
+// Airport source state: 'dep' (departure), 'arr' (destination), or 'custom'.
+// wxCustomCode holds the user-typed ICAO when source = 'custom'.
+let wxSource = 'dep';
+let wxCustomCode = '';
+
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-wx-open]');
   if (btn && !btn.disabled) openWx();
@@ -240,15 +245,65 @@ $('wx-close').addEventListener('click', closeWx);
 $('wx-overlay').addEventListener('click', (e) => { if (e.target.id === 'wx-overlay') closeWx(); });
 $('wx-refresh').addEventListener('click', () => loadWx({ force: true }));
 
+// Source switcher
+$('wx-src-dep').addEventListener('click', () => switchWxSource('dep'));
+$('wx-src-arr').addEventListener('click', () => switchWxSource('arr'));
+$('wx-src-custom-input').addEventListener('focus', () => { wxSource = 'custom'; paintWxSrcRow(); });
+$('wx-src-custom-input').addEventListener('input', () => {
+  wxCustomCode = $('wx-src-custom-input').value.trim().toUpperCase();
+  // Auto-fetch as soon as we have a plausible 3 or 4-letter code.
+  if (wxSource === 'custom' && (wxCustomCode.length === 3 || wxCustomCode.length === 4)) {
+    loadWx({ force: false });
+  }
+});
+$('wx-src-custom-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); loadWx({ force: true }); e.target.blur(); }
+});
+
+function switchWxSource(src) {
+  wxSource = src;
+  paintWxSrcRow();
+  if (src === 'custom') {
+    setTimeout(() => $('wx-src-custom-input').focus(), 0);
+  } else {
+    loadWx({ force: false });
+  }
+}
+
+function paintWxSrcRow() {
+  const d = storage.getCurrent().dataCard;
+  $('wx-src-dep-code').textContent = (d.dep || '—').toString().toUpperCase();
+  $('wx-src-arr-code').textContent = (d.arr || '—').toString().toUpperCase();
+  $('wx-src-dep').classList.toggle('on', wxSource === 'dep');
+  $('wx-src-arr').classList.toggle('on', wxSource === 'arr');
+  document.querySelector('.wx-src-custom')?.classList.toggle('on', wxSource === 'custom');
+  // Disable Dep / Arr buttons when the underlying field is empty so the user
+  // gets immediate feedback that there's nothing to fetch there yet.
+  $('wx-src-dep').disabled = !d.dep;
+  $('wx-src-arr').disabled = !d.arr;
+}
+
+function resolveWxCode() {
+  const d = storage.getCurrent().dataCard;
+  if (wxSource === 'arr')    return (d.arr || '').toString().toUpperCase();
+  if (wxSource === 'custom') return wxCustomCode.toUpperCase();
+  return (d.dep || '').toString().toUpperCase();
+}
+
 async function openWx() {
-  const dep = (storage.getCurrent().dataCard.dep || '').toString().toUpperCase();
-  if (!dep) { toast('Set Dep airport first'); return; }
+  const d = storage.getCurrent().dataCard;
+  // Pick a sensible default source: dep if set, else arr, else custom.
+  if (d.dep) wxSource = 'dep';
+  else if (d.arr) wxSource = 'arr';
+  else wxSource = 'custom';
+  $('wx-src-custom-input').value = wxCustomCode;
+  paintWxSrcRow();
   renderManualChips();
   showOverlay('wx-overlay');
   await loadWx({ force: false });
   // Mark current letter as read once popup is open
   const cur = storage.getCurrent().dataCard.atis;
-  if (cur) {
+  if (cur && wxSource === 'dep') {
     storage.setDataField('atis_read', cur);
     dataCard.render(dataBody);
   }
@@ -263,38 +318,42 @@ function closeWx() {
 }
 
 async function loadWx(opts) {
-  const dep = (storage.getCurrent().dataCard.dep || '').toString().toUpperCase();
-  if (!dep) return;
+  const code = resolveWxCode();
+  if (!code || code.length < 3) {
+    paintWx({ icao: code || '—', letter: '', metar: null, datis: null, ts: 0 });
+    return;
+  }
   const refreshBtn = $('wx-refresh');
   refreshBtn.disabled = true;
   refreshBtn.textContent = '…';
   try {
     const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js');
-    const res = await fetchWx(dep, opts);
+    const res = await fetchWx(code, opts);
     if (!res) {
-      paintWx({ icao: dep, letter: '', metar: null, datis: null, ts: 0 });
+      paintWx({ icao: code, letter: '', metar: null, datis: null, ts: 0 });
       return;
     }
     const liveLetter = extractLetter(res.datis);
-    // If D-ATIS supplied a letter, store it on the data card so the cell shows it.
-    if (liveLetter) {
+    // Only the Dep source feeds back into the data card's ATIS cell —
+    // Arr / Custom are reference-only and don't change the card's letter.
+    if (liveLetter && wxSource === 'dep') {
       const prev = storage.getCurrent().dataCard.atis;
       if (prev !== liveLetter) {
         storage.setDataField('atis', liveLetter);
-        // Letter changed → mark unread (clear atis_read so cell goes red)
         storage.setDataField('atis_read', '');
       }
     }
-    const cur = storage.getCurrent().dataCard.atis;
+    const cardLetter = storage.getCurrent().dataCard.atis;
+    const letter = (wxSource === 'dep' ? cardLetter : null) || liveLetter || '';
     paintWx({
       icao: res.icao,
-      letter: cur || liveLetter || '',
+      letter,
       metar: res.metar,
       datis: res.datis,
       ts: res.ts,
       datisText: extractText(res.datis),
     });
-    dataCard.render(dataBody);
+    if (wxSource === 'dep') dataCard.render(dataBody);
   } finally {
     refreshBtn.disabled = false;
     refreshBtn.textContent = '↻';
@@ -327,11 +386,15 @@ function renderManualChips() {
   $('wx-chips').querySelectorAll('[data-wx-chip]').forEach(b => {
     b.addEventListener('click', () => {
       const next = b.dataset.wxChip;
-      storage.setDataField('atis', next);
-      storage.setDataField('atis_read', next); // user picked it → already read
-      dataCard.render(dataBody);
+      // Manual letter only updates the data card when the popup is showing
+      // the Dep ATIS — picking a letter while looking at Arr / Custom only
+      // updates the popup display, not the flight's ATIS field.
+      if (wxSource === 'dep') {
+        storage.setDataField('atis', next);
+        storage.setDataField('atis_read', next);
+        dataCard.render(dataBody);
+      }
       renderManualChips();
-      // Re-paint letter in popup
       paintWxLetter(next);
     });
   });
@@ -346,6 +409,10 @@ function paintWxLetter(letter) {
 // Clear ATIS state when Dep changes (so new airport's letter is fresh / unread)
 dataCard.setOnChange((key) => {
   if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
+  // Keep the wx popup's source codes in sync with whatever the user types
+  if ((key === 'dep' || key === 'arr') && !document.getElementById('wx-overlay').classList.contains('hidden')) {
+    paintWxSrcRow();
+  }
   if (key === 'dep') {
     storage.setDataField('atis', '');
     storage.setDataField('atis_read', '');

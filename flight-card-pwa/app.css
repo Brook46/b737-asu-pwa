@@ -145,6 +145,23 @@ body {
   padding: 0;
 }
 
+/* Row-2 FR24 button sits to the left of the tail input so it's contextually
+   close to the registration it tracks, and stays out of the right-side
+   actions cluster (PA / new flight / theme). */
+.hdr-fr24 {
+  -webkit-appearance: none; appearance: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  width: 36px; height: 36px;
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--fg);
+  cursor: pointer;
+}
+.hdr-fr24:active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
 .hdr-input {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-sunk);
@@ -618,6 +635,50 @@ body {
 .wx-icao    { font-size: 15px; font-weight: 700; letter-spacing: .04em; }
 .wx-time    { font-size: 11px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
 #wx-refresh { font-size: 16px; }
+/* ---------- ATIS popup airport source switcher ---------- */
+.wx-src-row {
+  display: flex; gap: 6px; align-items: stretch;
+}
+.wx-src {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--fg);
+  cursor: pointer;
+}
+.wx-src.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.wx-src-lbl {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--fg-mute);
+}
+.wx-src.on .wx-src-lbl { color: var(--accent); }
+.wx-src-code {
+  font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
+.wx-src-custom { padding: 6px 10px 7px; }
+.wx-src-custom input {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0; padding: 0;
+  font: inherit; font-size: 14px; font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--fg);
+  width: 100%; min-width: 0;
+}
+.wx-src-custom input:focus { outline: none; }
+.wx-src-custom input::placeholder { color: var(--fg-dim); font-weight: 600; letter-spacing: .08em; font-size: 12px; }
+
 .wx-chips {
   /* Sits right under the big letter — no expand toggle. Tighter rows of 7 so it
      reads as a quick "pick the letter" strip, not a separate hidden picker. */

@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=16" />
+  <link rel="stylesheet" href="./app.css?v=17" />
 </head>
 <body>
   <header class="app-header">
@@ -37,17 +37,17 @@
         <button id="theme-toggle" class="btn icon-btn" title="Cycle theme" aria-label="Cycle theme">
           <svg id="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
         </button>
-        <button id="fr24-btn" class="btn icon-btn" title="Track tail on Flightradar24" aria-label="Track tail on Flightradar24">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9"/>
-            <circle cx="12" cy="12" r="5"/>
-            <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
-            <line x1="12" y1="12" x2="19" y2="6.5"/>
-          </svg>
-        </button>
       </div>
     </div>
     <div class="hdr-row hdr-row-2">
+      <button id="fr24-btn" class="hdr-fr24" title="Track tail on Flightradar24" aria-label="Track tail on Flightradar24">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="5"/>
+          <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="12" x2="19" y2="6.5"/>
+        </svg>
+      </button>
       <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
       <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
     </div>
@@ -178,6 +178,16 @@
         <button id="wx-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
 
+      <!-- Airport source switcher — choose Dep / Arr / a custom airport. -->
+      <div class="wx-src-row">
+        <button id="wx-src-dep"    type="button" class="wx-src" data-src="dep"><span class="wx-src-lbl">Dep</span><span id="wx-src-dep-code" class="wx-src-code">—</span></button>
+        <button id="wx-src-arr"    type="button" class="wx-src" data-src="arr"><span class="wx-src-lbl">Arr</span><span id="wx-src-arr-code" class="wx-src-code">—</span></button>
+        <label class="wx-src wx-src-custom" data-src="custom">
+          <span class="wx-src-lbl">Other</span>
+          <input id="wx-src-custom-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="ICAO" maxlength="4" />
+        </label>
+      </div>
+
       <div class="wx-current">
         <div id="wx-letter" class="wx-letter">—</div>
         <div class="wx-station">
@@ -208,6 +218,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=16"></script>
+  <script type="module" src="./app.js?v=17"></script>
 </body>
 </html>
