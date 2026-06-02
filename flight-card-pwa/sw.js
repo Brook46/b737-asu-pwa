@@ -1,7 +1,7 @@
 // Flight Card service worker.
 // App shell is cache-first. Tesseract.js is fetched on demand and then cached.
 
-const CACHE_VERSION = 'flightcard-v14';
+const CACHE_VERSION = 'flightcard-v15';
 const APP_SHELL = [
   './',
   './index.html',

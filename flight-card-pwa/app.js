@@ -289,6 +289,7 @@ function paintWx({ icao, letter, metar, datis, ts, datisText }) {
   wxLetterEl.classList.toggle('is-empty', !letter);
   $('wx-icao').textContent = icao;
   $('wx-time').textContent = ts ? 'Updated ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  $('wx-atisguru').href = 'https://atis.guru/atis/' + encodeURIComponent(icao);
   const metarEl = $('wx-metar-text');
   if (metar) { metarEl.textContent = metar; metarEl.classList.remove('empty'); }
   else       { metarEl.textContent = 'No METAR available'; metarEl.classList.add('empty'); }
