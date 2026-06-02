@@ -145,23 +145,6 @@ body {
   padding: 0;
 }
 
-/* Row-2 FR24 button sits to the left of the tail input so it's contextually
-   close to the registration it tracks, and stays out of the right-side
-   actions cluster (PA / new flight / theme). */
-.hdr-fr24 {
-  -webkit-appearance: none; appearance: none;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-sunk);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  width: 36px; height: 36px;
-  padding: 0;
-  flex-shrink: 0;
-  color: var(--fg);
-  cursor: pointer;
-}
-.hdr-fr24:active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-
 .hdr-input {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-sunk);

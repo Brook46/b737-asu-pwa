@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=17" />
+  <link rel="stylesheet" href="./app.css?v=18" />
 </head>
 <body>
   <header class="app-header">
@@ -24,6 +24,14 @@
       </div>
       <div class="hdr-spacer"></div>
       <div class="actions">
+        <button id="fr24-btn" class="btn icon-btn" title="Track tail on Flightradar24" aria-label="Track tail on Flightradar24">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="5"/>
+            <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+            <line x1="12" y1="12" x2="19" y2="6.5"/>
+          </svg>
+        </button>
         <button id="pa-toggle"  class="btn icon-btn" title="Passenger speech (PA)" aria-label="Passenger speech">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M3 10v4h3l5 4V6L6 10H3zm12.5 2a3.5 3.5 0 0 0-1.8-3v6a3.5 3.5 0 0 0 1.8-3zm-1.8-7.5v2.05A6 6 0 0 1 18 12a6 6 0 0 1-4.3 5.95V20A8 8 0 0 0 20 12a8 8 0 0 0-6.3-7.5z" fill="currentColor"/>
@@ -40,14 +48,6 @@
       </div>
     </div>
     <div class="hdr-row hdr-row-2">
-      <button id="fr24-btn" class="hdr-fr24" title="Track tail on Flightradar24" aria-label="Track tail on Flightradar24">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="5"/>
-          <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
-          <line x1="12" y1="12" x2="19" y2="6.5"/>
-        </svg>
-      </button>
       <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
       <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
     </div>
@@ -218,6 +218,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=17"></script>
+  <script type="module" src="./app.js?v=18"></script>
 </body>
 </html>

@@ -234,8 +234,12 @@ const WX_REFRESH_MS = 10 * 60 * 1000;
 
 // Airport source state: 'dep' (departure), 'arr' (destination), or 'custom'.
 // wxCustomCode holds the user-typed ICAO when source = 'custom'.
+// wxDisplayLetter is whatever letter the popup is *currently showing* — so the
+// manual chip strip can highlight in sync with the big letter even when the
+// popup is on Arr / Custom and the data card's atis field is unchanged.
 let wxSource = 'dep';
 let wxCustomCode = '';
+let wxDisplayLetter = '';
 
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-wx-open]');
@@ -248,7 +252,22 @@ $('wx-refresh').addEventListener('click', () => loadWx({ force: true }));
 // Source switcher
 $('wx-src-dep').addEventListener('click', () => switchWxSource('dep'));
 $('wx-src-arr').addEventListener('click', () => switchWxSource('arr'));
-$('wx-src-custom-input').addEventListener('focus', () => { wxSource = 'custom'; paintWxSrcRow(); });
+// OTHER works in two taps so the keyboard doesn't ambush the user:
+//   1st tap → select the Custom source (highlight only, no keyboard)
+//   2nd tap → focus the input (keyboard pops up, user can type)
+document.querySelector('.wx-src-custom').addEventListener('click', (e) => {
+  if (wxSource !== 'custom') {
+    e.preventDefault();
+    wxSource = 'custom';
+    paintWxSrcRow();
+    // Do NOT focus the input — that would open the keyboard immediately.
+    // The input has its own click handler for the second tap.
+  } else {
+    // Already on custom — let the click fall through to the input, which
+    // focuses it and brings up the keyboard.
+    $('wx-src-custom-input').focus();
+  }
+});
 $('wx-src-custom-input').addEventListener('input', () => {
   wxCustomCode = $('wx-src-custom-input').value.trim().toUpperCase();
   // Auto-fetch as soon as we have a plausible 3 or 4-letter code.
@@ -263,11 +282,9 @@ $('wx-src-custom-input').addEventListener('keydown', (e) => {
 function switchWxSource(src) {
   wxSource = src;
   paintWxSrcRow();
-  if (src === 'custom') {
-    setTimeout(() => $('wx-src-custom-input').focus(), 0);
-  } else {
-    loadWx({ force: false });
-  }
+  if (src !== 'custom') loadWx({ force: false });
+  // 'custom' first tap only highlights; the second tap (handled in the
+  // .wx-src-custom click listener above) focuses the input.
 }
 
 function paintWxSrcRow() {
@@ -361,11 +378,15 @@ async function loadWx(opts) {
 }
 
 function paintWx({ icao, letter, metar, datis, ts, datisText }) {
+  wxDisplayLetter = letter || '';
   const read = !!letter && storage.getCurrent().dataCard.atis_read === letter;
   const wxLetterEl = $('wx-letter');
   wxLetterEl.textContent = letter || '—';
   wxLetterEl.classList.toggle('is-unread', !!letter && !read);
   wxLetterEl.classList.toggle('is-empty', !letter);
+  // Keep the manual chip strip in sync with whatever letter the popup is
+  // currently showing, regardless of which source feeds it.
+  syncChipHighlight();
   $('wx-icao').textContent = icao;
   $('wx-time').textContent = ts ? 'Updated ' + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   $('wx-atisguru').href = 'https://atis.guru/atis/' + encodeURIComponent(icao);
@@ -378,28 +399,43 @@ function paintWx({ icao, letter, metar, datis, ts, datisText }) {
 }
 
 function renderManualChips() {
-  const cur = storage.getCurrent().dataCard.atis || '';
+  // Highlight reflects the popup's currently shown letter (wxDisplayLetter),
+  // so the chip strip and big letter never disagree even on Arr / Custom.
   const chips = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(L =>
-    `<button type="button" class="atis-chip${L === cur ? ' on' : ''}" data-wx-chip="${L}">${L}</button>`
+    `<button type="button" class="atis-chip${L === wxDisplayLetter ? ' on' : ''}" data-wx-chip="${L}">${L}</button>`
   ).join('');
   $('wx-chips').innerHTML = chips;
   $('wx-chips').querySelectorAll('[data-wx-chip]').forEach(b => {
     b.addEventListener('click', () => {
-      const next = b.dataset.wxChip;
+      const tapped = b.dataset.wxChip;
+      // Tapping the currently-selected chip again deselects (clears) — gives
+      // the user a way to reset to no letter without picking a wrong one.
+      const next = (tapped === wxDisplayLetter) ? '' : tapped;
       // Manual letter only updates the data card when the popup is showing
       // the Dep ATIS — picking a letter while looking at Arr / Custom only
       // updates the popup display, not the flight's ATIS field.
       if (wxSource === 'dep') {
         storage.setDataField('atis', next);
+        // Selecting a fresh letter marks it as read; clearing also clears read.
         storage.setDataField('atis_read', next);
         dataCard.render(dataBody);
       }
-      renderManualChips();
       paintWxLetter(next);
+      syncChipHighlight();
     });
   });
 }
+
+// Update the chip "on" class without re-rendering the whole strip, so the
+// active-chip indicator can move instantly without losing scroll / focus.
+function syncChipHighlight() {
+  $('wx-chips').querySelectorAll('[data-wx-chip]').forEach(b => {
+    b.classList.toggle('on', b.dataset.wxChip === wxDisplayLetter);
+  });
+}
+
 function paintWxLetter(letter) {
+  wxDisplayLetter = letter || '';
   const wxLetterEl = $('wx-letter');
   wxLetterEl.textContent = letter || '—';
   wxLetterEl.classList.toggle('is-unread', false);
@@ -506,7 +542,10 @@ async function runParse(text) {
   const roster = parseRoster(text);
   if (roster) {
     await applyRoster(roster);
-    hideOverlay('ocr-overlay');
+    // Keep the paste-text panel open so the user can paste another roster
+    // (or edit / re-parse the current one) without re-opening the sheet.
+    const details = document.querySelector('.ocr-paste');
+    if (details) details.open = true;
     return;
   }
   const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js');
