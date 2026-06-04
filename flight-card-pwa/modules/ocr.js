@@ -90,19 +90,28 @@ export async function ocrImage(file, onProgress) {
 // Tolerant of OCR noise (extra spaces, missing decimals, common confusions).
 
 const TOKEN_PATTERNS = [
-  // V-speeds
-  { key: 'v1',    re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i },
-  { key: 'vr',    re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i },
-  { key: 'v2',    re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i },
+  // V-speeds. preferLast: in OPT the V-speeds only appear in the bottom
+  // output section so it doesn't matter, but in FMC TAKEOFF REF a V-speed
+  // label can echo near the top — last-match keeps us in the calculated
+  // row, not the header.
+  { key: 'v1',    re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  { key: 'vr',    re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  { key: 'v2',    re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
 
   // Takeoff perf — N1 % target.
   // OPT FULL-thrust mode prints "N1 92.5". OPT ATM/derate mode hides N1
   // behind the derate label "D-TO" / "D-TO-1" / "D-TO-2" with the N1 % value
   // next to it (e.g. "D-TO-2  89.5"). Match both shapes; whichever fires
   // overwrites the other, which is fine because OPT only shows one at a time.
-  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i },
-  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i },
-  { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,4}(\d{1,2})\b/i },
+  // preferLast again because OPT's output section sits below the input.
+  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i,        preferLast: true },
+  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
+  // FLAPS is the most-ambiguous label on the OPT screen: the input section
+  // can say "FLAP OPTIMUM" (no digit, no match) OR "FLAP 5" (a manual
+  // override), and the output section always says "FLAP <calculated>". We
+  // want the bottom one. preferLast guarantees that — even if the user has
+  // a manual setting at the top, the last regex hit is the calculated value.
+  { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,4}(\d{1,2})\b/i, preferLast: true },
 
   // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
   { key: 'trip_fuel',  re: /\bTRIP\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
@@ -129,8 +138,19 @@ export function parseFmcText(rawText) {
   const text = rawText.replace(/ /g, ' ').replace(/[\t]+/g, ' ');
   const out = {};
   for (const tok of TOKEN_PATTERNS) {
-    const m = tok.re.exec(text);
-    if (!m) continue;
+    let m;
+    if (tok.preferLast) {
+      // Some labels echo in BOTH the input and output sections of an OPT
+      // screen — keep the last regex hit (which corresponds to the bottom,
+      // computed value), not the first (which can be the manual input).
+      const flags = tok.re.flags.includes('g') ? tok.re.flags : tok.re.flags + 'g';
+      const all = [...text.matchAll(new RegExp(tok.re.source, flags))];
+      if (!all.length) continue;
+      m = all[all.length - 1];
+    } else {
+      m = tok.re.exec(text);
+      if (!m) continue;
+    }
     let val = (tok.group ? m[tok.group] : m[1]).replace(',', '.');
     if (!tok.asString && tok.scale) {
       const n = parseFloat(val);

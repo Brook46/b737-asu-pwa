@@ -675,14 +675,24 @@ $('checklist-edit').addEventListener('click', () => {
 });
 
 // ---------- OCR overlay ----------
-$('ocr-btn').addEventListener('click', () => {
+// The overlay opens via dataCard.setOnOptFmc() (wired earlier). No header
+// button to bind here — the OPT/FMC entry point is on the Takeoff
+// performance group head.
+//
+// Every close path also resets state AND invalidates any in-flight OCR — so
+// the modal never gets stuck on an old progress / review view, and a
+// still-running Tesseract job that finishes later won't pop the overlay back
+// open or write into a closed dialog.
+function closeOcr() {
+  ocrCancelToken++;
   resetOcrOverlay();
-  showOverlay('ocr-overlay');
-});
-$('ocr-close').addEventListener('click', () => hideOverlay('ocr-overlay'));
-$('ocr-cancel').addEventListener('click', () => hideOverlay('ocr-overlay'));
+  hideOverlay('ocr-overlay');
+}
+$('ocr-close').addEventListener('click',  closeOcr);
+$('ocr-cancel').addEventListener('click', closeOcr);
+$('ocr-cancel-progress').addEventListener('click', closeOcr);
 $('ocr-overlay').addEventListener('click', (e) => {
-  if (e.target.id === 'ocr-overlay') hideOverlay('ocr-overlay');
+  if (e.target.id === 'ocr-overlay') closeOcr();
 });
 
 // OPT/FMC modal is now screenshot-upload only. Camera, Paste-image, and
@@ -690,18 +700,37 @@ $('ocr-overlay').addEventListener('click', (e) => {
 // roster, takeoff numbers via this single Upload button.
 $('ocr-file').addEventListener('change', (e) => handleOcrFile(e.target.files?.[0]));
 
+// Bumped by closeOcr() so that any OCR result arriving after a close is
+// silently dropped instead of repopulating the (now-closed) review section.
+let ocrCancelToken = 0;
+const OCR_TIMEOUT_MS = 90_000;
+
 async function handleOcrFile(file) {
   if (!file) return;
+  const myToken = ++ocrCancelToken;
   $('ocr-source').classList.add('hidden');
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
     const { ocrImage } = await import('./modules/ocr.js');
-    const text = await ocrImage(file, (msg, frac) => {
-      $('ocr-progress-text').textContent = `${msg} ${(frac * 100).toFixed(0)}%`;
-    });
+    // 90s timeout — if Tesseract or its language data refuses to load (offline
+    // first run, blocked CDN, weirdly large image) we bail with a clean error
+    // instead of sitting on a spinner forever.
+    const text = await Promise.race([
+      ocrImage(file, (msg, frac) => {
+        if (myToken === ocrCancelToken) {
+          $('ocr-progress-text').textContent = `${msg} ${(frac * 100).toFixed(0)}%`;
+        }
+      }),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('OCR timed out — try a smaller or clearer screenshot')),
+        OCR_TIMEOUT_MS
+      )),
+    ]);
+    if (myToken !== ocrCancelToken) return;  // user closed → drop result
     await runParse(text);
   } catch (err) {
+    if (myToken !== ocrCancelToken) return;
     console.error(err);
     toast('OCR failed: ' + (err?.message || err));
     resetOcrOverlay();

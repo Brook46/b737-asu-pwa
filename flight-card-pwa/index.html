@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=24" />
+  <link rel="stylesheet" href="./app.css?v=25" />
 </head>
 <body>
   <header class="app-header">
@@ -135,6 +135,7 @@
       <div id="ocr-progress" class="ocr-progress hidden">
         <div class="ocr-spinner"></div>
         <span id="ocr-progress-text">Loading OCR engine…</span>
+        <button id="ocr-cancel-progress" class="btn ghost-btn" type="button">Cancel</button>
       </div>
 
       <div id="ocr-review" class="ocr-review hidden">
@@ -291,6 +292,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=24"></script>
+  <script type="module" src="./app.js?v=25"></script>
 </body>
 </html>

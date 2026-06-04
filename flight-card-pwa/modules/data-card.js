@@ -14,7 +14,7 @@ export const FIELDS = [
   ]},
   // "TO performance" — V-speeds + N1 + Flaps. Has an OPT/FMC auto-fill button
   // in its head (rendered by data-card.js, wired from app.js).
-  { id: 'g-to',    group: 'TO performance', hasOptFmc: true, cells: [
+  { id: 'g-to',    group: 'Takeoff performance', hasOptFmc: true, cells: [
     { key: 'v1',    label: 'V1',    kind: 'int', suffix: 'kt' },
     { key: 'vr',    label: 'VR',    kind: 'int', suffix: 'kt' },
     { key: 'v2',    label: 'V2',    kind: 'int', suffix: 'kt' },
