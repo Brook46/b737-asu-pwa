@@ -450,7 +450,10 @@ async function renderFlightQr() {
     const route = (d.dep && d.arr) ? ` · ${d.dep} → ${d.arr}` : '';
     sub.textContent = `${id}${route} — point the other device's camera at the code.`;
   } catch (err) {
-    sub.textContent = 'QR generator offline. Connect once to cache it.';
+    // Surface the actual reason — "offline" was misleading when the real
+    // problem was a bad CDN URL.
+    const why = err?.message || String(err);
+    sub.textContent = `Couldn't generate QR: ${why}`;
     console.warn('QR render failed', err);
   }
 }

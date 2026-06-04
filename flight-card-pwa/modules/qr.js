@@ -9,18 +9,22 @@
 // and already used widely (qrcode + jsQR), so we pull them in instead of
 // inventing our own bugs.
 
-const QRCODE_CDN = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+// We use qrcode-generator (Kazuhiko Arase) for encoding because, unlike
+// the `qrcode` npm package, it ships a browser-globals build at a stable
+// CDN path and exposes itself as `window.qrcode` — no bundler needed.
+// jsQR handles the scan side.
+const QRCODE_CDN = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
 const JSQR_CDN   = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
 
 let qrcodeP = null;
 function loadQrcode() {
   if (qrcodeP) return qrcodeP;
   qrcodeP = new Promise((resolve, reject) => {
-    if (window.QRCode) return resolve(window.QRCode);
+    if (window.qrcode) return resolve(window.qrcode);
     const s = document.createElement('script');
     s.src = QRCODE_CDN; s.async = true;
-    s.onload  = () => resolve(window.QRCode);
-    s.onerror = () => reject(new Error('Failed to load QRCode'));
+    s.onload  = () => window.qrcode ? resolve(window.qrcode) : reject(new Error('qrcode global missing after load'));
+    s.onerror = () => reject(new Error('Failed to load QR generator from CDN'));
     document.head.appendChild(s);
   });
   return qrcodeP;
@@ -33,30 +37,58 @@ function loadJsqr() {
     if (window.jsQR) return resolve(window.jsQR);
     const s = document.createElement('script');
     s.src = JSQR_CDN; s.async = true;
-    s.onload  = () => resolve(window.jsQR);
-    s.onerror = () => reject(new Error('Failed to load jsQR'));
+    s.onload  = () => window.jsQR ? resolve(window.jsQR) : reject(new Error('jsQR global missing after load'));
+    s.onerror = () => reject(new Error('Failed to load QR scanner from CDN'));
     document.head.appendChild(s);
   });
   return jsqrP;
 }
 
-// Render `text` as a QR code into `<canvas>` element `canvas`. Picks a
-// version + error-correction level automatically. Returns a Promise.
+// Render `text` as a QR code into `<canvas>` element `canvas`. qrcode-
+// generator hands us a module grid (isDark(r,c)); we draw it onto a 2D
+// context ourselves so the output is crisp at any cockpit-display size.
+//
+// Tries the lowest version that fits — qrcode-generator throws if the
+// payload doesn't fit at the chosen version, so we step the version up
+// until it does, capped at 40 (the QR-spec maximum).
 export async function renderToCanvas(canvas, text, opts = {}) {
-  const QR = await loadQrcode();
-  return new Promise((resolve, reject) => {
-    QR.toCanvas(canvas, text, {
-      errorCorrectionLevel: 'M',
-      margin: 1,
-      scale: opts.scale || 5,
-      color: {
-        // Pure black-on-white scans most reliably across cameras and
-        // lighting conditions in a cockpit.
-        dark:  '#000000',
-        light: '#ffffff',
-      },
-    }, (err) => err ? reject(err) : resolve());
-  });
+  const qrcode = await loadQrcode();
+  const ecLevel = opts.errorCorrectionLevel || 'M';
+  let qr = null;
+  let lastErr = null;
+  // Auto-pick the smallest QR version that fits the payload.
+  for (let typeNumber = 0; typeNumber <= 40; typeNumber++) {
+    try {
+      qr = qrcode(typeNumber, ecLevel);
+      qr.addData(text);
+      qr.make();
+      break;
+    } catch (err) {
+      lastErr = err;
+      qr = null;
+      // 0 = auto, but on some builds 0 means "you pick" and throws if it
+      // can't decide. Walk up explicit versions until one fits.
+      if (typeNumber === 0) continue;
+    }
+  }
+  if (!qr) throw lastErr || new Error('Payload too large for QR');
+  const count = qr.getModuleCount();
+  const moduleSize = opts.scale || 6;
+  const margin = (opts.margin ?? 1) * moduleSize;
+  const dim = count * moduleSize + margin * 2;
+  canvas.width = dim;
+  canvas.height = dim;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, dim, dim);
+  ctx.fillStyle = '#000000';
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) {
+      if (qr.isDark(r, c)) {
+        ctx.fillRect(margin + c * moduleSize, margin + r * moduleSize, moduleSize, moduleSize);
+      }
+    }
+  }
 }
 
 // Start the rear camera, draw frames into an offscreen canvas, scan with
