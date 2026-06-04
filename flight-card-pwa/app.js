@@ -425,11 +425,75 @@ $('roster-parse').addEventListener('click', async () => {
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
-// ---------- Settings sheet (sync) ----------
-$('settings-toggle').addEventListener('click', () => showOverlay('settings-overlay'));
+// ---------- Share sheet (QR + scan + AirDrop sync) ----------
+$('share-toggle').addEventListener('click', async () => {
+  showOverlay('settings-overlay');
+  await renderFlightQr();
+});
 $('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
 $('settings-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
+});
+
+// Render the active flight as a QR into the share-sheet canvas. Lazy-loads
+// the qrcode lib on first use; the SW caches it after that.
+async function renderFlightQr() {
+  const canvas = $('share-qr-canvas');
+  const sub    = $('share-qr-sub');
+  if (!canvas) return;
+  try {
+    const { renderToCanvas } = await import('./modules/qr.js');
+    const payload = storage.exportLeg();
+    await renderToCanvas(canvas, payload, { scale: 5 });
+    const d = storage.getCurrent().dataCard;
+    const id = d.flight ? `ELY${d.flight}` : '(this flight)';
+    const route = (d.dep && d.arr) ? ` · ${d.dep} → ${d.arr}` : '';
+    sub.textContent = `${id}${route} — point the other device's camera at the code.`;
+  } catch (err) {
+    sub.textContent = 'QR generator offline. Connect once to cache it.';
+    console.warn('QR render failed', err);
+  }
+}
+
+// Scan path — open the scanner sub-sheet, stream camera, hand a decoded
+// payload to storage.importLeg(). The scanner module cleans up the camera
+// on stop, so closing the overlay tears everything down.
+let scanStop = null;
+$('share-scan').addEventListener('click', async () => {
+  hideOverlay('settings-overlay');
+  showOverlay('scan-overlay');
+  $('scan-status').textContent = 'Starting camera…';
+  try {
+    const { startScanner } = await import('./modules/qr.js');
+    scanStop = await startScanner($('scan-video'), async (text) => {
+      try {
+        const newIdx = storage.importLeg(text);
+        $('scan-status').textContent = 'Got it — adding leg…';
+        await applyLeg(newIdx);
+        renderHistory();
+        hideOverlay('scan-overlay');
+        toast('Flight imported');
+      } catch (err) {
+        $('scan-status').textContent = 'Not a Flight Card QR.';
+        // Restart the scanner so the user can try again without re-opening.
+        setTimeout(() => {
+          if (!document.getElementById('scan-overlay').classList.contains('hidden')) {
+            $('share-scan').click();
+          }
+        }, 1500);
+      }
+    });
+    $('scan-status').textContent = 'Point at the other device\'s QR.';
+  } catch (err) {
+    $('scan-status').textContent = err?.message || 'Camera unavailable.';
+  }
+});
+$('scan-close').addEventListener('click', () => {
+  if (scanStop) { try { scanStop(); } catch {} scanStop = null; }
+  hideOverlay('scan-overlay');
+});
+$('scan-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'scan-overlay') $('scan-close').click();
 });
 
 // Filename helper — includes today's date and the active flight # if known,

@@ -579,6 +579,53 @@ export function importJson(json) {
   flush();
   return cache;
 }
+
+// Single-leg export/import — used by the QR share path. Each payload is
+// just one flight's worth of data: identity, dataCard, ticks, notes.
+// History and template aren't included (those are device-local concepts
+// and shouldn't follow a single flight across devices).
+//
+// Wire shape (tiny, fits a v25-ish QR with M error correction):
+//   { v: 7, kind: 'leg', leg: { ...flight-leg fields..., dataCard, ticks, notes } }
+export function exportLeg(idx) {
+  const c = read().current;
+  const i = (typeof idx === 'number')
+    ? idx
+    : Math.max(0, c.legIndex | 0);
+  // When there are no legs, synthesise one from the top-level current bag
+  // so single-flight users can still share what they've got.
+  if (!Array.isArray(c.legs) || !c.legs.length) {
+    return JSON.stringify({
+      v: VERSION, kind: 'leg',
+      leg: {
+        flight:      c.dataCard.flight || '',
+        tail:        c.dataCard.tail   || '',
+        dep:         c.dataCard.dep    || '',
+        arr:         c.dataCard.arr    || '',
+        flight_time: c.dataCard.flight_time || '',
+        ctot:        c.dataCard.ctot   || '',
+        dep_date: '', dep_time: '', arr_date: '', arr_time: '',
+        dataCard: c.dataCard,
+        ticks:    c.ticks,
+        notes:    c.notes,
+      }
+    });
+  }
+  const leg = c.legs[Math.max(0, Math.min(c.legs.length - 1, i))];
+  return JSON.stringify({ v: VERSION, kind: 'leg', leg });
+}
+
+// Accepts a leg payload (as produced by exportLeg) and appends it to the
+// current flight's legs[]. Returns the new leg's index so the caller can
+// switch to it. Throws if the payload doesn't look like a leg envelope.
+export function importLeg(json) {
+  const parsed = (typeof json === 'string') ? JSON.parse(json) : json;
+  if (!parsed || parsed.kind !== 'leg' || !parsed.leg) {
+    throw new Error('Not a Flight Card leg payload');
+  }
+  // Deep-clone so the imported leg doesn't share references with the caller.
+  return appendLegs([clone(parsed.leg)]);
+}
 export function resetAll() {
   cache = freshState();
   flush();

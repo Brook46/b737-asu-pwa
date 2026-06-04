@@ -1,7 +1,7 @@
 // Flight Card service worker.
 // App shell is cache-first. Tesseract.js is fetched on demand and then cached.
 
-const CACHE_VERSION = 'flightcard-v30';
+const CACHE_VERSION = 'flightcard-v31';
 const APP_SHELL = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const APP_SHELL = [
   './modules/airports.js',
   './modules/roster.js',
   './modules/ly-routes.js',
+  './modules/qr.js',
   './modules/wx.js',
   './share-roster.html',
   './icons/icon-152.png',
@@ -53,10 +54,12 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Tesseract.js CDN + WASM language data: cache after first fetch so the
-  // OCR path works offline once you've used it once.
+  // Lazy-loaded CDN libraries (Tesseract.js for OCR, qrcode + jsQR for the
+  // QR share path): cache after first fetch so the feature works offline
+  // once you've used it once on a connected device.
   const isTesseract = /tesseract(\.js)?|tessdata|jsdelivr.*tesseract/i.test(url.href);
-  if (isTesseract) {
+  const isQrLib    = /jsdelivr.*qrcode|jsdelivr.*jsqr/i.test(url.href);
+  if (isTesseract || isQrLib) {
     event.respondWith(
       caches.open(CACHE_VERSION).then(async (cache) => {
         const cached = await cache.match(req);

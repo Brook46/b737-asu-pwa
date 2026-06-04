@@ -582,6 +582,63 @@ body {
 .settings-row-btns > label.btn { flex: 1; cursor: pointer; }
 
 /* New-flight modal: each option is a multi-line button */
+/* ---------- Share sheet (QR + scan) ---------- */
+.share-sheet .share-qr-section { margin-bottom: 16px; }
+.share-qr-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px;
+}
+.share-qr-meta { flex: 1; min-width: 0; }
+.share-qr-meta .settings-h { margin: 0 0 4px; }
+.share-scan-btn {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+}
+.share-scan-btn:active { transform: scale(0.95); }
+
+.share-qr-box {
+  display: flex; align-items: center; justify-content: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 12px 0;
+}
+.share-qr-box canvas {
+  width: 240px; height: 240px;
+  image-rendering: pixelated;
+  display: block;
+}
+.share-qr-note { margin: 0; }
+
+/* ---------- Scanner overlay ---------- */
+.scan-sheet { padding-bottom: 14px; }
+.scan-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 6px 0 10px;
+}
+.scan-stage video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.scan-reticle {
+  position: absolute;
+  inset: 14%;
+  border: 2px solid rgba(255,255,255,0.9);
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+  pointer-events: none;
+}
+
 /* ---------- New-flight confirm (ELY##) ---------- */
 .nf-confirm-sheet .nf-rows {
   display: grid;

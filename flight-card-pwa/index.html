@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=30" />
+  <link rel="stylesheet" href="./app.css?v=31" />
 </head>
 <body>
   <header class="app-header">
@@ -43,14 +43,20 @@
             <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 1 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/>
           </svg>
         </button>
+        <!-- QR share button: moved one slot left of the theme toggle so it
+             sits inside the bunch of "action" icons rather than at the
+             extreme right. Tapping opens the share sheet with this flight's
+             QR + a scan button. -->
+        <button id="share-toggle" class="btn icon-btn" title="Share / scan flight QR" aria-label="Share or scan flight QR">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+            <!-- Three position-detection eyes + a couple of payload dots — a
+                 simplified QR glyph. Recognisable even at 18px. -->
+            <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5z"/>
+            <path d="M13 13h2v2h-2zM17 13h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM15 15h2v2h-2z"/>
+          </svg>
+        </button>
         <button id="theme-toggle" class="btn icon-btn" title="Cycle theme" aria-label="Cycle theme">
           <svg id="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
-        </button>
-        <button id="settings-toggle" class="btn icon-btn" title="Settings" aria-label="Settings">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
         </button>
       </div>
     </div>
@@ -282,37 +288,72 @@
     </div>
   </div>
 
-  <!-- Settings sheet — currently just the device sync section. -->
+  <!-- Share sheet — QR for the active flight + a scan button. AirDrop JSON
+       sync sticks around below as the "whole state" alternative. -->
   <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
-    <div class="ocr-sheet">
+    <div class="ocr-sheet share-sheet">
       <div class="pad-head">
-        <span id="settings-label" class="pad-label">Settings</span>
+        <span id="settings-label" class="pad-label">Share flight</span>
         <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
 
+      <section class="settings-section share-qr-section">
+        <div class="share-qr-head">
+          <div class="share-qr-meta">
+            <h3 class="settings-h">This flight</h3>
+            <p id="share-qr-sub" class="muted small">Point the other device's camera at the code.</p>
+          </div>
+          <button id="share-scan" class="btn icon-btn share-scan-btn" title="Scan another device's QR" aria-label="Scan another device's QR">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor">
+              <!-- Camera body + viewfinder corners hinting at QR scan -->
+              <path d="M9 2l-1.5 2H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.5L15 2H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="share-qr-box">
+          <canvas id="share-qr-canvas" width="240" height="240" aria-label="QR code for this flight"></canvas>
+        </div>
+        <p class="muted small share-qr-note">
+          The QR carries this single flight (V-speeds, fuel, ATIS, SOB, checklist ticks, crew, route).
+          The other device imports it as a new leg in its leg list — nothing on either device is overwritten.
+        </p>
+      </section>
+
       <section class="settings-section">
-        <h3 class="settings-h">Sync between devices</h3>
+        <h3 class="settings-h">Sync everything (AirDrop)</h3>
         <p class="muted small">
-          iOS doesn't expose iCloud to web apps, so the iPad and iPhone PWAs each store their own copy.
-          To get them showing the same data, export from one and AirDrop the file to the other.
+          For the whole app state — every leg, every speech, the template. Imports
+          <em>replace</em> the local store; QR share above adds without overwriting.
         </p>
         <div class="settings-row-btns">
-          <button id="sync-export" class="btn primary">Export &amp; share</button>
+          <button id="sync-export" class="btn">Export &amp; share</button>
           <label class="btn">
             <input id="sync-import" type="file" accept="application/json,.json" hidden />
             Import file…
           </label>
         </div>
-        <p class="muted small">
-          <strong>Heads up:</strong> Importing <em>replaces</em> everything on this device with the contents
-          of the file. Anything you typed here since the last sync will be lost.
-        </p>
       </section>
+    </div>
+  </div>
+
+  <!-- QR scanner overlay: full-bleed camera preview + reticle. Closes
+       itself the moment a valid QR is decoded; importing happens in app.js. -->
+  <div id="scan-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="scan-label">
+    <div class="ocr-sheet scan-sheet">
+      <div class="pad-head">
+        <span id="scan-label" class="pad-label">Scan flight QR</span>
+        <button id="scan-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="scan-stage">
+        <video id="scan-video" muted playsinline></video>
+        <div class="scan-reticle" aria-hidden="true"></div>
+      </div>
+      <p id="scan-status" class="muted small">Point at the other device's QR.</p>
     </div>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=30"></script>
+  <script type="module" src="./app.js?v=31"></script>
 </body>
 </html>
