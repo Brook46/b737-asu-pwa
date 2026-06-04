@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=21" />
+  <link rel="stylesheet" href="./app.css?v=22" />
 </head>
 <body>
   <header class="app-header">
@@ -44,6 +44,12 @@
         </button>
         <button id="theme-toggle" class="btn icon-btn" title="Cycle theme" aria-label="Cycle theme">
           <svg id="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
+        </button>
+        <button id="settings-toggle" class="btn icon-btn" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -224,8 +230,37 @@
     </div>
   </div>
 
+  <!-- Settings sheet — currently just the device sync section. -->
+  <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="settings-label" class="pad-label">Settings</span>
+        <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <section class="settings-section">
+        <h3 class="settings-h">Sync between devices</h3>
+        <p class="muted small">
+          iOS doesn't expose iCloud to web apps, so the iPad and iPhone PWAs each store their own copy.
+          To get them showing the same data, export from one and AirDrop the file to the other.
+        </p>
+        <div class="settings-row-btns">
+          <button id="sync-export" class="btn primary">Export &amp; share</button>
+          <label class="btn">
+            <input id="sync-import" type="file" accept="application/json,.json" hidden />
+            Import file…
+          </label>
+        </div>
+        <p class="muted small">
+          <strong>Heads up:</strong> Importing <em>replaces</em> everything on this device with the contents
+          of the file. Anything you typed here since the last sync will be lost.
+        </p>
+      </section>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=21"></script>
+  <script type="module" src="./app.js?v=22"></script>
 </body>
 </html>

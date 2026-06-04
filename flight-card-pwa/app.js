@@ -246,6 +246,66 @@ $('new-flight').addEventListener('click', () => {
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
+// ---------- Settings sheet (sync) ----------
+$('settings-toggle').addEventListener('click', () => showOverlay('settings-overlay'));
+$('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
+$('settings-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
+});
+
+// Filename helper — includes today's date and the active flight # if known,
+// so the receiving device can tell exports apart at a glance in the Files app.
+function exportFilename() {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const flt = (storage.getCurrent().dataCard.flight || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return flt ? `flightcard-${ymd}-LY${flt}.json` : `flightcard-${ymd}.json`;
+}
+
+$('sync-export').addEventListener('click', async () => {
+  const json = storage.exportJson();
+  const blob = new Blob([json], { type: 'application/json' });
+  const file = new File([blob], exportFilename(), { type: 'application/json' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Flight Card state', text: file.name });
+      // Share Sheet handles the rest — we don't toast on success because iOS
+      // might still be presenting the sheet.
+      return;
+    }
+  } catch (err) {
+    // User cancelled the share sheet → not an error worth toasting
+    if (err?.name === 'AbortError') return;
+    console.warn('share failed, falling back to download', err);
+  }
+  // Fallback: trigger a plain download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Downloaded — AirDrop it from Files');
+});
+
+$('sync-import').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = '';   // allow re-picking the same file later
+  if (!f) return;
+  if (!confirm('Replace everything on this device with the contents of ' + f.name + '?')) return;
+  try {
+    const text = await f.text();
+    // importJson validates the JSON, migrates it if needed, and flushes to
+    // localStorage. A hard reload then re-mounts every module against the
+    // new state — simpler than trying to live-rerender every UI slice.
+    storage.importJson(text);
+    hideOverlay('settings-overlay');
+    toast('Imported — reloading…');
+    setTimeout(() => location.reload(), 600);
+  } catch (err) {
+    toast('Import failed: ' + (err?.message || err));
+  }
+});
+
 // ---------- Flightradar24 quick-track ----------
 // Three-letter input (e.g. "EHE") is treated as an Israeli-fleet registration
 // suffix and prefixed with "4X-". Anything else passes through untouched.

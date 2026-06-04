@@ -569,6 +569,18 @@ body {
 .small { font-size: 12px; }
 .hidden { display: none !important; }
 
+/* ---------- Settings sheet ---------- */
+.settings-section { display: flex; flex-direction: column; gap: 10px; }
+.settings-h {
+  margin: 0; font-size: 12px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--fg-mute); font-weight: 700;
+}
+.settings-row-btns {
+  display: flex; gap: 8px; margin-top: 2px;
+}
+.settings-row-btns > .btn,
+.settings-row-btns > label.btn { flex: 1; cursor: pointer; }
+
 
 /* ---------- CTOT / UTC time cell ---------- */
 .utc-cell .utc-row {
