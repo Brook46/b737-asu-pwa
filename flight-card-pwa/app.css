@@ -820,46 +820,117 @@ body {
   margin-top: 8px;
 }
 
-/* ---------- Flaps chip picker ---------- */
-.flaps-cell { padding: 8px 10px; }
-.flaps-cell .flaps-row {
+/* ---------- Flaps on-demand picker ----------
+   Mirrors the ATIS pattern: the cell is collapsed by default and only shows
+   the chosen value; tapping expands into the 5-chip row. Colour coding makes
+   the visual alert obvious — flap 5 is the standard 737NG takeoff setting
+   (blue), anything else (1 / 10 / 15 / 25) is non-standard and paints red. */
+.flaps-cell { padding: 0; background: transparent; border: 0; }
+
+.flaps-collapsed {
   display: flex; align-items: center; gap: 10px;
-  margin-top: 2px;
+  width: 100%;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 60px;
+  cursor: pointer;
+  font: inherit; color: var(--fg);
+  text-align: left;
+  -webkit-appearance: none; appearance: none;
 }
-.flaps-cell .flaps-current {
-  flex-shrink: 0;
-  width: 40px;
-  font-size: 22px; font-weight: 800;
+.flaps-collapsed:active { background: var(--line-soft); }
+.flaps-collapsed .flaps-big {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  font-size: 24px; font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  text-align: center;
+  flex-shrink: 0;
+  background: var(--bg-elev);
+  color: var(--fg-dim);
+  border: 1px solid var(--line-soft);
 }
-.flaps-cell .flaps-current:empty,
-.flaps-cell .flaps-current:matches(*) { color: var(--accent); }
-.flaps-cell .flaps-chips {
+.flaps-collapsed.is-std .flaps-big {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(30, 111, 209, 0.35);
+}
+.flaps-collapsed.is-alt .flaps-big {
+  background: var(--danger, #d93636);
+  color: #fff;
+  border-color: var(--danger, #d93636);
+  box-shadow: 0 2px 8px rgba(217, 54, 54, 0.35);
+}
+.flaps-collapsed .flaps-meta {
   flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.flaps-collapsed .flaps-meta .lbl {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-dim);
+}
+.flaps-collapsed .flaps-meta .val {
+  font-size: 14px; font-weight: 600; color: var(--fg);
+}
+.flaps-collapsed .flaps-cta {
+  flex-shrink: 0;
+  font-size: 12px; font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+.flaps-expanded {
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.flaps-expanded .flaps-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.flaps-expanded .flaps-head .lbl {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-dim);
+}
+.flaps-expanded .flaps-head .close {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0;
+  font: inherit; color: var(--fg-dim);
+  font-size: 16px; line-height: 1;
+  padding: 4px 8px; cursor: pointer;
+}
+.flaps-chips {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 3px;
+  gap: 6px;
 }
 .flaps-chip {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-elev);
   border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 6px 0;
-  min-height: 32px;
+  border-radius: 8px;
+  padding: 10px 0;
+  min-height: 44px;
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 .flaps-chip:active { background: var(--bg-sunk); transform: scale(0.95); }
-.flaps-chip.on {
+.flaps-chip.on.is-std {
   background: var(--accent);
   border-color: var(--accent);
+  color: #fff;
+}
+.flaps-chip.on.is-alt {
+  background: var(--danger, #d93636);
+  border-color: var(--danger, #d93636);
   color: #fff;
 }
 

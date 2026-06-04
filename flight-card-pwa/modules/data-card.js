@@ -56,6 +56,11 @@ let collapsed = new Set(DEFAULT_COLLAPSED);
 let onChange = null;
 let onOptFmc = null;
 let onResetGroup = null;
+// Flaps picker collapsed by default — tap to open the 5-chip row.
+let flapsPickerOpen = false;
+// Kept so the picker open/close + chip clicks can repaint the card without
+// the caller having to thread `root` through.
+let lastRoot = null;
 export function setOnChange(fn) { onChange = fn; }
 export function setOnOptFmc(fn) { onOptFmc = fn; }
 export function setOnResetGroup(fn) { onResetGroup = fn; }
@@ -90,6 +95,7 @@ export function render(root) {
     `;
   }).join('');
   root.innerHTML = html;
+  lastRoot = root;
   wire(root);
 }
 
@@ -131,17 +137,48 @@ const FLAP_OPTIONS = [1, 5, 10, 15, 25];
 function renderFlapsCell(c, raw) {
   const n = (raw === '' || raw == null) ? '' : Number(raw);
   const displayed = n === '' || !Number.isFinite(n) ? '—' : String(n);
-  const chips = FLAP_OPTIONS.map(opt => {
-    const on = Number.isFinite(n) && n === opt;
-    return `<button type="button" class="flaps-chip${on ? ' on' : ''}" data-flaps="${opt}">${opt}</button>`;
-  }).join('');
   const cls = ['data-cell', 'flaps-cell'];
   if (c.wide) cls.push('span2');
+
+  // Colour the selected flap: 5 is the standard 737NG takeoff setting (blue),
+  // anything else is a non-standard takeoff and gets painted red as a visual
+  // alert. Empty stays neutral.
+  let stateClass = 'is-empty';
+  if (Number.isFinite(n) && n === 5) stateClass = 'is-std';
+  else if (Number.isFinite(n))       stateClass = 'is-alt';
+
+  if (!flapsPickerOpen) {
+    // Collapsed: just the big number + a tap hint. The whole cell is the
+    // button so the tap target is generous.
+    const caption = Number.isFinite(n) ? `Flap ${n}` : 'Tap to choose';
+    return `
+      <div class="${cls.join(' ')}">
+        <button type="button" class="flaps-collapsed ${stateClass}" data-flaps-open="1">
+          <div class="flaps-big">${escape(displayed)}</div>
+          <div class="flaps-meta">
+            <span class="lbl">${escape(c.label)}</span>
+            <span class="val">${escape(caption)}</span>
+          </div>
+          <span class="flaps-cta">${Number.isFinite(n) ? 'Change' : 'Pick'}</span>
+        </button>
+      </div>
+    `;
+  }
+
+  // Expanded: the five chips, plus a close button. Tapping a chip commits
+  // and auto-collapses (handled in wire()).
+  const chips = FLAP_OPTIONS.map(opt => {
+    const on = Number.isFinite(n) && n === opt;
+    const chipState = on ? (opt === 5 ? ' on is-std' : ' on is-alt') : '';
+    return `<button type="button" class="flaps-chip${chipState}" data-flaps="${opt}">${opt}</button>`;
+  }).join('');
   return `
     <div class="${cls.join(' ')}">
-      <span class="lbl">${escape(c.label)}</span>
-      <div class="flaps-row">
-        <div class="flaps-current">${escape(displayed)}</div>
+      <div class="flaps-expanded">
+        <div class="flaps-head">
+          <span class="lbl">Choose flap setting</span>
+          <button class="close" data-flaps-close="1" aria-label="Close">✕</button>
+        </div>
         <div class="flaps-chips">${chips}</div>
       </div>
     </div>
@@ -288,9 +325,24 @@ function wire(root) {
     });
   });
 
-  // FLAPS chip picker — manual entry restricted to certified takeoff
-  // settings (1, 5, 10, 15, 25). Tap a chip to set, tap the active chip
-  // to clear. OCR can still write any value through setDataField.
+  // FLAPS picker — collapsed by default to keep the cell compact. Tap the
+  // big-number tile to expand into a 5-chip row (1, 5, 10, 15, 25), tap a
+  // chip to commit and auto-collapse. OCR still writes any value through
+  // setDataField directly.
+  root.querySelectorAll('[data-flaps-open]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      flapsPickerOpen = true;
+      render(root);
+    });
+  });
+  root.querySelectorAll('[data-flaps-close]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      flapsPickerOpen = false;
+      render(root);
+    });
+  });
   root.querySelectorAll('.flaps-chip').forEach(b => {
     b.addEventListener('click', (e) => {
       e.preventDefault();
@@ -298,13 +350,8 @@ function wire(root) {
       const current = storage.getCurrent().dataCard.flaps;
       const next = (Number(current) === v) ? '' : v;
       storage.setDataField('flaps', next);
-      // Paint just this cell so the chip flips instantly without rebuilding the group.
-      const cell = b.closest('.flaps-cell');
-      cell.querySelector('.flaps-current').textContent = next === '' ? '—' : String(next);
-      cell.querySelectorAll('.flaps-chip').forEach(c => {
-        c.classList.toggle('on', Number(c.dataset.flaps) === Number(next));
-      });
-      updateGroupMeta(root, 'flaps');
+      flapsPickerOpen = false;
+      render(root);
       if (onChange) onChange('flaps');
     });
   });
