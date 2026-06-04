@@ -444,14 +444,15 @@ async function renderFlightQr() {
   try {
     const { renderToCanvas } = await import('./modules/qr.js');
     const payload = storage.exportLeg();
-    await renderToCanvas(canvas, payload, { scale: 5 });
+    const info = await renderToCanvas(canvas, payload);
     const d = storage.getCurrent().dataCard;
     const id = d.flight ? `ELY${d.flight}` : '(this flight)';
     const route = (d.dep && d.arr) ? ` · ${d.dep} → ${d.arr}` : '';
-    sub.textContent = `${id}${route} — point the other device's camera at the code.`;
+    // Tag with payload size + QR version so future "won't scan" reports
+    // are debuggable from the UI without poking at devtools.
+    const meta = info ? ` · ${payload.length} B / v${info.version}` : '';
+    sub.textContent = `${id}${route}${meta}`;
   } catch (err) {
-    // Surface the actual reason — "offline" was misleading when the real
-    // problem was a bad CDN URL.
     const why = err?.message || String(err);
     sub.textContent = `Couldn't generate QR: ${why}`;
     console.warn('QR render failed', err);

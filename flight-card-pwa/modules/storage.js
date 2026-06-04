@@ -615,8 +615,11 @@ const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]
 
 function packLeg(leg) {
   const out = {};
-  // Top-level leg fields (dep_date/dep_time/etc. used by the leg-switcher sort).
-  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
+  // Only the fields the receiving pilot actually needs. dep_date/dep_time/
+  // arr_date/arr_time are leg-list sort metadata — the receiver doesn't
+  // need them to fly the leg, and they alone add ~60 bytes. Notes are
+  // dropped too (PA-style free text rarely meaningful to the other pilot).
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot']) {
     const v = leg[k];
     if (v != null && v !== '') out[K_SHORT[k]] = v;
   }
@@ -627,15 +630,13 @@ function packLeg(leg) {
     const sk = K_SHORT[k];
     if (sk && out[sk] == null) out[sk] = v;
   }
-  // Ticks as a flat array of ticked item ids (we don't need the timestamps
-  // on the receiving device — it just needs to know which boxes are on).
+  // Ticks: flat array of ticked item ids. Every default template id starts
+  // with "i-", so we strip that prefix on the wire and add it back on
+  // unpack — saves ~2 bytes per tick × ~15 items = ~30 bytes.
   const tickedIds = Object.keys(leg.ticks || {}).filter(id => leg.ticks[id]);
-  if (tickedIds.length) out.tk = tickedIds;
-  // Notes only if any non-empty.
-  const notes = leg.notes || {};
-  const trimmedNotes = {};
-  for (const [k, v] of Object.entries(notes)) if (v && String(v).trim()) trimmedNotes[k] = v;
-  if (Object.keys(trimmedNotes).length) out.nt = trimmedNotes;
+  if (tickedIds.length) {
+    out.tk = tickedIds.map(id => id.startsWith('i-') ? id.slice(2) : '!' + id);
+  }
   return out;
 }
 
@@ -660,7 +661,13 @@ function unpackLeg(packed) {
   }
   if (Array.isArray(packed.tk)) {
     const now = Date.now();
-    for (const id of packed.tk) leg.ticks[id] = now;
+    for (const s of packed.tk) {
+      // Inverse of packLeg's "i-" stripping: bare ids get "i-" prepended,
+      // anything that was custom is prefixed with "!" in packLeg and we
+      // strip that here.
+      const id = (s && s[0] === '!') ? s.slice(1) : ('i-' + s);
+      leg.ticks[id] = now;
+    }
   }
   if (packed.nt && typeof packed.nt === 'object') {
     Object.assign(leg.notes, packed.nt);

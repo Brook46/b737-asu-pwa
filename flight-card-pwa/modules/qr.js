@@ -53,7 +53,11 @@ function loadJsqr() {
 // until it does, capped at 40 (the QR-spec maximum).
 export async function renderToCanvas(canvas, text, opts = {}) {
   const qrcode = await loadQrcode();
-  const ecLevel = opts.errorCorrectionLevel || 'M';
+  // Default to 'L' — the cockpit share is a clean screen-to-screen handoff
+  // with no occlusion, so 7% error correction is plenty. Dropping from M
+  // to L gives ~30% more capacity per QR version, which translates
+  // directly to fewer modules and a more scannable code at distance.
+  const ecLevel = opts.errorCorrectionLevel || 'L';
   let qr = null;
   let lastErr = null;
   // Auto-pick the smallest QR version that fits the payload.
@@ -73,8 +77,14 @@ export async function renderToCanvas(canvas, text, opts = {}) {
   }
   if (!qr) throw lastErr || new Error('Payload too large for QR');
   const count = qr.getModuleCount();
-  const moduleSize = opts.scale || 6;
-  const margin = (opts.margin ?? 1) * moduleSize;
+  // Hand the picked version back to the caller (count = 17 + 4*version).
+  const pickedVersion = (count - 17) / 4;
+  // Bigger modules in the canvas pixel grid so the CSS layout layer never
+  // has to downscale the image (downscale blurs even with pixelated). 12
+  // physical pixels per module gives a 900+ pixel canvas for typical
+  // payloads — sharp on Retina, sharp on the receiving camera.
+  const moduleSize = opts.scale || 12;
+  const margin = (opts.margin ?? 2) * moduleSize;
   const dim = count * moduleSize + margin * 2;
   canvas.width = dim;
   canvas.height = dim;
@@ -89,6 +99,7 @@ export async function renderToCanvas(canvas, text, opts = {}) {
       }
     }
   }
+  return { version: pickedVersion, modules: count };
 }
 
 // Start the rear camera, draw frames into an offscreen canvas, scan with
@@ -130,7 +141,10 @@ export async function startScanner(videoEl, onDecoded) {
         canvas.width = w; canvas.height = h;
         ctx.drawImage(videoEl, 0, 0, w, h);
         const img = ctx.getImageData(0, 0, w, h);
-        const code = jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' });
+        // 'attemptBoth' has jsQR try light-on-dark and dark-on-light each
+        // frame. Doubles the per-frame work but locks onto a screen-rendered
+        // QR much faster, which is what we care about here.
+        const code = jsQR(img.data, w, h, { inversionAttempts: 'attemptBoth' });
         if (code && code.data) {
           stop();
           onDecoded(code.data);
