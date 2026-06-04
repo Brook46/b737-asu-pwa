@@ -126,9 +126,14 @@ async function applyLeg(idx) {
 }
 async function applyRoster(parsed) {
   if (!parsed || !parsed.flights?.length) return;
-  storage.setLegs(parsed.flights);
-  await applyLeg(0);
-  toast(`Roster: ${parsed.flights.length} leg${parsed.flights.length === 1 ? '' : 's'} loaded`);
+  // Append to the persistent leg list; storage sorts the combined list by UTC
+  // dep time and returns the new index of the first added leg so the data
+  // card switches to the newly-added flight (not whichever existing one
+  // happens to be at index 0).
+  const newIdx = storage.appendLegs(parsed.flights);
+  await applyLeg(newIdx);
+  renderHistory();   // history card mirrors the leg list — refresh it
+  toast(`Added ${parsed.flights.length} flight${parsed.flights.length === 1 ? '' : 's'}`);
 }
 $('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
 $('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
@@ -235,14 +240,47 @@ function formatHHMM(raw) {
 
 // ---------- Header actions ----------
 $('theme-toggle').addEventListener('click', cycleTheme);
-$('new-flight').addEventListener('click', () => {
-  if (!confirm('Start a new flight? Current data and ticks will be archived.')) return;
-  storage.newFlight();
-  storage.clearLegs();
+// New Flight button → small modal: reset checklist or paste a roster
+$('new-flight').addEventListener('click', () => showOverlay('newflight-overlay'));
+$('newflight-close').addEventListener('click', () => hideOverlay('newflight-overlay'));
+$('newflight-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'newflight-overlay') hideOverlay('newflight-overlay');
+});
+$('newflight-reset').addEventListener('click', () => {
+  storage.resetTicks();
   checklist.resetOverrides();
   renderAll();
-  syncHeaderInputs();
-  toast('New flight started');
+  hideOverlay('newflight-overlay');
+  toast('Checklist reset');
+});
+$('newflight-paste').addEventListener('click', () => {
+  hideOverlay('newflight-overlay');
+  $('roster-text').value = '';
+  showOverlay('roster-overlay');
+  setTimeout(() => $('roster-text').focus(), 50);
+});
+
+// Roster paste modal — adds flights to the persistent list (no archive)
+$('roster-close').addEventListener('click',  () => hideOverlay('roster-overlay'));
+$('roster-cancel').addEventListener('click', () => hideOverlay('roster-overlay'));
+$('roster-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'roster-overlay') hideOverlay('roster-overlay');
+});
+$('roster-parse').addEventListener('click', async () => {
+  const text = $('roster-text').value || '';
+  if (!text.trim()) { toast('Paste your roster first'); return; }
+  try {
+    const { parseRoster } = await import('./modules/roster.js');
+    const parsed = parseRoster(text);
+    if (!parsed || !parsed.flights?.length) {
+      toast('Could not parse the roster — check the format');
+      return;
+    }
+    await applyRoster(parsed);
+    hideOverlay('roster-overlay');
+  } catch (err) {
+    toast('Parse failed: ' + (err?.message || err));
+  }
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
@@ -545,6 +583,24 @@ function paintWxLetter(letter) {
   wxLetterEl.classList.toggle('is-empty', !letter);
 }
 
+// CTOT FlightAware lookup — there's no public API for Eurocontrol slot times,
+// so we open Flightaware's flight page for the current LY####. The user reads
+// the ETD/CTOT delay there and types the value back into the CTOT pill.
+$('hdr-ctot-fa').addEventListener('click', () => {
+  const flt = (storage.getCurrent().dataCard.flight || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!flt) { toast('Set flight # first'); return; }
+  // Most company-flight numbers fit "LY0337"; Flightaware accepts that shape.
+  const flightCode = /^LY/.test(flt) ? flt : 'LY' + flt;
+  window.open('https://www.flightaware.com/live/flight/' + encodeURIComponent(flightCode), '_blank', 'noopener,noreferrer');
+});
+
+// OPT / FMC button inside the TO performance group head opens the
+// (now screenshot-only) OCR modal.
+dataCard.setOnOptFmc(() => {
+  resetOcrOverlay();
+  showOverlay('ocr-overlay');
+});
+
 dataCard.setOnChange((key) => {
   if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
   // Keep the wx popup's source codes in sync with whatever the user types
@@ -594,30 +650,10 @@ $('ocr-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'ocr-overlay') hideOverlay('ocr-overlay');
 });
 
+// OPT/FMC modal is now screenshot-upload only. Camera, Paste-image, and
+// Paste-text entry points were removed — rosters go via New Flight → Paste
+// roster, takeoff numbers via this single Upload button.
 $('ocr-file').addEventListener('change', (e) => handleOcrFile(e.target.files?.[0]));
-$('ocr-camera').addEventListener('change', (e) => handleOcrFile(e.target.files?.[0]));
-$('ocr-paste-img').addEventListener('click', async () => {
-  try {
-    if (!navigator.clipboard?.read) throw new Error('Clipboard API unavailable');
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const imgType = item.types.find(t => t.startsWith('image/'));
-      if (!imgType) continue;
-      const blob = await item.getType(imgType);
-      const file = new File([blob], 'pasted.png', { type: imgType });
-      await handleOcrFile(file);
-      return;
-    }
-    toast('No image on the clipboard');
-  } catch (err) {
-    toast('Paste image: ' + (err?.message || err));
-  }
-});
-$('ocr-paste-parse').addEventListener('click', async () => {
-  const text = $('ocr-paste-text').value || '';
-  if (!text.trim()) { toast('Paste some text first'); return; }
-  await runParse(text);
-});
 
 async function handleOcrFile(file) {
   if (!file) return;
@@ -709,43 +745,52 @@ function resetOcrOverlay() {
   $('ocr-progress').classList.add('hidden');
   $('ocr-review').classList.add('hidden');
   $('ocr-file').value = '';
-  $('ocr-camera').value = '';
-  $('ocr-paste-text').value = '';
 }
 
-// ---------- History ----------
+// ---------- History (now the persistent leg list) ----------
+// The History card is the single source of truth for which flights are
+// remembered. Each row corresponds to one entry in legs[]; tapping the row
+// switches to it (same as the leg-switcher's ◀/▶), the trash icon deletes it.
 function renderHistory() {
-  const hist = storage.getHistory();
-  if (!hist.length) {
-    historyBody.innerHTML = `<div class="history-empty">No archived flights yet.</div>`;
+  const legs = storage.getLegs();
+  const activeIdx = storage.getLegIndex();
+  if (!legs.length) {
+    historyBody.innerHTML = `<div class="history-empty">No flights yet. Tap the new-flight button → Paste roster.</div>`;
     return;
   }
-  historyBody.innerHTML = hist.map(h => {
-    const d = h.dataCard || {};
-    const id = [d.tail, d.flight].filter(Boolean).join(' · ') || 'Flight';
-    const summary = [
-      d.dep && d.arr ? `${d.dep}–${d.arr}` : '',
-      d.v1 ? `V1 ${d.v1}` : '',
-      d.vr ? `VR ${d.vr}` : '',
-      d.v2 ? `V2 ${d.v2}` : '',
-      d.flaps ? `FL ${d.flaps}` : '',
-      d.atis ? `ATIS ${d.atis}` : '',
-    ].filter(Boolean).join(' · ');
-    return `<div class="history-item" data-id="${h.id}">
+  historyBody.innerHTML = legs.map((leg, i) => {
+    const id = [leg.tail, leg.flight ? 'LY' + leg.flight : ''].filter(Boolean).join(' · ') || 'Flight';
+    const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
+    const when  = (leg.dep_date && leg.dep_time) ? `${leg.dep_date}  ${leg.dep_time}Z` : '';
+    const isActive = i === activeIdx;
+    return `<div class="history-item${isActive ? ' active' : ''}" data-leg-idx="${i}">
       <div class="hi-top">
         <span class="hi-id">${escapeHtml(id)}</span>
-        <span class="hi-date">${fmtDateShort(h.started)}</span>
+        <span class="hi-date">${escapeHtml(when)}</span>
+        <button type="button" class="hi-del" data-leg-del="${i}" title="Delete this flight" aria-label="Delete this flight">🗑</button>
       </div>
-      <div class="hi-line">${escapeHtml(summary || '—')}</div>
+      <div class="hi-line">${escapeHtml(route)}${leg.flight_time ? ' · ' + leg.flight_time : ''}</div>
     </div>`;
   }).join('');
   historyBody.querySelectorAll('.history-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const h = storage.getHistory().find(x => x.id === el.dataset.id);
-      if (!h) return;
-      const d = h.dataCard;
-      const summary = Object.entries(d).map(([k,v]) => `${k.toUpperCase()}: ${v}`).join('\n');
-      alert(`${fmtDateShort(h.started)}\n\n${summary || '(no data)'}`);
+    el.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-leg-del]')) return;
+      const i = parseInt(el.dataset.legIdx, 10);
+      await applyLeg(i);
+      renderHistory();
+    });
+  });
+  historyBody.querySelectorAll('[data-leg-del]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const i = parseInt(b.dataset.legDel, 10);
+      const leg = storage.getLegs()[i];
+      const label = leg ? `LY${leg.flight || ''} ${leg.dep || ''}→${leg.arr || ''}`.trim() : 'this flight';
+      if (!confirm(`Delete ${label}?`)) return;
+      storage.deleteLeg(i);
+      renderHistory();
+      renderLegSwitcher();
+      syncHeaderInputs();
     });
   });
 }

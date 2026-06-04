@@ -103,7 +103,10 @@ export function parseRoster(text) {
         cur.arr_date = `${tm[4]}.${tm[5]}`;
         cur.arr_time = tm[6].length === 4 ? '0' + tm[6] : tm[6];
         cur.flight_time = tm[7];
-        cur.ctot = cur.dep_time;
+        // ctot intentionally left empty — the roster's dep_time is the
+        // scheduled out-time, not a Eurocontrol slot, and the user prefers
+        // to read the real CTOT from ops (or look it up via the ↗ Flightaware
+        // button in the header).
       }
       continue;
     }

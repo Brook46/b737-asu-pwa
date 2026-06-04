@@ -5,7 +5,16 @@ import * as storage from './storage.js';
 
 // kind: 'int' | 'dec' | 'text' | 'atis'
 export const FIELDS = [
-  { id: 'g-to',    group: 'Takeoff numbers', cells: [
+  { id: 'g-sob',   group: 'Souls on board', cells: [
+    { key: 'sob_total', label: 'Total', kind: 'int' },
+  ]},
+  { id: 'g-atis',  group: 'ATIS',      cells: [
+    { key: 'atis',      label: 'ATIS letter', kind: 'atis', wide: true },
+    { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
+  ]},
+  // "TO performance" — V-speeds + N1 + Flaps. Has an OPT/FMC auto-fill button
+  // in its head (rendered by data-card.js, wired from app.js).
+  { id: 'g-to',    group: 'TO performance', hasOptFmc: true, cells: [
     { key: 'v1',    label: 'V1',    kind: 'int', suffix: 'kt' },
     { key: 'vr',    label: 'VR',    kind: 'int', suffix: 'kt' },
     { key: 'v2',    label: 'V2',    kind: 'int', suffix: 'kt' },
@@ -15,13 +24,6 @@ export const FIELDS = [
   { id: 'g-fuel',  group: 'Fuel',      cells: [
     { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'int', suffix: 'kg' },
     { key: 'block_fuel', label: 'Block fuel', kind: 'int', suffix: 'kg' },
-  ]},
-  { id: 'g-sob',   group: 'Souls on board', cells: [
-    { key: 'sob_total', label: 'Total', kind: 'int' },
-  ]},
-  { id: 'g-atis',  group: 'ATIS',      cells: [
-    { key: 'atis',      label: 'ATIS letter', kind: 'atis', wide: true },
-    { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
     { key: 'dep',         label: 'Dep',         kind: 'text' },
@@ -52,7 +54,9 @@ let collapsed = new Set(DEFAULT_COLLAPSED);
 // Live letter comes from the popup; manual letter still allowed there.
 
 let onChange = null;
+let onOptFmc = null;
 export function setOnChange(fn) { onChange = fn; }
+export function setOnOptFmc(fn) { onOptFmc = fn; }
 
 export function render(root) {
   const data = storage.getCurrent().dataCard;
@@ -61,13 +65,19 @@ export function render(root) {
     const filled = group.cells.filter(c => has(data[c.key])).length;
     const summary = renderSummary(group, data);
     const cells = group.cells.map(c => renderCell(c, data[c.key])).join('');
+    const optBtn = group.hasOptFmc
+      ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
+      : '';
     return `
       <div class="data-group ${isCol ? 'collapsed' : ''}" data-group="${group.id}">
-        <button type="button" class="data-group-head" data-toggle="${group.id}">
-          <span class="chev">${isCol ? '▸' : '▾'}</span>
-          <span class="data-group-name">${escape(group.group)}</span>
-          <span class="data-group-meta">${filled}/${group.cells.length}</span>
-        </button>
+        <div class="data-group-head-row">
+          <button type="button" class="data-group-head" data-toggle="${group.id}">
+            <span class="chev">${isCol ? '▸' : '▾'}</span>
+            <span class="data-group-name">${escape(group.group)}</span>
+            <span class="data-group-meta">${filled}/${group.cells.length}</span>
+          </button>
+          ${optBtn}
+        </div>
         <div class="data-group-summary">${escape(summary)}</div>
         <div class="data-grid">${cells}</div>
       </div>
@@ -182,6 +192,14 @@ function wire(root) {
       if (collapsed.has(id)) collapsed.delete(id);
       else collapsed.add(id);
       render(root);
+    });
+  });
+  // OPT / FMC auto-fill (only present on the TO performance group)
+  root.querySelectorAll('[data-opt-fmc]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (onOptFmc) onOptFmc();
     });
   });
   // Inline inputs (autosave on input)

@@ -326,6 +326,65 @@ export function clearLegs() {
   scheduleWrite();
 }
 
+// Append new legs to the persistent list, sort the whole list by UTC dep
+// time, then point legIndex at the first newly-added leg so the data card
+// switches to it. Returns the new index of the first added leg.
+export function appendLegs(newLegs) {
+  if (!Array.isArray(newLegs) || !newLegs.length) return read().current.legIndex || 0;
+  const c = read().current;
+  const existing = Array.isArray(c.legs) ? c.legs : [];
+  // Tag added legs so we can find the first one after sorting
+  const sentinel = Symbol('newly-added');
+  newLegs.forEach(l => { l[sentinel] = true; });
+  const combined = existing.concat(newLegs);
+  combined.sort((a, b) => depTs(a) - depTs(b));
+  const firstAddedIdx = combined.findIndex(l => l[sentinel]);
+  newLegs.forEach(l => { delete l[sentinel]; });
+  c.legs = combined;
+  c.legIndex = Math.max(0, firstAddedIdx);
+  scheduleWrite();
+  return c.legIndex;
+}
+
+// Delete a single leg by index. Adjusts legIndex if the deleted leg was
+// before or at the current one.
+export function deleteLeg(idx) {
+  const c = read().current;
+  if (!Array.isArray(c.legs) || idx < 0 || idx >= c.legs.length) return;
+  c.legs.splice(idx, 1);
+  if (idx < c.legIndex) c.legIndex--;
+  if (c.legIndex >= c.legs.length) c.legIndex = Math.max(0, c.legs.length - 1);
+  scheduleWrite();
+}
+
+// Combine a leg's dep_date (dd.mm) + dep_time (HH:MM UTC) into a comparable
+// timestamp. Used by appendLegs to keep the list time-sorted.
+function depTs(leg) {
+  const d = leg?.dep_date, t = leg?.dep_time;
+  if (!d || !t) return Number.MAX_SAFE_INTEGER;
+  const [dd, mm] = d.split('.');
+  if (!dd || !mm) return Number.MAX_SAFE_INTEGER;
+  const year = new Date().getUTCFullYear();
+  const iso = `${year}-${mm}-${dd}T${t}:00Z`;
+  let ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return Number.MAX_SAFE_INTEGER;
+  // If the parsed time is >6 months stale, assume next year (handles
+  // year-end bulletins gracefully).
+  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
+    ts = Date.parse(`${year + 1}-${mm}-${dd}T${t}:00Z`);
+  }
+  return ts;
+}
+
+// Clear just the ticks (and notes) on the current flight — used by the
+// New Flight modal's "Reset checklist" option. Keeps everything else.
+export function resetTicks() {
+  const c = read().current;
+  c.ticks = {};
+  c.notes = {};
+  scheduleWrite();
+}
+
 // ---------- Speeches ----------
 export function getSpeeches() { return read().speeches; }
 export function getSpeech(id) { return read().speeches.find(s => s.id === id); }

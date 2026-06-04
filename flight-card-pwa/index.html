@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=22" />
+  <link rel="stylesheet" href="./app.css?v=23" />
 </head>
 <body>
   <header class="app-header">
@@ -21,6 +21,7 @@
       <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
       <div class="hdr-ctot">
         <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" maxlength="5" aria-label="CTOT (UTC)" />
+        <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
       </div>
       <div class="hdr-spacer"></div>
       <div class="actions">
@@ -96,7 +97,6 @@
           <span class="chev">▾</span>
           <span class="card-title">Data card</span>
         </button>
-        <button id="ocr-btn" class="btn ghost-btn" title="Auto-fill from OPT / FMC photo / paste / roster">OPT / FMC</button>
       </header>
       <div class="card-body" id="data-body"></div>
     </section>
@@ -122,23 +122,13 @@
       </div>
 
       <div id="ocr-source" class="ocr-source">
-        <p class="muted small">Pick a source — screenshot of the FMC TAKEOFF REF / OPT / OFP, a camera photo, or paste text. iOS Live Text already runs on every screenshot; if you copied text from the screenshot preview, just paste it.</p>
+        <p class="muted small">Pick a screenshot of the OPT TAKEOFF screen or the FMC TAKEOFF REF page. The parser pulls V-speeds, N1 (incl. D-TO derate label), Flaps, and the aircraft profile.</p>
         <div class="ocr-source-row">
           <label class="btn primary block">
             <input id="ocr-file" type="file" accept="image/*" hidden />
             Upload screenshot
           </label>
-          <label class="btn block">
-            <input id="ocr-camera" type="file" accept="image/*" capture="environment" hidden />
-            Camera photo
-          </label>
-          <button id="ocr-paste-img" class="btn block" type="button">Paste image</button>
         </div>
-        <details class="ocr-paste">
-          <summary>Paste text instead</summary>
-          <textarea id="ocr-paste-text" rows="6" placeholder="Paste text copied from iOS Live Text…"></textarea>
-          <button id="ocr-paste-parse" class="btn primary">Parse pasted text</button>
-        </details>
       </div>
 
       <div id="ocr-progress" class="ocr-progress hidden">
@@ -230,6 +220,45 @@
     </div>
   </div>
 
+  <!-- New flight modal: reset checklist OR paste roster (instead of the old
+       "archive + start fresh" confirm dialog). -->
+  <div id="newflight-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span class="pad-label">New flight</span>
+        <button id="newflight-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small">What do you want to do?</p>
+      <div class="settings-row-btns">
+        <button id="newflight-reset" class="btn block">
+          <span class="nf-h">Reset checklist</span>
+          <span class="nf-sub">Untick everything on the current flight</span>
+        </button>
+        <button id="newflight-paste" class="btn primary block">
+          <span class="nf-h">Paste roster</span>
+          <span class="nf-sub">Add flights from your duty bulletin</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roster-paste modal: textarea + Parse button. Reaches the same
+       roster.parseRoster + applyRoster pipeline as the OCR paste-text used to. -->
+  <div id="roster-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span class="pad-label">Paste roster</span>
+        <button id="roster-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small">Paste the duty bulletin from your crew portal. Each "Slip details (UTC)" line becomes a flight. New flights are added to your existing list and sorted by departure time.</p>
+      <textarea id="roster-text" rows="10" placeholder="Paste the whole bulletin here…"></textarea>
+      <div class="pad-actions">
+        <button id="roster-cancel" class="btn">Cancel</button>
+        <button id="roster-parse"  class="btn primary">Add flights</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings sheet — currently just the device sync section. -->
   <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
     <div class="ocr-sheet">
@@ -261,6 +290,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=22"></script>
+  <script type="module" src="./app.js?v=23"></script>
 </body>
 </html>

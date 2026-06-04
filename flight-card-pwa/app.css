@@ -581,6 +581,77 @@ body {
 .settings-row-btns > .btn,
 .settings-row-btns > label.btn { flex: 1; cursor: pointer; }
 
+/* New-flight modal: each option is a multi-line button */
+#newflight-overlay .settings-row-btns { flex-direction: column; }
+#newflight-overlay .btn {
+  flex-direction: column; align-items: flex-start;
+  padding: 12px 14px; gap: 2px;
+  min-height: 58px;
+}
+.nf-h   { font-size: 14px; font-weight: 700; }
+.nf-sub { font-size: 12px; color: var(--fg-mute); font-weight: 400; }
+#newflight-overlay .btn.primary .nf-sub { color: rgba(255,255,255,0.85); }
+
+/* Roster paste modal — make the textarea breathe */
+#roster-overlay textarea {
+  width: 100%; min-height: 180px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit; font-size: 13px; line-height: 1.4;
+  color: var(--fg);
+  resize: vertical;
+}
+
+/* Data-group head row hosts both the collapse toggle AND the OPT/FMC
+   auto-fill button on the TO performance group. */
+.data-group-head-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.data-group-head-row > .data-group-head { flex: 1; }
+.data-group-action {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font: inherit; font-size: 11px; font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.data-group-action:active { background: var(--accent-soft); }
+
+/* CTOT pill ↗ Flightaware link */
+.hdr-ctot button#hdr-ctot-fa {
+  background: transparent; color: var(--fg-mute);
+  border: 0; padding: 0 4px;
+  font: inherit; font-size: 12px;
+  cursor: pointer;
+}
+.hdr-ctot button#hdr-ctot-fa:active { color: var(--accent); }
+
+/* History list — trash button + active highlight */
+.history-item .hi-top { display: flex; align-items: center; gap: 6px; }
+.history-item .hi-id  { font-weight: 700; font-size: 13px; }
+.history-item .hi-date {
+  margin-left: auto; font-size: 11px;
+  color: var(--fg-mute); font-variant-numeric: tabular-nums;
+}
+.history-item .hi-line { font-size: 12px; color: var(--fg-mute); }
+.history-item .hi-del {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0; color: var(--fg-mute);
+  font-size: 14px; padding: 2px 4px; cursor: pointer;
+}
+.history-item .hi-del:active { color: var(--danger); }
+.history-item.active {
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
 
 /* ---------- CTOT / UTC time cell ---------- */
 .utc-cell .utc-row {
