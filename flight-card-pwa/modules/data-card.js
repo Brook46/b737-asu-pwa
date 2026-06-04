@@ -33,7 +33,9 @@ export const FIELDS = [
   { id: 'g-flt',   group: 'Flight',    cells: [
     { key: 'dep',         label: 'Dep',         kind: 'text' },
     { key: 'arr',         label: 'Arr',         kind: 'text' },
-    { key: 'flight_time', label: 'Flight time', kind: 'text' },
+    // 'hhmm' formats as HH:MM as the user types, same digit-rule as the
+    // CTOT input. Up to 4 digits → last two are minutes.
+    { key: 'flight_time', label: 'Flight time', kind: 'hhmm' },
   ]},
   { id: 'g-crew',  group: 'Crew',      cells: [
     { key: 'cpt',  label: 'CPT',         kind: 'text', wide: true },
@@ -111,9 +113,13 @@ function renderCell(c, raw) {
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
-  const inputmode = c.kind === 'text' ? 'text' : 'decimal';
+  const inputmode = c.kind === 'text' ? 'text'
+                  : c.kind === 'hhmm' ? 'numeric'
+                  : 'decimal';
   const autocap = c.kind === 'text' ? 'characters' : 'none';
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
+  const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
+  const maxlen = c.kind === 'hhmm' ? ' maxlength="5"' : '';
   return `
     <label class="${cls.join(' ')}">
       <span class="lbl">${escape(labelStr)}</span>
@@ -127,7 +133,7 @@ function renderCell(c, raw) {
         data-key="${c.key}"
         data-kind="${c.kind}"
         value="${escapeAttr(v)}"
-        placeholder="—"
+        placeholder="${placeholder}"${maxlen}
       />
     </label>
   `;
@@ -297,8 +303,8 @@ function wire(root) {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
       const normalized = normalize(def, inp.value);
-      // Live-format utctime so the colon appears as the user types
-      if (def.kind === 'utctime' && inp.value !== normalized) {
+      // Live-format utctime + hhmm so the colon appears as the user types
+      if ((def.kind === 'utctime' || def.kind === 'hhmm') && inp.value !== normalized) {
         inp.value = normalized;
         // Cursor at the end after auto-format
         try { inp.setSelectionRange(normalized.length, normalized.length); } catch {}
@@ -428,6 +434,7 @@ function normalize(def, raw) {
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
   if (def.kind === 'utctime') return formatHHMM(s);
+  if (def.kind === 'hhmm')    return formatHHMM(s);
   if (def.kind === 'flaps') {
     // Same as int but stored as a plain number so the chip-picker comparison
     // works (Number(stored) === Number(chip)).

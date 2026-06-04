@@ -10,8 +10,18 @@
 // }
 
 const KEY = 'fc.state';
-const VERSION = 6;
+// v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
+// bag of data, so switching legs swaps fuel / SOB / ATIS / TO performance /
+// checklist with it. Top-level current.dataCard/ticks/notes stays as the
+// fallback "single-flight" store when there are no legs at all.
+const VERSION = 7;
 const HISTORY_MAX = 20;
+
+// Fields whose values are tied to the leg's *identity* (route, schedule,
+// flight number, tail). When new legs come in from a roster, these get
+// seeded into the leg's dataCard so the data card reads from a single
+// source of truth and the user's manual edits per-leg are preserved.
+const LEG_IDENTITY_KEYS = ['flight','tail','dep','arr','flight_time','ctot'];
 
 const DEFAULT_TEMPLATE = {
   sections: [
@@ -180,9 +190,41 @@ function migrate(s) {
   // v3→v4: reseed checklist template (new defaults).
   // v4→v5: seed legs: [] + legIndex: 0 on current flight.
   // v5→v6: add settings.calendar block (defaults if missing) — non-destructive.
+  // v6→v7: per-leg bags. Each leg gets its own dataCard/ticks/notes. Existing
+  //        top-level current.dataCard/ticks/notes get copied into the active
+  //        leg (if any) so in-flight data stays attached to that leg.
   const current = s.current || newFlightRecord();
   current.legs = Array.isArray(current.legs) ? current.legs : [];
   current.legIndex = Number.isInteger(current.legIndex) ? current.legIndex : 0;
+  current.dataCard = current.dataCard || {};
+  current.ticks    = current.ticks    || {};
+  current.notes    = current.notes    || {};
+  if (current.legs.length) {
+    // Make sure every leg has its own bags.
+    for (const leg of current.legs) {
+      if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+      if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
+      if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
+      // Seed the leg's dataCard with its own identity fields if absent so
+      // the data card reads from a single source of truth.
+      for (const k of LEG_IDENTITY_KEYS) {
+        if (leg.dataCard[k] == null && leg[k] != null && leg[k] !== '') {
+          leg.dataCard[k] = leg[k];
+        }
+      }
+    }
+    // Pour the pre-v7 top-level dataCard/ticks/notes into the active leg.
+    // The user was clearly editing the active leg before the upgrade, so
+    // the data belongs there. After migration, top-level stays empty.
+    const idx = Math.max(0, Math.min(current.legs.length - 1, current.legIndex));
+    const tgt = current.legs[idx];
+    for (const [k, v] of Object.entries(current.dataCard)) if (tgt.dataCard[k] == null) tgt.dataCard[k] = v;
+    for (const [k, v] of Object.entries(current.ticks))    if (tgt.ticks[k]    == null) tgt.ticks[k]    = v;
+    for (const [k, v] of Object.entries(current.notes))    if (tgt.notes[k]    == null) tgt.notes[k]    = v;
+    current.dataCard = {};
+    current.ticks    = {};
+    current.notes    = {};
+  }
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
@@ -271,30 +313,88 @@ export function moveItem(sectionId, itemId, delta) {
 }
 
 // ---------- Current flight ----------
-export function getCurrent() { return read().current; }
-export function setTick(itemId, on) {
+//
+// Per-leg model: when current.legs[] is non-empty, every read of dataCard /
+// ticks / notes routes through the active leg. The top-level current.dataCard
+// is only used when there are no legs (single-flight mode). This keeps the
+// rest of the app (data-card.js, checklist.js, speeches.js) blissfully
+// unaware of the legs concept — they just call getCurrent().dataCard etc.
+
+function activeLeg() {
   const c = read().current;
-  if (on) c.ticks[itemId] = Date.now();
-  else delete c.ticks[itemId];
+  if (!Array.isArray(c.legs) || !c.legs.length) return null;
+  const i = Math.max(0, Math.min(c.legs.length - 1, c.legIndex | 0));
+  const leg = c.legs[i];
+  if (!leg) return null;
+  // Lazy-create bags so legs imported pre-v7 (or from share-target) still work.
+  if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+  if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
+  if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
+  // Seed identity fields once so the data card reads consistently.
+  for (const k of LEG_IDENTITY_KEYS) {
+    if (leg.dataCard[k] == null && leg[k] != null && leg[k] !== '') {
+      leg.dataCard[k] = leg[k];
+    }
+  }
+  return leg;
+}
+function dataCardBag()  { return (activeLeg() || read().current).dataCard; }
+function ticksBag()     { return (activeLeg() || read().current).ticks; }
+function notesBag()     { return (activeLeg() || read().current).notes; }
+
+export function getCurrent() {
+  const c = read().current;
+  const leg = activeLeg();
+  if (!leg) return c;
+  // Synthesise a view that points at the active leg's bags. Returning a
+  // fresh object each call is cheap and keeps callers from accidentally
+  // mutating the top-level current.dataCard.
+  return {
+    id: c.id,
+    started: c.started,
+    legs: c.legs,
+    legIndex: c.legIndex,
+    dataCard: leg.dataCard,
+    ticks: leg.ticks,
+    notes: leg.notes,
+  };
+}
+export function setTick(itemId, on) {
+  const bag = ticksBag();
+  if (on) bag[itemId] = Date.now();
+  else delete bag[itemId];
   scheduleWrite();
 }
 export function setNote(itemId, text) {
-  const c = read().current;
-  if (text && text.trim()) c.notes[itemId] = text.trim();
-  else delete c.notes[itemId];
+  const bag = notesBag();
+  if (text && text.trim()) bag[itemId] = text.trim();
+  else delete bag[itemId];
   scheduleWrite();
 }
 export function setDataField(key, value) {
-  const c = read().current;
-  if (value === '' || value == null) delete c.dataCard[key];
-  else c.dataCard[key] = value;
+  const bag = dataCardBag();
+  if (value === '' || value == null) delete bag[key];
+  else bag[key] = value;
+  // Keep the leg's top-level identity fields in sync with the data card so
+  // the leg-switcher chip and the depTs() sort still see edits made in the
+  // data card (e.g. fixing a dep airport on the fly).
+  const leg = activeLeg();
+  if (leg && LEG_IDENTITY_KEYS.includes(key)) {
+    if (value === '' || value == null) leg[key] = '';
+    else leg[key] = value;
+  }
   scheduleWrite();
 }
 export function setDataBulk(fields) {
-  const c = read().current;
+  const bag = dataCardBag();
+  const leg = activeLeg();
   for (const [k, v] of Object.entries(fields)) {
-    if (v === '' || v == null) delete c.dataCard[k];
-    else c.dataCard[k] = v;
+    if (v === '' || v == null) delete bag[k];
+    else bag[k] = v;
+    if (leg && LEG_IDENTITY_KEYS.includes(k)) {
+      if (v === '' || v == null) leg[k] = '';
+      else leg[k] = v;
+    }
   }
   scheduleWrite();
 }
@@ -329,10 +429,27 @@ export function clearLegs() {
 // Append new legs to the persistent list, sort the whole list by UTC dep
 // time, then point legIndex at the first newly-added leg so the data card
 // switches to it. Returns the new index of the first added leg.
+//
+// Each new leg gets its own dataCard/ticks/notes bags. Identity fields
+// (flight/tail/dep/arr/flight_time/ctot) and crew fields (cpt/fo/cc1..cc5)
+// are seeded into the leg's dataCard so the data card has somewhere to
+// read from on first switch. Crew comes from the leg's parsed row.
 export function appendLegs(newLegs) {
   if (!Array.isArray(newLegs) || !newLegs.length) return read().current.legIndex || 0;
   const c = read().current;
   const existing = Array.isArray(c.legs) ? c.legs : [];
+  // Seed bags on each new leg up front.
+  const SEED_KEYS = LEG_IDENTITY_KEYS.concat(['cpt','fo','cc1','cc2','cc3','cc4','cc5']);
+  for (const leg of newLegs) {
+    if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+    if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
+    if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
+    for (const k of SEED_KEYS) {
+      if (leg.dataCard[k] == null && leg[k] != null && leg[k] !== '') {
+        leg.dataCard[k] = leg[k];
+      }
+    }
+  }
   // Tag added legs so we can find the first one after sorting
   const sentinel = Symbol('newly-added');
   newLegs.forEach(l => { l[sentinel] = true; });
@@ -376,21 +493,24 @@ function depTs(leg) {
   return ts;
 }
 
-// Clear just the ticks (and notes) on the current flight — used by the
-// checklist card's reset button and the "Reset all" flow.
+// Clear just the ticks (and notes) on the *active leg* (or top-level
+// current if there are no legs) — used by the checklist card's reset
+// button and the "Reset all" flow. Other legs keep their ticks.
 export function resetTicks() {
-  const c = read().current;
-  c.ticks = {};
-  c.notes = {};
+  const leg = activeLeg();
+  const tgt = leg || read().current;
+  tgt.ticks = {};
+  tgt.notes = {};
   scheduleWrite();
 }
 
-// Wipe the entire data card (V-speeds, fuel, ATIS, SOB, route, crew, …).
+// Wipe the active leg's data card (V-speeds, fuel, ATIS, SOB, route, crew, …).
 // Used by "Reset all" — caller is responsible for re-applying the active
 // leg's metadata afterwards if they want the flight identity preserved.
 export function clearDataCard() {
-  const c = read().current;
-  c.dataCard = {};
+  const leg = activeLeg();
+  const tgt = leg || read().current;
+  tgt.dataCard = {};
   scheduleWrite();
 }
 

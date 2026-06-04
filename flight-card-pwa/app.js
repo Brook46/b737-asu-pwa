@@ -4,6 +4,7 @@ import * as storage from './modules/storage.js';
 import * as dataCard from './modules/data-card.js';
 import * as checklist from './modules/checklist.js';
 import * as speeches from './modules/speeches.js';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js';
 import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
 
 const $ = (id) => document.getElementById(id);
@@ -99,7 +100,7 @@ function renderLegSwitcher() {
   const idx = storage.getLegIndex();
   const leg = legs[idx];
   $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
-  const flight = leg.flight ? `LY${leg.flight}` : '';
+  const flight = leg.flight ? displayFlight(leg.flight) : '';
   const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
   $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
   $('leg-prev').disabled = idx <= 0;
@@ -110,16 +111,12 @@ async function applyLeg(idx) {
   if (!legs.length) return;
   const clamped = Math.max(0, Math.min(legs.length - 1, idx));
   storage.setLegIndex(clamped);
-  const { legToFields } = await import('./modules/roster.js');
-  const fields = legToFields(legs[clamped]);
-  // tail + flight + ctot live in the header (not in data-card FIELDS), so
-  // write them directly via setDataBulk; the rest goes through applyExternal
-  // which knows each cell's normalizer.
-  const headerKeys = ['tail', 'flight', 'ctot'];
-  const headerBag = {};
-  for (const k of headerKeys) if (fields[k] != null) headerBag[k] = fields[k];
-  if (Object.keys(headerBag).length) storage.setDataBulk(headerBag);
-  dataCard.applyExternal(fields, dataBody);
+  // Per-leg state: switching legs swaps the dataCard / ticks / notes bag.
+  // The leg's identity fields (flight/tail/dep/arr/...) are seeded into its
+  // own dataCard by storage on first access, so a full re-render is the
+  // right call — anything the user has typed on this leg comes right back.
+  dataCard.render(dataBody);
+  checklist.render(checklistBody);
   syncHeaderInputs();
   renderLegSwitcher();
   speeches.notifyDataChange();
@@ -209,16 +206,44 @@ function syncHeaderInputs() {
   const flt  = $('hdr-flight');
   const ctot = $('hdr-ctot');
   if (tail && document.activeElement !== tail) tail.value = data.tail || '';
-  if (flt  && document.activeElement !== flt)  flt.value  = data.flight || '';
+  // Display the flight number with the ELY callsign prefix — the canonical
+  // way a 737NG pilot says it on the radio. Storage keeps just the digits.
+  if (flt  && document.activeElement !== flt)  flt.value  = displayFlight(data.flight || '');
   if (ctot && document.activeElement !== ctot) ctot.value = data.ctot || '';
 }
 $('hdr-tail').addEventListener('input', () => {
   storage.setDataField('tail', $('hdr-tail').value.toUpperCase());
   speeches.notifyDataChange();
 });
+// Flight number input: strip ELY/LY prefix and any non-digits, store the
+// number, then prefix-render on blur. This lets the user type "1" and see
+// "ELY1" stick, or paste "ELY 337" and have it normalise to "337".
 $('hdr-flight').addEventListener('input', () => {
-  storage.setDataField('flight', $('hdr-flight').value.toUpperCase());
+  const digits = normaliseFlightNumber($('hdr-flight').value);
+  storage.setDataField('flight', digits);
   speeches.notifyDataChange();
+});
+$('hdr-flight').addEventListener('blur', () => {
+  const digits = normaliseFlightNumber($('hdr-flight').value);
+  $('hdr-flight').value = displayFlight(digits);
+  // Static route auto-fill: if dep/arr are still empty and we know this
+  // flight number, pre-populate the route. We never overwrite a value the
+  // user already entered — that would silently destroy real flight data.
+  if (digits) {
+    const route = lookupRoute(digits);
+    if (route) {
+      const data = storage.getCurrent().dataCard;
+      const bag = {};
+      if (!data.dep) bag.dep = route.dep;
+      if (!data.arr) bag.arr = route.arr;
+      if (Object.keys(bag).length) {
+        storage.setDataBulk(bag);
+        dataCard.render(dataBody);
+        toast(`ELY${digits}: ${route.dep} → ${route.arr}`);
+        speeches.notifyDataChange();
+      }
+    }
+  }
 });
 
 // Header CTOT input — live HH:MM formatting + autosave
