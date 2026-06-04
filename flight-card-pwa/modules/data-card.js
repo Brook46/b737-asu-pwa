@@ -19,7 +19,7 @@ export const FIELDS = [
     { key: 'vr',    label: 'VR',    kind: 'int', suffix: 'kt' },
     { key: 'v2',    label: 'V2',    kind: 'int', suffix: 'kt' },
     { key: 'n1',    label: 'N1 TO', kind: 'dec', suffix: '%' },
-    { key: 'flaps', label: 'Flaps', kind: 'int' },
+    { key: 'flaps', label: 'Flaps', kind: 'flaps', wide: true },
   ]},
   { id: 'g-fuel',  group: 'Fuel',      cells: [
     { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'int', suffix: 'kg' },
@@ -96,6 +96,7 @@ export function render(root) {
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
+  if (c.kind === 'flaps')   return renderFlapsCell(c, raw);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -118,6 +119,32 @@ function renderCell(c, raw) {
         placeholder="—"
       />
     </label>
+  `;
+}
+
+// The five certified 737NG takeoff flap settings. Manual entry is restricted
+// to these via the chip picker. OCR can still write any value (we don't want
+// to silently drop a weird OCR result) but the user-facing buttons only show
+// these — and if the stored value isn't one of them, no chip is highlighted.
+const FLAP_OPTIONS = [1, 5, 10, 15, 25];
+
+function renderFlapsCell(c, raw) {
+  const n = (raw === '' || raw == null) ? '' : Number(raw);
+  const displayed = n === '' || !Number.isFinite(n) ? '—' : String(n);
+  const chips = FLAP_OPTIONS.map(opt => {
+    const on = Number.isFinite(n) && n === opt;
+    return `<button type="button" class="flaps-chip${on ? ' on' : ''}" data-flaps="${opt}">${opt}</button>`;
+  }).join('');
+  const cls = ['data-cell', 'flaps-cell'];
+  if (c.wide) cls.push('span2');
+  return `
+    <div class="${cls.join(' ')}">
+      <span class="lbl">${escape(c.label)}</span>
+      <div class="flaps-row">
+        <div class="flaps-current">${escape(displayed)}</div>
+        <div class="flaps-chips">${chips}</div>
+      </div>
+    </div>
   `;
 }
 
@@ -261,6 +288,27 @@ function wire(root) {
     });
   });
 
+  // FLAPS chip picker — manual entry restricted to certified takeoff
+  // settings (1, 5, 10, 15, 25). Tap a chip to set, tap the active chip
+  // to clear. OCR can still write any value through setDataField.
+  root.querySelectorAll('.flaps-chip').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const v = Number(b.dataset.flaps);
+      const current = storage.getCurrent().dataCard.flaps;
+      const next = (Number(current) === v) ? '' : v;
+      storage.setDataField('flaps', next);
+      // Paint just this cell so the chip flips instantly without rebuilding the group.
+      const cell = b.closest('.flaps-cell');
+      cell.querySelector('.flaps-current').textContent = next === '' ? '—' : String(next);
+      cell.querySelectorAll('.flaps-chip').forEach(c => {
+        c.classList.toggle('on', Number(c.dataset.flaps) === Number(next));
+      });
+      updateGroupMeta(root, 'flaps');
+      if (onChange) onChange('flaps');
+    });
+  });
+
   // ATIS cell click is wired by app.js (opens the wx overlay) — nothing to
   // do here. Manual letter chips live inside the popup and dispatch back.
 }
@@ -295,6 +343,12 @@ function normalize(def, raw) {
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
   if (def.kind === 'utctime') return formatHHMM(s);
+  if (def.kind === 'flaps') {
+    // Same as int but stored as a plain number so the chip-picker comparison
+    // works (Number(stored) === Number(chip)).
+    const n = parseInt(s.replace(/[^\d-]/g, ''), 10);
+    return Number.isFinite(n) ? n : '';
+  }
   return s;
 }
 

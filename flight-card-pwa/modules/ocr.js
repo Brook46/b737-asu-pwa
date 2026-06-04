@@ -104,14 +104,17 @@ const TOKEN_PATTERNS = [
   // next to it (e.g. "D-TO-2  89.5"). Match both shapes; whichever fires
   // overwrites the other, which is fine because OPT only shows one at a time.
   // preferLast again because OPT's output section sits below the input.
-  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i,        preferLast: true },
-  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,8}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
+  // Buffer widened to {0,20} so the OPT label "N1 TO (%)" (and any extra
+  // OCR-injected whitespace / line breaks before the value) still matches.
+  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i,        preferLast: true },
+  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
   // FLAPS is the most-ambiguous label on the OPT screen: the input section
   // can say "FLAP OPTIMUM" (no digit, no match) OR "FLAP 5" (a manual
   // override), and the output section always says "FLAP <calculated>". We
   // want the bottom one. preferLast guarantees that — even if the user has
   // a manual setting at the top, the last regex hit is the calculated value.
-  { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,4}(\d{1,2})\b/i, preferLast: true },
+  // Buffer widened to {0,12} to forgive label noise ("FLAPS (%)" etc.).
+  { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,12}(\d{1,2})\b/i, preferLast: true },
 
   // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
   { key: 'trip_fuel',  re: /\bTRIP\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
