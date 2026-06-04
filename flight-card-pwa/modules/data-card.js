@@ -55,8 +55,10 @@ let collapsed = new Set(DEFAULT_COLLAPSED);
 
 let onChange = null;
 let onOptFmc = null;
+let onResetGroup = null;
 export function setOnChange(fn) { onChange = fn; }
 export function setOnOptFmc(fn) { onOptFmc = fn; }
+export function setOnResetGroup(fn) { onResetGroup = fn; }
 
 export function render(root) {
   const data = storage.getCurrent().dataCard;
@@ -65,6 +67,9 @@ export function render(root) {
     const filled = group.cells.filter(c => has(data[c.key])).length;
     const summary = renderSummary(group, data);
     const cells = group.cells.map(c => renderCell(c, data[c.key])).join('');
+    const resetBtn = group.hasOptFmc
+      ? `<button type="button" class="data-group-reset" data-reset-group="${group.id}" title="Reset takeoff numbers" aria-label="Reset takeoff numbers">↻</button>`
+      : '';
     const optBtn = group.hasOptFmc
       ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
       : '';
@@ -76,6 +81,7 @@ export function render(root) {
             <span class="data-group-name">${escape(group.group)}</span>
             <span class="data-group-meta">${filled}/${group.cells.length}</span>
           </button>
+          ${resetBtn}
           ${optBtn}
         </div>
         <div class="data-group-summary">${escape(summary)}</div>
@@ -200,6 +206,15 @@ function wire(root) {
       e.stopPropagation();
       e.preventDefault();
       if (onOptFmc) onOptFmc();
+    });
+  });
+  // Per-group reset — currently only on the TO performance group. Clears
+  // every cell value in that group via the onResetGroup callback.
+  root.querySelectorAll('[data-reset-group]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (onResetGroup) onResetGroup(btn.dataset.resetGroup);
     });
   });
   // Inline inputs (autosave on input)

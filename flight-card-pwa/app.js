@@ -246,11 +246,31 @@ $('newflight-close').addEventListener('click', () => hideOverlay('newflight-over
 $('newflight-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'newflight-overlay') hideOverlay('newflight-overlay');
 });
-$('newflight-reset').addEventListener('click', () => {
+$('newflight-reset').addEventListener('click', async () => {
+  if (!confirm('Reset everything on this flight? Takeoff numbers, fuel, ATIS, SOB and every tick will be cleared. The flight identity (tail / route / crew) will be re-applied from the leg.')) return;
+  // Wipe both halves of the flight's live state.
+  storage.clearDataCard();
+  storage.resetTicks();
+  // Re-apply the active leg so flight #, tail, dep/arr, crew etc. come back —
+  // we only wanted to clear V-speeds / fuel / ticks, not lose the flight.
+  const legs = storage.getLegs();
+  if (legs.length) {
+    await applyLeg(storage.getLegIndex());
+  } else {
+    renderAll();
+    syncHeaderInputs();
+  }
+  checklist.resetOverrides();
+  hideOverlay('newflight-overlay');
+  toast('Reset complete');
+});
+
+// Checklist card head — quick reset (unticks only, leaves data card alone).
+$('checklist-reset').addEventListener('click', () => {
+  if (!confirm('Uncheck every item on the checklist?')) return;
   storage.resetTicks();
   checklist.resetOverrides();
-  renderAll();
-  hideOverlay('newflight-overlay');
+  checklist.render(checklistBody);
   toast('Checklist reset');
 });
 $('newflight-paste').addEventListener('click', () => {
@@ -599,6 +619,21 @@ $('hdr-ctot-fa').addEventListener('click', () => {
 dataCard.setOnOptFmc(() => {
   resetOcrOverlay();
   showOverlay('ocr-overlay');
+});
+
+// Per-group reset (currently wired only for the TO performance group).
+dataCard.setOnResetGroup((groupId) => {
+  const group = dataCard.FIELDS.find(g => g.id === groupId);
+  if (!group) return;
+  const label = group.group.toLowerCase();
+  if (!confirm(`Reset the ${label} numbers?`)) return;
+  // setDataField with '' deletes the key from dataCard, which the render path
+  // treats as empty. Iterate every cell in the group so e.g. resetting "TO
+  // performance" wipes V1, VR, V2, N1, Flaps in one tap.
+  group.cells.forEach(c => storage.setDataField(c.key, ''));
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+  toast(`${group.group} reset`);
 });
 
 dataCard.setOnChange((key) => {

@@ -377,11 +377,20 @@ function depTs(leg) {
 }
 
 // Clear just the ticks (and notes) on the current flight — used by the
-// New Flight modal's "Reset checklist" option. Keeps everything else.
+// checklist card's reset button and the "Reset all" flow.
 export function resetTicks() {
   const c = read().current;
   c.ticks = {};
   c.notes = {};
+  scheduleWrite();
+}
+
+// Wipe the entire data card (V-speeds, fuel, ATIS, SOB, route, crew, …).
+// Used by "Reset all" — caller is responsible for re-applying the active
+// leg's metadata afterwards if they want the flight identity preserved.
+export function clearDataCard() {
+  const c = read().current;
+  c.dataCard = {};
   scheduleWrite();
 }
 

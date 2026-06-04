@@ -624,6 +624,19 @@ body {
 }
 .data-group-action:active { background: var(--accent-soft); }
 
+.data-group-reset {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  width: 28px; height: 28px;
+  padding: 0;
+  font: inherit; font-size: 14px; font-weight: 700;
+  color: var(--fg-mute);
+  cursor: pointer;
+}
+.data-group-reset:active { background: var(--bg-sunk); color: var(--danger); }
+
 /* CTOT pill ↗ Flightaware link */
 .hdr-ctot button#hdr-ctot-fa {
   background: transparent; color: var(--fg-mute);
