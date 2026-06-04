@@ -582,6 +582,31 @@ body {
 .settings-row-btns > label.btn { flex: 1; cursor: pointer; }
 
 /* New-flight modal: each option is a multi-line button */
+/* ---------- New-flight confirm (ELY##) ---------- */
+.nf-confirm-sheet .nf-rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px; row-gap: 6px;
+  margin: 8px 0 12px;
+  padding: 12px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+.nf-confirm-sheet .nf-rows dt {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-dim);
+  align-self: center;
+}
+.nf-confirm-sheet .nf-rows dd {
+  margin: 0; font-weight: 600; color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.nf-confirm-sheet .nf-rows dd .muted { font-weight: 400; color: var(--fg-dim); }
+.nf-confirm-sheet .nfc-note { margin: 0 0 12px; }
+#newflight-confirm-overlay .settings-row-btns { flex-direction: row; gap: 8px; }
+#newflight-confirm-overlay .settings-row-btns .btn { flex: 1; }
+
 #newflight-overlay .settings-row-btns { flex-direction: column; }
 #newflight-overlay .btn {
   flex-direction: column; align-items: flex-start;

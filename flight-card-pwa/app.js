@@ -215,35 +215,114 @@ $('hdr-tail').addEventListener('input', () => {
   storage.setDataField('tail', $('hdr-tail').value.toUpperCase());
   speeches.notifyDataChange();
 });
-// Flight number input: strip ELY/LY prefix and any non-digits, store the
-// number, then prefix-render on blur. This lets the user type "1" and see
-// "ELY1" stick, or paste "ELY 337" and have it normalise to "337".
+// Flight number input — typing a new number means "I'm starting a different
+// flight", not "edit the current leg's flight number." We don't touch
+// storage during input; on blur, if the digits differ from the active leg,
+// we pop a confirmation that either creates a new leg (preserving the
+// existing one) or, if the number matches an existing leg, just switches
+// to it. Empty input clears the current leg's flight (so users can correct
+// a typo on a brand-new flight before any data accrues).
+//
+// HONEST CAVEAT (worth re-stating since this UI implies "from the
+// internet"): the route + block time come from a local table in
+// modules/ly-routes.js. Aircraft tail and the day's actual departure time
+// can't be auto-filled — no free, no-key, CORS-friendly public API exists
+// for that, and a wrong tail is worse than no tail. Both come from
+// dispatch / OPT after creation.
+let pendingNewFlight = null;  // { digits, route, isNew }
+
 $('hdr-flight').addEventListener('input', () => {
-  const digits = normaliseFlightNumber($('hdr-flight').value);
-  storage.setDataField('flight', digits);
-  speeches.notifyDataChange();
+  // Free-typing: don't write to storage. Keep what's in the box for blur
+  // to handle. Speech vars don't refresh in real time for this field on
+  // purpose (the typed value isn't authoritative yet).
 });
 $('hdr-flight').addEventListener('blur', () => {
-  const digits = normaliseFlightNumber($('hdr-flight').value);
-  $('hdr-flight').value = displayFlight(digits);
-  // Static route auto-fill: if dep/arr are still empty and we know this
-  // flight number, pre-populate the route. We never overwrite a value the
-  // user already entered — that would silently destroy real flight data.
-  if (digits) {
-    const route = lookupRoute(digits);
-    if (route) {
-      const data = storage.getCurrent().dataCard;
-      const bag = {};
-      if (!data.dep) bag.dep = route.dep;
-      if (!data.arr) bag.arr = route.arr;
-      if (Object.keys(bag).length) {
-        storage.setDataBulk(bag);
-        dataCard.render(dataBody);
-        toast(`ELY${digits}: ${route.dep} → ${route.arr}`);
-        speeches.notifyDataChange();
-      }
-    }
+  const inp = $('hdr-flight');
+  const digits = normaliseFlightNumber(inp.value);
+  const current = storage.getCurrent().dataCard.flight || '';
+  // Same number → just format-render, no modal.
+  if (digits === current) {
+    inp.value = displayFlight(digits);
+    return;
   }
+  // Empty + no existing legs → just clear the field on the single flight.
+  if (!digits) {
+    inp.value = '';
+    if (storage.getLegs().length === 0) {
+      storage.setDataField('flight', '');
+      speeches.notifyDataChange();
+    } else {
+      // Revert — clearing an existing leg's flight # via a blur isn't a
+      // safe operation; do nothing and snap back to the active leg's value.
+      syncHeaderInputs();
+    }
+    return;
+  }
+  // If this flight number already exists as a leg → switch to it.
+  const legs = storage.getLegs();
+  const existingIdx = legs.findIndex(l => normaliseFlightNumber(l.flight) === digits);
+  if (existingIdx >= 0) {
+    applyLeg(existingIdx).then(() => toast(`Switched to ELY${digits}`));
+    return;
+  }
+  // Otherwise → pop the confirmation modal with the auto-fill preview.
+  const route = lookupRoute(digits);
+  pendingNewFlight = { digits, route, isNew: true };
+  openNewFlightConfirm(pendingNewFlight);
+});
+
+function openNewFlightConfirm({ digits, route }) {
+  $('nfc-title').textContent = `Start new flight ELY${digits}`;
+  const rows = $('nfc-rows');
+  rows.innerHTML = '';
+  const add = (k, v) => {
+    rows.insertAdjacentHTML('beforeend',
+      `<dt>${k}</dt><dd>${v}</dd>`);
+  };
+  if (route) {
+    add('Route', `${route.dep} → ${route.arr}`);
+    if (route.block) add('Block time', `~${route.block} (typical)`);
+    add('Aircraft tail', '<span class="muted">— fill after dispatch</span>');
+  } else {
+    add('Route',     '<span class="muted">unknown — enter manually</span>');
+    add('Block time','<span class="muted">unknown — enter manually</span>');
+    add('Aircraft tail', '<span class="muted">— fill after dispatch</span>');
+  }
+  showOverlay('newflight-confirm-overlay');
+}
+function closeNewFlightConfirm(revert = true) {
+  hideOverlay('newflight-confirm-overlay');
+  if (revert) {
+    // Snap the input back to the active leg's flight # so the user isn't
+    // looking at the abandoned attempt.
+    syncHeaderInputs();
+  }
+  pendingNewFlight = null;
+}
+$('nfc-close').addEventListener('click',  () => closeNewFlightConfirm(true));
+$('nfc-cancel').addEventListener('click', () => closeNewFlightConfirm(true));
+$('nfc-create').addEventListener('click', async () => {
+  if (!pendingNewFlight) { closeNewFlightConfirm(true); return; }
+  const { digits, route } = pendingNewFlight;
+  // Build the new leg from what we know. The leg's dataCard gets seeded by
+  // storage.appendLegs from these top-level identity fields.
+  const newLeg = {
+    flight:      digits,
+    tail:        '',
+    dep:         route?.dep || '',
+    arr:         route?.arr || '',
+    flight_time: route?.block || '',
+    dep_date:    '', dep_time: '',
+    arr_date:    '', arr_time: '',
+    ctot:        '',
+  };
+  const newIdx = storage.appendLegs([newLeg]);
+  await applyLeg(newIdx);
+  renderHistory();   // history mirror
+  closeNewFlightConfirm(false);  // no revert — the input now points at the new leg
+  toast(route
+    ? `ELY${digits}: ${route.dep} → ${route.arr}`
+    : `ELY${digits} created`);
 });
 
 // Header CTOT input — live HH:MM formatting + autosave

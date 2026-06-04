@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=29" />
+  <link rel="stylesheet" href="./app.css?v=30" />
 </head>
 <body>
   <header class="app-header">
@@ -223,6 +223,26 @@
     </div>
   </div>
 
+  <!-- "Start new flight ELY##" confirmation — appears when the user types a
+       new flight number into the header. Auto-fills route + block time from
+       the local LY table when known. Aircraft tail is left blank because no
+       free public API gives the day's tail assignment. -->
+  <div id="newflight-confirm-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet nf-confirm-sheet">
+      <div class="pad-head">
+        <span class="pad-label" id="nfc-title">Start new flight</span>
+        <button id="nfc-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small" id="nfc-blurb">Adding a new flight to your leg list. The existing flight stays where it is.</p>
+      <dl id="nfc-rows" class="nf-rows"></dl>
+      <p class="muted small nfc-note">Tail and live times need the day's dispatch / OPT — entered after creation.</p>
+      <div class="settings-row-btns">
+        <button id="nfc-cancel" class="btn block">Cancel</button>
+        <button id="nfc-create" class="btn primary block">Create flight</button>
+      </div>
+    </div>
+  </div>
+
   <!-- New flight modal: reset checklist OR paste roster (instead of the old
        "archive + start fresh" confirm dialog). -->
   <div id="newflight-overlay" class="overlay hidden" role="dialog" aria-modal="true">
@@ -293,6 +313,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=29"></script>
+  <script type="module" src="./app.js?v=30"></script>
 </body>
 </html>
