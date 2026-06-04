@@ -265,6 +265,23 @@ $('newflight-reset').addEventListener('click', async () => {
   toast('Reset complete');
 });
 
+// Data card head — bulk reset across every group marked `resettable: true`
+// in modules/data-card.js. By design that's SOB, ATIS, Takeoff performance,
+// and Fuel — Flight (dep/arr/flight time) and Crew survive so the
+// persistent header stays intact across a "fresh flight" reset.
+$('data-reset-all').addEventListener('click', () => {
+  const groups = dataCard.FIELDS.filter(g => g.resettable);
+  if (!groups.length) return;
+  const names = groups.map(g => g.group).join(', ');
+  if (!confirm(`Reset ${names}? (Flight + Crew kept.)`)) return;
+  for (const g of groups) {
+    for (const c of g.cells) storage.setDataField(c.key, '');
+  }
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+  toast('Data card reset');
+});
+
 // Checklist card head — quick reset (unticks only, leaves data card alone).
 $('checklist-reset').addEventListener('click', () => {
   if (!confirm('Uncheck every item on the checklist?')) return;

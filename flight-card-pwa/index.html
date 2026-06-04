@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=27" />
+  <link rel="stylesheet" href="./app.css?v=28" />
 </head>
 <body>
   <header class="app-header">
@@ -98,6 +98,7 @@
           <span class="chev">▾</span>
           <span class="card-title">Data card</span>
         </button>
+        <button id="data-reset-all" class="btn ghost-btn" title="Reset SOB, ATIS, Takeoff &amp; Fuel (keeps Flight + Crew)" aria-label="Reset data card">↻</button>
       </header>
       <div class="card-body" id="data-body"></div>
     </section>
@@ -169,7 +170,7 @@
 
       <div id="pa-legend" class="pa-legend hidden">
         From data card: <code>@cpt</code> <code>@fo</code> <code>@PU</code> <code>@tail</code> <code>@flight</code> <code>@dep</code> <code>@arr</code> <code>@flighttime</code><br/>
-        Auto (live): <code>@time</code> <code>@utc</code> <code>@date</code>
+        Auto (live): <code>@time</code> <code>@utc</code> <code>@date</code> <code>@tod</code> <span class="pa-legend-hint">(@tod → morning / noon / afternoon / evening / night, Hebrew-aware)</span>
       </div>
 
       <div id="pa-body" class="pa-body"></div>
@@ -292,6 +293,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=27"></script>
+  <script type="module" src="./app.js?v=28"></script>
 </body>
 </html>

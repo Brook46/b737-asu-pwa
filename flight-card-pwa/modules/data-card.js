@@ -3,27 +3,32 @@
 
 import * as storage from './storage.js';
 
-// kind: 'int' | 'dec' | 'text' | 'atis'
+// kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
+// resettable: true → renders a ↻ button on the group head and lets the
+// "Reset data card" action wipe the group's cells. Crew + Flight are
+// deliberately left out so the persistent header info survives a reset.
 export const FIELDS = [
-  { id: 'g-sob',   group: 'Souls on board', cells: [
+  { id: 'g-sob',   group: 'Souls on board', resettable: true, cells: [
     { key: 'sob_total', label: 'Total', kind: 'int' },
   ]},
-  { id: 'g-atis',  group: 'ATIS',      cells: [
+  { id: 'g-atis',  group: 'ATIS', resettable: true, cells: [
     { key: 'atis',      label: 'ATIS letter', kind: 'atis', wide: true },
     { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
   ]},
   // "TO performance" — V-speeds + N1 + Flaps. Has an OPT/FMC auto-fill button
   // in its head (rendered by data-card.js, wired from app.js).
-  { id: 'g-to',    group: 'Takeoff performance', hasOptFmc: true, cells: [
+  { id: 'g-to',    group: 'Takeoff performance', hasOptFmc: true, resettable: true, cells: [
     { key: 'v1',    label: 'V1',    kind: 'int', suffix: 'kt' },
     { key: 'vr',    label: 'VR',    kind: 'int', suffix: 'kt' },
     { key: 'v2',    label: 'V2',    kind: 'int', suffix: 'kt' },
     { key: 'n1',    label: 'N1 TO', kind: 'dec', suffix: '%' },
     { key: 'flaps', label: 'Flaps', kind: 'flaps', wide: true },
   ]},
-  { id: 'g-fuel',  group: 'Fuel',      cells: [
-    { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'int', suffix: 'kg' },
-    { key: 'block_fuel', label: 'Block fuel', kind: 'int', suffix: 'kg' },
+  { id: 'g-fuel',  group: 'Fuel', resettable: true, cells: [
+    // kind: 'fuel' — accepts both kg (e.g. 12300) and tonnes (e.g. 12.3 or
+    // even bare "12"). The tonnes→kg conversion runs on blur, see normalize().
+    { key: 'trip_fuel',  label: 'Trip fuel',  kind: 'fuel', suffix: 'kg' },
+    { key: 'block_fuel', label: 'Block fuel', kind: 'fuel', suffix: 'kg' },
   ]},
   { id: 'g-flt',   group: 'Flight',    cells: [
     { key: 'dep',         label: 'Dep',         kind: 'text' },
@@ -72,8 +77,8 @@ export function render(root) {
     const filled = group.cells.filter(c => has(data[c.key])).length;
     const summary = renderSummary(group, data);
     const cells = group.cells.map(c => renderCell(c, data[c.key])).join('');
-    const resetBtn = group.hasOptFmc
-      ? `<button type="button" class="data-group-reset" data-reset-group="${group.id}" title="Reset takeoff numbers" aria-label="Reset takeoff numbers">↻</button>`
+    const resetBtn = group.resettable
+      ? `<button type="button" class="data-group-reset" data-reset-group="${group.id}" title="Reset ${escape(group.group)}" aria-label="Reset ${escape(group.group)}">↻</button>`
       : '';
     const optBtn = group.hasOptFmc
       ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
@@ -305,8 +310,22 @@ function wire(root) {
     inp.addEventListener('blur', () => {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
-      const raw = storage.getCurrent().dataCard[key];
+      let raw = storage.getCurrent().dataCard[key];
       if (raw == null || raw === '') { inp.value = ''; return; }
+      // Fuel finalizer: if the value looks like tonnes (small number, or a
+      // string with a decimal still in it), convert to kg. Threshold of 100
+      // separates a tonnes-style entry (e.g. 12, 12.3, 5.5) from someone
+      // already typing kg (e.g. 5500, 12300).
+      if (def.kind === 'fuel') {
+        const n = parseFloat(String(raw).replace(/[^\d.]/g, ''));
+        if (Number.isFinite(n)) {
+          const kg = n < 100 ? Math.round(n * 1000) : Math.round(n);
+          raw = kg;
+          storage.setDataField(key, kg);
+          updateGroupMeta(root, key);
+          if (onChange) onChange(key);
+        }
+      }
       inp.value = formatValue(def, raw);
     });
   });
@@ -387,6 +406,25 @@ function normalize(def, raw) {
   if (def.kind === 'dec') {
     const n = parseFloat(s.replace(/[^\d.\-]/g, ''));
     return Number.isFinite(n) ? n : '';
+  }
+  if (def.kind === 'fuel') {
+    // Keep the user's string intact during typing (don't strip the decimal
+    // point or auto-multiply yet, that would mangle "12.3" into "123"). We
+    // store a plain Number when it's a clean integer so downstream math
+    // works, and we keep the raw string while a "." is mid-typing.
+    const cleaned = s.replace(/[^\d.]/g, '');
+    if (!cleaned) return '';
+    // Mid-decimal-entry ("12.")  — keep as string so the dot survives the
+    // input re-render.
+    if (cleaned.endsWith('.')) return cleaned;
+    const n = parseFloat(cleaned);
+    if (!Number.isFinite(n)) return '';
+    // Plain integer with no dot? Number.
+    if (!cleaned.includes('.')) return n;
+    // Has a dot but no fractional part (e.g. "12.0") → integer.
+    if (Number.isInteger(n)) return n;
+    // Otherwise keep the decimal string until blur finalizes it.
+    return cleaned;
   }
   if (def.kind === 'atis') return s.toUpperCase().slice(0, 1);
   if (def.kind === 'utctime') return formatHHMM(s);

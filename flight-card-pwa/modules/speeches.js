@@ -1,7 +1,8 @@
-// speeches.js — passenger PA editor with EN/HE tabs and live variable substitution.
+// speeches.js — passenger PA editor with bilingual side-by-side display.
 //
 // Each speech: { id, name, bodyEn, bodyHe }
-// Edit mode: textarea for the active language
+// Both languages share one window: Hebrew block on top (RTL), English below.
+// Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
 import * as storage from './storage.js';
@@ -9,7 +10,6 @@ import { cityName } from './airports.js';
 
 let activeId = null;
 let editing = false;
-let lang = 'en'; // 'en' | 'he'
 let liveTick = null;
 
 // @token → data-card field key. (PU = purser = CC1.)
@@ -33,7 +33,29 @@ const VAR_MAP = {
 
 const VAR_RE = /@([a-zA-Z]{2,10})\b/g;
 
-function dynamicValue(token, data) {
+// @tod — "time of day" bucket from local clock. Speech is generally read
+// over the PA close to the time it's prepared, so local clock is the
+// honest source. Buckets:
+//   05–11 → morning, 12–13 → noon, 14–17 → afternoon, 18–21 → evening,
+//   22–04 → night.
+const TOD_BUCKETS_EN = {
+  morning: 'morning', noon: 'noon', afternoon: 'afternoon',
+  evening: 'evening', night: 'night',
+};
+const TOD_BUCKETS_HE = {
+  morning: 'בוקר', noon: 'צהריים', afternoon: 'אחר הצהריים',
+  evening: 'ערב',  night:  'לילה',
+};
+function todBucket(date = new Date()) {
+  const h = date.getHours();
+  if (h >= 5  && h <= 11) return 'morning';
+  if (h >= 12 && h <= 13) return 'noon';
+  if (h >= 14 && h <= 17) return 'afternoon';
+  if (h >= 18 && h <= 21) return 'evening';
+  return 'night';
+}
+
+function dynamicValue(token, data, lang = 'en') {
   // Auto values that are computed (not from dataCard).
   const t = token.toLowerCase();
   const now = new Date();
@@ -41,13 +63,17 @@ function dynamicValue(token, data) {
   if (t === 'time' || t === 'localtime') return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   if (t === 'utc' || t === 'zulu') return `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
   if (t === 'date') return `${pad(now.getDate())}/${pad(now.getMonth()+1)}`;
+  if (t === 'tod') {
+    const b = todBucket(now);
+    return (lang === 'he' ? TOD_BUCKETS_HE : TOD_BUCKETS_EN)[b];
+  }
   return null;
 }
 
-export function substitute(body, data) {
+export function substitute(body, data, lang = 'en') {
   if (!body) return '';
   return body.replace(VAR_RE, (whole, token) => {
-    const dyn = dynamicValue(token, data);
+    const dyn = dynamicValue(token, data, lang);
     if (dyn != null) return dyn;
     const key = VAR_MAP[token.toLowerCase()];
     if (!key) return whole;
@@ -62,13 +88,13 @@ export function substitute(body, data) {
 }
 
 // Render mode — also wrap each resolved value in a span so we can highlight.
-function renderHtml(body, data) {
+function renderHtml(body, data, lang = 'en') {
   if (!body) return '';
   let html = '';
   let lastIdx = 0;
   body.replace(VAR_RE, (whole, token, idx) => {
     html += escape(body.slice(lastIdx, idx));
-    const dyn = dynamicValue(token, data);
+    const dyn = dynamicValue(token, data, lang);
     if (dyn != null) {
       html += `<span class="pa-var" data-auto="1">${escape(dyn)}</span>`;
     } else {
@@ -132,16 +158,11 @@ function render() {
     render();
   });
 
-  // Title + lang + actions
+  // Title + actions. Language toggle dropped — both languages live in one
+  // window now (Hebrew first, English below).
   document.getElementById('pa-title').textContent = sp.name;
   const langWrap = document.getElementById('pa-lang');
-  langWrap.innerHTML = `
-    <button type="button" class="${lang === 'en' ? 'on' : ''}" data-lang="en">EN</button>
-    <button type="button" class="${lang === 'he' ? 'on' : ''}" data-lang="he">עב</button>
-  `;
-  langWrap.querySelectorAll('[data-lang]').forEach(b => {
-    b.addEventListener('click', () => { lang = b.dataset.lang; render(); });
-  });
+  if (langWrap) langWrap.innerHTML = '';
 
   const editBtn = document.getElementById('pa-edit');
   editBtn.textContent = editing ? '✓' : '✎';
@@ -150,17 +171,41 @@ function render() {
   document.getElementById('pa-rename').onclick = () => doRename(activeId);
   document.getElementById('pa-delete').onclick = () => doDelete(activeId);
 
-  // Body
+  // Body — bilingual: Hebrew block on top (RTL), English below (LTR).
   const body = document.getElementById('pa-body');
-  body.classList.toggle('rtl', lang === 'he');
+  body.classList.remove('rtl');
+  body.classList.add('bilingual');
   const data = storage.getCurrent().dataCard;
-  const text = (lang === 'he' ? sp.bodyHe : sp.bodyEn) || '';
+  const heText = sp.bodyHe || '';
+  const enText = sp.bodyEn || '';
+
   if (editing) {
-    body.innerHTML = `<textarea id="pa-textarea" dir="${lang === 'he' ? 'rtl' : 'ltr'}" placeholder="Write the PA here. Use @cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc — they auto-fill.">${escape(text)}</textarea>`;
-    const ta = document.getElementById('pa-textarea');
-    ta.addEventListener('input', () => storage.setSpeechBody(sp.id, lang, ta.value));
+    body.innerHTML = `
+      <div class="pa-block pa-block-he" dir="rtl">
+        <div class="pa-block-label">עברית</div>
+        <textarea data-lang="he" dir="rtl"
+          placeholder="כתוב כאן את ההודעה בעברית. השתמש ב־@cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc @tod">${escape(heText)}</textarea>
+      </div>
+      <div class="pa-block pa-block-en" dir="ltr">
+        <div class="pa-block-label">English</div>
+        <textarea data-lang="en" dir="ltr"
+          placeholder="Write the PA here. Use @cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc @tod — they auto-fill.">${escape(enText)}</textarea>
+      </div>
+    `;
+    body.querySelectorAll('textarea[data-lang]').forEach(ta => {
+      ta.addEventListener('input', () => storage.setSpeechBody(sp.id, ta.dataset.lang, ta.value));
+    });
   } else {
-    body.innerHTML = `<div class="pa-rendered" dir="${lang === 'he' ? 'rtl' : 'ltr'}">${renderHtml(text, data)}</div>`;
+    body.innerHTML = `
+      <div class="pa-block pa-block-he" dir="rtl">
+        <div class="pa-block-label">עברית</div>
+        <div class="pa-rendered" dir="rtl">${renderHtml(heText, data, 'he')}</div>
+      </div>
+      <div class="pa-block pa-block-en" dir="ltr">
+        <div class="pa-block-label">English</div>
+        <div class="pa-rendered" dir="ltr">${renderHtml(enText, data, 'en')}</div>
+      </div>
+    `;
   }
   document.getElementById('pa-legend').classList.toggle('hidden', !editing);
 }
