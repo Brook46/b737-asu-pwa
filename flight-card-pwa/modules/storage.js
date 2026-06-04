@@ -581,38 +581,118 @@ export function importJson(json) {
 }
 
 // Single-leg export/import — used by the QR share path. Each payload is
-// just one flight's worth of data: identity, dataCard, ticks, notes.
-// History and template aren't included (those are device-local concepts
-// and shouldn't follow a single flight across devices).
+// just one flight's worth of data: identity, dataCard, ticks. History and
+// template aren't included (those are device-local concepts and shouldn't
+// follow a single flight across devices).
 //
-// Wire shape (tiny, fits a v25-ish QR with M error correction):
-//   { v: 7, kind: 'leg', leg: { ...flight-leg fields..., dataCard, ticks, notes } }
+// The wire format is aggressively compact so the QR stays at a low
+// version and scans reliably from across the cockpit. Two tricks:
+//   1. Long field names → 2-letter short keys (see K_SHORT). Cuts ~40%.
+//   2. Empty/null/'' values are dropped entirely.
+// Ticks become a flat array of ticked item ids (timestamps stripped — the
+// receiving device just needs to know the box is checked). Notes are
+// dropped unless non-empty.
+//
+// Wire shape:
+//   { v: 7, k: 'l', l: { <compact-leg-fields>, tk: [...item-ids] } }
+
+const K_SHORT = {
+  // Identity / scheduling
+  flight: 'f',  tail: 't',  dep: 'd',  arr: 'a',
+  flight_time: 'ft', ctot: 'c',
+  dep_date:'dd', dep_time:'dt', arr_date:'ad', arr_time:'at',
+  // Takeoff perf
+  v1: 'v1', vr: 'vr', v2: 'v2', n1: 'n1', flaps: 'fl',
+  // Fuel
+  trip_fuel: 'tf', block_fuel: 'bf',
+  // SOB / ATIS
+  sob_total: 'sb', atis: 'as', atis_note: 'an', atis_read: 'ar',
+  // Crew
+  cpt: 'cp', fo: 'fo',
+  cc1: 'c1', cc2: 'c2', cc3: 'c3', cc4: 'c4', cc5: 'c5',
+};
+const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]));
+
+function packLeg(leg) {
+  const out = {};
+  // Top-level leg fields (dep_date/dep_time/etc. used by the leg-switcher sort).
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
+    const v = leg[k];
+    if (v != null && v !== '') out[K_SHORT[k]] = v;
+  }
+  // dataCard — only non-empty values, short-keyed. Identity fields already
+  // covered above; copy any dataCard-specific keys (V-speeds, fuel, etc.).
+  for (const [k, v] of Object.entries(leg.dataCard || {})) {
+    if (v == null || v === '') continue;
+    const sk = K_SHORT[k];
+    if (sk && out[sk] == null) out[sk] = v;
+  }
+  // Ticks as a flat array of ticked item ids (we don't need the timestamps
+  // on the receiving device — it just needs to know which boxes are on).
+  const tickedIds = Object.keys(leg.ticks || {}).filter(id => leg.ticks[id]);
+  if (tickedIds.length) out.tk = tickedIds;
+  // Notes only if any non-empty.
+  const notes = leg.notes || {};
+  const trimmedNotes = {};
+  for (const [k, v] of Object.entries(notes)) if (v && String(v).trim()) trimmedNotes[k] = v;
+  if (Object.keys(trimmedNotes).length) out.nt = trimmedNotes;
+  return out;
+}
+
+function unpackLeg(packed) {
+  // Build the full leg shape the rest of the code expects.
+  const leg = {
+    flight: '', tail: '', dep: '', arr: '', flight_time: '',
+    dep_date: '', dep_time: '', arr_date: '', arr_time: '',
+    ctot: '',
+    dataCard: {}, ticks: {}, notes: {},
+  };
+  // Identity / scheduling fields land both at top-level and in dataCard
+  // (storage.appendLegs would do this anyway, but we do it here so the
+  // pack→unpack round-trip is loss-free).
+  const identityKeys = ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time'];
+  for (const [sk, v] of Object.entries(packed)) {
+    if (sk === 'tk' || sk === 'nt') continue;
+    const longKey = K_LONG[sk];
+    if (!longKey) continue;
+    if (identityKeys.includes(longKey)) leg[longKey] = v;
+    leg.dataCard[longKey] = v;
+  }
+  if (Array.isArray(packed.tk)) {
+    const now = Date.now();
+    for (const id of packed.tk) leg.ticks[id] = now;
+  }
+  if (packed.nt && typeof packed.nt === 'object') {
+    Object.assign(leg.notes, packed.nt);
+  }
+  return leg;
+}
+
 export function exportLeg(idx) {
   const c = read().current;
   const i = (typeof idx === 'number')
     ? idx
     : Math.max(0, c.legIndex | 0);
-  // When there are no legs, synthesise one from the top-level current bag
-  // so single-flight users can still share what they've got.
+  let leg;
   if (!Array.isArray(c.legs) || !c.legs.length) {
-    return JSON.stringify({
-      v: VERSION, kind: 'leg',
-      leg: {
-        flight:      c.dataCard.flight || '',
-        tail:        c.dataCard.tail   || '',
-        dep:         c.dataCard.dep    || '',
-        arr:         c.dataCard.arr    || '',
-        flight_time: c.dataCard.flight_time || '',
-        ctot:        c.dataCard.ctot   || '',
-        dep_date: '', dep_time: '', arr_date: '', arr_time: '',
-        dataCard: c.dataCard,
-        ticks:    c.ticks,
-        notes:    c.notes,
-      }
-    });
+    // No legs → synthesise one from the top-level current bag so single-
+    // flight users can still share what they've got.
+    leg = {
+      flight:      c.dataCard.flight || '',
+      tail:        c.dataCard.tail   || '',
+      dep:         c.dataCard.dep    || '',
+      arr:         c.dataCard.arr    || '',
+      flight_time: c.dataCard.flight_time || '',
+      ctot:        c.dataCard.ctot   || '',
+      dep_date: '', dep_time: '', arr_date: '', arr_time: '',
+      dataCard: c.dataCard,
+      ticks:    c.ticks,
+      notes:    c.notes,
+    };
+  } else {
+    leg = c.legs[Math.max(0, Math.min(c.legs.length - 1, i))];
   }
-  const leg = c.legs[Math.max(0, Math.min(c.legs.length - 1, i))];
-  return JSON.stringify({ v: VERSION, kind: 'leg', leg });
+  return JSON.stringify({ v: VERSION, k: 'l', l: packLeg(leg) });
 }
 
 // Accepts a leg payload (as produced by exportLeg) and appends it to the
@@ -620,11 +700,14 @@ export function exportLeg(idx) {
 // switch to it. Throws if the payload doesn't look like a leg envelope.
 export function importLeg(json) {
   const parsed = (typeof json === 'string') ? JSON.parse(json) : json;
-  if (!parsed || parsed.kind !== 'leg' || !parsed.leg) {
+  if (!parsed || !parsed.l || (parsed.k !== 'l' && parsed.kind !== 'leg')) {
     throw new Error('Not a Flight Card leg payload');
   }
-  // Deep-clone so the imported leg doesn't share references with the caller.
-  return appendLegs([clone(parsed.leg)]);
+  // Back-compat: older exports used the verbose envelope { kind:'leg', leg:{...} }.
+  // We can still import those by treating .leg as the unpacked shape.
+  const packedOrFull = parsed.l || parsed.leg;
+  const leg = (parsed.k === 'l') ? unpackLeg(packedOrFull) : clone(packedOrFull);
+  return appendLegs([leg]);
 }
 export function resetAll() {
   cache = freshState();

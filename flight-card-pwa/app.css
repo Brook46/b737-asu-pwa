@@ -608,7 +608,14 @@ body {
   margin: 12px 0;
 }
 .share-qr-box canvas {
-  width: 240px; height: 240px;
+  /* Render bigger so each QR module gets enough pixels for the other
+     device's camera to resolve — small modules are the main reason a
+     scan fails across a cockpit. width:100% inside the white box gives
+     us the full Slide Over width while staying square. */
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   image-rendering: pixelated;
   display: block;
 }
