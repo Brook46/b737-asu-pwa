@@ -129,7 +129,9 @@ const TOKEN_PATTERNS = [
   // Text-ish
   // OPT writes "PROFILE EKZ" with just the 3-letter Israeli-fleet suffix —
   // we capture it as tail and let the apply path normalise EKZ → 4X-EKZ.
-  { key: 'flight',re: /\bFLT\b\s*[:#]?\s*([A-Z0-9]{2,7})\b/i, asString: true },
+  // (Flight number is deliberately NOT extracted from OPT — the user
+  // confirmed it isn't reliably readable from the screenshot layout. The
+  // header pill / leg metadata is the source of truth.)
   { key: 'tail',  re: /\b(REG|TAIL|PROFILE)\b\s*[:#]?\s*([A-Z0-9-]{2,8})\b/i, asString: true, group: 2 },
   // OPT writes "ARPT LLBG / TLV" — first ICAO/IATA wins. Same for arr.
   { key: 'dep',   re: /\b(?:ARPT|DEP|FROM|ORIG)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
