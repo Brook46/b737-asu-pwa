@@ -67,6 +67,7 @@ const els = {
   mkToggle: $('mk-toggle'), markupBar: $('markup-bar'), mkUndo: $('mk-undo'), mkClear: $('mk-clear'),
   viewerSidebar: $('viewer-sidebar'), vsChapters: $('vs-chapters'), vsBookmarks: $('vs-bookmarks'), vsAddBm: $('vs-add-bm'),
   pdfPanes: $('pdf-panes'), viewerNotes: $('viewer-notes'),
+  viewerZoomIn: $('viewer-zoom-in'), viewerZoomOut: $('viewer-zoom-out'),
   adminOverlay: $('admin-overlay'), adminClose: $('admin-close'), adminBody: $('admin-body'),
   importOverlay: $('import-overlay'), importBody: $('import-body'),
   bookmarkOverlay: $('bookmark-overlay'), bookmarkBody: $('bookmark-body'), bookmarkClose: $('bookmark-close'),
@@ -280,6 +281,8 @@ function wireEvents() {
   els.searchForm.addEventListener('submit', (e) => { e.preventDefault(); runJumpSearch(els.searchInput.value.trim()); });
 
   els.viewerClose.addEventListener('click', minimizeViewer);
+  els.viewerZoomIn?.addEventListener('click', () => applyViewerZoom(+0.2));
+  els.viewerZoomOut?.addEventListener('click', () => applyViewerZoom(-0.2));
   els.viewerNote.addEventListener('click', openNotesForActiveTab);
   els.viewerBookmark.addEventListener('click', openBookmarkFromViewer);
   els.viewerIndex.addEventListener('click', openPageIndexerForActiveTab);
@@ -1298,14 +1301,26 @@ async function renderHomeResults() {
         wrap.removeAttribute('data-pending');
       } catch (err) { /* swallow */ }
     };
-    pgInput?.addEventListener('change', () => goToPage(+pgInput.value));
-    pgInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); goToPage(+pgInput.value); } });
+    // Page changes on the picker persist back to the anchor so the user can
+    // permanently correct a wrong seed page without re-running the catalog.
+    // Link cards don't persist (they're synthetic — fixing the parent link
+    // is the way to change a link card's page).
+    const persistPage = async (n) => {
+      if (isLinkCard || !anchor) return;
+      anchor.pageNum = n;
+      anchor.value = 'p.' + n;
+      anchor.updatedAt = Date.now();
+      await storage.putAnchor(anchor);
+      kg.invalidate();
+    };
+    pgInput?.addEventListener('change', async () => { await goToPage(+pgInput.value); await persistPage(+row.getAttribute('data-page')); });
+    pgInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); pgInput.dispatchEvent(new Event('change')); } });
     pgInput?.addEventListener('click', (e) => e.stopPropagation());
-    row.querySelector('[data-act="prev"]')?.addEventListener('click', (e) => {
-      e.stopPropagation(); goToPage((+row.getAttribute('data-page')) - 1);
+    row.querySelector('[data-act="prev"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation(); await goToPage((+row.getAttribute('data-page')) - 1); await persistPage(+row.getAttribute('data-page'));
     });
-    row.querySelector('[data-act="next"]')?.addEventListener('click', (e) => {
-      e.stopPropagation(); goToPage((+row.getAttribute('data-page')) + 1);
+    row.querySelector('[data-act="next"]')?.addEventListener('click', async (e) => {
+      e.stopPropagation(); await goToPage((+row.getAttribute('data-page')) + 1); await persistPage(+row.getAttribute('data-page'));
     });
     // Cross-reference link chips → resolve & open the target manual.
     row.querySelectorAll('.hr-link-chip').forEach((chip) => {
@@ -2834,9 +2849,11 @@ async function openFileInViewer(fileId, pageNum, { query = '' } = {}) {
 async function openViewer() {
   ensurePanes();
   els.viewerOverlay.classList.remove('hidden');
-  // Split view removed — always force single-pane.
   els.viewerOverlay.classList.remove('split');
   state.viewer.split = false;
+  // Reset zoom each time the viewer opens.
+  els.pdfPanes.dataset.zoom = '1';
+  els.pdfPanes.querySelectorAll('.pdf-pane').forEach((p) => { p.style.transform = ''; });
   // Sidebar (outline) defaults to open whenever the viewer is launched.
   els.viewerSidebar.classList.remove('hidden');
   els.sidebarToggle.setAttribute('aria-pressed', 'true');
@@ -2845,6 +2862,21 @@ async function openViewer() {
   await refreshViewer();
   // Render the outline now so it's already populated.
   try { renderSidebar(); } catch (_) {}
+}
+
+// Cheap viewer zoom — applies a CSS transform: scale on the pages container
+// so the user can zoom in/out without rerendering. Clamped to [0.5, 3]. The
+// scale persists on the pdf-panes element so it survives split toggles and
+// page jumps within the same session.
+function applyViewerZoom(delta) {
+  const cur = parseFloat(els.pdfPanes.dataset.zoom || '1') || 1;
+  const next = Math.max(0.5, Math.min(3, +(cur + delta).toFixed(2)));
+  els.pdfPanes.dataset.zoom = next;
+  // Use transform on each .pdf-pane so the pdf-panes flex layout still works.
+  els.pdfPanes.querySelectorAll('.pdf-pane').forEach((p) => {
+    p.style.transform = `scale(${next})`;
+    p.style.transformOrigin = 'top center';
+  });
 }
 
 function minimizeViewer() {

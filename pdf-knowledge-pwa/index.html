@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=39" />
+  <link rel="stylesheet" href="./app.css?v=40" />
 </head>
 <body>
   <header class="app-header">
@@ -169,6 +169,8 @@
       <span id="viewer-title" class="viewer-title"></span>
       <span class="spacer"></span>
       <button class="btn ghost hidden" id="split-toggle" title="Side-by-side view" aria-pressed="false" aria-hidden="true">⊟ Split</button>
+      <button class="btn ghost" id="viewer-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button class="btn ghost" id="viewer-zoom-in" title="Zoom in" aria-label="Zoom in">＋</button>
       <button class="btn ghost" id="select-toggle" title="Select &amp; highlight text" aria-pressed="false">⌖ Select</button>
       <button class="btn ghost" id="mk-toggle" title="Highlight markup" aria-pressed="false">✐ Markup</button>
       <button class="btn ghost" id="viewer-index" title="Index a paragraph on this page">📑 Index</button>
@@ -426,6 +428,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=48"></script>
+  <script type="module" src="./app.js?v=49"></script>
 </body>
 </html>

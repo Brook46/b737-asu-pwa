@@ -1458,3 +1458,8 @@ body.has-dock .app-main { padding-bottom: 60px; }
   transition: background .12s ease, border-color .12s ease;
 }
 .hr-zoom-btn:hover { background: var(--bg-elev-2); border-color: var(--accent); color: var(--accent); }
+
+/* Viewer-level zoom: a CSS transform on each .pdf-pane. The pages container
+   already scrolls; pinch-zoom is also allowed so users can zoom natively. */
+#pdf-panes { touch-action: pan-y pinch-zoom; }
+.pdf-pane { transition: transform .15s ease; transform-origin: top center; }
