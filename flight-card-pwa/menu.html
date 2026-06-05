@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Flight Card — a 737NG cockpit PWA: data card, checklist, PA library, OPT/FMC OCR, leg switcher, QR share, all offline-capable." />
+  <title>Flight Card — features</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f8;       --fg: #18181b;
+      --fg-dim: #6b7280;
+      --card: #ffffff;     --line: #e5e7eb;
+      --accent: #1e6fd1;   --accent-soft: #e3edfb;
+      --kbd: #f3f4f6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0c0e;     --fg: #f4f4f5;
+        --fg-dim: #9ca3af;
+        --card: #16181c;   --line: #2a2d33;
+        --accent: #5fa8ff; --accent-soft: #15243d;
+        --kbd: #1f2127;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--fg);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+      padding: 24px 18px 80px;
+      max-width: 760px; margin: 0 auto;
+    }
+    h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    h2 { font-size: 19px; margin: 32px 0 10px; letter-spacing: -0.01em; }
+    p  { margin: 6px 0 12px; color: var(--fg); }
+    p.lede { color: var(--fg-dim); font-size: 16px; margin-bottom: 24px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .pill {
+      display: inline-block;
+      background: var(--accent-soft); color: var(--accent);
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      vertical-align: middle;
+    }
+    .cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: #fff;
+      padding: 10px 16px; border-radius: 10px;
+      font-weight: 600; font-size: 15px;
+      text-decoration: none;
+      margin: 4px 0 8px;
+    }
+    .cta:hover { text-decoration: none; opacity: .92; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin: 10px 0;
+    }
+    .card h3 { margin: 0 0 4px; font-size: 15px; }
+    .card p  { margin: 0; color: var(--fg-dim); font-size: 14px; }
+    ul.bullets { padding-left: 18px; margin: 6px 0 12px; }
+    ul.bullets li { margin: 4px 0; }
+    code, kbd {
+      background: var(--kbd);
+      border: 1px solid var(--line);
+      padding: 1px 6px; border-radius: 5px;
+      font: 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .meta {
+      color: var(--fg-dim); font-size: 12px;
+      margin-top: 40px; padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin: 8px 0 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Flight Card <span class="pill">737NG</span></h1>
+  <p class="lede">
+    An iPad / iPhone cockpit companion for the Boeing 737NG. Tracks per-leg
+    V-speeds, fuel, ATIS, SOB and crew; runs a customisable preflight
+    checklist; reads OPT / FMC screenshots; carries the El Al PA library
+    in EN + HE — and all of it works offline as a Progressive Web App.
+  </p>
+
+  <a class="cta" href="./">Open the app →</a>
+  <a class="cta" style="background:transparent;border:1px solid var(--line);color:var(--fg);" href="./share.html">Share link</a>
+
+  <h2>Data card</h2>
+  <p>Per-flight data, grouped so the right field is one tap away during a busy turn:</p>
+  <ul class="bullets">
+    <li><b>Souls on board</b> — total head count.</li>
+    <li><b>ATIS</b> — letter chip + tap-through to a live D-ATIS / METAR popup with red/blue read state.</li>
+    <li><b>Takeoff performance</b> — V1, VR, V2, N1, Flaps. The Flaps cell is collapsed by default; tap to choose from 1/5/10/15/25. Flap 5 is painted blue (standard), anything else paints red.</li>
+    <li><b>Fuel</b> — Trip + Block. Type tonnes (<code>12.3</code> or <code>5</code>) and they auto-convert to kg on blur.</li>
+    <li><b>Flight</b> — Dep, Arr, Flight time in HH:MM (auto-formatted as you type).</li>
+    <li><b>Crew</b> — CPT, FO, Purser + CC2…CC5. Carried forward into every new leg from the roster.</li>
+    <li>Every group + the whole card have a <kbd>↻</kbd> reset that wipes its values in one tap. Flight + Crew are kept across resets.</li>
+  </ul>
+
+  <h2>OPT / FMC screenshot import <span class="pill">OCR</span></h2>
+  <p>
+    Tap <kbd>⌖ OPT / FMC</kbd> on the Takeoff performance group, pick a
+    screenshot from Photos, and the parser pulls out: tail (PROFILE EHB →
+    4X-EHB), Flaps, N1 (handles <code>TO2 93.2</code> derate labels and
+    <code>D-TO-2</code> alike), and V1 / VR / V2. Powered by Tesseract.js,
+    cached on first use.
+  </p>
+
+  <h2>Checklist</h2>
+  <p>Three sections by default — Cabin, Papers &amp; performance, Checklist. Customisable via the ✎ edit mode. Items tick with a tap; the card auto-collapses when everything is done.</p>
+
+  <h2>Roster import</h2>
+  <p>Paste a duty bulletin (Slip details / Cockpit format) into the New Flight modal. The parser builds a sorted leg list with dep / arr / flight # / tail / scheduled times, seeds crew names from the slip, and switches the data card to the first added leg.</p>
+
+  <h2>Per-leg state <span class="pill">v7+</span></h2>
+  <p>Each leg owns its own data card and checklist. Switching legs swaps V-speeds, fuel, ATIS, SOB and ticks with it. Crew + identity fields ride along automatically. The <kbd>🛫</kbd> button jumps to the leg whose dep/arr window contains the current UTC.</p>
+
+  <h2>Header pill — ELY flight number</h2>
+  <p>Type a flight number (digits only — <code>1</code>, <code>27</code>, <code>337</code>) and it renders as <code>ELY1</code>. Switching to a new ELY ###:</p>
+  <ul class="bullets">
+    <li>If a leg with that number already exists → switches to it.</li>
+    <li>If it's brand new → confirmation modal shows route + typical block time from a local table of common ELY routes, and creates a new leg.</li>
+  </ul>
+  <p>↗ next to the CTOT pill opens FlightAware for the current ELY ### to look up real ETD / slot.</p>
+
+  <h2>PA speeches <span class="pill">EN + HE</span></h2>
+  <p>
+    Bilingual library in one window — Hebrew on top (RTL), English below
+    (LTR). Default set: Welcome, Go around, Emergency, Ditching,
+    Smoke / fire, Malfunction, Delays. Edit mode adds a sticky chip row
+    of <code>@</code>-tokens you tap to insert without typing the
+    <kbd>@</kbd> key, ◀ ▶ reorder buttons, and an inline name input.
+  </p>
+  <p>Variables:</p>
+  <div class="grid">
+    <div class="card"><h3>Identity</h3><p><code>@cpt</code> <code>@fo</code> <code>@PU</code> <code>@flight</code> <code>@tail</code></p></div>
+    <div class="card"><h3>Route</h3><p><code>@dep</code> <code>@arr</code> <code>@flighttime</code></p></div>
+    <div class="card"><h3>Live</h3><p><code>@time</code> <code>@utc</code> <code>@date</code> <code>@tod</code></p></div>
+  </div>
+  <p><code>@tod</code> resolves to morning / noon / afternoon / evening / night based on the local clock — Hebrew-aware (בוקר / צהריים / אחר הצהריים / ערב / לילה).</p>
+
+  <h2>QR share + scan <span class="pill">cockpit-to-cockpit</span></h2>
+  <p>
+    Tap the <kbd>▣</kbd> icon in the header. The other pilot's device
+    scans the QR with the built-in camera and gets the data card as a
+    new leg in their list. Payload is data-card only (tail, flight, V-speeds,
+    N1, flaps, fuel, ATIS, SOB, crew, route) — checklist ticks stay local.
+    Works offline once the QR libraries are cached.
+  </p>
+
+  <h2>AirDrop full-state sync</h2>
+  <p>Same QR icon → "Sync everything (AirDrop)" → exports the whole app state as JSON via the iOS Share Sheet. Import on the other device replaces local state. For when you want every leg, every speech, the template — not just one flight.</p>
+
+  <h2>Themes &amp; rotation</h2>
+  <p>Light, dark, ASU green — cycle with the theme icon. Phone-orientation lock is off so landscape works on iPhone. After re-saving to the home screen the manifest picks up <code>orientation: any</code>.</p>
+
+  <p class="meta">
+    Built as a single-page PWA — vanilla JS modules, no framework, service-worker
+    cache-first. Open <a href="./">the app</a> and once it's loaded once,
+    everything works offline.<br/>
+    Repo: <a href="https://github.com/Brook46/b737-asu-pwa">github.com/Brook46/b737-asu-pwa</a>
+    · Build: <code id="build-tag">flightcard-v40</code>
+  </p>
+
+  <script>
+    // Pull the live cache name from the running service worker so this page
+    // self-stamps with the most recent build the visitor would receive.
+    // Falls back to the static label above if SW isn't registered yet.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration('./').then(reg => {
+        if (!reg) return;
+        return caches.keys().then(keys => {
+          const k = keys.find(k => k.startsWith('flightcard-'));
+          if (k) document.getElementById('build-tag').textContent = k;
+        });
+      }).catch(() => {});
+    }
+  </script>
+
+</body>
+</html>
