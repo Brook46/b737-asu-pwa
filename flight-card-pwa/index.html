@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=35" />
+  <link rel="stylesheet" href="./app.css?v=36" />
 </head>
 <body>
   <header class="app-header">
@@ -314,8 +314,8 @@
           <canvas id="share-qr-canvas" width="240" height="240" aria-label="QR code for this flight"></canvas>
         </div>
         <p class="muted small share-qr-note">
-          The QR carries this single flight (V-speeds, fuel, ATIS, SOB, checklist ticks, crew, route).
-          The other device imports it as a new leg in its leg list — nothing on either device is overwritten.
+          The QR carries the data card for this flight (V-speeds, fuel, ATIS, SOB, crew, route, tail,
+          flight #). Checklist ticks aren't shared — the other pilot runs their own.
         </p>
       </section>
 
@@ -354,6 +354,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=35"></script>
+  <script type="module" src="./app.js?v=36"></script>
 </body>
 </html>

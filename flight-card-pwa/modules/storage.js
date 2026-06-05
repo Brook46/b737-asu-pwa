@@ -622,27 +622,20 @@ const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]
 
 function packLeg(leg) {
   const out = {};
-  // Only the fields the receiving pilot actually needs. dep_date/dep_time/
-  // arr_date/arr_time are leg-list sort metadata — the receiver doesn't
-  // need them to fly the leg, and they alone add ~60 bytes. Notes are
-  // dropped too (PA-style free text rarely meaningful to the other pilot).
+  // Data card + identity only. The user asked for the smallest QR that
+  // still carries the flight: tail, flight #, and the data card content
+  // (V-speeds, N1, flaps, fuel, ATIS, SOB, dep/arr/flight_time/ctot,
+  // crew). Checklist ticks are intentionally NOT shipped — the receiving
+  // pilot runs their own checklist; sending ticks would just bloat the
+  // QR and push the version up out of camera-scannable range.
   for (const k of ['flight','tail','dep','arr','flight_time','ctot']) {
     const v = leg[k];
     if (v != null && v !== '') out[K_SHORT[k]] = v;
   }
-  // dataCard — only non-empty values, short-keyed. Identity fields already
-  // covered above; copy any dataCard-specific keys (V-speeds, fuel, etc.).
   for (const [k, v] of Object.entries(leg.dataCard || {})) {
     if (v == null || v === '') continue;
     const sk = K_SHORT[k];
     if (sk && out[sk] == null) out[sk] = v;
-  }
-  // Ticks: flat array of ticked item ids. Every default template id starts
-  // with "i-", so we strip that prefix on the wire and add it back on
-  // unpack — saves ~2 bytes per tick × ~15 items = ~30 bytes.
-  const tickedIds = Object.keys(leg.ticks || {}).filter(id => leg.ticks[id]);
-  if (tickedIds.length) {
-    out.tk = tickedIds.map(id => id.startsWith('i-') ? id.slice(2) : '!' + id);
   }
   return out;
 }
