@@ -18,7 +18,10 @@ const KEY = 'fc.state';
 // items reordered to match how the documents stack actually gets walked
 // on the flight deck. The migrate() path replaces .template on any
 // version bump so the new default takes effect on existing installs.
-const VERSION = 8;
+// v9: PA library rewritten — QRH-style Welcome / Delay / Turbulence /
+// Top of descent / Diversion / Welcome home. Migrate force-reseeds
+// .speeches when crossing v9 so existing installs pick up the new set.
+const VERSION = 9;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -52,77 +55,93 @@ const DEFAULT_TEMPLATE = {
   ],
 };
 
+// PA library — bilingual, ordered for the typical phase-of-flight sequence
+// a 737NG pilot reads them in. The wording leans on the QRH "Passenger
+// Announcements" supplement (welcome / turbulence / diversion / descent /
+// landing) rather than ad-libbed phrasing, so it's something the user can
+// read off the iPad and have it sound like a real airline PA.
 const DEFAULT_SPEECHES = [
   {
     id: 'sp-welcome', name: 'Welcome',
     bodyEn:
-`Good [morning/afternoon/evening] ladies and gentlemen, welcome on board flight @flight.
+`Good @tod ladies and gentlemen, this is Captain @cpt speaking from the flight deck. On behalf of First Officer @fo, our purser @PU, the entire cabin crew, and everyone here at El Al — welcome aboard flight @flight to @arr.
 
-This is Captain @cpt speaking. With me on the flight deck is First Officer @fo. Looking after you in the cabin is our purser @PU and the rest of the cabin crew.
+We're flying today on a Boeing 737-900. Our planned flight time to @arr is approximately @flighttime. The local time at @dep is @time.
 
-Our flight time to @arr is approximately @flighttime. The local time is @time.
+In a few moments the cabin crew will demonstrate the safety features of the aircraft. Even if you're a frequent traveller, please give them your full attention — the location of the nearest exit may be behind you.
 
-Sit back, relax, and enjoy the flight.`,
+From the entire crew: sit back, relax, and enjoy your flight with us.`,
     bodyHe:
-`גבירותיי ורבותיי, ברוכים הבאים לטיסה @flight.
-מדבר אליכם הקפטן @cpt. יחד איתי בקבינת הטייס קצין ראשון @fo. הצוות בקבינה בהובלת המנהלת @PU.
-זמן הטיסה ל-@arr הוא @flighttime. השעה המקומית @time.
-שבו, הירגעו, ותהנו מהטיסה.`
+`@tod טוב גבירותיי ורבותיי, מדבר אליכם הקפטן @cpt מקבינת הטייס. בשם הקצין הראשון @fo, המנהלת @PU, צוות הקבינה וכל משפחת אל על — ברוכים הבאים לטיסה @flight ל-@arr.
+
+אנו טסים היום במטוס בואינג 737-900. זמן הטיסה הצפוי ל-@arr הוא כ-@flighttime. השעה המקומית כאן ב-@dep היא @time.
+
+בעוד מספר רגעים יציג צוות הקבינה את אמצעי הבטיחות של המטוס. גם אם אתם נוסעים ותיקים, נבקש את תשומת ליבכם — היציאה הקרובה אליכם עשויה להיות מאחוריכם.
+
+מכל הצוות: שבו בנוחות, הירגעו, ותהנו מהטיסה איתנו.`
   },
   {
-    id: 'sp-climb', name: 'After takeoff',
+    id: 'sp-delay', name: 'Delay',
     bodyEn:
-`Ladies and gentlemen, this is Captain @cpt from the flight deck. We've reached our initial cruise altitude.
+`Ladies and gentlemen, this is Captain @cpt. We've been informed of a short delay before departure due to [ATC slot / weather / inbound aircraft]. Our revised departure time is approximately @time local. We apologise for the inconvenience and we'll get airborne as soon as we're cleared.
 
-The local time is @time. Our flight time to @arr is approximately @flighttime.
-
-Cabin crew, please begin your service.`,
+Please remain seated with your seatbelt fastened. The cabin crew will keep you updated.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר הקפטן @cpt מקבינת הטייס. הגענו לגובה השיוט הראשוני.
-השעה המקומית @time. זמן הטיסה הצפוי ל-@arr הוא @flighttime.
-צוות, מותר להתחיל את השירות.`
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. קיבלנו עדכון על עיכוב קצר לפני ההמראה בגלל [תור המראה / מזג אוויר / מטוס נכנס]. שעת ההמראה המעודכנת היא בסביבות @time שעה מקומית. אנו מתנצלים על אי הנוחות ונמריא ברגע שנקבל אישור.
+
+נא להישאר במקומותיכם חגורים. צוות הקבינה ימשיך לעדכן אתכם.`
   },
   {
-    id: 'sp-cruise', name: 'Cruise',
+    id: 'sp-turbulence', name: 'Turbulence',
     bodyEn:
-`Ladies and gentlemen, this is @cpt from the flight deck.
+`Ladies and gentlemen, the captain has switched the fasten seatbelt sign on. We're entering an area of turbulence.
 
-We're cruising at FL[XXX], ground speed [XXX] knots. Local time is @time. Expected landing in @arr in approximately @flighttime.
-
-[Weather / sights / turbulence note]`,
+Please return to your seats immediately, fasten your seatbelt, and remain seated until the sign is switched off. Cabin crew, please be seated.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר @cpt מקבינת הטייס.
-אנו טסים בגובה השיוט. השעה המקומית @time. הנחיתה ב-@arr צפויה בעוד @flighttime.
-[הערות מזג אוויר / נוף / מערבולות]`
+`גבירותיי ורבותיי, הקפטן הדליק את שלט חגורות הבטיחות. אנו נכנסים לאזור של מערבולות.
+
+נא לחזור מיד למקומותיכם, לחגור חגורות, ולהישאר חגורים עד שהשלט יכבה. צוות, התיישבו.`
   },
   {
-    id: 'sp-descent', name: 'Descent',
+    id: 'sp-descent', name: 'Top of descent',
     bodyEn:
-`Ladies and gentlemen, this is the captain speaking. We've started our descent towards @arr.
+`Ladies and gentlemen, this is Captain @cpt. We've started our descent towards @arr. Expected landing time is approximately @time local. The weather at @arr is [wind / sky / temperature].
 
-The local time at @arr is @time. Approximately @flighttime to landing.
-
-Please return to your seats, fasten your seatbelt, stow your tray table, and bring your seat back to the upright position.
+Please return to your seats, fasten your seatbelt, stow your tray table, and bring your seat back to the upright position. Make sure your carry-on items are stowed under the seat in front of you or in the overhead bins.
 
 Cabin crew, prepare the cabin for landing.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר הקפטן. התחלנו בירידה לקראת @arr.
-השעה ב-@arr היא @time. נחיתה בעוד @flighttime.
-אנא חיזרו למקומותיכם, חיגרו חגורות, סגרו את שולחנות האוכל והחזירו את גב הכיסא למצב זקוף.
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. התחלנו בירידה לקראת @arr. שעת הנחיתה הצפויה בסביבות @time שעה מקומית. מזג האוויר ב-@arr [רוח / שמיים / טמפרטורה].
+
+נא לחזור למקומותיכם, לחגור חגורות, לסגור את שולחנות האוכל ולהחזיר את גב הכיסא למצב זקוף. ודאו שהציוד האישי שלכם מאוחסן מתחת לכיסא שלפניכם או בתאי האחסון.
+
 צוות, הכינו את הקבינה לנחיתה.`
+  },
+  {
+    id: 'sp-diversion', name: 'Diversion',
+    bodyEn:
+`Ladies and gentlemen, this is Captain @cpt. As a precaution we've decided to divert and land at [alternate]. There is no immediate concern. Expected landing time is approximately @time local, and ground services will be ready to assist on arrival.
+
+Please follow the cabin crew's instructions. Remain seated with your seatbelt fastened. We'll update you as soon as we have more information.`,
+    bodyHe:
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. מטעמי זהירות החלטנו להטות את הטיסה ולנחות ב-[שדה חלופי]. אין סיבה לדאגה מיידית. שעת הנחיתה הצפויה בסביבות @time שעה מקומית, וצוות הקרקע יהיה מוכן לסייע עם הנחיתה.
+
+נא לפעול לפי הוראות צוות הקבינה. הישארו חגורים במקומותיכם. נעדכן אתכם ברגע שיהיה לנו מידע נוסף.`
   },
   {
     id: 'sp-landing', name: 'Welcome home',
     bodyEn:
-`Ladies and gentlemen, welcome to @arr. The local time is @time.
+`Ladies and gentlemen, welcome to @arr. The local time is @time and the outside temperature is [temperature]°C.
 
-On behalf of Captain @cpt, First Officer @fo, purser @PU, and the entire crew — thank you for flying with us today. We hope to see you again soon.
+On behalf of Captain @cpt, First Officer @fo, our purser @PU, and the entire cabin crew — thank you for choosing El Al today. We hope to see you again on board soon.
 
-Please remain seated until the seatbelt sign is switched off.`,
+Please remain seated with your seatbelt fastened until the captain has switched off the fasten seatbelt sign and the aircraft has come to a complete stop at the gate. When opening the overhead bins, please be careful — items may have shifted during the flight.`,
     bodyHe:
-`גבירותיי ורבותיי, ברוכים הבאים ל-@arr. השעה המקומית @time.
-בשמו של הקפטן @cpt, קצין ראשון @fo, המנהלת @PU וכל הצוות — תודה שטסתם איתנו. נשמח לראות אתכם שוב.
-אנא הישארו במקומותיכם עד לכיבוי שלט חגורות הבטיחות.`
+`גבירותיי ורבותיי, ברוכים הבאים ל-@arr. השעה המקומית @time והטמפרטורה בחוץ [טמפרטורה]°C.
+
+בשם הקפטן @cpt, הקצין הראשון @fo, המנהלת @PU וכל צוות הקבינה — תודה שבחרתם לטוס איתנו באל על. נשמח לראותכם שוב במהרה.
+
+נא להישאר חגורים במקומותיכם עד שהקפטן יכבה את שלט החגורות והמטוס יעצור במלואו ליד שער היציאה. בעת פתיחת תאי האחסון, נא הזהרו — חפצים עלולים לזוז במהלך הטיסה.`
   },
 ];
 
@@ -182,18 +201,26 @@ function migrate(s) {
   if (!s || typeof s !== 'object') return freshState();
   if (s.v === VERSION) return s;
   // Speech upgrade (v2→v3 schema): { body } → { bodyEn, bodyHe }.
-  const upgradedSpeeches = (Array.isArray(s.speeches) && s.speeches.length)
-    ? s.speeches.map(sp => {
-        if (sp.bodyEn || sp.bodyHe) return sp;
-        const dflt = DEFAULT_SPEECHES.find(d => d.name === sp.name);
-        return {
-          id: sp.id,
-          name: sp.name || 'PA',
-          bodyEn: sp.body || dflt?.bodyEn || '',
-          bodyHe: dflt?.bodyHe || '',
-        };
-      })
-    : clone(DEFAULT_SPEECHES);
+  // v8→v9: PA library rewritten — the previous five (Welcome / After
+  // takeoff / Cruise / Descent / Welcome home) are replaced wholesale
+  // with the QRH-style set in DEFAULT_SPEECHES. We force the reseed
+  // rather than preserving customisations because the user asked for
+  // this rewrite explicitly.
+  const reseedSpeeches = !s.v || s.v < 9;
+  const upgradedSpeeches = reseedSpeeches
+    ? clone(DEFAULT_SPEECHES)
+    : (Array.isArray(s.speeches) && s.speeches.length)
+      ? s.speeches.map(sp => {
+          if (sp.bodyEn || sp.bodyHe) return sp;
+          const dflt = DEFAULT_SPEECHES.find(d => d.name === sp.name);
+          return {
+            id: sp.id,
+            name: sp.name || 'PA',
+            bodyEn: sp.body || dflt?.bodyEn || '',
+            bodyHe: dflt?.bodyHe || '',
+          };
+        })
+      : clone(DEFAULT_SPEECHES);
   // v3→v4: reseed checklist template (new defaults).
   // v4→v5: seed legs: [] + legIndex: 0 on current flight.
   // v5→v6: add settings.calendar block (defaults if missing) — non-destructive.

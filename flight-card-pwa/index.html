@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=37" />
+  <link rel="stylesheet" href="./app.css?v=38" />
 </head>
 <body>
   <header class="app-header">
@@ -175,8 +175,7 @@
       </div>
 
       <div id="pa-legend" class="pa-legend hidden">
-        From data card: <code>@cpt</code> <code>@fo</code> <code>@PU</code> <code>@tail</code> <code>@flight</code> <code>@dep</code> <code>@arr</code> <code>@flighttime</code><br/>
-        Auto (live): <code>@time</code> <code>@utc</code> <code>@date</code> <code>@tod</code> <span class="pa-legend-hint">(@tod → morning / noon / afternoon / evening / night, Hebrew-aware)</span>
+        <span class="pa-legend-hint">@tod resolves to morning / noon / afternoon / evening / night, Hebrew-aware.</span>
       </div>
 
       <div id="pa-body" class="pa-body"></div>
@@ -354,6 +353,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=37"></script>
+  <script type="module" src="./app.js?v=38"></script>
 </body>
 </html>

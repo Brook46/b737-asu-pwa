@@ -1249,6 +1249,55 @@ body {
   direction: rtl; text-align: right;
 }
 .pa-legend-hint { color: var(--fg-dim); margin-left: 6px; }
+
+/* ---------- PA: reorder buttons + @-token insert chips ---------- */
+.pa-move {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit; font-size: 13px; color: var(--fg);
+  cursor: pointer;
+}
+.pa-move:active { background: var(--line-soft); }
+.pa-move:disabled { opacity: .35; cursor: not-allowed; }
+
+.pa-token-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 8px 10px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  /* Sticks to the top of the body's scroll area so the chips stay reachable
+     while the user scrolls through a long PA. */
+  position: sticky; top: 0;
+  z-index: 1;
+}
+.pa-token-hint {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fg-dim);
+  margin-right: 2px;
+}
+.pa-token-chip {
+  -webkit-appearance: none; appearance: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px; font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pa-token-chip:active {
+  background: var(--accent);
+  color: #fff;
+  transform: scale(0.95);
+}
 .pa-rendered .pa-var {
   background: var(--accent-soft);
   color: var(--accent);

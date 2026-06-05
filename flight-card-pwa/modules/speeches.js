@@ -11,6 +11,19 @@ import { cityName } from './airports.js';
 let activeId = null;
 let editing = false;
 let liveTick = null;
+// Track the last-focused textarea so a tap on an @-token chip knows
+// which language block to insert into.
+let lastFocusedTa = null;
+
+// @-token chips shown above the editor in edit mode. The text appears
+// verbatim on the chip; tap inserts "@<token>" at the cursor. Order
+// matches roughly how often a PA uses them — identity first, dynamic
+// time/date last — so the most-used ones are easiest to thumb.
+const INSERT_TOKENS = [
+  '@cpt', '@fo', '@PU', '@flight', '@tail',
+  '@dep', '@arr', '@flighttime',
+  '@time', '@utc', '@date', '@tod',
+];
 
 // @token → data-card field key. (PU = purser = CC1.)
 const VAR_MAP = {
@@ -158,16 +171,29 @@ function render() {
     render();
   });
 
-  // Title + actions. Language toggle dropped — both languages live in one
-  // window now (Hebrew first, English below).
+  // Title + actions. In edit mode we add ◀ ▶ buttons that move the active
+  // PA left/right in the tab strip so the user can sequence them in the
+  // order they actually read PAs (welcome → climb → cruise → descent…).
   document.getElementById('pa-title').textContent = sp.name;
   const langWrap = document.getElementById('pa-lang');
-  if (langWrap) langWrap.innerHTML = '';
+  if (langWrap) {
+    if (editing) {
+      const i = list.findIndex(s => s.id === activeId);
+      langWrap.innerHTML = `
+        <button type="button" id="pa-move-left"  class="pa-move" title="Move PA left"  aria-label="Move PA left"  ${i <= 0 ? 'disabled' : ''}>◀</button>
+        <button type="button" id="pa-move-right" class="pa-move" title="Move PA right" aria-label="Move PA right" ${i >= list.length - 1 ? 'disabled' : ''}>▶</button>
+      `;
+      document.getElementById('pa-move-left') .onclick = () => { storage.moveSpeech(activeId, -1); render(); };
+      document.getElementById('pa-move-right').onclick = () => { storage.moveSpeech(activeId,  1); render(); };
+    } else {
+      langWrap.innerHTML = '';
+    }
+  }
 
   const editBtn = document.getElementById('pa-edit');
   editBtn.textContent = editing ? '✓' : '✎';
   editBtn.title = editing ? 'Done editing' : 'Edit';
-  editBtn.onclick = () => { editing = !editing; render(); };
+  editBtn.onclick = () => { editing = !editing; lastFocusedTa = null; render(); };
   document.getElementById('pa-rename').onclick = () => doRename(activeId);
   document.getElementById('pa-delete').onclick = () => doDelete(activeId);
 
@@ -180,20 +206,52 @@ function render() {
   const enText = sp.bodyEn || '';
 
   if (editing) {
+    const chipsHtml = INSERT_TOKENS
+      .map(tok => `<button type="button" class="pa-token-chip" data-token="${escape(tok)}">${escape(tok)}</button>`)
+      .join('');
     body.innerHTML = `
+      <div class="pa-token-bar" role="toolbar" aria-label="Insert variable">
+        <span class="pa-token-hint">Tap to insert →</span>
+        ${chipsHtml}
+      </div>
       <div class="pa-block pa-block-he" dir="rtl">
         <div class="pa-block-label">עברית</div>
         <textarea data-lang="he" dir="rtl"
-          placeholder="כתוב כאן את ההודעה בעברית. השתמש ב־@cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc @tod">${escape(heText)}</textarea>
+          placeholder="כתוב כאן את ההודעה בעברית. הקישו על שבב למעלה כדי להוסיף משתנה במקום להקליד @.">${escape(heText)}</textarea>
       </div>
       <div class="pa-block pa-block-en" dir="ltr">
         <div class="pa-block-label">English</div>
         <textarea data-lang="en" dir="ltr"
-          placeholder="Write the PA here. Use @cpt @fo @PU @tail @flight @dep @arr @flighttime @time @utc @tod — they auto-fill.">${escape(enText)}</textarea>
+          placeholder="Write the PA here. Tap a chip above to insert a variable instead of typing the @ key.">${escape(enText)}</textarea>
       </div>
     `;
-    body.querySelectorAll('textarea[data-lang]').forEach(ta => {
+    const textareas = body.querySelectorAll('textarea[data-lang]');
+    textareas.forEach(ta => {
       ta.addEventListener('input', () => storage.setSpeechBody(sp.id, ta.dataset.lang, ta.value));
+      // Remember the last-focused textarea so chip taps know where to
+      // insert. blur on the chip itself doesn't fire because mousedown is
+      // preventDefault'd; the lastFocusedTa just stays on whichever
+      // textarea was active before the tap.
+      ta.addEventListener('focus', () => { lastFocusedTa = ta; });
+    });
+    // Default focus → the Hebrew block (which is the first one and the
+    // language the user writes most in). Without this the first chip tap
+    // would no-op because no textarea has been focused yet.
+    if (!lastFocusedTa) lastFocusedTa = textareas[0] || null;
+
+    body.querySelectorAll('.pa-token-chip').forEach(chip => {
+      // mousedown not click — keeps the textarea from losing focus before
+      // we read its selection. preventDefault stops the chip from grabbing
+      // focus itself.
+      chip.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        insertAtCursor(lastFocusedTa, chip.dataset.token, sp.id);
+      });
+      // Belt and braces for keyboard / Enter key navigation.
+      chip.addEventListener('click', (e) => {
+        e.preventDefault();
+        insertAtCursor(lastFocusedTa, chip.dataset.token, sp.id);
+      });
     });
   } else {
     body.innerHTML = `
@@ -208,6 +266,23 @@ function render() {
     `;
   }
   document.getElementById('pa-legend').classList.toggle('hidden', !editing);
+}
+
+// Insert `text` at the textarea's caret. If the textarea has a selection,
+// the selection is replaced. Autosaves the new body and keeps focus +
+// caret position so the user can keep typing.
+function insertAtCursor(ta, text, speechId) {
+  if (!ta || !text) return;
+  const start = ta.selectionStart ?? ta.value.length;
+  const end   = ta.selectionEnd   ?? ta.value.length;
+  const before = ta.value.slice(0, start);
+  const after  = ta.value.slice(end);
+  ta.value = before + text + after;
+  const caret = start + text.length;
+  ta.focus();
+  try { ta.setSelectionRange(caret, caret); } catch {}
+  storage.setSpeechBody(speechId, ta.dataset.lang, ta.value);
+  lastFocusedTa = ta;
 }
 
 function doRename(id) {
