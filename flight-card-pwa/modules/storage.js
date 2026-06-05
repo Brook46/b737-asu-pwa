@@ -14,7 +14,11 @@ const KEY = 'fc.state';
 // bag of data, so switching legs swaps fuel / SOB / ATIS / TO performance /
 // checklist with it. Top-level current.dataCard/ticks/notes stays as the
 // fallback "single-flight" store when there are no legs at all.
-const VERSION = 7;
+// v8: default checklist reseeded — Preflight moved into Papers and Perf,
+// items reordered to match how the documents stack actually gets walked
+// on the flight deck. The migrate() path replaces .template on any
+// version bump so the new default takes effect on existing installs.
+const VERSION = 8;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -29,15 +33,18 @@ const DEFAULT_TEMPLATE = {
       { id: 'i-waste', label: 'Water waste' },
       { id: 'i-2c',    label: '2C' },
     ]},
+    // Preflight moved here — it's a paperwork item, not a phase-of-flight
+    // checklist. Order matches how a B737NG pilot actually walks the
+    // documents stack on the flight deck.
     { id: 's-papers', name: 'Papers and performance', items: [
-      { id: 'i-ls',         label: 'LS' },
-      { id: 'i-notoc',      label: 'NOTOC' },
+      { id: 'i-preflight',  label: 'Preflight' },
       { id: 'i-atl',        label: 'ATL' },
+      { id: 'i-notoc',      label: 'NOTOC' },
       { id: 'i-clearance',  label: 'Clearance' },
+      { id: 'i-ls',         label: 'LS' },
       { id: 'i-opt',        label: 'OPT' },
     ]},
     { id: 's-chk', name: 'Checklist', items: [
-      { id: 'i-preflight',      label: 'Preflight' },
       { id: 'i-before-start',   label: 'Before start' },
       { id: 'i-cabin-ready',    label: 'Cabin ready' },
       { id: 'i-before-takeoff', label: 'Before takeoff' },
