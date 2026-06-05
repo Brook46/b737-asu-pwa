@@ -21,7 +21,11 @@ const KEY = 'fc.state';
 // v9: PA library rewritten — QRH-style Welcome / Delay / Turbulence /
 // Top of descent / Diversion / Welcome home. Migrate force-reseeds
 // .speeches when crossing v9 so existing installs pick up the new set.
-const VERSION = 9;
+// v10: PA library re-shuffled at the user's request — Welcome kept,
+// Top of descent / Turbulence / Diversion / Welcome home removed,
+// Go around / Emergency / Ditching / Smoke-fire / Malfunction / Delays
+// added. Reseed triggers again on this bump.
+const VERSION = 10;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -81,67 +85,102 @@ From the entire crew: sit back, relax, and enjoy your flight with us.`,
 מכל הצוות: שבו בנוחות, הירגעו, ותהנו מהטיסה איתנו.`
   },
   {
-    id: 'sp-delay', name: 'Delay',
+    id: 'sp-goaround', name: 'Go around',
     bodyEn:
-`Ladies and gentlemen, this is Captain @cpt. We've been informed of a short delay before departure due to [ATC slot / weather / inbound aircraft]. Our revised departure time is approximately @time local. We apologise for the inconvenience and we'll get airborne as soon as we're cleared.
+`Ladies and gentlemen, this is Captain @cpt. We've performed a go-around. This is a standard manoeuvre that we use whenever the approach doesn't meet our criteria for a safe landing — it is not an emergency.
 
-Please remain seated with your seatbelt fastened. The cabin crew will keep you updated.`,
+We're climbing away from the runway and will set up for another approach. Expected landing time is approximately @time local. The cabin crew will keep you updated. Please remain seated with your seatbelt fastened.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר הקפטן @cpt. קיבלנו עדכון על עיכוב קצר לפני ההמראה בגלל [תור המראה / מזג אוויר / מטוס נכנס]. שעת ההמראה המעודכנת היא בסביבות @time שעה מקומית. אנו מתנצלים על אי הנוחות ונמריא ברגע שנקבל אישור.
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. ביצענו "Go Around" — מהלך תקני שאנו מבצעים בכל פעם שהגישה אינה עומדת בקריטריונים שלנו לנחיתה בטוחה. זה אינו מצב חירום.
 
-נא להישאר במקומותיכם חגורים. צוות הקבינה ימשיך לעדכן אתכם.`
+אנו מטפסים מהמסלול ונערך לגישה נוספת. שעת הנחיתה הצפויה בסביבות @time שעה מקומית. צוות הקבינה ימשיך לעדכן. נא להישאר חגורים במקומותיכם.`
   },
   {
-    id: 'sp-turbulence', name: 'Turbulence',
+    id: 'sp-emergency', name: 'Emergency',
     bodyEn:
-`Ladies and gentlemen, the captain has switched the fasten seatbelt sign on. We're entering an area of turbulence.
+`Attention. Attention. This is the captain.
 
-Please return to your seats immediately, fasten your seatbelt, and remain seated until the sign is switched off. Cabin crew, please be seated.`,
+We have an emergency on board and will be making an emergency landing in approximately [X] minutes. Listen carefully to the cabin crew and follow their instructions at all times.
+
+When you hear me call "BRACE, BRACE" — assume the brace position the cabin crew has shown you, and stay in it until the aircraft comes to a complete stop. After landing, leave everything behind and follow the cabin crew's evacuation commands.
+
+Cabin crew, prepare the cabin for emergency landing.`,
     bodyHe:
-`גבירותיי ורבותיי, הקפטן הדליק את שלט חגורות הבטיחות. אנו נכנסים לאזור של מערבולות.
+`שימו לב. שימו לב. מדבר הקפטן.
 
-נא לחזור מיד למקומותיכם, לחגור חגורות, ולהישאר חגורים עד שהשלט יכבה. צוות, התיישבו.`
+יש לנו מצב חירום במטוס ואנו עומדים לבצע נחיתת חירום בעוד כ-[X] דקות. הקשיבו היטב לצוות הקבינה ופעלו לפי הוראותיו בכל עת.
+
+כאשר תשמעו אותי קורא "BRACE, BRACE" — קחו את עמדת ה־Brace שצוות הקבינה הראה לכם, והישארו בה עד שהמטוס יעצור לחלוטין. לאחר הנחיתה, השאירו הכל מאחור ופעלו לפי הוראות הפינוי של הצוות.
+
+צוות, הכינו את הקבינה לנחיתת חירום.`
   },
   {
-    id: 'sp-descent', name: 'Top of descent',
+    id: 'sp-ditching', name: 'Ditching',
     bodyEn:
-`Ladies and gentlemen, this is Captain @cpt. We've started our descent towards @arr. Expected landing time is approximately @time local. The weather at @arr is [wind / sky / temperature].
+`Attention. Attention. This is the captain.
 
-Please return to your seats, fasten your seatbelt, stow your tray table, and bring your seat back to the upright position. Make sure your carry-on items are stowed under the seat in front of you or in the overhead bins.
+We will be ditching — landing on water — in approximately [X] minutes. Listen carefully to the cabin crew and follow their instructions at all times.
+
+Put on your life vest NOW. Do NOT inflate it inside the aircraft — only after you have left the aircraft. The cabin crew will help anyone who needs assistance.
+
+When you hear me call "BRACE, BRACE" — assume the brace position and stay in it until the aircraft comes to a complete stop on the water. After landing, leave everything behind, follow the cabin crew to the exits, and board the life rafts.
+
+Cabin crew, prepare the cabin for ditching.`,
+    bodyHe:
+`שימו לב. שימו לב. מדבר הקפטן.
+
+אנו עומדים לבצע נחיתה במים — Ditching — בעוד כ-[X] דקות. הקשיבו היטב לצוות הקבינה ופעלו לפי הוראותיו בכל עת.
+
+לבשו את חגורת ההצלה עכשיו. אל תנפחו אותה בתוך המטוס — רק לאחר היציאה ממנו. צוות הקבינה יסייע לכל מי שזקוק לעזרה.
+
+כאשר תשמעו אותי קורא "BRACE, BRACE" — קחו את עמדת ה־Brace והישארו בה עד שהמטוס יעצור לחלוטין על המים. לאחר הנחיתה, השאירו הכל מאחור, פעלו לפי הוראות צוות הקבינה ליציאות, ועלו לרפסודות ההצלה.
+
+צוות, הכינו את הקבינה ל־Ditching.`
+  },
+  {
+    id: 'sp-smokefire', name: 'Smoke / fire',
+    bodyEn:
+`Attention. Attention. This is the captain.
+
+We have smoke / fire on board. We are descending and will land as soon as possible. Listen carefully to the cabin crew and follow their instructions at all times.
+
+If you are in or near smoke, breathe through a wet cloth and stay low. Remain in your seats with your seatbelt fastened. The cabin crew will help anyone who needs assistance.
+
+When you hear me call "BRACE, BRACE" — assume the brace position and stay in it until the aircraft comes to a complete stop. After landing, leave everything behind and follow the cabin crew's evacuation commands.
 
 Cabin crew, prepare the cabin for landing.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר הקפטן @cpt. התחלנו בירידה לקראת @arr. שעת הנחיתה הצפויה בסביבות @time שעה מקומית. מזג האוויר ב-@arr [רוח / שמיים / טמפרטורה].
+`שימו לב. שימו לב. מדבר הקפטן.
 
-נא לחזור למקומותיכם, לחגור חגורות, לסגור את שולחנות האוכל ולהחזיר את גב הכיסא למצב זקוף. ודאו שהציוד האישי שלכם מאוחסן מתחת לכיסא שלפניכם או בתאי האחסון.
+יש עשן / אש במטוס. אנו יורדים וננחת בהקדם האפשרי. הקשיבו היטב לצוות הקבינה ופעלו לפי הוראותיו בכל עת.
+
+אם אתם נמצאים בתוך עשן או בקרבתו, נשמו דרך בד רטוב והישארו במצב נמוך. הישארו במקומותיכם חגורים. צוות הקבינה יסייע לכל מי שזקוק לעזרה.
+
+כאשר תשמעו אותי קורא "BRACE, BRACE" — קחו את עמדת ה־Brace והישארו בה עד שהמטוס יעצור לחלוטין. לאחר הנחיתה, השאירו הכל מאחור ופעלו לפי הוראות הפינוי של הצוות.
 
 צוות, הכינו את הקבינה לנחיתה.`
   },
   {
-    id: 'sp-diversion', name: 'Diversion',
+    id: 'sp-malfunction', name: 'Malfunction',
     bodyEn:
-`Ladies and gentlemen, this is Captain @cpt. As a precaution we've decided to divert and land at [alternate]. There is no immediate concern. Expected landing time is approximately @time local, and ground services will be ready to assist on arrival.
+`Ladies and gentlemen, this is Captain @cpt. We've encountered a technical issue with the aircraft. There is no immediate danger, but as a precaution we'll be returning to @dep / diverting to [alternate].
 
-Please follow the cabin crew's instructions. Remain seated with your seatbelt fastened. We'll update you as soon as we have more information.`,
+Expected landing time is approximately @time local. Ground services will be standing by on arrival. Please follow the cabin crew's instructions and remain seated with your seatbelt fastened. We will update you as soon as we have more information.`,
     bodyHe:
-`גבירותיי ורבותיי, מדבר הקפטן @cpt. מטעמי זהירות החלטנו להטות את הטיסה ולנחות ב-[שדה חלופי]. אין סיבה לדאגה מיידית. שעת הנחיתה הצפויה בסביבות @time שעה מקומית, וצוות הקרקע יהיה מוכן לסייע עם הנחיתה.
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. נתקלנו בתקלה טכנית במטוס. אין סכנה מיידית, אך מטעמי זהירות אנו חוזרים ל-@dep / מטים את הטיסה ל-[שדה חלופי].
 
-נא לפעול לפי הוראות צוות הקבינה. הישארו חגורים במקומותיכם. נעדכן אתכם ברגע שיהיה לנו מידע נוסף.`
+שעת הנחיתה הצפויה בסביבות @time שעה מקומית. צוות הקרקע יהיה מוכן לסייע עם הנחיתה. נא לפעול לפי הוראות צוות הקבינה ולהישאר חגורים במקומותיכם. נעדכן אתכם ברגע שיהיה לנו מידע נוסף.`
   },
   {
-    id: 'sp-landing', name: 'Welcome home',
+    id: 'sp-delays', name: 'Delays',
     bodyEn:
-`Ladies and gentlemen, welcome to @arr. The local time is @time and the outside temperature is [temperature]°C.
+`Ladies and gentlemen, this is Captain @cpt. We've been informed of a delay due to [ATC slot / weather / inbound aircraft / technical]. Our revised departure / landing time is approximately @time local. We apologise for the inconvenience and we'll proceed as soon as we're cleared.
 
-On behalf of Captain @cpt, First Officer @fo, our purser @PU, and the entire cabin crew — thank you for choosing El Al today. We hope to see you again on board soon.
-
-Please remain seated with your seatbelt fastened until the captain has switched off the fasten seatbelt sign and the aircraft has come to a complete stop at the gate. When opening the overhead bins, please be careful — items may have shifted during the flight.`,
+Please remain seated with your seatbelt fastened. The cabin crew will keep you updated as soon as we have more information.`,
     bodyHe:
-`גבירותיי ורבותיי, ברוכים הבאים ל-@arr. השעה המקומית @time והטמפרטורה בחוץ [טמפרטורה]°C.
+`גבירותיי ורבותיי, מדבר הקפטן @cpt. קיבלנו עדכון על עיכוב בגלל [תור המראה / מזג אוויר / מטוס נכנס / תקלה טכנית]. שעת ההמראה / הנחיתה המעודכנת היא בסביבות @time שעה מקומית. אנו מתנצלים על אי הנוחות ונמשיך ברגע שנקבל אישור.
 
-בשם הקפטן @cpt, הקצין הראשון @fo, המנהלת @PU וכל צוות הקבינה — תודה שבחרתם לטוס איתנו באל על. נשמח לראותכם שוב במהרה.
-
-נא להישאר חגורים במקומותיכם עד שהקפטן יכבה את שלט החגורות והמטוס יעצור במלואו ליד שער היציאה. בעת פתיחת תאי האחסון, נא הזהרו — חפצים עלולים לזוז במהלך הטיסה.`
+נא להישאר חגורים במקומותיכם. צוות הקבינה ימשיך לעדכן אתכם ברגע שיהיה מידע נוסף.`
   },
 ];
 
@@ -201,12 +240,12 @@ function migrate(s) {
   if (!s || typeof s !== 'object') return freshState();
   if (s.v === VERSION) return s;
   // Speech upgrade (v2→v3 schema): { body } → { bodyEn, bodyHe }.
-  // v8→v9: PA library rewritten — the previous five (Welcome / After
-  // takeoff / Cruise / Descent / Welcome home) are replaced wholesale
-  // with the QRH-style set in DEFAULT_SPEECHES. We force the reseed
-  // rather than preserving customisations because the user asked for
-  // this rewrite explicitly.
-  const reseedSpeeches = !s.v || s.v < 9;
+  // v8→v9 and v9→v10: PA library rewritten — the previous defaults are
+  // replaced wholesale with the set in DEFAULT_SPEECHES. We force the
+  // reseed rather than preserving customisations because each rewrite
+  // was an explicit user ask. (User-renamed PAs would be lost on those
+  // bumps; once the library stabilises this can become opt-in.)
+  const reseedSpeeches = !s.v || s.v < 10;
   const upgradedSpeeches = reseedSpeeches
     ? clone(DEFAULT_SPEECHES)
     : (Array.isArray(s.speeches) && s.speeches.length)

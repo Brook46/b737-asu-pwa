@@ -171,10 +171,27 @@ function render() {
     render();
   });
 
-  // Title + actions. In edit mode we add ◀ ▶ buttons that move the active
-  // PA left/right in the tab strip so the user can sequence them in the
-  // order they actually read PAs (welcome → climb → cruise → descent…).
-  document.getElementById('pa-title').textContent = sp.name;
+  // Title + actions. In edit mode:
+  //   - The title becomes an inline text input that autosaves on every
+  //     keystroke (and live-updates the matching tab label).
+  //   - ◀ ▶ appear next to the title so the user can move the active PA
+  //     left/right in the tab strip.
+  const titleEl = document.getElementById('pa-title');
+  if (editing) {
+    titleEl.innerHTML =
+      `<input type="text" id="pa-title-edit" class="pa-title-input" value="${escape(sp.name)}" aria-label="PA name" />`;
+    const titleInput = document.getElementById('pa-title-edit');
+    titleInput.addEventListener('input', () => {
+      const v = titleInput.value;
+      storage.renameSpeech(activeId, v || 'PA');
+      // Live-update the matching tab pill without doing a full render
+      // so the input keeps focus + caret position.
+      const tabBtn = tabs.querySelector(`[data-tab="${activeId}"]`);
+      if (tabBtn) tabBtn.textContent = v || 'PA';
+    });
+  } else {
+    titleEl.textContent = sp.name;
+  }
   const langWrap = document.getElementById('pa-lang');
   if (langWrap) {
     if (editing) {

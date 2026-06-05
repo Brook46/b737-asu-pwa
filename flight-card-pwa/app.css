@@ -1250,6 +1250,21 @@ body {
 }
 .pa-legend-hint { color: var(--fg-dim); margin-left: 6px; }
 
+/* ---------- PA: inline title input (edit mode) ---------- */
+.pa-title-input {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 16px; font-weight: 600;
+  color: var(--fg);
+  width: 100%;
+  max-width: 280px;
+}
+.pa-title-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* ---------- PA: reorder buttons + @-token insert chips ---------- */
 .pa-move {
   -webkit-appearance: none; appearance: none;
