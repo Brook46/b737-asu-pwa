@@ -168,6 +168,7 @@ async function bootstrap() {
 
   wireEvents();
   installModalScrollLock();
+  installViewerPinchZoom();
   initScratchpad(els.scratchpad, {
     handle: els.scratchHead, textarea: els.scratchText,
     closeBtn: els.scratchClose, toggleBtn: els.scratchToggle,
@@ -2864,19 +2865,66 @@ async function openViewer() {
   try { renderSidebar(); } catch (_) {}
 }
 
-// Cheap viewer zoom — applies a CSS transform: scale on the pages container
-// so the user can zoom in/out without rerendering. Clamped to [0.5, 3]. The
-// scale persists on the pdf-panes element so it survives split toggles and
-// page jumps within the same session.
-function applyViewerZoom(delta) {
-  const cur = parseFloat(els.pdfPanes.dataset.zoom || '1') || 1;
-  const next = Math.max(0.5, Math.min(3, +(cur + delta).toFixed(2)));
+// Viewer zoom — applies a CSS transform: scale to each .pdf-pane. Clamped
+// to [0.5, 3]. Driven by both the toolbar ＋/− buttons and a pinch handler
+// installed on #pdf-panes (see installViewerPinchZoom below).
+function setViewerZoom(z) {
+  const next = Math.max(0.5, Math.min(3, +z.toFixed(2)));
   els.pdfPanes.dataset.zoom = next;
-  // Use transform on each .pdf-pane so the pdf-panes flex layout still works.
   els.pdfPanes.querySelectorAll('.pdf-pane').forEach((p) => {
     p.style.transform = `scale(${next})`;
     p.style.transformOrigin = 'top center';
   });
+}
+function applyViewerZoom(delta) {
+  setViewerZoom((parseFloat(els.pdfPanes.dataset.zoom || '1') || 1) + delta);
+}
+
+// Two-finger pinch: track up to two pointers; when both are down, scale
+// the .pdf-pane by the ratio of the current finger distance over the
+// starting distance. Falls back to normal touch-scroll with one pointer.
+function installViewerPinchZoom() {
+  const el = els.pdfPanes;
+  if (!el) return;
+  const pointers = new Map(); // pointerId → {x, y}
+  let startDist = 0;
+  let startZoom = 1;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      startDist = Math.hypot(a.x - b.x, a.y - b.y);
+      startZoom = parseFloat(el.dataset.zoom || '1') || 1;
+      // Disable transitions during pinch for responsiveness.
+      el.querySelectorAll('.pdf-pane').forEach((p) => { p.style.transition = 'none'; });
+    }
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'touch') return;
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (startDist > 0) {
+        const ratio = d / startDist;
+        setViewerZoom(startZoom * ratio);
+        e.preventDefault();
+      }
+    }
+  });
+  const end = (e) => {
+    if (e.pointerType !== 'touch') return;
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) {
+      startDist = 0;
+      el.querySelectorAll('.pdf-pane').forEach((p) => { p.style.transition = ''; });
+    }
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('pointerleave', end);
 }
 
 function minimizeViewer() {

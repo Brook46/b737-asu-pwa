@@ -1459,7 +1459,8 @@ body.has-dock .app-main { padding-bottom: 60px; }
 }
 .hr-zoom-btn:hover { background: var(--bg-elev-2); border-color: var(--accent); color: var(--accent); }
 
-/* Viewer-level zoom: a CSS transform on each .pdf-pane. The pages container
-   already scrolls; pinch-zoom is also allowed so users can zoom natively. */
-#pdf-panes { touch-action: pan-y pinch-zoom; }
+/* Viewer-level zoom. Our JS pinch handler takes over for 2-finger gestures;
+   touch-action: pan-y lets the user keep scrolling pages vertically with a
+   single finger. */
+#pdf-panes { touch-action: pan-y; }
 .pdf-pane { transition: transform .15s ease; transform-origin: top center; }
