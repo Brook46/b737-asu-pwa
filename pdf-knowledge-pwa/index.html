@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" />
-  <link rel="stylesheet" href="./app.css?v=37" />
+  <link rel="stylesheet" href="./app.css?v=38" />
 </head>
 <body>
   <header class="app-header">
@@ -309,6 +309,21 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <div id="manage-overlay" class="modal-overlay hidden">
+    <div class="modal modal-wide">
+      <header class="modal-head">
+        <h2 id="manage-title">Manage</h2>
+        <button class="btn ghost" id="manage-close" aria-label="Close">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="manage-add-row">
+          <button class="btn primary" id="manage-add-btn" type="button">＋ Add new</button>
+        </div>
+        <div id="manage-list" class="manage-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="btype-new-overlay" class="modal-overlay hidden">
     <div class="modal">
       <header class="modal-head">
@@ -411,6 +426,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=46"></script>
+  <script type="module" src="./app.js?v=47"></script>
 </body>
 </html>

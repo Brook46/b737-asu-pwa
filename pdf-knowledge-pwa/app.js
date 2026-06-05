@@ -31,6 +31,9 @@ const els = {
   homeSubScenarios: $('home-sub-scenarios'), homeAddSub: $('home-add-sub'),
   homeResults: $('home-results'),
   homeSettings: $('header-settings'),
+  manageOverlay: $('manage-overlay'), manageClose: $('manage-close'),
+  manageTitle: $('manage-title'), manageList: $('manage-list'),
+  manageAddBtn: $('manage-add-btn'),
   btypeNewOverlay: $('btype-new-overlay'), btnClose: $('btn-close'),
   btnForm: $('btn-form'), btnName: $('btn-name'),
   btnColor: $('btn-color'), btnCancel: $('btn-cancel'),
@@ -241,14 +244,11 @@ function wireEvents() {
     renderHomePhases(); renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
   });
   els.searchToolsToggle.addEventListener('click', toggleSearchScopePanel);
-  els.homeAddBtype.addEventListener('click', () => openBtypeNewModal());
-  els.homeAddScenario.addEventListener('click', () => openBriefingNewModal({ parentId: null }));
-  els.homeAddSub.addEventListener('click', () => {
-    // Sub-briefing defaults its parent to the currently-active top-level
-    // briefing (if any). If none is selected, the modal opens with no
-    // pre-selected parent and the user picks one inside.
-    openBriefingNewModal({ parentId: state.selectedTopBriefing || null, forceSub: true });
-  });
+  els.homeAddBtype.addEventListener('click', () => openManageOverlay('btype'));
+  els.homeAddScenario.addEventListener('click', () => openManageOverlay('top'));
+  els.homeAddSub.addEventListener('click', () => openManageOverlay('sub'));
+  els.manageClose.addEventListener('click', () => els.manageOverlay.classList.add('hidden'));
+  els.manageOverlay.addEventListener('click', (e) => { if (e.target === els.manageOverlay) els.manageOverlay.classList.add('hidden'); });
   els.bnClose.addEventListener('click', () => els.briefingNewOverlay.classList.add('hidden'));
   els.bnCancel.addEventListener('click', () => els.briefingNewOverlay.classList.add('hidden'));
   els.briefingNewOverlay.addEventListener('click', (e) => { if (e.target === els.briefingNewOverlay) els.briefingNewOverlay.classList.add('hidden'); });
@@ -567,6 +567,99 @@ function renderHomeBtypes() {
       }
       renderHomeBtypes(); renderHomeScenarios(); renderHomeResults();
     });
+  });
+}
+
+// "Manage [level]" overlay opened from each ＋ button. Lists every item at
+// that level with inline rename / color / re-parent / reorder / delete,
+// plus an "＋ Add new" button at the top. One unified UI for everything
+// the ＋ used to imply.
+function openManageOverlay(kind /* 'btype' | 'top' | 'sub' */) {
+  const config = {
+    btype: { title: 'Briefing types', open: openBtypeNewModal },
+    top:   { title: 'Briefings',      open: () => openBriefingNewModal({ parentId: null }) },
+    sub:   { title: 'Sub-briefings',  open: () => openBriefingNewModal({ parentId: state.selectedTopBriefing || null, forceSub: true }) },
+  }[kind];
+  els.manageTitle.textContent = config.title;
+  els.manageAddBtn.onclick = () => { els.manageOverlay.classList.add('hidden'); config.open(); };
+  renderManageList(kind);
+  els.manageOverlay.classList.remove('hidden');
+}
+
+function renderManageList(kind) {
+  const allTops = (state.scenarios || []).filter(isTopLevel).sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  let items;
+  if (kind === 'btype') items = (state.briefingTypes || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  else if (kind === 'top') items = allTops;
+  else {
+    const parentId = state.selectedTopBriefing;
+    items = (state.scenarios || [])
+      .filter((s) => !isTopLevel(s) && (!parentId || scenarioParents(s).includes(parentId)))
+      .sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  }
+  if (!items.length) {
+    els.manageList.innerHTML = '<div class="admin-sub manage-empty">— nothing here yet —</div>';
+    return;
+  }
+  els.manageList.innerHTML = items.map((it) => `
+    <div class="manage-row" data-id="${escapeHtml(it.id)}">
+      <input type="text" class="mr-name" value="${escapeHtml(it.name)}" />
+      <input type="color" class="mr-color" value="${escapeHtml(it.color || '#7aa3ff')}" title="Colour" />
+      ${kind === 'sub' ? `
+        <select class="mr-parent" title="Parent briefing">
+          ${allTops.map((p) => `<option value="${escapeHtml(p.id)}" ${scenarioParents(it).includes(p.id) ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+      ` : ''}
+      <button class="btn ghost mr-act" data-act="up" title="Move up">▲</button>
+      <button class="btn ghost mr-act" data-act="down" title="Move down">▼</button>
+      <button class="btn ghost mr-act danger" data-act="del" title="Delete">🗑</button>
+    </div>
+  `).join('');
+  els.manageList.querySelectorAll('.manage-row').forEach((row) => bindManageRow(row, kind));
+}
+
+function bindManageRow(row, kind) {
+  const id = row.getAttribute('data-id');
+  const get = () => kind === 'btype'
+    ? state.briefingTypes.find((x) => x.id === id)
+    : state.scenarios.find((x) => x.id === id);
+  const name = row.querySelector('.mr-name');
+  name.addEventListener('blur', async () => {
+    const it = get(); if (!it) return;
+    const v = name.value.trim();
+    if (!v || v === it.name) { name.value = it.name; return; }
+    it.name = v; it.updatedAt = Date.now();
+    await saveItem(it, kind === 'btype' ? 'btype' : 'briefing');
+  });
+  name.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); name.blur(); } });
+  row.querySelector('.mr-color').addEventListener('change', async (e) => {
+    const it = get(); if (!it) return;
+    it.color = e.target.value; it.updatedAt = Date.now();
+    await saveItem(it, kind === 'btype' ? 'btype' : 'briefing');
+    renderManageList(kind);
+  });
+  row.querySelector('.mr-parent')?.addEventListener('change', async (e) => {
+    const it = get(); if (!it) return;
+    it.parentIds = [e.target.value]; it.parentId = null;
+    it.updatedAt = Date.now();
+    await saveItem(it, 'briefing');
+    renderManageList(kind);
+  });
+  row.querySelector('[data-act="up"]').addEventListener('click', async () => {
+    const it = get(); if (!it) return;
+    await reorderItem(it, kind === 'btype' ? 'btype' : 'briefing', -1);
+    renderManageList(kind);
+  });
+  row.querySelector('[data-act="down"]').addEventListener('click', async () => {
+    const it = get(); if (!it) return;
+    await reorderItem(it, kind === 'btype' ? 'btype' : 'briefing', 1);
+    renderManageList(kind);
+  });
+  row.querySelector('[data-act="del"]').addEventListener('click', async () => {
+    const it = get(); if (!it) return;
+    if (!confirm(`Delete "${it.name}"?`)) return;
+    await deleteItem(it, kind === 'btype' ? 'btype' : 'briefing');
+    renderManageList(kind);
   });
 }
 
@@ -1099,6 +1192,13 @@ async function renderHomeResults() {
         <li class="home-results-header">Indexed paragraphs</li>`;
     }
   }
+  // Personal-briefing anchors (Tanchum etc.) lead, manual / fleet anchors
+  // fall in behind. Inside each bucket we keep the natural seed order.
+  anchors.sort((a, b) => {
+    const pa = (state.files.get(a.fileId)?.docType === 'personal') ? 0 : 1;
+    const pb = (state.files.get(b.fileId)?.docType === 'personal') ? 0 : 1;
+    return pa - pb;
+  });
   els.homeResults.innerHTML = briefingsHeader + anchors.map((a) => homeResultHtml(a)).join('');
   // Wire jump-chips: select that briefing as the active scope.
   els.homeResults.querySelectorAll('[data-jump]').forEach((chip) => {
@@ -1167,7 +1267,8 @@ async function renderHomeResults() {
         e.stopPropagation();
         const mtype = chip.getAttribute('data-mtype');
         const mval = chip.getAttribute('data-mval');
-        await openManualReference(mtype, mval);
+        const mpage = parseInt(chip.getAttribute('data-mpage'), 10);
+        await openManualReference(mtype, mval, Number.isFinite(mpage) ? mpage : null);
       });
     });
     // Per-chip delete buttons.
@@ -1204,15 +1305,19 @@ async function renderHomeResults() {
       e.preventDefault(); e.stopPropagation();
       const mtype = linkForm.querySelector('.hr-link-type-sel').value;
       const mval = linkForm.querySelector('.hr-link-val-input').value.trim();
+      const pageRaw = linkForm.querySelector('.hr-link-page-input').value.trim();
       if (!mval) return;
+      const link = { manualType: mtype, value: mval };
+      const pageNum = parseInt(pageRaw, 10);
+      if (Number.isFinite(pageNum) && pageNum >= 1) link.pageNum = pageNum;
       const links = (anchor.links || []).slice();
-      links.push({ manualType: mtype, value: mval });
+      links.push(link);
       anchor.links = links;
       anchor.updatedAt = Date.now();
       await storage.putAnchor(anchor);
       kg.invalidate(); await kg.load(true);
       renderHomeResults();
-      toast(`Linked ${mtype} ${mval}`);
+      toast(`Linked ${mtype} ${mval}${link.pageNum ? ` (p.${link.pageNum})` : ''}`);
     });
   });
 }
@@ -1264,9 +1369,10 @@ function homeResultHtml(a) {
       </div>
       <div class="hr-links" aria-label="Cross references">
         ${(a.links || []).map((l, idx) => `<span class="hr-link-chip-wrap" data-idx="${idx}">
-          <button class="hr-link-chip" data-mtype="${escapeHtml(l.manualType || '')}" data-mval="${escapeHtml(l.value || '')}" title="Open ${escapeHtml(l.manualType || '')} ${escapeHtml(l.value || '')}">
+          <button class="hr-link-chip" data-mtype="${escapeHtml(l.manualType || '')}" data-mval="${escapeHtml(l.value || '')}" data-mpage="${l.pageNum != null ? l.pageNum : ''}" title="Open ${escapeHtml(l.manualType || '')} ${escapeHtml(l.value || '')}${l.pageNum != null ? ' (p.' + l.pageNum + ')' : ''}">
             <span class="hr-link-type">${escapeHtml(l.manualType || '')}</span>
             <span class="hr-link-val">${escapeHtml(l.value || '')}</span>
+            ${l.pageNum != null ? `<span class="hr-link-page">p.${l.pageNum}</span>` : ''}
           </button>
           <button class="hr-link-del" data-act="del-link" data-idx="${idx}" title="Remove link" aria-label="Remove link">×</button>
         </span>`).join('')}
@@ -1276,6 +1382,7 @@ function homeResultHtml(a) {
             ${availableManualTypeOptions()}
           </select>
           <input class="hr-link-val-input" type="text" placeholder="e.g. 8.5.11.4" required />
+          <input class="hr-link-page-input" type="number" min="1" placeholder="page" />
           <button class="btn primary" type="submit">Add</button>
           <button class="btn ghost" type="button" data-act="link-cancel">✕</button>
         </form>
@@ -1321,15 +1428,21 @@ function availableManualTypeOptions() {
 function invalidateManualTypeCache() { _manualTypeOptionsCache = null; }
 
 // Resolve a cross-reference (e.g. {manualType:'QRH', value:'CI 2.6'}) and
-// open the relevant manual page if any matching anchor exists. Otherwise
-// surface a helpful toast so the user knows to add that manual.
-async function openManualReference(manualType, value) {
+// open the relevant manual page. When the link carries an explicit pageNum
+// (set from the inline link editor), use that directly so the user lands on
+// the exact page they bookmarked.
+async function openManualReference(manualType, value, pageNum = null) {
   if (!manualType && !value) return;
+  // If a manual of this type is loaded, prefer the user-specified pageNum.
+  if (Number.isFinite(pageNum)) {
+    for (const [fileId, m] of state.manuals.entries()) {
+      if (m.manualType === manualType) { openFileInViewer(fileId, pageNum); return; }
+    }
+  }
   try {
     const anchor = await kg.resolveAnchor(manualType, value);
     if (anchor) { openAnchorInViewer(anchor); return; }
   } catch (_) { /* fall through */ }
-  // No direct anchor; if a manual of that type is loaded, just open page 1.
   for (const [fileId, m] of state.manuals.entries()) {
     if (m.manualType === manualType) { openFileInViewer(fileId, 1); return; }
   }

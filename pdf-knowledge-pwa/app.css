@@ -1404,3 +1404,38 @@ body.has-dock .app-main { padding-bottom: 60px; }
 .chip-act:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .chip-act.danger { color: var(--danger, #ff6b6b); }
 .chip-act.danger:hover { background: color-mix(in srgb, var(--danger, #ff6b6b) 18%, transparent); }
+
+/* Manage [level] sheet --------------------------------------------------- */
+.manage-add-row { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed var(--border); }
+.manage-list { display: flex; flex-direction: column; gap: 6px; }
+.manage-empty { padding: 18px 8px; font-style: italic; text-align: center; }
+.manage-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--bg-elev-1); border: 1px solid var(--border);
+}
+.manage-row .mr-name {
+  flex: 1; min-width: 100px;
+  padding: 6px 8px; background: transparent; border: 1px solid transparent;
+  border-radius: 4px; color: var(--fg); font: inherit; font-size: 0.95em;
+}
+.manage-row .mr-name:focus { outline: none; border-color: var(--accent); background: var(--bg-elev-2); }
+.manage-row .mr-color { width: 32px; height: 28px; padding: 0; border-radius: 5px; border: 1px solid var(--border); background: transparent; cursor: pointer; }
+.manage-row .mr-parent {
+  padding: 5px 6px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg-elev-2); color: var(--fg); font-size: 0.85em; max-width: 140px;
+}
+.manage-row .mr-act { padding: 2px 8px; min-height: 0; font-size: 0.85em; }
+.manage-row .mr-act.danger { color: var(--danger, #ff6b6b); }
+
+/* Per-link page-number input + chip badge */
+.hr-link-form .hr-link-page-input {
+  width: 70px; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg-elev-1); color: var(--fg); font-size: 0.82em;
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}
+.hr-link-chip .hr-link-page {
+  margin-left: 4px; padding: 1px 5px;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 3px; font-size: 0.85em; color: var(--accent);
+}
