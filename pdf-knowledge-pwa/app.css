@@ -1439,3 +1439,22 @@ body.has-dock .app-main { padding-bottom: 60px; }
   background: color-mix(in srgb, var(--accent) 25%, transparent);
   border-radius: 3px; font-size: 0.85em; color: var(--accent);
 }
+
+/* Synthetic cross-reference result cards (cascaded under each anchor) */
+.home-result.hr-link-card {
+  border-style: dashed; border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  margin-left: 16px;
+}
+.home-result.hr-link-card .hr-kind.kind-link {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Zoom buttons inside the card controls bar */
+.hr-zoom-btn {
+  width: 28px; height: 28px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-elev-1); color: var(--fg); font-size: 1em; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.hr-zoom-btn:hover { background: var(--bg-elev-2); border-color: var(--accent); color: var(--accent); }

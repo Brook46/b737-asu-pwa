@@ -1192,14 +1192,32 @@ async function renderHomeResults() {
         <li class="home-results-header">Indexed paragraphs</li>`;
     }
   }
-  // Personal-briefing anchors (Tanchum etc.) lead, manual / fleet anchors
-  // fall in behind. Inside each bucket we keep the natural seed order.
+  // Personal-briefing anchors lead; manual / fleet anchors fall in behind.
   anchors.sort((a, b) => {
     const pa = (state.files.get(a.fileId)?.docType === 'personal') ? 0 : 1;
     const pb = (state.files.get(b.fileId)?.docType === 'personal') ? 0 : 1;
     return pa - pb;
   });
-  els.homeResults.innerHTML = briefingsHeader + anchors.map((a) => homeResultHtml(a)).join('');
+  // When a sub-briefing is selected, cascade each anchor's cross-reference
+  // links into the list as live preview cards (so the user actually SEES
+  // the OMA / QRH / FCOM pages, not just chips). Skip in the general view
+  // and on top-level / search-only selections — those would explode.
+  let displays;
+  if (state.selectedSubBriefing) {
+    displays = [];
+    for (const a of anchors) {
+      displays.push({ kind: 'anchor', anchor: a });
+      for (const l of (a.links || [])) {
+        const target = resolveLinkTarget(l);
+        if (target) displays.push({ kind: 'link', link: l, anchor: a, target });
+      }
+    }
+  } else {
+    displays = anchors.map((a) => ({ kind: 'anchor', anchor: a }));
+  }
+  els.homeResults.innerHTML = briefingsHeader + displays.map((d) =>
+    d.kind === 'anchor' ? homeResultHtml(d.anchor) : linkResultHtml(d)
+  ).join('');
   // Wire jump-chips: select that briefing as the active scope.
   els.homeResults.querySelectorAll('[data-jump]').forEach((chip) => {
     chip.addEventListener('click', (e) => {
@@ -1222,16 +1240,44 @@ async function renderHomeResults() {
   // Clicks on the inline preview just keep scrolling; the explicit ⤢ button
   // opens the file in the full viewer. The header / excerpt still open it too.
   els.homeResults.querySelectorAll('.home-result').forEach((row) => {
-    const anchor = anchors.find((x) => x.anchorId === row.getAttribute('data-anchor'));
-    if (!anchor) return;
-    // Row tap → toggle expand (and lazy-render preview on first expand).
+    const isLinkCard = row.classList.contains('hr-link-card');
+    // Anchor cards look up by data-anchor; link cards inherit from parent.
+    const anchorId = row.getAttribute('data-anchor') || row.getAttribute('data-anchor-parent');
+    const anchor = anchors.find((x) => x.anchorId === anchorId);
+    if (!anchor && !isLinkCard) return;
     row.querySelector('.hr-row')?.addEventListener('click', () => {
       const collapsed = row.classList.toggle('hr-collapsed');
       if (!collapsed) renderCardPreview(row, anchor);
     });
     row.querySelector('.hr-open')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      openAnchorInViewer(anchor);
+      if (isLinkCard) openFileInViewer(row.getAttribute('data-file'), +row.getAttribute('data-page') || 1);
+      else openAnchorInViewer(anchor);
+    });
+    // Zoom controls (+/−) — re-render preview at a different scale.
+    let zoom = parseFloat(row.dataset.zoom || '1');
+    const reRenderZoom = async () => {
+      const canvas = row.querySelector('.hr-canvas');
+      const wrap = row.querySelector('.hr-preview');
+      if (!canvas || !wrap) return;
+      wrap.setAttribute('data-pending', '1');
+      try {
+        await renderPreview(canvas, row.getAttribute('data-file'), +row.getAttribute('data-page'), {
+          maxWidthPx: 520 * zoom,
+          highlightRects: (anchor && +row.getAttribute('data-page') === anchor.pageNum) ? (anchor.selectionRects || null) : null,
+        });
+        wrap.removeAttribute('data-pending');
+      } catch (_) {}
+    };
+    row.querySelector('[data-act="zoom-in"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoom = Math.min(3, zoom + 0.25); row.dataset.zoom = zoom;
+      reRenderZoom();
+    });
+    row.querySelector('[data-act="zoom-out"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoom = Math.max(0.5, zoom - 0.25); row.dataset.zoom = zoom;
+      reRenderZoom();
     });
     const pgInput = row.querySelector('.hr-pg-input');
     const totalPages = +row.getAttribute('data-pagecount') || 1;
@@ -1322,6 +1368,72 @@ async function renderHomeResults() {
   });
 }
 
+// Resolve a {manualType, value, pageNum?} link to a {fileId, pageNum, name}
+// that the result list can render as its own preview card. Returns null if
+// the target manual isn't loaded yet.
+function resolveLinkTarget(link) {
+  if (!link || !link.manualType) return null;
+  let fileId = null;
+  for (const [id, m] of state.manuals.entries()) {
+    if ((m.manualType || '').toUpperCase() === link.manualType.toUpperCase()) {
+      fileId = id; break;
+    }
+  }
+  if (!fileId) return null;
+  const file = state.files.get(fileId);
+  const pageNum = Number.isFinite(link.pageNum) ? link.pageNum : 1;
+  return { fileId, pageNum, name: file?.name || link.manualType };
+}
+
+// Synthetic result card for an anchor's cross-reference link. Looks like a
+// home-result but tagged so we know it's a derived view (it has no anchorId
+// — bookkeeping operations like the link editor target the parent anchor).
+function linkResultHtml(d) {
+  const file = state.files.get(d.target.fileId);
+  const pageCount = file ? (file.numPages || 1) : 1;
+  const label = `${d.link.manualType} ${d.link.value || ''}`.trim();
+  return `<li class="home-result hr-collapsed hr-link-card"
+      data-anchor-parent="${escapeHtml(d.anchor.anchorId)}"
+      data-file="${escapeHtml(d.target.fileId)}"
+      data-page="${d.target.pageNum}" data-pagecount="${pageCount}">
+    <button type="button" class="hr-row" data-act="expand">
+      <span class="hr-kind kind-link" title="cross-reference">🔗</span>
+      <span class="hr-row-main">
+        <span class="hr-row-title">${escapeHtml(label)}</span>
+        <span class="hr-row-meta">
+          <span class="hr-row-file">${escapeHtml(d.target.name)}</span>
+          <span class="hr-row-dot">·</span>
+          <span class="hr-row-page">p.${d.target.pageNum} / ${pageCount}</span>
+          <span class="hr-row-dot">·</span>
+          <span class="admin-sub">↩ linked from “${escapeHtml(d.anchor.title || '')}”</span>
+        </span>
+      </span>
+      <span class="hr-chev" aria-hidden="true">›</span>
+    </button>
+    <div class="hr-expanded">
+      <div class="hr-controls">
+        <div class="hr-page-picker">
+          <button class="hr-pg-step" data-act="prev" title="Previous page">‹</button>
+          <input class="hr-pg-input" type="number" min="1" max="${pageCount}" value="${d.target.pageNum}" />
+          <span class="hr-pg-of">of ${pageCount}</span>
+          <button class="hr-pg-step" data-act="next" title="Next page">›</button>
+        </div>
+        <button class="hr-zoom-btn" data-act="zoom-out" title="Zoom out">−</button>
+        <button class="hr-zoom-btn" data-act="zoom-in" title="Zoom in">＋</button>
+        <span class="spacer"></span>
+        <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶ Open</button>
+      </div>
+      <div class="hr-preview" data-pending="1">
+        <div class="hr-preview-headline">
+          <span class="hr-preview-headline-icon">🔗</span>
+          <span class="hr-preview-headline-text">${escapeHtml(label)} — ${escapeHtml(d.target.name)}</span>
+        </div>
+        <canvas class="hr-canvas"></canvas>
+      </div>
+    </div>
+  </li>`;
+}
+
 function homeResultHtml(a) {
   const file = state.files.get(a.fileId);
   const fname = file ? file.name : '(file missing)';
@@ -1357,6 +1469,8 @@ function homeResultHtml(a) {
           <span class="hr-pg-of">of ${pageCount}</span>
           <button class="hr-pg-step" data-act="next" title="Next page">›</button>
         </div>
+        <button class="hr-zoom-btn" data-act="zoom-out" title="Zoom out">−</button>
+        <button class="hr-zoom-btn" data-act="zoom-in" title="Zoom in">＋</button>
         <span class="spacer"></span>
         <button class="btn ghost hr-open" data-act="open" title="Open full screen">⛶ Open</button>
       </div>
@@ -1392,15 +1506,18 @@ function homeResultHtml(a) {
 }
 
 // Render-on-demand for previews. Cards start collapsed; rendering only
-// happens when the user expands a card.
+// happens when the user expands a card. Handles both anchor cards and
+// synthetic cross-reference link cards (which carry no anchor object).
 async function renderCardPreview(card, anchor) {
   const wrap = card.querySelector('.hr-preview');
-  if (!wrap || !wrap.hasAttribute('data-pending')) return; // already rendered
+  if (!wrap || !wrap.hasAttribute('data-pending')) return;
   const canvas = card.querySelector('.hr-canvas');
+  const isLinkCard = card.classList.contains('hr-link-card');
+  const zoom = parseFloat(card.dataset.zoom || '1');
   try {
     await renderPreview(canvas, card.getAttribute('data-file'), +card.getAttribute('data-page'), {
-      maxWidthPx: 520,
-      highlightRects: (anchor && anchor.selectionRects) || null,
+      maxWidthPx: 520 * zoom,
+      highlightRects: !isLinkCard && anchor ? (anchor.selectionRects || null) : null,
     });
     wrap.removeAttribute('data-pending');
   } catch (err) {
@@ -1416,9 +1533,19 @@ let _manualTypeOptionsCache = null;
 function availableManualTypeOptions() {
   if (_manualTypeOptionsCache != null) return _manualTypeOptionsCache;
   const seen = new Set();
+  // Pull manualType from both `manuals` (rich metadata) AND raw files
+  // (e.g. a manual the user just added that hasn't fully indexed yet).
   for (const m of state.manuals.values()) {
     const t = (m.manualType || '').toUpperCase();
-    if (t) seen.add(t);
+    if (t && t !== 'PERSONAL') seen.add(t);
+  }
+  for (const f of state.files.values()) {
+    // Only manuals are usable as link targets — personal/fleet docs aren't
+    // cross-referenced through this dropdown.
+    if (f.docType && f.docType !== 'manual') continue;
+    const m = state.manuals.get(f.id);
+    const t = (m?.manualType || '').toUpperCase();
+    if (t && t !== 'PERSONAL') seen.add(t);
   }
   _manualTypeOptionsCache = seen.size
     ? [...seen].sort().map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')
@@ -2001,11 +2128,17 @@ async function handlePersonalFiles(files) {
       setIngestStatus(`Skipped ${file.name}: not a PDF`, 'warn');
       continue;
     }
-    const manualType = docType === 'manual' ? 'FCOM' : 'PERSONAL';
-    const fileId = await processImport(file, { manualType, revision: '', effectivity: [], docType });
-    // Personal briefings auto-catalogue from their PDF outline. Manual /
-    // fleet uploads skip this — they're reference material that doesn't
-    // map cleanly onto briefings/sub-briefings.
+    let meta;
+    if (docType === 'manual') {
+      // Manuals get the proper metadata prompt so we can resolve cross-
+      // references against the right family (OMA / QRH / FCOM / FCTM / MEL).
+      meta = await askManualMeta(file);
+      if (!meta) { setIngestStatus(`Skipped ${file.name}.`, 'warn'); continue; }
+      meta.docType = 'manual';
+    } else {
+      meta = { manualType: 'PERSONAL', revision: '', effectivity: [], docType };
+    }
+    const fileId = await processImport(file, meta);
     if (fileId && docType === 'personal') {
       const created = await autoCatalogFromOutline(fileId, file.name);
       if (created > 0) toast(`Cataloged ${created} briefing${created === 1 ? '' : 's'} from ${file.name}.`);
