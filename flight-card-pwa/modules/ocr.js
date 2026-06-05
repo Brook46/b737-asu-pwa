@@ -106,15 +106,22 @@ const TOKEN_PATTERNS = [
   // preferLast again because OPT's output section sits below the input.
   // Buffer widened to {0,20} so the OPT label "N1 TO (%)" (and any extra
   // OCR-injected whitespace / line breaks before the value) still matches.
-  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i,        preferLast: true },
-  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
-  // FLAPS is the most-ambiguous label on the OPT screen: the input section
-  // can say "FLAP OPTIMUM" (no digit, no match) OR "FLAP 5" (a manual
-  // override), and the output section always says "FLAP <calculated>". We
-  // want the bottom one. preferLast guarantees that — even if the user has
-  // a manual setting at the top, the last regex hit is the calculated value.
-  // Buffer widened to {0,12} to forgive label noise ("FLAPS (%)" etc.).
-  { key: 'flaps', re: /\bFLAPS?\b[^\d]{0,12}(\d{1,2})\b/i, preferLast: true },
+  { key: 'n1',    re: /\bN\s*1\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
+  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[\s\S]{0,50}?(\d{2,3}\.\d)/i,   preferLast: true },
+  // PERFORMANCE-TAKEOFF screen labels the calculated N1 simply as "TO2" (or
+  // "TO1" / "TO") with the percentage on the next line — no "D-" prefix.
+  // \bTO\s*\d\b avoids "TOW", "TOGW", "TKO", "NOTAM" because those have a
+  // letter after TO instead of a digit. Lazy [\s\S] lets us skip past any
+  // intermediate numbers (e.g. "TOGW 57000 KG" sits between the "TO2" label
+  // and its value "93.2") and lock onto the first decimal-style number.
+  { key: 'n1',    re: /\bTO\s*\d\b[\s\S]{0,50}?(\d{2,3}\.\d)/i,         preferLast: true },
+  // FLAPS — the OPT output section's "FLAP" label is far from its value
+  // because the row contains other column headers (EO ACCEL HT, TRIM) on
+  // the same line as the label, with the value on the line below. Lazy
+  // [\s\S]{0,60}? walks across that without false-matching against the
+  // first random digit. preferLast then prefers the OUTPUT section "FLAP X"
+  // over an INPUT-section "FLAP 5" override.
+  { key: 'flaps', re: /\bFLAPS?\b[\s\S]{0,60}?(\d{1,2})\b/i, preferLast: true },
 
   // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
   { key: 'trip_fuel',  re: /\bTRIP\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
@@ -133,9 +140,10 @@ const TOKEN_PATTERNS = [
   // confirmed it isn't reliably readable from the screenshot layout. The
   // header pill / leg metadata is the source of truth.)
   { key: 'tail',  re: /\b(REG|TAIL|PROFILE)\b\s*[:#]?\s*([A-Z0-9-]{2,8})\b/i, asString: true, group: 2 },
-  // OPT writes "ARPT LLBG / TLV" — first ICAO/IATA wins. Same for arr.
-  { key: 'dep',   re: /\b(?:ARPT|DEP|FROM|ORIG)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
-  { key: 'arr',   re: /\b(?:ARR|TO|DEST)\b[^A-Z]{0,4}([A-Z]{3,4})\b/i, asString: true },
+  // dep/arr are deliberately NOT extracted from OPT. The OPT toolbar has
+  // an "ARPT INFO" button that the parser would happily grab as the dep
+  // airport. Route info comes from the leg/roster or the user's manual
+  // entry, where it's reliable.
 ];
 
 export function parseFmcText(rawText) {
