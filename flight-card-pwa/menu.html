@@ -3,168 +3,422 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="description" content="Flight Card — a 737NG cockpit PWA: data card, checklist, PA library, OPT/FMC OCR, leg switcher, QR share, all offline-capable." />
-  <title>Flight Card — features</title>
+  <meta name="description" content="Flight Card — the manual. How to get your roster into the app and use every feature." />
+  <title>Flight Card — the manual</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f7f7f8;       --fg: #18181b;
+      --bg: #fbfaf7;       --fg: #18181b;
       --fg-dim: #6b7280;
-      --card: #ffffff;     --line: #e5e7eb;
+      --card: #ffffff;     --line: #e7e5e0;
       --accent: #1e6fd1;   --accent-soft: #e3edfb;
-      --kbd: #f3f4f6;
+      --warm:  #ffa94d;    --warm-soft:  #fff3e0;
+      --pink:  #f15a8b;    --pink-soft:  #ffe1ec;
+      --green: #2ea88a;    --green-soft: #d8f1e8;
+      --grape: #7c3aed;    --grape-soft: #ece1ff;
+      --kbd:   #f3f4f6;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --bg: #0b0c0e;     --fg: #f4f4f5;
-        --fg-dim: #9ca3af;
+        --fg-dim: #a1a1aa;
         --card: #16181c;   --line: #2a2d33;
         --accent: #5fa8ff; --accent-soft: #15243d;
-        --kbd: #1f2127;
+        --warm:  #ffb86b;  --warm-soft:  #3a2810;
+        --pink:  #ff7aa5;  --pink-soft:  #3a1b29;
+        --green: #5cd8b5;  --green-soft: #112d24;
+        --grape: #b794ff;  --grape-soft: #251a3a;
+        --kbd:   #1f2127;
       }
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
-      background: var(--bg); color: var(--fg);
-      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-      padding: 24px 18px 80px;
-      max-width: 760px; margin: 0 auto;
+      background:
+        radial-gradient(1100px 600px at 80% -10%, var(--accent-soft) 0%, transparent 60%),
+        radial-gradient(900px  500px at -10% 110%, var(--pink-soft) 0%, transparent 55%),
+        var(--bg);
+      background-attachment: fixed;
+      color: var(--fg);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+      padding: 28px 18px 80px;
     }
-    h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
-    h2 { font-size: 19px; margin: 32px 0 10px; letter-spacing: -0.01em; }
-    p  { margin: 6px 0 12px; color: var(--fg); }
-    p.lede { color: var(--fg-dim); font-size: 16px; margin-bottom: 24px; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .pill {
-      display: inline-block;
-      background: var(--accent-soft); color: var(--accent);
-      padding: 2px 8px; border-radius: 999px;
+    .wrap { max-width: 760px; margin: 0 auto; }
+
+    /* ---- Hero ---- */
+    .hero {
+      text-align: center;
+      padding: 16px 8px 28px;
+    }
+    .hero .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--card); border: 1px solid var(--line);
+      padding: 6px 12px; border-radius: 999px;
       font-size: 12px; font-weight: 600;
-      vertical-align: middle;
+      color: var(--accent);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    }
+    .hero h1 {
+      font-size: clamp(36px, 8vw, 56px);
+      margin: 14px 0 6px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      background: linear-gradient(120deg, var(--accent), var(--grape));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p.tagline {
+      font-size: 17px; color: var(--fg-dim);
+      margin: 0 auto 20px; max-width: 540px;
+    }
+    .hero .cta-row {
+      display: inline-flex; gap: 10px; flex-wrap: wrap;
+      justify-content: center;
     }
     .cta {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--accent); color: #fff;
-      padding: 10px 16px; border-radius: 10px;
+      padding: 12px 20px; border-radius: 12px;
       font-weight: 600; font-size: 15px;
       text-decoration: none;
-      margin: 4px 0 8px;
+      box-shadow: 0 6px 18px rgba(30,111,209,0.25);
+      transition: transform 0.12s ease;
     }
-    .cta:hover { text-decoration: none; opacity: .92; }
-    .card {
-      background: var(--card); border: 1px solid var(--line);
+    .cta:hover { transform: translateY(-1px); }
+    .cta.secondary {
+      background: transparent; color: var(--fg);
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    /* ---- Section ---- */
+    section { margin: 36px 0; }
+    h2 {
+      font-size: 22px; margin: 0 0 6px;
+      letter-spacing: -0.01em;
+      display: flex; align-items: center; gap: 10px;
+    }
+    h2 .icon-bubble {
+      width: 36px; height: 36px;
+      border-radius: 11px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .h2-lede { color: var(--fg-dim); margin: 0 0 14px; }
+
+    /* ---- Step list (getting started) ---- */
+    .steps {
+      list-style: none; padding: 0; margin: 14px 0;
+      counter-reset: step;
+    }
+    .steps li {
+      position: relative;
+      counter-increment: step;
+      background: var(--card);
+      border: 1px solid var(--line);
       border-radius: 14px;
-      padding: 14px 16px;
+      padding: 14px 16px 14px 58px;
       margin: 10px 0;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
     }
-    .card h3 { margin: 0 0 4px; font-size: 15px; }
-    .card p  { margin: 0; color: var(--fg-dim); font-size: 14px; }
-    ul.bullets { padding-left: 18px; margin: 6px 0 12px; }
-    ul.bullets li { margin: 4px 0; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 14px; top: 14px;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px;
+    }
+    .steps li b { display: block; margin-bottom: 2px; }
+
+    /* ---- Feature grid ---- */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 14px 0;
+    }
+    .feat {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .feat:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    .feat .emoji {
+      font-size: 28px;
+      line-height: 1; display: block; margin-bottom: 8px;
+    }
+    .feat h3 { margin: 0 0 4px; font-size: 16px; }
+    .feat p  { margin: 0; color: var(--fg-dim); font-size: 14px; }
+
+    /* ---- Inline goodies ---- */
     code, kbd {
       background: var(--kbd);
       border: 1px solid var(--line);
       padding: 1px 6px; border-radius: 5px;
       font: 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--fg);
     }
+    .var-row {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin: 8px 0 4px;
+    }
+    .var-row code {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .callout {
+      background: var(--warm-soft);
+      border-left: 3px solid var(--warm);
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+    .pill {
+      display: inline-flex; align-items: center;
+      background: var(--green-soft); color: var(--green);
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .pill.warm  { background: var(--warm-soft);  color: var(--warm); }
+    .pill.pink  { background: var(--pink-soft);  color: var(--pink); }
+    .pill.grape { background: var(--grape-soft); color: var(--grape); }
+
+    /* Icon bubble colours per section */
+    .b-blue  { background: var(--accent-soft); color: var(--accent); }
+    .b-warm  { background: var(--warm-soft);   color: var(--warm); }
+    .b-pink  { background: var(--pink-soft);   color: var(--pink); }
+    .b-green { background: var(--green-soft);  color: var(--green); }
+    .b-grape { background: var(--grape-soft);  color: var(--grape); }
+
     .meta {
       color: var(--fg-dim); font-size: 12px;
-      margin-top: 40px; padding-top: 16px;
+      margin-top: 56px; padding-top: 20px;
       border-top: 1px solid var(--line);
+      text-align: center;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 10px;
-      margin: 8px 0 14px;
-    }
+    .meta a { color: var(--accent); text-decoration: none; }
+    .meta a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
+<div class="wrap">
 
-  <h1>Flight Card <span class="pill">737NG</span></h1>
-  <p class="lede">
-    An iPad / iPhone cockpit companion for the Boeing 737NG. Tracks per-leg
-    V-speeds, fuel, ATIS, SOB and crew; runs a customisable preflight
-    checklist; reads OPT / FMC screenshots; carries the El Al PA library
-    in EN + HE — and all of it works offline as a Progressive Web App.
-  </p>
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <span class="badge">✈ The 737NG cockpit companion</span>
+    <h1>Flight Card<br/>the manual</h1>
+    <p class="tagline">
+      Your roster, your data card, your checklist, and your PA library —
+      all in one tiny PWA that lives on your iPad and works offline.
+    </p>
+    <div class="cta-row">
+      <a class="cta"          href="./">Open the app →</a>
+      <a class="cta secondary" href="./share.html">Share link</a>
+    </div>
+  </header>
 
-  <a class="cta" href="./">Open the app →</a>
-  <a class="cta" style="background:transparent;border:1px solid var(--line);color:var(--fg);" href="./share.html">Share link</a>
+  <!-- ============ STEP 1 — get the calendar in ============ -->
+  <section>
+    <h2><span class="icon-bubble b-blue">📅</span> Start here — get your roster in</h2>
+    <p class="h2-lede">
+      Your monthly bulletin is the fastest way to fill the app. One paste
+      and every leg of the duty period lands in your leg list, sorted by
+      UTC departure.
+    </p>
+    <ol class="steps">
+      <li>
+        <b>Copy your duty bulletin</b>
+        Open the e-bulletin (Slip details / Cockpit format) and select-all → copy the text.
+      </li>
+      <li>
+        <b>Open Flight Card</b>
+        Tap the <kbd>✈</kbd> <i>New Flight</i> icon in the header.
+      </li>
+      <li>
+        <b>Tap "Paste roster"</b>
+        Paste into the box and tap <kbd>Parse</kbd>.
+      </li>
+      <li>
+        <b>Done</b>
+        Every leg shows up in the switcher with dep / arr / flight # / tail / schedule.
+        The current-time leg is auto-selected; tap <kbd>🛫</kbd> any time to jump back to "now".
+      </li>
+    </ol>
+    <div class="callout">
+      <b>Single flight, no bulletin?</b> Skip the paste — just type a flight number in the
+      header pill (e.g. <code>27</code>). If it matches a known ELY route the popup
+      offers to create the leg with dep / arr already filled in.
+    </div>
+  </section>
 
-  <h2>Data card</h2>
-  <p>Per-flight data, grouped so the right field is one tap away during a busy turn:</p>
-  <ul class="bullets">
-    <li><b>Souls on board</b> — total head count.</li>
-    <li><b>ATIS</b> — letter chip + tap-through to a live D-ATIS / METAR popup with red/blue read state.</li>
-    <li><b>Takeoff performance</b> — V1, VR, V2, N1, Flaps. The Flaps cell is collapsed by default; tap to choose from 1/5/10/15/25. Flap 5 is painted blue (standard), anything else paints red.</li>
-    <li><b>Fuel</b> — Trip + Block. Type tonnes (<code>12.3</code> or <code>5</code>) and they auto-convert to kg on blur.</li>
-    <li><b>Flight</b> — Dep, Arr, Flight time in HH:MM (auto-formatted as you type).</li>
-    <li><b>Crew</b> — CPT, FO, Purser + CC2…CC5. Carried forward into every new leg from the roster.</li>
-    <li>Every group + the whole card have a <kbd>↻</kbd> reset that wipes its values in one tap. Flight + Crew are kept across resets.</li>
-  </ul>
+  <!-- ============ FEATURE GRID ============ -->
+  <section>
+    <h2><span class="icon-bubble b-grape">🎁</span> What's in the box</h2>
+    <p class="h2-lede">Tap any card below in the app, or just keep scrolling for the details.</p>
+    <div class="grid">
+      <div class="feat"><span class="emoji">📋</span><h3>Data card</h3><p>V-speeds, fuel, ATIS, SOB, crew — per-leg, so leg 2's numbers don't bleed into leg 1.</p></div>
+      <div class="feat"><span class="emoji">✅</span><h3>Checklist</h3><p>Cabin · Papers &amp; perf · Phase-of-flight items. Tick, edit, reorder, reset.</p></div>
+      <div class="feat"><span class="emoji">📸</span><h3>OPT / FMC reader</h3><p>Drop a takeoff-performance screenshot — V-speeds + N1 + flaps + tail auto-fill.</p></div>
+      <div class="feat"><span class="emoji">📣</span><h3>PA library</h3><p>Welcome, Go-around, Emergency, Ditching, Smoke/fire, Malfunction, Delays — EN + HE side by side.</p></div>
+      <div class="feat"><span class="emoji">📡</span><h3>QR cockpit share</h3><p>Show your data card as a QR; the other pilot scans → it lands as a new leg in their list.</p></div>
+      <div class="feat"><span class="emoji">🌦</span><h3>Live ATIS + METAR</h3><p>Tap the ATIS chip → D-ATIS + METAR for the dep airport, red/blue read state, 10-min refresh.</p></div>
+    </div>
+  </section>
 
-  <h2>OPT / FMC screenshot import <span class="pill">OCR</span></h2>
-  <p>
-    Tap <kbd>⌖ OPT / FMC</kbd> on the Takeoff performance group, pick a
-    screenshot from Photos, and the parser pulls out: tail (PROFILE EHB →
-    4X-EHB), Flaps, N1 (handles <code>TO2 93.2</code> derate labels and
-    <code>D-TO-2</code> alike), and V1 / VR / V2. Powered by Tesseract.js,
-    cached on first use.
-  </p>
+  <!-- ============ DATA CARD DEEP DIVE ============ -->
+  <section>
+    <h2><span class="icon-bubble b-blue">📋</span> Data card</h2>
+    <p class="h2-lede">Per-flight numbers, grouped so the right field is one tap away during a turn.</p>
+    <div class="grid">
+      <div class="feat"><span class="emoji">🧍‍♂️</span><h3>Souls on board</h3><p>One number. Tap, type, done.</p></div>
+      <div class="feat"><span class="emoji">🔤</span><h3>ATIS</h3><p>Letter chip + tap-through to live D-ATIS &amp; METAR popup with red/blue read state.</p></div>
+      <div class="feat"><span class="emoji">🛫</span><h3>Takeoff perf</h3><p>V1 · VR · V2 · N1 · Flaps. Flaps cell is collapsed; tap to pick 1/5/10/15/25 — Flap 5 paints blue, anything else red.</p></div>
+      <div class="feat"><span class="emoji">⛽</span><h3>Fuel</h3><p>Trip + Block. Type tonnes (<code>12.3</code> or <code>5</code>) → auto-converts to kg on blur.</p></div>
+      <div class="feat"><span class="emoji">🗺</span><h3>Flight</h3><p>Dep · Arr · Flight time in HH:MM (auto-formatted as you type).</p></div>
+      <div class="feat"><span class="emoji">👥</span><h3>Crew</h3><p>CPT, FO, Purser + CC2…CC5. Carried forward into every new leg from the roster.</p></div>
+    </div>
+    <p style="margin-top:14px;color:var(--fg-dim);font-size:14px;">
+      Every group and the whole card have a <kbd>↻</kbd> reset that wipes its values in one tap.
+      Flight + Crew survive resets so the persistent header info stays put.
+    </p>
+  </section>
 
-  <h2>Checklist</h2>
-  <p>Three sections by default — Cabin, Papers &amp; performance, Checklist. Customisable via the ✎ edit mode. Items tick with a tap; the card auto-collapses when everything is done.</p>
+  <!-- ============ OPT / FMC ============ -->
+  <section>
+    <h2><span class="icon-bubble b-warm">📸</span> OPT / FMC screenshot reader <span class="pill warm">OCR</span></h2>
+    <p class="h2-lede">Skip the typing — feed it the picture you already have.</p>
+    <p>
+      Tap <kbd>⌖ OPT / FMC</kbd> on the Takeoff performance group, pick a
+      screenshot from Photos. The parser pulls out:
+    </p>
+    <ul style="padding-left:18px;color:var(--fg);">
+      <li><b>Tail</b> from <code>PROFILE EHB</code> → normalised to <code>4X-EHB</code>.</li>
+      <li><b>Flaps</b> from the bottom output value.</li>
+      <li><b>N1</b> from <code>TO2 93.2</code> (derate) or <code>N1 92.5</code> (full thrust).</li>
+      <li><b>V1 / VR / V2</b> from the bottom-right block.</li>
+    </ul>
+    <div class="callout">
+      Powered by Tesseract.js. Cached on first use → works offline forever after that.
+    </div>
+  </section>
 
-  <h2>Roster import</h2>
-  <p>Paste a duty bulletin (Slip details / Cockpit format) into the New Flight modal. The parser builds a sorted leg list with dep / arr / flight # / tail / scheduled times, seeds crew names from the slip, and switches the data card to the first added leg.</p>
+  <!-- ============ PER-LEG STATE ============ -->
+  <section>
+    <h2><span class="icon-bubble b-green">🧳</span> Per-leg state <span class="pill">v7+</span></h2>
+    <p class="h2-lede">Leg 2's fuel doesn't bleed into leg 1. Ever.</p>
+    <p>
+      Each leg owns its own data card and checklist. Switching legs swaps
+      V-speeds, fuel, ATIS, SOB and checklist ticks with it. Crew + flight
+      identity ride along automatically.
+    </p>
+    <p>
+      The <kbd>🛫</kbd> button next to the leg switcher arrows jumps to whichever
+      leg's dep → arr window contains the current UTC.
+    </p>
+  </section>
 
-  <h2>Per-leg state <span class="pill">v7+</span></h2>
-  <p>Each leg owns its own data card and checklist. Switching legs swaps V-speeds, fuel, ATIS, SOB and ticks with it. Crew + identity fields ride along automatically. The <kbd>🛫</kbd> button jumps to the leg whose dep/arr window contains the current UTC.</p>
+  <!-- ============ HEADER PILL ============ -->
+  <section>
+    <h2><span class="icon-bubble b-blue">🪪</span> Header — ELY flight number</h2>
+    <p>
+      Type digits (<code>1</code>, <code>27</code>, <code>337</code>) and the header
+      auto-renders <code>ELY###</code>. Switching to a new number:
+    </p>
+    <ul style="padding-left:18px;">
+      <li>Matches a leg you already have → it switches to it.</li>
+      <li>Brand new → confirm popup shows route + typical block time and creates a new leg.</li>
+    </ul>
+    <p>
+      The <kbd>↗</kbd> next to the CTOT pill opens FlightAware for the current ELY ###
+      so you can look up real ETD / slot.
+    </p>
+  </section>
 
-  <h2>Header pill — ELY flight number</h2>
-  <p>Type a flight number (digits only — <code>1</code>, <code>27</code>, <code>337</code>) and it renders as <code>ELY1</code>. Switching to a new ELY ###:</p>
-  <ul class="bullets">
-    <li>If a leg with that number already exists → switches to it.</li>
-    <li>If it's brand new → confirmation modal shows route + typical block time from a local table of common ELY routes, and creates a new leg.</li>
-  </ul>
-  <p>↗ next to the CTOT pill opens FlightAware for the current ELY ### to look up real ETD / slot.</p>
+  <!-- ============ PA LIBRARY ============ -->
+  <section>
+    <h2><span class="icon-bubble b-pink">📣</span> PA library <span class="pill pink">EN + HE</span></h2>
+    <p class="h2-lede">One window, two languages, every QRH-style scenario.</p>
+    <p>
+      Default set: <b>Welcome</b>, <b>Go around</b>, <b>Emergency</b>, <b>Ditching</b>,
+      <b>Smoke / fire</b>, <b>Malfunction</b>, <b>Delays</b>. Hebrew on top (RTL),
+      English below (LTR). Edit mode adds:
+    </p>
+    <ul style="padding-left:18px;">
+      <li>A sticky chip row of <code>@</code>-tokens — tap to insert instead of typing the <kbd>@</kbd> key.</li>
+      <li><kbd>◀</kbd> <kbd>▶</kbd> reorder buttons.</li>
+      <li>Inline name editing — just type in the title.</li>
+    </ul>
+    <p style="margin-top:14px;"><b>Variables that auto-fill:</b></p>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+      <div class="feat"><span class="emoji">🪪</span><h3>Identity</h3>
+        <div class="var-row"><code>@cpt</code><code>@fo</code><code>@PU</code><code>@flight</code><code>@tail</code></div>
+      </div>
+      <div class="feat"><span class="emoji">🗺</span><h3>Route</h3>
+        <div class="var-row"><code>@dep</code><code>@arr</code><code>@flighttime</code></div>
+      </div>
+      <div class="feat"><span class="emoji">⏱</span><h3>Live</h3>
+        <div class="var-row"><code>@time</code><code>@utc</code><code>@date</code><code>@tod</code></div>
+      </div>
+    </div>
+    <div class="callout">
+      <code>@tod</code> resolves to morning / noon / afternoon / evening / night
+      based on the local clock — and it's Hebrew-aware
+      (בוקר / צהריים / אחר הצהריים / ערב / לילה).
+    </div>
+  </section>
 
-  <h2>PA speeches <span class="pill">EN + HE</span></h2>
-  <p>
-    Bilingual library in one window — Hebrew on top (RTL), English below
-    (LTR). Default set: Welcome, Go around, Emergency, Ditching,
-    Smoke / fire, Malfunction, Delays. Edit mode adds a sticky chip row
-    of <code>@</code>-tokens you tap to insert without typing the
-    <kbd>@</kbd> key, ◀ ▶ reorder buttons, and an inline name input.
-  </p>
-  <p>Variables:</p>
-  <div class="grid">
-    <div class="card"><h3>Identity</h3><p><code>@cpt</code> <code>@fo</code> <code>@PU</code> <code>@flight</code> <code>@tail</code></p></div>
-    <div class="card"><h3>Route</h3><p><code>@dep</code> <code>@arr</code> <code>@flighttime</code></p></div>
-    <div class="card"><h3>Live</h3><p><code>@time</code> <code>@utc</code> <code>@date</code> <code>@tod</code></p></div>
-  </div>
-  <p><code>@tod</code> resolves to morning / noon / afternoon / evening / night based on the local clock — Hebrew-aware (בוקר / צהריים / אחר הצהריים / ערב / לילה).</p>
+  <!-- ============ QR SHARE ============ -->
+  <section>
+    <h2><span class="icon-bubble b-grape">📡</span> QR cockpit share <span class="pill grape">offline</span></h2>
+    <p>
+      Tap the <kbd>▣</kbd> icon in the header → a QR of the active flight
+      appears. The other pilot taps the small camera icon, points it at
+      your screen, and the data card lands as a new leg in their list.
+    </p>
+    <p>
+      What ships in the QR: tail, flight #, dep / arr, flight time,
+      V-speeds, N1, flaps, fuel, ATIS, SOB, crew, route. Checklist ticks
+      stay local. No internet needed once the QR libraries are cached.
+    </p>
+  </section>
 
-  <h2>QR share + scan <span class="pill">cockpit-to-cockpit</span></h2>
-  <p>
-    Tap the <kbd>▣</kbd> icon in the header. The other pilot's device
-    scans the QR with the built-in camera and gets the data card as a
-    new leg in their list. Payload is data-card only (tail, flight, V-speeds,
-    N1, flaps, fuel, ATIS, SOB, crew, route) — checklist ticks stay local.
-    Works offline once the QR libraries are cached.
-  </p>
+  <!-- ============ AIRDROP SYNC ============ -->
+  <section>
+    <h2><span class="icon-bubble b-warm">🪂</span> AirDrop full-state sync</h2>
+    <p>
+      Same QR sheet → <i>Sync everything (AirDrop)</i> exports the whole
+      app state as JSON via the iOS Share Sheet. Import on the other device
+      replaces local state — useful when you want every leg, every speech,
+      and the template moved across in one shot.
+    </p>
+  </section>
 
-  <h2>AirDrop full-state sync</h2>
-  <p>Same QR icon → "Sync everything (AirDrop)" → exports the whole app state as JSON via the iOS Share Sheet. Import on the other device replaces local state. For when you want every leg, every speech, the template — not just one flight.</p>
+  <!-- ============ THEMES ============ -->
+  <section>
+    <h2><span class="icon-bubble b-blue">🎨</span> Themes &amp; rotation</h2>
+    <p>
+      Light · Dark · ASU green — cycle with the theme icon. Orientation
+      lock is off so landscape works on iPhone; if your installed PWA
+      doesn't rotate, remove the home-screen icon and re-Add to Home Screen
+      so it picks up the current manifest.
+    </p>
+  </section>
 
-  <h2>Themes &amp; rotation</h2>
-  <p>Light, dark, ASU green — cycle with the theme icon. Phone-orientation lock is off so landscape works on iPhone. After re-saving to the home screen the manifest picks up <code>orientation: any</code>.</p>
-
+  <!-- ============ Footer ============ -->
   <p class="meta">
     Built as a single-page PWA — vanilla JS modules, no framework, service-worker
     cache-first. Open <a href="./">the app</a> and once it's loaded once,
@@ -173,20 +427,21 @@
     · Build: <code id="build-tag">flightcard-v40</code>
   </p>
 
-  <script>
-    // Pull the live cache name from the running service worker so this page
-    // self-stamps with the most recent build the visitor would receive.
-    // Falls back to the static label above if SW isn't registered yet.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration('./').then(reg => {
-        if (!reg) return;
-        return caches.keys().then(keys => {
-          const k = keys.find(k => k.startsWith('flightcard-'));
-          if (k) document.getElementById('build-tag').textContent = k;
-        });
-      }).catch(() => {});
-    }
-  </script>
+</div>
+
+<script>
+  // Pull the live cache name from the running service worker so this page
+  // self-stamps with the most recent build the visitor would receive.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration('./').then(reg => {
+      if (!reg) return;
+      return caches.keys().then(keys => {
+        const k = keys.find(k => k.startsWith('flightcard-'));
+        if (k) document.getElementById('build-tag').textContent = k;
+      });
+    }).catch(() => {});
+  }
+</script>
 
 </body>
 </html>
