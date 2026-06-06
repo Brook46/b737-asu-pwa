@@ -1348,27 +1348,83 @@ body {
   #card-history { grid-column: 2; grid-row: 2; }
 }
 
-/* ---------- Past-leg tint ----------
-   Applied when the active leg's arrival UTC has passed. The background
-   shifts to a soft red so it's immediately obvious the data card on
-   screen is for a flight that's already been flown — no more "wait,
-   am I editing yesterday or today's leg?". Both light and dark theme
-   variants are tuned to be visible without screaming. */
-body.is-past-leg {
-  --bg:      #fbe7e7;
-  --bg-sunk: #f5d4d4;
+/* ---------- Past-leg banner + archived-card look ----------
+   When the active leg's arrival UTC has passed we make it unmistakable
+   without compromising readability of the underlying data:
+
+   1. A prominent striped banner pinned above the data card. "✓ FLOWN"
+      with the leg summary. The diagonal stripes are the universal
+      "archived / do-not-edit" pattern and read instantly even from
+      across the cockpit.
+   2. The data + checklist cards get a slight desaturation + opacity
+      dip so they feel "historical" without becoming hard to read.
+   3. The leg-switcher chip prints a small FLOWN pill.
+
+   The previous full-body red wash is gone — that interfered with
+   reading the data underneath. */
+
+.past-banner {
+  display: none;
+  align-items: center; gap: 10px;
+  margin: 8px 8px 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      #c0392b 0px, #c0392b 14px,
+      #a82e21 14px, #a82e21 28px
+    );
+  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.30);
 }
 @media (prefers-color-scheme: dark) {
-  body.is-past-leg {
-    --bg:      #1a0e0e;
-    --bg-sunk: #110707;
+  .past-banner {
+    background:
+      repeating-linear-gradient(
+        135deg,
+        #b13d31 0px, #b13d31 14px,
+        #8e2c21 14px, #8e2c21 28px
+      );
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   }
 }
-:root[data-theme="light"] body.is-past-leg {
-  --bg:      #fbe7e7;
-  --bg-sunk: #f5d4d4;
+body.is-past-leg .past-banner { display: flex; }
+
+.past-banner .past-icon {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.22);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
 }
-:root[data-theme="dark"]  body.is-past-leg {
-  --bg:      #1a0e0e;
-  --bg-sunk: #110707;
+.past-banner .past-meta {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
 }
+.past-banner .past-meta .past-label { font-size: 12px; opacity: 0.95; }
+.past-banner .past-meta .past-sub   { font-size: 11px; opacity: 0.85; text-transform: none; font-weight: 500; letter-spacing: 0; }
+
+body.is-past-leg #card-data,
+body.is-past-leg #card-checklist {
+  opacity: 0.88;
+  filter: saturate(0.55);
+}
+
+.leg-past-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #c0392b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+

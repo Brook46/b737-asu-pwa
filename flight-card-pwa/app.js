@@ -103,9 +103,18 @@ function renderLegSwitcher() {
   $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
   const flight = leg.flight ? displayFlight(leg.flight) : '';
   const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-  $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
+  // Use innerHTML so the FLOWN tag span can render inline. The two source
+  // strings are trusted (built from leg fields that came from storage).
+  const past   = isLegPast(leg);
+  const baseTxt = [flight, route].filter(Boolean).join('  ');
+  $('leg-route').innerHTML = escapeHtml(baseTxt) +
+    (past ? '<span class="leg-past-tag">FLOWN</span>' : '');
   $('leg-prev').disabled = idx <= 0;
   $('leg-next').disabled = idx >= legs.length - 1;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[ch]);
 }
 async function applyLeg(idx) {
   const legs = storage.getLegs();
@@ -151,7 +160,24 @@ function isLegPast(leg) {
 function updatePastLegTint() {
   const legs = storage.getLegs();
   const leg = legs[storage.getLegIndex()] || null;
-  document.body.classList.toggle('is-past-leg', isLegPast(leg));
+  const past = isLegPast(leg);
+  document.body.classList.toggle('is-past-leg', past);
+  // Fill the banner sub-line with a useful one-glance summary —
+  // route + date so the user immediately sees which past flight they're
+  // looking at, not just "some past flight."
+  const sub = $('past-leg-sub');
+  if (sub) {
+    if (past && leg) {
+      const f     = leg.flight ? `ELY${normaliseFlightNumber(leg.flight)}` : '';
+      const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
+      const date  = leg.arr_date || leg.dep_date || '';
+      const time  = leg.arr_time || leg.dep_time || '';
+      const when  = [date, time].filter(Boolean).join(' ') + (date || time ? 'Z' : '');
+      sub.textContent = [f, route, when].filter(Boolean).join(' · ');
+    } else {
+      sub.textContent = '';
+    }
+  }
 }
 // Re-check once a minute so a leg that crosses into the past mid-session
 // picks up the red tint without the user touching anything.
