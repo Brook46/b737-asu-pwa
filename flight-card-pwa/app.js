@@ -85,6 +85,7 @@ function renderAll() {
   checklist.render(checklistBody);
   renderHistory();
   renderLegSwitcher();
+  updatePastLegTint();
 }
 
 // ---------- Leg switcher ----------
@@ -119,8 +120,42 @@ async function applyLeg(idx) {
   checklist.render(checklistBody);
   syncHeaderInputs();
   renderLegSwitcher();
+  updatePastLegTint();
   speeches.notifyDataChange();
 }
+
+// Past-leg visual cue: when the active leg's arrival UTC is in the past,
+// flip body.is-past-leg → app background becomes a soft red. Re-evaluated
+// every leg switch and once a minute on a wall-clock tick so a leg that
+// just crossed into the past picks up the tint without a refresh.
+function isLegPast(leg) {
+  if (!leg) return false;
+  // Prefer arr_date/time; fall back to dep_date/time if arr isn't known.
+  const d = leg.arr_date || leg.dep_date;
+  const t = leg.arr_time || leg.dep_time;
+  if (!d || !t) return false;
+  const dm = String(d).split('.');
+  if (dm.length !== 2) return false;
+  const yearNow = new Date().getUTCFullYear();
+  const iso = `${yearNow}-${dm[1]}-${dm[0]}T${t}:00Z`;
+  let ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return false;
+  const now = Date.now();
+  // Roll forward if the parsed time is >6 months stale — same heuristic
+  // depTs uses so year-end rosters don't all look like past flights in Jan.
+  if (now - ts > 6 * 30 * 24 * 3600 * 1000) {
+    ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
+  }
+  return Number.isFinite(ts) && ts < now;
+}
+function updatePastLegTint() {
+  const legs = storage.getLegs();
+  const leg = legs[storage.getLegIndex()] || null;
+  document.body.classList.toggle('is-past-leg', isLegPast(leg));
+}
+// Re-check once a minute so a leg that crosses into the past mid-session
+// picks up the red tint without the user touching anything.
+setInterval(updatePastLegTint, 60 * 1000);
 async function applyRoster(parsed) {
   if (!parsed || !parsed.flights?.length) return;
   // Append to the persistent leg list; storage sorts the combined list by UTC

@@ -1347,3 +1347,28 @@ body {
   #card-checklist { grid-column: 2 / span 2; grid-row: 1; }
   #card-history { grid-column: 2; grid-row: 2; }
 }
+
+/* ---------- Past-leg tint ----------
+   Applied when the active leg's arrival UTC has passed. The background
+   shifts to a soft red so it's immediately obvious the data card on
+   screen is for a flight that's already been flown — no more "wait,
+   am I editing yesterday or today's leg?". Both light and dark theme
+   variants are tuned to be visible without screaming. */
+body.is-past-leg {
+  --bg:      #fbe7e7;
+  --bg-sunk: #f5d4d4;
+}
+@media (prefers-color-scheme: dark) {
+  body.is-past-leg {
+    --bg:      #1a0e0e;
+    --bg-sunk: #110707;
+  }
+}
+:root[data-theme="light"] body.is-past-leg {
+  --bg:      #fbe7e7;
+  --bg-sunk: #f5d4d4;
+}
+:root[data-theme="dark"]  body.is-past-leg {
+  --bg:      #1a0e0e;
+  --bg-sunk: #110707;
+}
