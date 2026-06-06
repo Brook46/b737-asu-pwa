@@ -124,13 +124,19 @@ async function applyLeg(idx) {
 async function applyRoster(parsed) {
   if (!parsed || !parsed.flights?.length) return;
   // Append to the persistent leg list; storage sorts the combined list by UTC
-  // dep time and returns the new index of the first added leg so the data
-  // card switches to the newly-added flight (not whichever existing one
-  // happens to be at index 0).
-  const newIdx = storage.appendLegs(parsed.flights);
+  // dep time and returns the new index of the most-recently-touched leg so
+  // the data card switches to the newly-added (or just-updated) flight.
+  // appendLegs dedupes by flight number — a paste that overlaps an existing
+  // leg merges into it instead of duplicating.
+  const { index: newIdx, added, replaced } = storage.appendLegs(parsed.flights);
   await applyLeg(newIdx);
-  renderHistory();   // history card mirrors the leg list — refresh it
-  toast(`Added ${parsed.flights.length} flight${parsed.flights.length === 1 ? '' : 's'}`);
+  renderHistory();
+  toast(rosterToast(added, replaced));
+}
+function rosterToast(added, replaced) {
+  if (added && replaced) return `Added ${added}, updated ${replaced}`;
+  if (replaced)          return `Updated ${replaced} flight${replaced === 1 ? '' : 's'}`;
+  return `Added ${added} flight${added === 1 ? '' : 's'}`;
 }
 $('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
 $('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
@@ -316,13 +322,17 @@ $('nfc-create').addEventListener('click', async () => {
     arr_date:    '', arr_time: '',
     ctot:        '',
   };
-  const newIdx = storage.appendLegs([newLeg]);
+  const { index: newIdx, replaced } = storage.appendLegs([newLeg]);
   await applyLeg(newIdx);
-  renderHistory();   // history mirror
+  renderHistory();
   closeNewFlightConfirm(false);  // no revert — the input now points at the new leg
-  toast(route
-    ? `ELY${digits}: ${route.dep} → ${route.arr}`
-    : `ELY${digits} created`);
+  if (replaced) {
+    toast(`ELY${digits} updated`);
+  } else {
+    toast(route
+      ? `ELY${digits}: ${route.dep} → ${route.arr}`
+      : `ELY${digits} created`);
+  }
 });
 
 // Header CTOT input — live HH:MM formatting + autosave
@@ -471,12 +481,15 @@ $('share-scan').addEventListener('click', async () => {
     const { startScanner } = await import('./modules/qr.js');
     scanStop = await startScanner($('scan-video'), async (text) => {
       try {
-        const newIdx = storage.importLeg(text);
-        $('scan-status').textContent = 'Got it — adding leg…';
+        const { index: newIdx, replaced } = storage.importLeg(text);
+        $('scan-status').textContent = replaced ? 'Updating leg…' : 'Got it — adding leg…';
         await applyLeg(newIdx);
         renderHistory();
         hideOverlay('scan-overlay');
-        toast('Flight imported');
+        const f = storage.getCurrent().dataCard.flight;
+        toast(replaced
+          ? (f ? `ELY${f} updated` : 'Flight updated')
+          : (f ? `ELY${f} imported` : 'Flight imported'));
       } catch (err) {
         $('scan-status').textContent = 'Not a Flight Card QR.';
         // Restart the scanner so the user can try again without re-opening.

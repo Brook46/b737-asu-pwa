@@ -500,18 +500,31 @@ export function clearLegs() {
 }
 
 // Append new legs to the persistent list, sort the whole list by UTC dep
-// time, then point legIndex at the first newly-added leg so the data card
-// switches to it. Returns the new index of the first added leg.
+// time, then point legIndex at the most-recent of the new entries so the
+// data card switches to it.
 //
 // Each new leg gets its own dataCard/ticks/notes bags. Identity fields
 // (flight/tail/dep/arr/flight_time/ctot) and crew fields (cpt/fo/cc1..cc5)
 // are seeded into the leg's dataCard so the data card has somewhere to
-// read from on first switch. Crew comes from the leg's parsed row.
+// read from on first switch.
+//
+// DEDUPE: if an incoming leg matches an existing leg by flight number
+// (and dep_date, when both sides have one) the incoming data is MERGED
+// into the existing leg instead of creating a duplicate. Merge rule:
+// incoming values win for any non-empty field, so the QR scanner / roster
+// re-paste act as "use the updated information" without wiping data the
+// existing leg already carries.
+//
+// Returns { index, added, replaced } so the caller can craft the right
+// toast ("Added 3 flights" vs "Updated ELY27") without inspecting state.
 export function appendLegs(newLegs) {
-  if (!Array.isArray(newLegs) || !newLegs.length) return read().current.legIndex || 0;
+  if (!Array.isArray(newLegs) || !newLegs.length) {
+    return { index: read().current.legIndex || 0, added: 0, replaced: 0 };
+  }
   const c = read().current;
   const existing = Array.isArray(c.legs) ? c.legs : [];
-  // Seed bags on each new leg up front.
+  // Seed bags on each incoming leg up front so the merge has something
+  // to copy from on the dataCard side.
   const SEED_KEYS = LEG_IDENTITY_KEYS.concat(['cpt','fo','cc1','cc2','cc3','cc4','cc5']);
   for (const leg of newLegs) {
     if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
@@ -523,17 +536,98 @@ export function appendLegs(newLegs) {
       }
     }
   }
-  // Tag added legs so we can find the first one after sorting
-  const sentinel = Symbol('newly-added');
-  newLegs.forEach(l => { l[sentinel] = true; });
-  const combined = existing.concat(newLegs);
+
+  // Partition incoming: merge into existing dupes vs. truly new entries.
+  const toAdd = [];
+  let mostRecentlyTouched = null;  // reference to whatever leg lives in the
+                                   // combined array — used to land legIndex
+                                   // on the right thing after the sort.
+  let replaced = 0;
+  for (const fresh of newLegs) {
+    const dupIdx = findDuplicateLegIdx(fresh, existing);
+    if (dupIdx >= 0) {
+      mergeLeg(existing[dupIdx], fresh);
+      mostRecentlyTouched = existing[dupIdx];
+      replaced++;
+    } else {
+      toAdd.push(fresh);
+      mostRecentlyTouched = fresh;
+    }
+  }
+
+  // Sort the combined list by UTC dep time so the switcher stays ordered.
+  const combined = existing.concat(toAdd);
   combined.sort((a, b) => depTs(a) - depTs(b));
-  const firstAddedIdx = combined.findIndex(l => l[sentinel]);
-  newLegs.forEach(l => { delete l[sentinel]; });
+
+  // Land legIndex: prefer a newly-added leg if there is one (existing
+  // behaviour — that's the most useful focus point), otherwise land on
+  // the last leg we replaced so the user can see the updated values.
+  let landIdx = 0;
+  if (toAdd.length) {
+    landIdx = combined.indexOf(toAdd[0]);
+  } else if (mostRecentlyTouched) {
+    landIdx = combined.indexOf(mostRecentlyTouched);
+  }
   c.legs = combined;
-  c.legIndex = Math.max(0, firstAddedIdx);
+  c.legIndex = Math.max(0, landIdx);
   scheduleWrite();
-  return c.legIndex;
+  return { index: c.legIndex, added: toAdd.length, replaced };
+}
+
+// Find an existing leg that "is the same flight" as the incoming one.
+// Match by digits-only flight number primarily; if BOTH sides also have
+// a dep_date, require that to match too — that handles the "same flight
+// number on a different day" edge case (rare but possible across a long
+// duty period).
+function findDuplicateLegIdx(incoming, existing) {
+  const fl = digitsOf(incoming.flight);
+  if (!fl) return -1;
+  for (let i = 0; i < existing.length; i++) {
+    const e = existing[i];
+    if (digitsOf(e.flight) !== fl) continue;
+    if (incoming.dep_date && e.dep_date && incoming.dep_date !== e.dep_date) continue;
+    return i;
+  }
+  return -1;
+}
+function digitsOf(s) {
+  return String(s == null ? '' : s).replace(/\D/g, '').replace(/^0+/, '');
+}
+
+// Merge `source` into `target` in place. Used when an incoming leg dupes
+// an existing one — we want the incoming data to win for anything it
+// actually carries, but keep the existing values for whatever the
+// incoming side left empty.
+function mergeLeg(target, source) {
+  // Top-level identity + schedule fields — incoming wins for non-empty.
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
+    if (source[k] != null && source[k] !== '') target[k] = source[k];
+  }
+  // dataCard merge — incoming wins per key for non-empty values. This is
+  // the "use the updated information" rule from the user: a QR-scanned
+  // data card overwrites manually-typed values on the receiving device,
+  // but a roster re-paste (which carries no V-speeds) doesn't blow them
+  // away.
+  target.dataCard = target.dataCard || {};
+  for (const [k, v] of Object.entries(source.dataCard || {})) {
+    if (v != null && v !== '') target.dataCard[k] = v;
+  }
+  // Ticks: union — a tick on either side stays. Otherwise an incoming
+  // empty checklist would wipe the local one.
+  target.ticks = target.ticks || {};
+  for (const [k, v] of Object.entries(source.ticks || {})) {
+    if (v) target.ticks[k] = v;
+  }
+  // Notes: incoming wins for non-empty.
+  target.notes = target.notes || {};
+  for (const [k, v] of Object.entries(source.notes || {})) {
+    if (v && String(v).trim()) target.notes[k] = v;
+  }
+  // Re-mirror identity fields into dataCard so the data card / leg
+  // switcher see a single source of truth.
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot']) {
+    if (target[k] != null && target[k] !== '') target.dataCard[k] = target[k];
+  }
 }
 
 // Delete a single leg by index. Adjusts legIndex if the deleted leg was
