@@ -252,8 +252,43 @@ function tickClocks() {
   const now = new Date();
   const u = $('clock-utc');
   if (u) u.textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
+  updateCtotColor(now);
 }
 function pad(n) { return String(n).padStart(2, '0'); }
+
+// Paint the CTOT pill based on how far the current UTC sits from the
+// entered CTOT slot time. Thresholds asked for by the user:
+//   minutes-from-CTOT       colour
+//   < -20                   neutral (no class)
+//   -20 ≤ Δ < -10           yellow  (approaching the slot)
+//   -10 ≤ Δ ≤ +5            green   (inside the slot window)
+//   +5 < Δ ≤ +10            orange  (slipping)
+//   Δ > +10                 red     (missed)
+// Δ is "now − CTOT" in minutes, so negative = early, positive = late.
+const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
+function updateCtotColor(now = new Date()) {
+  const wrap = document.querySelector('.hdr-ctot');
+  if (!wrap) return;
+  CTOT_CLASSES.forEach(c => wrap.classList.remove(c));
+  const raw = (storage.getCurrent().dataCard.ctot || '').trim();
+  // "HH:MM" — accept "1:23" or "01:23"; anything else → neutral.
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!m) return;
+  const hh = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+  if (hh > 23 || mm > 59) return;
+  // Build the CTOT timestamp as TODAY's UTC HH:MM. If that turns out to
+  // be more than 12 hours in the past, roll forward a day — the user
+  // probably entered a tomorrow-morning slot at the end of today.
+  let ctotTs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0);
+  if (now.getTime() - ctotTs > 12 * 3600 * 1000) ctotTs += 24 * 3600 * 1000;
+  const diffMin = (now.getTime() - ctotTs) / 60000;
+  let cls = '';
+  if (diffMin >= -20 && diffMin < -10) cls = 'is-ctot-yellow';
+  else if (diffMin >= -10 && diffMin <=  5) cls = 'is-ctot-green';
+  else if (diffMin >    5 && diffMin <= 10) cls = 'is-ctot-orange';
+  else if (diffMin >   10)                  cls = 'is-ctot-red';
+  if (cls) wrap.classList.add(cls);
+}
 
 // ---------- Header tail/flight inputs ----------
 // Select-all on focus for header inputs so a single keystroke replaces the value
@@ -404,6 +439,7 @@ hdrCtot.addEventListener('input', () => {
   }
   storage.setDataField('ctot', formatted);
   speeches.notifyDataChange();
+  updateCtotColor();
 });
 function formatHHMM(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);

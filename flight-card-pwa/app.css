@@ -135,6 +135,47 @@ body {
 }
 .hdr-ctot button:active { filter: brightness(.92); }
 
+/* CTOT slot-state colouring. Drives off the entered CTOT vs current UTC:
+   yellow = 20–10 min before, green = inside slot (-10 → +5 min),
+   orange = 5–10 min late, red = >10 min late. Applied to the whole
+   pill so it's spottable peripherally. Smooth transition keeps the
+   colour change from looking like a glitch. */
+.hdr-ctot { transition: background-color 0.3s ease, border-color 0.3s ease; }
+.hdr-ctot.is-ctot-yellow { background: #f5b800; border-color: #cc9a00; }
+.hdr-ctot.is-ctot-green  { background: #2da043; border-color: #1f7f33; }
+.hdr-ctot.is-ctot-orange { background: #f06621; border-color: #cc4d10; }
+.hdr-ctot.is-ctot-red    { background: #c0392b; border-color: #97291e; }
+/* White text + matching label when filled so it pops in any theme. */
+.hdr-ctot.is-ctot-yellow,
+.hdr-ctot.is-ctot-green,
+.hdr-ctot.is-ctot-orange,
+.hdr-ctot.is-ctot-red {
+  /* The "CTOT" pseudo-label, the input value, and the ↗ button background
+     all flip to a high-contrast white-on-colour palette together. */
+}
+.hdr-ctot.is-ctot-yellow::before { color: rgba(0,0,0,0.65); }
+.hdr-ctot.is-ctot-green::before,
+.hdr-ctot.is-ctot-orange::before,
+.hdr-ctot.is-ctot-red::before    { color: rgba(255,255,255,0.85); }
+.hdr-ctot.is-ctot-yellow input { color: #1a1a1a; }
+.hdr-ctot.is-ctot-green input,
+.hdr-ctot.is-ctot-orange input,
+.hdr-ctot.is-ctot-red input    { color: #fff; }
+.hdr-ctot.is-ctot-yellow input::placeholder,
+.hdr-ctot.is-ctot-green input::placeholder,
+.hdr-ctot.is-ctot-orange input::placeholder,
+.hdr-ctot.is-ctot-red input::placeholder { color: rgba(255,255,255,0.6); }
+/* Keep the FlightAware button readable against the new fill — make it a
+   semi-transparent overlay instead of the solid accent. */
+.hdr-ctot.is-ctot-yellow button#hdr-ctot-fa,
+.hdr-ctot.is-ctot-green button#hdr-ctot-fa,
+.hdr-ctot.is-ctot-orange button#hdr-ctot-fa,
+.hdr-ctot.is-ctot-red button#hdr-ctot-fa {
+  background: rgba(255,255,255,0.20);
+  color: #fff;
+}
+.hdr-ctot.is-ctot-yellow button#hdr-ctot-fa { color: #1a1a1a; background: rgba(0,0,0,0.15); }
+
 .actions {
   display: flex; gap: 3px; align-items: center;
   flex-shrink: 0;
