@@ -193,8 +193,45 @@ function tickClocks() {
   const now = new Date();
   const u = $('clock-utc');
   if (u) u.textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
+  // Defensive: a bug in updateCtotColor must never break the clock or the
+  // rest of the app. Caught here so the 1s interval can keep running and
+  // the listener-wiring further down in app.js still gets to attach.
+  try { updateCtotColor(now); } catch (err) { console.warn('CTOT colour skipped', err); }
 }
 function pad(n) { return String(n).padStart(2, '0'); }
+
+// ---------- CTOT slot-state colour ----------
+// Paint the CTOT pill based on how far the current UTC sits from the
+// entered CTOT slot time. Δ = now − CTOT (negative = early, positive = late):
+//   Δ < -20 min          → no colour      (way ahead of slot)
+//   -20 ≤ Δ < -10        → yellow         (slot approaching)
+//   -10 ≤ Δ ≤ +5         → green          (inside slot window)
+//    5 < Δ ≤ +10         → orange         (slipping)
+//    Δ > +10             → red            (missed)
+// Visuals (CSS) keep the time fully readable — outline + soft tint only,
+// never a background flood that hides the digits.
+const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
+function updateCtotColor(now = new Date()) {
+  const wrap = document.querySelector('.hdr-ctot');
+  if (!wrap) return;
+  CTOT_CLASSES.forEach(c => wrap.classList.remove(c));
+  const raw = (storage.getCurrent()?.dataCard?.ctot || '').trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!m) return;
+  const hh = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+  if (hh > 23 || mm > 59) return;
+  // Today's UTC CTOT. If today's value is more than 12h in the past
+  // it's probably a tomorrow-morning slot — roll forward a day.
+  let ctotTs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0);
+  if (now.getTime() - ctotTs > 12 * 3600 * 1000) ctotTs += 24 * 3600 * 1000;
+  const diffMin = (now.getTime() - ctotTs) / 60000;
+  let cls = '';
+  if      (diffMin >= -20 && diffMin < -10) cls = 'is-ctot-yellow';
+  else if (diffMin >= -10 && diffMin <=  5) cls = 'is-ctot-green';
+  else if (diffMin >    5 && diffMin <= 10) cls = 'is-ctot-orange';
+  else if (diffMin >   10)                  cls = 'is-ctot-red';
+  if (cls) wrap.classList.add(cls);
+}
 
 // ---------- Header tail/flight inputs ----------
 // Select-all on focus for header inputs so a single keystroke replaces the value
@@ -345,6 +382,7 @@ hdrCtot.addEventListener('input', () => {
   }
   storage.setDataField('ctot', formatted);
   speeches.notifyDataChange();
+  try { updateCtotColor(); } catch {}
 });
 function formatHHMM(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);

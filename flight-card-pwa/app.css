@@ -135,6 +135,21 @@ body {
 }
 .hdr-ctot button:active { filter: brightness(.92); }
 
+/* CTOT slot-state colouring. The pill stays a time window — only the
+   outline and a soft background tint change colour. The time digits and
+   the "CTOT" label keep their normal foreground so they're never harder
+   to read in any state. outline (not border-width) avoids any layout
+   shift when the colour kicks in. */
+.hdr-ctot {
+  transition: background-color 0.3s ease, outline-color 0.3s ease;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+}
+.hdr-ctot.is-ctot-yellow { outline-color: #f5b800; background: rgba(245,184,0, 0.12); }
+.hdr-ctot.is-ctot-green  { outline-color: #2da043; background: rgba(45,160,67, 0.12); }
+.hdr-ctot.is-ctot-orange { outline-color: #f06621; background: rgba(240,102,33,0.14); }
+.hdr-ctot.is-ctot-red    { outline-color: #c0392b; background: rgba(192,57,43, 0.16); }
+
 .actions {
   display: flex; gap: 3px; align-items: center;
   flex-shrink: 0;
