@@ -433,6 +433,23 @@ $('roster-parse').addEventListener('click', async () => {
     toast('Parse failed: ' + (err?.message || err));
   }
 });
+
+// File picker for the JSON crew-portal export. Reads the file's text into
+// the same textarea so the user can sanity-check before tapping Add flights
+// — and so a malformed file produces the same "Could not parse" toast as
+// a malformed paste.
+$('roster-file').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = '';  // let the user re-pick the same file later
+  if (!f) return;
+  try {
+    const text = await f.text();
+    $('roster-text').value = text;
+    toast(`Loaded ${f.name}`);
+  } catch (err) {
+    toast('Could not read file: ' + (err?.message || err));
+  }
+});
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
 // ---------- Share sheet (QR + scan + AirDrop sync) ----------

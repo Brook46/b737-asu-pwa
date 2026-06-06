@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=41" />
+  <link rel="stylesheet" href="./app.css?v=42" />
 </head>
 <body>
   <header class="app-header">
@@ -278,9 +278,17 @@
         <span class="pad-label">Paste roster</span>
         <button id="roster-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
-      <p class="muted small">Paste the duty bulletin from your crew portal. Each "Slip details (UTC)" line becomes a flight. New flights are added to your existing list and sorted by departure time.</p>
-      <textarea id="roster-text" rows="10" placeholder="Paste the whole bulletin here…"></textarea>
+      <p class="muted small">
+        Paste your duty bulletin (the "Slip details (UTC)" text) <em>or</em>
+        a JSON export from your crew portal. New flights are added to your list,
+        sorted by departure time, with duplicates merged.
+      </p>
+      <textarea id="roster-text" rows="10" placeholder="Paste the bulletin text or [ { edd, flt, dep, arr, … } ] JSON here…"></textarea>
       <div class="pad-actions">
+        <label class="btn" style="cursor:pointer;">
+          <input id="roster-file" type="file" accept="application/json,.json" hidden />
+          Load .json…
+        </label>
         <button id="roster-cancel" class="btn">Cancel</button>
         <button id="roster-parse"  class="btn primary">Add flights</button>
       </div>
@@ -353,6 +361,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=41"></script>
+  <script type="module" src="./app.js?v=42"></script>
 </body>
 </html>

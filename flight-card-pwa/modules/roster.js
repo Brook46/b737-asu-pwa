@@ -43,7 +43,20 @@ function normaliseTail(raw) {
 }
 
 export function parseRoster(text) {
-  if (!text || !isRoster(text)) return null;
+  if (!text) return null;
+  // JSON path — accept the lighter "crew portal" export shape too, an
+  // array of leg objects like:
+  //   { edd: "10.06.2026", flt: "2365 EKK", dep: "TLV 02:35",
+  //     arr: "BUD 06:05", flightTime: "03:30", crew: { CPT, FO, PU, CC2… } }
+  // Detection: any text that parses as a JSON array whose first element has
+  // .flt and .dep is treated as a JSON roster. Falls back to the slip-text
+  // parser below if it doesn't look like JSON.
+  const jsonArr = tryParseJsonRoster(text);
+  if (jsonArr) {
+    const out = parseJsonRoster(jsonArr);
+    if (out) return out;
+  }
+  if (!isRoster(text)) return null;
   const lines = String(text).split(/\r?\n/);
 
   // 1) Cockpit block — CPT + FO are duty-wide.
@@ -129,6 +142,97 @@ export function parseRoster(text) {
   }
 
   return { flights, cpt, fo };
+}
+
+// ---------- JSON roster shape ----------
+// Detect whether the input text is an array-of-leg-objects JSON. Returns
+// the parsed array on hit, null on miss — does NOT throw, so the
+// slip-text path remains the natural fallback.
+function tryParseJsonRoster(text) {
+  const t = String(text || '').trim();
+  if (!t || t[0] !== '[') return null;
+  let parsed;
+  try { parsed = JSON.parse(t); } catch { return null; }
+  if (!Array.isArray(parsed) || !parsed.length) return null;
+  const first = parsed[0];
+  if (!first || typeof first !== 'object') return null;
+  // Sniff: the crew-portal export carries .flt + .dep on every leg.
+  if (!first.flt || !first.dep) return null;
+  return parsed;
+}
+
+// Convert a JSON-roster array into the same { flights, cpt, fo } shape
+// the slip-text parser returns. Field names from the wire ("flt", "edd",
+// "flightTime", crew.PU…) get normalised to the internal schema
+// (flight, dep_date/dep_time, flight_time, cc1…cc5).
+function parseJsonRoster(arr) {
+  const flights = [];
+  let lastCpt = '', lastFo = '';
+  for (const e of arr) {
+    if (!e || typeof e !== 'object' || !e.flt || !e.dep) continue;
+    // "2365 EKK" → flight "2365", tail suffix "EKK". Leading zeroes on
+    // flight numbers ("0337") drop on the wire ("337") — that matches
+    // what the header pill stores, and the leg switcher prints "ELY337".
+    const fm = /^(\d{1,5})\s+([A-Z]{2,3})\b/.exec(e.flt);
+    if (!fm) continue;
+    const flightNum = String(parseInt(fm[1], 10));  // strip leading zeroes
+    const tail = normaliseTail(fm[2]);
+
+    // "TLV 02:35" → dep airport + UTC out-time. "TLV 01:25+1" on arrivals
+    // signals "next day" — captured below to roll arr_date forward.
+    const depM = /^([A-Z]{3,4})\s+(\d{1,2}:\d{2})/.exec(String(e.dep));
+    const arrM = /^([A-Z]{3,4})\s+(\d{1,2}:\d{2})(?:\s*\+(\d+))?/.exec(String(e.arr || ''));
+
+    // edd is "dd.mm.yyyy"; the internal dep_date schema is just "dd.mm"
+    // (the year gets inferred by storage.depTs's rolling-window heuristic).
+    // We do hold onto the year locally to roll arr_date forward correctly
+    // for "+1"-style overnight arrivals.
+    const eddM = /^(\d{2})\.(\d{2})\.(\d{4})/.exec(String(e.edd || ''));
+    const depDate = eddM ? `${eddM[1]}.${eddM[2]}` : '';
+    const year    = eddM ? parseInt(eddM[3], 10) : new Date().getUTCFullYear();
+
+    let arrDate = depDate;
+    if (depDate && arrM && arrM[3] && eddM) {
+      const addDays = parseInt(arrM[3], 10) || 0;
+      const d = new Date(Date.UTC(
+        year,
+        parseInt(eddM[2], 10) - 1,
+        parseInt(eddM[1], 10) + addDays
+      ));
+      arrDate = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+    }
+
+    const padT = (t) => t && t.length === 4 ? '0' + t : t;
+    const crew = (e.crew && typeof e.crew === 'object') ? e.crew : {};
+    const leg = {
+      flight:      flightNum,
+      tail,
+      dep:         depM ? depM[1].toUpperCase() : '',
+      arr:         arrM ? arrM[1].toUpperCase() : '',
+      flight_time: String(e.flightTime || ''),
+      dep_date:    depDate,
+      dep_time:    depM ? padT(depM[2]) : '',
+      arr_date:    arrDate,
+      arr_time:    arrM ? padT(arrM[2]) : '',
+      ctot:        '',
+      // Per-leg crew (the JSON shape carries crew on every leg, so
+      // captain/FO can change between legs of the same duty period).
+      cpt: crew.CPT || '',
+      fo:  crew.FO  || '',
+      // PU (purser) maps to cc1; the JSON skips a CC1 key, going PU,
+      // CC2…CC5 — same shape the slip-text parser produces.
+      cc1: crew.PU  || '',
+      cc2: crew.CC2 || '',
+      cc3: crew.CC3 || '',
+      cc4: crew.CC4 || '',
+      cc5: crew.CC5 || '',
+    };
+    if (leg.cpt) lastCpt = leg.cpt;
+    if (leg.fo)  lastFo  = leg.fo;
+    flights.push(leg);
+  }
+  if (!flights.length) return null;
+  return { flights, cpt: lastCpt, fo: lastFo };
 }
 
 // Convert a leg into the dataCard field bag that storage.setDataBulk wants.
