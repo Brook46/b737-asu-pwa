@@ -85,7 +85,6 @@ function renderAll() {
   checklist.render(checklistBody);
   renderHistory();
   renderLegSwitcher();
-  updatePastLegTint();
 }
 
 // ---------- Leg switcher ----------
@@ -103,14 +102,7 @@ function renderLegSwitcher() {
   $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
   const flight = leg.flight ? displayFlight(leg.flight) : '';
   const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-  // Use innerHTML so the FLOWN tag span can render inline. The base text
-  // is trusted (built from leg fields) but we still escape it before
-  // concatenating the badge span — defense in depth in case a tail
-  // string ever contains stray HTML metacharacters.
-  const past   = isLegPast(leg);
-  const baseTxt = [flight, route].filter(Boolean).join('  ');
-  $('leg-route').innerHTML = escapeHtml(baseTxt) +
-    (past ? '<span class="leg-past-tag">FLOWN</span>' : '');
+  $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
   $('leg-prev').disabled = idx <= 0;
   $('leg-next').disabled = idx >= legs.length - 1;
 }
@@ -127,59 +119,8 @@ async function applyLeg(idx) {
   checklist.render(checklistBody);
   syncHeaderInputs();
   renderLegSwitcher();
-  updatePastLegTint();
   speeches.notifyDataChange();
 }
-
-// Past-leg visual cue: when the active leg's arrival UTC is in the past,
-// flip body.is-past-leg → app background becomes a soft red. Re-evaluated
-// every leg switch and once a minute on a wall-clock tick so a leg that
-// just crossed into the past picks up the tint without a refresh.
-function isLegPast(leg) {
-  if (!leg) return false;
-  // Prefer arr_date/time; fall back to dep_date/time if arr isn't known.
-  const d = leg.arr_date || leg.dep_date;
-  const t = leg.arr_time || leg.dep_time;
-  if (!d || !t) return false;
-  const dm = String(d).split('.');
-  if (dm.length !== 2) return false;
-  const yearNow = new Date().getUTCFullYear();
-  const iso = `${yearNow}-${dm[1]}-${dm[0]}T${t}:00Z`;
-  let ts = Date.parse(iso);
-  if (!Number.isFinite(ts)) return false;
-  const now = Date.now();
-  // Roll forward if the parsed time is >6 months stale — same heuristic
-  // depTs uses so year-end rosters don't all look like past flights in Jan.
-  if (now - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
-  }
-  return Number.isFinite(ts) && ts < now;
-}
-function updatePastLegTint() {
-  const legs = storage.getLegs();
-  const leg = legs[storage.getLegIndex()] || null;
-  const past = isLegPast(leg);
-  document.body.classList.toggle('is-past-leg', past);
-  // Fill the banner sub-line with a useful one-glance summary —
-  // route + date so the user immediately sees which past flight they're
-  // looking at, not just "some past flight."
-  const sub = $('past-leg-sub');
-  if (sub) {
-    if (past && leg) {
-      const f     = leg.flight ? `ELY${normaliseFlightNumber(leg.flight)}` : '';
-      const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-      const date  = leg.arr_date || leg.dep_date || '';
-      const time  = leg.arr_time || leg.dep_time || '';
-      const when  = [date, time].filter(Boolean).join(' ') + (date || time ? 'Z' : '');
-      sub.textContent = [f, route, when].filter(Boolean).join(' · ');
-    } else {
-      sub.textContent = '';
-    }
-  }
-}
-// Re-check once a minute so a leg that crosses into the past mid-session
-// picks up the red tint without the user touching anything.
-setInterval(updatePastLegTint, 60 * 1000);
 async function applyRoster(parsed) {
   if (!parsed || !parsed.flights?.length) return;
   // Append to the persistent leg list; storage sorts the combined list by UTC
@@ -252,43 +193,8 @@ function tickClocks() {
   const now = new Date();
   const u = $('clock-utc');
   if (u) u.textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
-  updateCtotColor(now);
 }
 function pad(n) { return String(n).padStart(2, '0'); }
-
-// Paint the CTOT pill based on how far the current UTC sits from the
-// entered CTOT slot time. Thresholds asked for by the user:
-//   minutes-from-CTOT       colour
-//   < -20                   neutral (no class)
-//   -20 ≤ Δ < -10           yellow  (approaching the slot)
-//   -10 ≤ Δ ≤ +5            green   (inside the slot window)
-//   +5 < Δ ≤ +10            orange  (slipping)
-//   Δ > +10                 red     (missed)
-// Δ is "now − CTOT" in minutes, so negative = early, positive = late.
-const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
-function updateCtotColor(now = new Date()) {
-  const wrap = document.querySelector('.hdr-ctot');
-  if (!wrap) return;
-  CTOT_CLASSES.forEach(c => wrap.classList.remove(c));
-  const raw = (storage.getCurrent().dataCard.ctot || '').trim();
-  // "HH:MM" — accept "1:23" or "01:23"; anything else → neutral.
-  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
-  if (!m) return;
-  const hh = parseInt(m[1], 10), mm = parseInt(m[2], 10);
-  if (hh > 23 || mm > 59) return;
-  // Build the CTOT timestamp as TODAY's UTC HH:MM. If that turns out to
-  // be more than 12 hours in the past, roll forward a day — the user
-  // probably entered a tomorrow-morning slot at the end of today.
-  let ctotTs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0);
-  if (now.getTime() - ctotTs > 12 * 3600 * 1000) ctotTs += 24 * 3600 * 1000;
-  const diffMin = (now.getTime() - ctotTs) / 60000;
-  let cls = '';
-  if (diffMin >= -20 && diffMin < -10) cls = 'is-ctot-yellow';
-  else if (diffMin >= -10 && diffMin <=  5) cls = 'is-ctot-green';
-  else if (diffMin >    5 && diffMin <= 10) cls = 'is-ctot-orange';
-  else if (diffMin >   10)                  cls = 'is-ctot-red';
-  if (cls) wrap.classList.add(cls);
-}
 
 // ---------- Header tail/flight inputs ----------
 // Select-all on focus for header inputs so a single keystroke replaces the value
@@ -439,7 +345,6 @@ hdrCtot.addEventListener('input', () => {
   }
   storage.setDataField('ctot', formatted);
   speeches.notifyDataChange();
-  updateCtotColor();
 });
 function formatHHMM(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);

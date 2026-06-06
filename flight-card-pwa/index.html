@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=47" />
+  <link rel="stylesheet" href="./app.css?v=48" />
 </head>
 <body>
   <header class="app-header">
@@ -84,18 +84,6 @@
   </div>
 
   <main id="main" class="main">
-    <!-- Past-leg banner: pinned at the top when the active leg's arrival
-         UTC has already passed. Hidden by default, made visible by
-         body.is-past-leg in CSS. Content is filled by updatePastLegTint
-         in app.js. -->
-    <div id="past-leg-banner" class="past-banner" role="status" aria-live="polite">
-      <span class="past-icon" aria-hidden="true">✓</span>
-      <span class="past-meta">
-        <span class="past-label">Flown · in the past</span>
-        <span id="past-leg-sub" class="past-sub">—</span>
-      </span>
-    </div>
-
     <!-- Checklist -->
     <section class="card" id="card-checklist" data-section="checklist">
       <header class="card-head">
@@ -373,6 +361,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=47"></script>
+  <script type="module" src="./app.js?v=48"></script>
 </body>
 </html>
