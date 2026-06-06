@@ -103,18 +103,16 @@ function renderLegSwitcher() {
   $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
   const flight = leg.flight ? displayFlight(leg.flight) : '';
   const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-  // Use innerHTML so the FLOWN tag span can render inline. The two source
-  // strings are trusted (built from leg fields that came from storage).
+  // Use innerHTML so the FLOWN tag span can render inline. The base text
+  // is trusted (built from leg fields) but we still escape it before
+  // concatenating the badge span — defense in depth in case a tail
+  // string ever contains stray HTML metacharacters.
   const past   = isLegPast(leg);
   const baseTxt = [flight, route].filter(Boolean).join('  ');
   $('leg-route').innerHTML = escapeHtml(baseTxt) +
     (past ? '<span class="leg-past-tag">FLOWN</span>' : '');
   $('leg-prev').disabled = idx <= 0;
   $('leg-next').disabled = idx >= legs.length - 1;
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, ch =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[ch]);
 }
 async function applyLeg(idx) {
   const legs = storage.getLegs();
