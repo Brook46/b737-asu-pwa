@@ -434,17 +434,31 @@ function flightProfilePath() {
   ].join(' ');
 }
 
-// Clean top-down airliner silhouette (single symmetric path), nose-right,
-// sitting on a dark circular plate with a thin accent ring.
+function phaseProgressPct(activeIdx) {
+  if (activeIdx < 0) return 0;
+  const startX = 30;
+  const endX = 970;
+  const x = Math.max(startX, Math.min(endX, phasePos(activeIdx).x));
+  return Math.round(((x - startX) / (endX - startX)) * 100);
+}
+
+// Clean top-down jet silhouette, nose-right, sitting on a compact instrument
+// marker. The little wake mark keeps it reading as "current position" instead
+// of a decorative icon.
 const PLANE_SVG = `
   <g class="fp-plane-glyph">
-    <circle class="fp-plane-bg" r="14" />
-    <circle class="fp-plane-ring" r="14" fill="none" />
+    <circle class="fp-plane-bg" r="15.5" />
+    <circle class="fp-plane-ring" r="15.5" fill="none" />
+    <path class="fp-plane-wake" d="M -21 0 L -16 0" />
     <path class="fp-plane-shape" d="
-      M 12 0
-      L 4 -1.4 L 1 -1.4 L -3 -8 L -5 -8 L -2 -1.4 L -7 -1.4
-      L -9 -4 L -10.5 -4 L -9.5 -1.4 L -12 -0.5 L -12 0.5 L -9.5 1.4
-      L -10.5 4 L -9 4 L -7 1.4 L -2 1.4 L -5 8 L -3 8 L 1 1.4 L 4 1.4
+      M 13.5 0
+      C 12.2 -1.6 10.3 -2.3 7.6 -2.3
+      L 2.4 -2.3 L -1.8 -10.2 L -4.4 -10.2 L -2.0 -2.3
+      L -7.8 -2.3 L -11.2 -5.0 L -13.1 -5.0 L -11.2 -1.2
+      L -14.2 -0.6 L -14.2 0.6 L -11.2 1.2
+      L -13.1 5.0 L -11.2 5.0 L -7.8 2.3 L -2.0 2.3
+      L -4.4 10.2 L -1.8 10.2 L 2.4 2.3 L 7.6 2.3
+      C 10.3 2.3 12.2 1.6 13.5 0
       Z" />
   </g>`;
 
@@ -459,16 +473,18 @@ function renderHomePhases() {
       <g class="fp-tick ${on ? 'on' : ''} ${passed ? 'passed' : ''}" data-phase="${p.id}" transform="translate(${pos.x} ${pos.y})">
         <circle class="fp-hit" r="22" />
         <circle class="fp-dot" r="${on ? 6 : 4.5}" />
-        <text class="fp-label" text-anchor="middle" y="22">${escapeHtml(p.label)}</text>
-        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="34">GPS</text>
+        <text class="fp-label ${on ? 'active-label' : ''}" text-anchor="middle" y="${on ? 35 : 22}">${escapeHtml(p.label)}</text>
+        <text class="fp-gps hidden" data-gps="${p.id}" text-anchor="middle" y="${on ? 47 : 34}">GPS</text>
       </g>`;
   }).join('');
   const planePos = hasActive ? phasePos(activeIdx) : phasePos(0);
   // Plane sits centred on the active phase's dot — the airplane glyph IS
   // the current-phase marker.
+  const progress = phaseProgressPct(activeIdx);
   els.homePhases.innerHTML = `
     <svg class="flight-strip" viewBox="0 0 ${STRIP_VB_W} ${STRIP_VB_H}" preserveAspectRatio="xMidYMid meet" role="radiogroup" aria-label="Phase of flight">
-      <path class="fp-line" d="${flightProfilePath()}" />
+      <path class="fp-line fp-line-base" d="${flightProfilePath()}" pathLength="100" />
+      <path class="fp-line fp-line-progress" d="${flightProfilePath()}" pathLength="100" style="stroke-dasharray:${progress} 100" />
       ${ticks}
       <g class="fp-plane ${hasActive ? '' : 'inactive'}" transform="translate(${planePos.x} ${planePos.y})">
         <title>Drag to change phase</title>
@@ -2865,16 +2881,43 @@ async function openViewer() {
   try { renderSidebar(); } catch (_) {}
 }
 
-// Viewer zoom — applies a CSS transform: scale to each .pdf-pane. Clamped
-// to [0.5, 3]. Driven by both the toolbar ＋/− buttons and a pinch handler
-// installed on #pdf-panes (see installViewerPinchZoom below).
-function setViewerZoom(z) {
+// Viewer zoom. We scale the page contents and also enlarge each .pdf-page's
+// layout box, so the scroll area grows with the document. That feels much
+// closer to iPad Preview than a plain transform on the pane.
+function setViewerZoom(z, opts = {}) {
   const next = Math.max(0.5, Math.min(3, +z.toFixed(2)));
+  const old = parseFloat(els.pdfPanes.dataset.zoom || '1') || 1;
+  const scrollEl = opts.scrollEl || state.viewer.panes[state.viewer.focused]?.scrollEl || null;
+  let keep = null;
+  if (scrollEl) {
+    const r = scrollEl.getBoundingClientRect();
+    const cx = opts.center?.x ?? (r.left + r.width / 2);
+    const cy = opts.center?.y ?? (r.top + r.height / 2);
+    keep = {
+      el: scrollEl,
+      x: (scrollEl.scrollLeft + Math.max(0, cx - r.left)) / old,
+      y: (scrollEl.scrollTop + Math.max(0, cy - r.top)) / old,
+      cx: Math.max(0, cx - r.left),
+      cy: Math.max(0, cy - r.top),
+    };
+  }
   els.pdfPanes.dataset.zoom = next;
-  els.pdfPanes.querySelectorAll('.pdf-pane').forEach((p) => {
-    p.style.transform = `scale(${next})`;
-    p.style.transformOrigin = 'top center';
+  els.pdfPanes.querySelectorAll('.pdf-page').forEach((page) => {
+    const baseW = +(page.dataset.baseW || parseFloat(page.style.width) || page.clientWidth || 0);
+    const baseH = +(page.dataset.baseH || parseFloat(page.style.height) || page.clientHeight || 0);
+    if (!page.dataset.baseW) page.dataset.baseW = String(baseW);
+    if (!page.dataset.baseH) page.dataset.baseH = String(baseH);
+    page.style.width = Math.round(baseW * next) + 'px';
+    page.style.height = Math.round(baseH * next) + 'px';
+    page.querySelectorAll(':scope > canvas, :scope > div').forEach((child) => {
+      child.style.transform = `scale(${next})`;
+      child.style.transformOrigin = 'top left';
+    });
   });
+  if (keep) {
+    keep.el.scrollLeft = Math.max(0, keep.x * next - keep.cx);
+    keep.el.scrollTop = Math.max(0, keep.y * next - keep.cy);
+  }
 }
 function applyViewerZoom(delta) {
   setViewerZoom((parseFloat(els.pdfPanes.dataset.zoom || '1') || 1) + delta);
@@ -2897,7 +2940,7 @@ function installViewerPinchZoom() {
       startDist = Math.hypot(a.x - b.x, a.y - b.y);
       startZoom = parseFloat(el.dataset.zoom || '1') || 1;
       // Disable transitions during pinch for responsiveness.
-      el.querySelectorAll('.pdf-pane').forEach((p) => { p.style.transition = 'none'; });
+      el.querySelectorAll('.pdf-page > canvas, .pdf-page > div').forEach((p) => { p.style.transition = 'none'; });
     }
   });
   el.addEventListener('pointermove', (e) => {
@@ -2909,7 +2952,8 @@ function installViewerPinchZoom() {
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       if (startDist > 0) {
         const ratio = d / startDist;
-        setViewerZoom(startZoom * ratio);
+        const scrollEl = e.target.closest?.('.pdf-scroll') || state.viewer.panes[state.viewer.focused]?.scrollEl;
+        setViewerZoom(startZoom * ratio, { scrollEl, center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } });
         e.preventDefault();
       }
     }
@@ -2919,7 +2963,7 @@ function installViewerPinchZoom() {
     pointers.delete(e.pointerId);
     if (pointers.size < 2) {
       startDist = 0;
-      el.querySelectorAll('.pdf-pane').forEach((p) => { p.style.transition = ''; });
+      el.querySelectorAll('.pdf-page > canvas, .pdf-page > div').forEach((p) => { p.style.transition = ''; });
     }
   };
   el.addEventListener('pointerup', end);
@@ -3164,6 +3208,7 @@ async function mountPane(i) {
     const pInput = pane.headEl.querySelector('[data-f="page"]');
     pInput.max = String(api.numPages);
     updatePanePage(i, tab.pageNum, api.numPages);
+    setViewerZoom(parseFloat(els.pdfPanes.dataset.zoom || '1') || 1, { scrollEl: pane.scrollEl });
   } catch (err) {
     console.error(err);
     toast('Failed to render PDF: ' + err.message);

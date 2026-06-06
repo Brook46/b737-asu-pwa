@@ -78,6 +78,10 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+button, input, select, textarea {
+  font: inherit;
+}
+
 .hidden { display: none !important; }
 
 /* --- Header --- */
@@ -100,12 +104,10 @@ body {
 }
 .brand {
   display: flex; align-items: center; gap: 11px;
-  font-weight: 700; font-size: 19px; letter-spacing: -0.015em;
+  font-weight: 800; font-size: 19px; letter-spacing: 0;
 }
 .brand-text {
-  background: linear-gradient(135deg, var(--fg) 60%, color-mix(in srgb, var(--accent) 80%, var(--fg)));
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
+  color: var(--fg);
 }
 .brand-mark {
   width: 32px; height: 32px; border-radius: 9px;
@@ -352,11 +354,18 @@ body {
   overflow-y: auto; overflow-x: auto;
   padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 14px;
   background: var(--bg-elev-2);
-  scroll-snap-type: y proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
+  scroll-snap-type: y proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
 }
 .pdf-page {
   position: relative; background: white; box-shadow: var(--shadow);
   flex-shrink: 0; scroll-snap-align: center;
+}
+.pdf-page > canvas,
+.pdf-page > div {
+  transform-origin: top left;
 }
 .pdf-page canvas.pdf-draw-layer { background: transparent; }
 .pdf-page > canvas:first-child { display: block; }
@@ -438,6 +447,7 @@ body {
   min-height: 0;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;       /* explicitly allow vertical pan */
+  scrollbar-gutter: stable;
 }
 .modal-overlay {
   /* Block touch-scroll on the backdrop so it doesn't scroll the home
@@ -945,46 +955,65 @@ body.has-dock .app-main { padding-bottom: 60px; }
 }
 .home-phases .fp-line {
   fill: none;
-  stroke: color-mix(in srgb, var(--accent) 75%, transparent);
-  stroke-width: 2; vector-effect: non-scaling-stroke;
+  stroke-width: 2.4; vector-effect: non-scaling-stroke;
   stroke-linecap: round; stroke-linejoin: round;
+}
+.home-phases .fp-line-base {
+  stroke: color-mix(in srgb, var(--fg-muted) 35%, transparent);
+}
+.home-phases .fp-line-progress {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 36%, transparent));
 }
 .home-phases .fp-tick { cursor: pointer; }
 .home-phases .fp-hit { fill: transparent; }
 .home-phases .fp-dot {
-  fill: color-mix(in srgb, var(--accent) 70%, var(--fg-muted));
-  transition: fill .15s ease, r .15s ease;
+  fill: var(--bg-elev);
+  stroke: color-mix(in srgb, var(--fg-muted) 72%, var(--border));
+  stroke-width: 1.8; vector-effect: non-scaling-stroke;
+  transition: fill .15s ease, r .15s ease, stroke .15s ease;
 }
 .home-phases .fp-tick:hover .fp-dot,
-.home-phases .fp-tick.drag-hover .fp-dot { fill: var(--accent); }
-.home-phases .fp-tick.passed .fp-dot { fill: var(--accent); }
+.home-phases .fp-tick.drag-hover .fp-dot { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 18%, var(--bg-elev)); }
+.home-phases .fp-tick.passed .fp-dot { fill: var(--accent); stroke: var(--accent); }
 .home-phases .fp-tick.passed .fp-label { fill: color-mix(in srgb, var(--accent) 75%, var(--fg)); }
 .home-phases .fp-tick.on .fp-dot {
   fill: var(--accent);
+  stroke: #fff;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 75%, transparent));
 }
 .home-phases .fp-label {
-  font: 600 14px 'Inter', sans-serif; fill: var(--fg); letter-spacing: -0.01em;
+  font: 700 14.5px 'Inter', sans-serif; fill: var(--fg); letter-spacing: 0;
   paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round;
 }
-.home-phases .fp-tick.on .fp-label { fill: var(--accent); }
+.home-phases .fp-tick.on .fp-label {
+  fill: var(--accent);
+  font-weight: 800;
+  stroke-width: 4px;
+}
 .home-phases .fp-gps { font-size: 10px; fill: var(--accent); font-weight: 700; }
 .home-phases .fp-plane {
   cursor: grab; touch-action: none;
   transition: transform .25s cubic-bezier(.4, 1.2, .5, 1);
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.45));
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,.5));
 }
 .home-phases .fp-plane:active { cursor: grabbing; transition: none; }
 .home-phases .fp-plane-bg {
-  fill: #0c111e;
+  fill: color-mix(in srgb, #07101c 88%, var(--accent) 12%);
 }
 .home-phases .fp-plane-ring {
-  stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke;
+  stroke: color-mix(in srgb, var(--accent) 90%, #fff 10%);
+  stroke-width: 2.2; vector-effect: non-scaling-stroke;
+}
+.home-phases .fp-plane-wake {
+  fill: none; stroke: var(--accent); stroke-width: 2.1;
+  stroke-linecap: round; opacity: .9; vector-effect: non-scaling-stroke;
 }
 .home-phases .fp-plane-shape {
   fill: #fff;
 }
 .home-phases .fp-plane.inactive .fp-plane-ring { stroke: var(--fg-muted); opacity: .5; }
+.home-phases .fp-plane.inactive .fp-plane-wake { stroke: var(--fg-muted); opacity: .35; }
 .home-phases .fp-plane.inactive .fp-plane-bg { fill: color-mix(in srgb, #0c111e 70%, var(--bg-elev)); }
 .home-phases .fp-plane.inactive .fp-plane-shape { fill: color-mix(in srgb, #fff 70%, var(--fg-muted)); }
 .home-row {
@@ -1459,8 +1488,30 @@ body.has-dock .app-main { padding-bottom: 60px; }
 }
 .hr-zoom-btn:hover { background: var(--bg-elev-2); border-color: var(--accent); color: var(--accent); }
 
-/* Viewer-level zoom. Our JS pinch handler takes over for 2-finger gestures;
-   touch-action: pan-y lets the user keep scrolling pages vertically with a
-   single finger. */
-#pdf-panes { touch-action: pan-y; }
-.pdf-pane { transition: transform .15s ease; transform-origin: top center; }
+/* Viewer-level zoom. JS scales each page and expands its layout box, so the
+   PDF remains scrollable after pinch-zoom on iPad. */
+#pdf-panes { touch-action: pan-x pan-y; }
+.pdf-page > canvas,
+.pdf-page > div { transition: transform .15s ease; }
+
+@media (max-width: 760px) {
+  .app-header { padding-left: 14px; padding-right: 14px; gap: 8px; }
+  .brand { gap: 8px; font-size: 17px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .actions { gap: 6px; }
+  #view-phase { padding: 12px 12px 88px; gap: 12px; }
+  .home-search-row { gap: 6px; }
+  .home-search-field { border-radius: 9px; }
+  .home-phases { padding: 8px 0 0; }
+  .home-phases .flight-strip { min-height: 76px; }
+  .home-phases .fp-label { font-size: 13px; }
+  .home-row { gap: 7px; padding: 0; }
+  .home-row-label { width: 28px; height: 28px; }
+  .home-chip { padding: 7px 11px; font-size: 0.88em; }
+  .home-result { border-radius: 10px; }
+  .hr-row { padding: 12px; gap: 10px; }
+  .hr-kind { width: 30px; height: 30px; }
+  .settings-row,
+  .manage-row { flex-wrap: wrap; }
+  .manage-row .mr-parent { max-width: none; flex: 1 1 160px; }
+}
