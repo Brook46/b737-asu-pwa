@@ -119,6 +119,10 @@ async function applyLeg(idx) {
   checklist.render(checklistBody);
   syncHeaderInputs();
   renderLegSwitcher();
+  // Past-leg cue: refresh on leg switch so the dim + PAST pill flip
+  // immediately. Wrapped defensively so a bug here can never stop the
+  // rest of applyLeg from finishing.
+  try { updatePastLegUI(); } catch (err) { console.warn('past-leg cue skipped', err); }
   speeches.notifyDataChange();
 }
 async function applyRoster(parsed) {
@@ -193,10 +197,11 @@ function tickClocks() {
   const now = new Date();
   const u = $('clock-utc');
   if (u) u.textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}Z`;
-  // Defensive: a bug in updateCtotColor must never break the clock or the
+  // Defensive: a bug in either of these must never break the clock or the
   // rest of the app. Caught here so the 1s interval can keep running and
   // the listener-wiring further down in app.js still gets to attach.
-  try { updateCtotColor(now); } catch (err) { console.warn('CTOT colour skipped', err); }
+  try { updateCtotColor(now); }   catch (err) { console.warn('CTOT colour skipped', err); }
+  try { updatePastLegUI(now); }   catch (err) { console.warn('past-leg cue skipped', err); }
 }
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -231,6 +236,57 @@ function updateCtotColor(now = new Date()) {
   else if (diffMin >    5 && diffMin <= 10) cls = 'is-ctot-orange';
   else if (diffMin >   10)                  cls = 'is-ctot-red';
   if (cls) wrap.classList.add(cls);
+}
+
+// ---------- Past-leg indication ----------
+// A leg is "past" when its arrival UTC has already happened. When the
+// active leg is past:
+//   - body.is-past-leg is set → CSS dims the data + checklist cards a
+//     little so they feel archived (still readable, just visually
+//     "historical record" rather than live data).
+//   - The leg-switcher chip gets a small inline "PAST" pill.
+// No body background wash, no overlay banner — those caused the bugs
+// last time. Just the dim + pill.
+function isLegPast(leg, now = new Date()) {
+  if (!leg) return false;
+  // Prefer arr_date/time; fall back to dep_date/time when arr isn't known.
+  const d = leg.arr_date || leg.dep_date;
+  const t = leg.arr_time || leg.dep_time;
+  if (!d || !t) return false;
+  const dm = String(d).split('.');
+  if (dm.length !== 2) return false;
+  const tm = String(t).match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return false;
+  const yearNow = now.getUTCFullYear();
+  let ts = Date.UTC(yearNow, parseInt(dm[1], 10) - 1, parseInt(dm[0], 10), parseInt(tm[1], 10), parseInt(tm[2], 10), 0);
+  if (!Number.isFinite(ts)) return false;
+  // Roll forward if the resulting time is >6 months stale (handles
+  // year-end roster bulletins read in January).
+  if (now.getTime() - ts > 6 * 30 * 24 * 3600 * 1000) {
+    ts = Date.UTC(yearNow + 1, parseInt(dm[1], 10) - 1, parseInt(dm[0], 10), parseInt(tm[1], 10), parseInt(tm[2], 10), 0);
+  }
+  return ts < now.getTime();
+}
+function updatePastLegUI(now = new Date()) {
+  const legs = storage.getLegs?.() || [];
+  const leg = legs[storage.getLegIndex?.() || 0] || null;
+  const past = isLegPast(leg, now);
+  document.body.classList.toggle('is-past-leg', past);
+  // Toggle the small inline pill on the leg-switcher chip. Built as a
+  // DOM element (not via innerHTML) so the existing chip text isn't
+  // disturbed — no escaping or HTML-construction footguns.
+  const routeEl = $('leg-route');
+  if (routeEl) {
+    const existing = routeEl.querySelector('.leg-past-tag');
+    if (past && !existing) {
+      const tag = document.createElement('span');
+      tag.className = 'leg-past-tag';
+      tag.textContent = 'PAST';
+      routeEl.appendChild(tag);
+    } else if (!past && existing) {
+      existing.remove();
+    }
+  }
 }
 
 // ---------- Header tail/flight inputs ----------

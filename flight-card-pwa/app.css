@@ -150,6 +150,34 @@ body {
 .hdr-ctot.is-ctot-orange { outline-color: #f06621; background: rgba(240,102,33,0.14); }
 .hdr-ctot.is-ctot-red    { outline-color: #c0392b; background: rgba(192,57,43, 0.16); }
 
+/* ---------- Past-leg cue ----------
+   Two subtle changes when the active leg's arrival UTC has passed:
+   - The data + checklist cards dim a touch + lose colour saturation so
+     they feel like a historical record without becoming hard to read.
+   - The leg-switcher chip grows a tiny inline "PAST" pill (DOM-built in
+     updatePastLegUI), so even from the leg switcher you can tell at a
+     glance which leg you're looking at is already done.
+   Deliberately NO full-body wash and NO overlay banner — those caused
+   button-blocking / parse bugs last time. */
+body.is-past-leg #card-data,
+body.is-past-leg #card-checklist {
+  opacity: 0.85;
+  filter: saturate(0.5);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+.leg-past-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #c0392b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
 .actions {
   display: flex; gap: 3px; align-items: center;
   flex-shrink: 0;
