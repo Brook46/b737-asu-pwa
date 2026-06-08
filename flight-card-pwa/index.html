@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=50" />
+  <link rel="stylesheet" href="./app.css?v=51" />
 </head>
 <body>
   <header class="app-header">
@@ -22,6 +22,7 @@
       <div class="hdr-ctot">
         <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" maxlength="5" aria-label="CTOT (UTC)" />
         <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
+        <button id="hdr-ctot-bell" type="button" class="hdr-ctot-bell is-off" title="Enable CTOT alerts (20 / 10 / now)" aria-label="Toggle CTOT alerts">🔕</button>
       </div>
       <div class="hdr-spacer"></div>
       <div class="actions">
@@ -361,6 +362,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=50"></script>
+  <script type="module" src="./app.js?v=51"></script>
 </body>
 </html>

@@ -202,6 +202,7 @@ function tickClocks() {
   // the listener-wiring further down in app.js still gets to attach.
   try { updateCtotColor(now); }   catch (err) { console.warn('CTOT colour skipped', err); }
   try { updatePastLegUI(now); }   catch (err) { console.warn('past-leg cue skipped', err); }
+  try { maybeFireCtotAlert(now); } catch (err) { console.warn('CTOT alert skipped', err); }
 }
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -236,6 +237,161 @@ function updateCtotColor(now = new Date()) {
   else if (diffMin >    5 && diffMin <= 10) cls = 'is-ctot-orange';
   else if (diffMin >   10)                  cls = 'is-ctot-red';
   if (cls) wrap.classList.add(cls);
+}
+
+// ---------- CTOT countdown notifications (foreground) ----------
+// Active alerts at the same thresholds as the colour cue:
+//   T-20 min  → "CTOT in 20 minutes — ELY###"
+//   T-10 min  → "CTOT in 10 minutes — ELY###"
+//   T 0       → "CTOT now — ELY###"
+//
+// Foreground only — no service-worker push, no VAPID, no server. Works
+// when the PWA is open (iOS 16.4+ installed PWA also fires the banner
+// while the app is "recently used" in the background). When the PWA is
+// fully closed nothing fires; that's a known limitation of the no-server
+// path the user accepted.
+//
+// Crossing detection: keep the previous diffMin. Fire only when the new
+// diff is at-or-past a threshold AND the previous was strictly before it.
+// State resets when the CTOT string changes (input handler calls
+// resetCtotAlertState) so a fresh countdown starts clean.
+const CTOT_ALERTS_KEY = 'fc.notifs.ctot';
+const ctotAlerts = {
+  prevDiffMin: null,
+  // The CTOT string we're tracking. When it changes, the fired set
+  // is cleared so a new entry can re-fire each threshold.
+  trackedCtot: '',
+  fired: new Set(),
+};
+function ctotAlertsEnabled() {
+  try { return localStorage.getItem(CTOT_ALERTS_KEY) === 'on'; }
+  catch { return false; }
+}
+function setCtotAlertsEnabled(on) {
+  try { localStorage.setItem(CTOT_ALERTS_KEY, on ? 'on' : ''); } catch {}
+}
+function resetCtotAlertState() {
+  ctotAlerts.prevDiffMin = null;
+  ctotAlerts.trackedCtot = '';
+  ctotAlerts.fired = new Set();
+}
+
+// Compute the CTOT diff in minutes the same way updateCtotColor does, so
+// the alerts and the pill colour can never disagree. Returns null when
+// there's no valid CTOT to track.
+function ctotDiffMinutes(now) {
+  const raw = (storage.getCurrent()?.dataCard?.ctot || '').trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!m) return { raw: '', diff: null };
+  const hh = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+  if (hh > 23 || mm > 59) return { raw, diff: null };
+  let ctotTs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0);
+  if (now.getTime() - ctotTs > 12 * 3600 * 1000) ctotTs += 24 * 3600 * 1000;
+  return { raw, diff: (now.getTime() - ctotTs) / 60000 };
+}
+
+function maybeFireCtotAlert(now) {
+  if (!ctotAlertsEnabled()) return;
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+
+  const { raw, diff } = ctotDiffMinutes(now);
+  if (diff == null) { ctotAlerts.prevDiffMin = null; return; }
+  // CTOT changed under us → start a fresh crossing track.
+  if (raw !== ctotAlerts.trackedCtot) {
+    ctotAlerts.trackedCtot = raw;
+    ctotAlerts.fired = new Set();
+    ctotAlerts.prevDiffMin = diff;
+    return;
+  }
+  const prev = ctotAlerts.prevDiffMin;
+  ctotAlerts.prevDiffMin = diff;
+  if (prev == null) return;
+
+  const thresholds = [
+    { key: 'T-20', when: -20, label: 'CTOT in 20 minutes' },
+    { key: 'T-10', when: -10, label: 'CTOT in 10 minutes' },
+    { key: 'T0',   when:   0, label: 'CTOT now' },
+  ];
+  const flightStr = (() => {
+    const f = storage.getCurrent()?.dataCard?.flight || '';
+    return f ? ' — ' + displayFlight(f) : '';
+  })();
+  for (const t of thresholds) {
+    if (ctotAlerts.fired.has(t.key)) continue;
+    if (prev < t.when && diff >= t.when) {
+      try {
+        new Notification('Flight Card', {
+          body: t.label + flightStr,
+          icon: './icons/icon-192.png',
+          tag:  'fc-ctot-' + t.key,
+        });
+        ctotAlerts.fired.add(t.key);
+      } catch (err) {
+        console.warn('Notification fire failed', err);
+      }
+    }
+  }
+}
+
+// Bell button — three visual states driven by Notification.permission and
+// the local opt-in flag in localStorage. Tap behaviour:
+//   default  → requestPermission(). On grant, opt in + fire a confirmation
+//              notification. On deny, toast → enable in iOS Settings.
+//   granted  → toggle the local opt-in flag. Confirmation notification on
+//              first opt-in so the user sees the banner shape.
+//   denied   → toast pointing at iOS Settings (permission can only be
+//              changed there, not from the page).
+function paintCtotBell() {
+  const btn = $('hdr-ctot-bell');
+  if (!btn) return;
+  btn.classList.remove('is-off', 'is-on', 'is-denied');
+  let state;
+  if (typeof Notification === 'undefined') state = 'off';
+  else if (Notification.permission === 'denied') state = 'denied';
+  else if (Notification.permission === 'granted' && ctotAlertsEnabled()) state = 'on';
+  else state = 'off';
+  btn.classList.add('is-' + state);
+  btn.textContent = (state === 'on') ? '🔔' : '🔕';
+  btn.title = state === 'on'
+    ? 'CTOT alerts on (tap to mute)'
+    : state === 'denied'
+      ? 'Notifications blocked — enable in iOS Settings'
+      : 'Enable CTOT alerts (20 / 10 / now)';
+}
+async function onBellTap() {
+  if (typeof Notification === 'undefined') {
+    toast('This browser does not support notifications');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    toast('Notifications blocked. Enable in iOS Settings → Flight Card.');
+    return;
+  }
+  if (Notification.permission === 'default') {
+    let result = 'default';
+    try { result = await Notification.requestPermission(); } catch { result = 'default'; }
+    if (result === 'denied') {
+      toast('Notifications denied');
+      paintCtotBell();
+      return;
+    }
+    if (result !== 'granted') {
+      paintCtotBell();
+      return;
+    }
+    setCtotAlertsEnabled(true);
+    paintCtotBell();
+    try { new Notification('Flight Card', { body: 'CTOT alerts on', icon: './icons/icon-192.png' }); } catch {}
+    return;
+  }
+  // permission === 'granted' → toggle opt-in
+  const next = !ctotAlertsEnabled();
+  setCtotAlertsEnabled(next);
+  paintCtotBell();
+  if (next) {
+    try { new Notification('Flight Card', { body: 'CTOT alerts on', icon: './icons/icon-192.png' }); } catch {}
+  }
 }
 
 // ---------- Past-leg indication ----------
@@ -439,7 +595,21 @@ hdrCtot.addEventListener('input', () => {
   storage.setDataField('ctot', formatted);
   speeches.notifyDataChange();
   try { updateCtotColor(); } catch {}
+  // A freshly-typed CTOT starts a clean countdown — clear the
+  // crossing-detection state so every threshold can re-fire.
+  try { resetCtotAlertState(); } catch {}
 });
+// Wire the alerts bell. Tap behaviour is split out into onBellTap so
+// every error path is contained — a permission-related throw can never
+// take down the rest of app.js wiring.
+$('hdr-ctot-bell').addEventListener('click', () => {
+  try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); }
+});
+// Paint the bell once on load so its icon reflects current permission
+// + opt-in state (the user may already have granted permission from a
+// previous session).
+try { paintCtotBell(); } catch (err) { console.warn('bell paint failed', err); }
+
 function formatHHMM(raw) {
   const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
   if (digits.length <= 2) return digits;

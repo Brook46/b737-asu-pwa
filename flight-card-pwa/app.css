@@ -150,6 +150,28 @@ body {
 .hdr-ctot.is-ctot-orange { outline-color: #f06621; background: rgba(240,102,33,0.14); }
 .hdr-ctot.is-ctot-red    { outline-color: #c0392b; background: rgba(192,57,43, 0.16); }
 
+/* CTOT alerts bell — sits inside the .hdr-ctot pill next to the ↗ FA
+   button. Three visual states driven by .is-off / .is-on / .is-denied
+   classes set by paintCtotBell() in app.js. The emoji glyph already
+   carries colour, so the class differences are subtle background
+   shading — enough to read "on" at a glance without dominating the
+   pill. */
+.hdr-ctot-bell {
+  -webkit-appearance: none; appearance: none;
+  background: transparent; border: 0;
+  padding: 0 4px;
+  font: inherit; font-size: 13px; line-height: 1;
+  min-height: 22px;
+  cursor: pointer;
+  /* Larger tap target than the icon so a thumb-tap doesn't fight the
+     adjacent ↗ button. */
+  min-width: 24px;
+  text-align: center;
+}
+.hdr-ctot-bell.is-on     { filter: drop-shadow(0 0 1px rgba(30,111,209,0.7)); }
+.hdr-ctot-bell.is-denied { opacity: 0.55; }
+.hdr-ctot-bell:active    { filter: brightness(.85); }
+
 /* ---------- Past-leg cue ----------
    Two subtle changes when the active leg's arrival UTC has passed:
    - The data + checklist cards dim a touch + lose colour saturation so
