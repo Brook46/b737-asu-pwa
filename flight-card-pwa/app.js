@@ -981,7 +981,7 @@ function closeWx() {
 async function loadWx(opts) {
   const code = resolveWxCode();
   if (!code || code.length < 3) {
-    paintWx({ icao: code || '—', letter: '', metar: null, datis: null, ts: 0 });
+    paintWx({ icao: code || '—', letter: '', metar: null, taf: null, datis: null, ts: 0 });
     return;
   }
   const refreshBtn = $('wx-refresh');
@@ -991,7 +991,7 @@ async function loadWx(opts) {
     const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js');
     const res = await fetchWx(code, opts);
     if (!res) {
-      paintWx({ icao: code, letter: '', metar: null, datis: null, ts: 0 });
+      paintWx({ icao: code, letter: '', metar: null, taf: null, datis: null, ts: 0 });
       return;
     }
     const liveLetter = extractLetter(res.datis);
@@ -1010,6 +1010,7 @@ async function loadWx(opts) {
       icao: res.icao,
       letter,
       metar: res.metar,
+      taf:   res.taf,
       datis: res.datis,
       ts: res.ts,
       datisText: extractText(res.datis),
@@ -1021,7 +1022,7 @@ async function loadWx(opts) {
   }
 }
 
-function paintWx({ icao, letter, metar, datis, ts, datisText }) {
+function paintWx({ icao, letter, metar, taf, datis, ts, datisText }) {
   wxDisplayLetter = letter || '';
   const read = !!letter && storage.getCurrent().dataCard.atis_read === letter;
   const wxLetterEl = $('wx-letter');
@@ -1037,6 +1038,17 @@ function paintWx({ icao, letter, metar, datis, ts, datisText }) {
   const metarEl = $('wx-metar-text');
   if (metar) { metarEl.textContent = metar; metarEl.classList.remove('empty'); }
   else       { metarEl.textContent = 'No METAR available'; metarEl.classList.add('empty'); }
+  const tafEl = $('wx-taf-text');
+  if (tafEl) {
+    if (taf) { tafEl.textContent = taf; tafEl.classList.remove('empty'); }
+    else     { tafEl.textContent = `No TAF available for ${icao} — tap ↗ to open the source`; tafEl.classList.add('empty'); }
+  }
+  // The ↗ link points at aviationweather.gov's TAF page for this ICAO so
+  // the user always has a fallback if the live fetch failed (the source
+  // doesn't ship CORS headers, so we proxy via a free service that may
+  // occasionally be down or rate-limited).
+  const tafLink = $('wx-tafview');
+  if (tafLink) tafLink.href = 'https://aviationweather.gov/taf?id=' + encodeURIComponent(icao);
   const datisEl = $('wx-datis-text');
   if (datisText) { datisEl.textContent = datisText; datisEl.classList.remove('empty'); }
   else           { datisEl.textContent = `No D-ATIS for ${icao} — use manual letter below`; datisEl.classList.add('empty'); }

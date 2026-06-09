@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=51" />
+  <link rel="stylesheet" href="./app.css?v=52" />
 </head>
 <body>
   <header class="app-header">
@@ -226,6 +226,14 @@
         <h3 class="wx-h">METAR</h3>
         <pre id="wx-metar-text" class="wx-text">—</pre>
       </section>
+
+      <section class="wx-section">
+        <div class="wx-section-head">
+          <h3 class="wx-h">TAF</h3>
+          <a id="wx-tafview" class="wx-link" href="#" target="_blank" rel="noopener">↗ aviationweather.gov</a>
+        </div>
+        <pre id="wx-taf-text" class="wx-text">—</pre>
+      </section>
     </div>
   </div>
 
@@ -362,6 +370,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=51"></script>
+  <script type="module" src="./app.js?v=52"></script>
 </body>
 </html>

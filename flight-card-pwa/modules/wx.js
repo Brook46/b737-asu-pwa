@@ -1,17 +1,18 @@
-// wx.js — fetch live METAR + D-ATIS for an airport.
+// wx.js — fetch live METAR + TAF + D-ATIS for an airport.
 //
-// Sources (both CORS-friendly, no API key):
-//   METAR  — https://metar.vatsim.net/<ICAO>   (plain text, worldwide)
-//   D-ATIS — https://atis.info/api/<ICAO>      (JSON, US + selected intl)
+// Sources (all CORS-friendly, no API key):
+//   METAR  — https://metar.vatsim.net/<ICAO>                              (plain text, worldwide)
+//   TAF    — https://aviationweather.gov/api/data/taf?ids=<ICAO>&format=raw (plain text, worldwide)
+//   D-ATIS — https://atis.info/api/<ICAO>                                  (JSON, US + selected intl)
 //
-// METAR is universally available; D-ATIS exists for a subset of airports.
+// METAR + TAF are universally available; D-ATIS exists for a subset.
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
 import { lookup } from './airports.js';
 
 const TTL_MS = 9 * 60 * 1000;
-const cache = new Map();   // icao → { metar, datis, ts }
+const cache = new Map();   // icao → { metar, taf, datis, ts }
 
 function toIcao(code) {
   if (!code) return null;
@@ -31,6 +32,24 @@ async function fetchMetar(icao) {
   } catch { return null; }
 }
 
+async function fetchTaf(icao) {
+  // aviationweather.gov returns clean raw TAF text but doesn't ship
+  // CORS headers, so a direct browser fetch is blocked. Route through
+  // api.allorigins.win's /raw passthrough — it adds permissive CORS
+  // headers and re-emits the body verbatim. Trade-off documented:
+  // depends on a free third-party proxy staying up; if it doesn't,
+  // fetchTaf returns null and the popup shows "TAF unavailable" plus
+  // the deep-link to aviationweather.gov so the user can still get it.
+  const upstream = 'https://aviationweather.gov/api/data/taf?ids=' + encodeURIComponent(icao) + '&format=raw';
+  const proxied  = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(upstream);
+  try {
+    const res = await fetch(proxied, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    return text || null;
+  } catch { return null; }
+}
+
 async function fetchDatis(icao) {
   try {
     const res = await fetch('https://atis.info/api/' + encodeURIComponent(icao), { cache: 'no-store' });
@@ -41,16 +60,20 @@ async function fetchDatis(icao) {
   } catch { return null; }
 }
 
-// Get { icao, metar, datis, ts } for a code (IATA or ICAO). Respects cache
-// unless opts.force is true.
+// Get { icao, metar, taf, datis, ts } for a code (IATA or ICAO). Respects
+// cache unless opts.force is true. All three sources fetched in parallel.
 export async function fetchWx(code, opts) {
   const icao = toIcao(code);
   if (!icao) return null;
   const force = !!(opts && opts.force);
   const cached = cache.get(icao);
   if (!force && cached && (Date.now() - cached.ts) < TTL_MS) return cached;
-  const [metar, datis] = await Promise.all([fetchMetar(icao), fetchDatis(icao)]);
-  const entry = { icao, metar, datis, ts: Date.now() };
+  const [metar, taf, datis] = await Promise.all([
+    fetchMetar(icao),
+    fetchTaf(icao),
+    fetchDatis(icao),
+  ]);
+  const entry = { icao, metar, taf, datis, ts: Date.now() };
   cache.set(icao, entry);
   return entry;
 }
