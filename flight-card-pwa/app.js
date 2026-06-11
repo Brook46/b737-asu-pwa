@@ -1041,12 +1041,10 @@ function paintWx({ icao, letter, metar, taf, datis, ts, datisText }) {
   const tafEl = $('wx-taf-text');
   if (tafEl) {
     if (taf) { tafEl.textContent = taf; tafEl.classList.remove('empty'); }
-    else     { tafEl.textContent = `No TAF available for ${icao} — tap ↗ to open the source`; tafEl.classList.add('empty'); }
+    else     { tafEl.textContent = `TAF unavailable for ${icao} — tap ↗ to open the source`; tafEl.classList.add('empty'); }
   }
-  // The ↗ link points at aviationweather.gov's TAF page for this ICAO so
-  // the user always has a fallback if the live fetch failed (the source
-  // doesn't ship CORS headers, so we proxy via a free service that may
-  // occasionally be down or rate-limited).
+  // Deep-link fallback so even when the proxy is missing or down the
+  // user can still read the TAF in Safari with a single tap.
   const tafLink = $('wx-tafview');
   if (tafLink) tafLink.href = 'https://aviationweather.gov/taf?id=' + encodeURIComponent(icao);
   const datisEl = $('wx-datis-text');

@@ -1,15 +1,26 @@
 // wx.js — fetch live METAR + TAF + D-ATIS for an airport.
 //
 // Sources (all CORS-friendly, no API key):
-//   METAR  — https://metar.vatsim.net/<ICAO>                              (plain text, worldwide)
-//   TAF    — https://aviationweather.gov/api/data/taf?ids=<ICAO>&format=raw (plain text, worldwide)
-//   D-ATIS — https://atis.info/api/<ICAO>                                  (JSON, US + selected intl)
+//   METAR  — https://metar.vatsim.net/<ICAO>                         (plain text, worldwide)
+//   TAF    — <CF Worker shim>/taf?icao=<ICAO>                        (plain text, worldwide)
+//            The Worker fetches aviationweather.gov server-side and adds
+//            CORS headers. Source code at cloudflare-worker/taf-proxy.js.
+//            Replace TAF_PROXY below with the deployed *.workers.dev URL.
+//   D-ATIS — https://atis.info/api/<ICAO>                            (JSON, US + selected intl)
 //
-// METAR + TAF are universally available; D-ATIS exists for a subset.
+// METAR and TAF are universally available; D-ATIS exists for a subset.
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
 import { lookup } from './airports.js';
+
+// === TAF proxy URL ===========================================================
+// Deploy cloudflare-worker/taf-proxy.js to a free Cloudflare Worker, then
+// paste its workers.dev URL here. While this is null the TAF section just
+// shows the deep-link to aviationweather.gov as a fallback — METAR + D-ATIS
+// keep working regardless.
+const TAF_PROXY = null;
+// =============================================================================
 
 const TTL_MS = 9 * 60 * 1000;
 const cache = new Map();   // icao → { metar, taf, datis, ts }
@@ -33,17 +44,11 @@ async function fetchMetar(icao) {
 }
 
 async function fetchTaf(icao) {
-  // aviationweather.gov returns clean raw TAF text but doesn't ship
-  // CORS headers, so a direct browser fetch is blocked. Route through
-  // api.allorigins.win's /raw passthrough — it adds permissive CORS
-  // headers and re-emits the body verbatim. Trade-off documented:
-  // depends on a free third-party proxy staying up; if it doesn't,
-  // fetchTaf returns null and the popup shows "TAF unavailable" plus
-  // the deep-link to aviationweather.gov so the user can still get it.
-  const upstream = 'https://aviationweather.gov/api/data/taf?ids=' + encodeURIComponent(icao) + '&format=raw';
-  const proxied  = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(upstream);
+  // Skip if the proxy URL hasn't been deployed yet — falls back gracefully
+  // to the ↗ aviationweather.gov deep-link in the popup.
+  if (!TAF_PROXY) return null;
   try {
-    const res = await fetch(proxied, { cache: 'no-store' });
+    const res = await fetch(TAF_PROXY.replace(/\/$/, '') + '/taf?icao=' + encodeURIComponent(icao), { cache: 'no-store' });
     if (!res.ok) return null;
     const text = (await res.text()).trim();
     return text || null;
