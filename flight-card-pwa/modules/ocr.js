@@ -94,9 +94,28 @@ const TOKEN_PATTERNS = [
   // output section so it doesn't matter, but in FMC TAKEOFF REF a V-speed
   // label can echo near the top — last-match keeps us in the calculated
   // row, not the header.
-  { key: 'v1',    re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
-  { key: 'vr',    re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
-  { key: 'v2',    re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  // V-speeds — TWO layouts to handle, so two patterns per speed.
+  //
+  //   Loose pattern (LINE A): same-line layout, e.g.
+  //     OPT  "V1  112 KT"        →  captures 112 right after V1
+  //     der  "V1  138  VR  144"  →  captures 138 (the next number after V1)
+  //
+  //   Strict pattern (LINE B): FMC TAKEOFF REF column layout where the
+  //   V-speed is a COLUMN HEADER and its value sits on the next row, e.g.
+  //     "FLAPS QRH V1\n5° 145 145\n..."   → captures 145 (right column)
+  //   Requires V1 to be immediately followed by end-of-line, then walks
+  //   to the SECOND number on the next line (which is the computed value
+  //   in the right column, not the QRH reference in the left).
+  //
+  // Order matters: loose runs first, strict runs second — when both
+  // fire the strict overwrites the loose, giving the right-column value.
+  // When only loose fires (no column layout), the loose value stays.
+  { key: 'v1', re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  { key: 'vr', re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  { key: 'v2', re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  { key: 'v1', re: /\bV\s*1\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
+  { key: 'vr', re: /\bV\s*R\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
+  { key: 'v2', re: /\bV\s*2\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
 
   // Takeoff perf — N1 % target.
   // OPT FULL-thrust mode prints "N1 92.5". OPT ATM/derate mode hides N1
@@ -121,7 +140,18 @@ const TOKEN_PATTERNS = [
   // [\s\S]{0,60}? walks across that without false-matching against the
   // first random digit. preferLast then prefers the OUTPUT section "FLAP X"
   // over an INPUT-section "FLAP 5" override.
-  { key: 'flaps', re: /\bFLAPS?\b[\s\S]{0,60}?(\d{1,2})\b/i, preferLast: true },
+  // FLAPS — same two-layout problem as V-speeds:
+  //   Loose (same-line, OPT input override): "FLAP 5"  →  captures 5
+  //   Strict (column header, FMC TAKEOFF REF): label row, value on
+  //     next row → capture first digit on the row after FLAPS.
+  // Order: loose first, strict overwrites when applicable.
+  { key: 'flaps', re: /\bFLAPS?\b[^\d\n]{0,12}(\d{1,2})\b/i, preferLast: true },
+  // Strict requires whitespace-only between the newline and the digit, so
+  // it doesn't fire on "FLAP  5\nV1  138" by accidentally walking past the
+  // "V" to capture the "1" of V1. It still fires correctly on
+  // "FLAPS QRH V1\n5°..." (digit at start of line) and on
+  // "FLAP    EO ACCEL HT    TRIM\n5  ..." (digit after a wide indent).
+  { key: 'flaps', re: /\bFLAPS?\b[^\n]*\n\s*(\d{1,2})\b/i, preferLast: true },
 
   // Fuel — trip + block. FMC/OFP usually shows tonnes, scale to kg.
   { key: 'trip_fuel',  re: /\bTRIP\b[^\d]{0,8}(\d{1,3}(?:[.,]\d)?)\b/i, scale: 1000 },
