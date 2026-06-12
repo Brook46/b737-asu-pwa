@@ -716,14 +716,74 @@ $('roster-file').addEventListener('change', async (e) => {
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
-// ---------- Share sheet (QR + scan + AirDrop sync) ----------
+// ---------- Share sheet (QR + scan + AirDrop sync + Calendar sync) ----------
 $('share-toggle').addEventListener('click', async () => {
   showOverlay('settings-overlay');
   await renderFlightQr();
+  // Defensive: every helper that touches the new Calendar widgets is
+  // wrapped, so a missing module or broken localStorage can't bubble up
+  // and stop the existing share-sheet behaviour from working.
+  try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
 });
 $('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
 $('settings-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
+});
+
+// Calendar URL field — autosave to localStorage on every keystroke via
+// the calendar module's setCalendarUrl helper. paintCalendarSection
+// loads any previously-saved URL back into the field when the sheet opens.
+async function paintCalendarSection() {
+  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js');
+  const input = $('cal-url');
+  if (input && document.activeElement !== input) input.value = getCalendarUrl();
+  const status = $('cal-status');
+  if (status) {
+    status.classList.remove('is-err', 'is-ok');
+    const last = getLastSyncAt();
+    status.textContent = last
+      ? 'Last synced ' + new Date(last).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+      : '';
+  }
+}
+$('cal-url').addEventListener('input', async () => {
+  try {
+    const { setCalendarUrl } = await import('./modules/calendar.js');
+    setCalendarUrl($('cal-url').value);
+  } catch (err) {
+    console.warn('cal url save failed', err);
+  }
+});
+$('cal-sync').addEventListener('click', async () => {
+  const status = $('cal-status');
+  const btn = $('cal-sync');
+  if (status) { status.classList.remove('is-err', 'is-ok'); status.textContent = 'Syncing…'; }
+  if (btn) { btn.disabled = true; }
+  try {
+    const cal = await import('./modules/calendar.js');
+    // Save current input first in case the user just edited but didn't blur.
+    cal.setCalendarUrl($('cal-url').value);
+    const { events, flights } = await cal.syncFromCalendar();
+    if (!flights.length) {
+      throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
+    }
+    const { index: newIdx, added, replaced } = storage.appendLegs(flights);
+    await applyLeg(newIdx);
+    renderHistory();
+    if (status) {
+      status.classList.add('is-ok');
+      status.textContent = rosterToast(added, replaced) + ` from ${events} event${events === 1 ? '' : 's'}`;
+    }
+    toast(rosterToast(added, replaced));
+  } catch (err) {
+    if (status) {
+      status.classList.add('is-err');
+      status.textContent = err?.message || String(err);
+    }
+    console.warn('calendar sync failed', err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 });
 
 // Render the active flight as a QR into the share-sheet canvas. Lazy-loads

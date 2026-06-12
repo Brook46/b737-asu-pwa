@@ -1,93 +1,137 @@
-// Flight Card — TAF CORS shim
-// ============================
+// Flight Card — TAF + Google-Calendar CORS shim
+// ==============================================
 //
-// Deploy this as a Cloudflare Worker (free tier — 100k requests/day, way
-// more than this PWA will ever use). The Worker fetches the live raw TAF
-// from aviationweather.gov, sets a permissive CORS header, and re-emits
-// the body. Cloudflare caches at the edge for 60 seconds so repeat hits
-// for the same airport are essentially free.
+// Free Cloudflare Worker that fronts two upstream sources the PWA can't
+// fetch directly because they don't ship Access-Control-Allow-Origin:
 //
-// Why we need this at all
-// -----------------------
-// aviationweather.gov serves the cleanest no-key TAF text but does NOT
-// ship Access-Control-Allow-Origin, so a direct fetch from the PWA gets
-// blocked by Safari/Chrome. Routing through a public proxy
-// (api.allorigins.win) worked but was slow + occasionally rate-limited
-// — hence this small dedicated edge function.
+//   GET /taf?icao=<ICAO>        →  aviationweather.gov TAF (raw text)
+//   GET /ical?url=<encoded URL> →  user's Google Calendar secret iCal feed
+//   GET /  | /healthz           →  liveness ping
 //
-// Deploy steps (5 minutes, one-time)
-// ----------------------------------
-// 1. Make a free Cloudflare account at https://dash.cloudflare.com/sign-up
-// 2. Sidebar → Workers & Pages → Create application → Create Worker.
-//    Pick any name (e.g. "fc-taf-proxy"). Default code is fine for now.
-// 3. After it deploys, click "Edit code". Replace the editor contents with
-//    THIS file's body (everything below the export default {). Click
-//    "Deploy".
-// 4. Cloudflare gives you a URL like
-//      https://fc-taf-proxy.<your-account>.workers.dev
-//    Send that URL back to me and I'll wire it into modules/wx.js.
-// 5. Optional — set a custom domain later if you want a shorter URL.
+// Free tier (100k req/day) is comfortably more than this PWA will use.
 //
-// Resources cost: a TAF refresh every 10 minutes per airport, two airports
-// per leg, maybe 5 hits per pilot per duty period. You will never see the
-// free tier's 100k/day limit.
+// Why the iCal route exists
+// -------------------------
+// Google Calendar's "secret iCal address" (no OAuth, no token refresh) is
+// the cleanest way for an installed iOS PWA to read its roster. Google
+// serves that URL without CORS headers, so the PWA needs a proxy. The
+// host is whitelisted to calendar.google.com so this Worker can't be
+// abused as an open relay.
+//
+// Re-deploy steps (5 minutes, once per Worker code change)
+// ------------------------------------------------------
+// 1. dash.cloudflare.com → Workers & Pages → your existing fc-taf-proxy
+//    (or create one if this is the first deploy).
+// 2. Edit code → DELETE everything in the editor → paste THIS file's
+//    contents → Deploy.
+// 3. Test in any browser:
+//      https://<your-worker>.workers.dev/healthz             → "OK"
+//      https://<your-worker>.workers.dev/taf?icao=KJFK       → live TAF
+//      https://<your-worker>.workers.dev/ical?url=<encoded>  → your iCal
+// 4. Send me the workers.dev URL, I drop it into modules/proxy.js.
+
+const ICAL_ALLOWED_HOSTS = new Set([
+  'calendar.google.com',
+  // If you ever move to a different calendar provider that exposes a
+  // secret iCal URL, add its hostname here. Anything not on the list
+  // is rejected so this Worker can't be repurposed as an open proxy.
+]);
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
 
-    // Health check at /  — useful for testing the worker is alive.
     if (url.pathname === '/' || url.pathname === '/healthz') {
-      return new Response('TAF proxy OK', {
-        headers: {
-          'content-type': 'text/plain; charset=utf-8',
-          'access-control-allow-origin': '*',
-          'cache-control': 'no-store',
-        },
-      });
+      return text('Flight Card proxy OK', 200);
     }
 
-    // Only the /taf path is wired up. Anything else → 404.
-    if (url.pathname !== '/taf') {
-      return new Response('Not found', { status: 404 });
+    if (url.pathname === '/taf') {
+      return handleTaf(url);
     }
 
-    // Validate the ICAO query parameter — 4 letters, no other characters.
-    const icao = (url.searchParams.get('icao') || '').toUpperCase();
-    if (!/^[A-Z]{4}$/.test(icao)) {
-      return new Response('Bad ICAO', {
-        status: 400,
-        headers: { 'access-control-allow-origin': '*' },
-      });
+    if (url.pathname === '/ical') {
+      return handleIcal(url);
     }
 
-    // Fetch upstream. cf.cacheTtl tells Cloudflare's edge to cache the
-    // response for 60 s, so a second hit for the same ICAO from any
-    // device hitting the same edge POP is essentially free.
-    const upstream =
-      'https://aviationweather.gov/api/data/taf?ids=' + encodeURIComponent(icao) + '&format=raw';
-    let upstreamRes;
-    try {
-      upstreamRes = await fetch(upstream, {
-        cf: { cacheTtl: 60, cacheEverything: true },
-      });
-    } catch (err) {
-      return new Response('Upstream unreachable: ' + err.message, {
-        status: 502,
-        headers: { 'access-control-allow-origin': '*' },
-      });
-    }
+    return text('Not found', 404);
+  },
+};
 
-    const body = await upstreamRes.text();
+// ---------- /taf ------------------------------------------------------------
+
+async function handleTaf(url) {
+  const icao = (url.searchParams.get('icao') || '').toUpperCase();
+  if (!/^[A-Z]{4}$/.test(icao)) return text('Bad ICAO', 400);
+
+  const upstream =
+    'https://aviationweather.gov/api/data/taf?ids=' + encodeURIComponent(icao) + '&format=raw';
+  try {
+    const res = await fetch(upstream, { cf: { cacheTtl: 60, cacheEverything: true } });
+    const body = await res.text();
     return new Response(body, {
-      status: upstreamRes.status,
+      status: res.status,
       headers: {
         'content-type': 'text/plain; charset=utf-8',
-        // PWA fetches will come from brook46.github.io but allowing any
-        // origin keeps this Worker reusable if the PWA ever moves.
         'access-control-allow-origin': '*',
         'cache-control': 'public, max-age=60',
       },
     });
-  },
-};
+  } catch (err) {
+    return text('Upstream unreachable: ' + err.message, 502);
+  }
+}
+
+// ---------- /ical -----------------------------------------------------------
+
+async function handleIcal(url) {
+  const target = url.searchParams.get('url') || '';
+  if (!target) return text('Missing url parameter', 400);
+
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch {
+    return text('Bad url parameter', 400);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return text('Only https URLs are allowed', 400);
+  }
+  if (!ICAL_ALLOWED_HOSTS.has(parsed.hostname)) {
+    return text('Host not allowed: ' + parsed.hostname, 403);
+  }
+
+  try {
+    // 5 min cache — Google Calendar's secret feed updates within minutes
+    // of a change. Worker shares the cache across all readers, so the
+    // PWA can poll cheaply.
+    const res = await fetch(parsed.toString(), {
+      cf: { cacheTtl: 300, cacheEverything: true },
+      headers: { 'accept': 'text/calendar, text/plain, */*' },
+    });
+    const body = await res.text();
+    return new Response(body, {
+      status: res.status,
+      headers: {
+        'content-type': 'text/calendar; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=300',
+      },
+    });
+  } catch (err) {
+    return text('Upstream unreachable: ' + err.message, 502);
+  }
+}
+
+// ---------- helpers ---------------------------------------------------------
+
+function text(body, status) {
+  return new Response(body, {
+    status,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}

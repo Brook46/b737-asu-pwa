@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=53" />
+  <link rel="stylesheet" href="./app.css?v=55" />
 </head>
 <body>
   <header class="app-header">
@@ -336,6 +336,21 @@
       </section>
 
       <section class="settings-section">
+        <h3 class="settings-h">Sync from Google Calendar</h3>
+        <p class="muted small">
+          Paste the "Secret address in iCal format" from your Google Calendar
+          settings. Flight Card fetches it via the Cloudflare proxy and turns
+          every duty period into legs — same dedupe as roster paste, so
+          re-syncing is safe.
+        </p>
+        <input id="cal-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" class="cal-url" aria-label="Google Calendar secret iCal URL" />
+        <div class="settings-row-btns">
+          <button id="cal-sync" class="btn primary">Sync now</button>
+        </div>
+        <p id="cal-status" class="muted small cal-status"></p>
+      </section>
+
+      <section class="settings-section">
         <h3 class="settings-h">Sync everything (AirDrop)</h3>
         <p class="muted small">
           For the whole app state — every leg, every speech, the template. Imports
@@ -370,6 +385,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=53"></script>
+  <script type="module" src="./app.js?v=55"></script>
 </body>
 </html>

@@ -646,6 +646,27 @@ body.is-past-leg #card-checklist {
 .settings-row-btns > .btn,
 .settings-row-btns > label.btn { flex: 1; cursor: pointer; }
 
+/* Google Calendar URL field. Single-line, full-width, monospace so the
+   long secret URL stays scannable. */
+.cal-url {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg);
+  width: 100%;
+}
+.cal-url:focus { outline: none; border-color: var(--accent); }
+.cal-status {
+  margin: 0; min-height: 16px;
+}
+.cal-status.is-err { color: var(--danger); }
+.cal-status.is-ok  { color: var(--good); }
+
 /* New-flight modal: each option is a multi-line button */
 /* ---------- Share sheet (QR + scan) ---------- */
 .share-sheet .share-qr-section { margin-bottom: 16px; }
