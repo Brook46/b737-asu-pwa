@@ -754,36 +754,104 @@ $('cal-url').addEventListener('input', async () => {
     console.warn('cal url save failed', err);
   }
 });
-$('cal-sync').addEventListener('click', async () => {
+$('cal-sync').addEventListener('click', () => runCalendarSync('manual'));
+
+// Shared sync path — manual button taps and the auto-sync interval both
+// land here, so behaviour stays consistent. `source` decides how the
+// result is surfaced ('manual' → status banner + toast; 'auto' → toast
+// only, and only when something actually changed).
+let calSyncRunning = false;
+async function runCalendarSync(source) {
+  if (calSyncRunning) return;
   const status = $('cal-status');
-  const btn = $('cal-sync');
-  if (status) { status.classList.remove('is-err', 'is-ok'); status.textContent = 'Syncing…'; }
-  if (btn) { btn.disabled = true; }
+  const btn    = $('cal-sync');
+  if (source === 'manual') {
+    if (status) { status.classList.remove('is-err', 'is-ok'); status.textContent = 'Syncing…'; }
+    if (btn) btn.disabled = true;
+  }
+  calSyncRunning = true;
   try {
     const cal = await import('./modules/calendar.js');
     // Save current input first in case the user just edited but didn't blur.
-    cal.setCalendarUrl($('cal-url').value);
+    if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
     const { events, flights } = await cal.syncFromCalendar();
     if (!flights.length) {
-      throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
+      if (source === 'manual') {
+        throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
+      }
+      return; // auto: silently no-op when nothing to add
     }
     const { index: newIdx, added, replaced } = storage.appendLegs(flights);
     await applyLeg(newIdx);
     renderHistory();
-    if (status) {
-      status.classList.add('is-ok');
-      status.textContent = rosterToast(added, replaced) + ` from ${events} event${events === 1 ? '' : 's'}`;
+    if (source === 'manual') {
+      if (status) {
+        status.classList.add('is-ok');
+        status.textContent = rosterToast(added, replaced) + ` from ${events} event${events === 1 ? '' : 's'}`;
+      }
+      toast(rosterToast(added, replaced));
+    } else if (added || replaced) {
+      // Auto-sync only toasts when something actually changed.
+      toast(rosterToast(added, replaced) + ' (auto-sync)');
     }
-    toast(rosterToast(added, replaced));
   } catch (err) {
-    if (status) {
+    if (source === 'manual' && status) {
       status.classList.add('is-err');
       status.textContent = err?.message || String(err);
     }
-    console.warn('calendar sync failed', err);
+    console.warn(`calendar ${source} sync failed`, err);
   } finally {
-    if (btn) btn.disabled = false;
+    calSyncRunning = false;
+    if (source === 'manual' && btn) btn.disabled = false;
   }
+}
+
+// Auto-refresh: fires the same sync 3 hours before any upcoming leg's
+// dep_time, with a 60-min cooldown so the same window doesn't sync
+// repeatedly. Runs on every 10-min interval tick + once on app load +
+// once on visibility-change (so coming back to the app after hours away
+// catches up).
+const AUTO_SYNC_WINDOW_MS   = 3 * 60 * 60 * 1000;   // 3h pre-departure
+const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;       // at most once / hr
+async function maybeAutoSyncCalendar() {
+  try {
+    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js');
+    if (!isConfigured()) return;
+    const now = Date.now();
+    if (now - getLastSyncAt() < AUTO_SYNC_COOLDOWN_MS) return;
+    // Any leg whose dep_ts is in (now, now + 3h] triggers a sync.
+    const legs = storage.getLegs();
+    const inWindow = legs.some(leg => {
+      const ts = legDepTs(leg);
+      return Number.isFinite(ts) && ts > now && ts - now <= AUTO_SYNC_WINDOW_MS;
+    });
+    if (!inWindow) return;
+    await runCalendarSync('auto');
+  } catch (err) {
+    console.warn('auto-sync probe skipped', err);
+  }
+}
+function legDepTs(leg) {
+  // Same heuristic pickLegForNow uses — combine dd.mm + HH:MM as UTC,
+  // roll the year forward if the resulting timestamp is >6 months stale.
+  if (!leg || !leg.dep_date || !leg.dep_time) return NaN;
+  const dm = String(leg.dep_date).split('.');
+  if (dm.length !== 2) return NaN;
+  const yearNow = new Date().getUTCFullYear();
+  const iso = `${yearNow}-${dm[1]}-${dm[0]}T${leg.dep_time}:00Z`;
+  let ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return NaN;
+  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
+    ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${leg.dep_time}:00Z`);
+  }
+  return ts;
+}
+// Boot probe (after a short delay so the rest of the UI is set up first),
+// then every 10 minutes, and whenever the tab becomes visible again.
+setTimeout(maybeAutoSyncCalendar, 5_000);
+setInterval(maybeAutoSyncCalendar, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') maybeAutoSyncCalendar();
 });
 
 // Render the active flight as a QR into the share-sheet canvas. Lazy-loads
