@@ -1,0 +1,20 @@
+{
+  // Cloudflare Workers deployment config. Auto-deploys on push to main
+  // via the GitHub integration set up in the Cloudflare dashboard.
+  //
+  // This Worker is the CORS shim that fronts:
+  //   - aviationweather.gov TAF (no CORS)
+  //   - Google Calendar's secret iCal feed (no CORS)
+  // so the Flight Card PWA (hosted at brook46.github.io/b737-asu-pwa)
+  // can read both from the browser. See the entry file for the route map.
+  //
+  // We deliberately do NOT set "assets" — the Flight Card PWA itself is
+  // served from GitHub Pages, not from this Worker URL. This Worker is
+  // pure-code, API-only.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "b737-asu-pwa",
+  "main": "flight-card-pwa/cloudflare-worker/taf-proxy.js",
+  "compatibility_date": "2026-06-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true }
+}
