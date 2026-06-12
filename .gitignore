@@ -24,3 +24,10 @@ QRH.pdf
 
 # ...except the bundled seed PDF that ships with the app
 !pdf-knowledge-pwa/seed-data/tanchum-737-upgrade.pdf
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
