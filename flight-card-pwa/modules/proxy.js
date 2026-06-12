@@ -9,4 +9,4 @@
 //   - TAF section falls back to the ↗ aviationweather.gov deep-link
 //   - Calendar sync shows "Configure the proxy first" instead of running
 
-export const WORKER_BASE = null;
+export const WORKER_BASE = 'https://b737-asu-pwa.zy7ps9scwm.workers.dev';
