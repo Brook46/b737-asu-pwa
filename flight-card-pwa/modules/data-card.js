@@ -113,46 +113,6 @@ export function render(root) {
   wire(root);
 }
 
-// Re-render just the Dep + Arr notes icons after the user edits one of those
-// fields. The icon's ICAO has to track whatever's currently in the input,
-// and a full data-card render would steal focus mid-type — so we surgically
-// swap just the two icons.
-export function paintNotesButton(root) {
-  if (!root) return;
-  const data = storage.getCurrent().dataCard;
-  for (const key of ['dep', 'arr']) {
-    const cell = root.querySelector(`.data-cell input[data-key="${key}"]`)?.parentElement;
-    if (!cell) continue;
-    const existing = cell.querySelector('.data-note-icon');
-    if (existing) existing.remove();
-    const html = renderNoteIcon(data[key]);
-    if (html) cell.insertAdjacentHTML('beforeend', html);
-  }
-}
-
-// Small 📝 icon that sits in the top-right corner of a Dep or Arr cell. Tap
-// runs the user's "Flight Card Note" Shortcut with the cell's ICAO as input
-// (default behaviour), or opens a per-airport custom override if one is
-// saved. Long-press re-prompts to set/clear the custom override. Wiring
-// lives in app.js — this module only paints. The icon is hidden when the
-// cell is empty (no airport to link).
-function renderNoteIcon(raw) {
-  const icao = String(raw || '').trim().toUpperCase();
-  if (!icao) return '';
-  const hasOverride = !!storage.getNoteLink(icao);
-  const cls = 'data-note-icon' + (hasOverride ? ' has-override' : '');
-  const title = hasOverride
-    ? `Open custom Notes link for ${icao}. Long-press to edit.`
-    : `Open ${icao} in Apple Notes (runs your "Flight Card Note" Shortcut). Long-press for a custom link.`;
-  return `
-    <button type="button"
-            class="${cls}"
-            data-note-icao="${escapeAttr(icao)}"
-            title="${escapeAttr(title)}"
-            aria-label="${escapeAttr(title)}">📝</button>
-  `;
-}
-
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
@@ -168,11 +128,8 @@ function renderCell(c, raw) {
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
   const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
   const maxlen = c.kind === 'hhmm' ? ' maxlength="5"' : '';
-  // Dep + Arr get a tiny 📝 icon in the cell's top-right that opens the
-  // Apple-Notes link saved for whatever airport is typed in that cell.
-  const noteIcon = (c.key === 'dep' || c.key === 'arr') ? renderNoteIcon(v) : '';
   return `
-    <label class="${cls.join(' ')}${noteIcon ? ' has-note-icon' : ''}">
+    <label class="${cls.join(' ')}">
       <span class="lbl">${escape(labelStr)}</span>
       <input
         type="text"
@@ -186,7 +143,6 @@ function renderCell(c, raw) {
         value="${escapeAttr(v)}"
         placeholder="${placeholder}"${maxlen}
       />
-      ${noteIcon}
     </label>
   `;
 }

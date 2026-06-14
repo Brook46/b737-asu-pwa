@@ -1339,13 +1339,6 @@ dataCard.setOnChange((key) => {
   if ((key === 'dep' || key === 'arr') && !document.getElementById('wx-overlay').classList.contains('hidden')) {
     paintWxSrcRow();
   }
-  // Repaint just the Notes deep-link button when the route changes — the
-  // outstation airport (and therefore the button's label / saved link) is
-  // derived from Dep/Arr. paintNotesButton swaps only the button element,
-  // so the user's currently-focused Dep or Arr input stays alive.
-  if (key === 'dep' || key === 'arr') {
-    dataCard.paintNotesButton(dataBody);
-  }
   // The METAR cell's label and body track the dep airport, so repaint it
   // when dep changes. Surgical swap avoids stealing focus from the dep
   // input mid-type.
@@ -1357,92 +1350,6 @@ dataCard.setOnChange((key) => {
   // letter ever made it in. The ATIS cell will resync on its next render
   // (when the popup is opened or the group is toggled).
   speeches.notifyDataChange();
-});
-
-// ---------- Apple-Notes deep-link icon ----------
-// Default behaviour: short-tap fires a Shortcut named DEFAULT_NOTES_SHORTCUT
-// with the cell's ICAO as the text input. The Shortcut is something the
-// pilot creates once — three actions: Receive text → Find Notes whose name
-// contains [Shortcut Input] → Show Note. iOS jumps straight to the matching
-// note in Apple Notes.
-//
-// Per-airport override: long-press (~600 ms) lets the pilot save a custom
-// URL or Shortcut name for a specific airport (e.g. an iCloud share link).
-// When set, that override wins over the default.
-//
-// `pointerdown` starts the long-press timer; `pointerup` / `pointerleave` /
-// `pointermove` cancel it.
-const DEFAULT_NOTES_SHORTCUT = 'Flight Card Note';
-let notesPressT = null;
-let notesPressFired = false;
-function openNoteForIcao(icao) {
-  if (!icao) return;
-  const override = storage.getNoteLink(icao);
-  if (override) { openNoteLink(override); return; }
-  // No override → run the user's "Flight Card Note" Shortcut with the
-  // airport code as input. iOS will jump to the matching note in Notes.
-  const url = 'shortcuts://run-shortcut?name='
-    + encodeURIComponent(DEFAULT_NOTES_SHORTCUT)
-    + '&input=text&text=' + encodeURIComponent(icao);
-  window.location.href = url;
-}
-function openNoteLink(value) {
-  const v = String(value || '').trim();
-  if (!v) return;
-  // Anything with a scheme (`shortcuts://`, `https://`, `mailto:` …) or a
-  // leading slash is a URL — open it as-is so iOS dispatches the right app.
-  // Anything else is treated as the *name* of an Apple Shortcut, and we
-  // build the run-shortcut URL ourselves.
-  const isUrl = /:\/\//.test(v) || v.startsWith('/');
-  const url = isUrl ? v : 'shortcuts://run-shortcut?name=' + encodeURIComponent(v);
-  window.location.href = url;
-}
-function promptNoteLink(icao, current) {
-  const next = window.prompt(
-    `Custom Notes link for ${icao} (overrides the "Flight Card Note" Shortcut).\n\nPaste a URL (https://…, shortcuts://…) or a Shortcut name. Leave empty to clear and go back to the default.`,
-    current || ''
-  );
-  if (next === null) return;            // user hit Cancel — leave saved value alone
-  const trimmed = String(next).trim();
-  storage.setNoteLink(icao, trimmed);   // empty string clears the entry
-  dataCard.paintNotesButton(dataBody);
-}
-dataBody.addEventListener('pointerdown', (e) => {
-  const btn = e.target.closest('[data-note-icao]');
-  if (!btn) return;
-  notesPressFired = false;
-  if (notesPressT) clearTimeout(notesPressT);
-  notesPressT = setTimeout(() => {
-    notesPressT = null;
-    notesPressFired = true;
-    const icao = btn.dataset.noteIcao;
-    promptNoteLink(icao, storage.getNoteLink(icao));
-  }, 600);
-}, true);
-function clearNotesLongPress() {
-  if (notesPressT) { clearTimeout(notesPressT); notesPressT = null; }
-}
-dataBody.addEventListener('pointerup', () => clearNotesLongPress(), true);
-dataBody.addEventListener('pointerleave', () => clearNotesLongPress(), true);
-dataBody.addEventListener('pointermove', (e) => {
-  // Tiny drag — cancel the timer so a slow scroll doesn't fire the prompt.
-  if (notesPressT) clearNotesLongPress();
-});
-dataBody.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-note-icao]');
-  if (!btn) return;
-  // The icon lives inside a <label> (the Dep / Arr cell). Without this,
-  // tapping the icon would also focus the input and pop the iOS keyboard
-  // every time the pilot opens a saved Notes link.
-  e.preventDefault();
-  e.stopPropagation();
-  // If the long-press already fired the prompt, swallow the trailing click
-  // so we don't *also* open the (possibly old) saved link.
-  if (notesPressFired) {
-    notesPressFired = false;
-    return;
-  }
-  openNoteForIcao(btn.dataset.noteIcao);
 });
 
 // ---------- Card collapsibles ----------

@@ -10,11 +10,6 @@
 // }
 
 const KEY = 'fc.state';
-
-// "Home" codes — anything the pilot might type for Ben Gurion. The note-link
-// feature (and any future "outstation" feature) treats these as the base and
-// shows the *other* airport in the leg as the linkable one.
-export const HOME_CODES = new Set(['TLV', 'LLBG']);
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
 // bag of data, so switching legs swaps fuel / SOB / ATIS / TO performance /
 // checklist with it. Top-level current.dataCard/ticks/notes stays as the
@@ -224,9 +219,6 @@ function freshState() {
     speeches: clone(DEFAULT_SPEECHES),
     current: newFlightRecord(),
     history: [],
-    // Note-app link per airport — see getNoteLink / setNoteLink. Global across
-    // all flights so the same Paris note resurfaces on every TLV→LFPG sector.
-    notes: {},
   };
 }
 
@@ -253,7 +245,6 @@ function read() {
   cache.current.legs     = Array.isArray(cache.current.legs) ? cache.current.legs : [];
   cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
-  if (!cache.notes || typeof cache.notes !== 'object') cache.notes = {};
   return cache;
 }
 
@@ -346,7 +337,6 @@ function migrate(s) {
     speeches: upgradedSpeeches,
     current,
     history: Array.isArray(s.history) ? s.history : [],
-    notes: (s.notes && typeof s.notes === 'object') ? s.notes : {},
   };
 }
 
@@ -745,43 +735,6 @@ export function clearDataCard() {
   const tgt = leg || read().current;
   tgt.dataCard = {};
   scheduleWrite();
-}
-
-// ---------- Per-airport note links ----------
-// One slot per airport for a URL or Shortcut name that takes the user to
-// their Apple Notes page for that airport. Keyed by the ICAO/IATA exactly as
-// typed in the data card's Dep/Arr fields (uppercased here so "tlv" / "TLV"
-// land on the same slot).
-
-export function getNoteLink(icao) {
-  if (!icao) return '';
-  const k = String(icao).trim().toUpperCase();
-  const map = read().notes || {};
-  return map[k] || '';
-}
-
-export function setNoteLink(icao, value) {
-  if (!icao) return;
-  const k = String(icao).trim().toUpperCase();
-  const s = read();
-  if (!s.notes || typeof s.notes !== 'object') s.notes = {};
-  const v = (value == null) ? '' : String(value).trim();
-  if (v) s.notes[k] = v;
-  else   delete s.notes[k];
-  scheduleWrite();
-}
-
-// Pick the non-home airport from a dataCard's {dep, arr}. Used by the Notes
-// button: it labels and targets whichever side isn't TLV/LLBG. Prefers `arr`
-// — that's where the user said the button should live, and on outbound legs
-// arr is the airport they care about. Returns '' when both sides are home
-// or empty.
-export function resolveOutstation(dataCard) {
-  const dep = String(dataCard?.dep || '').trim().toUpperCase();
-  const arr = String(dataCard?.arr || '').trim().toUpperCase();
-  if (arr && !HOME_CODES.has(arr)) return arr;
-  if (dep && !HOME_CODES.has(dep)) return dep;
-  return '';
 }
 
 // ---------- Speeches ----------
