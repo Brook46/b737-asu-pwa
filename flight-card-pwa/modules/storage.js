@@ -10,6 +10,11 @@
 // }
 
 const KEY = 'fc.state';
+
+// "Home" codes — anything the pilot might type for Ben Gurion. The note-link
+// feature (and any future "outstation" feature) treats these as the base and
+// shows the *other* airport in the leg as the linkable one.
+export const HOME_CODES = new Set(['TLV', 'LLBG']);
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
 // bag of data, so switching legs swaps fuel / SOB / ATIS / TO performance /
 // checklist with it. Top-level current.dataCard/ticks/notes stays as the
@@ -25,7 +30,11 @@ const KEY = 'fc.state';
 // Top of descent / Turbulence / Diversion / Welcome home removed,
 // Go around / Emergency / Ditching / Smoke-fire / Malfunction / Delays
 // added. Reseed triggers again on this bump.
-const VERSION = 10;
+// v11: Welcome body rewritten in the new El Al house style, and a new
+// "IOE" PA added (delivered by the First Officer). Migration patches the
+// existing Welcome in-place and inserts IOE after it so any user-renamed
+// PAs survive — no full reseed.
+const VERSION = 11;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -68,21 +77,29 @@ const DEFAULT_SPEECHES = [
   {
     id: 'sp-welcome', name: 'Welcome',
     bodyEn:
-`Good @tod ladies and gentlemen, this is Captain @cpt speaking from the flight deck. On behalf of First Officer @fo, our purser @PU, the entire cabin crew, and everyone here at El Al — welcome aboard flight @flight to @arr.
-
-We're flying today on a Boeing 737-900. Our planned flight time to @arr is approximately @flighttime. The local time at @dep is @time.
-
-In a few moments the cabin crew will demonstrate the safety features of the aircraft. Even if you're a frequent traveller, please give them your full attention — the location of the nearest exit may be behind you.
-
-From the entire crew: sit back, relax, and enjoy your flight with us.`,
+`Dear passengers good @tod, welcome on board El Al flight to @arr. This is the Captain my name is @cpt. Joining me on the flight deck today is First Officer @fo. Our Inflight Service Manager,@PU, and the cabin crew will do everything they can to ensure you have a safe and enjoyable flight. Our flight time today is expected to be @flighttime, and the weather along our route is mostly fair. For your safety, we highly recommend keeping your seat belt fastened whenever you are seated. On behalf of El Al and the entire crew, I wish you a pleasant flight, and thank you for choosing to fly with us.`,
     bodyHe:
-`@tod טוב גבירותיי ורבותיי, מדבר אליכם הקפטן @cpt מקבינת הטייס. בשם הקצין הראשון @fo, המנהלת @PU, צוות הקבינה וכל משפחת אל על — ברוכים הבאים לטיסה @flight ל-@arr.
-
-אנו טסים היום במטוס בואינג 737-900. זמן הטיסה הצפוי ל-@arr הוא כ-@flighttime. השעה המקומית כאן ב-@dep היא @time.
-
-בעוד מספר רגעים יציג צוות הקבינה את אמצעי הבטיחות של המטוס. גם אם אתם נוסעים ותיקים, נבקש את תשומת ליבכם — היציאה הקרובה אליכם עשויה להיות מאחוריכם.
-
-מכל הצוות: שבו בנוחות, הירגעו, ותהנו מהטיסה איתנו.`
+`נוסעות‏ ונוסעים יקרים @tod טוב, ברוכים הבאים לטיסת אל על ל@arr. כאן הקברניט,שמי @cpt. ויחד איתי בתא הטייסים היום עמיתי הקצין הראשון, @fo. מנהלת השירות בטיסה, @PU, וצוות הדיילים יעשו הכל כדי להבטיח לכם טיסה נעימה ובטוחה. זמן הטיסה המשוער היום הוא @flighttime, ומזג האוויר בנתיב צפוי להיות נוח ברובו. למען בטיחותכם, אנו ממליצים לחגור את חגורות הבטיחות לאורך הטיסה כשהנכם ישובים. בשם חברת אל על והצוות כולו, אני מאחל לכם טיסה נעימה ותודה שבחרתם איתנו.`
+  },
+  {
+    // IOE — delivered by the First Officer (e.g. during Initial Operating
+    // Experience), so the speaker line names the FO first and the captain
+    // second. Same variable tokens as Welcome so the data-card fill-ins
+    // (@cpt / @fo / @PU / @tod / @arr / @flighttime) work unchanged.
+    id: 'sp-ioe', name: 'IOE',
+    bodyEn:
+`Dear passengers good @tod, welcome on board El Al flight to @arr.
+This is First Officer @fo. With me on the flight deck is Captain @cpt.
+Our Service Manager,@PU, and the cabin crew will do everything they can to ensure you have a safe and enjoyable flight.
+Our flight time today is expected to be @flighttime, The weather along our route is mostly fair.
+On behalf of El Al and the entire crew, thank you for choosing to fly with us.
+Wish you all a pleasant flight.`,
+    bodyHe:
+`נוסעות‏ ונוסעים יקרים @tod טוב, ברוכים הבאים לטיסתנו ל@arr. כאן קצין הראשון, @fo. יחד איתי בתא הטייסים היום עמיתי הקברניט, @cpt.
+מנהלת השירות בטיסתינו, @PU וצוות הדיילים יעשו הכל כדי להבטיח לכם טיסה בטוחה ונעימה.
+זמן הטיסה הצפוי היום הוא @flighttime, ומזג האוויר בנתיב צפוי להיות נאה.
+בשם חברת אל על והצוות כולו, אני מאחל לכם טיסה טובה.
+ותודה שבחרתם איתנו.`
   },
   {
     id: 'sp-goaround', name: 'Go around',
@@ -207,6 +224,9 @@ function freshState() {
     speeches: clone(DEFAULT_SPEECHES),
     current: newFlightRecord(),
     history: [],
+    // Note-app link per airport — see getNoteLink / setNoteLink. Global across
+    // all flights so the same Paris note resurfaces on every TLV→LFPG sector.
+    notes: {},
   };
 }
 
@@ -233,6 +253,7 @@ function read() {
   cache.current.legs     = Array.isArray(cache.current.legs) ? cache.current.legs : [];
   cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
+  if (!cache.notes || typeof cache.notes !== 'object') cache.notes = {};
   return cache;
 }
 
@@ -260,6 +281,27 @@ function migrate(s) {
           };
         })
       : clone(DEFAULT_SPEECHES);
+  // v10 → v11: targeted patch — overwrite the existing Welcome's body with
+  // the new El Al house-style wording, and insert IOE right after Welcome
+  // if the user doesn't already have it. Anything the user has renamed or
+  // added between Welcome and IOE is preserved.
+  if (!reseedSpeeches && s.v < 11) {
+    const dfltWelcome = DEFAULT_SPEECHES.find(d => d.id === 'sp-welcome');
+    const dfltIoe     = DEFAULT_SPEECHES.find(d => d.id === 'sp-ioe');
+    const welcomeIdx  = upgradedSpeeches.findIndex(sp => sp.id === 'sp-welcome' || sp.name === 'Welcome');
+    if (welcomeIdx >= 0 && dfltWelcome) {
+      upgradedSpeeches[welcomeIdx] = {
+        ...upgradedSpeeches[welcomeIdx],
+        bodyEn: dfltWelcome.bodyEn,
+        bodyHe: dfltWelcome.bodyHe,
+      };
+    }
+    const hasIoe = upgradedSpeeches.some(sp => sp.id === 'sp-ioe' || sp.name === 'IOE');
+    if (!hasIoe && dfltIoe) {
+      const insertAt = welcomeIdx >= 0 ? welcomeIdx + 1 : upgradedSpeeches.length;
+      upgradedSpeeches.splice(insertAt, 0, clone(dfltIoe));
+    }
+  }
   // v3→v4: reseed checklist template (new defaults).
   // v4→v5: seed legs: [] + legIndex: 0 on current flight.
   // v5→v6: add settings.calendar block (defaults if missing) — non-destructive.
@@ -304,6 +346,7 @@ function migrate(s) {
     speeches: upgradedSpeeches,
     current,
     history: Array.isArray(s.history) ? s.history : [],
+    notes: (s.notes && typeof s.notes === 'object') ? s.notes : {},
   };
 }
 
@@ -702,6 +745,43 @@ export function clearDataCard() {
   const tgt = leg || read().current;
   tgt.dataCard = {};
   scheduleWrite();
+}
+
+// ---------- Per-airport note links ----------
+// One slot per airport for a URL or Shortcut name that takes the user to
+// their Apple Notes page for that airport. Keyed by the ICAO/IATA exactly as
+// typed in the data card's Dep/Arr fields (uppercased here so "tlv" / "TLV"
+// land on the same slot).
+
+export function getNoteLink(icao) {
+  if (!icao) return '';
+  const k = String(icao).trim().toUpperCase();
+  const map = read().notes || {};
+  return map[k] || '';
+}
+
+export function setNoteLink(icao, value) {
+  if (!icao) return;
+  const k = String(icao).trim().toUpperCase();
+  const s = read();
+  if (!s.notes || typeof s.notes !== 'object') s.notes = {};
+  const v = (value == null) ? '' : String(value).trim();
+  if (v) s.notes[k] = v;
+  else   delete s.notes[k];
+  scheduleWrite();
+}
+
+// Pick the non-home airport from a dataCard's {dep, arr}. Used by the Notes
+// button: it labels and targets whichever side isn't TLV/LLBG. Prefers `arr`
+// — that's where the user said the button should live, and on outbound legs
+// arr is the airport they care about. Returns '' when both sides are home
+// or empty.
+export function resolveOutstation(dataCard) {
+  const dep = String(dataCard?.dep || '').trim().toUpperCase();
+  const arr = String(dataCard?.arr || '').trim().toUpperCase();
+  if (arr && !HOME_CODES.has(arr)) return arr;
+  if (dep && !HOME_CODES.has(dep)) return dep;
+  return '';
 }
 
 // ---------- Speeches ----------

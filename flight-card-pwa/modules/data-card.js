@@ -2,6 +2,7 @@
 // Cells autosave on every keystroke (debounced inside storage).
 
 import * as storage from './storage.js';
+import * as wx from './wx.js';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -12,8 +13,11 @@ export const FIELDS = [
     { key: 'sob_total', label: 'Total', kind: 'int' },
   ]},
   { id: 'g-atis',  group: 'ATIS', resettable: true, cells: [
-    { key: 'atis',      label: 'ATIS letter', kind: 'atis', wide: true },
-    { key: 'atis_note', label: 'Notes',       kind: 'text', wide: true },
+    { key: 'atis',      label: 'ATIS letter', kind: 'atis',  wide: true },
+    // Pilots don't need a free-text ATIS notes box — they want to see the
+    // live METAR for the departure airport. Cell is read-only and pulls
+    // from wx.js's in-memory cache (populated by the WX popup).
+    { key: 'metar',     label: 'METAR',       kind: 'metar', wide: true },
   ]},
   // "TO performance" — V-speeds + N1 + Flaps. Has an OPT/FMC auto-fill button
   // in its head (rendered by data-card.js, wired from app.js).
@@ -76,7 +80,10 @@ export function render(root) {
   const data = storage.getCurrent().dataCard;
   const html = FIELDS.map(group => {
     const isCol = collapsed.has(group.id);
-    const filled = group.cells.filter(c => has(data[c.key])).length;
+    // METAR is a derived/cached value, not user data — don't include it in
+    // the filled count or denominator that the collapsed head shows.
+    const countCells = group.cells.filter(c => c.kind !== 'metar');
+    const filled = countCells.filter(c => has(data[c.key])).length;
     const summary = renderSummary(group, data);
     const cells = group.cells.map(c => renderCell(c, data[c.key])).join('');
     const resetBtn = group.resettable
@@ -91,7 +98,7 @@ export function render(root) {
           <button type="button" class="data-group-head" data-toggle="${group.id}">
             <span class="chev">${isCol ? '▸' : '▾'}</span>
             <span class="data-group-name">${escape(group.group)}</span>
-            <span class="data-group-meta">${filled}/${group.cells.length}</span>
+            <span class="data-group-meta">${filled}/${countCells.length}</span>
           </button>
           ${resetBtn}
           ${optBtn}
@@ -106,10 +113,51 @@ export function render(root) {
   wire(root);
 }
 
+// Re-render just the Dep + Arr notes icons after the user edits one of those
+// fields. The icon's ICAO has to track whatever's currently in the input,
+// and a full data-card render would steal focus mid-type — so we surgically
+// swap just the two icons.
+export function paintNotesButton(root) {
+  if (!root) return;
+  const data = storage.getCurrent().dataCard;
+  for (const key of ['dep', 'arr']) {
+    const cell = root.querySelector(`.data-cell input[data-key="${key}"]`)?.parentElement;
+    if (!cell) continue;
+    const existing = cell.querySelector('.data-note-icon');
+    if (existing) existing.remove();
+    const html = renderNoteIcon(data[key]);
+    if (html) cell.insertAdjacentHTML('beforeend', html);
+  }
+}
+
+// Small 📝 icon that sits in the top-right corner of a Dep or Arr cell. Tap
+// runs the user's "Flight Card Note" Shortcut with the cell's ICAO as input
+// (default behaviour), or opens a per-airport custom override if one is
+// saved. Long-press re-prompts to set/clear the custom override. Wiring
+// lives in app.js — this module only paints. The icon is hidden when the
+// cell is empty (no airport to link).
+function renderNoteIcon(raw) {
+  const icao = String(raw || '').trim().toUpperCase();
+  if (!icao) return '';
+  const hasOverride = !!storage.getNoteLink(icao);
+  const cls = 'data-note-icon' + (hasOverride ? ' has-override' : '');
+  const title = hasOverride
+    ? `Open custom Notes link for ${icao}. Long-press to edit.`
+    : `Open ${icao} in Apple Notes (runs your "Flight Card Note" Shortcut). Long-press for a custom link.`;
+  return `
+    <button type="button"
+            class="${cls}"
+            data-note-icao="${escapeAttr(icao)}"
+            title="${escapeAttr(title)}"
+            aria-label="${escapeAttr(title)}">📝</button>
+  `;
+}
+
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
   if (c.kind === 'flaps')   return renderFlapsCell(c, raw);
+  if (c.kind === 'metar')   return renderMetarCell(c);
   const v = raw == null ? '' : String(raw);
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
@@ -120,8 +168,11 @@ function renderCell(c, raw) {
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
   const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
   const maxlen = c.kind === 'hhmm' ? ' maxlength="5"' : '';
+  // Dep + Arr get a tiny 📝 icon in the cell's top-right that opens the
+  // Apple-Notes link saved for whatever airport is typed in that cell.
+  const noteIcon = (c.key === 'dep' || c.key === 'arr') ? renderNoteIcon(v) : '';
   return `
-    <label class="${cls.join(' ')}">
+    <label class="${cls.join(' ')}${noteIcon ? ' has-note-icon' : ''}">
       <span class="lbl">${escape(labelStr)}</span>
       <input
         type="text"
@@ -135,6 +186,7 @@ function renderCell(c, raw) {
         value="${escapeAttr(v)}"
         placeholder="${placeholder}"${maxlen}
       />
+      ${noteIcon}
     </label>
   `;
 }
@@ -224,6 +276,46 @@ function renderUtcCell(c, raw) {
   `;
 }
 
+// Read-only METAR display sitting under the ATIS letter. Pulls from wx.js's
+// in-memory cache (populated on the *first* WX-popup fetch for this dep).
+// When the cache is cold the cell shows a hint to open the WX popup instead
+// of forcing a network round-trip on every data-card render.
+function renderMetarCell(c) {
+  const data = storage.getCurrent().dataCard;
+  const dep = (data.dep || '').toString().toUpperCase();
+  const entry = dep ? wx.peekCachedWx(dep) : null;
+  const metar = entry?.metar;
+  let body;
+  let stateCls = '';
+  if (!dep) {
+    body = 'Set Dep first';
+    stateCls = 'is-empty';
+  } else if (!metar) {
+    body = 'Tap the ATIS button above to fetch';
+    stateCls = 'is-empty';
+  } else {
+    body = metar;
+  }
+  return `
+    <div class="data-cell metar-cell span2 ${stateCls}">
+      <span class="lbl">${escape(c.label)}${dep ? ' · ' + escape(dep) : ''}</span>
+      <div class="metar-text">${escape(body)}</div>
+    </div>
+  `;
+}
+
+// Surgically refresh the METAR cell without re-rendering the whole data card
+// — used by app.js after the WX popup fetches so the new METAR appears
+// inline without disturbing whatever cell the pilot is currently editing.
+export function paintMetar(root) {
+  if (!root) return;
+  const cell = root.querySelector('.data-cell.metar-cell');
+  if (!cell) return;
+  const c = CELL_INDEX.get('metar');
+  if (!c) return;
+  cell.outerHTML = renderMetarCell(c);
+}
+
 function renderAtisCell(c, raw) {
   const data = storage.getCurrent().dataCard;
   const v   = (raw || '').toString().toUpperCase().slice(0, 1);
@@ -259,7 +351,9 @@ const PHONETIC = {
 function atisPhonetic(L) { return PHONETIC[L.toUpperCase()] || L; }
 
 function renderSummary(group, data) {
-  const filled = group.cells.filter(c => has(data[c.key]));
+  // METAR is a derived value (cached, multi-line) — never useful in the
+  // one-line collapsed summary, so exclude it explicitly.
+  const filled = group.cells.filter(c => c.kind !== 'metar' && has(data[c.key]));
   if (!filled.length) return '';
   return filled.slice(0, 4).map(c => `${c.label} ${formatValue(c, data[c.key])}`).join(' · ');
 }

@@ -195,13 +195,25 @@
         <button id="wx-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
 
-      <!-- Airport source switcher — choose Dep / Arr / a custom airport. -->
+      <!-- Airport source switcher — choose Dep / Arr / a custom airport.
+           Each chip has its own ↻ refresh button so the user can force a
+           fresh fetch for that specific airport without first having to
+           switch the active source. -->
       <div class="wx-src-row">
-        <button id="wx-src-dep"    type="button" class="wx-src" data-src="dep"><span class="wx-src-lbl">Dep</span><span id="wx-src-dep-code" class="wx-src-code">—</span></button>
-        <button id="wx-src-arr"    type="button" class="wx-src" data-src="arr"><span class="wx-src-lbl">Arr</span><span id="wx-src-arr-code" class="wx-src-code">—</span></button>
+        <button id="wx-src-dep" type="button" class="wx-src" data-src="dep">
+          <span class="wx-src-lbl">Dep</span>
+          <span id="wx-src-dep-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-dep" class="wx-src-refresh" data-refresh="dep" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh dep airport">↻</span>
+        </button>
+        <button id="wx-src-arr" type="button" class="wx-src" data-src="arr">
+          <span class="wx-src-lbl">Arr</span>
+          <span id="wx-src-arr-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-arr" class="wx-src-refresh" data-refresh="arr" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh arr airport">↻</span>
+        </button>
         <label class="wx-src wx-src-custom" data-src="custom">
           <span class="wx-src-lbl">Other</span>
           <input id="wx-src-custom-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="ICAO" maxlength="4" />
+          <span id="wx-refresh-custom" class="wx-src-refresh" data-refresh="custom" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh custom airport">↻</span>
         </label>
       </div>
 
@@ -347,7 +359,9 @@
           every duty period into legs — same dedupe as roster paste, so
           re-syncing is safe.
         </p>
-        <input id="cal-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" class="cal-url" aria-label="Google Calendar secret iCal URL" />
+        <!-- type=password keeps the secret URL hidden as dots on screen so
+             nobody glancing at the iPad in the cockpit can copy it. -->
+        <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Google Calendar secret iCal URL (hidden)" />
         <div class="settings-row-btns">
           <button id="cal-sync" class="btn primary">Sync now</button>
         </div>

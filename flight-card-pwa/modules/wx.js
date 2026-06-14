@@ -83,6 +83,16 @@ export async function fetchWx(code, opts) {
 
 export function clearCache() { cache.clear(); }
 
+// Read the in-memory cached wx for a code without triggering a fetch. Used
+// by the data card's METAR cell so the dep airport's METAR can be displayed
+// inline once the WX popup has populated the cache. Returns null when no
+// fetch has happened yet for this code.
+export function peekCachedWx(code) {
+  const icao = toIcao(code);
+  if (!icao) return null;
+  return cache.get(icao) || null;
+}
+
 // Pick the most useful D-ATIS letter from the response.
 // Prefer 'dep' → 'combined' → first.
 export function extractLetter(datis) {
