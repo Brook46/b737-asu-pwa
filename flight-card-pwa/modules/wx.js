@@ -13,14 +13,11 @@
 // pull without thrashing the network on UI re-renders.
 
 import { lookup } from './airports.js';
+import { WORKER_BASE } from './proxy.js';
 
-// === TAF proxy URL ===========================================================
-// Deploy cloudflare-worker/taf-proxy.js to a free Cloudflare Worker, then
-// paste its workers.dev URL here. While this is null the TAF section just
-// shows the deep-link to aviationweather.gov as a fallback — METAR + D-ATIS
-// keep working regardless.
-const TAF_PROXY = null;
-// =============================================================================
+// TAF proxy URL — shared with the calendar feature via modules/proxy.js.
+// When WORKER_BASE is null the TAF section falls back to the ↗
+// aviationweather.gov deep-link; METAR + D-ATIS keep working regardless.
 
 const TTL_MS = 9 * 60 * 1000;
 const cache = new Map();   // icao → { metar, taf, datis, ts }
@@ -44,11 +41,12 @@ async function fetchMetar(icao) {
 }
 
 async function fetchTaf(icao) {
-  // Skip if the proxy URL hasn't been deployed yet — falls back gracefully
+  // Skip if the proxy URL hasn't been configured yet — falls back gracefully
   // to the ↗ aviationweather.gov deep-link in the popup.
-  if (!TAF_PROXY) return null;
+  if (!WORKER_BASE) return null;
   try {
-    const res = await fetch(TAF_PROXY.replace(/\/$/, '') + '/taf?icao=' + encodeURIComponent(icao), { cache: 'no-store' });
+    const url = WORKER_BASE.replace(/\/$/, '') + '/taf?icao=' + encodeURIComponent(icao);
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return null;
     const text = (await res.text()).trim();
     return text || null;
