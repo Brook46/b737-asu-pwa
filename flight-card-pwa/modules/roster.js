@@ -34,6 +34,21 @@ function isRoster(text) {
   return ROSTER_MARKERS.some(re => re.test(text));
 }
 
+// El Al rosters print names "SURNAME FIRSTNAME" (e.g. "KOLAN YUVAL"). The
+// pilot prefers the everyday "FIRSTNAME SURNAME" order in the data card and
+// PA tokens, so we flip at the parse boundary. Last whitespace-separated
+// word is treated as the first name; everything before it is the surname.
+// Handles multi-word surnames ("DA SILVA MARIA" → "MARIA DA SILVA") and
+// passes single-word or empty values through untouched.
+export function flipName(s) {
+  const t = String(s || '').trim();
+  if (!t) return t;
+  const parts = t.split(/\s+/);
+  if (parts.length < 2) return t;
+  const first = parts.pop();
+  return first + ' ' + parts.join(' ');
+}
+
 // Normalise an Israeli 3-letter registration suffix (e.g. "EHE") into "4X-EHE".
 // Other strings come through unchanged.
 function normaliseTail(raw) {
@@ -74,8 +89,8 @@ export function parseRoster(text) {
         if (m) {
           const role = m[1].toUpperCase();
           const name = m[2].trim();
-          if (role === 'CAP' || role === 'CPT')          cpt = name;
-          else if (role === 'FO' || role === 'F/O' || role === 'FC') fo = name;
+          if (role === 'CAP' || role === 'CPT')          cpt = flipName(name);
+          else if (role === 'FO' || role === 'F/O' || role === 'FC') fo = flipName(name);
         }
       }
     }
@@ -126,7 +141,7 @@ export function parseRoster(text) {
     if (cur) {
       // Stop accepting cabin lines once we hit the next flight row (handled above)
       const cm = CABIN_LINE_RE.exec(line);
-      if (cm) cur.cabin.push(cm[2].trim());
+      if (cm) cur.cabin.push(flipName(cm[2]));
     }
   }
   if (cur) flights.push(cur);
@@ -217,15 +232,15 @@ function parseJsonRoster(arr) {
       ctot:        '',
       // Per-leg crew (the JSON shape carries crew on every leg, so
       // captain/FO can change between legs of the same duty period).
-      cpt: crew.CPT || '',
-      fo:  crew.FO  || '',
+      cpt: flipName(crew.CPT || ''),
+      fo:  flipName(crew.FO  || ''),
       // PU (purser) maps to cc1; the JSON skips a CC1 key, going PU,
       // CC2…CC5 — same shape the slip-text parser produces.
-      cc1: crew.PU  || '',
-      cc2: crew.CC2 || '',
-      cc3: crew.CC3 || '',
-      cc4: crew.CC4 || '',
-      cc5: crew.CC5 || '',
+      cc1: flipName(crew.PU  || ''),
+      cc2: flipName(crew.CC2 || ''),
+      cc3: flipName(crew.CC3 || ''),
+      cc4: flipName(crew.CC4 || ''),
+      cc5: flipName(crew.CC5 || ''),
     };
     if (leg.cpt) lastCpt = leg.cpt;
     if (leg.fo)  lastFo  = leg.fo;

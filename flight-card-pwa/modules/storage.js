@@ -9,6 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
+import { flipName } from './roster.js';
+
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
 // bag of data, so switching legs swaps fuel / SOB / ATIS / TO performance /
@@ -29,7 +31,12 @@ const KEY = 'fc.state';
 // "IOE" PA added (delivered by the First Officer). Migration patches the
 // existing Welcome in-place and inserts IOE after it so any user-renamed
 // PAs survive — no full reseed.
-const VERSION = 11;
+// v12: crew names flipped from El Al's "SURNAME FIRSTNAME" convention to
+// the everyday "FIRSTNAME SURNAME" order. Future syncs flip at the parse
+// boundary (roster.js); v11→v12 also runs flipName over every stored
+// crew name (legs + active dataCard) so the existing data is consistent
+// with what new syncs will produce.
+const VERSION = 12;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -330,6 +337,27 @@ function migrate(s) {
     current.dataCard = {};
     current.ticks    = {};
     current.notes    = {};
+  }
+  // v11 → v12: crew names flip from "SURNAME FIRSTNAME" to "FIRSTNAME SURNAME".
+  // Walk every leg's dataCard + top-level identity fields, plus the active
+  // current.dataCard if there are no legs, and apply the parser's flipName.
+  // Idempotency on later runs is guaranteed by the s.v < 12 gate.
+  if (s.v && s.v < 12) {
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    const flipBag = (bag) => {
+      if (!bag || typeof bag !== 'object') return;
+      for (const k of CREW_KEYS) {
+        if (bag[k]) bag[k] = flipName(bag[k]);
+      }
+    };
+    if (current.legs.length) {
+      for (const leg of current.legs) {
+        flipBag(leg);          // top-level cpt/fo/cc1..cc5 on the leg
+        flipBag(leg.dataCard); // the per-leg data card bag
+      }
+    } else {
+      flipBag(current.dataCard);
+    }
   }
   return {
     v: VERSION,
