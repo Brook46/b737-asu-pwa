@@ -478,7 +478,7 @@ function updatePastLegUI(now = new Date()) {
   const routeEl = $('leg-route');
   if (!routeEl) return;
   syncChipTag(routeEl, '.leg-past-tag', 'leg-past-tag', 'PAST', past);
-  syncChipTag(routeEl, '.leg-next-tag', 'leg-next-tag', 'NEXT', isNext);
+  syncChipTag(routeEl, '.leg-next-tag', 'leg-next-tag', 'CURRENT', isNext);
 }
 function syncChipTag(routeEl, selector, className, label, want) {
   const existing = routeEl.querySelector(selector);

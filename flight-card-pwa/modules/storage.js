@@ -594,22 +594,45 @@ function digitsOf(s) {
   return String(s == null ? '' : s).replace(/\D/g, '').replace(/^0+/, '');
 }
 
+// Fields that the user finalises near departure — flight time + crew —
+// stop accepting overwrites from incoming syncs once the leg is inside
+// the 3-hour pre-departure window (or already departed). This protects
+// crew swaps and dispatch updates the pilot has typed in manually from
+// being clobbered by a calendar resync that's running off slightly
+// older published data.
+const LOCKED_FIELDS = new Set(['flight_time', 'cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
+const LOCK_WINDOW_MS = 3 * 60 * 60 * 1000;
+function legIsLocked(leg) {
+  if (!leg || !leg.dep_date || !leg.dep_time) return false;
+  const ts = depTs(leg);
+  if (!Number.isFinite(ts) || ts === Number.MAX_SAFE_INTEGER) return false;
+  // Locked = (now is within 3h of departure) OR (departure has passed).
+  return ts - Date.now() <= LOCK_WINDOW_MS;
+}
+
 // Merge `source` into `target` in place. Used when an incoming leg dupes
 // an existing one — we want the incoming data to win for anything it
 // actually carries, but keep the existing values for whatever the
 // incoming side left empty.
+//
+// 3-hour lock: once the leg's departure is within 3h (or already past),
+// the user's flight_time + crew values are sticky. The rest of the leg
+// keeps the normal "incoming wins for non-empty" rule, so the calendar
+// can still correct route / tail / schedule typos right up to the gate.
 function mergeLeg(target, source) {
-  // Top-level identity + schedule fields — incoming wins for non-empty.
+  const locked = legIsLocked(target);
+  // Top-level identity + schedule fields — incoming wins for non-empty,
+  // except inside the lock window for the locked fields.
   for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
+    if (locked && LOCKED_FIELDS.has(k)) continue;
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
-  // dataCard merge — incoming wins per key for non-empty values. This is
-  // the "use the updated information" rule from the user: a QR-scanned
-  // data card overwrites manually-typed values on the receiving device,
-  // but a roster re-paste (which carries no V-speeds) doesn't blow them
-  // away.
+  // dataCard merge — incoming wins per key for non-empty values. Same
+  // lock applies, so cpt/fo/cc1..cc5 the user typed in the cockpit
+  // survive a calendar resync.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
+    if (locked && LOCKED_FIELDS.has(k)) continue;
     if (v != null && v !== '') target.dataCard[k] = v;
   }
   // Ticks: union — a tick on either side stays. Otherwise an incoming
