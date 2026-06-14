@@ -30,6 +30,32 @@ checklist.setOnAllDoneChange((allDone) => {
     syncCardChev('checklist');
   }
 });
+
+// Paint the small notes summary that appears under the checklist card
+// head whenever the card is collapsed. Reads notes + template once and
+// stitches them into a "Item: text · Item: text" line. Empty string
+// when there are no notes — CSS hides the element on :empty.
+function paintChecklistCardSummary() {
+  const el = document.getElementById('checklist-card-notes');
+  if (!el) return;
+  try {
+    const cur = storage.getCurrent();
+    const notes = cur?.notes || {};
+    const noteIds = Object.keys(notes).filter(id => notes[id] && String(notes[id]).trim());
+    if (!noteIds.length) { el.textContent = ''; return; }
+    const template = storage.getTemplate();
+    const labelById = new Map();
+    for (const sec of template.sections) {
+      for (const item of sec.items) labelById.set(item.id, item.label);
+    }
+    el.textContent = noteIds
+      .map(id => `${labelById.get(id) || '·'}: ${notes[id]}`)
+      .join(' · ');
+  } catch (err) {
+    console.warn('checklist notes summary skipped', err);
+  }
+}
+checklist.setOnAfterRender(paintChecklistCardSummary);
 function syncCardChev(target) {
   const btn = document.querySelector(`.card-toggle[data-target="${target}"]`);
   if (!btn) return;
@@ -423,25 +449,46 @@ function isLegPast(leg, now = new Date()) {
   }
   return ts < now.getTime();
 }
+// Find the index of the next upcoming leg — earliest leg whose dep_ts is
+// in the future. Returns -1 if no leg has a future dep_ts (everything
+// past, or no dep schedule on any leg). Used by updatePastLegUI to tag
+// the active leg as "NEXT" when it's the one a pilot is preparing for.
+function findNextLegIdx(legs, now) {
+  let bestIdx = -1, bestTs = Infinity;
+  for (let i = 0; i < legs.length; i++) {
+    const ts = legDepTs(legs[i]);
+    if (!Number.isFinite(ts)) continue;
+    if (ts <= now) continue;
+    if (ts < bestTs) { bestTs = ts; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
 function updatePastLegUI(now = new Date()) {
   const legs = storage.getLegs?.() || [];
-  const leg = legs[storage.getLegIndex?.() || 0] || null;
+  const idx  = storage.getLegIndex?.() || 0;
+  const leg  = legs[idx] || null;
   const past = isLegPast(leg, now);
+  const nextIdx = findNextLegIdx(legs, now.getTime?.() ?? Date.now());
+  const isNext = !past && idx === nextIdx;
   document.body.classList.toggle('is-past-leg', past);
-  // Toggle the small inline pill on the leg-switcher chip. Built as a
-  // DOM element (not via innerHTML) so the existing chip text isn't
-  // disturbed — no escaping or HTML-construction footguns.
+  // Toggle the small inline pills on the leg-switcher chip. Built as DOM
+  // elements (not innerHTML) so the existing chip text isn't disturbed.
+  // Mutually exclusive: a leg can be PAST or NEXT or neither, never both.
   const routeEl = $('leg-route');
-  if (routeEl) {
-    const existing = routeEl.querySelector('.leg-past-tag');
-    if (past && !existing) {
-      const tag = document.createElement('span');
-      tag.className = 'leg-past-tag';
-      tag.textContent = 'PAST';
-      routeEl.appendChild(tag);
-    } else if (!past && existing) {
-      existing.remove();
-    }
+  if (!routeEl) return;
+  syncChipTag(routeEl, '.leg-past-tag', 'leg-past-tag', 'PAST', past);
+  syncChipTag(routeEl, '.leg-next-tag', 'leg-next-tag', 'NEXT', isNext);
+}
+function syncChipTag(routeEl, selector, className, label, want) {
+  const existing = routeEl.querySelector(selector);
+  if (want && !existing) {
+    const tag = document.createElement('span');
+    tag.className = className;
+    tag.textContent = label;
+    routeEl.appendChild(tag);
+  } else if (!want && existing) {
+    existing.remove();
   }
 }
 

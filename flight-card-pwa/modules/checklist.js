@@ -4,8 +4,13 @@ import * as storage from './storage.js';
 
 let editMode = false;
 let onAllDoneChange = null;
+let onAfterRender = null;
 
 export function setOnAllDoneChange(fn) { onAllDoneChange = fn; }
+// Called after every render() — used by app.js to repaint the
+// card-level notes summary (which lives outside the checklist body
+// and so isn't redrawn by render() itself).
+export function setOnAfterRender(fn) { onAfterRender = fn; }
 
 // Manual collapse overrides (per section id). Tri-state:
 //   true   → user-forced collapsed
@@ -121,6 +126,7 @@ export function render(root) {
     && template.sections.length > 0
     && template.sections.every(sec => sectionAllDone(sec, ticks));
   if (onAllDoneChange) onAllDoneChange(everythingDone);
+  if (onAfterRender)   onAfterRender();
 }
 
 function wire(root) {

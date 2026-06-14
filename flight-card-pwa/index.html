@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=58" />
+  <link rel="stylesheet" href="./app.css?v=59" />
 </head>
 <body>
   <header class="app-header">
@@ -95,6 +95,10 @@
         <button id="checklist-reset" class="btn ghost-btn" title="Reset checklist (uncheck all)" aria-label="Reset checklist">↻</button>
         <button id="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
       </header>
+      <!-- Tiny summary line that shows item notes when the card is
+           collapsed. Filled by paintChecklistCardSummary in app.js;
+           hidden via CSS when the card is open or when no notes exist. -->
+      <div id="checklist-card-notes" class="card-summary" aria-live="polite"></div>
       <div class="card-body" id="checklist-body"></div>
     </section>
 
@@ -385,6 +389,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=58"></script>
+  <script type="module" src="./app.js?v=59"></script>
 </body>
 </html>

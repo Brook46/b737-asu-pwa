@@ -257,15 +257,12 @@ function render() {
     if (!lastFocusedTa) lastFocusedTa = textareas[0] || null;
 
     body.querySelectorAll('.pa-token-chip').forEach(chip => {
-      // mousedown not click — keeps the textarea from losing focus before
-      // we read its selection. preventDefault stops the chip from grabbing
-      // focus itself.
-      chip.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        insertAtCursor(lastFocusedTa, chip.dataset.token, sp.id);
-      });
-      // Belt and braces for keyboard / Enter key navigation.
-      chip.addEventListener('click', (e) => {
+      // pointerdown handles both touch and mouse with a single event and
+      // fires BEFORE focus moves, so the textarea keeps its caret. We
+      // preventDefault to stop the chip from stealing focus itself. We
+      // explicitly do NOT also wire 'click' — on a mouse-tap that would
+      // fire after pointerdown, inserting the token a SECOND time.
+      chip.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         insertAtCursor(lastFocusedTa, chip.dataset.token, sp.id);
       });

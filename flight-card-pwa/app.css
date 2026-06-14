@@ -187,18 +187,20 @@ body.is-past-leg #card-checklist {
   filter: saturate(0.5);
   transition: opacity 0.25s ease, filter 0.25s ease;
 }
-.leg-past-tag {
+.leg-past-tag,
+.leg-next-tag {
   display: inline-block;
   margin-left: 8px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #c0392b;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   vertical-align: 1px;
 }
+.leg-past-tag { background: #c0392b; }   /* red — already flown */
+.leg-next-tag { background: var(--good); } /* green — upcoming */
 
 .actions {
   display: flex; gap: 3px; align-items: center;
@@ -333,6 +335,22 @@ body.is-past-leg #card-checklist {
 .card.collapsed .card-body { display: none; }
 .card.collapsed .card-toggle .chev { content: "▸"; }
 .card-body { padding: 10px; }
+
+/* Card-level summary line — small text shown only when the card is
+   collapsed AND the element actually contains text. Used by the
+   checklist card to display any item notes the user has added so they
+   don't disappear behind the collapsed body. The :not(:empty) guard
+   keeps the spacing clean when there are no notes. */
+.card-summary { display: none; }
+.card.collapsed .card-summary:not(:empty) {
+  display: block;
+  padding: 0 12px 8px;
+  margin-top: -4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg-mute);
+  word-break: break-word;
+}
 
 /* ---------- Data card groups (collapsible) ---------- */
 .data-group {
