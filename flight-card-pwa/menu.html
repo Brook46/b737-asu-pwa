@@ -231,9 +231,159 @@
     </div>
   </header>
 
+  <!-- ============ INSTALL ON IPAD ============ -->
+  <section>
+    <h2><span class="icon-bubble b-blue">📲</span> Install it on your iPad</h2>
+    <p class="h2-lede">
+      Open it from Safari once, add it to your Home Screen, and from then on
+      it behaves like a real app — full-screen, offline-capable, Slide-Over-ready.
+    </p>
+    <ol class="steps">
+      <li>
+        <b>Open the app in Safari</b>
+        Visit <code>brook46.github.io/b737-asu-pwa/flight-card-pwa/</code>.
+        Safari (not Chrome) — only Safari can install PWAs on iPadOS.
+      </li>
+      <li>
+        <b>Tap the Share button</b>
+        The <kbd>⬆</kbd> square-with-arrow at the top of the Safari window.
+      </li>
+      <li>
+        <b>Pick "Add to Home Screen"</b>
+        Scroll down in the share sheet — it's a row with a small grey <kbd>＋</kbd>.
+        Rename it <i>Flight Card</i> if you like, then tap <kbd>Add</kbd>.
+      </li>
+      <li>
+        <b>Launch from the Home Screen</b>
+        The blue ✈ icon now lives on your Home Screen. Tap it once to launch —
+        the first launch caches the whole app, so it works offline forever after that.
+      </li>
+    </ol>
+    <div class="callout">
+      <b>Why not just use the Safari tab?</b> The installed PWA gets its own
+      window, can go into Slide Over, runs offline, survives a restart, and
+      doesn't lose state when you switch apps. The Safari tab can't do any of
+      those.
+    </div>
+  </section>
+
+  <!-- ============ SLIDE OVER ============ -->
+  <section>
+    <h2><span class="icon-bubble b-grape">🪟</span> Use it as a floating window (Slide Over)</h2>
+    <p class="h2-lede">
+      Keep Flight Card hovering over your OPT, Lido, or charts app — same screen,
+      no app switch. Slide-Over is iPadOS's killer multitasking trick; the
+      installed PWA plays nicely with it.
+    </p>
+    <ol class="steps">
+      <li>
+        <b>Pin Flight Card to the Dock</b>
+        Long-press the ✈ icon on the Home Screen → <i>Add to Dock</i>. (If
+        it's already in the Dock, skip this step.) Recently-used apps don't
+        always show up in Slide Over — pinning makes it reliable.
+      </li>
+      <li>
+        <b>Open your main app first</b>
+        Launch the app you'll be working in full-screen — Lido, OPT, Pilots,
+        Documents, whatever.
+      </li>
+      <li>
+        <b>Show the Dock</b>
+        Swipe up <i>briefly</i> from the very bottom edge of the screen — about
+        an inch — and let go. The Dock appears across the bottom. (Swipe further
+        and you'll switch to the App Switcher instead.)
+      </li>
+      <li>
+        <b>Drag Flight Card onto the screen</b>
+        Press and hold the ✈ Flight Card icon in the Dock, drag it up toward
+        the middle of the screen, then release. It pops up as a narrow floating
+        window on the right.
+      </li>
+      <li>
+        <b>Park it where you want it</b>
+        Drag the small grey handle at the top of the floating window to the left
+        or right edge to dock it there. Swipe the handle off-screen to hide
+        Flight Card without closing it — a thin grey edge stays visible and
+        a single swipe brings it back.
+      </li>
+    </ol>
+    <div class="callout">
+      <b>Three-dot menu on iPadOS 16+:</b> the trio of dots at the top of
+      every window opens the same menu — pick the middle icon (a small
+      rectangle to one side) for Slide Over. Tap the rightmost icon to flip
+      back to full-screen.
+    </div>
+    <div class="callout" style="background:var(--pink-soft);border-left-color:var(--pink);">
+      <b>Heads-up:</b> Slide Over only works with <i>installed</i> PWAs — a
+      Safari tab can't go in Slide Over. If the icon doesn't drag out of the
+      Dock, re-check that you installed Flight Card to the Home Screen first.
+    </div>
+  </section>
+
+  <!-- ============ CALENDAR SYNC ============ -->
+  <section>
+    <h2><span class="icon-bubble b-green">📅</span> Connect your Google Calendar</h2>
+    <p class="h2-lede">
+      Paste your calendar's secret iCal address once. From then on the app
+      pulls every leg automatically, 3 hours before each departure, with no
+      sign-in and no OAuth dance.
+    </p>
+    <p style="margin:0 0 8px;"><b>On a Mac or PC, grab the secret address from Google Calendar:</b></p>
+    <ol class="steps">
+      <li>
+        <b>Open Google Calendar settings</b>
+        Sign in at <code>calendar.google.com</code>, click the gear ⚙ → <i>Settings</i>.
+      </li>
+      <li>
+        <b>Pick your duty calendar</b>
+        In the left sidebar, click the calendar you keep your flights on (under
+        <i>Settings for my calendars</i>).
+      </li>
+      <li>
+        <b>Find "Integrate calendar"</b>
+        Scroll all the way down to <i>Integrate calendar</i>.
+      </li>
+      <li>
+        <b>Copy "Secret address in iCal format"</b>
+        It's a long URL starting with <code>https://calendar.google.com/calendar/ical/…</code>
+        and ending in <code>basic.ics</code>. Tap the copy icon next to it.
+        <br/><span style="color:var(--fg-dim);font-size:13px;">⚠ This URL is a password — anyone with it can read your calendar. Don't share it.</span>
+      </li>
+    </ol>
+    <p style="margin:0 0 8px;"><b>Then in Flight Card on the iPad:</b></p>
+    <ol class="steps" style="counter-reset: step 4;">
+      <li>
+        <b>Open the share / sync sheet</b>
+        Tap the <kbd>▣</kbd> icon in the header.
+      </li>
+      <li>
+        <b>Paste into "Secret iCal URL"</b>
+        The field hides what you type (•••••), so make sure the paste is clean.
+        Tap <kbd>Save calendar</kbd>.
+      </li>
+      <li>
+        <b>Tap "Sync now"</b>
+        Watch every leg of the month appear in the leg switcher, sorted by UTC dep.
+      </li>
+    </ol>
+    <div class="callout">
+      <b>How auto-refresh works:</b> the app re-syncs <b>3 hours before each leg's
+      departure</b> (and on app launch if it's been more than 60 min). Manual refresh
+      always works from the same sheet. Within the 3-hour lock window before
+      departure, your typed crew names and flight time are sticky — sync won't
+      overwrite them, so an evening dispatch update can't silently revert a name
+      you fixed in the cockpit.
+    </div>
+    <div class="callout" style="background:var(--accent-soft);border-left-color:var(--accent);">
+      <b>Keep the secret URL safe.</b> Once it's saved the field shows dots and
+      you can't read it back. Stash the original in 1Password / Apple Passwords
+      so you can re-paste if you ever clear the app's data.
+    </div>
+  </section>
+
   <!-- ============ STEP 1 — get the calendar in ============ -->
   <section>
-    <h2><span class="icon-bubble b-blue">📅</span> Start here — get your roster in</h2>
+    <h2><span class="icon-bubble b-blue">📋</span> Or paste your bulletin (manual fallback)</h2>
     <p class="h2-lede">
       Your monthly bulletin is the fastest way to fill the app. One paste
       and every leg of the duty period lands in your leg list, sorted by
