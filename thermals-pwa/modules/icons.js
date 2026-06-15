@@ -79,7 +79,9 @@ function seatBadge(state, seats) {
 export function markerEl(state, color, nickname, seats = 0) {
   const wrap = document.createElement('div');
   wrap.className = 'pilot-marker';
-  wrap.style.setProperty('--pilot-color', color);
+  // A missing/invalid colour makes --pilot-color invalid, which renders the pin
+  // transparent — always fall back to a solid colour.
+  wrap.style.setProperty('--pilot-color', color || '#29b6f6');
   wrap.innerHTML = `
     <div class="pilot-pin">${glyphSVG(state, '#fff', 24)}${seatBadge(state, seats)}</div>
     ${nickname ? `<div class="pilot-tag">${nickname}</div>` : ''}`;
@@ -89,7 +91,7 @@ export function markerEl(state, color, nickname, seats = 0) {
 // Update an existing marker node in place (cheaper than recreating).
 export function updateMarkerEl(el, state, color, nickname, seats = 0) {
   if (!el) return;
-  el.style.setProperty('--pilot-color', color);
+  el.style.setProperty('--pilot-color', color || '#29b6f6');
   const pin = el.querySelector('.pilot-pin');
   if (pin) pin.innerHTML = glyphSVG(state, '#fff', 24) + seatBadge(state, seats);
   const tag = el.querySelector('.pilot-tag');

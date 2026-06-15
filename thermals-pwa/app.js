@@ -224,14 +224,15 @@ function connectRoom() {
     onVisibility: (id, visible) => mapMod.setPilotVisible(id, visible),
     onFocusPilot: (lng, lat) => mapMod.flyToPilot(lng, lat),
   });
+  // Show my own message instantly (works offline too); the server echo for my id
+  // is ignored so it isn't duplicated.
+  const echoMine = (extra) => {
+    const p = profile.getProfile();
+    chat.add({ from: selfId || 'me', nick: p.nickname || 'You', color: p.color, ts: Date.now(), ...extra });
+  };
   chat.init({
-    onSendMessage: (t) => {
-      // Show my own message instantly (works offline too); the server echo for
-      // my id is then ignored so it isn't duplicated.
-      const p = profile.getProfile();
-      chat.add({ from: selfId || 'me', nick: p.nickname || 'You', color: p.color, text: t, ts: Date.now() });
-      presence.sendChat(t);
-    },
+    onSendMessage: (t) => { echoMine({ text: t }); presence.sendChat(t); },
+    onSendMedia: (media) => { echoMine({ media }); presence.sendChat('', media); },
     selfId,
   });
 
@@ -262,6 +263,8 @@ function connectRoom() {
   // don't loop trying to reach a server that isn't there. The app still works
   // on this device — you just won't see other pilots until the Worker is live.
   if (auth.isLocalSession()) {
+    selfId = 'me';
+    chat.setSelfId('me');
     $('conn-dot')?.setAttribute('data-status', 'closed');
     return;
   }
@@ -340,7 +343,12 @@ window.thermalsDemo = () => {
     onVisibility: (id, vis) => mapMod.setPilotVisible(id, vis),
     onFocusPilot: (lng, lat) => mapMod.flyToPilot(lng, lat),
   });
-  chat.init({ onSendMessage: (t) => chat.add({ from: 'me', nick: 'You', color: '#ff5252', text: t, ts: Date.now() }), selfId: 'me' });
+  const demoEcho = (extra) => chat.add({ from: 'me', nick: 'You', color: '#ff5252', ts: Date.now(), ...extra });
+  chat.init({
+    onSendMessage: (t) => demoEcho({ text: t }),
+    onSendMedia: (media) => demoEcho({ media }),
+    selfId: 'me',
+  });
   const fakes = [
     { id: 'a', nickname: 'Sky Pirate', color: '#ffd600', state: 'FLYING', lat: 46.63, lng: 8.05, phone: '+972501112233', bloodType: 'A+', vehicle: 'White Transporter · 123-45', emergency: 'Dana 050-999', links: 'https://xcontest.org/skypirate', ts: Date.now() },
     { id: 'b', nickname: 'Ridge Runner', color: '#29b6f6', state: 'HITCHHIKING', lat: 46.61, lng: 8.02, phone: '+972502223344', bloodType: 'O−', vehicle: '', emergency: 'Yossi 052-888', links: '', ts: Date.now() - 120000 },

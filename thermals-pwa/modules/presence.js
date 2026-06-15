@@ -101,7 +101,7 @@ function flushPosition() {
 // State changes are worth sending immediately (not throttled).
 export function sendState(state, seats) { send({ t: 'state', state, seats }); }
 
-export function sendChat(text) { send({ t: 'chat', text }); }
+export function sendChat(text, media) { send({ t: 'chat', text, media }); }
 
 // Raise or clear an SOS. Broadcast to everyone in today's room immediately.
 export function sendSOS(active) { send({ t: 'sos', active: !!active }); }

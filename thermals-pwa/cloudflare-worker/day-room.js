@@ -95,12 +95,16 @@ export class DayRoom {
 
       case 'chat': {
         const text = String(msg.text || '').slice(0, 500).trim();
-        if (!text) break;
-        const out = { from: pilotId, nick: p.nickname || 'Pilot', color: p.color || '#9ab', text, ts: Date.now() };
-        this.chat.push(out);
+        const media = sanitizeMedia(msg.media);
+        if (!text && !media) break;
+        const base = { from: pilotId, nick: p.nickname || 'Pilot', color: p.color || '#9ab', ts: Date.now() };
+        // Broadcast the full message (with media) to everyone live…
+        this.broadcast({ t: 'chat', msg: { ...base, text, media } });
+        // …but only persist a lightweight, text-only copy for late joiners so
+        // the room's stored history can't balloon with base64 media.
+        this.chat.push({ ...base, text: text || (media ? `[${media.type}]` : '') });
         if (this.chat.length > CHAT_MAX) this.chat.shift();
         await this.state.storage.put('chat', this.chat);
-        this.broadcast({ t: 'chat', msg: out });
         break;
       }
 
@@ -161,6 +165,15 @@ function sanitizeProfile(p = {}) {
   };
 }
 function num(v) { return v == null || Number.isNaN(Number(v)) ? null : Number(v); }
+
+// Accept only small inline image/audio data URLs (≈1MB cap after base64).
+function sanitizeMedia(m) {
+  if (!m || typeof m.data !== 'string') return null;
+  const okType = m.type === 'image' || m.type === 'audio';
+  const okData = m.data.startsWith(`data:${m.type === 'image' ? 'image/' : 'audio/'}`);
+  if (!okType || !okData || m.data.length > 1_400_000) return null;
+  return { type: m.type, data: m.data };
+}
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
 }

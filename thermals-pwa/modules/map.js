@@ -14,7 +14,6 @@ const markers = new Map();        // pilotId -> { marker, el, state, color }
 let meMarker = null;
 let onPilotTap = () => {};
 let onBgTap = () => {};
-let followMe = true;
 
 export function onBackgroundClick(fn) { onBgTap = fn || onBgTap; }
 
@@ -28,21 +27,27 @@ function styleURL() {
 export function initMap(containerId, center = [8.0, 46.5], onTap) {
   if (map) return map;
   onPilotTap = onTap || onPilotTap;
+
+  // Right-to-left text plugin so Hebrew/Arabic place names render correctly
+  // (without it MapLibre draws them reversed/garbled). Lazy, load-once.
+  try {
+    if (maplibregl.getRTLTextPluginStatus && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+      maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', null, true);
+    }
+  } catch (err) { console.warn('RTL plugin skipped', err); }
+
   map = new maplibregl.Map({
     container: containerId,
     style: styleURL(),
     center,
-    zoom: 11,
-    pitch: 62,
+    zoom: 12,
+    pitch: 45,
     bearing: 0,
-    maxPitch: 80,
+    maxPitch: 75,
     attributionControl: { compact: true },
   });
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
-
-  // Dragging the map opts you out of follow-me until you recenter.
-  map.on('dragstart', () => { followMe = false; });
 
   // Tapping the map background (not a marker) closes overlays like the panel.
   map.on('click', () => onBgTap());
@@ -137,7 +142,10 @@ function addTerrain() {
 
 function whenReady(fn) { if (ready) fn(); else queue.push(fn); }
 
-// Place / move my own marker. Distinct ring so I can find myself.
+// Place / move my own marker. We center on the very first fix, then leave the
+// camera alone so the map doesn't fight the user's panning (that felt "stuck").
+// The recenter button re-centers on demand.
+let centeredOnce = false;
 export function setMe(lng, lat, state, color, nickname, seats = 0) {
   whenReady(() => {
     if (!meMarker) {
@@ -150,7 +158,7 @@ export function setMe(lng, lat, state, color, nickname, seats = 0) {
       updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats);
     }
     pushTrail('me', lng, lat, color);
-    if (followMe) map.easeTo({ center: [lng, lat], duration: 600 });
+    if (!centeredOnce) { centeredOnce = true; map.easeTo({ center: [lng, lat], duration: 600 }); }
   });
 }
 
@@ -196,7 +204,6 @@ export function flyToPilot(lng, lat) {
 }
 
 export function recenterMe() {
-  followMe = true;
   const ll = meMarker?.getLngLat();
-  if (ll) whenReady(() => map.easeTo({ center: ll, duration: 600 }));
+  if (ll) whenReady(() => map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 13), duration: 600 }));
 }

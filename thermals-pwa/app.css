@@ -173,9 +173,16 @@ body {
 .chat-meta { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .chat-text { background: var(--panel-2); padding: 7px 11px; border-radius: 12px; font-size: 14px; line-height: 1.35; }
 .chat-msg.is-mine .chat-text { background: var(--accent); color: #04121c; }
-.chat-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line);
+.chat-form { display: flex; gap: 6px; align-items: center; padding: 10px; border-top: 1px solid var(--line);
   padding-bottom: calc(10px + var(--safe-bottom)); }
-.chat-form input { flex: 1; }
+.chat-form input[type="text"] { flex: 1; }
+.chat-icon { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--panel-2); font-size: 18px; cursor: pointer; display: grid; place-items: center; }
+.chat-icon:active { transform: scale(.93); }
+.chat-icon.recording { background: var(--danger); animation: sos-flash .8s infinite; }
+.chat-img { max-width: 200px; max-height: 240px; border-radius: 12px; display: block; cursor: pointer; }
+.chat-audio { width: 220px; max-width: 60vw; height: 40px; }
+.chat-msg.is-mine .chat-img, .chat-msg.is-mine .chat-audio { margin-left: auto; }
 
 /* ---------- Pilot card ---------- */
 .pilot-card {
