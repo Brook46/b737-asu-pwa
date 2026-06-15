@@ -13,7 +13,7 @@ flying, stationary ⇒ walking); the vehicle/hitch states are manual. The **SOS*
 button gives a 10-second cancel countdown, then sounds a siren and alerts every
 pilot in today's room with your distress + location.
 
-> The first rule of Sky Club: you don't talk about Skyla.
+> The first rule of Sky Club: you don't talk about Sky Club.
 
 ## Architecture
 

@@ -218,6 +218,14 @@ function connectRoom() {
     }
   });
 
+  // Local-only session (backend not deployed): skip the live connection so we
+  // don't loop trying to reach a server that isn't there. The app still works
+  // on this device — you just won't see other pilots until the Worker is live.
+  if (auth.isLocalSession()) {
+    $('conn-dot')?.setAttribute('data-status', 'closed');
+    return;
+  }
+
   presence.setToken(auth.getToken());
   presence.connect();
 
