@@ -76,6 +76,7 @@ export class DayRoom {
         p.lat = num(loc.lat); p.lng = num(loc.lng);
         p.alt = num(loc.alt); p.heading = num(loc.heading); p.speed = num(loc.speed);
         if (msg.state) p.state = String(msg.state).slice(0, 16);
+        if (msg.seats != null) p.seats = Math.min(8, Math.max(0, msg.seats | 0));
         p.ts = Date.now();
         this.pilots.set(pilotId, p);
         await this.persistPilots();
@@ -84,7 +85,8 @@ export class DayRoom {
       }
 
       case 'state':
-        p.state = String(msg.state || 'GROUNDED').slice(0, 16);
+        p.state = String(msg.state || 'WALKING').slice(0, 16);
+        if (msg.seats != null) p.seats = Math.min(8, Math.max(0, msg.seats | 0));
         p.ts = Date.now();
         this.pilots.set(pilotId, p);
         await this.persistPilots();

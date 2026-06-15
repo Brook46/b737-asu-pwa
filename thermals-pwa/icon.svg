@@ -1,27 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0a1730"/>
-      <stop offset="1" stop-color="#05080f"/>
+      <stop offset="0" stop-color="#0b2a5e"/>
+      <stop offset="0.55" stop-color="#1d6fa5"/>
+      <stop offset="0.8" stop-color="#39b0a0"/>
+      <stop offset="1" stop-color="#ffd27a"/>
     </linearGradient>
-    <linearGradient id="canopy" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#29b6f6"/>
-      <stop offset="0.5" stop-color="#26a69a"/>
-      <stop offset="1" stop-color="#ffd600"/>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff6b6b"/>
+      <stop offset="0.5" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#4dd0c4"/>
     </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff4d6" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
-  <!-- ridge line -->
-  <path d="M0 400 L120 330 L210 380 L320 300 L420 360 L512 320 L512 512 L0 512 Z" fill="#0e1a2e"/>
-  <!-- paraglider canopy -->
-  <path d="M96 196 Q256 96 416 196" fill="none" stroke="url(#canopy)" stroke-width="34" stroke-linecap="round"/>
-  <!-- riser lines -->
-  <g stroke="#cdd9ec" stroke-width="6" stroke-linecap="round">
-    <line x1="112" y1="206" x2="248" y2="318"/>
-    <line x1="200" y1="200" x2="256" y2="318"/>
-    <line x1="312" y1="200" x2="264" y2="318"/>
-    <line x1="400" y1="206" x2="272" y2="318"/>
+
+  <!-- background -->
+  <rect width="512" height="512" rx="116" fill="url(#sky)"/>
+
+  <!-- sun glow near the horizon -->
+  <circle cx="256" cy="372" r="150" fill="url(#sun)"/>
+
+  <!-- layered mountain ridges -->
+  <path d="M0 392 L96 320 L168 366 L256 300 L344 360 L420 322 L512 360 L512 512 L0 512 Z" fill="#0c2347" opacity="0.85"/>
+  <path d="M0 432 L120 378 L220 420 L320 372 L430 418 L512 392 L512 512 L0 512 Z" fill="#0a1a35"/>
+
+  <!-- paraglider wing: smooth arched canopy with cell hints -->
+  <g>
+    <path d="M84 196 Q256 92 428 196 L412 214 Q256 120 100 214 Z" fill="url(#wing)"/>
+    <path d="M84 196 Q256 92 428 196" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.65"/>
+    <!-- cell separators -->
+    <g stroke="#0c2347" stroke-width="3" opacity="0.30">
+      <line x1="150" y1="168" x2="150" y2="196"/>
+      <line x1="208" y1="150" x2="208" y2="186"/>
+      <line x1="256" y1="146" x2="256" y2="184"/>
+      <line x1="304" y1="150" x2="304" y2="186"/>
+      <line x1="362" y1="168" x2="362" y2="196"/>
+    </g>
   </g>
-  <!-- pilot -->
-  <circle cx="256" cy="338" r="26" fill="#ffd600"/>
+
+  <!-- riser lines -->
+  <g stroke="#eaf2ff" stroke-width="4.5" stroke-linecap="round" opacity="0.9">
+    <line x1="104" y1="210" x2="246" y2="312"/>
+    <line x1="180" y1="196" x2="252" y2="312"/>
+    <line x1="332" y1="196" x2="260" y2="312"/>
+    <line x1="408" y1="210" x2="266" y2="312"/>
+  </g>
+
+  <!-- pilot (harness + body) -->
+  <g>
+    <rect x="244" y="312" width="24" height="30" rx="11" fill="#0c2347"/>
+    <circle cx="256" cy="312" r="16" fill="#ffd166"/>
+  </g>
 </svg>

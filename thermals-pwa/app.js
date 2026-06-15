@@ -52,15 +52,25 @@ $('gate-location-retry')?.addEventListener('click', () => geo.start());
 // Feed every fix into the map + (if connected) the room.
 geo.onFix((fix) => {
   if (!mapStarted) return;
-  const p = profile.getProfile();
-  mapMod.setMe(fix.lng, fix.lat, stateMod.getState(), p.color, p.nickname);
+  paintMe();
   if (connected) presence.sendPosition(
     { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed },
-    stateMod.getState()
+    stateMod.getState(), stateMod.getSeats()
   );
-  // Auto-switch FLYING ⇄ WALKING from motion (manual vehicle states stand).
-  stateMod.applyAutoState(fix);
+  // Auto-switch flying / walking / driving from speed + climb rate.
+  stateMod.applyAutoState({ speed: fix.speed, vrate: verticalRate(fix) });
 });
+
+// Vertical speed (m/s) from successive altitude samples — the key signal that
+// separates flight (climbing/sinking) from level ground travel.
+let prevAlt = null, prevAltTs = null;
+function verticalRate(fix) {
+  if (fix.alt == null) return 0;
+  let vr = 0;
+  if (prevAlt != null && fix.ts > prevAltTs) vr = (fix.alt - prevAlt) / ((fix.ts - prevAltTs) / 1000);
+  prevAlt = fix.alt; prevAltTs = fix.ts;
+  return vr;
+}
 
 function startMapOnce() {
   if (mapStarted) return;
@@ -73,12 +83,18 @@ function startMapOnce() {
 
 geo.start();
 
+// Paint my own marker from the current fix + profile + state (+ seats).
+function paintMe() {
+  const fix = geo.lastFix();
+  if (!fix || !mapStarted) return;
+  const p = profile.getProfile();
+  mapMod.setMe(fix.lng, fix.lat, stateMod.getState(), p.color, p.nickname, stateMod.getSeats());
+}
+
 // ---------- State selector ----------
 stateMod.onState((s) => {
-  const fix = geo.lastFix();
-  const p = profile.getProfile();
-  if (fix) mapMod.setMe(fix.lng, fix.lat, s, p.color, p.nickname);
-  if (connected) presence.sendState(s);
+  paintMe();
+  if (connected) presence.sendState(s, stateMod.getSeats());
 });
 
 // ---------- SOS ----------
@@ -130,11 +146,27 @@ $('sos-cancel')?.addEventListener('click', cancelSosCountdown);
 $('sos-now')?.addEventListener('click', activateSos);
 $('sos-clear')?.addEventListener('click', clearSos);
 
+// ---------- Free-seats picker (long-press Retrieve) ----------
+stateMod.setOnSeatsRequest(() => {
+  const grid = $('seats-grid');
+  if (grid) {
+    grid.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((n) =>
+      `<button class="seat-opt${n === stateMod.getSeats() ? ' is-on' : ''}" data-n="${n}">${n}</button>`).join('');
+    grid.querySelectorAll('.seat-opt').forEach((b) => b.addEventListener('click', () => {
+      stateMod.setState('RETRIEVE');
+      stateMod.setSeats(Number(b.dataset.n));
+      hideOverlay('seats-picker');
+      toast(`Offering ${b.dataset.n} seat${b.dataset.n === '1' ? '' : 's'}`);
+    }));
+  }
+  showOverlay('seats-picker');
+});
+$('seats-picker')?.addEventListener('click', (e) => { if (e.target.id === 'seats-picker') hideOverlay('seats-picker'); });
+
 // ---------- Profile ----------
 profile.renderEditor();
 profile.onProfile((p) => {
-  const fix = geo.lastFix();
-  if (fix && mapStarted) mapMod.setMe(fix.lng, fix.lat, stateMod.getState(), p.color, p.nickname);
+  paintMe();
   if (connected) presence.sendProfile(p);
   maybeAdvanceOnboarding();
 });
@@ -192,21 +224,29 @@ function connectRoom() {
     onVisibility: (id, visible) => mapMod.setPilotVisible(id, visible),
     onFocusPilot: (lng, lat) => mapMod.flyToPilot(lng, lat),
   });
-  chat.init({ onSendMessage: (t) => presence.sendChat(t), selfId });
+  chat.init({
+    onSendMessage: (t) => {
+      // Show my own message instantly (works offline too); the server echo for
+      // my id is then ignored so it isn't duplicated.
+      const p = profile.getProfile();
+      chat.add({ from: selfId || 'me', nick: p.nickname || 'You', color: p.color, text: t, ts: Date.now() });
+      presence.sendChat(t);
+    },
+    selfId,
+  });
 
   presence.on('status', (s) => {
     $('conn-dot')?.setAttribute('data-status', s);
   });
   presence.on('self', (id) => { selfId = id; chat.setSelfId(id); });
-  presence.on('roster', (list) => roster.setAll(list.filter((p) => !isMe(p)).map(decorate)));
-  presence.on('upsert', (p) => {
-    if (isMe(p)) return;            // don't double-draw myself
-    const d = decorate(p);
-    roster.upsert(d);
-    if (!roster.isHidden(d.id)) mapMod.upsertPilot(d);
+  presence.on('roster', (list) => {
+    const vis = list.filter((p) => !isMe(p)).map(decorate).filter(inRange);
+    roster.setAll(vis);
+    vis.forEach((p) => { if (!roster.isHidden(p.id)) mapMod.upsertPilot(p); });
   });
+  presence.on('upsert', (p) => applyPilot(p));
   presence.on('remove', (id) => { roster.remove(id); mapMod.removePilot(id); });
-  presence.on('chat', (m) => chat.add(m));
+  presence.on('chat', (m) => { if (selfId && m.from === selfId) return; chat.add(m); });
   presence.on('sos', (e) => {
     if (isMe(e)) return;
     if (e.active) {
@@ -235,8 +275,37 @@ function connectRoom() {
   if (fix) presence.sendPosition({ lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed }, stateMod.getState());
 }
 
-function decorate(p) { return { ...p }; }
+// Only pilots within RANGE_KM of me show up (an SOS always shows, any distance).
+const RANGE_KM = 50;
+function distKm(a, b) {
+  if (a?.lat == null || b?.lat == null) return null;
+  const R = 6371, toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function decorate(p) {
+  const me = geo.lastFix();
+  const o = { ...p };
+  o.distKm = distKm(me, p);
+  return o;
+}
+function inRange(p) {
+  if (p.sos) return true;
+  if (p.distKm == null) return true;          // unknown distance → don't hide
+  return p.distKm <= RANGE_KM;
+}
 function isMe(p) { return selfId && p.id === selfId; }
+
+// Apply one incoming pilot: decorate, range-filter (SOS always shows), then
+// reflect into the roster + map. Shared by live presence and the demo seed.
+function applyPilot(raw) {
+  if (isMe(raw)) return;
+  const d = decorate(raw);
+  if (!inRange(d)) { roster.remove(d.id); mapMod.removePilot(d.id); return; }
+  roster.upsert(d);
+  if (!roster.isHidden(d.id)) mapMod.upsertPilot(d);
+}
 
 // ---------- Panels (roster / chat tabs) ----------
 function showPanel(name) {
@@ -248,9 +317,10 @@ function showPanel(name) {
 }
 $('tab-roster')?.addEventListener('click', () => showPanel('roster'));
 $('tab-chat')?.addEventListener('click', () => showPanel('chat'));
-$('panel-toggle')?.addEventListener('click', () => {
-  $('side-panel')?.classList.toggle('open');
-});
+function closePanel() { $('side-panel')?.classList.remove('open'); }
+$('panel-toggle')?.addEventListener('click', () => $('side-panel')?.classList.toggle('open'));
+$('panel-close')?.addEventListener('click', closePanel);
+mapMod.onBackgroundClick(closePanel);     // tapping the map closes the panel
 $('recenter')?.addEventListener('click', () => mapMod.recenterMe());
 
 // Kick off the onboarding check (location callback will re-drive it).
@@ -258,9 +328,9 @@ maybeAdvanceOnboarding();
 
 // Dev seam: simulate a GPS fix for local testing without real location
 // (e.g. headless preview). Harmless in production; only fires when called.
-window.thermalsSimulate = (lat = 46.62, lng = 8.04, speed = 0) => {
+window.thermalsSimulate = (lat = 46.62, lng = 8.04, speed = 0, alt = 1500) => {
   hideOverlay('gate-location');
-  geo._injectFix({ lat, lng, speed });
+  geo._injectFix({ lat, lng, speed, alt });
 };
 
 // Dev seam: populate the roster, map, and chat with fake pilots exactly as the
@@ -276,9 +346,11 @@ window.thermalsDemo = () => {
     { id: 'b', nickname: 'Ridge Runner', color: '#29b6f6', state: 'HITCHHIKING', lat: 46.61, lng: 8.02, phone: '+972502223344', bloodType: 'O−', vehicle: '', emergency: 'Yossi 052-888', links: '', ts: Date.now() - 120000 },
     { id: 'c', nickname: 'Cloud9', color: '#ab47bc', state: 'RETRIEVE', lat: 46.60, lng: 8.07, phone: '+972503334455', bloodType: 'B+', vehicle: 'Black Berlingo', emergency: '', links: '', ts: Date.now() - 600000 },
     { id: 'd', nickname: 'Featherfoot', color: '#7cb342', state: 'WALKING', lat: 46.625, lng: 8.03, phone: '+972504445566', bloodType: 'A−', vehicle: '', emergency: 'Noa 053-777', links: '', ts: Date.now() - 60000 },
+    // Far away (~300km) — should be filtered out by the 50km radius.
+    { id: 'e', nickname: 'FarAway', color: '#888', state: 'FLYING', lat: 48.8, lng: 9.2, phone: '+972505556677', ts: Date.now() - 30000 },
   ];
-  roster.setAll(fakes);
-  fakes.forEach((p) => mapMod.upsertPilot(p));
+  roster.setAll([]);
+  fakes.forEach(applyPilot);
   chat.add({ from: 'a', nick: 'Sky Pirate', color: '#ffd600', text: 'Climbing nicely over the ridge ☁️', ts: Date.now() - 90000 });
   chat.add({ from: 'b', nick: 'Ridge Runner', color: '#29b6f6', text: 'Landed at the LZ, anyone driving back?', ts: Date.now() - 30000 });
   document.getElementById('side-panel').classList.add('open');

@@ -81,10 +81,10 @@ function send(obj) {
 // Push our profile (called on join + whenever the profile changes).
 export function sendProfile(profile) { send({ t: 'profile', profile }); }
 
-// Push our location + state. Throttled so we don't spam the room while the GPS
-// fires every second; the most recent sample always wins.
-export function sendPosition(loc, state) {
-  pending = { t: 'loc', loc, state };
+// Push our location + state (+ free seats). Throttled so we don't spam the room
+// while the GPS fires every second; the most recent sample always wins.
+export function sendPosition(loc, state, seats) {
+  pending = { t: 'loc', loc, state, seats };
   const now = Date.now();
   const wait = Math.max(0, LOCATION_THROTTLE_MS - (now - lastSent));
   if (wait === 0) flushPosition();
@@ -99,7 +99,7 @@ function flushPosition() {
 }
 
 // State changes are worth sending immediately (not throttled).
-export function sendState(state) { send({ t: 'state', state }); }
+export function sendState(state, seats) { send({ t: 'state', state, seats }); }
 
 export function sendChat(text) { send({ t: 'chat', text }); }
 

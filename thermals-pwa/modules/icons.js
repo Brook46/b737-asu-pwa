@@ -69,24 +69,29 @@ export function glyphSVG(stateOrGlyph, color = 'currentColor', size = 22) {
      stroke-linejoin="round" style="--c:${color}">${GLYPHS[name]}</svg>`;
 }
 
+function seatBadge(state, seats) {
+  return (state === 'RETRIEVE' && seats > 0) ? `<span class="seat-badge">${seats}</span>` : '';
+}
+
 // Build a DOM node for a MapLibre HTML marker: a coloured teardrop pin holding
-// the state glyph, with an optional nickname label below.
-export function markerEl(state, color, nickname) {
+// the state glyph (a seat count badge when offering a retrieve ride), with an
+// optional nickname label below.
+export function markerEl(state, color, nickname, seats = 0) {
   const wrap = document.createElement('div');
   wrap.className = 'pilot-marker';
   wrap.style.setProperty('--pilot-color', color);
   wrap.innerHTML = `
-    <div class="pilot-pin">${glyphSVG(state, '#fff', 24)}</div>
+    <div class="pilot-pin">${glyphSVG(state, '#fff', 24)}${seatBadge(state, seats)}</div>
     ${nickname ? `<div class="pilot-tag">${nickname}</div>` : ''}`;
   return wrap;
 }
 
 // Update an existing marker node in place (cheaper than recreating).
-export function updateMarkerEl(el, state, color, nickname) {
+export function updateMarkerEl(el, state, color, nickname, seats = 0) {
   if (!el) return;
   el.style.setProperty('--pilot-color', color);
   const pin = el.querySelector('.pilot-pin');
-  if (pin) pin.innerHTML = glyphSVG(state, '#fff', 24);
+  if (pin) pin.innerHTML = glyphSVG(state, '#fff', 24) + seatBadge(state, seats);
   const tag = el.querySelector('.pilot-tag');
   if (tag && nickname != null) tag.textContent = nickname;
 }
