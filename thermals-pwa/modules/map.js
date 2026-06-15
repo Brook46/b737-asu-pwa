@@ -13,7 +13,10 @@ const queue = [];                 // ops deferred until style loads
 const markers = new Map();        // pilotId -> { marker, el, state, color }
 let meMarker = null;
 let onPilotTap = () => {};
+let onBgTap = () => {};
 let followMe = true;
+
+export function onBackgroundClick(fn) { onBgTap = fn || onBgTap; }
 
 // Build a style object. Prefer MapTiler outdoor (great for terrain); else fall
 // back to keyless OpenFreeMap 'liberty' vector style.
@@ -41,14 +44,65 @@ export function initMap(containerId, center = [8.0, 46.5], onTap) {
   // Dragging the map opts you out of follow-me until you recenter.
   map.on('dragstart', () => { followMe = false; });
 
-  // Terrain needs the style loaded; markers don't (they're DOM overlays), so we
-  // flush the marker queue as soon as the map object exists — that way a slow or
-  // failed basemap can never strand pilots off the map.
-  map.on('load', addTerrain);
+  // Tapping the map background (not a marker) closes overlays like the panel.
+  map.on('click', () => onBgTap());
+
+  // Terrain + trail layers need the style loaded; markers don't (they're DOM
+  // overlays), so we flush the marker queue as soon as the map object exists —
+  // a slow or failed basemap can never strand pilots off the map.
+  map.on('load', () => { addTerrain(); setupTrails(); });
   ready = true;
   queue.splice(0).forEach((fn) => fn());
 
   return map;
+}
+
+// ---------- Trails (each pilot's recent track, air + ground) ----------
+const trails = new Map();          // id -> { color, pts: [[lng,lat], …] }
+const TRAIL_MAX = 200;
+let trailsReady = false;
+
+function setupTrails() {
+  if (map.getSource('pilot-trails')) { trailsReady = true; return; }
+  map.addSource('pilot-trails', { type: 'geojson', data: trailFC() });
+  map.addLayer({
+    id: 'pilot-trails-line',
+    type: 'line',
+    source: 'pilot-trails',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.55 },
+  });
+  trailsReady = true;
+  refreshTrails();
+}
+
+function trailFC() {
+  return {
+    type: 'FeatureCollection',
+    features: [...trails.entries()].filter(([, t]) => t.pts.length > 1).map(([, t]) => ({
+      type: 'Feature',
+      properties: { color: t.color || '#29b6f6' },
+      geometry: { type: 'LineString', coordinates: t.pts },
+    })),
+  };
+}
+
+function refreshTrails() {
+  const src = trailsReady && map.getSource('pilot-trails');
+  if (src) src.setData(trailFC());
+}
+
+function pushTrail(id, lng, lat, color) {
+  if (lng == null || lat == null) return;
+  let t = trails.get(id);
+  if (!t) { t = { color, pts: [] }; trails.set(id, t); }
+  if (color) t.color = color;
+  const last = t.pts[t.pts.length - 1];
+  if (!last || Math.abs(last[0] - lng) > 1e-6 || Math.abs(last[1] - lat) > 1e-6) {
+    t.pts.push([lng, lat]);
+    if (t.pts.length > TRAIL_MAX) t.pts.shift();
+    refreshTrails();
+  }
 }
 
 // Add a DEM source + 3D terrain + a sky layer for the paragliding feel.
@@ -84,17 +138,18 @@ function addTerrain() {
 function whenReady(fn) { if (ready) fn(); else queue.push(fn); }
 
 // Place / move my own marker. Distinct ring so I can find myself.
-export function setMe(lng, lat, state, color, nickname) {
+export function setMe(lng, lat, state, color, nickname, seats = 0) {
   whenReady(() => {
     if (!meMarker) {
-      const el = markerEl(state, color, nickname || 'You');
+      const el = markerEl(state, color, nickname || 'You', seats);
       el.classList.add('is-me');
       meMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat]).addTo(map);
     } else {
       meMarker.setLngLat([lng, lat]);
-      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You');
+      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats);
     }
+    pushTrail('me', lng, lat, color);
     if (followMe) map.easeTo({ center: [lng, lat], duration: 600 });
   });
 }
@@ -110,23 +165,25 @@ export function upsertPilot(p) {
     if (p.lng == null || p.lat == null) return;
     let m = markers.get(p.id);
     if (!m) {
-      const el = markerEl(p.state, p.color, p.nickname);
+      const el = markerEl(p.state, p.color, p.nickname, p.seats);
       el.addEventListener('click', () => onPilotTap(p.id));
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([p.lng, p.lat]).addTo(map);
       markers.set(p.id, { marker, el });
     } else {
       m.marker.setLngLat([p.lng, p.lat]);
-      updateMarkerEl(m.el, p.state, p.color, p.nickname);
+      updateMarkerEl(m.el, p.state, p.color, p.nickname, p.seats);
     }
     const el = markers.get(p.id)?.el;
     if (el) el.classList.toggle('is-sos', !!p.sos);
+    pushTrail(p.id, p.lng, p.lat, p.color);
   });
 }
 
 export function removePilot(id) {
   const m = markers.get(id);
   if (m) { m.marker.remove(); markers.delete(id); }
+  if (trails.delete(id)) refreshTrails();
 }
 
 export function setPilotVisible(id, visible) {

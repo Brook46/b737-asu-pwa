@@ -22,7 +22,7 @@
 
   <!-- Top bar -->
   <header class="topbar">
-    <div class="brand"><span class="kite">🪂</span> Sky Club</div>
+    <div class="brand">Sky Club</div>
     <div class="topbar-right">
       <span id="conn-dot" class="conn-dot" data-status="closed" title="Connection"></span>
       <button id="open-profile" class="icon-btn" title="Your profile">👤</button>
@@ -42,6 +42,7 @@
     <div class="panel-tabs">
       <button id="tab-roster" class="tab is-on">Crew (<span id="roster-count">0</span>)</button>
       <button id="tab-chat" class="tab">Chat</button>
+      <button id="panel-close" class="panel-close" title="Close" aria-label="Close">✕</button>
     </div>
 
     <section id="panel-roster" class="panel">
@@ -72,6 +73,15 @@
       <p>Hold tight — alerting everyone flying today and sharing your location.</p>
       <button id="sos-now" class="btn btn-sos">Send now</button>
       <button id="sos-cancel" class="btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Free-seats picker (long-press Retrieve) -->
+  <div id="seats-picker" class="overlay hidden">
+    <div class="overlay-box seats-box">
+      <div class="overlay-head"><h2>Free seats in your car</h2></div>
+      <p class="field-note" style="padding:0 16px">So the crew can see who to catch a ride with.</p>
+      <div id="seats-grid" class="seats-grid"></div>
     </div>
   </div>
 

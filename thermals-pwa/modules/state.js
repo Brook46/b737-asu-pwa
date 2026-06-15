@@ -8,10 +8,26 @@ import { STATES, STATE_ORDER, AUTO_STATES } from '../config.js';
 import { glyphSVG } from './icons.js';
 
 const KEY = 'thermals.state';
+const SEATS_KEY = 'thermals.seats';
 let current = STATES[localStorage.getItem(KEY)] ? localStorage.getItem(KEY) : 'WALKING';
+let seats = Number(localStorage.getItem(SEATS_KEY) || 0);
 const subs = new Set();
+let onSeatsRequest = () => {};
 
 export function getState() { return current; }
+export function getSeats() { return seats; }
+
+// Free seats you're offering when on a Retrieve run, so the crew can see who to
+// catch a ride with. Changing seats notifies subscribers (to re-broadcast).
+export function setSeats(n) {
+  seats = Math.min(8, Math.max(0, n | 0));
+  localStorage.setItem(SEATS_KEY, String(seats));
+  subs.forEach((fn) => fn(current));
+  renderSelector();
+}
+
+// app.js wires this to open the seats picker on a long-press of Retrieve.
+export function setOnSeatsRequest(fn) { onSeatsRequest = fn || onSeatsRequest; }
 
 export function setState(id) {
   if (!STATES[id] || id === current) return;
@@ -23,17 +39,30 @@ export function setState(id) {
 
 export function onState(fn) { subs.add(fn); return () => subs.delete(fn); }
 
-// Auto air/ground switching. Only acts when the current state is one of the
-// auto-managed states (FLYING/WALKING) — a manually chosen vehicle/hitch state
-// is left alone. Hysteresis (the 1.5–3.5 m/s gap) keeps it from flickering.
-const FLY_SPEED = 3.5;   // m/s — airborne-ish
-const WALK_SPEED = 1.5;  // m/s — clearly on the ground
+// Auto flying / walking / driving from speed + vertical rate. Only acts when
+// the current state is auto-managed (a manually chosen Retrieve/Bus/Hitch is
+// left alone). Hysteresis: the in-between zones keep the current state so it
+// doesn't flicker. Speeds m/s; vrate is |altitude change| in m/s.
+//   • Real vertical movement at flight pace  → FLYING (the strongest signal —
+//     paragliders climb/sink; cars and walkers stay level).
+//   • Fast and level                          → DRIVING (road speed).
+//   • Slow and level                          → WALKING.
+const WALK_SPEED = 1.8;   // below this, on foot
+const ROAD_SPEED = 9;     // ~32 km/h — faster than anyone runs
+const VARIO = 0.7;        // m/s climb/sink that signals flight
 export function applyAutoState(geo) {
   if (!geo || !AUTO_STATES.includes(current)) return;
   const spd = geo.speed; // m/s, may be null
   if (spd == null || Number.isNaN(spd)) return;
-  if (spd > FLY_SPEED) setState('FLYING');
-  else if (spd < WALK_SPEED) setState('WALKING');
+  const vr = Math.abs(geo.vrate ?? 0);
+
+  let next = current;
+  if (vr > VARIO && spd < 28) next = 'FLYING';
+  else if (spd > ROAD_SPEED && vr < 0.6) next = 'DRIVING';
+  else if (spd >= 4 && spd <= 22 && vr > 0.3) next = 'FLYING';
+  else if (spd < WALK_SPEED && vr < 0.5) next = 'WALKING';
+  // otherwise stay put (hysteresis)
+  if (next !== current) setState(next);
 }
 
 // Render the four-state + grounded selector into #state-selector.
@@ -43,11 +72,25 @@ export function renderSelector() {
   host.innerHTML = STATE_ORDER.map((id) => {
     const s = STATES[id];
     const on = id === current ? ' is-on' : '';
+    const badge = (id === 'RETRIEVE' && seats > 0) ? `<span class="seat-pill">${seats}</span>` : '';
     return `<button class="state-btn${on}" data-state="${id}" title="${s.label}">
-      ${glyphSVG(id, 'currentColor', 24)}<span>${s.label}</span>
+      ${glyphSVG(id, 'currentColor', 24)}${badge}<span>${s.label}</span>
     </button>`;
   }).join('');
   host.querySelectorAll('.state-btn').forEach((b) => {
     b.addEventListener('click', () => setState(b.dataset.state));
+    // Long-press Retrieve to set how many free seats you have.
+    if (b.dataset.state === 'RETRIEVE') attachLongPress(b, () => onSeatsRequest());
   });
+}
+
+// Fire `cb` after a 500ms press; cancel on release/move/leave.
+function attachLongPress(el, cb) {
+  let t = null;
+  const start = () => { t = setTimeout(() => { t = null; cb(); }, 500); };
+  const cancel = () => { if (t) { clearTimeout(t); t = null; } };
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', cancel);
+  el.addEventListener('pointerleave', cancel);
+  el.addEventListener('pointercancel', cancel);
 }

@@ -8,12 +8,28 @@ group chat, an SOS distress button, and a one-tap WhatsApp link to any pilot.
 You can't see the crew without sharing your own location — the app is gated on
 an active location share.
 
-**Flying ⇄ on-the-ground switches automatically** from motion (airborne ⇒
-flying, stationary ⇒ walking); the vehicle/hitch states are manual. The **SOS**
-button gives a 10-second cancel countdown, then sounds a siren and alerts every
-pilot in today's room with your distress + location.
+Highlights:
+- **Auto state** — flying / walking / driving switch automatically from speed +
+  climb rate (vertical movement ⇒ flying; fast & level ⇒ driving; slow ⇒
+  walking). Retrieve / bus / hitch stay manual.
+- **Retrieve seats** — long-press *Retrieve* to set how many free seats you have;
+  the count shows on your marker, in the crew list, and on your card.
+- **SOS** — 10-second cancel countdown, then a siren + a distress broadcast
+  (with your location) to everyone in today's room.
+- **50 km radius** — you see app users within 50 km (an SOS shows at any range).
+- **Trails** — each pilot leaves a fading track of where they've been, in air and
+  on the ground, coloured by pilot.
+- **Pilot trails, crew panel, group chat** — the panel closes with ✕ or by
+  tapping the map.
 
 > The first rule of Sky Club: you don't talk about Sky Club.
+
+### Not built yet (needs external APIs)
+"Show pilots from my contacts" and "pull in XContest Live / LiveTrack24 tracks"
+are larger, separate integrations: the web Contacts API is limited and
+user-gesture-only, and the live-tracking feeds need each service's API plus a
+CORS proxy (the existing Cloudflare Worker is the natural home). Scoped as a
+follow-up rather than half-built.
 
 ## Architecture
 

@@ -59,7 +59,9 @@ export function render() {
     const off = hidden.has(p.id) ? ' is-off' : '';
     const sos = p.sos ? ' is-sos' : '';
     const st = STATES[p.state] || STATES.WALKING;
-    const sub = p.sos ? '🚨 SOS — needs help' : `${esc(st.label)} · ${ago(p.ts)}`;
+    const seatTxt = (p.state === 'RETRIEVE' && p.seats > 0) ? ` · ${p.seats} seat${p.seats === 1 ? '' : 's'} free` : '';
+    const distTxt = (p.distKm != null) ? ` · ${p.distKm < 10 ? p.distKm.toFixed(1) : Math.round(p.distKm)} km` : '';
+    const sub = p.sos ? '🚨 SOS — needs help' : `${esc(st.label)}${seatTxt}${distTxt} · ${ago(p.ts)}`;
     return `<div class="roster-row${off}${sos}" data-id="${esc(p.id)}">
       <button class="roster-eye" data-act="toggle" title="Show / hide on map" aria-pressed="${!off}">
         ${eyeSVG(!hidden.has(p.id))}
@@ -109,6 +111,7 @@ export function openCard(id) {
       <button class="card-close" data-act="close" aria-label="Close">✕</button>
     </div>
     <dl class="card-fields">
+      ${p.state === 'RETRIEVE' && p.seats > 0 ? field('Free seats', `${p.seats} in the car`) : ''}
       ${field('Blood type', p.bloodType)}
       ${field('Vehicle', p.vehicle)}
       ${field('Emergency contact', p.emergency)}

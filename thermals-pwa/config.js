@@ -41,9 +41,9 @@ export const STATES = {
 
 export const STATE_ORDER = ['FLYING', 'WALKING', 'DRIVING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
 
-// These two auto-switch from motion: airborne ⇒ FLYING, on the ground ⇒ WALKING.
-// The vehicle/hitch states are manual and are never auto-overridden.
-export const AUTO_STATES = ['FLYING', 'WALKING'];
+// These auto-switch from motion (speed + vertical rate): flying / walking /
+// driving. Retrieve, bus and hitch stay manual and are never auto-overridden.
+export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING'];
 
 // Default per-pilot colours offered in the profile editor.
 export const COLORS = [
