@@ -24,6 +24,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8095", "--directory", "/Users/alonbrookstein/Claude AS/flight-card-pwa"],
       "port": 8095
+    },
+    {
+      "name": "Thermals",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8092", "/Users/alonbrookstein/Claude AS/thermals-pwa"],
+      "port": 8092
     }
   ]
 }

@@ -1,0 +1,29 @@
+{
+  // Thermals real-time backend — separate Worker from the Flight Card proxy at
+  // the repo root. Deploy from this directory: `wrangler deploy`.
+  //
+  // First-time setup:
+  //   1. wrangler secret put SESSION_HMAC_SECRET      (any long random string)
+  //   2. wrangler deploy
+  //   3. Put the resulting workers.dev URL into thermals-pwa/config.js (API_BASE).
+  //
+  // Sign-in is keyless WhatsApp (the number is the identity) — no SMS provider,
+  // no Twilio, nothing else to configure.
+  //
+  // Durable Objects with SQLite storage are free-tier eligible.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "thermals",
+  "main": "index.js",
+  "compatibility_date": "2026-06-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "DAY_ROOM", "class_name": "DayRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DayRoom"] }
+  ]
+}

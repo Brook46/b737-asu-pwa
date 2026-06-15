@@ -1,0 +1,20 @@
+{
+  "name": "Sky Club — daily social paragliding",
+  "short_name": "Sky Club",
+  "description": "See who's flying today. Live 3D map of your paragliding crew — state, location, SOS, and a way to reach each pilot.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05080f",
+  "theme_color": "#05080f",
+  "categories": ["sports", "social", "navigation"],
+  "lang": "en",
+  "dir": "auto",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
