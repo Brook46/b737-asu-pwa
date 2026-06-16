@@ -33,20 +33,21 @@ export const LOCATION_THROTTLE_MS = 4000;
 export const STATES = {
   FLYING:      { id: 'FLYING',      label: 'Flying',        glyph: 'paraglider' },
   WALKING:     { id: 'WALKING',     label: 'On the ground', glyph: 'walk' },
-  DRIVING:     { id: 'DRIVING',     label: 'Driving',       glyph: 'car' },
   RETRIEVE:    { id: 'RETRIEVE',    label: 'Retrieve',      glyph: 'retrieve' },
   BUS:         { id: 'BUS',         label: 'On the bus',    glyph: 'bus' },
   HITCHHIKING: { id: 'HITCHHIKING', label: 'Need a ride',   glyph: 'thumb' },
-  // Auto-only (not a manual button): landed and stationary for a while.
-  BEER:        { id: 'BEER',        label: 'Grabbing a beer', glyph: 'beer' },
+  // Auto-only states (no manual button):
+  DRIVING:     { id: 'DRIVING',     label: 'Driving',       glyph: 'car' },       // auto when >20 km/h on the ground
+  HITCH_CAR:   { id: 'HITCH_CAR',   label: 'Got a ride',    glyph: 'hitchcar' },  // hitch-hiker who got picked up
+  BEER:        { id: 'BEER',        label: 'Grabbing a beer', glyph: 'beer' },    // landed & still a while
 };
 
-// Buttons shown in the manual selector (Beer is auto-only, so it's omitted).
-export const STATE_ORDER = ['FLYING', 'WALKING', 'DRIVING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
+// Buttons shown in the manual selector. The car (Driving) is now auto-only, as
+// are Beer / Got-a-ride — so none of them appear here.
+export const STATE_ORDER = ['FLYING', 'WALKING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
 
-// These auto-switch from motion: flying / walking / driving, plus Beer once
-// you've been still on the ground a while. Retrieve / bus / hitch stay manual.
-export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING', 'BEER'];
+// States the motion logic is allowed to switch between. Retrieve / bus stay put.
+export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING', 'BEER', 'HITCHHIKING', 'HITCH_CAR'];
 
 // How long stationary on the ground before the icon becomes a beer.
 export const BEER_AFTER_MS = 120000;

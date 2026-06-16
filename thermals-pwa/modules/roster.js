@@ -13,6 +13,10 @@ const pilots = new Map();          // id -> pilot
 const hidden = new Set();          // ids the user has toggled off
 let onVisibilityChange = () => {};
 let onFocus = () => {};            // (lng,lat) => recenter map
+let kingId = null;
+
+export function all() { return [...pilots.values()]; }
+export function setKing(id) { kingId = id; render(); }
 
 export function init({ onVisibility, onFocusPilot }) {
   onVisibilityChange = onVisibility || onVisibilityChange;
@@ -73,7 +77,7 @@ export function render() {
           ${glyphSVG(p.sos ? 'SOS' : p.state, '#fff', 20)}
         </span>
         <span class="roster-text">
-          <span class="roster-nick">${esc(p.nickname || 'Pilot')}</span>
+          <span class="roster-nick">${p.id === kingId ? '👑 ' : ''}${esc(p.nickname || 'Pilot')}</span>
           <span class="roster-sub">${sub}</span>
           ${tele ? `<span class="roster-tele">${tele}</span>` : ''}
         </span>
@@ -108,8 +112,8 @@ export function openCard(id) {
     <div class="card-head${p.sos ? ' is-sos' : ''}" style="--pilot-color:${esc(p.color || '#888')}">
       <span class="card-glyph">${glyphSVG(p.state, '#fff', 30)}</span>
       <div>
-        <h2>${esc(p.nickname || 'Pilot')}</h2>
-        <p class="card-state">${p.sos ? '🚨 SOS — needs help' : `${esc(st.label)} · seen ${ago(p.ts)} ago`}</p>
+        <h2>${p.id === kingId ? '👑 ' : ''}${esc(p.nickname || 'Pilot')}</h2>
+        <p class="card-state">${p.sos ? '🚨 SOS — needs help' : `${esc(st.label)} · seen ${ago(p.ts)} ago`}${p.id === kingId ? ' · King of the day' : ''}</p>
       </div>
       <button class="card-close" data-act="close" aria-label="Close">✕</button>
     </div>
@@ -118,6 +122,7 @@ export function openCard(id) {
       ${field('Speed', fmtSpeed(p.speed))}
       ${field('Climb / sink (2s avg)', fmtVario(p.vario))}
       ${field('Track', fmtTrack(p.heading))}
+      ${p.xcKm > 1 ? field('Best distance (5 pts)', `${p.xcKm.toFixed(1)} km`) : ''}
       ${p.state === 'RETRIEVE' && p.seats > 0 ? field('Free seats', `${p.seats} in the car`) : ''}
       ${field('Blood type', p.bloodType)}
       ${field('Vehicle', p.vehicle)}

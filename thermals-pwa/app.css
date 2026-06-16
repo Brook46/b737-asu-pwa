@@ -122,6 +122,10 @@ body {
 }
 .pilot-pin .glyph { transform: rotate(45deg); }
 .pilot-marker.is-me .pilot-pin { box-shadow: 0 0 0 4px rgba(41,182,246,.4), 0 4px 10px rgba(0,0,0,.5); }
+.pilot-marker.is-king::before {
+  content: '👑'; position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  font-size: 16px; z-index: 3; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); pointer-events: none;
+}
 .pilot-tag {
   margin-top: 3px; font-size: 11px; font-weight: 600; color: #fff;
   background: rgba(5,8,15,.75); padding: 1px 7px; border-radius: 999px;

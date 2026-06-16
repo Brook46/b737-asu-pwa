@@ -32,6 +32,13 @@ const GLYPHS = {
   thumb: `
     <path d="M7 11 L7 20 L4 20 L4 11 Z" class="fill-soft" />
     <path d="M7 11 L10.5 4 Q11 3 12 3.4 Q13 3.8 12.6 5 L11.5 9 L18 9 Q20 9 19.6 11 L18.4 17 Q18 19 16 19 L7 19 Z" class="fill" />`,
+  // Got a ride: a car with a thumb-up — a hitch-hiker who got picked up.
+  hitchcar: `
+    <path d="M3 16 L4.5 12 Q5 11 6 11 L18 11 Q19 11 19.5 12 L21 16 L21 18 L3 18 Z" class="fill-soft" />
+    <circle cx="7.5" cy="18.5" r="1.6" class="fill" />
+    <circle cx="16.5" cy="18.5" r="1.6" class="fill" />
+    <path d="M9 9 L9 4.5 L7.5 4.5 L7.5 9 Z" class="fill-soft" />
+    <path d="M9 9 L11 4 Q11.3 3.2 12 3.5 Q12.7 3.8 12.4 4.7 L11.8 7 L15 7 Q16 7 15.8 8.2 L15.5 9 Z" class="fill" />`,
   // Retrieve: a car with a "coming back for you" return arrow.
   retrieve: `
     <path d="M3 15 L4.5 11 Q5 10 6 10 L18 10 Q19 10 19.5 11 L21 15 L21 17 L3 17 Z" class="fill-soft" />
@@ -68,7 +75,8 @@ function glyphName(stateOrGlyph) {
   if (GLYPHS[stateOrGlyph]) return stateOrGlyph;
   const map = {
     FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car', RETRIEVE: 'retrieve',
-    BUS: 'bus', HITCHHIKING: 'thumb', BEER: 'beer', SOS: 'sos', GROUNDED: 'walk',
+    BUS: 'bus', HITCHHIKING: 'thumb', HITCH_CAR: 'hitchcar', BEER: 'beer',
+    SOS: 'sos', GROUNDED: 'walk',
   };
   return map[stateOrGlyph] || 'walk';
 }

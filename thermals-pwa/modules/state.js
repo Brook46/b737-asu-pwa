@@ -47,28 +47,63 @@ export function onState(fn) { subs.add(fn); return () => subs.delete(fn); }
 //     paragliders climb/sink; cars and walkers stay level).
 //   • Fast and level                          → DRIVING (road speed).
 //   • Slow and level                          → WALKING.
-const STILL_SPEED = 0.8;  // basically not moving
-const WALK_SPEED = 1.8;   // below this, on foot
-const ROAD_SPEED = 9;     // ~32 km/h — faster than anyone runs
-const VARIO = 0.7;        // m/s climb/sink that signals flight
-let stationarySince = null;
+// Speeds in m/s. The whole point of this being a state *machine* (rather than
+// re-deciding from scratch each tick) is stability: once you're flying you stay
+// flying until you've clearly landed; once on the ground you stay walking until
+// you actually pass 20 km/h. That stops the constant flipping.
+const DRIVE_SPEED = 5.56;  // 20 km/h — walk → car
+const STOP_SPEED = 1.4;    // ~5 km/h — car/ride has stopped
+const STILL_SPEED = 0.8;   // basically parked
+const WALK_SPEED = 1.8;    // moving on foot
+const FLY_VARIO = 0.7;     // m/s climb/sink = airborne
+const LAND_MS = 8000;      // stay flying through this much ground time first
+const STOP_MS = 6000;      // confirm a car/ride has really stopped
+
+let slowSince = null;      // speed < STOP_SPEED since
+let stillSince = null;     // parked (speed + vario tiny) since
+let groundSince = null;    // landed-looking (still + level) since
+
 export function applyAutoState(geo) {
-  if (!geo || !AUTO_STATES.includes(current)) return;
-  const spd = geo.speed; // m/s, may be null
+  const cur = current;
+  if (!geo || !AUTO_STATES.includes(cur)) return;
+  const spd = geo.speed;
   if (spd == null || Number.isNaN(spd)) return;
   const vr = Math.abs(geo.vrate ?? 0);
+  const now = Date.now();
+  const airborne = vr > FLY_VARIO || (spd >= 4 && spd <= 22 && vr > 0.35);
 
-  let next = current;
-  if (vr > VARIO && spd < 28) { next = 'FLYING'; stationarySince = null; }
-  else if (spd > ROAD_SPEED && vr < 0.6) { next = 'DRIVING'; stationarySince = null; }
-  else if (spd >= 4 && spd <= 22 && vr > 0.3) { next = 'FLYING'; stationarySince = null; }
-  else if (spd < STILL_SPEED && vr < 0.5) {
-    // Parked on the ground. After a while, you're clearly having a beer.
-    if (stationarySince == null) stationarySince = Date.now();
-    next = (Date.now() - stationarySince > BEER_AFTER_MS) ? 'BEER' : 'WALKING';
-  } else if (spd < WALK_SPEED && vr < 0.5) { next = 'WALKING'; stationarySince = null; }
-  else stationarySince = null; // hysteresis zone: keep current
-  if (next !== current) setState(next);
+  slowSince = spd < STOP_SPEED ? (slowSince ?? now) : null;
+  stillSince = (spd < STILL_SPEED && vr < 0.4) ? (stillSince ?? now) : null;
+  groundSince = (spd < STILL_SPEED && vr < 0.3) ? (groundSince ?? now) : null;
+
+  let next = cur;
+  switch (cur) {
+    case 'FLYING':                                   // sticky — only leave once clearly landed
+      if (groundSince && now - groundSince > LAND_MS) next = 'WALKING';
+      break;
+    case 'WALKING':
+      if (airborne) next = 'FLYING';
+      else if (spd > DRIVE_SPEED) next = 'DRIVING';
+      else if (stillSince && now - stillSince > BEER_AFTER_MS) next = 'BEER';
+      break;
+    case 'DRIVING':
+      if (airborne) next = 'FLYING';
+      else if (slowSince && now - slowSince > STOP_MS) next = 'WALKING';
+      break;
+    case 'BEER':
+      if (airborne) next = 'FLYING';
+      else if (spd > DRIVE_SPEED) next = 'DRIVING';
+      else if (spd > WALK_SPEED) next = 'WALKING';
+      break;
+    case 'HITCHHIKING':                              // got picked up
+      if (spd > DRIVE_SPEED) next = 'HITCH_CAR';
+      break;
+    case 'HITCH_CAR':
+      if (airborne) next = 'FLYING';
+      else if (slowSince && now - slowSince > STOP_MS) next = 'HITCHHIKING';
+      break;
+  }
+  if (next !== cur) setState(next);
 }
 
 // Render the four-state + grounded selector into #state-selector.

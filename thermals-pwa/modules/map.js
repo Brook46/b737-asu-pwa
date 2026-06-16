@@ -170,6 +170,16 @@ export function setMeSOS(on) {
   whenReady(() => meMarker?.getElement().classList.toggle('is-sos', !!on));
 }
 
+// King of the day: a crown on whichever pilot has flown furthest today.
+let kingId = null;
+export function setKing(id) {
+  kingId = id;
+  whenReady(() => markers.forEach((m, pid) => m.el.classList.toggle('is-king', pid === kingId)));
+}
+export function setMeKing(on) {
+  whenReady(() => meMarker?.getElement().classList.toggle('is-king', !!on));
+}
+
 // Create or update another pilot's marker.
 export function upsertPilot(p) {
   whenReady(() => {
@@ -188,7 +198,7 @@ export function upsertPilot(p) {
       updateMarkerEl(m.el, glyphState, p.color, p.nickname, p.seats);
     }
     const el = markers.get(p.id)?.el;
-    if (el) el.classList.toggle('is-sos', !!p.sos);
+    if (el) { el.classList.toggle('is-sos', !!p.sos); el.classList.toggle('is-king', p.id === kingId); }
     pushTrail(p.id, p.lng, p.lat, p.color);
   });
 }

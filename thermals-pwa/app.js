@@ -18,6 +18,7 @@ import * as roster from './modules/roster.js';
 import * as chat from './modules/chat.js';
 import * as sos from './modules/sos.js';
 import * as crash from './modules/crash.js';
+import * as xc from './modules/xc.js';
 
 const $ = (id) => document.getElementById(id);
 let mapStarted = false;
@@ -55,14 +56,47 @@ $('gate-location-retry')?.addEventListener('click', () => geo.start());
 geo.onFix((fix) => {
   if (!mapStarted) return;
   const vario = vario2s(fix);
+  recordFlight(fix);
   paintMe();
   if (connected) presence.sendPosition(
-    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario },
+    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario, xcKm: myXcKm },
     stateMod.getState(), stateMod.getSeats()
   );
   // Auto-switch flying / walking / driving from speed + climb rate.
   stateMod.applyAutoState({ speed: fix.speed, vrate: vario });
+  recomputeKing();
 });
+
+// ---------- King of the day: best 5-point air distance ----------
+const myFlightPts = [];
+let myXcKm = 0;
+let kingId = null;
+const MIN_KING_KM = 2;
+
+// Log my position while flying, and rescore my best 5-point distance.
+function recordFlight(fix) {
+  if (stateMod.getState() !== 'FLYING' || fix.lat == null) return;
+  const last = myFlightPts[myFlightPts.length - 1];
+  if (last && Math.abs(last.lat - fix.lat) < 1e-5 && Math.abs(last.lng - fix.lng) < 1e-5) return;
+  myFlightPts.push({ lat: fix.lat, lng: fix.lng });
+  if (myFlightPts.length > 1200) myFlightPts.shift();
+  myXcKm = xc.bestDistanceKm(myFlightPts);
+}
+
+// The pilot (me or anyone) with the highest score wears the crown — everyone
+// computes the same winner from the broadcast scores.
+function recomputeKing() {
+  let best = MIN_KING_KM, id = null;
+  for (const p of roster.all()) if ((p.xcKm || 0) > best) { best = p.xcKm; id = p.id; }
+  const myId = selfId || 'me';
+  if (myXcKm > best) { id = myId; }
+  if (id !== kingId) {
+    kingId = id;
+    mapMod.setKing(kingId);
+    mapMod.setMeKing(kingId === myId);
+    roster.setKing(kingId);
+  }
+}
 
 // Average climb/sink (m/s) over the last ~2 seconds of altitude samples — both
 // the displayed vario and the signal that separates flight from level travel.
@@ -328,9 +362,10 @@ function isMe(p) { return selfId && p.id === selfId; }
 function applyPilot(raw) {
   if (isMe(raw)) return;
   const d = decorate(raw);
-  if (!inRange(d)) { roster.remove(d.id); mapMod.removePilot(d.id); return; }
+  if (!inRange(d)) { roster.remove(d.id); mapMod.removePilot(d.id); recomputeKing(); return; }
   roster.upsert(d);
   if (!roster.isHidden(d.id)) mapMod.upsertPilot(d);
+  recomputeKing();
 }
 
 // ---------- Panels (roster / chat tabs) ----------
@@ -439,7 +474,7 @@ function simSpawn() {
     lat: f.lat + (Math.random() - 0.5) * 0.06, lng: f.lng + (Math.random() - 0.5) * 0.06,
     phone: '+97250' + Math.floor(1000000 + Math.random() * 8999999),
     bloodType: rnd(['O+', 'A+', 'B+', 'O−']), vehicle: 'Sim van', emergency: 'Sim contact',
-    ...simTele(state), ts: Date.now(),
+    ...simTele(state), xcKm: state === 'FLYING' ? 3 + Math.random() * 70 : 0, ts: Date.now(),
   };
   simPilots.set(id, p);
   applyPilot(p);
