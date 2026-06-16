@@ -220,7 +220,12 @@ body {
 .card-fields dt { color: var(--muted); }
 .card-fields dd { margin: 0; word-break: break-word; }
 .card-fields a { color: var(--accent); }
-.card-actions { display: flex; gap: 10px; padding: 12px 16px 16px; }
+.card-baro { padding: 4px 16px 8px; }
+.card-baro-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.barogram { display: block; background: linear-gradient(180deg, rgba(41,182,246,.08), transparent);
+  border: 1px solid var(--line); border-radius: 10px; }
+.card-actions { display: flex; gap: 10px; padding: 12px 16px 16px; flex-wrap: wrap; }
+.card-actions .btn { flex: 1; min-width: 90px; text-align: center; }
 
 /* ---------- Buttons / inputs ---------- */
 .btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--text);

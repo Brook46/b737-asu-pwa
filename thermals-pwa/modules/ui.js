@@ -43,6 +43,7 @@ export function ago(ts) {
 // ---- flight telemetry formatters ----
 export function fmtSpeed(mps) { return (mps == null || Number.isNaN(mps)) ? null : `${Math.round(mps * 3.6)} km/h`; }
 export function fmtAlt(m) { return (m == null || Number.isNaN(m)) ? null : `${Math.round(m)} m`; }
+export function fmtAgl(m) { return (m == null || Number.isNaN(m)) ? null : `${Math.round(m)} m AGL`; }
 // Average climb (↑) or sink (↓) in m/s.
 export function fmtVario(mps) {
   if (mps == null || Number.isNaN(mps)) return null;

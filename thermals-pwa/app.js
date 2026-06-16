@@ -19,6 +19,7 @@ import * as chat from './modules/chat.js';
 import * as sos from './modules/sos.js';
 import * as crash from './modules/crash.js';
 import * as xc from './modules/xc.js';
+import * as elevation from './modules/elevation.js';
 
 const $ = (id) => document.getElementById(id);
 let mapStarted = false;
@@ -57,10 +58,13 @@ geo.onFix((fix) => {
   if (!mapStarted) return;
   const vario = vario2s(fix);
   myVario = vario;
+  queryGround(fix);
+  const agl = (fix.alt != null && myGround != null) ? fix.alt - myGround : null;
   recordFlight(fix);
+  recordAlt(selfId || 'me', fix.alt, myGround);
   paintMe();
   if (connected) presence.sendPosition(
-    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario, xcKm: myXcKm },
+    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario, agl, xcKm: myXcKm },
     stateMod.getState(), stateMod.getSeats()
   );
   // Auto-switch flying / walking / driving from speed + climb rate.
@@ -68,6 +72,31 @@ geo.onFix((fix) => {
   recomputeKing();
   updateCarBanner();
 });
+
+// Height above ground (AGL) needs the terrain elevation under me. Look it up
+// from the DEM tiles, throttled to when I've moved or every 20s.
+let myGround = null, lastGroundLL = null, lastGroundTs = 0;
+async function queryGround(fix) {
+  if (fix.alt == null) return;
+  const now = Date.now();
+  const moved = !lastGroundLL || (distKm(lastGroundLL, fix) ?? 9) > 0.1;
+  if (!moved && now - lastGroundTs < 20000) return;
+  lastGroundLL = { lat: fix.lat, lng: fix.lng }; lastGroundTs = now;
+  const g = await elevation.groundElevation(fix.lat, fix.lng);
+  if (g != null) myGround = g;
+}
+
+// Per-pilot altitude history for the flight-profile chart on the card.
+const altHistory = new Map();   // id -> [{ ts, alt, ground }]
+function recordAlt(id, alt, ground) {
+  if (alt == null) return;
+  let h = altHistory.get(id);
+  if (!h) { h = []; altHistory.set(id, h); }
+  const last = h[h.length - 1];
+  if (last && Date.now() - last.ts < 2000) return;   // ~1 sample / 2s
+  h.push({ ts: Date.now(), alt, ground: ground ?? null });
+  if (h.length > 400) h.shift();
+}
 
 // ---------- King of the day: best 5-point air distance ----------
 const myFlightPts = [];
@@ -355,6 +384,7 @@ function connectRoom() {
     onVisibility: (id, visible) => mapMod.setPilotVisible(id, visible),
     onFocusPilot: (lng, lat) => mapMod.flyToPilot(lng, lat),
   });
+  roster.setBarogramProvider(barogramSVG);
   // Show my own message instantly (works offline too); the server echo for my id
   // is ignored so it isn't duplicated.
   const echoMine = (extra) => {
@@ -437,10 +467,36 @@ function applyPilot(raw) {
   if (isMe(raw)) return;
   const d = decorate(raw);
   if (!inRange(d)) { roster.remove(d.id); mapMod.removePilot(d.id); recomputeKing(); return; }
+  recordAlt(d.id, d.alt, d.agl != null ? d.alt - d.agl : null);
   roster.upsert(d);
   if (!roster.isHidden(d.id)) mapMod.upsertPilot(d);
   recomputeKing();
   updateCarBanner();
+}
+
+// Side-on flight profile: the altitude trace (blue) over the ground (brown),
+// from the start of the recorded track. Returns an SVG string for the card.
+function barogramSVG(id) {
+  const h = altHistory.get(id);
+  if (!h || h.length < 3) return '';
+  const W = 280, H = 96, pad = 6;
+  const alts = h.map((p) => p.alt);
+  const grounds = h.map((p) => p.ground).filter((g) => g != null);
+  const lo = Math.min(...alts, ...(grounds.length ? grounds : alts));
+  const hi = Math.max(...alts);
+  const range = Math.max(1, hi - lo);
+  const x = (i) => pad + (i / (h.length - 1)) * (W - 2 * pad);
+  const y = (v) => pad + (1 - (v - lo) / range) * (H - 2 * pad);
+  const altLine = h.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.alt).toFixed(1)}`).join(' ');
+  let ground = '';
+  if (grounds.length) {
+    const g = h.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.ground ?? lo).toFixed(1)}`).join(' ');
+    ground = `<path d="${g} L${x(h.length - 1).toFixed(1)} ${H - pad} L${x(0).toFixed(1)} ${H - pad} Z" fill="#6b5b4a" opacity="0.45"/>`;
+  }
+  return `<svg class="barogram" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none">
+    ${ground}
+    <path d="${altLine}" fill="none" stroke="#29b6f6" stroke-width="2" stroke-linejoin="round"/>
+  </svg>`;
 }
 
 // ---------- Panels (roster / chat tabs) ----------
@@ -486,6 +542,7 @@ window.thermalsDemo = () => {
     onVisibility: (id, vis) => mapMod.setPilotVisible(id, vis),
     onFocusPilot: (lng, lat) => mapMod.flyToPilot(lng, lat),
   });
+  roster.setBarogramProvider(barogramSVG);
   const demoEcho = (extra) => chat.add({ from: 'me', nick: 'You', color: '#ff5252', ts: Date.now(), ...extra });
   chat.init({
     onSendMessage: (t) => demoEcho({ text: t }),
@@ -536,9 +593,9 @@ const rnd = (a) => a[Math.floor(Math.random() * a.length)];
 function simBase() { return geo.lastFix() || { lat: 46.62, lng: 8.04 }; }
 // Plausible telemetry per state so the card/list have something to show.
 function simTele(state) {
-  if (state === 'FLYING') return { alt: 900 + Math.random() * 1600, speed: 7 + Math.random() * 5, vario: (Math.random() - 0.4) * 4, heading: Math.random() * 360 };
-  if (state === 'DRIVING') return { alt: 400 + Math.random() * 400, speed: 10 + Math.random() * 8, vario: 0, heading: Math.random() * 360 };
-  return { alt: 400 + Math.random() * 400, speed: Math.random() * 1.2, vario: 0, heading: Math.random() * 360 };
+  if (state === 'FLYING') { const agl = 300 + Math.random() * 1200; return { alt: 900 + agl, agl, speed: 7 + Math.random() * 5, vario: (Math.random() - 0.4) * 4, heading: Math.random() * 360 }; }
+  if (state === 'DRIVING') return { alt: 600, agl: 5, speed: 10 + Math.random() * 8, vario: 0, heading: Math.random() * 360 };
+  return { alt: 600, agl: 2, speed: Math.random() * 1.2, vario: 0, heading: Math.random() * 360 };
 }
 function simSpawn() {
   const f = simBase();
@@ -562,6 +619,7 @@ function simMoveTick() {
     if (p.state === 'FLYING') {
       p.vario = (Math.random() - 0.4) * 4;
       p.alt = Math.max(300, (p.alt || 1200) + p.vario * 1.5);
+      p.agl = Math.max(20, (p.agl ?? 600) + p.vario * 1.5);
       p.heading = ((p.heading || 0) + (Math.random() - 0.5) * 40 + 360) % 360;
     }
     p.ts = Date.now();

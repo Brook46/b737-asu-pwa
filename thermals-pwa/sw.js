@@ -2,7 +2,7 @@
 // App shell is cache-first. MapLibre (CDN) is cached on first load so the
 // shell works offline; map *tiles* are network-only (they're huge + dynamic).
 
-const CACHE_VERSION = 'skyclub-v10';
+const CACHE_VERSION = 'skyclub-v11';
 const APP_SHELL = [
   './',
   './index.html',
@@ -24,6 +24,7 @@ const APP_SHELL = [
   './modules/sos.js',
   './modules/crash.js',
   './modules/xc.js',
+  './modules/elevation.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
