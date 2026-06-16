@@ -33,7 +33,11 @@
           <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
         </svg>
       </button>
-      <button id="panel-toggle" class="icon-btn" title="Crew & chat">☰</button>
+      <button id="panel-toggle" class="icon-btn" title="Chat & crew" aria-label="Chat &amp; crew">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M4 5 h16 a1 1 0 0 1 1 1 v9 a1 1 0 0 1 -1 1 H9 l-4 3.5 V16 H4 a1 1 0 0 1 -1 -1 V6 a1 1 0 0 1 1 -1 z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -82,6 +86,7 @@
     <div class="gate-box">
       <div class="sos-ring"><span id="sos-count">10</span></div>
       <h1>Sending SOS</h1>
+      <p id="sos-reason" class="sos-reason hidden"></p>
       <p>Hold tight — alerting everyone flying today and sharing your location.</p>
       <button id="sos-now" class="btn btn-sos">Send now</button>
       <button id="sos-cancel" class="btn">Cancel</button>
@@ -137,6 +142,32 @@
         <button id="profile-done" class="btn btn-primary">Done</button>
       </div>
       <div id="profile-form" class="profile-form"></div>
+      <div class="profile-extra">
+        <label class="toggle-row">
+          <span><b>Crash detection</b><br><small>Auto-start SOS on a hard impact (1 min to cancel)</small></span>
+          <input id="crash-toggle" type="checkbox">
+        </label>
+        <button id="open-sim" class="btn">🧪 Open simulator (test offline)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Offline simulator -->
+  <div id="overlay-sim" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head">
+        <h2>Simulator</h2>
+        <button id="sim-done" class="btn btn-primary">Done</button>
+      </div>
+      <div class="sim-body">
+        <p class="field-note">Test Sky Club with no internet: spawn a fake crew, move them around, fire an SOS, or simulate your own crash.</p>
+        <button id="sim-spawn" class="btn">➕ Add a fake pilot</button>
+        <button id="sim-move" class="btn">▶️ Start everyone moving</button>
+        <button id="sim-sos" class="btn">🚨 Random pilot SOS</button>
+        <button id="sim-retrieve" class="btn">🚗 Offer a retrieve (3 seats)</button>
+        <button id="sim-crash" class="btn btn-sos">💥 Simulate my crash</button>
+        <button id="sim-clear" class="btn">🧹 Clear fake pilots</button>
+      </div>
     </div>
   </div>
 

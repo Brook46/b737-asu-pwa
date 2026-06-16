@@ -37,13 +37,19 @@ export const STATES = {
   RETRIEVE:    { id: 'RETRIEVE',    label: 'Retrieve',      glyph: 'retrieve' },
   BUS:         { id: 'BUS',         label: 'On the bus',    glyph: 'bus' },
   HITCHHIKING: { id: 'HITCHHIKING', label: 'Need a ride',   glyph: 'thumb' },
+  // Auto-only (not a manual button): landed and stationary for a while.
+  BEER:        { id: 'BEER',        label: 'Grabbing a beer', glyph: 'beer' },
 };
 
+// Buttons shown in the manual selector (Beer is auto-only, so it's omitted).
 export const STATE_ORDER = ['FLYING', 'WALKING', 'DRIVING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
 
-// These auto-switch from motion (speed + vertical rate): flying / walking /
-// driving. Retrieve, bus and hitch stay manual and are never auto-overridden.
-export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING'];
+// These auto-switch from motion: flying / walking / driving, plus Beer once
+// you've been still on the ground a while. Retrieve / bus / hitch stay manual.
+export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING', 'BEER'];
+
+// How long stationary on the ground before the icon becomes a beer.
+export const BEER_AFTER_MS = 120000;
 
 // Default per-pilot colours offered in the profile editor.
 export const COLORS = [

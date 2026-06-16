@@ -4,7 +4,7 @@
 // the ground ⇒ walking). The vehicle/hitch states are manual: tapping one pins
 // it and pauses auto-switching until you tap Flying or On-the-ground again.
 
-import { STATES, STATE_ORDER, AUTO_STATES } from '../config.js';
+import { STATES, STATE_ORDER, AUTO_STATES, BEER_AFTER_MS } from '../config.js';
 import { glyphSVG } from './icons.js';
 
 const KEY = 'thermals.state';
@@ -47,9 +47,11 @@ export function onState(fn) { subs.add(fn); return () => subs.delete(fn); }
 //     paragliders climb/sink; cars and walkers stay level).
 //   • Fast and level                          → DRIVING (road speed).
 //   • Slow and level                          → WALKING.
+const STILL_SPEED = 0.8;  // basically not moving
 const WALK_SPEED = 1.8;   // below this, on foot
 const ROAD_SPEED = 9;     // ~32 km/h — faster than anyone runs
 const VARIO = 0.7;        // m/s climb/sink that signals flight
+let stationarySince = null;
 export function applyAutoState(geo) {
   if (!geo || !AUTO_STATES.includes(current)) return;
   const spd = geo.speed; // m/s, may be null
@@ -57,11 +59,15 @@ export function applyAutoState(geo) {
   const vr = Math.abs(geo.vrate ?? 0);
 
   let next = current;
-  if (vr > VARIO && spd < 28) next = 'FLYING';
-  else if (spd > ROAD_SPEED && vr < 0.6) next = 'DRIVING';
-  else if (spd >= 4 && spd <= 22 && vr > 0.3) next = 'FLYING';
-  else if (spd < WALK_SPEED && vr < 0.5) next = 'WALKING';
-  // otherwise stay put (hysteresis)
+  if (vr > VARIO && spd < 28) { next = 'FLYING'; stationarySince = null; }
+  else if (spd > ROAD_SPEED && vr < 0.6) { next = 'DRIVING'; stationarySince = null; }
+  else if (spd >= 4 && spd <= 22 && vr > 0.3) { next = 'FLYING'; stationarySince = null; }
+  else if (spd < STILL_SPEED && vr < 0.5) {
+    // Parked on the ground. After a while, you're clearly having a beer.
+    if (stationarySince == null) stationarySince = Date.now();
+    next = (Date.now() - stationarySince > BEER_AFTER_MS) ? 'BEER' : 'WALKING';
+  } else if (spd < WALK_SPEED && vr < 0.5) { next = 'WALKING'; stationarySince = null; }
+  else stationarySince = null; // hysteresis zone: keep current
   if (next !== current) setState(next);
 }
 

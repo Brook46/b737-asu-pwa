@@ -47,6 +47,13 @@ const GLYPHS = {
     <path d="M11 12 L14.5 15.5 L14.5 20" />
     <path d="M12 8 L8.5 9.5" />
     <path d="M12 8 L15.5 10.5" />`,
+  // Landed & chilling: a beer mug with foam.
+  beer: `
+    <path d="M6.5 9 L6.5 19 Q6.5 20.5 8 20.5 L13 20.5 Q14.5 20.5 14.5 19 L14.5 9 Z" class="fill-soft" />
+    <path d="M14.5 11 L17.5 11 Q18.5 11 18.5 12 L18.5 15 Q18.5 16 17.5 16 L14.5 16" />
+    <path d="M6 9 Q5.5 6.5 8 6.5 Q8.5 5 10.5 5.2 Q12 4 13.5 5.4 Q15.5 5.6 14.8 7.2 Q15.6 8.6 14 9 Z" class="fill" />
+    <line x1="9" y1="12" x2="9" y2="18" />
+    <line x1="11.8" y1="12" x2="11.8" y2="18" />`,
   // Idle fallback.
   dot: `<circle cx="12" cy="12" r="5" class="fill" />`,
 };
@@ -55,8 +62,8 @@ const GLYPHS = {
 function glyphName(stateOrGlyph) {
   if (GLYPHS[stateOrGlyph]) return stateOrGlyph;
   const map = {
-    FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car',
-    RETRIEVE: 'retrieve', BUS: 'bus', HITCHHIKING: 'thumb', GROUNDED: 'walk',
+    FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car', RETRIEVE: 'retrieve',
+    BUS: 'bus', HITCHHIKING: 'thumb', BEER: 'beer', GROUNDED: 'walk',
   };
   return map[stateOrGlyph] || 'walk';
 }

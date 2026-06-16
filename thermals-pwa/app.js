@@ -7,6 +7,7 @@
 // Then we connect to today's room and the live map comes alive.
 
 import { initTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
+import { COLORS } from './config.js';
 import * as geo from './modules/geo.js';
 import * as mapMod from './modules/map.js';
 import * as profile from './modules/profile.js';
@@ -16,6 +17,7 @@ import * as presence from './modules/presence.js';
 import * as roster from './modules/roster.js';
 import * as chat from './modules/chat.js';
 import * as sos from './modules/sos.js';
+import * as crash from './modules/crash.js';
 
 const $ = (id) => document.getElementById(id);
 let mapStarted = false;
@@ -98,15 +100,18 @@ stateMod.onState((s) => {
 });
 
 // ---------- SOS ----------
-// Press SOS → a 10-second countdown you can cancel. On activate: local siren +
-// vibrate, and we broadcast distress + our location to everyone in today's room.
+// Press SOS → a 10-second countdown you can cancel (60s when auto-triggered by a
+// detected crash). On activate: local siren + vibrate, and we broadcast distress
+// + our location to everyone in today's room.
 let sosCountTimer = null;
 let sosCount = 0;
 let sosActive = false;
 
-function openSosCountdown() {
+function openSosCountdown(seconds = 10, reason = '') {
   if (sosActive) return;
-  sosCount = 10;
+  sosCount = seconds;
+  $('sos-reason').textContent = reason;
+  $('sos-reason').classList.toggle('hidden', !reason);
   paintSosCount();
   showOverlay('sos-countdown');
   clearInterval(sosCountTimer);
@@ -118,6 +123,12 @@ function openSosCountdown() {
 }
 function paintSosCount() { const el = $('sos-count'); if (el) el.textContent = String(Math.max(0, sosCount)); }
 function cancelSosCountdown() { clearInterval(sosCountTimer); hideOverlay('sos-countdown'); }
+
+// A detected impact starts the countdown with a full minute to cancel.
+crash.onImpact(() => {
+  sos.vibrate([600, 200, 600]);
+  openSosCountdown(60, 'Possible crash detected — are you OK?');
+});
 
 function activateSos() {
   clearInterval(sosCountTimer);
@@ -205,6 +216,11 @@ $('signin-preview')?.addEventListener('click', () => {
 // Decide which gate to show next once any precondition changes.
 function maybeAdvanceOnboarding() {
   if (!geo.lastFix()) return;                       // wait for location
+  // Returning user: a saved profile means we never make them sign in again —
+  // start a local session from their saved details and go straight to the map.
+  if (profile.isComplete() && !auth.isSignedIn()) {
+    auth.ensureLocalSession(profile.getProfile().phone);
+  }
   if (!auth.isSignedIn()) {
     if (!previewMode()) showOverlay('gate-signin');
     return;
@@ -321,7 +337,12 @@ function showPanel(name) {
 $('tab-roster')?.addEventListener('click', () => showPanel('roster'));
 $('tab-chat')?.addEventListener('click', () => showPanel('chat'));
 function closePanel() { $('side-panel')?.classList.remove('open'); }
-$('panel-toggle')?.addEventListener('click', () => $('side-panel')?.classList.toggle('open'));
+$('panel-toggle')?.addEventListener('click', () => {
+  const panel = $('side-panel');
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if (opening) showPanel('chat');     // the top-bar button is the chat button
+});
 $('panel-close')?.addEventListener('click', closePanel);
 mapMod.onBackgroundClick(closePanel);     // tapping the map closes the panel
 $('recenter')?.addEventListener('click', () => mapMod.recenterMe());
@@ -369,3 +390,88 @@ window.thermalsDemo = () => {
   document.getElementById('side-panel').classList.add('open');
   return 'demo loaded';
 };
+
+// ---------- Crash detection toggle ----------
+const CRASH_PREF = 'thermals.crash';
+$('crash-toggle')?.addEventListener('change', async (e) => {
+  if (e.target.checked) {
+    const res = await crash.arm();
+    if (res === 'on') { localStorage.setItem(CRASH_PREF, '1'); toast('Crash detection on'); }
+    else { e.target.checked = false; toast(res === 'denied' ? 'Motion access denied' : 'Not supported on this device'); }
+  } else { crash.disarm(); localStorage.removeItem(CRASH_PREF); toast('Crash detection off'); }
+});
+if (localStorage.getItem(CRASH_PREF)) {
+  const t = $('crash-toggle'); if (t) t.checked = true;
+  // iOS needs a gesture to (re)grant motion access — arm on the first tap.
+  const armOnce = async () => { document.removeEventListener('pointerdown', armOnce); await crash.arm(); };
+  document.addEventListener('pointerdown', armOnce, { once: true });
+}
+
+// ---------- Offline simulator ----------
+// Spawns fake pilots through the very same applyPilot() path the live room uses,
+// so it exercises markers, trails, roster, distance filtering, SOS, etc.
+const simPilots = new Map();
+let simMoveTimer = null;
+const SIM_NAMES = ['Hawk', 'Breeze', 'Zephyr', 'Comet', 'Maverick', 'Falcon', 'Nimbus', 'Vortex', 'Kestrel', 'Drift'];
+const SIM_STATES = ['FLYING', 'WALKING', 'DRIVING', 'HITCHHIKING', 'BEER'];
+const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+
+function simBase() { return geo.lastFix() || { lat: 46.62, lng: 8.04 }; }
+function simSpawn() {
+  const f = simBase();
+  const id = 'sim-' + Math.random().toString(36).slice(2, 7);
+  const p = {
+    id, nickname: rnd(SIM_NAMES), color: rnd(COLORS), state: rnd(SIM_STATES),
+    lat: f.lat + (Math.random() - 0.5) * 0.06, lng: f.lng + (Math.random() - 0.5) * 0.06,
+    phone: '+97250' + Math.floor(1000000 + Math.random() * 8999999),
+    bloodType: rnd(['O+', 'A+', 'B+', 'O−']), vehicle: 'Sim van', emergency: 'Sim contact', ts: Date.now(),
+  };
+  simPilots.set(id, p);
+  applyPilot(p);
+  toast(`Added ${p.nickname}`);
+}
+function simMoveTick() {
+  simPilots.forEach((p) => {
+    p.lat += (Math.random() - 0.5) * 0.004;
+    p.lng += (Math.random() - 0.5) * 0.004;
+    p.ts = Date.now();
+    applyPilot(p);
+  });
+}
+function simToggleMove(btn) {
+  if (simMoveTimer) { clearInterval(simMoveTimer); simMoveTimer = null; btn.textContent = '▶️ Start everyone moving'; }
+  else { simMoveTimer = setInterval(simMoveTick, 1500); btn.textContent = '⏸ Stop moving'; }
+}
+function simSOS() {
+  const arr = [...simPilots.values()];
+  if (!arr.length) return toast('Add a fake pilot first');
+  const p = rnd(arr);
+  p.sos = true; p.ts = Date.now();
+  applyPilot(p);
+  sos.alertBeep(); sos.vibrate([200, 100, 200]);
+  mapMod.setPilotVisible(p.id, true);
+  if (p.lng != null) mapMod.flyToPilot(p.lng, p.lat);
+  toast(`🚨 ${p.nickname} needs help!`, 6000);
+}
+function simRetrieve() {
+  const arr = [...simPilots.values()];
+  if (!arr.length) return toast('Add a fake pilot first');
+  const p = arr[0];
+  p.state = 'RETRIEVE'; p.seats = 3; p.sos = false; p.ts = Date.now();
+  applyPilot(p);
+  toast(`${p.nickname} offering 3 seats`);
+}
+function simClear() {
+  simPilots.forEach((_, id) => { roster.remove(id); mapMod.removePilot(id); });
+  simPilots.clear();
+  if (simMoveTimer) { clearInterval(simMoveTimer); simMoveTimer = null; }
+  toast('Cleared fake pilots');
+}
+$('open-sim')?.addEventListener('click', () => { hideOverlay('overlay-profile'); showOverlay('overlay-sim'); });
+$('sim-done')?.addEventListener('click', () => hideOverlay('overlay-sim'));
+$('sim-spawn')?.addEventListener('click', simSpawn);
+$('sim-move')?.addEventListener('click', (e) => simToggleMove(e.currentTarget));
+$('sim-sos')?.addEventListener('click', simSOS);
+$('sim-retrieve')?.addEventListener('click', simRetrieve);
+$('sim-crash')?.addEventListener('click', () => { hideOverlay('overlay-sim'); crash.simulateImpact(); });
+$('sim-clear')?.addEventListener('click', simClear);

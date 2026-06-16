@@ -43,10 +43,16 @@ export async function signIn(phone) {
 }
 
 function localSignIn(phone) {
-  const token = 'local.' + String(phone).replace(/[^\d]/g, '');
+  const token = 'local.' + (String(phone).replace(/[^\d]/g, '') || Math.random().toString(36).slice(2, 10));
   localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(PHONE_KEY, phone);
+  if (phone) localStorage.setItem(PHONE_KEY, phone);
   return token;
+}
+
+// Returning users who already have a profile shouldn't have to sign in again.
+// If there's no session yet, start a local one (using their saved phone if any).
+export function ensureLocalSession(phone) {
+  if (!getToken()) localSignIn(phone || '');
 }
 
 // True when the active session is a local-only (no-backend) sign-in.

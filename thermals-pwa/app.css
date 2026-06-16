@@ -240,6 +240,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .overlay-head h2 { margin: 0; font-size: 19px; }
 
 .profile-form { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.profile-extra { padding: 0 16px 18px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toggle-row small { color: var(--muted); }
+.toggle-row input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
+.sim-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.sim-body .btn { width: 100%; text-align: center; }
+.sos-reason { color: #fff; font-weight: 700; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > span { font-size: 13px; color: var(--muted); }
 .field-note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
