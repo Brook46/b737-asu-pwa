@@ -79,6 +79,12 @@ export function disconnect() {
   if (ws) { try { ws.close(); } catch {} ws = null; }
 }
 
+// Reconnect if the socket dropped while backgrounded. Safe to call on resume.
+export function reconnectIfClosed() {
+  if (closedByUs || !token) return;
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connect();
+}
+
 function send(obj) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }

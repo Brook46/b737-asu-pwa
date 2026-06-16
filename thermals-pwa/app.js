@@ -149,6 +149,7 @@ function startMapOnce() {
   const center = fix ? [fix.lng, fix.lat] : [8.0, 46.5];
   mapMod.initMap('map', center, (id) => roster.openCard(id));
   stateMod.renderSelector();
+  keepAwake();
 }
 
 geo.start();
@@ -597,6 +598,30 @@ $('panel-toggle')?.addEventListener('click', () => {
 $('panel-close')?.addEventListener('click', closePanel);
 mapMod.onBackgroundClick(closePanel);     // tapping the map closes the panel
 $('recenter')?.addEventListener('click', () => mapMod.recenterMe());
+
+// ---------- Stay alive while open ----------
+// A PWA can't track with the screen off (only a native app can), but a screen
+// wake lock keeps GPS + the live link running while the app is open — e.g.
+// mounted on your harness in flight. Re-acquire it on resume, and reconnect the
+// room socket if it dropped while backgrounded.
+let wakeLock = null;
+async function keepAwake() {
+  try {
+    if ('wakeLock' in navigator && document.visibilityState === 'visible' && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener?.('release', () => { wakeLock = null; });
+    }
+  } catch { /* unsupported or denied */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    keepAwake();
+    if (connected) presence.reconnectIfClosed();
+  } else {
+    wakeLock = null;   // the browser releases it when hidden
+  }
+});
+
 $('toggle-3d')?.addEventListener('click', () => {
   const on = mapMod.toggle3D();
   $('toggle-3d').classList.toggle('is-on', on);
