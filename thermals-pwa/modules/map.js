@@ -5,7 +5,7 @@
 // let us tint by colour + swap the state glyph trivially).
 
 import { MAPTILER_KEY, TERRAIN_TILES } from '../config.js';
-import { markerEl, updateMarkerEl } from './icons.js';
+import { markerEl, updateMarkerEl, glyphSVG } from './icons.js';
 
 let map = null;
 let ready = false;
@@ -216,6 +216,25 @@ export function setPilotVisible(id, visible) {
 
 export function flyToPilot(lng, lat) {
   whenReady(() => map.flyTo({ center: [lng, lat], zoom: 13, duration: 800 }));
+}
+
+// ---------- Parked cars (static, shared spots) ----------
+const spotMarkers = new Map();   // id -> maplibregl.Marker
+export function upsertSpot(spot, onTap) {
+  whenReady(() => {
+    let m = spotMarkers.get(spot.id);
+    if (m) { m.setLngLat([spot.lng, spot.lat]); return; }
+    const el = document.createElement('div');
+    el.className = 'spot-marker';
+    el.innerHTML = `<div class="spot-pin">${glyphSVG('car', '#fff', 22)}</div><div class="spot-tag">Car</div>`;
+    el.addEventListener('click', (e) => { e.stopPropagation(); onTap(spot.id); });
+    m = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([spot.lng, spot.lat]).addTo(map);
+    spotMarkers.set(spot.id, m);
+  });
+}
+export function removeSpot(id) {
+  const m = spotMarkers.get(id);
+  if (m) { m.remove(); spotMarkers.delete(id); }
 }
 
 export function recenterMe() {

@@ -73,9 +73,8 @@ body {
 .state-btn .glyph { opacity: .85; }
 .state-btn.is-on { background: var(--accent); color: #04121c; font-weight: 600; }
 .state-btn.is-on .glyph { opacity: 1; }
-.state-btn[disabled] { cursor: default; }
-.state-selector.is-locked .state-btn:not(.is-on) { opacity: .35; }
-.state-selector.is-locked .state-btn.is-on { box-shadow: 0 0 0 2px rgba(255,255,255,.35) inset; }
+.flying-lock { display: flex; align-items: center; gap: 8px; padding: 10px 18px; color: var(--accent);
+  font-weight: 700; font-size: 14px; }
 .state-btn { position: relative; }
 .seat-pill {
   position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px;
@@ -142,6 +141,21 @@ body {
 }
 .vario-chip.climb { background: #5ce08a; }
 .vario-chip.sink { background: #ff8a8a; }
+
+/* Parked-car (static spot) marker */
+.spot-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.spot-pin {
+  width: 36px; height: 36px; border-radius: 10px; background: #2b3650;
+  display: grid; place-items: center; border: 2px solid #ffd600;
+  box-shadow: 0 4px 10px rgba(0,0,0,.5);
+}
+.spot-tag { margin-top: 2px; font-size: 10px; font-weight: 700; color: #ffd600;
+  background: rgba(5,8,15,.8); padding: 1px 7px; border-radius: 999px; }
+
+.car-form { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.car-photo { max-width: 100%; max-height: 200px; border-radius: 12px; display: block; }
+.spot-view { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.spot-note { font-size: 15px; line-height: 1.4; white-space: pre-wrap; }
 
 /* ---------- Side panel ---------- */
 .side-panel {

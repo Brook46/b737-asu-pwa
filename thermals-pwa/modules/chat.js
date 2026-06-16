@@ -93,7 +93,7 @@ export function clearUnread() {
 
 // Downscale to <=1024px and JPEG-compress so a phone photo becomes ~50-150KB,
 // small enough to relay over the WebSocket.
-function compressImage(file, maxDim = 1024, quality = 0.6) {
+export function compressImage(file, maxDim = 1024, quality = 0.6) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);

@@ -42,15 +42,24 @@ export const STATES = {
   BEER:        { id: 'BEER',        label: 'Grabbing a beer', glyph: 'beer' },    // landed & still a while
 };
 
-// Buttons shown in the manual selector. The car (Driving) is now auto-only, as
-// are Beer / Got-a-ride — so none of them appear here.
-export const STATE_ORDER = ['FLYING', 'WALKING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
+// Buttons shown in the manual selector. Flying is now fully automatic (entered
+// and left by height), so it's NOT a button — you can't change it by hand. The
+// car / got-a-ride / beer states are auto-only too.
+export const STATE_ORDER = ['WALKING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
 
 // States the motion logic is allowed to switch between. Retrieve / bus stay put.
 export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING', 'BEER', 'HITCHHIKING', 'HITCH_CAR'];
 
-// How long stationary on the ground before the icon becomes a beer.
-export const BEER_AFTER_MS = 120000;
+// Flying is decided by height above ground (AGL):
+export const FLY_AGL_M = 5;           // above this = airborne
+export const FLY_CONFIRM_MS = 5000;   // …for 5 s → flying
+export const LAND_AGL_M = 2;          // ~ground level
+export const LAND_CONFIRM_MS = 60000; // ground + under 20 km/h for 1 min → landed
+
+// Beer comes after you've sat still: 5 min if you haven't moved since opening
+// the app, otherwise 30 min once you've stopped somewhere else.
+export const BEER_FROM_START_MS = 5 * 60 * 1000;
+export const BEER_AWAY_MS = 30 * 60 * 1000;
 
 // Default per-pilot colours offered in the profile editor.
 export const COLORS = [

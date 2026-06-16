@@ -27,6 +27,7 @@ export class DayRoom {
     if (this.pilots) return;
     this.pilots = new Map(Object.entries((await this.state.storage.get('pilots')) || {}));
     this.chat = (await this.state.storage.get('chat')) || [];
+    this.spots = new Map(Object.entries((await this.state.storage.get('spots')) || {}));
   }
 
   async fetch(request) {
@@ -47,6 +48,7 @@ export class DayRoom {
       // Tell the joiner its own id, then the current roster + recent chat.
       server.send(JSON.stringify({ t: 'self', id: pilotId }));
       server.send(JSON.stringify({ t: 'roster', pilots: [...this.pilots.values()] }));
+      if (this.spots.size) server.send(JSON.stringify({ t: 'spots', spots: [...this.spots.values()] }));
       if (this.chat.length) server.send(JSON.stringify({ t: 'chatlog', log: this.chat }));
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -120,6 +122,32 @@ export class DayRoom {
         this.pilots.set(driver.id, driver);
         await this.persistPilots();
         this.broadcast({ t: 'upsert', pilot: driver });
+        break;
+      }
+
+      case 'spot': {
+        const s = msg.spot || {};
+        if (s.id == null || s.lat == null) break;
+        const clean = {
+          id: String(s.id).slice(0, 40), lat: num(s.lat), lng: num(s.lng),
+          note: String(s.note || '').slice(0, 300),
+          photo: (typeof s.photo === 'string' && s.photo.startsWith('data:image/') && s.photo.length < 600000) ? s.photo : null,
+          by: pilotId, byNick: String(s.byNick || p.nickname || 'Pilot').slice(0, 24), ts: Date.now(),
+        };
+        this.spots.set(clean.id, clean);
+        await this.state.storage.put('spots', Object.fromEntries(this.spots));
+        this.broadcast({ t: 'spot', spot: clean });
+        break;
+      }
+
+      case 'spotgone': {
+        const id = String(msg.id || '');
+        const s = this.spots.get(id);
+        if (s && (s.by === pilotId)) {            // only the owner removes it
+          this.spots.delete(id);
+          await this.state.storage.put('spots', Object.fromEntries(this.spots));
+          this.broadcast({ t: 'spotgone', id });
+        }
         break;
       }
 

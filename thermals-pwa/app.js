@@ -6,7 +6,7 @@
 //   3. Profile  — at least a nickname + colour before you appear on the map.
 // Then we connect to today's room and the live map comes alive.
 
-import { initTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
+import { initTheme, toast, showOverlay, hideOverlay, esc, ago } from './modules/ui.js';
 import { COLORS } from './config.js';
 import * as geo from './modules/geo.js';
 import * as mapMod from './modules/map.js';
@@ -67,8 +67,8 @@ geo.onFix((fix) => {
     { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario, agl, xcKm: myXcKm },
     stateMod.getState(), stateMod.getSeats()
   );
-  // Auto-switch flying / walking / driving from speed + climb rate.
-  stateMod.applyAutoState({ speed: fix.speed, vrate: vario });
+  // Auto-switch flying / walking / driving from height (AGL) + speed.
+  stateMod.applyAutoState({ speed: fix.speed, vrate: vario, agl });
   recomputeKing();
   updateCarBanner();
 });
@@ -318,6 +318,82 @@ $('car-edit')?.addEventListener('click', () => {
   if (car) openSeatsPicker(carSeats(car), (n) => setCarSeats(car, n));
 });
 
+// ---------- Parked cars (static, shared spots) ----------
+const SPOTS_KEY = 'thermals.spots';
+const spots = new Map();
+let carPhotoData = null;
+
+function loadSpots() {
+  try { JSON.parse(localStorage.getItem(SPOTS_KEY) || '[]').forEach((s) => { spots.set(s.id, s); mapMod.upsertSpot(s, openSpot); }); }
+  catch { /* ignore */ }
+}
+function saveSpots() { localStorage.setItem(SPOTS_KEY, JSON.stringify([...spots.values()])); }
+
+$('drop-car')?.addEventListener('click', () => {
+  if (!geo.lastFix()) return toast('Waiting for your location…');
+  carPhotoData = null;
+  $('car-note').value = '';
+  $('car-photo-preview').innerHTML = '';
+  showOverlay('overlay-car');
+});
+$('car-cancel')?.addEventListener('click', () => hideOverlay('overlay-car'));
+$('car-photo-btn')?.addEventListener('click', () => $('car-photo').click());
+$('car-photo')?.addEventListener('change', async () => {
+  const f = $('car-photo').files?.[0];
+  $('car-photo').value = '';
+  if (!f) return;
+  try { carPhotoData = await chat.compressImage(f); $('car-photo-preview').innerHTML = `<img class="car-photo" src="${carPhotoData}">`; }
+  catch (err) { console.warn('car photo failed', err); }
+});
+$('car-save')?.addEventListener('click', () => {
+  const fix = geo.lastFix();
+  if (!fix) return;
+  const s = {
+    id: 'spot-' + Math.random().toString(36).slice(2, 8),
+    lat: fix.lat, lng: fix.lng, note: ($('car-note').value || '').slice(0, 300),
+    photo: carPhotoData, by: selfId || 'me', byNick: profile.getProfile().nickname || 'You', ts: Date.now(),
+  };
+  spots.set(s.id, s); saveSpots(); mapMod.upsertSpot(s, openSpot);
+  if (connected) presence.sendSpotAdd(s);
+  hideOverlay('overlay-car');
+  toast('Car parked & shared with the crew');
+});
+
+function openSpot(id) {
+  const s = spots.get(id);
+  if (!s) return;
+  const mine = s.by === (selfId || 'me');
+  const box = $('spot-box');
+  box.innerHTML = `
+    <div class="overlay-head"><h2>🚗 Parked car</h2><button class="ghost" data-act="close">Close</button></div>
+    <div class="spot-view">
+      ${s.photo ? `<img class="car-photo" src="${s.photo}">` : ''}
+      <p class="spot-note">${s.note ? esc(s.note) : '<i>No note left</i>'}</p>
+      <p class="field-note">Parked by ${esc(s.byNick)} · ${ago(s.ts)} ago</p>
+      <div class="card-actions">
+        <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener">Directions</a>
+        <button class="btn btn-primary" data-act="take">I'll take it</button>
+        ${mine ? '<button class="btn" data-act="remove">Remove</button>' : ''}
+      </div>
+    </div>`;
+  box.querySelector('[data-act="close"]').onclick = () => hideOverlay('overlay-spot');
+  box.querySelector('[data-act="take"]').onclick = () => {
+    stateMod.setState('RETRIEVE');
+    removeSpot(s.id, true);
+    hideOverlay('overlay-spot');
+    toast(`You picked up ${s.byNick}'s car — you're on retrieve now`);
+  };
+  box.querySelector('[data-act="remove"]')?.addEventListener('click', () => { removeSpot(s.id, true); hideOverlay('overlay-spot'); });
+  showOverlay('overlay-spot');
+}
+
+function removeSpot(id, broadcast) {
+  spots.delete(id); saveSpots(); mapMod.removeSpot(id);
+  if (broadcast && connected) presence.sendSpotRemove(id);
+}
+
+loadSpots();
+
 // ---------- Profile ----------
 profile.renderEditor();
 profile.onProfile((p) => {
@@ -409,6 +485,8 @@ function connectRoom() {
   presence.on('upsert', (p) => applyPilot(p));
   presence.on('remove', (id) => { roster.remove(id); mapMod.removePilot(id); });
   presence.on('chat', (m) => { if (selfId && m.from === selfId) return; chat.add(m); });
+  presence.on('spot', (s) => { if (!s?.id) return; spots.set(s.id, s); saveSpots(); mapMod.upsertSpot(s, openSpot); });
+  presence.on('spotgone', (id) => removeSpot(id, false));
   presence.on('sos', (e) => {
     if (isMe(e)) return;
     if (e.active) {
