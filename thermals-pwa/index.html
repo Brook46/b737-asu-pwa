@@ -25,14 +25,34 @@
     <div class="brand">Sky Club</div>
     <div class="topbar-right">
       <span id="conn-dot" class="conn-dot" data-status="closed" title="Connection"></span>
+      <button id="drop-car" class="icon-btn" title="Park a shared car here">🅿️</button>
       <button id="open-profile" class="icon-btn" title="Your profile">👤</button>
-      <button id="recenter" class="icon-btn" title="Recenter on me">◎</button>
-      <button id="panel-toggle" class="icon-btn" title="Crew & chat">☰</button>
+      <button id="recenter" class="icon-btn" title="Center map on me" aria-label="Center map on me">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="4"/>
+          <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+        </svg>
+      </button>
+      <button id="panel-toggle" class="icon-btn" title="Chat & crew" aria-label="Chat &amp; crew">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M4 5 h16 a1 1 0 0 1 1 1 v9 a1 1 0 0 1 -1 1 H9 l-4 3.5 V16 H4 a1 1 0 0 1 -1 -1 V6 a1 1 0 0 1 1 -1 z"/>
+        </svg>
+      </button>
     </div>
   </header>
 
+  <!-- Carpool banner (shown when you're in a Retrieve driver's car) -->
+  <div id="car-banner" class="car-banner hidden">
+    <span class="car-banner-text"></span>
+    <button id="car-edit" class="btn">Seats</button>
+  </div>
+
   <!-- SOS (distress) -->
   <button id="sos-btn" class="sos-btn" title="Emergency">SOS</button>
+
+  <!-- 3D terrain toggle (off by default for smoothness) -->
+  <button id="toggle-3d" class="map-btn" title="Toggle 3D terrain">3D</button>
 
   <!-- State selector (bottom) -->
   <nav id="state-selector" class="state-selector" aria-label="Your state"></nav>
@@ -56,6 +76,9 @@
     <section id="panel-chat" class="panel hidden">
       <div id="chat-log" class="chat-log"></div>
       <form id="chat-form" class="chat-form">
+        <input id="chat-photo" type="file" accept="image/*" hidden>
+        <button type="button" id="chat-photo-btn" class="chat-icon" title="Send a photo" aria-label="Send a photo">📷</button>
+        <button type="button" id="chat-voice-btn" class="chat-icon" title="Record a voice note" aria-label="Record a voice note">🎤</button>
         <input id="chat-input" type="text" placeholder="Message the crew…" maxlength="500" autocomplete="off">
         <button type="submit" class="btn">Send</button>
       </form>
@@ -70,6 +93,7 @@
     <div class="gate-box">
       <div class="sos-ring"><span id="sos-count">10</span></div>
       <h1>Sending SOS</h1>
+      <p id="sos-reason" class="sos-reason hidden"></p>
       <p>Hold tight — alerting everyone flying today and sharing your location.</p>
       <button id="sos-now" class="btn btn-sos">Send now</button>
       <button id="sos-cancel" class="btn">Cancel</button>
@@ -125,6 +149,54 @@
         <button id="profile-done" class="btn btn-primary">Done</button>
       </div>
       <div id="profile-form" class="profile-form"></div>
+      <div class="profile-extra">
+        <label class="toggle-row">
+          <span><b>Crash detection</b><br><small>Auto-start SOS on a hard impact (1 min to cancel)</small></span>
+          <input id="crash-toggle" type="checkbox">
+        </label>
+        <button id="open-sim" class="btn">🧪 Open simulator (test offline)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Park a shared car -->
+  <div id="overlay-car" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head"><h2>Park a car</h2><button id="car-cancel" class="ghost">Cancel</button></div>
+      <div class="car-form">
+        <p class="field-note">Drops a shared car at your spot for the whole crew. Add where the key is, a code or plate, and a photo — anyone can take it to go retrieve pilots.</p>
+        <label class="field"><span>Note (key spot, code, plate…)</span>
+          <textarea id="car-note" rows="3" placeholder="e.g. White van GR-123. Key in the exhaust pipe. Gate code 4791."></textarea></label>
+        <input id="car-photo" type="file" accept="image/*" hidden>
+        <button id="car-photo-btn" class="btn">📷 Add a photo</button>
+        <div id="car-photo-preview"></div>
+        <button id="car-save" class="btn btn-primary">Park car here</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View a parked car -->
+  <div id="overlay-spot" class="overlay hidden">
+    <div class="overlay-box" id="spot-box"></div>
+  </div>
+
+  <!-- Offline simulator -->
+  <div id="overlay-sim" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="overlay-head">
+        <h2>Simulator</h2>
+        <button id="sim-done" class="btn btn-primary">Done</button>
+      </div>
+      <div class="sim-body">
+        <p class="field-note">Test Sky Club with no internet: spawn a fake crew, move them around, fire an SOS, or simulate your own crash.</p>
+        <button id="sim-spawn" class="btn">➕ Add a fake pilot</button>
+        <button id="sim-move" class="btn">▶️ Start everyone moving</button>
+        <button id="sim-sos" class="btn">🚨 Random pilot SOS</button>
+        <button id="sim-retrieve" class="btn">🚗 Offer a retrieve (3 seats)</button>
+        <button id="sim-van" class="btn">🚐 Retrieve van right next to me</button>
+        <button id="sim-crash" class="btn btn-sos">💥 Simulate my crash</button>
+        <button id="sim-clear" class="btn">🧹 Clear fake pilots</button>
+      </div>
     </div>
   </div>
 

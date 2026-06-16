@@ -27,6 +27,7 @@ export class DayRoom {
     if (this.pilots) return;
     this.pilots = new Map(Object.entries((await this.state.storage.get('pilots')) || {}));
     this.chat = (await this.state.storage.get('chat')) || [];
+    this.spots = new Map(Object.entries((await this.state.storage.get('spots')) || {}));
   }
 
   async fetch(request) {
@@ -47,6 +48,7 @@ export class DayRoom {
       // Tell the joiner its own id, then the current roster + recent chat.
       server.send(JSON.stringify({ t: 'self', id: pilotId }));
       server.send(JSON.stringify({ t: 'roster', pilots: [...this.pilots.values()] }));
+      if (this.spots.size) server.send(JSON.stringify({ t: 'spots', spots: [...this.spots.values()] }));
       if (this.chat.length) server.send(JSON.stringify({ t: 'chatlog', log: this.chat }));
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -75,6 +77,9 @@ export class DayRoom {
         const loc = msg.loc || {};
         p.lat = num(loc.lat); p.lng = num(loc.lng);
         p.alt = num(loc.alt); p.heading = num(loc.heading); p.speed = num(loc.speed);
+        p.vario = num(loc.vario);
+        if (loc.agl != null) p.agl = num(loc.agl);
+        if (loc.xcKm != null) p.xcKm = num(loc.xcKm);
         if (msg.state) p.state = String(msg.state).slice(0, 16);
         if (msg.seats != null) p.seats = Math.min(8, Math.max(0, msg.seats | 0));
         p.ts = Date.now();
@@ -95,12 +100,54 @@ export class DayRoom {
 
       case 'chat': {
         const text = String(msg.text || '').slice(0, 500).trim();
-        if (!text) break;
-        const out = { from: pilotId, nick: p.nickname || 'Pilot', color: p.color || '#9ab', text, ts: Date.now() };
-        this.chat.push(out);
+        const media = sanitizeMedia(msg.media);
+        if (!text && !media) break;
+        const base = { from: pilotId, nick: p.nickname || 'Pilot', color: p.color || '#9ab', ts: Date.now() };
+        // Broadcast the full message (with media) to everyone live…
+        this.broadcast({ t: 'chat', msg: { ...base, text, media } });
+        // …but only persist a lightweight, text-only copy for late joiners so
+        // the room's stored history can't balloon with base64 media.
+        this.chat.push({ ...base, text: text || (media ? `[${media.type}]` : '') });
         if (this.chat.length > CHAT_MAX) this.chat.shift();
         await this.state.storage.put('chat', this.chat);
-        this.broadcast({ t: 'chat', msg: out });
+        break;
+      }
+
+      case 'carseats': {
+        const driver = this.pilots.get(String(msg.driverId));
+        // Only someone actually next to the driver (in the car) may edit seats.
+        if (!driver || !nearby(p, driver, 0.12)) break;
+        driver.seats = Math.min(8, Math.max(0, msg.seats | 0));
+        driver.ts = Date.now();
+        this.pilots.set(driver.id, driver);
+        await this.persistPilots();
+        this.broadcast({ t: 'upsert', pilot: driver });
+        break;
+      }
+
+      case 'spot': {
+        const s = msg.spot || {};
+        if (s.id == null || s.lat == null) break;
+        const clean = {
+          id: String(s.id).slice(0, 40), lat: num(s.lat), lng: num(s.lng),
+          note: String(s.note || '').slice(0, 300),
+          photo: (typeof s.photo === 'string' && s.photo.startsWith('data:image/') && s.photo.length < 600000) ? s.photo : null,
+          by: pilotId, byNick: String(s.byNick || p.nickname || 'Pilot').slice(0, 24), ts: Date.now(),
+        };
+        this.spots.set(clean.id, clean);
+        await this.state.storage.put('spots', Object.fromEntries(this.spots));
+        this.broadcast({ t: 'spot', spot: clean });
+        break;
+      }
+
+      case 'spotgone': {
+        const id = String(msg.id || '');
+        const s = this.spots.get(id);
+        if (s && (s.by === pilotId)) {            // only the owner removes it
+          this.spots.delete(id);
+          await this.state.storage.put('spots', Object.fromEntries(this.spots));
+          this.broadcast({ t: 'spotgone', id });
+        }
         break;
       }
 
@@ -161,6 +208,24 @@ function sanitizeProfile(p = {}) {
   };
 }
 function num(v) { return v == null || Number.isNaN(Number(v)) ? null : Number(v); }
+
+// True when two pilots are within `km` of each other (haversine).
+function nearby(a, b, km) {
+  if (a?.lat == null || b?.lat == null) return false;
+  const R = 6371, toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s)) <= km;
+}
+
+// Accept only small inline image/audio data URLs (≈1MB cap after base64).
+function sanitizeMedia(m) {
+  if (!m || typeof m.data !== 'string') return null;
+  const okType = m.type === 'image' || m.type === 'audio';
+  const okData = m.data.startsWith(`data:${m.type === 'image' ? 'image/' : 'audio/'}`);
+  if (!okType || !okData || m.data.length > 1_400_000) return null;
+  return { type: m.type, data: m.data };
+}
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json' } });
 }

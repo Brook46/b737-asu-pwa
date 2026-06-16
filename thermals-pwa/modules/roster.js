@@ -6,13 +6,19 @@
 
 import { glyphSVG } from './icons.js';
 import { STATES } from '../config.js';
-import { ago, esc } from './ui.js';
+import { ago, esc, fmtSpeed, fmtAlt, fmtAgl, fmtVario, fmtTrack, compass } from './ui.js';
 import { waNumber } from './profile.js';
 
 const pilots = new Map();          // id -> pilot
 const hidden = new Set();          // ids the user has toggled off
 let onVisibilityChange = () => {};
 let onFocus = () => {};            // (lng,lat) => recenter map
+let kingId = null;
+let barogramProvider = () => '';   // (id) => SVG string
+
+export function all() { return [...pilots.values()]; }
+export function setKing(id) { kingId = id; render(); }
+export function setBarogramProvider(fn) { barogramProvider = fn || barogramProvider; }
 
 export function init({ onVisibility, onFocusPilot }) {
   onVisibilityChange = onVisibility || onVisibilityChange;
@@ -62,17 +68,21 @@ export function render() {
     const seatTxt = (p.state === 'RETRIEVE' && p.seats > 0) ? ` · ${p.seats} seat${p.seats === 1 ? '' : 's'} free` : '';
     const distTxt = (p.distKm != null) ? ` · ${p.distKm < 10 ? p.distKm.toFixed(1) : Math.round(p.distKm)} km` : '';
     const sub = p.sos ? '🚨 SOS — needs help' : `${esc(st.label)}${seatTxt}${distTxt} · ${ago(p.ts)}`;
+    // Live telemetry line: height · speed · climb/sink · track.
+    const aglTxt = (p.agl != null) ? `${Math.round(p.agl)} agl` : null;
+    const tele = [fmtAlt(p.alt), aglTxt, fmtSpeed(p.speed), fmtVario(p.vario), compass(p.heading)].filter(Boolean).join(' · ');
     return `<div class="roster-row${off}${sos}" data-id="${esc(p.id)}">
       <button class="roster-eye" data-act="toggle" title="Show / hide on map" aria-pressed="${!off}">
         ${eyeSVG(!hidden.has(p.id))}
       </button>
       <button class="roster-main" data-act="card">
         <span class="roster-glyph" style="--pilot-color:${esc(p.color || '#888')}">
-          ${glyphSVG(p.state, '#fff', 20)}
+          ${glyphSVG(p.sos ? 'SOS' : p.state, '#fff', 20)}
         </span>
         <span class="roster-text">
-          <span class="roster-nick">${esc(p.nickname || 'Pilot')}</span>
+          <span class="roster-nick">${p.id === kingId ? '👑 ' : ''}${esc(p.nickname || 'Pilot')}</span>
           <span class="roster-sub">${sub}</span>
+          ${tele ? `<span class="roster-tele">${tele}</span>` : ''}
         </span>
       </button>
     </div>`;
@@ -105,12 +115,18 @@ export function openCard(id) {
     <div class="card-head${p.sos ? ' is-sos' : ''}" style="--pilot-color:${esc(p.color || '#888')}">
       <span class="card-glyph">${glyphSVG(p.state, '#fff', 30)}</span>
       <div>
-        <h2>${esc(p.nickname || 'Pilot')}</h2>
-        <p class="card-state">${p.sos ? '🚨 SOS — needs help' : `${esc(st.label)} · seen ${ago(p.ts)} ago`}</p>
+        <h2>${p.id === kingId ? '👑 ' : ''}${esc(p.nickname || 'Pilot')}</h2>
+        <p class="card-state">${p.sos ? '🚨 SOS — needs help' : `${esc(st.label)} · seen ${ago(p.ts)} ago`}${p.id === kingId ? ' · King of the day' : ''}</p>
       </div>
       <button class="card-close" data-act="close" aria-label="Close">✕</button>
     </div>
     <dl class="card-fields">
+      ${field('Altitude', fmtAlt(p.alt))}
+      ${field('Above ground', fmtAgl(p.agl))}
+      ${field('Speed', fmtSpeed(p.speed))}
+      ${field('Climb / sink (2s avg)', fmtVario(p.vario))}
+      ${field('Track', fmtTrack(p.heading))}
+      ${p.xcKm > 1 ? field('Best distance (5 pts)', `${p.xcKm.toFixed(1)} km`) : ''}
       ${p.state === 'RETRIEVE' && p.seats > 0 ? field('Free seats', `${p.seats} in the car`) : ''}
       ${field('Blood type', p.bloodType)}
       ${field('Vehicle', p.vehicle)}
@@ -118,8 +134,10 @@ export function openCard(id) {
       ${field('Phone', p.phone)}
       ${links.length ? `<dt>Links</dt><dd>${links.map((l) => `<a href="${esc(l)}" target="_blank" rel="noopener">${esc(l)}</a>`).join('<br>')}</dd>` : ''}
     </dl>
+    ${(() => { const baro = barogramProvider(p.id); return baro ? `<div class="card-baro"><span class="card-baro-label">Flight profile — altitude over ground</span>${baro}</div>` : ''; })()}
     <div class="card-actions">
       ${wa ? `<a class="btn btn-wa" href="https://wa.me/${wa}?text=${encodeURIComponent('Hey ' + (p.nickname || '') + ' — ')}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+      ${p.lat != null ? `<a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener">Directions</a>` : ''}
       ${p.lng != null ? `<button class="btn" data-act="focus">Show on map</button>` : ''}
     </div>`;
 

@@ -27,6 +27,8 @@ const handlers = {
   remove: new Set(),   // (pilotId) => void       one pilot left
   chat:   new Set(),   // (message) => void
   sos:    new Set(),   // ({id,active,nick,color,lat,lng}) => void
+  spot:   new Set(),   // (spot) => void           a parked car added/updated
+  spotgone: new Set(), // (id) => void             a parked car removed
   status: new Set(),   // ('open'|'closed'|'connecting') => void
 };
 export function on(type, fn) { handlers[type]?.add(fn); return () => handlers[type]?.delete(fn); }
@@ -57,6 +59,9 @@ export function connect() {
       case 'chat':   emit('chat', msg.msg); break;
       case 'chatlog': (msg.log || []).forEach((m) => emit('chat', m)); break;
       case 'sos':    emit('sos', msg); break;
+      case 'spot':   emit('spot', msg.spot); break;
+      case 'spots':  (msg.spots || []).forEach((s) => emit('spot', s)); break;
+      case 'spotgone': emit('spotgone', msg.id); break;
     }
   };
   ws.onclose = () => {
@@ -72,6 +77,12 @@ export function disconnect() {
   closedByUs = true;
   if (dayTimer) clearTimeout(dayTimer);
   if (ws) { try { ws.close(); } catch {} ws = null; }
+}
+
+// Reconnect if the socket dropped while backgrounded. Safe to call on resume.
+export function reconnectIfClosed() {
+  if (closedByUs || !token) return;
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connect();
 }
 
 function send(obj) {
@@ -101,10 +112,17 @@ function flushPosition() {
 // State changes are worth sending immediately (not throttled).
 export function sendState(state, seats) { send({ t: 'state', state, seats }); }
 
-export function sendChat(text) { send({ t: 'chat', text }); }
+export function sendChat(text, media) { send({ t: 'chat', text, media }); }
 
 // Raise or clear an SOS. Broadcast to everyone in today's room immediately.
 export function sendSOS(active) { send({ t: 'sos', active: !!active }); }
+
+// Update the free seats on a car I'm riding in (the driver's record).
+export function sendCarSeats(driverId, seats) { send({ t: 'carseats', driverId, seats }); }
+
+// Shared parked cars.
+export function sendSpotAdd(spot) { send({ t: 'spot', spot }); }
+export function sendSpotRemove(id) { send({ t: 'spotgone', id }); }
 
 // Reconnect into the new day's room shortly after local midnight.
 function scheduleDayRollover() {

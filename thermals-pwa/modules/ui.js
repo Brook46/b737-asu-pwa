@@ -40,6 +40,24 @@ export function ago(ts) {
   return `${h}h`;
 }
 
+// ---- flight telemetry formatters ----
+export function fmtSpeed(mps) { return (mps == null || Number.isNaN(mps)) ? null : `${Math.round(mps * 3.6)} km/h`; }
+export function fmtAlt(m) { return (m == null || Number.isNaN(m)) ? null : `${Math.round(m)} m`; }
+export function fmtAgl(m) { return (m == null || Number.isNaN(m)) ? null : `${Math.round(m)} m AGL`; }
+// Average climb (↑) or sink (↓) in m/s.
+export function fmtVario(mps) {
+  if (mps == null || Number.isNaN(mps)) return null;
+  return `${mps >= 0 ? '↑' : '↓'}${Math.abs(mps).toFixed(1)} m/s`;
+}
+export function compass(deg) {
+  if (deg == null || Number.isNaN(deg)) return null;
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((deg % 360) / 45) % 8];
+}
+export function fmtTrack(deg) {
+  const c = compass(deg);
+  return c == null ? null : `${Math.round(deg)}° ${c}`;
+}
+
 // Escape user-supplied text before inserting as HTML.
 export function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({

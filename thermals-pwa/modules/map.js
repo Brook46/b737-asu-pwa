@@ -5,7 +5,7 @@
 // let us tint by colour + swap the state glyph trivially).
 
 import { MAPTILER_KEY, TERRAIN_TILES } from '../config.js';
-import { markerEl, updateMarkerEl } from './icons.js';
+import { markerEl, updateMarkerEl, glyphSVG } from './icons.js';
 
 let map = null;
 let ready = false;
@@ -14,7 +14,6 @@ const markers = new Map();        // pilotId -> { marker, el, state, color }
 let meMarker = null;
 let onPilotTap = () => {};
 let onBgTap = () => {};
-let followMe = true;
 
 export function onBackgroundClick(fn) { onBgTap = fn || onBgTap; }
 
@@ -28,33 +27,72 @@ function styleURL() {
 export function initMap(containerId, center = [8.0, 46.5], onTap) {
   if (map) return map;
   onPilotTap = onTap || onPilotTap;
+
+  // Right-to-left text plugin so Hebrew/Arabic place names render correctly
+  // (without it MapLibre draws them reversed/garbled). Lazy, load-once.
+  try {
+    if (maplibregl.getRTLTextPluginStatus && maplibregl.getRTLTextPluginStatus() === 'unavailable') {
+      maplibregl.setRTLTextPlugin('https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.min.js', null, true);
+    }
+  } catch (err) { console.warn('RTL plugin skipped', err); }
+
+  // Default is a flat 2D map — fast and smooth on phones. 3D terrain is heavy,
+  // so it's opt-in via the 3D button (set3D below).
   map = new maplibregl.Map({
     container: containerId,
     style: styleURL(),
     center,
-    zoom: 11,
-    pitch: 62,
+    zoom: 12,
+    pitch: 0,
     bearing: 0,
-    maxPitch: 80,
+    maxPitch: 75,
     attributionControl: { compact: true },
   });
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
 
-  // Dragging the map opts you out of follow-me until you recenter.
-  map.on('dragstart', () => { followMe = false; });
-
   // Tapping the map background (not a marker) closes overlays like the panel.
   map.on('click', () => onBgTap());
 
-  // Terrain + trail layers need the style loaded; markers don't (they're DOM
-  // overlays), so we flush the marker queue as soon as the map object exists —
-  // a slow or failed basemap can never strand pilots off the map.
-  map.on('load', () => { addTerrain(); setupTrails(); });
+  // Trail layers need the style loaded; markers don't (they're DOM overlays), so
+  // we flush the marker queue as soon as the map object exists — a slow or
+  // failed basemap can never strand pilots off the map.
+  map.on('load', () => { styleLoaded = true; setupTrails(); if (want3D) apply3D(true); });
   ready = true;
   queue.splice(0).forEach((fn) => fn());
 
   return map;
+}
+
+// ---------- 3D terrain (opt-in; off by default to stay smooth) ----------
+let styleLoaded = false;
+let want3D = false;
+
+export function is3D() { return want3D; }
+export function toggle3D() { set3D(!want3D); return want3D; }
+export function set3D(on) {
+  want3D = !!on;
+  if (styleLoaded) apply3D(want3D);
+}
+
+function apply3D(on) {
+  try {
+    if (on) {
+      if (!map.getSource('terrain-dem')) {
+        map.addSource('terrain-dem', {
+          type: 'raster-dem', tiles: [TERRAIN_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 12,
+        });
+      }
+      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.2 });
+      if (typeof map.setSky === 'function') {
+        map.setSky({ 'sky-color': '#0a1730', 'horizon-color': '#88a7d0', 'fog-color': '#0d1422', 'horizon-fog-blend': 0.6 });
+      }
+      map.easeTo({ pitch: 60, duration: 600 });
+    } else {
+      map.setTerrain(null);
+      map.easeTo({ pitch: 0, duration: 600 });
+    }
+  } catch (err) { console.warn('3D toggle failed', err); }
 }
 
 // ---------- Trails (each pilot's recent track, air + ground) ----------
@@ -105,52 +143,25 @@ function pushTrail(id, lng, lat, color) {
   }
 }
 
-// Add a DEM source + 3D terrain + a sky layer for the paragliding feel.
-function addTerrain() {
-  try {
-    if (!map.getSource('terrain-dem')) {
-      map.addSource('terrain-dem', {
-        type: 'raster-dem',
-        tiles: [TERRAIN_TILES],
-        encoding: 'terrarium',
-        tileSize: 256,
-        maxzoom: 14,
-      });
-    }
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.3 });
-    // Sky: MapLibre exposes this via setSky() (not an addLayer type). Guard for
-    // versions that don't support it.
-    if (typeof map.setSky === 'function') {
-      map.setSky({
-        'sky-color': '#0a1730',
-        'sky-horizon-blend': 0.5,
-        'horizon-color': '#88a7d0',
-        'horizon-fog-blend': 0.6,
-        'fog-color': '#0d1422',
-        'fog-ground-blend': 0.4,
-      });
-    }
-  } catch (err) {
-    console.warn('terrain unavailable', err);
-  }
-}
-
 function whenReady(fn) { if (ready) fn(); else queue.push(fn); }
 
-// Place / move my own marker. Distinct ring so I can find myself.
-export function setMe(lng, lat, state, color, nickname, seats = 0) {
+// Place / move my own marker. We center on the very first fix, then leave the
+// camera alone so the map doesn't fight the user's panning (that felt "stuck").
+// The recenter button re-centers on demand.
+let centeredOnce = false;
+export function setMe(lng, lat, state, color, nickname, seats = 0, vario = null) {
   whenReady(() => {
     if (!meMarker) {
-      const el = markerEl(state, color, nickname || 'You', seats);
+      const el = markerEl(state, color, nickname || 'You', seats, vario);
       el.classList.add('is-me');
       meMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat]).addTo(map);
     } else {
       meMarker.setLngLat([lng, lat]);
-      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats);
+      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats, vario);
     }
     pushTrail('me', lng, lat, color);
-    if (followMe) map.easeTo({ center: [lng, lat], duration: 600 });
+    if (!centeredOnce) { centeredOnce = true; map.easeTo({ center: [lng, lat], duration: 600 }); }
   });
 }
 
@@ -159,23 +170,35 @@ export function setMeSOS(on) {
   whenReady(() => meMarker?.getElement().classList.toggle('is-sos', !!on));
 }
 
+// King of the day: a crown on whichever pilot has flown furthest today.
+let kingId = null;
+export function setKing(id) {
+  kingId = id;
+  whenReady(() => markers.forEach((m, pid) => m.el.classList.toggle('is-king', pid === kingId)));
+}
+export function setMeKing(on) {
+  whenReady(() => meMarker?.getElement().classList.toggle('is-king', !!on));
+}
+
 // Create or update another pilot's marker.
 export function upsertPilot(p) {
   whenReady(() => {
     if (p.lng == null || p.lat == null) return;
+    // An SOS swaps the icon to the distress glyph, whatever they were doing.
+    const glyphState = p.sos ? 'SOS' : p.state;
     let m = markers.get(p.id);
     if (!m) {
-      const el = markerEl(p.state, p.color, p.nickname, p.seats);
+      const el = markerEl(glyphState, p.color, p.nickname, p.seats, p.vario);
       el.addEventListener('click', () => onPilotTap(p.id));
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([p.lng, p.lat]).addTo(map);
       markers.set(p.id, { marker, el });
     } else {
       m.marker.setLngLat([p.lng, p.lat]);
-      updateMarkerEl(m.el, p.state, p.color, p.nickname, p.seats);
+      updateMarkerEl(m.el, glyphState, p.color, p.nickname, p.seats, p.vario);
     }
     const el = markers.get(p.id)?.el;
-    if (el) el.classList.toggle('is-sos', !!p.sos);
+    if (el) { el.classList.toggle('is-sos', !!p.sos); el.classList.toggle('is-king', p.id === kingId); }
     pushTrail(p.id, p.lng, p.lat, p.color);
   });
 }
@@ -195,8 +218,26 @@ export function flyToPilot(lng, lat) {
   whenReady(() => map.flyTo({ center: [lng, lat], zoom: 13, duration: 800 }));
 }
 
+// ---------- Parked cars (static, shared spots) ----------
+const spotMarkers = new Map();   // id -> maplibregl.Marker
+export function upsertSpot(spot, onTap) {
+  whenReady(() => {
+    let m = spotMarkers.get(spot.id);
+    if (m) { m.setLngLat([spot.lng, spot.lat]); return; }
+    const el = document.createElement('div');
+    el.className = 'spot-marker';
+    el.innerHTML = `<div class="spot-pin">${glyphSVG('car', '#fff', 22)}</div><div class="spot-tag">Car</div>`;
+    el.addEventListener('click', (e) => { e.stopPropagation(); onTap(spot.id); });
+    m = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([spot.lng, spot.lat]).addTo(map);
+    spotMarkers.set(spot.id, m);
+  });
+}
+export function removeSpot(id) {
+  const m = spotMarkers.get(id);
+  if (m) { m.remove(); spotMarkers.delete(id); }
+}
+
 export function recenterMe() {
-  followMe = true;
   const ll = meMarker?.getLngLat();
-  if (ll) whenReady(() => map.easeTo({ center: ll, duration: 600 }));
+  if (ll) whenReady(() => map.easeTo({ center: ll, zoom: Math.max(map.getZoom(), 13), duration: 600 }));
 }

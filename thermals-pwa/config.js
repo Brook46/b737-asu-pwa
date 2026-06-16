@@ -33,17 +33,33 @@ export const LOCATION_THROTTLE_MS = 4000;
 export const STATES = {
   FLYING:      { id: 'FLYING',      label: 'Flying',        glyph: 'paraglider' },
   WALKING:     { id: 'WALKING',     label: 'On the ground', glyph: 'walk' },
-  DRIVING:     { id: 'DRIVING',     label: 'Driving',       glyph: 'car' },
   RETRIEVE:    { id: 'RETRIEVE',    label: 'Retrieve',      glyph: 'retrieve' },
   BUS:         { id: 'BUS',         label: 'On the bus',    glyph: 'bus' },
   HITCHHIKING: { id: 'HITCHHIKING', label: 'Need a ride',   glyph: 'thumb' },
+  // Auto-only states (no manual button):
+  DRIVING:     { id: 'DRIVING',     label: 'Driving',       glyph: 'car' },       // auto when >20 km/h on the ground
+  HITCH_CAR:   { id: 'HITCH_CAR',   label: 'Got a ride',    glyph: 'hitchcar' },  // hitch-hiker who got picked up
+  BEER:        { id: 'BEER',        label: 'Grabbing a beer', glyph: 'beer' },    // landed & still a while
 };
 
-export const STATE_ORDER = ['FLYING', 'WALKING', 'DRIVING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
+// Buttons shown in the manual selector. Flying is now fully automatic (entered
+// and left by height), so it's NOT a button — you can't change it by hand. The
+// car / got-a-ride / beer states are auto-only too.
+export const STATE_ORDER = ['WALKING', 'RETRIEVE', 'BUS', 'HITCHHIKING'];
 
-// These auto-switch from motion (speed + vertical rate): flying / walking /
-// driving. Retrieve, bus and hitch stay manual and are never auto-overridden.
-export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING'];
+// States the motion logic is allowed to switch between. Retrieve / bus stay put.
+export const AUTO_STATES = ['FLYING', 'WALKING', 'DRIVING', 'BEER', 'HITCHHIKING', 'HITCH_CAR'];
+
+// Flying is decided by height above ground (AGL):
+export const FLY_AGL_M = 5;           // above this = airborne
+export const FLY_CONFIRM_MS = 5000;   // …for 5 s → flying
+export const LAND_AGL_M = 2;          // ~ground level
+export const LAND_CONFIRM_MS = 60000; // ground + under 20 km/h for 1 min → landed
+
+// Beer comes after you've sat still: 5 min if you haven't moved since opening
+// the app, otherwise 30 min once you've stopped somewhere else.
+export const BEER_FROM_START_MS = 5 * 60 * 1000;
+export const BEER_AWAY_MS = 30 * 60 * 1000;
 
 // Default per-pilot colours offered in the profile editor.
 export const COLORS = [

@@ -32,6 +32,13 @@ const GLYPHS = {
   thumb: `
     <path d="M7 11 L7 20 L4 20 L4 11 Z" class="fill-soft" />
     <path d="M7 11 L10.5 4 Q11 3 12 3.4 Q13 3.8 12.6 5 L11.5 9 L18 9 Q20 9 19.6 11 L18.4 17 Q18 19 16 19 L7 19 Z" class="fill" />`,
+  // Got a ride: a car with a thumb-up — a hitch-hiker who got picked up.
+  hitchcar: `
+    <path d="M3 16 L4.5 12 Q5 11 6 11 L18 11 Q19 11 19.5 12 L21 16 L21 18 L3 18 Z" class="fill-soft" />
+    <circle cx="7.5" cy="18.5" r="1.6" class="fill" />
+    <circle cx="16.5" cy="18.5" r="1.6" class="fill" />
+    <path d="M9 9 L9 4.5 L7.5 4.5 L7.5 9 Z" class="fill-soft" />
+    <path d="M9 9 L11 4 Q11.3 3.2 12 3.5 Q12.7 3.8 12.4 4.7 L11.8 7 L15 7 Q16 7 15.8 8.2 L15.5 9 Z" class="fill" />`,
   // Retrieve: a car with a "coming back for you" return arrow.
   retrieve: `
     <path d="M3 15 L4.5 11 Q5 10 6 10 L18 10 Q19 10 19.5 11 L21 15 L21 17 L3 17 Z" class="fill-soft" />
@@ -47,6 +54,18 @@ const GLYPHS = {
     <path d="M11 12 L14.5 15.5 L14.5 20" />
     <path d="M12 8 L8.5 9.5" />
     <path d="M12 8 L15.5 10.5" />`,
+  // Landed & chilling: a beer mug with foam.
+  beer: `
+    <path d="M6.5 9 L6.5 19 Q6.5 20.5 8 20.5 L13 20.5 Q14.5 20.5 14.5 19 L14.5 9 Z" class="fill-soft" />
+    <path d="M14.5 11 L17.5 11 Q18.5 11 18.5 12 L18.5 15 Q18.5 16 17.5 16 L14.5 16" />
+    <path d="M6 9 Q5.5 6.5 8 6.5 Q8.5 5 10.5 5.2 Q12 4 13.5 5.4 Q15.5 5.6 14.8 7.2 Q15.6 8.6 14 9 Z" class="fill" />
+    <line x1="9" y1="12" x2="9" y2="18" />
+    <line x1="11.8" y1="12" x2="11.8" y2="18" />`,
+  // Distress: a warning triangle with an exclamation.
+  sos: `
+    <path d="M12 4 L21.5 19.5 L2.5 19.5 Z" />
+    <line x1="12" y1="10" x2="12" y2="14.5" stroke-width="2.2" />
+    <circle cx="12" cy="17" r="0.9" class="fill" />`,
   // Idle fallback.
   dot: `<circle cx="12" cy="12" r="5" class="fill" />`,
 };
@@ -55,8 +74,9 @@ const GLYPHS = {
 function glyphName(stateOrGlyph) {
   if (GLYPHS[stateOrGlyph]) return stateOrGlyph;
   const map = {
-    FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car',
-    RETRIEVE: 'retrieve', BUS: 'bus', HITCHHIKING: 'thumb', GROUNDED: 'walk',
+    FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car', RETRIEVE: 'retrieve',
+    BUS: 'bus', HITCHHIKING: 'thumb', HITCH_CAR: 'hitchcar', BEER: 'beer',
+    SOS: 'sos', GROUNDED: 'walk',
   };
   return map[stateOrGlyph] || 'walk';
 }
@@ -73,25 +93,37 @@ function seatBadge(state, seats) {
   return (state === 'RETRIEVE' && seats > 0) ? `<span class="seat-badge">${seats}</span>` : '';
 }
 
+// A climb/sink readout shown on the icon while flying (green up, red down).
+function varioInner(state, vario) {
+  if (state !== 'FLYING' || vario == null || Number.isNaN(vario)) return '';
+  const cls = vario >= 0 ? 'climb' : 'sink';
+  return `<span class="vario-chip ${cls}">${vario >= 0 ? '+' : ''}${vario.toFixed(1)}</span>`;
+}
+
 // Build a DOM node for a MapLibre HTML marker: a coloured teardrop pin holding
 // the state glyph (a seat count badge when offering a retrieve ride), with an
 // optional nickname label below.
-export function markerEl(state, color, nickname, seats = 0) {
+export function markerEl(state, color, nickname, seats = 0, vario = null) {
   const wrap = document.createElement('div');
   wrap.className = 'pilot-marker';
-  wrap.style.setProperty('--pilot-color', color);
+  // A missing/invalid colour makes --pilot-color invalid, which renders the pin
+  // transparent — always fall back to a solid colour.
+  wrap.style.setProperty('--pilot-color', color || '#29b6f6');
   wrap.innerHTML = `
     <div class="pilot-pin">${glyphSVG(state, '#fff', 24)}${seatBadge(state, seats)}</div>
+    <div class="pilot-vario">${varioInner(state, vario)}</div>
     ${nickname ? `<div class="pilot-tag">${nickname}</div>` : ''}`;
   return wrap;
 }
 
 // Update an existing marker node in place (cheaper than recreating).
-export function updateMarkerEl(el, state, color, nickname, seats = 0) {
+export function updateMarkerEl(el, state, color, nickname, seats = 0, vario = null) {
   if (!el) return;
-  el.style.setProperty('--pilot-color', color);
+  el.style.setProperty('--pilot-color', color || '#29b6f6');
   const pin = el.querySelector('.pilot-pin');
   if (pin) pin.innerHTML = glyphSVG(state, '#fff', 24) + seatBadge(state, seats);
+  const v = el.querySelector('.pilot-vario');
+  if (v) v.innerHTML = varioInner(state, vario);
   const tag = el.querySelector('.pilot-tag');
   if (tag && nickname != null) tag.textContent = nickname;
 }
