@@ -36,12 +36,14 @@ export function initMap(containerId, center = [8.0, 46.5], onTap) {
     }
   } catch (err) { console.warn('RTL plugin skipped', err); }
 
+  // Default is a flat 2D map — fast and smooth on phones. 3D terrain is heavy,
+  // so it's opt-in via the 3D button (set3D below).
   map = new maplibregl.Map({
     container: containerId,
     style: styleURL(),
     center,
     zoom: 12,
-    pitch: 45,
+    pitch: 0,
     bearing: 0,
     maxPitch: 75,
     attributionControl: { compact: true },
@@ -52,14 +54,45 @@ export function initMap(containerId, center = [8.0, 46.5], onTap) {
   // Tapping the map background (not a marker) closes overlays like the panel.
   map.on('click', () => onBgTap());
 
-  // Terrain + trail layers need the style loaded; markers don't (they're DOM
-  // overlays), so we flush the marker queue as soon as the map object exists —
-  // a slow or failed basemap can never strand pilots off the map.
-  map.on('load', () => { addTerrain(); setupTrails(); });
+  // Trail layers need the style loaded; markers don't (they're DOM overlays), so
+  // we flush the marker queue as soon as the map object exists — a slow or
+  // failed basemap can never strand pilots off the map.
+  map.on('load', () => { styleLoaded = true; setupTrails(); if (want3D) apply3D(true); });
   ready = true;
   queue.splice(0).forEach((fn) => fn());
 
   return map;
+}
+
+// ---------- 3D terrain (opt-in; off by default to stay smooth) ----------
+let styleLoaded = false;
+let want3D = false;
+
+export function is3D() { return want3D; }
+export function toggle3D() { set3D(!want3D); return want3D; }
+export function set3D(on) {
+  want3D = !!on;
+  if (styleLoaded) apply3D(want3D);
+}
+
+function apply3D(on) {
+  try {
+    if (on) {
+      if (!map.getSource('terrain-dem')) {
+        map.addSource('terrain-dem', {
+          type: 'raster-dem', tiles: [TERRAIN_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 12,
+        });
+      }
+      map.setTerrain({ source: 'terrain-dem', exaggeration: 1.2 });
+      if (typeof map.setSky === 'function') {
+        map.setSky({ 'sky-color': '#0a1730', 'horizon-color': '#88a7d0', 'fog-color': '#0d1422', 'horizon-fog-blend': 0.6 });
+      }
+      map.easeTo({ pitch: 60, duration: 600 });
+    } else {
+      map.setTerrain(null);
+      map.easeTo({ pitch: 0, duration: 600 });
+    }
+  } catch (err) { console.warn('3D toggle failed', err); }
 }
 
 // ---------- Trails (each pilot's recent track, air + ground) ----------
@@ -107,36 +140,6 @@ function pushTrail(id, lng, lat, color) {
     t.pts.push([lng, lat]);
     if (t.pts.length > TRAIL_MAX) t.pts.shift();
     refreshTrails();
-  }
-}
-
-// Add a DEM source + 3D terrain + a sky layer for the paragliding feel.
-function addTerrain() {
-  try {
-    if (!map.getSource('terrain-dem')) {
-      map.addSource('terrain-dem', {
-        type: 'raster-dem',
-        tiles: [TERRAIN_TILES],
-        encoding: 'terrarium',
-        tileSize: 256,
-        maxzoom: 14,
-      });
-    }
-    map.setTerrain({ source: 'terrain-dem', exaggeration: 1.3 });
-    // Sky: MapLibre exposes this via setSky() (not an addLayer type). Guard for
-    // versions that don't support it.
-    if (typeof map.setSky === 'function') {
-      map.setSky({
-        'sky-color': '#0a1730',
-        'sky-horizon-blend': 0.5,
-        'horizon-color': '#88a7d0',
-        'horizon-fog-blend': 0.6,
-        'fog-color': '#0d1422',
-        'fog-ground-blend': 0.4,
-      });
-    }
-  } catch (err) {
-    console.warn('terrain unavailable', err);
   }
 }
 

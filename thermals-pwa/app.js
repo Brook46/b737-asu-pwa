@@ -325,6 +325,11 @@ $('panel-toggle')?.addEventListener('click', () => $('side-panel')?.classList.to
 $('panel-close')?.addEventListener('click', closePanel);
 mapMod.onBackgroundClick(closePanel);     // tapping the map closes the panel
 $('recenter')?.addEventListener('click', () => mapMod.recenterMe());
+$('toggle-3d')?.addEventListener('click', () => {
+  const on = mapMod.toggle3D();
+  $('toggle-3d').classList.toggle('is-on', on);
+  $('toggle-3d').textContent = on ? '2D' : '3D';
+});
 
 // Kick off the onboarding check (location callback will re-drive it).
 maybeAdvanceOnboarding();
