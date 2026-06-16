@@ -56,6 +56,7 @@ $('gate-location-retry')?.addEventListener('click', () => geo.start());
 geo.onFix((fix) => {
   if (!mapStarted) return;
   const vario = vario2s(fix);
+  myVario = vario;
   recordFlight(fix);
   paintMe();
   if (connected) presence.sendPosition(
@@ -65,6 +66,7 @@ geo.onFix((fix) => {
   // Auto-switch flying / walking / driving from speed + climb rate.
   stateMod.applyAutoState({ speed: fix.speed, vrate: vario });
   recomputeKing();
+  updateCarBanner();
 });
 
 // ---------- King of the day: best 5-point air distance ----------
@@ -122,14 +124,15 @@ function startMapOnce() {
 
 geo.start();
 
-// Paint my own marker from the current fix + profile + state (+ seats). When my
-// SOS is active the icon becomes the distress glyph.
+// Paint my own marker from the current fix + profile + state (+ seats + vario).
+// When my SOS is active the icon becomes the distress glyph.
+let myVario = 0;
 function paintMe() {
   const fix = geo.lastFix();
   if (!fix || !mapStarted) return;
   const p = profile.getProfile();
   const glyphState = sosActive ? 'SOS' : stateMod.getState();
-  mapMod.setMe(fix.lng, fix.lat, glyphState, p.color, p.nickname, stateMod.getSeats());
+  mapMod.setMe(fix.lng, fix.lat, glyphState, p.color, p.nickname, stateMod.getSeats(), myVario);
 }
 
 // ---------- State selector ----------
@@ -198,22 +201,93 @@ $('sos-cancel')?.addEventListener('click', cancelSosCountdown);
 $('sos-now')?.addEventListener('click', activateSos);
 $('sos-clear')?.addEventListener('click', clearSos);
 
-// ---------- Free-seats picker (long-press Retrieve) ----------
-stateMod.setOnSeatsRequest(() => {
+// ---------- Free-seats picker ----------
+// Reusable: pass the current count and what to do with the chosen number.
+function openSeatsPicker(current, onPick) {
   const grid = $('seats-grid');
-  if (grid) {
-    grid.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((n) =>
-      `<button class="seat-opt${n === stateMod.getSeats() ? ' is-on' : ''}" data-n="${n}">${n}</button>`).join('');
-    grid.querySelectorAll('.seat-opt').forEach((b) => b.addEventListener('click', () => {
-      stateMod.setState('RETRIEVE');
-      stateMod.setSeats(Number(b.dataset.n));
-      hideOverlay('seats-picker');
-      toast(`Offering ${b.dataset.n} seat${b.dataset.n === '1' ? '' : 's'}`);
-    }));
-  }
+  if (!grid) return;
+  grid.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((n) =>
+    `<button class="seat-opt${n === current ? ' is-on' : ''}" data-n="${n}">${n}</button>`).join('');
+  grid.querySelectorAll('.seat-opt').forEach((b) => b.addEventListener('click', () => {
+    hideOverlay('seats-picker');
+    onPick(Number(b.dataset.n));
+  }));
   showOverlay('seats-picker');
-});
+}
+// Long-press Retrieve → set the seats I'm offering as the driver.
+stateMod.setOnSeatsRequest(() => openSeatsPicker(stateMod.getSeats(), (n) => {
+  stateMod.setState('RETRIEVE');
+  stateMod.setSeats(n);
+  toast(`Offering ${n} seat${n === 1 ? '' : 's'}`);
+}));
 $('seats-picker')?.addEventListener('click', (e) => { if (e.target.id === 'seats-picker') hideOverlay('seats-picker'); });
+
+// ---------- Carpool: riders + drivers sharing a car ----------
+// When you're moving alongside a Retrieve driver you're treated as being in
+// their car, and anyone in that car can edit the free-seat count.
+const CAR_DIST_KM = 0.08;   // within ~80 m = same car
+
+function retrieveDrivers() {
+  return roster.all().filter((p) => p.state === 'RETRIEVE' && p.lat != null)
+    .map((p) => ({ id: p.id, nick: p.nickname, lat: p.lat, lng: p.lng, seats: p.seats || 0 }));
+}
+
+// Which car am I in? My own if I'm the Retrieve driver, else the nearest
+// Retrieve driver I'm riding with.
+function myCar() {
+  const myState = stateMod.getState();
+  if (myState === 'RETRIEVE') return { id: selfId || 'me', mine: true, nick: 'You' };
+  if (['FLYING', 'BUS'].includes(myState)) return null;
+  const fix = geo.lastFix();
+  if (!fix) return null;
+  let best = null, bestD = CAR_DIST_KM;
+  for (const d of retrieveDrivers()) {
+    const dist = distKm(fix, d);
+    if (dist != null && dist < bestD) { bestD = dist; best = d; }
+  }
+  return best ? { id: best.id, mine: false, nick: best.nick } : null;
+}
+
+function carSeats(car) { return car.mine ? stateMod.getSeats() : (roster.get(car.id)?.seats || 0); }
+
+function passengersAboard() {
+  const fix = geo.lastFix();
+  if (!fix) return 0;
+  return roster.all().filter((p) => p.lat != null
+    && ['DRIVING', 'HITCH_CAR', 'HITCHHIKING', 'WALKING'].includes(p.state)
+    && (distKm(fix, p) ?? 9) < CAR_DIST_KM).length;
+}
+
+let currentCar = null;
+function updateCarBanner() {
+  const car = myCar();
+  currentCar = car;
+  const banner = $('car-banner');
+  if (!banner) return;
+  if (!car) { banner.classList.add('hidden'); return; }
+  const seats = carSeats(car);
+  const who = car.mine ? `Your car · ${passengersAboard()} aboard` : `In ${car.nick}'s car`;
+  banner.querySelector('.car-banner-text').textContent = `🚗 ${who} · ${seats} seat${seats === 1 ? '' : 's'} free`;
+  banner.classList.remove('hidden');
+}
+
+// Any car member can set the vehicle's free seats. The driver edits their own;
+// a passenger updates the driver's count (locally + a carseats message).
+function setCarSeats(car, n) {
+  if (car.mine) { stateMod.setState('RETRIEVE'); stateMod.setSeats(n); }
+  else {
+    const d = roster.get(car.id);
+    if (d) { d.seats = n; applyPilot(d); }
+    if (connected) presence.sendCarSeats(car.id, n);
+  }
+  toast(`Car: ${n} seat${n === 1 ? '' : 's'} free`);
+  updateCarBanner();
+}
+
+$('car-edit')?.addEventListener('click', () => {
+  const car = currentCar || myCar();
+  if (car) openSeatsPicker(carSeats(car), (n) => setCarSeats(car, n));
+});
 
 // ---------- Profile ----------
 profile.renderEditor();
@@ -366,6 +440,7 @@ function applyPilot(raw) {
   roster.upsert(d);
   if (!roster.isHidden(d.id)) mapMod.upsertPilot(d);
   recomputeKing();
+  updateCarBanner();
 }
 
 // ---------- Panels (roster / chat tabs) ----------
@@ -528,5 +603,16 @@ $('sim-spawn')?.addEventListener('click', simSpawn);
 $('sim-move')?.addEventListener('click', (e) => simToggleMove(e.currentTarget));
 $('sim-sos')?.addEventListener('click', simSOS);
 $('sim-retrieve')?.addEventListener('click', simRetrieve);
+$('sim-van')?.addEventListener('click', () => {
+  const f = simBase();
+  const id = 'sim-van-' + Math.random().toString(36).slice(2, 6);
+  const p = { id, nickname: 'Retrieve ' + rnd(SIM_NAMES), color: '#ab47bc', state: 'RETRIEVE',
+    lat: f.lat + 0.0002, lng: f.lng + 0.0002, seats: 3, phone: '+972509998877',
+    bloodType: 'O+', vehicle: 'Sim van', ts: Date.now() };
+  simPilots.set(id, p);
+  applyPilot(p);
+  hideOverlay('overlay-sim');
+  toast('Retrieve van parked next to you — check the car banner');
+});
 $('sim-crash')?.addEventListener('click', () => { hideOverlay('overlay-sim'); crash.simulateImpact(); });
 $('sim-clear')?.addEventListener('click', simClear);

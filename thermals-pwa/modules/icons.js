@@ -93,10 +93,17 @@ function seatBadge(state, seats) {
   return (state === 'RETRIEVE' && seats > 0) ? `<span class="seat-badge">${seats}</span>` : '';
 }
 
+// A climb/sink readout shown on the icon while flying (green up, red down).
+function varioInner(state, vario) {
+  if (state !== 'FLYING' || vario == null || Number.isNaN(vario)) return '';
+  const cls = vario >= 0 ? 'climb' : 'sink';
+  return `<span class="vario-chip ${cls}">${vario >= 0 ? '+' : ''}${vario.toFixed(1)}</span>`;
+}
+
 // Build a DOM node for a MapLibre HTML marker: a coloured teardrop pin holding
 // the state glyph (a seat count badge when offering a retrieve ride), with an
 // optional nickname label below.
-export function markerEl(state, color, nickname, seats = 0) {
+export function markerEl(state, color, nickname, seats = 0, vario = null) {
   const wrap = document.createElement('div');
   wrap.className = 'pilot-marker';
   // A missing/invalid colour makes --pilot-color invalid, which renders the pin
@@ -104,16 +111,19 @@ export function markerEl(state, color, nickname, seats = 0) {
   wrap.style.setProperty('--pilot-color', color || '#29b6f6');
   wrap.innerHTML = `
     <div class="pilot-pin">${glyphSVG(state, '#fff', 24)}${seatBadge(state, seats)}</div>
+    <div class="pilot-vario">${varioInner(state, vario)}</div>
     ${nickname ? `<div class="pilot-tag">${nickname}</div>` : ''}`;
   return wrap;
 }
 
 // Update an existing marker node in place (cheaper than recreating).
-export function updateMarkerEl(el, state, color, nickname, seats = 0) {
+export function updateMarkerEl(el, state, color, nickname, seats = 0, vario = null) {
   if (!el) return;
   el.style.setProperty('--pilot-color', color || '#29b6f6');
   const pin = el.querySelector('.pilot-pin');
   if (pin) pin.innerHTML = glyphSVG(state, '#fff', 24) + seatBadge(state, seats);
+  const v = el.querySelector('.pilot-vario');
+  if (v) v.innerHTML = varioInner(state, vario);
   const tag = el.querySelector('.pilot-tag');
   if (tag && nickname != null) tag.textContent = nickname;
 }

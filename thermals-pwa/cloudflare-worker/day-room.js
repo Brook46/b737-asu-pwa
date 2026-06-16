@@ -110,6 +110,18 @@ export class DayRoom {
         break;
       }
 
+      case 'carseats': {
+        const driver = this.pilots.get(String(msg.driverId));
+        // Only someone actually next to the driver (in the car) may edit seats.
+        if (!driver || !nearby(p, driver, 0.12)) break;
+        driver.seats = Math.min(8, Math.max(0, msg.seats | 0));
+        driver.ts = Date.now();
+        this.pilots.set(driver.id, driver);
+        await this.persistPilots();
+        this.broadcast({ t: 'upsert', pilot: driver });
+        break;
+      }
+
       case 'sos': {
         p.sos = !!msg.active;
         p.ts = Date.now();
@@ -167,6 +179,15 @@ function sanitizeProfile(p = {}) {
   };
 }
 function num(v) { return v == null || Number.isNaN(Number(v)) ? null : Number(v); }
+
+// True when two pilots are within `km` of each other (haversine).
+function nearby(a, b, km) {
+  if (a?.lat == null || b?.lat == null) return false;
+  const R = 6371, toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s)) <= km;
+}
 
 // Accept only small inline image/audio data URLs (≈1MB cap after base64).
 function sanitizeMedia(m) {

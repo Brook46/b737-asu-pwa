@@ -106,6 +106,9 @@ export function sendChat(text, media) { send({ t: 'chat', text, media }); }
 // Raise or clear an SOS. Broadcast to everyone in today's room immediately.
 export function sendSOS(active) { send({ t: 'sos', active: !!active }); }
 
+// Update the free seats on a car I'm riding in (the driver's record).
+export function sendCarSeats(driverId, seats) { send({ t: 'carseats', driverId, seats }); }
+
 // Reconnect into the new day's room shortly after local midnight.
 function scheduleDayRollover() {
   if (dayTimer) clearTimeout(dayTimer);

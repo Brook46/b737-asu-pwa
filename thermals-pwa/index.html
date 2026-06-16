@@ -41,6 +41,12 @@
     </div>
   </header>
 
+  <!-- Carpool banner (shown when you're in a Retrieve driver's car) -->
+  <div id="car-banner" class="car-banner hidden">
+    <span class="car-banner-text"></span>
+    <button id="car-edit" class="btn">Seats</button>
+  </div>
+
   <!-- SOS (distress) -->
   <button id="sos-btn" class="sos-btn" title="Emergency">SOS</button>
 
@@ -165,6 +171,7 @@
         <button id="sim-move" class="btn">▶️ Start everyone moving</button>
         <button id="sim-sos" class="btn">🚨 Random pilot SOS</button>
         <button id="sim-retrieve" class="btn">🚗 Offer a retrieve (3 seats)</button>
+        <button id="sim-van" class="btn">🚐 Retrieve van right next to me</button>
         <button id="sim-crash" class="btn btn-sos">💥 Simulate my crash</button>
         <button id="sim-clear" class="btn">🧹 Clear fake pilots</button>
       </div>

@@ -149,16 +149,16 @@ function whenReady(fn) { if (ready) fn(); else queue.push(fn); }
 // camera alone so the map doesn't fight the user's panning (that felt "stuck").
 // The recenter button re-centers on demand.
 let centeredOnce = false;
-export function setMe(lng, lat, state, color, nickname, seats = 0) {
+export function setMe(lng, lat, state, color, nickname, seats = 0, vario = null) {
   whenReady(() => {
     if (!meMarker) {
-      const el = markerEl(state, color, nickname || 'You', seats);
+      const el = markerEl(state, color, nickname || 'You', seats, vario);
       el.classList.add('is-me');
       meMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat]).addTo(map);
     } else {
       meMarker.setLngLat([lng, lat]);
-      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats);
+      updateMarkerEl(meMarker.getElement(), state, color, nickname || 'You', seats, vario);
     }
     pushTrail('me', lng, lat, color);
     if (!centeredOnce) { centeredOnce = true; map.easeTo({ center: [lng, lat], duration: 600 }); }
@@ -188,14 +188,14 @@ export function upsertPilot(p) {
     const glyphState = p.sos ? 'SOS' : p.state;
     let m = markers.get(p.id);
     if (!m) {
-      const el = markerEl(glyphState, p.color, p.nickname, p.seats);
+      const el = markerEl(glyphState, p.color, p.nickname, p.seats, p.vario);
       el.addEventListener('click', () => onPilotTap(p.id));
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([p.lng, p.lat]).addTo(map);
       markers.set(p.id, { marker, el });
     } else {
       m.marker.setLngLat([p.lng, p.lat]);
-      updateMarkerEl(m.el, glyphState, p.color, p.nickname, p.seats);
+      updateMarkerEl(m.el, glyphState, p.color, p.nickname, p.seats, p.vario);
     }
     const el = markers.get(p.id)?.el;
     if (el) { el.classList.toggle('is-sos', !!p.sos); el.classList.toggle('is-king', p.id === kingId); }

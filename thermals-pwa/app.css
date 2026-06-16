@@ -73,6 +73,9 @@ body {
 .state-btn .glyph { opacity: .85; }
 .state-btn.is-on { background: var(--accent); color: #04121c; font-weight: 600; }
 .state-btn.is-on .glyph { opacity: 1; }
+.state-btn[disabled] { cursor: default; }
+.state-selector.is-locked .state-btn:not(.is-on) { opacity: .35; }
+.state-selector.is-locked .state-btn.is-on { box-shadow: 0 0 0 2px rgba(255,255,255,.35) inset; }
 .state-btn { position: relative; }
 .seat-pill {
   position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px;
@@ -131,6 +134,14 @@ body {
   background: rgba(5,8,15,.75); padding: 1px 7px; border-radius: 999px;
   white-space: nowrap; text-shadow: 0 1px 2px #000;
 }
+.pilot-vario:empty { display: none; }
+.vario-chip {
+  display: inline-block; margin-top: 2px; font-size: 11px; font-weight: 800;
+  padding: 0 6px; border-radius: 999px; color: #04121c; font-variant-numeric: tabular-nums;
+  border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.vario-chip.climb { background: #5ce08a; }
+.vario-chip.sink { background: #ff8a8a; }
 
 /* ---------- Side panel ---------- */
 .side-panel {
@@ -273,6 +284,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
   0%, 100% { box-shadow: 0 0 0 0 rgba(255,82,82,.7); }
   50% { box-shadow: 0 0 0 14px rgba(255,82,82,0); }
 }
+
+/* Carpool banner */
+.car-banner {
+  position: fixed; left: 50%; transform: translateX(-50%); top: calc(58px + var(--safe-top)); z-index: 44;
+  display: flex; align-items: center; gap: 10px; max-width: 92vw;
+  background: var(--accent-2); color: #04121c; padding: 7px 8px 7px 14px; border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); font-size: 14px; font-weight: 700;
+}
+.car-banner .btn { background: rgba(0,0,0,.18); color: #04121c; border-color: rgba(0,0,0,.25); padding: 7px 14px; }
+.car-banner-text { white-space: nowrap; }
 
 /* 3D terrain toggle — bottom-right, mirrors the SOS button */
 .map-btn {

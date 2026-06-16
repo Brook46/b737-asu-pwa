@@ -110,11 +110,15 @@ export function applyAutoState(geo) {
 export function renderSelector() {
   const host = document.getElementById('state-selector');
   if (!host) return;
+  // While flying you can't manually change state — you're in the air. The auto
+  // machine releases the lock once you've landed.
+  const locked = current === 'FLYING';
+  host.classList.toggle('is-locked', locked);
   host.innerHTML = STATE_ORDER.map((id) => {
     const s = STATES[id];
     const on = id === current ? ' is-on' : '';
     const badge = (id === 'RETRIEVE' && seats > 0) ? `<span class="seat-pill">${seats}</span>` : '';
-    return `<button class="state-btn${on}" data-state="${id}" title="${s.label}">
+    return `<button class="state-btn${on}" data-state="${id}" title="${s.label}" ${locked ? 'disabled' : ''}>
       ${glyphSVG(id, 'currentColor', 24)}${badge}<span>${s.label}</span>
     </button>`;
   }).join('');
