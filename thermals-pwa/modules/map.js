@@ -174,16 +174,18 @@ export function setMeSOS(on) {
 export function upsertPilot(p) {
   whenReady(() => {
     if (p.lng == null || p.lat == null) return;
+    // An SOS swaps the icon to the distress glyph, whatever they were doing.
+    const glyphState = p.sos ? 'SOS' : p.state;
     let m = markers.get(p.id);
     if (!m) {
-      const el = markerEl(p.state, p.color, p.nickname, p.seats);
+      const el = markerEl(glyphState, p.color, p.nickname, p.seats);
       el.addEventListener('click', () => onPilotTap(p.id));
       const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([p.lng, p.lat]).addTo(map);
       markers.set(p.id, { marker, el });
     } else {
       m.marker.setLngLat([p.lng, p.lat]);
-      updateMarkerEl(m.el, p.state, p.color, p.nickname, p.seats);
+      updateMarkerEl(m.el, glyphState, p.color, p.nickname, p.seats);
     }
     const el = markers.get(p.id)?.el;
     if (el) el.classList.toggle('is-sos', !!p.sos);

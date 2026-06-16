@@ -54,24 +54,27 @@ $('gate-location-retry')?.addEventListener('click', () => geo.start());
 // Feed every fix into the map + (if connected) the room.
 geo.onFix((fix) => {
   if (!mapStarted) return;
+  const vario = vario2s(fix);
   paintMe();
   if (connected) presence.sendPosition(
-    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed },
+    { lat: fix.lat, lng: fix.lng, alt: fix.alt, heading: fix.heading, speed: fix.speed, vario },
     stateMod.getState(), stateMod.getSeats()
   );
   // Auto-switch flying / walking / driving from speed + climb rate.
-  stateMod.applyAutoState({ speed: fix.speed, vrate: verticalRate(fix) });
+  stateMod.applyAutoState({ speed: fix.speed, vrate: vario });
 });
 
-// Vertical speed (m/s) from successive altitude samples — the key signal that
-// separates flight (climbing/sinking) from level ground travel.
-let prevAlt = null, prevAltTs = null;
-function verticalRate(fix) {
+// Average climb/sink (m/s) over the last ~2 seconds of altitude samples — both
+// the displayed vario and the signal that separates flight from level travel.
+const altSamples = [];
+function vario2s(fix) {
   if (fix.alt == null) return 0;
-  let vr = 0;
-  if (prevAlt != null && fix.ts > prevAltTs) vr = (fix.alt - prevAlt) / ((fix.ts - prevAltTs) / 1000);
-  prevAlt = fix.alt; prevAltTs = fix.ts;
-  return vr;
+  altSamples.push({ ts: fix.ts, alt: fix.alt });
+  const cutoff = fix.ts - 2500;
+  while (altSamples.length > 1 && altSamples[0].ts < cutoff) altSamples.shift();
+  const a = altSamples[0], b = altSamples[altSamples.length - 1];
+  const dt = (b.ts - a.ts) / 1000;
+  return dt > 0.3 ? (b.alt - a.alt) / dt : 0;
 }
 
 function startMapOnce() {
@@ -85,12 +88,14 @@ function startMapOnce() {
 
 geo.start();
 
-// Paint my own marker from the current fix + profile + state (+ seats).
+// Paint my own marker from the current fix + profile + state (+ seats). When my
+// SOS is active the icon becomes the distress glyph.
 function paintMe() {
   const fix = geo.lastFix();
   if (!fix || !mapStarted) return;
   const p = profile.getProfile();
-  mapMod.setMe(fix.lng, fix.lat, stateMod.getState(), p.color, p.nickname, stateMod.getSeats());
+  const glyphState = sosActive ? 'SOS' : stateMod.getState();
+  mapMod.setMe(fix.lng, fix.lat, glyphState, p.color, p.nickname, stateMod.getSeats());
 }
 
 // ---------- State selector ----------
@@ -139,6 +144,7 @@ function activateSos() {
   $('sos-btn')?.classList.add('is-active');
   showOverlay('sos-active');
   mapMod.setMeSOS(true);
+  paintMe();                            // swap my icon to the distress glyph
   if (connected) presence.sendSOS(true);
   toast('🚨 SOS sent to everyone flying today', 4000);
 }
@@ -148,6 +154,7 @@ function clearSos() {
   $('sos-btn')?.classList.remove('is-active');
   hideOverlay('sos-active');
   mapMod.setMeSOS(false);
+  paintMe();                            // restore my normal state icon
   if (connected) presence.sendSOS(false);
   toast('SOS cleared');
 }
@@ -417,14 +424,22 @@ const SIM_STATES = ['FLYING', 'WALKING', 'DRIVING', 'HITCHHIKING', 'BEER'];
 const rnd = (a) => a[Math.floor(Math.random() * a.length)];
 
 function simBase() { return geo.lastFix() || { lat: 46.62, lng: 8.04 }; }
+// Plausible telemetry per state so the card/list have something to show.
+function simTele(state) {
+  if (state === 'FLYING') return { alt: 900 + Math.random() * 1600, speed: 7 + Math.random() * 5, vario: (Math.random() - 0.4) * 4, heading: Math.random() * 360 };
+  if (state === 'DRIVING') return { alt: 400 + Math.random() * 400, speed: 10 + Math.random() * 8, vario: 0, heading: Math.random() * 360 };
+  return { alt: 400 + Math.random() * 400, speed: Math.random() * 1.2, vario: 0, heading: Math.random() * 360 };
+}
 function simSpawn() {
   const f = simBase();
   const id = 'sim-' + Math.random().toString(36).slice(2, 7);
+  const state = rnd(SIM_STATES);
   const p = {
-    id, nickname: rnd(SIM_NAMES), color: rnd(COLORS), state: rnd(SIM_STATES),
+    id, nickname: rnd(SIM_NAMES), color: rnd(COLORS), state,
     lat: f.lat + (Math.random() - 0.5) * 0.06, lng: f.lng + (Math.random() - 0.5) * 0.06,
     phone: '+97250' + Math.floor(1000000 + Math.random() * 8999999),
-    bloodType: rnd(['O+', 'A+', 'B+', 'O−']), vehicle: 'Sim van', emergency: 'Sim contact', ts: Date.now(),
+    bloodType: rnd(['O+', 'A+', 'B+', 'O−']), vehicle: 'Sim van', emergency: 'Sim contact',
+    ...simTele(state), ts: Date.now(),
   };
   simPilots.set(id, p);
   applyPilot(p);
@@ -434,6 +449,11 @@ function simMoveTick() {
   simPilots.forEach((p) => {
     p.lat += (Math.random() - 0.5) * 0.004;
     p.lng += (Math.random() - 0.5) * 0.004;
+    if (p.state === 'FLYING') {
+      p.vario = (Math.random() - 0.4) * 4;
+      p.alt = Math.max(300, (p.alt || 1200) + p.vario * 1.5);
+      p.heading = ((p.heading || 0) + (Math.random() - 0.5) * 40 + 360) % 360;
+    }
     p.ts = Date.now();
     applyPilot(p);
   });

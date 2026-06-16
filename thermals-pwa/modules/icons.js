@@ -54,6 +54,11 @@ const GLYPHS = {
     <path d="M6 9 Q5.5 6.5 8 6.5 Q8.5 5 10.5 5.2 Q12 4 13.5 5.4 Q15.5 5.6 14.8 7.2 Q15.6 8.6 14 9 Z" class="fill" />
     <line x1="9" y1="12" x2="9" y2="18" />
     <line x1="11.8" y1="12" x2="11.8" y2="18" />`,
+  // Distress: a warning triangle with an exclamation.
+  sos: `
+    <path d="M12 4 L21.5 19.5 L2.5 19.5 Z" />
+    <line x1="12" y1="10" x2="12" y2="14.5" stroke-width="2.2" />
+    <circle cx="12" cy="17" r="0.9" class="fill" />`,
   // Idle fallback.
   dot: `<circle cx="12" cy="12" r="5" class="fill" />`,
 };
@@ -63,7 +68,7 @@ function glyphName(stateOrGlyph) {
   if (GLYPHS[stateOrGlyph]) return stateOrGlyph;
   const map = {
     FLYING: 'paraglider', WALKING: 'walk', DRIVING: 'car', RETRIEVE: 'retrieve',
-    BUS: 'bus', HITCHHIKING: 'thumb', BEER: 'beer', GROUNDED: 'walk',
+    BUS: 'bus', HITCHHIKING: 'thumb', BEER: 'beer', SOS: 'sos', GROUNDED: 'walk',
   };
   return map[stateOrGlyph] || 'walk';
 }
