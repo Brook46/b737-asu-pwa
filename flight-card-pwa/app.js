@@ -79,6 +79,10 @@ renderAll();
 startClocks();
 syncHeaderInputs();
 consumeRosterFromUrl();
+// Auto-jump to the leg whose dep → arr+20m window contains "now". 30-second
+// cooldown via fc.state.lastBootJumpAt so a quick reload doesn't fight a
+// user who just manually picked a different leg.
+maybeAutoJumpToCurrentLeg();
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -172,6 +176,28 @@ $('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1
 $('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
 $('leg-now').addEventListener('click',  () => applyLeg(pickLegForNow()));
 
+// Auto-jump to the current-time leg on app launch. Skipped if the user
+// manually picked a different leg within the cooldown — that avoids the
+// auto-jump fighting a deliberate pick when the user reloads twice in a row.
+// Phase 4 will swap the +20-min buffer (inside pickLegForNow) for the actual
+// GPS-detected landing time.
+const BOOT_JUMP_COOLDOWN_MS = 30 * 1000;
+function maybeAutoJumpToCurrentLeg() {
+  const legs = storage.getLegs();
+  if (legs.length < 2) return;
+  const last = Number(storage.getLastBootJumpAt() || 0);
+  if (Date.now() - last < BOOT_JUMP_COOLDOWN_MS) return;
+  const idx = pickLegForNow();
+  if (idx === storage.getLegIndex()) {
+    // Already on the right leg — touch the timestamp so a fast reload
+    // doesn't recompute on every launch.
+    storage.setLastBootJumpAt(Date.now());
+    return;
+  }
+  storage.setLastBootJumpAt(Date.now());
+  applyLeg(idx);
+}
+
 // Pick the leg whose UTC dep→arr window contains the current wall clock, or
 // the next upcoming one if we're between legs. Falls back to leg 0 when the
 // roster has no timing data.
@@ -197,13 +223,22 @@ function pickLegForNow() {
     }
     return ts;
   }
+  // Extend the "active" window 20 min past scheduled arrival so the leg
+  // stays selected during taxi-in / chock time and any modest late-arrival
+  // slop. Phase 4 swaps the +20 min buffer for the actual GPS-detected
+  // landing time, so the same function continues to work — only the
+  // upper bound changes.
+  const ACTIVE_BUFFER_MS = 20 * 60 * 1000;
   const windows = legs.map((leg, i) => ({
     i,
     dep: toTs(leg.dep_date, leg.dep_time),
     arr: toTs(leg.arr_date, leg.arr_time),
   }));
-  // In-progress: now is inside [dep, arr]
-  const active = windows.find(w => Number.isFinite(w.dep) && Number.isFinite(w.arr) && w.dep <= now && now <= w.arr);
+  // In-progress: now is inside [dep, arr + buffer]
+  const active = windows.find(w =>
+    Number.isFinite(w.dep) && Number.isFinite(w.arr)
+    && w.dep <= now && now <= w.arr + ACTIVE_BUFFER_MS
+  );
   if (active) return active.i;
   // Otherwise the next upcoming dep
   const upcoming = windows.filter(w => Number.isFinite(w.dep) && w.dep >= now).sort((a, b) => a.dep - b.dep);
@@ -763,13 +798,12 @@ $('roster-file').addEventListener('change', async (e) => {
 });
 $('pa-toggle').addEventListener('click', () => speeches.open());
 
-// ---------- Share sheet (QR + scan + AirDrop sync + Calendar sync) ----------
-$('share-toggle').addEventListener('click', async () => {
+// ---------- Settings sheet (Calendar sync + AirDrop sync + logbook + analytics) ----------
+$('share-toggle').addEventListener('click', () => {
   showOverlay('settings-overlay');
-  await renderFlightQr();
   // Defensive: every helper that touches the new Calendar widgets is
   // wrapped, so a missing module or broken localStorage can't bubble up
-  // and stop the existing share-sheet behaviour from working.
+  // and stop the rest of the settings sheet from working.
   try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
 });
 $('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
@@ -899,74 +933,6 @@ setTimeout(maybeAutoSyncCalendar, 5_000);
 setInterval(maybeAutoSyncCalendar, 10 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') maybeAutoSyncCalendar();
-});
-
-// Render the active flight as a QR into the share-sheet canvas. Lazy-loads
-// the qrcode lib on first use; the SW caches it after that.
-async function renderFlightQr() {
-  const canvas = $('share-qr-canvas');
-  const sub    = $('share-qr-sub');
-  if (!canvas) return;
-  try {
-    const { renderToCanvas } = await import('./modules/qr.js');
-    const payload = storage.exportLeg();
-    const info = await renderToCanvas(canvas, payload);
-    const d = storage.getCurrent().dataCard;
-    const id = d.flight ? `ELY${d.flight}` : '(this flight)';
-    const route = (d.dep && d.arr) ? ` · ${d.dep} → ${d.arr}` : '';
-    // Tag with payload size + QR version so future "won't scan" reports
-    // are debuggable from the UI without poking at devtools.
-    const meta = info ? ` · ${payload.length} B / v${info.version}` : '';
-    sub.textContent = `${id}${route}${meta}`;
-  } catch (err) {
-    const why = err?.message || String(err);
-    sub.textContent = `Couldn't generate QR: ${why}`;
-    console.warn('QR render failed', err);
-  }
-}
-
-// Scan path — open the scanner sub-sheet, stream camera, hand a decoded
-// payload to storage.importLeg(). The scanner module cleans up the camera
-// on stop, so closing the overlay tears everything down.
-let scanStop = null;
-$('share-scan').addEventListener('click', async () => {
-  hideOverlay('settings-overlay');
-  showOverlay('scan-overlay');
-  $('scan-status').textContent = 'Starting camera…';
-  try {
-    const { startScanner } = await import('./modules/qr.js');
-    scanStop = await startScanner($('scan-video'), async (text) => {
-      try {
-        const { index: newIdx, replaced } = storage.importLeg(text);
-        $('scan-status').textContent = replaced ? 'Updating leg…' : 'Got it — adding leg…';
-        await applyLeg(newIdx);
-        renderHistory();
-        hideOverlay('scan-overlay');
-        const f = storage.getCurrent().dataCard.flight;
-        toast(replaced
-          ? (f ? `ELY${f} updated` : 'Flight updated')
-          : (f ? `ELY${f} imported` : 'Flight imported'));
-      } catch (err) {
-        $('scan-status').textContent = 'Not a Flight Card QR.';
-        // Restart the scanner so the user can try again without re-opening.
-        setTimeout(() => {
-          if (!document.getElementById('scan-overlay').classList.contains('hidden')) {
-            $('share-scan').click();
-          }
-        }, 1500);
-      }
-    });
-    $('scan-status').textContent = 'Point at the other device\'s QR.';
-  } catch (err) {
-    $('scan-status').textContent = err?.message || 'Camera unavailable.';
-  }
-});
-$('scan-close').addEventListener('click', () => {
-  if (scanStop) { try { scanStop(); } catch {} scanStop = null; }
-  hideOverlay('scan-overlay');
-});
-$('scan-overlay').addEventListener('click', (e) => {
-  if (e.target.id === 'scan-overlay') $('scan-close').click();
 });
 
 // Filename helper — includes today's date and the active flight # if known,
@@ -1157,9 +1123,17 @@ function resolveWxCode() {
 
 async function openWx() {
   const d = storage.getCurrent().dataCard;
-  // Pick a sensible default source: dep if set, else arr, else custom.
-  if (d.dep) wxSource = 'dep';
-  else if (d.arr) wxSource = 'arr';
+  // Pick a default source: whichever matches the sticky atis_icao first, so
+  // re-opening the popup lands on the airport the user last looked at. If
+  // nothing matches, fall back to dep → arr → custom.
+  const sticky = (d.atis_icao || '').toString().toUpperCase();
+  const depCode = (d.dep || '').toString().toUpperCase();
+  const arrCode = (d.arr || '').toString().toUpperCase();
+  if (sticky && sticky === depCode) wxSource = 'dep';
+  else if (sticky && sticky === arrCode) wxSource = 'arr';
+  else if (sticky) { wxSource = 'custom'; wxCustomCode = sticky; }
+  else if (depCode) wxSource = 'dep';
+  else if (arrCode) wxSource = 'arr';
   else wxSource = 'custom';
   $('wx-src-custom-input').value = wxCustomCode;
   paintWxSrcRow();
@@ -1178,6 +1152,22 @@ async function openWx() {
 }
 
 function closeWx() {
+  // Persist whichever source the popup last showed onto the data card so the
+  // ATIS chip on the main screen flips to that airport. Latest-source-wins
+  // semantics — one chip, one ICAO + letter at a time.
+  const code = resolveWxCode();
+  const letter = (wxDisplayLetter || '').toString().toUpperCase().slice(0, 1);
+  if (code) {
+    const prev = storage.getCurrent().dataCard;
+    if (letter !== prev.atis) {
+      storage.setDataField('atis', letter);
+      storage.setDataField('atis_read', '');
+    }
+    if (code !== (prev.atis_icao || '')) {
+      storage.setDataField('atis_icao', code);
+    }
+    dataCard.render(dataBody);
+  }
   hideOverlay('wx-overlay');
   if (wxRefreshTimer) { clearInterval(wxRefreshTimer); wxRefreshTimer = null; }
 }
@@ -1199,15 +1189,10 @@ async function loadWx(opts) {
       return;
     }
     const liveLetter = extractLetter(res.datis);
-    // Only the Dep source feeds back into the data card's ATIS cell —
-    // Arr / Custom are reference-only and don't change the card's letter.
-    if (liveLetter && wxSource === 'dep') {
-      const prev = storage.getCurrent().dataCard.atis;
-      if (prev !== liveLetter) {
-        storage.setDataField('atis', liveLetter);
-        storage.setDataField('atis_read', '');
-      }
-    }
+    // The popup shows whichever letter D-ATIS just returned (or the existing
+    // card letter when source=Dep and no live letter yet). The data card's
+    // ATIS chip isn't written here — closeWx() commits whatever source the
+    // popup was last on so the chip flips on close, not on every refresh.
     const cardLetter = storage.getCurrent().dataCard.atis;
     const letter = (wxSource === 'dep' ? cardLetter : null) || liveLetter || '';
     paintWx({
@@ -1219,7 +1204,6 @@ async function loadWx(opts) {
       ts: res.ts,
       datisText: extractText(res.datis),
     });
-    if (wxSource === 'dep') dataCard.render(dataBody);
   } finally {
     refreshBtn.disabled = false;
     refreshBtn.textContent = '↻';

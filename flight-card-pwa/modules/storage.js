@@ -536,6 +536,16 @@ export function setDataBulk(fields) {
 // ---------- Legs (multi-flight roster) ----------
 export function getLegs() { return read().current.legs || []; }
 export function getLegIndex() { return read().current.legIndex || 0; }
+
+// Used by app.js's maybeAutoJumpToCurrentLeg cooldown. Persisted so a quick
+// page reload doesn't keep overriding a manual leg pick the user just made.
+// Additive — no schema bump; absent key reads as 0.
+export function getLastBootJumpAt() { return Number(read().lastBootJumpAt || 0); }
+export function setLastBootJumpAt(ts) {
+  const s = read();
+  s.lastBootJumpAt = Number(ts) || 0;
+  scheduleWrite();
+}
 export function getLeg(i) {
   const c = read().current;
   const idx = (typeof i === 'number') ? i : (c.legIndex || 0);

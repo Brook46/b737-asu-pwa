@@ -276,20 +276,24 @@ function renderAtisCell(c, raw) {
   const data = storage.getCurrent().dataCard;
   const v   = (raw || '').toString().toUpperCase().slice(0, 1);
   const dep = (data.dep || '').toString().toUpperCase();
+  // The chip displays whichever airport the popup was last on (sticky ICAO).
+  // Falls back to Dep so a fresh leg without any popup interaction still
+  // shows the right airport.
+  const shownIcao = (data.atis_icao || dep || '').toString().toUpperCase();
   const read = !!v && data.atis_read === v;
   const cls = ['atis-collapsed'];
   if (v) cls.push('has-letter');
   cls.push(read ? 'is-read' : 'is-unread');
   const caption = v
     ? `Information ${atisPhonetic(v)}`
-    : (dep ? 'Tap to fetch live' : 'Set Dep first');
-  const cta = dep ? (v ? 'Open' : 'Fetch') : '—';
+    : (shownIcao ? 'Tap to fetch live' : 'Set Dep first');
+  const cta = shownIcao ? (v ? 'Open' : 'Fetch') : '—';
   return `
     <div class="data-cell atis-cell span2">
-      <button type="button" class="${cls.join(' ')}" data-wx-open="1" ${dep ? '' : 'disabled'}>
+      <button type="button" class="${cls.join(' ')}" data-wx-open="1" ${shownIcao ? '' : 'disabled'}>
         <div class="atis-big">${v || '—'}</div>
         <div class="atis-meta">
-          <span class="lbl">ATIS${dep ? ' · ' + escape(dep) : ''}</span>
+          <span class="lbl">ATIS${shownIcao ? ' · ' + escape(shownIcao) : ''}</span>
           <span class="val">${escape(caption)}</span>
         </div>
         <span class="atis-cta">${cta}</span>
