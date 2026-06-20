@@ -394,12 +394,26 @@
       <section class="settings-section">
         <h3 class="settings-h">Analytics</h3>
         <p class="muted small">
-          Where you fly most, days away from home, landing G stats, top crew.
+          Where you fly most, nights away, landing G split by PF / PM,
+          top crew. Everything's computed over your stored legs — no
+          server, nothing leaves the device.
         </p>
         <div class="settings-row-btns">
-          <button id="analytics-open" class="btn" disabled>Coming soon</button>
+          <button id="analytics-open" class="btn primary">View analytics</button>
         </div>
       </section>
+    </div>
+  </div>
+
+  <!-- Analytics overlay — populated from modules/analytics.js when opened
+       so it always reflects the latest legs/history. -->
+  <div id="analytics-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
+    <div class="ocr-sheet analytics-sheet">
+      <div class="pad-head">
+        <span id="analytics-title" class="pad-label">Your flying</span>
+        <button id="analytics-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="analytics-body" class="analytics-body"></div>
     </div>
   </div>
 
@@ -418,6 +432,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=73"></script>
+  <script type="module" src="./app.js?v=74"></script>
 </body>
 </html>
