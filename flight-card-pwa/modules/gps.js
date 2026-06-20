@@ -54,8 +54,28 @@ const MAX_SAMPLES = 200;
 // GPS altitude noise.
 let lastClimbBaseline = null;
 
+// Same per-origin cache as g.js so the Settings → Sensors panel can paint
+// the live state without firing getCurrentPosition() on every open (which
+// surfaces the iOS prompt on a fresh session even when already granted).
+const PERM_STORAGE_KEY = 'fc.sensor.geolocation';
+
 export function isSupported() {
   return typeof navigator !== 'undefined' && !!navigator.geolocation;
+}
+
+// Returns 'granted', 'denied', or 'prompt' based on what we last saw.
+// Prefers the Permissions API when available (no prompt). Falls back to
+// localStorage. Never triggers iOS' system dialog.
+export async function cachedPermission() {
+  if (!isSupported()) return 'denied';
+  try {
+    if (navigator.permissions?.query) {
+      const r = await navigator.permissions.query({ name: 'geolocation' });
+      return r.state;
+    }
+  } catch {}
+  try { return localStorage.getItem(PERM_STORAGE_KEY) || 'prompt'; }
+  catch { return 'prompt'; }
 }
 
 // Tries to read a single position to surface the iOS permission prompt.
@@ -65,8 +85,15 @@ export function requestPermission() {
   return new Promise((resolve) => {
     if (!isSupported()) { resolve('denied'); return; }
     navigator.geolocation.getCurrentPosition(
-      ()    => resolve('granted'),
-      (err) => resolve(err && err.code === 1 ? 'denied' : 'prompt'),
+      () => {
+        try { localStorage.setItem(PERM_STORAGE_KEY, 'granted'); } catch {}
+        resolve('granted');
+      },
+      (err) => {
+        const state = err && err.code === 1 ? 'denied' : 'prompt';
+        try { localStorage.setItem(PERM_STORAGE_KEY, state); } catch {}
+        resolve(state);
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
     );
   });
