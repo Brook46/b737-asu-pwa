@@ -61,8 +61,12 @@ export function render(root) {
     parts.push(`<div class="${cls.join(' ')}" data-section="${sec.id}">`);
 
     if (editMode) {
+      const secPin = sec.pinned ? ' is-on' : '';
       parts.push(`<div class="cl-section-head edit">
         <input class="rename" data-rename-section="${sec.id}" value="${escape(sec.name)}" />
+        <button type="button" class="cl-pin${secPin}" data-pin-section="${sec.id}"
+                title="${sec.pinned ? 'Pinned — app updates won\'t reset this section. Tap to unpin.' : 'Pin this section so app updates leave it alone'}"
+                aria-pressed="${sec.pinned ? 'true' : 'false'}">📌</button>
         <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="-1" aria-label="Up">▲</button>
         <button class="btn ghost-btn" data-move-section="${sec.id}" data-delta="1"  aria-label="Down">▼</button>
         <button class="btn ghost-btn" data-del-section="${sec.id}" aria-label="Delete" style="color:var(--danger)">✕</button>
@@ -84,8 +88,12 @@ export function render(root) {
       if (done && !editMode) cls2.push('done');
       parts.push(`<div class="${cls2.join(' ')}" data-item="${it.id}">`);
       if (editMode) {
+        const itPin = it.pinned ? ' is-on' : '';
         parts.push(`
           <input class="rename" data-rename-item="${it.id}" value="${escape(it.label)}" />
+          <button type="button" class="cl-pin${itPin}" data-pin-item="${it.id}"
+                  title="${it.pinned ? 'Pinned — app updates won\'t reset this item. Tap to unpin.' : 'Pin this item so app updates leave it alone'}"
+                  aria-pressed="${it.pinned ? 'true' : 'false'}">📌</button>
           <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="-1" aria-label="Up">▲</button>
           <button class="btn ghost-btn" data-move-item="${it.id}" data-section="${sec.id}" data-delta="1"  aria-label="Down">▼</button>
           <button class="del" data-del-item="${it.id}" aria-label="Delete">✕</button>
@@ -188,6 +196,29 @@ function wire(root) {
   });
   root.querySelectorAll('input[data-rename-item]').forEach(inp => {
     inp.addEventListener('change', () => storage.renameItem(inp.dataset.renameItem, inp.value.trim()));
+  });
+  // 📌 pin toggles — flip the section / item's pinned flag and re-render.
+  root.querySelectorAll('[data-pin-section]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = b.dataset.pinSection;
+      const sec = storage.getTemplate().sections.find(s => s.id === id);
+      storage.setSectionPinned(id, !sec?.pinned);
+      render(root);
+    });
+  });
+  root.querySelectorAll('[data-pin-item]').forEach(b => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = b.dataset.pinItem;
+      let cur = null;
+      for (const sec of storage.getTemplate().sections) {
+        const it = sec.items.find(x => x.id === id);
+        if (it) { cur = it; break; }
+      }
+      storage.setItemPinned(id, !cur?.pinned);
+      render(root);
+    });
   });
   root.querySelectorAll('[data-del-section]').forEach(b => {
     b.addEventListener('click', () => {
