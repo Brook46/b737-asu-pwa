@@ -1,7 +1,7 @@
 // Flight Card service worker.
 // App shell is cache-first. Tesseract.js is fetched on demand and then cached.
 
-const CACHE_VERSION = 'flightcard-v78';
+const CACHE_VERSION = 'flightcard-v79';
 const APP_SHELL = [
   './',
   './index.html',
@@ -47,6 +47,15 @@ self.addEventListener('install', (event) => {
       ))
     ).then(() => self.skipWaiting())
   );
+});
+
+// Backup channel so the page can ALWAYS force this SW to take over even
+// if the install-time skipWaiting() got swallowed by iOS. The page posts
+// { type: 'SKIP_WAITING' } and we transition active immediately.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
