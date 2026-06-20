@@ -192,14 +192,14 @@ function rosterToast(added, replaced) {
   if (replaced)          return `Updated ${replaced} flight${replaced === 1 ? '' : 's'}`;
   return `Added ${added} flight${added === 1 ? '' : 's'}`;
 }
-// Authoritative-sync summary — includes prune + archive counts when they're
-// non-zero so the toast is honest about what just happened.
-function syncSummary({ added, replaced, pruned, archived }) {
+// Authoritative-sync summary — includes prune count when non-zero so the
+// toast is honest about what just happened. Past flown legs are never
+// pruned, so this only ever reflects future-leg changes.
+function syncSummary({ added, replaced, pruned }) {
   const parts = [];
   if (added)    parts.push(`+${added}`);
   if (replaced) parts.push(`~${replaced}`);
   if (pruned)   parts.push(`−${pruned}`);
-  if (archived) parts.push(`▸${archived} archived`);
   if (!parts.length) return 'Up to date';
   return parts.join(' · ');
 }
@@ -905,10 +905,10 @@ async function runCalendarSync(source) {
       }
       return; // auto: silently no-op when nothing to add
     }
-    // Authoritative sync: append/merge incoming, prune missing roster legs,
-    // archive past legs into history. Manually-entered legs (no dep_date)
-    // are spared from pruning.
-    const { index: newIdx, added, replaced, pruned, archived } =
+    // Authoritative sync: append/merge incoming, then prune ONLY future
+    // legs missing from the duty calendar. Past flown legs and manually-
+    // entered legs are always kept. Nothing is ever pushed to the calendar.
+    const { index: newIdx, added, replaced, pruned } =
       storage.syncFromCalendar(flights);
     // Calendar phones go into the global crew registry — calendar wins on
     // every sync, matching the Phase 2.1 always-overwrite rule.
@@ -919,14 +919,14 @@ async function runCalendarSync(source) {
     }
     await applyLeg(newIdx);
     renderHistory();
-    const summary = syncSummary({ added, replaced, pruned, archived });
+    const summary = syncSummary({ added, replaced, pruned });
     if (source === 'manual') {
       if (status) {
         status.classList.add('is-ok');
         status.textContent = `${summary} · ${events} event${events === 1 ? '' : 's'}`;
       }
       toast(summary);
-    } else if (added || replaced || pruned || archived) {
+    } else if (added || replaced || pruned) {
       toast(summary + ' (auto-sync)');
     }
     // After every sync — manual or auto — jump to whichever leg's
@@ -1246,13 +1246,13 @@ async function loadSensorMods() {
 async function paintSensorsPanel() {
   const { gps, g } = await loadSensorMods();
   const rows = document.querySelectorAll('#sensors-grid .sensor-row');
-  // Geolocation
-  const geoState = gps.isSupported() ? await gps.requestPermission() : 'denied';
+  // Geolocation — cachedPermission() prefers the Permissions API where
+  // available, so opening Settings never triggers an iOS prompt.
+  const geoState = gps.isSupported() ? await gps.cachedPermission() : 'denied';
   setSensorRow(rows, 'geolocation', geoState);
-  // Motion (iOS 13+ gated; everywhere else granted on first start)
-  const motState = !g.isSupported()
-    ? 'denied'
-    : (g.permissionRequired() ? 'prompt' : 'granted');
+  // Motion — uses our own localStorage cache because iOS doesn't expose
+  // the DeviceMotion permission via the Permissions API.
+  const motState = g.cachedPermission();
   setSensorRow(rows, 'motion', motState);
 }
 

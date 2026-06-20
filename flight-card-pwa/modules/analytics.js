@@ -148,14 +148,45 @@ export function avgMaxG(legs, year = null) {
   };
 }
 
+// Heuristic: which canonical name shows up as CPT on the most legs in
+// `legs`? That's almost certainly the pilot themselves. Used to filter
+// the pilot out of mostFlownCrew so the top spot isn't "you". Returns
+// '' when the data is too sparse to be confident.
+function detectPilotName(legs) {
+  const counts = new Map();
+  let total = 0;
+  for (const leg of legs) {
+    const d = leg.dataCard || {};
+    const cpt = (leg.cpt || d.cpt || '').toString().trim().toUpperCase();
+    if (!cpt) continue;
+    total++;
+    counts.set(cpt, (counts.get(cpt) | 0) + 1);
+  }
+  if (total < 3) return ''; // too sparse; show everyone
+  let best = '', bestN = 0;
+  for (const [name, n] of counts) {
+    if (n > bestN) { best = name; bestN = n; }
+  }
+  // Only claim it's the pilot if they're CPT on ≥ 40 % of legs that have
+  // any CPT — otherwise it's just whoever happens to be the most-frequent.
+  return (bestN / total >= 0.4) ? best : '';
+}
+
 // Top crewmembers the pilot's flown with most. Counts unique legs per
-// canonical name; cpt + fo + cc1..cc5 all contribute. Returns canonical
-// names — the UI flows them through displayCrew for nickname-awareness.
+// canonical name; cpt + fo + cc1..cc5 all contribute. The pilot themselves
+// (most-frequent CPT, detected heuristically) is excluded so the top spot
+// isn't always "you". Returns canonical names — the UI flows them through
+// displayCrew for nickname-awareness.
 export function mostFlownCrew(legs, n = 5, year = null) {
   const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const inYear = year == null
+    ? legs
+    : legs.filter(l => legYear(l) === year);
+  // Detect the pilot from the FULL leg history (not just YTD), so the
+  // exclusion is stable even with only a few legs this year.
+  const pilot = detectPilotName(legs);
   const counts = new Map();
-  for (const leg of legs) {
-    if (year != null && legYear(leg) !== year) continue;
+  for (const leg of inYear) {
     const d = leg.dataCard || {};
     const seen = new Set();
     for (const k of CREW_KEYS) {
@@ -163,6 +194,7 @@ export function mostFlownCrew(legs, n = 5, year = null) {
       if (v) seen.add(v);
     }
     for (const name of seen) {
+      if (pilot && name === pilot) continue;
       counts.set(name, (counts.get(name) | 0) + 1);
     }
   }

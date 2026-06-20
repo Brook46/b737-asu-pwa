@@ -951,24 +951,31 @@ function mergeLeg(target, source) {
 }
 
 // Authoritative calendar sync — calendar is the source of truth for
-// roster-style legs (those carrying a flight number AND a dep_date).
+// FUTURE roster-style legs only. Past legs (already flown) are kept
+// forever regardless of whether they're still in the calendar, so the
+// pilot's logbook never silently shrinks.
 //
 // Steps:
 //   1. appendLegs(incoming) — dedupe + merge as before.
-//   2. PRUNE: any leg that's roster-shaped (has both flight + dep_date)
-//      but NOT in the incoming set gets removed. Manually-typed legs
-//      (no dep_date) are spared — those came from the pilot, not ops.
-//   3. ARCHIVE: any leg whose arr_time was > 24h ago gets moved into
-//      a history record so the active leg list stays focused on the
-//      "now / soon" duty period without losing the logbook trail.
+//   2. PRUNE: a leg with a roster fingerprint (flight + dep_date) AND
+//      a future arr_time gets removed only if it's not in `incoming`.
+//      Past legs are always kept. Manually-typed legs (no dep_date)
+//      are always kept.
 //
-// Returns { index, added, replaced, pruned, archived } so the UI can
-// craft an honest summary toast.
+// The previous auto-archive was wrong — it hid past flights from the
+// leg switcher. Removed. All legs (history + future) stay in
+// current.legs so the leg switcher walks the whole career.
+//
+// Pruning is local-only. Nothing is ever pushed back to Google Calendar
+// or to ops — secret iCal URLs are read-only by design.
+//
+// Returns { index, added, replaced, pruned } so the UI can craft an
+// honest summary toast.
 export function syncFromCalendar(incoming) {
   const append = appendLegs(incoming || []);
 
-  // --- Prune ---
   const c = read().current;
+  const now = Date.now();
   const incomingKeys = new Set(
     (Array.isArray(incoming) ? incoming : [])
       .map(l => fingerprintLeg(l))
@@ -977,55 +984,22 @@ export function syncFromCalendar(incoming) {
   let pruned = 0;
   if (incomingKeys.size) {
     const keep = [];
-    const prunedIdxs = [];
-    (c.legs || []).forEach((leg, i) => {
+    (c.legs || []).forEach((leg) => {
       const fp = fingerprintLeg(leg);
       // No fingerprint = manually entered → always keep.
       if (!fp) { keep.push(leg); return; }
+      // Roster leg in the incoming set → keep (will have been merged).
       if (incomingKeys.has(fp)) { keep.push(leg); return; }
-      prunedIdxs.push(i);
+      // Roster leg NOT in the incoming set: only prune if it's still in
+      // the future. Past flights stay forever — they're the logbook.
+      const arrAt = arrTs(leg);
+      if (Number.isFinite(arrAt) && arrAt < now) { keep.push(leg); return; }
       pruned++;
     });
     if (pruned) {
       c.legs = keep;
-      // If the active leg got pruned, snap to the closest remaining one.
       if (c.legIndex >= keep.length) c.legIndex = Math.max(0, keep.length - 1);
     }
-  }
-
-  // --- Archive past legs ---
-  const ARCHIVE_CUTOFF_MS = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  const stillActive = [];
-  const toArchive   = [];
-  for (const leg of c.legs || []) {
-    const arrAt = arrTs(leg);
-    if (Number.isFinite(arrAt) && now - arrAt > ARCHIVE_CUTOFF_MS) {
-      toArchive.push(leg);
-    } else {
-      stillActive.push(leg);
-    }
-  }
-  let archived = 0;
-  if (toArchive.length) {
-    const s = read();
-    if (!Array.isArray(s.history)) s.history = [];
-    // One synthetic flight record for this sync's archived batch — keeps
-    // history.length manageable across many syncs.
-    s.history.unshift({
-      id: 'h-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
-      started: depTs(toArchive[0]) || Date.now(),
-      ended:   arrTs(toArchive[toArchive.length - 1]) || Date.now(),
-      legs:    toArchive,
-      dataCard: {}, ticks: {}, notes: {},
-      archivedAt: now,
-    });
-    s.history = s.history.slice(0, HISTORY_MAX);
-    c.legs = stillActive;
-    if (c.legIndex >= stillActive.length) {
-      c.legIndex = Math.max(0, stillActive.length - 1);
-    }
-    archived = toArchive.length;
   }
 
   scheduleWrite();
@@ -1034,7 +1008,6 @@ export function syncFromCalendar(incoming) {
     added:    append.added,
     replaced: append.replaced,
     pruned,
-    archived,
   };
 }
 

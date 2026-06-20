@@ -26,6 +26,13 @@ const G_EARTH = 9.81;
 let listening = false;
 const samples = [];  // { ts, g }
 
+// Persist the result of the last requestPermission() call so the Settings
+// panel can paint the right state without re-prompting iOS every time it
+// opens. iOS itself remembers the permission across browsing sessions
+// once granted, but we need a local cache for *display* so the UI can
+// say "On" without a live prompt.
+const PERM_STORAGE_KEY = 'fc.sensor.motion';
+
 export function isSupported() {
   return typeof window !== 'undefined' && 'DeviceMotionEvent' in window;
 }
@@ -34,11 +41,29 @@ export function permissionRequired() {
   return isSupported() && typeof DeviceMotionEvent.requestPermission === 'function';
 }
 
-export async function requestPermission() {
+// Read-only view of the last known permission result. Returns 'granted',
+// 'denied', or 'prompt' (the latter means "we don't know — needs a tap").
+export function cachedPermission() {
   if (!isSupported()) return 'denied';
   if (!permissionRequired()) return 'granted';
+  try { return localStorage.getItem(PERM_STORAGE_KEY) || 'prompt'; }
+  catch { return 'prompt'; }
+}
+
+export async function requestPermission() {
+  if (!isSupported()) return 'denied';
+  if (!permissionRequired()) {
+    try { localStorage.setItem(PERM_STORAGE_KEY, 'granted'); } catch {}
+    return 'granted';
+  }
+  // If we previously got 'granted' in this origin, iOS won't prompt again
+  // — but more importantly, our Settings code can short-circuit by
+  // calling cachedPermission() before deciding to call us. We keep the
+  // live request for the "tap Request" path so a denied user can re-try.
   try {
-    return await DeviceMotionEvent.requestPermission();
+    const state = await DeviceMotionEvent.requestPermission();
+    try { localStorage.setItem(PERM_STORAGE_KEY, state); } catch {}
+    return state;
   } catch {
     return 'denied';
   }
