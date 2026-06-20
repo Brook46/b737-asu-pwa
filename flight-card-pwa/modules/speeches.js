@@ -83,6 +83,10 @@ function dynamicValue(token, data, lang = 'en') {
   return null;
 }
 
+// Crew-bearing field keys — substituted through storage.displayCrew so a
+// saved nickname (e.g. "Yuvi" for "YUVAL KOLAN") appears in the rendered PA.
+const CREW_FIELDS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
+
 export function substitute(body, data, lang = 'en') {
   if (!body) return '';
   return body.replace(VAR_RE, (whole, token) => {
@@ -95,6 +99,11 @@ export function substitute(body, data, lang = 'en') {
     // dep/arr/eta: expand IATA/ICAO airport codes to city names
     if (key === 'dep' || key === 'arr' || key === 'eta') {
       val = cityName(val);
+    }
+    // Crew tokens (@cpt / @fo / @PU / @cc2…) go through the registry so
+    // nicknames replace canonical names everywhere.
+    if (CREW_FIELDS.has(key)) {
+      val = storage.displayCrew(val);
     }
     return String(val);
   });
@@ -115,6 +124,7 @@ function renderHtml(body, data, lang = 'en') {
       let val = key ? data[key] : null;
       if (val && String(val).trim()) {
         if (key === 'dep' || key === 'arr' || key === 'eta') val = cityName(val);
+        if (CREW_FIELDS.has(key)) val = storage.displayCrew(val);
         html += `<span class="pa-var">${escape(String(val))}</span>`;
       } else {
         html += `<span class="pa-var pa-var-empty">${escape(whole)}</span>`;
