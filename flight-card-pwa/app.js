@@ -983,6 +983,37 @@ $('sync-export').addEventListener('click', async () => {
   toast('Downloaded — AirDrop it from Files');
 });
 
+// Logbook .ics export — every stored leg as one VEVENT. Same Share Sheet
+// flow as the AirDrop JSON button above.
+$('logbook-export').addEventListener('click', async () => {
+  const lb = await import('./modules/logbook.js');
+  const legs = lb.allStoredLegs();
+  if (!legs.length) {
+    toast('No legs to export yet');
+    return;
+  }
+  const ics = lb.buildIcs(legs);
+  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const filename = `flightcard-logbook-${ymd}.ics`;
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const file = new File([blob], filename, { type: 'text/calendar' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Flight Card logbook', text: filename });
+      return;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+    console.warn('share failed, falling back to download', err);
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast(`Saved ${legs.length} leg${legs.length === 1 ? '' : 's'} — subscribe in Calendar`);
+});
+
 $('sync-import').addEventListener('change', async (e) => {
   const f = e.target.files?.[0];
   e.target.value = '';   // allow re-picking the same file later
@@ -1348,6 +1379,23 @@ dataCard.setOnChange((key) => {
   // letter ever made it in. The ATIS cell will resync on its next render
   // (when the popup is opened or the group is toggled).
   speeches.notifyDataChange();
+});
+
+// ---------- PF / PM role tri-state ----------
+// Tap cycles: '' → PF → PM → '' (none). Delegated so the handler survives
+// every data card re-render. Lives on the active leg's dataCard; never
+// sync-overwritten — the calendar doesn't carry the PF/PM split.
+const ROLE_CYCLE = { '': 'PF', 'PF': 'PM', 'PM': '' };
+dataBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-role-key]');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const key = btn.dataset.roleKey;
+  const cur = (storage.getCurrent().dataCard[key] || '').toString().toUpperCase();
+  const next = ROLE_CYCLE[cur] || '';
+  storage.setDataField(key, next);
+  dataCard.render(dataBody);
 });
 
 // ---------- Per-crew chip row (✎ edit · 💬 WhatsApp · ⏱ last flight) ----------

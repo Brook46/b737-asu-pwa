@@ -40,6 +40,15 @@ export const FIELDS = [
     // 'hhmm' formats as HH:MM as the user types, same digit-rule as the
     // CTOT input. Up to 4 digits → last two are minutes.
     { key: 'flight_time', label: 'Flight time', kind: 'hhmm' },
+    // Logbook fields — block_time is the scheduled snapshot at first sync
+    // (read-only), actual_flight_time fills automatically from GPS in
+    // Phase 4 but is also manually editable.
+    { key: 'block_time',         label: 'Block',  kind: 'hhmm', readonly: true },
+    { key: 'actual_flight_time', label: 'Actual', kind: 'hhmm' },
+    // Tri-state PF / PM / '' role chips. Tap cycles. Manual per leg —
+    // the GPS detector can't tell who flew the leg.
+    { key: 'to_role',  label: 'T/O',  kind: 'role', wide: true },
+    { key: 'ldg_role', label: 'LDG',  kind: 'role', wide: true },
   ]},
   { id: 'g-crew',  group: 'Crew',      cells: [
     { key: 'cpt',  label: 'CPT',         kind: 'text', wide: true },
@@ -150,11 +159,31 @@ function renderCrewChips(rawName) {
   `;
 }
 
+// PF / PM tri-state cell — tap cycles through PF → PM → '' (none).
+// Wired via app.js's [data-role-key] click delegate.
+function renderRoleCell(c, raw) {
+  const v = String(raw || '').toUpperCase();
+  const cls = ['data-cell', 'role-cell'];
+  if (c.wide) cls.push('span2');
+  if (v === 'PF') cls.push('is-pf');
+  else if (v === 'PM') cls.push('is-pm');
+  else cls.push('is-none');
+  const display = v || '—';
+  return `
+    <div class="${cls.join(' ')}">
+      <span class="lbl">${escape(c.label)}</span>
+      <button type="button" class="role-pill" data-role-key="${c.key}"
+              aria-label="${escape(c.label)} role: ${escape(display)}; tap to cycle">${escape(display)}</button>
+    </div>
+  `;
+}
+
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
   if (c.kind === 'flaps')   return renderFlapsCell(c, raw);
   if (c.kind === 'metar')   return renderMetarCell(c);
+  if (c.kind === 'role')    return renderRoleCell(c, raw);
   const v = raw == null ? '' : String(raw);
   // Crew cells: display the nickname (if set) in the input so the pilot sees
   // "Yuvi" instead of "YUVAL KOLAN" in the cockpit. The underlying storage
@@ -162,7 +191,7 @@ function renderCell(c, raw) {
   // input is read-only when a nickname is in effect so the display name
   // never accidentally overwrites the canonical key.
   let displayValue = v;
-  let inputReadonly = '';
+  let inputReadonly = c.readonly ? ' readonly' : '';
   if (CREW_CELL_KEYS.has(c.key) && v) {
     const display = storage.displayCrew(v);
     if (display && display !== v.toUpperCase()) {
