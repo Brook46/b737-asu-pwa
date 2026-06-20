@@ -68,6 +68,19 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW register failed', err));
   });
+  // When the SW updates and takes control of this page (via clients.claim()),
+  // the DOM is half-old / half-new — header icons and the checklist buttons
+  // are the visible casualties. Auto-reload exactly once so the user lands
+  // on a clean fresh shell every time the app updates, no manual refresh
+  // required. The guard prevents an infinite reload loop if iOS fires the
+  // event during boot.
+  let __fcReloadingForSwUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (__fcReloadingForSwUpdate) return;
+    __fcReloadingForSwUpdate = true;
+    // Tiny defer so any in-flight storage write can flush before we go.
+    setTimeout(() => window.location.reload(), 60);
+  });
 }
 
 // ---------- Render shell ----------
