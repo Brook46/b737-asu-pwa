@@ -192,6 +192,17 @@ function rosterToast(added, replaced) {
   if (replaced)          return `Updated ${replaced} flight${replaced === 1 ? '' : 's'}`;
   return `Added ${added} flight${added === 1 ? '' : 's'}`;
 }
+// Authoritative-sync summary — includes prune + archive counts when they're
+// non-zero so the toast is honest about what just happened.
+function syncSummary({ added, replaced, pruned, archived }) {
+  const parts = [];
+  if (added)    parts.push(`+${added}`);
+  if (replaced) parts.push(`~${replaced}`);
+  if (pruned)   parts.push(`−${pruned}`);
+  if (archived) parts.push(`▸${archived} archived`);
+  if (!parts.length) return 'Up to date';
+  return parts.join(' · ');
+}
 $('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
 $('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
 $('leg-now').addEventListener('click',  () => applyLeg(pickLegForNow()));
@@ -836,9 +847,12 @@ $('settings-overlay').addEventListener('click', (e) => {
 // the calendar module's setCalendarUrl helper. paintCalendarSection
 // loads any previously-saved URL back into the field when the sheet opens.
 async function paintCalendarSection() {
-  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js');
+  const { getCalendarUrl, getLogbookCalendarUrl, getLastSyncAt } =
+    await import('./modules/calendar.js');
   const input = $('cal-url');
   if (input && document.activeElement !== input) input.value = getCalendarUrl();
+  const logInput = $('cal-url-logbook');
+  if (logInput && document.activeElement !== logInput) logInput.value = getLogbookCalendarUrl();
   const status = $('cal-status');
   if (status) {
     status.classList.remove('is-err', 'is-ok');
@@ -848,6 +862,14 @@ async function paintCalendarSection() {
       : '';
   }
 }
+// Autosave the optional logbook calendar URL too. Identical pattern to
+// the duty URL — type=password masks it on screen.
+$('cal-url-logbook').addEventListener('input', async () => {
+  try {
+    const { setLogbookCalendarUrl } = await import('./modules/calendar.js');
+    setLogbookCalendarUrl($('cal-url-logbook').value);
+  } catch (err) { console.warn('logbook url save failed', err); }
+});
 $('cal-url').addEventListener('input', async () => {
   try {
     const { setCalendarUrl } = await import('./modules/calendar.js');
@@ -883,7 +905,11 @@ async function runCalendarSync(source) {
       }
       return; // auto: silently no-op when nothing to add
     }
-    const { index: newIdx, added, replaced } = storage.appendLegs(flights);
+    // Authoritative sync: append/merge incoming, prune missing roster legs,
+    // archive past legs into history. Manually-entered legs (no dep_date)
+    // are spared from pruning.
+    const { index: newIdx, added, replaced, pruned, archived } =
+      storage.syncFromCalendar(flights);
     // Calendar phones go into the global crew registry — calendar wins on
     // every sync, matching the Phase 2.1 always-overwrite rule.
     if (phones && typeof phones === 'object') {
@@ -893,16 +919,24 @@ async function runCalendarSync(source) {
     }
     await applyLeg(newIdx);
     renderHistory();
+    const summary = syncSummary({ added, replaced, pruned, archived });
     if (source === 'manual') {
       if (status) {
         status.classList.add('is-ok');
-        status.textContent = rosterToast(added, replaced) + ` from ${events} event${events === 1 ? '' : 's'}`;
+        status.textContent = `${summary} · ${events} event${events === 1 ? '' : 's'}`;
       }
-      toast(rosterToast(added, replaced));
-    } else if (added || replaced) {
-      // Auto-sync only toasts when something actually changed.
-      toast(rosterToast(added, replaced) + ' (auto-sync)');
+      toast(summary);
+    } else if (added || replaced || pruned || archived) {
+      toast(summary + ' (auto-sync)');
     }
+    // After every sync — manual or auto — jump to whichever leg's
+    // dep → arr + 20 min window contains "now". The cooldown is reset
+    // here so the post-sync jump always fires regardless of when the
+    // last boot-jump happened.
+    try {
+      storage.setLastBootJumpAt(0);
+      maybeAutoJumpToCurrentLeg();
+    } catch (err) { console.warn('post-sync jump skipped', err); }
   } catch (err) {
     if (source === 'manual' && status) {
       status.classList.add('is-err');
@@ -1748,16 +1782,47 @@ function openWhatsApp(name) {
 }
 
 function showLastFlightWith(name) {
-  const last = storage.lastLegWith(name);
-  if (!last) {
-    toast(`No prior flight with ${storage.displayCrew(name)}`);
-    return;
+  const legs = storage.allLegsWith(name);
+  const disp = storage.displayCrew(name);
+  $('crewlog-title').textContent = `Flights with ${disp}`;
+  const body = $('crewlog-body');
+  if (!legs.length) {
+    body.innerHTML = `<p class="muted small crewlog-empty">No prior flights with ${escapeHtmlSimple(disp)} yet.</p>`;
+  } else {
+    const rows = legs.map(leg => {
+      const d = leg.dataCard || {};
+      const ely   = leg.flight ? `ELY${escapeHtmlSimple(leg.flight)}` : '—';
+      const route = (leg.dep && leg.arr)
+        ? `${escapeHtmlSimple(leg.dep)} → ${escapeHtmlSimple(leg.arr)}`
+        : '—';
+      const date  = leg.dep_date ? escapeHtmlSimple(leg.dep_date) : '';
+      const toR   = d.to_role  ? escapeHtmlSimple(d.to_role)  : '';
+      const ldgR  = d.ldg_role ? escapeHtmlSimple(d.ldg_role) : '';
+      const role  = (toR || ldgR)
+        ? `<span class="crewlog-role">T/O ${toR || '—'} · LDG ${ldgR || '—'}</span>`
+        : '';
+      return `
+        <div class="crewlog-row">
+          <span class="crewlog-flight">${ely}</span>
+          <span class="crewlog-route">${route}</span>
+          <span class="crewlog-date">${date}</span>
+          ${role}
+        </div>`;
+    }).join('');
+    body.innerHTML = `
+      <p class="muted small crewlog-count">${legs.length} flight${legs.length === 1 ? '' : 's'} together</p>
+      <div class="crewlog-list">${rows}</div>`;
   }
-  const route = (last.dep && last.arr) ? `${last.dep}→${last.arr}` : '—';
-  const ely   = last.flight ? `ELY${last.flight}` : '';
-  const date  = last.dep_date ? ` · ${last.dep_date}` : '';
-  toast(`Last with ${storage.displayCrew(name)}: ${ely} ${route}${date}`.trim());
+  showOverlay('crewlog-overlay');
 }
+function escapeHtmlSimple(s) {
+  return String(s).replace(/[&<>"']/g, ch =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+}
+$('crewlog-close').addEventListener('click', () => hideOverlay('crewlog-overlay'));
+$('crewlog-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'crewlog-overlay') hideOverlay('crewlog-overlay');
+});
 
 // ---------- Card collapsibles ----------
 document.querySelectorAll('.card-toggle').forEach(btn => {

@@ -326,20 +326,31 @@
       </div>
 
       <section class="settings-section">
-        <h3 class="settings-h">Sync from Google Calendar</h3>
+        <h3 class="settings-h">Calendars</h3>
         <p class="muted small">
-          Paste the "Secret address in iCal format" from your Google Calendar
-          settings. Flight Card fetches it via the Cloudflare proxy and turns
-          every duty period into legs — same dedupe as roster paste, so
-          re-syncing is safe.
+          Paste the "Secret address in iCal format" from each Google Calendar.
+          The duty calendar is your roster source — Flight Card pulls every
+          duty period from it. The logbook calendar is where the .ics
+          export goes — keep it separate so your history doesn't clutter
+          the duty view.
         </p>
-        <!-- type=password keeps the secret URL hidden as dots on screen so
-             nobody glancing at the iPad in the cockpit can copy it. -->
-        <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Google Calendar secret iCal URL (hidden)" />
+        <div class="cal-row">
+          <label class="cal-row-label" for="cal-url">Duty roster (read)</label>
+          <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Duty calendar secret iCal URL (hidden)" />
+        </div>
+        <div class="cal-row">
+          <label class="cal-row-label" for="cal-url-logbook">Logbook calendar (write)</label>
+          <input id="cal-url-logbook" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Optional — a different calendar for export" class="cal-url" aria-label="Logbook calendar URL (optional)" />
+        </div>
         <div class="settings-row-btns">
           <button id="cal-sync" class="btn primary">Sync now</button>
         </div>
         <p id="cal-status" class="muted small cal-status"></p>
+        <p class="muted small">
+          Calendar is authoritative — every sync prunes legs you've removed
+          from the duty calendar, and legs whose arrival was &gt; 24 h ago
+          auto-archive into history.
+        </p>
       </section>
 
       <section class="settings-section">
@@ -417,6 +428,18 @@
     </div>
   </div>
 
+  <!-- Crew "last flight with" popup — opens from the ⏱ chip on any crew
+       cell. Lists every leg the pilot has shared with that crew member. -->
+  <div id="crewlog-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewlog-title">
+    <div class="ocr-sheet crewlog-sheet">
+      <div class="pad-head">
+        <span id="crewlog-title" class="pad-label">Flights together</span>
+        <button id="crewlog-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="crewlog-body" class="crewlog-body"></div>
+    </div>
+  </div>
+
   <!-- Landing score modal — fires once when gps.js detects 'landed' and
        g.js has produced a max_g. Tap anywhere to dismiss. -->
   <div id="landing-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landing-title">
@@ -432,6 +455,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=76"></script>
+  <script type="module" src="./app.js?v=77"></script>
 </body>
 </html>
