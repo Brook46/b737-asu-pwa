@@ -1015,6 +1015,132 @@ $('logbook-export').addEventListener('click', async () => {
   toast(`Saved ${legs.length} leg${legs.length === 1 ? '' : 's'} — subscribe in Calendar`);
 });
 
+// ---------- Analytics overlay (read-only, computed from stored legs) ----------
+$('analytics-open').addEventListener('click', async () => {
+  hideOverlay('settings-overlay');
+  showOverlay('analytics-overlay');
+  const body = $('analytics-body');
+  body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
+  try {
+    const an = await import('./modules/analytics.js');
+    const { cityName } = await import('./modules/airports.js');
+    const data = an.snapshot();
+    body.innerHTML = renderAnalytics(data, { cityName, displayCrew: storage.displayCrew });
+  } catch (err) {
+    console.warn('analytics render failed', err);
+    body.innerHTML = `<p class="muted small">Couldn't compute analytics: ${err?.message || err}</p>`;
+  }
+});
+$('analytics-close').addEventListener('click', () => hideOverlay('analytics-overlay'));
+$('analytics-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'analytics-overlay') hideOverlay('analytics-overlay');
+});
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, ch =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+}
+
+// Tiny inline-SVG renderer for a horizontal bar list. No chart library —
+// keeps the bundle thin and the visual consistent with the rest of the
+// app's flat style.
+function renderBars(rows, opts = {}) {
+  if (!rows.length) {
+    return `<p class="an-empty">${esc(opts.emptyMsg || 'Not enough data yet — fly more flights.')}</p>`;
+  }
+  const max = Math.max(1, ...rows.map(r => r.count));
+  const html = rows.map(r => {
+    const pct = Math.round((r.count / max) * 100);
+    return `
+      <div class="an-bar-row">
+        <div>
+          <span class="an-bar-label">${esc(r.label)}</span>
+          ${r.sub ? `<span class="an-bar-sub">${esc(r.sub)}</span>` : ''}
+        </div>
+        <div class="an-bar-track"><div class="an-bar-fill" style="width:${pct}%"></div></div>
+        <span class="an-bar-count">${r.count}</span>
+      </div>
+    `;
+  }).join('');
+  return `<div class="an-bars">${html}</div>`;
+}
+
+function renderAnalytics(data, { cityName, displayCrew }) {
+  if (!data.legCount) {
+    return `
+      <p class="muted small" style="padding:18px 4px;">
+        No legs stored yet. Once your calendar syncs or you paste a roster, your
+        analytics appear here.
+      </p>`;
+  }
+  // Top destinations
+  const topRows = data.top.map(d => ({
+    label: d.icao,
+    sub:   cityName(d.icao) || '',
+    count: d.count,
+  }));
+  // Tail breakdown chips
+  const tailChips = data.hours.byTail
+    .slice(0, 5)
+    .map(t => `<span class="an-tail-chip"><strong>${esc(t.tail)}</strong> ${esc(t.label)}</span>`)
+    .join('');
+  // Landing G split
+  const g = data.g || {};
+  let gContent = '';
+  if (!g.pf && !g.pm) {
+    gContent = `<p class="an-empty">Fly some legs with T/O · LDG roles tagged + landing G logged.</p>`;
+  } else {
+    const tile = (entry, role) => entry
+      ? `<div class="an-g-tile is-${role.toLowerCase()}">
+          <div class="an-g-role">${role}</div>
+          <div class="an-g-num">${entry.avg.toFixed(2)} G</div>
+          <div class="an-g-count">${entry.count} landing${entry.count === 1 ? '' : 's'}</div>
+        </div>`
+      : `<div class="an-g-tile is-${role.toLowerCase()}">
+          <div class="an-g-role">${role}</div>
+          <div class="an-g-num">—</div>
+          <div class="an-g-count">No data</div>
+        </div>`;
+    const delta = (g.pf && g.pm)
+      ? `<div class="an-delta">PF avg is ${(g.pf.avg - g.pm.avg).toFixed(2)} G ${
+          g.pf.avg >= g.pm.avg ? 'higher' : 'lower'} than PM</div>`
+      : '';
+    gContent = `<div class="an-g-split">${tile(g.pf, 'PF')}${tile(g.pm, 'PM')}</div>${delta}`;
+  }
+  // Most flown with — bars; labels through displayCrew so nicknames show.
+  const crewRows = data.crew.map(c => ({
+    label: displayCrew(c.name) || c.name,
+    sub:   '',
+    count: c.count,
+  }));
+
+  return `
+    <div class="an-card">
+      <h4>Top destinations (${data.year})</h4>
+      ${renderBars(topRows, { emptyMsg: 'No non-home arrivals yet this year.' })}
+    </div>
+    <div class="an-card">
+      <h4>Nights away from home (${data.year})</h4>
+      <div class="an-big">${data.nights}</div>
+      <div class="an-big-sub">distinct calendar days with at least one non-TLV leg</div>
+    </div>
+    <div class="an-card">
+      <h4>Hours flown YTD (${data.year})</h4>
+      <div class="an-big">${esc(data.hours.totalLabel)}</div>
+      <div class="an-big-sub">prefers actual flight time when set, then block, then scheduled</div>
+      ${tailChips ? `<div class="an-tails">${tailChips}</div>` : ''}
+    </div>
+    <div class="an-card">
+      <h4>Landing G — PF vs PM (${data.year})</h4>
+      ${gContent}
+    </div>
+    <div class="an-card">
+      <h4>Most flown with (${data.year})</h4>
+      ${renderBars(crewRows, { emptyMsg: 'No crew on file yet for this year.' })}
+    </div>
+  `;
+}
+
 $('sync-import').addEventListener('change', async (e) => {
   const f = e.target.files?.[0];
   e.target.value = '';   // allow re-picking the same file later

@@ -566,6 +566,89 @@ body.is-past-leg #card-checklist {
 }
 .landing-sheet[data-score="poor"] .landing-verdict { color: var(--danger, #d44); }
 
+/* Analytics overlay — five colour-banded cards, inline SVG bars, no chart libs. */
+.analytics-sheet { max-width: 720px; }
+.analytics-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 8px; }
+.an-card {
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 14px;
+}
+.an-card h4 {
+  margin: 0 0 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.an-card .an-empty {
+  color: var(--fg-dim); font-style: italic; font-size: 13px;
+}
+.an-big {
+  font-size: 38px; font-weight: 800; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.an-big-sub {
+  font-size: 12px; color: var(--fg-mute);
+  margin-top: 4px;
+}
+.an-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.an-bar-row {
+  display: grid; grid-template-columns: minmax(64px, max-content) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.an-bar-row .an-bar-label { font-weight: 700; font-size: 14px; }
+.an-bar-row .an-bar-sub   { font-size: 11px; color: var(--fg-mute); display: block; }
+.an-bar-track {
+  height: 10px;
+  background: var(--bg-elev);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.an-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+.an-bar-row .an-bar-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  font-size: 14px;
+  min-width: 28px; text-align: right;
+}
+/* Tail breakdown chips for Hours flown */
+.an-tails { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.an-tail-chip {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--fg-mute);
+}
+.an-tail-chip strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+/* Landing G split — two columns, PF green / PM amber */
+.an-g-split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.an-g-tile {
+  text-align: center;
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+}
+.an-g-tile.is-pf { border-color: var(--good, #2ea88a); }
+.an-g-tile.is-pm { border-color: var(--warm, #ffa94d); }
+.an-g-role { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--fg-mute); text-transform: uppercase; }
+.an-g-num  { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+.an-g-tile.is-pf .an-g-num { color: var(--good, #2ea88a); }
+.an-g-tile.is-pm .an-g-num { color: var(--warm, #ffa94d); }
+.an-g-count { font-size: 11px; color: var(--fg-mute); }
+.an-delta { margin-top: 10px; font-size: 13px; color: var(--fg-mute); text-align: center; }
+
 /* ---------- Checklist ---------- */
 .cl-section {
   margin: 0 0 8px;
