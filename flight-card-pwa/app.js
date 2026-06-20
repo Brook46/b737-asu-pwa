@@ -1336,6 +1336,70 @@ dataCard.setOnChange((key) => {
   speeches.notifyDataChange();
 });
 
+// ---------- Per-crew chip row (✎ edit · 💬 WhatsApp · ⏱ last flight) ----------
+// Delegated to dataBody so the handlers survive every data card re-render.
+// The chips live inside the cell's <label>; preventDefault stops the click
+// from focusing the underlying readonly input on iOS.
+dataBody.addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-crew-action]');
+  if (!chip) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const wrap = chip.closest('[data-crew-name]');
+  const name = wrap?.dataset.crewName;
+  if (!name) return;
+  const action = chip.dataset.crewAction;
+  if (action === 'edit')        promptCrewEdit(name);
+  else if (action === 'whatsapp') openWhatsApp(name);
+  else if (action === 'lastflight') showLastFlightWith(name);
+});
+
+function promptCrewEdit(name) {
+  const entry = storage.getCrew(name) || { nickname: '', phone: '' };
+  const nick = window.prompt(
+    `Nickname for ${name}\n(empty to clear and use the canonical name)`,
+    entry.nickname || ''
+  );
+  if (nick === null) return; // Cancel — leave both fields alone
+  storage.setCrewNickname(name, nick);
+  const phone = window.prompt(
+    `Phone for ${name} (E.164 format, e.g. +972541234567)\n(empty to clear)`,
+    entry.phone || ''
+  );
+  if (phone !== null) storage.setCrewPhone(name, phone);
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+}
+
+function openWhatsApp(name) {
+  const entry = storage.getCrew(name);
+  const phone = entry?.phone || '';
+  if (!phone) {
+    // No phone yet — jump straight to the editor so the tap isn't a no-op.
+    promptCrewEdit(name);
+    return;
+  }
+  // wa.me wants digits only.
+  const digits = phone.replace(/[^\d]/g, '');
+  if (!digits) {
+    toast(`Phone for ${name} doesn't look valid`);
+    return;
+  }
+  window.location.href = 'https://wa.me/' + digits;
+}
+
+function showLastFlightWith(name) {
+  const last = storage.lastLegWith(name);
+  if (!last) {
+    toast(`No prior flight with ${storage.displayCrew(name)}`);
+    return;
+  }
+  const route = (last.dep && last.arr) ? `${last.dep}→${last.arr}` : '—';
+  const ely   = last.flight ? `ELY${last.flight}` : '';
+  const date  = last.dep_date ? ` · ${last.dep_date}` : '';
+  toast(`Last with ${storage.displayCrew(name)}: ${ely} ${route}${date}`.trim());
+}
+
 // ---------- Card collapsibles ----------
 document.querySelectorAll('.card-toggle').forEach(btn => {
   btn.addEventListener('click', () => {

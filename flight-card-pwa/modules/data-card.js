@@ -113,14 +113,60 @@ export function render(root) {
   wire(root);
 }
 
+const CREW_CELL_KEYS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
+
+// Tiny ✎ / 💬 / ⏱ chip row that hangs off a crew cell when it has a value.
+// Wiring lives in app.js's [data-crew-action] delegate; this module only
+// paints. The displayed name comes from displayCrew so a saved nickname
+// replaces the canonical name in the input itself too.
+function renderCrewChips(rawName) {
+  const canonical = String(rawName || '').trim().toUpperCase();
+  if (!canonical) return '';
+  const entry = storage.getCrew(canonical);
+  const hasPhone = !!(entry && entry.phone);
+  const hasNick  = !!(entry && entry.nickname);
+  const waCls = 'crew-chip crew-chip-wa' + (hasPhone ? '' : ' is-disabled');
+  return `
+    <div class="crew-chips" data-crew-name="${escapeAttr(canonical)}">
+      <button type="button" class="crew-chip${hasNick ? ' has-nick' : ''}"
+              data-crew-action="edit"
+              title="Edit nickname &amp; phone"
+              aria-label="Edit nickname and phone for ${escapeAttr(canonical)}">✎</button>
+      <button type="button" class="${waCls}"
+              data-crew-action="whatsapp"
+              title="${hasPhone ? 'Open WhatsApp' : 'Set a phone first'}"
+              aria-label="Open WhatsApp chat with ${escapeAttr(canonical)}">💬</button>
+      <button type="button" class="crew-chip"
+              data-crew-action="lastflight"
+              title="Last flight with this crew member"
+              aria-label="Show last flight with ${escapeAttr(canonical)}">⏱</button>
+    </div>
+  `;
+}
+
 function renderCell(c, raw) {
   if (c.kind === 'atis')    return renderAtisCell(c, raw);
   if (c.kind === 'utctime') return renderUtcCell(c, raw);
   if (c.kind === 'flaps')   return renderFlapsCell(c, raw);
   if (c.kind === 'metar')   return renderMetarCell(c);
   const v = raw == null ? '' : String(raw);
+  // Crew cells: display the nickname (if set) in the input so the pilot sees
+  // "Yuvi" instead of "YUVAL KOLAN" in the cockpit. The underlying storage
+  // keeps the canonical name; the input shows the display version. The
+  // input is read-only when a nickname is in effect so the display name
+  // never accidentally overwrites the canonical key.
+  let displayValue = v;
+  let inputReadonly = '';
+  if (CREW_CELL_KEYS.has(c.key) && v) {
+    const display = storage.displayCrew(v);
+    if (display && display !== v.toUpperCase()) {
+      displayValue = display;
+      inputReadonly = ' readonly';
+    }
+  }
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
+  if (CREW_CELL_KEYS.has(c.key) && v) cls.push('crew-cell');
   const inputmode = c.kind === 'text' ? 'text'
                   : c.kind === 'hhmm' ? 'numeric'
                   : 'decimal';
@@ -128,6 +174,7 @@ function renderCell(c, raw) {
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
   const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
   const maxlen = c.kind === 'hhmm' ? ' maxlength="5"' : '';
+  const chips = CREW_CELL_KEYS.has(c.key) ? renderCrewChips(v) : '';
   return `
     <label class="${cls.join(' ')}">
       <span class="lbl">${escape(labelStr)}</span>
@@ -140,9 +187,10 @@ function renderCell(c, raw) {
         spellcheck="false"
         data-key="${c.key}"
         data-kind="${c.kind}"
-        value="${escapeAttr(v)}"
-        placeholder="${placeholder}"${maxlen}
+        value="${escapeAttr(displayValue)}"
+        placeholder="${placeholder}"${maxlen}${inputReadonly}
       />
+      ${chips}
     </label>
   `;
 }
@@ -510,6 +558,10 @@ function formatValue(def, v) {
   if (v == null || v === '') return '';
   if (def.kind === 'dec' && typeof v === 'number') {
     return v.toFixed(v >= 100 ? 1 : 2).replace(/\.?0+$/, '');
+  }
+  // Crew cells: surface the nickname (if set) in collapsed summaries too.
+  if (def && CREW_CELL_KEYS.has(def.key)) {
+    return storage.displayCrew(String(v));
   }
   return String(v);
 }

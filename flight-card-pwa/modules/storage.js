@@ -36,7 +36,14 @@ const KEY = 'fc.state';
 // boundary (roster.js); v11→v12 also runs flipName over every stored
 // crew name (legs + active dataCard) so the existing data is consistent
 // with what new syncs will produce.
-const VERSION = 12;
+// v13: new top-level fc.state.crew registry — { [CANONICAL_NAME]:
+// { nickname, phone, flights } } — backs nickname-aware PA tokens, the
+// WhatsApp deep-link, and the "last flight with X" popover. v12→v13
+// migration walks every stored leg's crew fields (cpt/fo/cc1..cc5) and
+// pre-seeds empty entries so the analytics flight-count is accurate.
+// Also drops the 3h crew/flight_time merge lock — calendar always wins
+// going forward.
+const VERSION = 13;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -226,6 +233,11 @@ function freshState() {
     speeches: clone(DEFAULT_SPEECHES),
     current: newFlightRecord(),
     history: [],
+    // Crew registry: { [CANONICAL_NAME]: { nickname, phone, flights } }.
+    // Keyed by the uppercased canonical name the calendar produces (e.g.
+    // "YUVAL KOLAN"). Populated by appendLegs() as new legs land + by the
+    // v12→v13 migration for existing legs.
+    crew: {},
   };
 }
 
@@ -252,6 +264,7 @@ function read() {
   cache.current.legs     = Array.isArray(cache.current.legs) ? cache.current.legs : [];
   cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
+  if (!cache.crew || typeof cache.crew !== 'object') cache.crew = {};
   return cache;
 }
 
@@ -359,12 +372,56 @@ function migrate(s) {
       flipBag(current.dataCard);
     }
   }
+  // v12 → v13: seed the global crew registry from every existing leg's crew
+  // fields. Each entry starts with empty nickname/phone and a flight count
+  // equal to the number of legs the name appears in. Idempotency via s.v
+  // gate; existing registry entries are preserved if a partial migration
+  // happened earlier.
+  const crew = (s.crew && typeof s.crew === 'object') ? s.crew : {};
+  if (s.v && s.v < 13) {
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    const allLegBags = [];
+    if (current.legs.length) {
+      for (const leg of current.legs) {
+        allLegBags.push(leg);
+        if (leg.dataCard) allLegBags.push(leg.dataCard);
+      }
+    } else if (current.dataCard) {
+      allLegBags.push(current.dataCard);
+    }
+    // Count appearances per canonical name. A name showing on both the
+    // top-level leg.cpt AND leg.dataCard.cpt is the same leg, so dedupe
+    // within each leg by collecting a set first.
+    if (current.legs.length) {
+      for (const leg of current.legs) {
+        const seen = new Set();
+        for (const k of CREW_KEYS) {
+          const top = (leg[k] || '').trim();
+          const card = ((leg.dataCard && leg.dataCard[k]) || '').trim();
+          const name = (top || card).toUpperCase();
+          if (name) seen.add(name);
+        }
+        for (const name of seen) {
+          if (!crew[name]) crew[name] = { nickname: '', phone: '', flights: 0 };
+          crew[name].flights = (crew[name].flights | 0) + 1;
+        }
+      }
+    } else if (current.dataCard) {
+      for (const k of CREW_KEYS) {
+        const name = ((current.dataCard[k] || '')).trim().toUpperCase();
+        if (!name) continue;
+        if (!crew[name]) crew[name] = { nickname: '', phone: '', flights: 0 };
+        crew[name].flights = (crew[name].flights | 0) + 1;
+      }
+    }
+  }
   return {
     v: VERSION,
     template: clone(DEFAULT_TEMPLATE),
     speeches: upgradedSpeeches,
     current,
     history: Array.isArray(s.history) ? s.history : [],
+    crew,
   };
 }
 
@@ -533,6 +590,95 @@ export function setDataBulk(fields) {
   scheduleWrite();
 }
 
+// ---------- Crew registry ----------
+// One global map keyed by uppercased canonical name (the calendar's
+// "FIRSTNAME SURNAME" string). Each entry holds the per-person nickname,
+// phone (E.164), and a flight count incremented every time a new leg
+// names them. Single source of truth for what gets *displayed* anywhere
+// — data card cells, leg-switcher chips, PA token expansion.
+
+function canon(name) {
+  return String(name || '').trim().toUpperCase();
+}
+
+function ensureCrewEntry(s, name) {
+  if (!s.crew || typeof s.crew !== 'object') s.crew = {};
+  if (!s.crew[name]) s.crew[name] = { nickname: '', phone: '', flights: 0 };
+  return s.crew[name];
+}
+
+export function getCrew(name) {
+  const k = canon(name);
+  if (!k) return null;
+  const entry = read().crew?.[k];
+  if (!entry) return null;
+  return {
+    name: k,
+    nickname: entry.nickname || '',
+    phone: entry.phone || '',
+    flights: entry.flights | 0,
+  };
+}
+
+export function setCrewNickname(name, nickname) {
+  const k = canon(name);
+  if (!k) return;
+  const s = read();
+  const entry = ensureCrewEntry(s, k);
+  entry.nickname = String(nickname || '').trim();
+  scheduleWrite();
+}
+
+export function setCrewPhone(name, phone) {
+  const k = canon(name);
+  if (!k) return;
+  const s = read();
+  const entry = ensureCrewEntry(s, k);
+  // Strip everything that isn't a digit or leading +; WhatsApp's wa.me
+  // wants digits only, but storing the + lets the editor round-trip.
+  entry.phone = String(phone || '').trim().replace(/[^\d+]/g, '');
+  scheduleWrite();
+}
+
+// Display this crew member's nickname if one is set, otherwise the
+// canonical name. Single funnel — speeches.js, data-card.js, and the
+// leg-switcher all use this so nicknames stay consistent everywhere.
+export function displayCrew(name) {
+  const k = canon(name);
+  if (!k) return '';
+  const nick = read().crew?.[k]?.nickname;
+  return (nick && nick.trim()) || k;
+}
+
+// Walk every stored leg (current + history) for the most recent leg
+// that named `name`. Used by the "last flight with" popover. Returns
+// null when this is the first leg with them.
+export function lastLegWith(name) {
+  const k = canon(name);
+  if (!k) return null;
+  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const namesInLeg = (leg) => {
+    const set = new Set();
+    for (const f of CREW_KEYS) {
+      const v = (leg?.[f] || (leg?.dataCard && leg.dataCard[f]) || '').trim().toUpperCase();
+      if (v) set.add(v);
+    }
+    return set;
+  };
+  const allLegs = [];
+  for (const leg of read().current.legs || []) allLegs.push(leg);
+  for (const flight of read().history || []) {
+    for (const leg of flight.legs || []) allLegs.push(leg);
+  }
+  // Sort by dep_date+dep_time DESC, fall back to lexical so legs with no
+  // schedule still come through stable.
+  allLegs.sort((a, b) => (depTs(b) || 0) - (depTs(a) || 0));
+  for (const leg of allLegs) {
+    if (namesInLeg(leg).has(k)) return leg;
+  }
+  return null;
+}
+
 // ---------- Legs (multi-flight roster) ----------
 export function getLegs() { return read().current.legs || []; }
 export function getLegIndex() { return read().current.legIndex || 0; }
@@ -641,6 +787,25 @@ export function appendLegs(newLegs) {
   }
   c.legs = combined;
   c.legIndex = Math.max(0, landIdx);
+  // Bump the crew registry's flight count for every name on each newly
+  // added leg. Replaced legs don't bump — the count already covered them.
+  // Dedupe per leg so the same person showing on top-level and dataCard
+  // doesn't count twice.
+  if (toAdd.length) {
+    const s = read();
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    for (const leg of toAdd) {
+      const seen = new Set();
+      for (const k of CREW_KEYS) {
+        const v = ((leg[k] || (leg.dataCard && leg.dataCard[k]) || '')).trim().toUpperCase();
+        if (v) seen.add(v);
+      }
+      for (const name of seen) {
+        const entry = ensureCrewEntry(s, name);
+        entry.flights = (entry.flights | 0) + 1;
+      }
+    }
+  }
   scheduleWrite();
   return { index: c.legIndex, added: toAdd.length, replaced };
 }
@@ -665,45 +830,23 @@ function digitsOf(s) {
   return String(s == null ? '' : s).replace(/\D/g, '').replace(/^0+/, '');
 }
 
-// Fields that the user finalises near departure — flight time + crew —
-// stop accepting overwrites from incoming syncs once the leg is inside
-// the 3-hour pre-departure window (or already departed). This protects
-// crew swaps and dispatch updates the pilot has typed in manually from
-// being clobbered by a calendar resync that's running off slightly
-// older published data.
-const LOCKED_FIELDS = new Set(['flight_time', 'cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
-const LOCK_WINDOW_MS = 3 * 60 * 60 * 1000;
-function legIsLocked(leg) {
-  if (!leg || !leg.dep_date || !leg.dep_time) return false;
-  const ts = depTs(leg);
-  if (!Number.isFinite(ts) || ts === Number.MAX_SAFE_INTEGER) return false;
-  // Locked = (now is within 3h of departure) OR (departure has passed).
-  return ts - Date.now() <= LOCK_WINDOW_MS;
-}
-
 // Merge `source` into `target` in place. Used when an incoming leg dupes
-// an existing one — we want the incoming data to win for anything it
-// actually carries, but keep the existing values for whatever the
-// incoming side left empty.
+// an existing one — incoming data wins for anything it actually carries,
+// but the existing values stay for whatever the incoming side left empty.
 //
-// 3-hour lock: once the leg's departure is within 3h (or already past),
-// the user's flight_time + crew values are sticky. The rest of the leg
-// keeps the normal "incoming wins for non-empty" rule, so the calendar
-// can still correct route / tail / schedule typos right up to the gate.
+// No pre-departure lock — the user asked for the calendar to always be
+// authoritative. If dispatch updates crew or flight_time minutes before
+// pushback, the resync overrides the local copy. Manual edits made in
+// the cockpit will be re-overwritten on the next sync; that's the
+// trade-off, and it's correct for this pilot's workflow.
 function mergeLeg(target, source) {
-  const locked = legIsLocked(target);
-  // Top-level identity + schedule fields — incoming wins for non-empty,
-  // except inside the lock window for the locked fields.
+  // Top-level identity + schedule fields — incoming wins for non-empty.
   for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
-    if (locked && LOCKED_FIELDS.has(k)) continue;
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
-  // dataCard merge — incoming wins per key for non-empty values. Same
-  // lock applies, so cpt/fo/cc1..cc5 the user typed in the cockpit
-  // survive a calendar resync.
+  // dataCard merge — incoming wins per key for non-empty values.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
-    if (locked && LOCKED_FIELDS.has(k)) continue;
     if (v != null && v !== '') target.dataCard[k] = v;
   }
   // Ticks: union — a tick on either side stays. Otherwise an incoming
