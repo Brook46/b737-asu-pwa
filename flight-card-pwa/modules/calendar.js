@@ -75,15 +75,17 @@ export async function syncFromCalendar() {
   // includes the entire slip block per duty period, so one VEVENT usually
   // produces multiple flights (the trip pair, sometimes more).
   const allFlights = [];
+  const allPhones = {}; // canonical name → E.164 phone; later events win
   for (const ev of events) {
     const body = ev.description || ev.summary || '';
     if (!body) continue;
     const parsed = parseRoster(body);
     if (parsed && parsed.flights?.length) allFlights.push(...parsed.flights);
+    if (parsed && parsed.phones) Object.assign(allPhones, parsed.phones);
   }
 
   try { localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(Date.now())); }
   catch {}
 
-  return { events: events.length, flights: allFlights };
+  return { events: events.length, flights: allFlights, phones: allPhones };
 }

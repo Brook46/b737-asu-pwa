@@ -163,6 +163,13 @@ async function applyRoster(parsed) {
   // appendLegs dedupes by flight number — a paste that overlaps an existing
   // leg merges into it instead of duplicating.
   const { index: newIdx, added, replaced } = storage.appendLegs(parsed.flights);
+  // Roster-supplied phones go straight into the global crew registry —
+  // calendar wins on every sync, mirroring the crew/flight-time rule.
+  if (parsed.phones && typeof parsed.phones === 'object') {
+    for (const [canonical, phone] of Object.entries(parsed.phones)) {
+      if (phone) storage.setCrewPhone(canonical, phone);
+    }
+  }
   await applyLeg(newIdx);
   renderHistory();
   toast(rosterToast(added, replaced));
@@ -855,7 +862,7 @@ async function runCalendarSync(source) {
     const cal = await import('./modules/calendar.js');
     // Save current input first in case the user just edited but didn't blur.
     if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
-    const { events, flights } = await cal.syncFromCalendar();
+    const { events, flights, phones } = await cal.syncFromCalendar();
     if (!flights.length) {
       if (source === 'manual') {
         throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
@@ -863,6 +870,13 @@ async function runCalendarSync(source) {
       return; // auto: silently no-op when nothing to add
     }
     const { index: newIdx, added, replaced } = storage.appendLegs(flights);
+    // Calendar phones go into the global crew registry — calendar wins on
+    // every sync, matching the Phase 2.1 always-overwrite rule.
+    if (phones && typeof phones === 'object') {
+      for (const [canonical, phone] of Object.entries(phones)) {
+        if (phone) storage.setCrewPhone(canonical, phone);
+      }
+    }
     await applyLeg(newIdx);
     renderHistory();
     if (source === 'manual') {
