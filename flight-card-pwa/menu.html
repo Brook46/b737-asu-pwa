@@ -552,6 +552,56 @@
     </ul>
   </section>
 
+  <!-- ============ GPS + MAX G ============ -->
+  <section>
+    <h2><span class="icon-bubble b-green">📡</span> GPS auto-detect + Max G landing score</h2>
+    <p class="h2-lede">
+      The iPad's GPS marks takeoff and landing automatically; the motion
+      sensor captures the touchdown G force. Both only run while the PWA
+      is foregrounded and you've granted permission.
+    </p>
+    <ol class="steps">
+      <li>
+        <b>Allow Geolocation + Motion</b>
+        Open Settings (⚙) → <i>Sensors</i>. Tap <kbd>Request</kbd> on each
+        row. iOS asks once per origin. Decline either — the matching field
+        (Actual flight time / Max G) just stays manually editable.
+      </li>
+      <li>
+        <b>Open the app before pushback</b>
+        Inside the leg's active window (Dep − 30 min → Arr + 30 min) the
+        detector arms automatically. Keep Flight Card in Slide Over or
+        front so GPS keeps ticking.
+      </li>
+      <li>
+        <b>Watch for the airborne toast</b>
+        Once groundspeed &gt; 120 kt for 30 sec and you're climbing, the
+        detector marks takeoff and starts capturing G.
+      </li>
+      <li>
+        <b>Landing score appears on touchdown</b>
+        After ground speed &lt; 80 kt for 60 sec with a flat altitude, the
+        detector marks landing and pops the score modal:
+      </li>
+    </ol>
+    <ul style="padding-left:18px;">
+      <li><b>&lt; 1.30 G</b> — Good <span style="color:var(--green);">smooth touchdown</span></li>
+      <li><b>1.30 – 1.60 G</b> — OK <span style="color:var(--warm);">typical</span></li>
+      <li><b>&gt; 1.60 G</b> — Poor <span style="color:var(--pink);">buy the cabin coffee</span></li>
+    </ul>
+    <div class="callout">
+      <b>Limits to know:</b> iOS Safari only fires GPS / Motion while the
+      tab/PWA is foregrounded. Slide Over works, but if you switch to
+      another full-screen app, sampling pauses until you come back. The
+      detector resumes from wherever it left off — it doesn't reset.
+    </div>
+    <div class="callout" style="background:var(--accent-soft);border-left-color:var(--accent);">
+      <b>Manual override always wins.</b> Actual flight time, Max G, T/O
+      role, LDG role are all editable. Phase 4 just auto-fills them when
+      it can.
+    </div>
+  </section>
+
   <!-- ============ LOGBOOK EXPORT ============ -->
   <section>
     <h2><span class="icon-bubble b-grape">📓</span> Logbook .ics export</h2>

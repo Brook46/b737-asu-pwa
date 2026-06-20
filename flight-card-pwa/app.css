@@ -499,6 +499,73 @@ body.is-past-leg #card-checklist {
 }
 .role-cell.is-none .role-pill { opacity: .7; }
 
+/* Sensors panel — Geolocation + Motion permission rows in Settings sheet. */
+.sensors-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.sensor-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+.sensor-name { font-weight: 600; font-size: 14px; }
+.sensor-state {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--fg-mute);
+}
+.sensor-state[data-state="granted"] { background: var(--green-soft, rgba(46,168,138,0.2)); color: var(--good, #2ea88a); }
+.sensor-state[data-state="denied"]  { background: var(--warm-soft,  rgba(255,113,113,0.2)); color: var(--danger, #d44); }
+.sensor-state[data-state="prompt"]  { background: var(--accent-soft); color: var(--accent); }
+.sensor-btn { padding: 6px 12px; font-size: 12px; }
+.sensor-row[data-permission="granted"] .sensor-btn { display: none; }
+
+/* Landing score modal — centred, dismissible, colour-coded by max G. */
+#landing-overlay { align-items: center; }
+.landing-sheet {
+  width: 100%; max-width: 360px;
+  margin: 0 18px;
+  background: var(--bg-elev);
+  border-radius: 18px;
+  padding: 28px 22px;
+  box-shadow: 0 16px 60px rgba(0,0,0,0.45);
+  text-align: center;
+  display: flex; flex-direction: column; gap: 12px;
+  border: 2px solid var(--line);
+}
+.landing-emoji { font-size: 42px; line-height: 1; }
+.landing-title { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--fg-mute); }
+.landing-g {
+  font-size: 56px; font-weight: 800; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.landing-verdict {
+  font-size: 18px; font-weight: 700; letter-spacing: .02em;
+}
+.landing-meta { white-space: pre-line; margin-bottom: 4px; }
+.landing-sheet[data-score="good"] {
+  border-color: var(--good, #2ea88a);
+  background: linear-gradient(180deg, var(--green-soft, rgba(46,168,138,0.18)), var(--bg-elev) 60%);
+}
+.landing-sheet[data-score="good"] .landing-verdict { color: var(--good, #2ea88a); }
+.landing-sheet[data-score="ok"] {
+  border-color: var(--warm, #ffa94d);
+  background: linear-gradient(180deg, var(--warm-soft, rgba(255,169,77,0.18)), var(--bg-elev) 60%);
+}
+.landing-sheet[data-score="ok"] .landing-verdict { color: var(--warm, #ffa94d); }
+.landing-sheet[data-score="poor"] {
+  border-color: var(--danger, #d44);
+  background: linear-gradient(180deg, rgba(212,68,68,0.18), var(--bg-elev) 60%);
+}
+.landing-sheet[data-score="poor"] .landing-verdict { color: var(--danger, #d44); }
+
 /* ---------- Checklist ---------- */
 .cl-section {
   margin: 0 0 8px;

@@ -370,6 +370,28 @@
       </section>
 
       <section class="settings-section">
+        <h3 class="settings-h">Sensors</h3>
+        <p class="muted small">
+          Geolocation auto-detects takeoff &amp; landing; Motion captures the
+          touchdown G. Both only fire while the PWA is open and granted
+          permission. Decline either — the matching field stays manually
+          editable.
+        </p>
+        <div id="sensors-grid" class="sensors-grid">
+          <div class="sensor-row" data-sensor="geolocation">
+            <span class="sensor-name">Geolocation (GPS)</span>
+            <span class="sensor-state" data-state="unknown">…</span>
+            <button class="btn sensor-btn" data-sensor-req="geolocation">Request</button>
+          </div>
+          <div class="sensor-row" data-sensor="motion">
+            <span class="sensor-name">Motion (Max G)</span>
+            <span class="sensor-state" data-state="unknown">…</span>
+            <button class="btn sensor-btn" data-sensor-req="motion">Request</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
         <h3 class="settings-h">Analytics</h3>
         <p class="muted small">
           Where you fly most, days away from home, landing G stats, top crew.
@@ -381,8 +403,21 @@
     </div>
   </div>
 
+  <!-- Landing score modal — fires once when gps.js detects 'landed' and
+       g.js has produced a max_g. Tap anywhere to dismiss. -->
+  <div id="landing-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landing-title">
+    <div class="landing-sheet" data-score="">
+      <div class="landing-emoji" aria-hidden="true">🛬</div>
+      <div id="landing-title" class="landing-title">Touchdown</div>
+      <div id="landing-g" class="landing-g">— G</div>
+      <div id="landing-verdict" class="landing-verdict">—</div>
+      <div id="landing-meta" class="landing-meta muted small">—</div>
+      <button id="landing-close" class="btn primary">OK</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=72"></script>
+  <script type="module" src="./app.js?v=73"></script>
 </body>
 </html>
