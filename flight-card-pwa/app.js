@@ -812,6 +812,7 @@ $('share-toggle').addEventListener('click', () => {
   // wrapped, so a missing module or broken localStorage can't bubble up
   // and stop the rest of the settings sheet from working.
   try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
+  try { paintSensorsPanel(); }   catch (err) { console.warn('sensors paint skipped', err); }
 });
 $('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
 $('settings-overlay').addEventListener('click', (e) => {
@@ -1057,6 +1058,150 @@ $('pa-close').addEventListener('click', () => speeches.close());
 $('pa-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'pa-overlay') speeches.close();
 });
+
+// ---------- Settings → Sensors panel + GPS / Motion permission flow ----------
+// Module-scoped GPS + motion handles so boot-arm and disarm cooperate cleanly.
+let gpsMod = null;  // lazily imported gps module
+let gMod   = null;  // lazily imported g module
+let gpsActive = false;
+async function loadSensorMods() {
+  if (!gpsMod) gpsMod = await import('./modules/gps.js');
+  if (!gMod)   gMod   = await import('./modules/g.js');
+  return { gps: gpsMod, g: gMod };
+}
+
+async function paintSensorsPanel() {
+  const { gps, g } = await loadSensorMods();
+  const rows = document.querySelectorAll('#sensors-grid .sensor-row');
+  // Geolocation
+  const geoState = gps.isSupported() ? await gps.requestPermission() : 'denied';
+  setSensorRow(rows, 'geolocation', geoState);
+  // Motion (iOS 13+ gated; everywhere else granted on first start)
+  const motState = !g.isSupported()
+    ? 'denied'
+    : (g.permissionRequired() ? 'prompt' : 'granted');
+  setSensorRow(rows, 'motion', motState);
+}
+
+function setSensorRow(rows, name, state) {
+  for (const row of rows) {
+    if (row.dataset.sensor !== name) continue;
+    row.dataset.permission = state;
+    const label = row.querySelector('.sensor-state');
+    label.dataset.state = state;
+    label.textContent = state === 'granted' ? 'On' : state === 'denied' ? 'Off' : 'Tap to allow';
+    const btn = row.querySelector('.sensor-btn');
+    btn.textContent = state === 'denied' ? 'Open iOS Settings' : 'Request';
+  }
+}
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-sensor-req]');
+  if (!btn) return;
+  const { gps, g } = await loadSensorMods();
+  const which = btn.dataset.sensorReq;
+  let state = 'denied';
+  if (which === 'geolocation') state = await gps.requestPermission();
+  else if (which === 'motion') state = await g.requestPermission();
+  setSensorRow(document.querySelectorAll('#sensors-grid .sensor-row'), which, state);
+  // Granted geolocation should immediately arm the detector if the active
+  // leg is in its window.
+  if (state === 'granted' && which === 'geolocation') tryArmGps();
+});
+
+// ---------- Landing score modal ----------
+function showLandingScore(maxG, leg) {
+  const sheet = document.querySelector('#landing-overlay .landing-sheet');
+  const gEl   = $('landing-g');
+  const vEl   = $('landing-verdict');
+  const mEl   = $('landing-meta');
+  let score = 'good', verdict = 'Good — coffee on me';
+  if (maxG == null) {
+    score = '';
+    verdict = 'No motion data — manually log if needed';
+  } else if (maxG > 1.6) {
+    score = 'poor'; verdict = 'Poor — buy the cabin coffee';
+  } else if (maxG > 1.3) {
+    score = 'ok';   verdict = 'OK — typical';
+  } else {
+    score = 'good'; verdict = 'Good — smooth touchdown';
+  }
+  sheet.dataset.score = score;
+  gEl.textContent = (maxG != null) ? maxG.toFixed(2) + ' G' : '— G';
+  vEl.textContent = verdict;
+  const d = leg?.dataCard || {};
+  const lines = [];
+  if (d.actual_flight_time) lines.push(`Actual flight time: ${d.actual_flight_time}`);
+  if (d.block_time)         lines.push(`Block: ${d.block_time}`);
+  if (d.ldg_role)           lines.push(`Landing role: ${d.ldg_role}`);
+  mEl.textContent = lines.join('\n');
+  showOverlay('landing-overlay');
+}
+$('landing-close').addEventListener('click', () => hideOverlay('landing-overlay'));
+$('landing-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'landing-overlay') hideOverlay('landing-overlay');
+});
+
+// ---------- Boot-time GPS arming + visibility handler ----------
+// Arm only when:
+//   1. We have permission already (no surprise prompts on boot).
+//   2. The active leg has a sane dep_time/arr_time window.
+//   3. "Now" sits inside [dep_time, arr_time + 30 min].
+// The detector itself writes takeoff_at / landing_at to leg.dataCard so a
+// reload mid-flight resumes from the right phase.
+function activeLegInWindow() {
+  const leg = storage.getLeg();
+  if (!leg) return null;
+  const depIso = utcLegDate(leg.dep_date, leg.dep_time);
+  const arrIso = utcLegDate(leg.arr_date, leg.arr_time);
+  if (!depIso || !arrIso) return null;
+  const now = Date.now();
+  const dep = Date.parse(depIso);
+  const arr = Date.parse(arrIso) + 30 * 60 * 1000; // +30 min taxi-in
+  if (!Number.isFinite(dep) || !Number.isFinite(arr)) return null;
+  return (now >= dep - 30 * 60 * 1000 && now <= arr) ? leg : null;
+}
+function utcLegDate(ddmm, hhmm) {
+  if (!ddmm || !hhmm) return '';
+  const [dd, mm] = String(ddmm).split('.');
+  if (!dd || !mm) return '';
+  const y = new Date().getUTCFullYear();
+  return `${y}-${mm}-${dd}T${hhmm}:00Z`;
+}
+
+async function tryArmGps() {
+  const leg = activeLegInWindow();
+  if (!leg) return;
+  const { gps, g } = await loadSensorMods();
+  const state = await gps.requestPermission();
+  if (state !== 'granted') return;
+  if (gpsActive) gps.disarm();
+  gpsActive = true;
+  gps.arm(leg, (kind, payload) => {
+    if (kind === 'airborne') {
+      // Start motion capture for the touchdown window. Permission may not
+      // have been granted yet — start() silently no-ops if not supported.
+      g.start();
+      toast('Airborne — GPS logging flight time');
+    } else if (kind === 'landed') {
+      const peak = g.peakG(payload.landing_at, 10);
+      g.stop();
+      if (peak != null) {
+        storage.setDataField('max_g', peak.toFixed(2));
+      }
+      dataCard.render(dataBody);
+      showLandingScore(peak, storage.getLeg());
+      gpsActive = false;
+    } else if (kind === 'error') {
+      console.warn('GPS detector error', payload);
+    }
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') tryArmGps();
+});
+// Boot — fire after the initial auto-jump so the leg is settled.
+setTimeout(tryArmGps, 2_000);
 
 // ---------- Live ATIS / METAR popup ----------
 let wxRefreshTimer = null;
