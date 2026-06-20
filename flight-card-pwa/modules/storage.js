@@ -721,12 +721,11 @@ export function displayCrew(name) {
   return (nick && nick.trim()) || k;
 }
 
-// Walk every stored leg (current + history) for the most recent leg
-// that named `name`. Used by the "last flight with" popover. Returns
-// null when this is the first leg with them.
-export function lastLegWith(name) {
+// Walk every stored leg (current + history) and return ALL legs that
+// named `name`. Most recent first. Used by the "last flight with" popup.
+export function allLegsWith(name) {
   const k = canon(name);
-  if (!k) return null;
+  if (!k) return [];
   const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
   const namesInLeg = (leg) => {
     const set = new Set();
@@ -744,10 +743,12 @@ export function lastLegWith(name) {
   // Sort by dep_date+dep_time DESC, fall back to lexical so legs with no
   // schedule still come through stable.
   allLegs.sort((a, b) => (depTs(b) || 0) - (depTs(a) || 0));
-  for (const leg of allLegs) {
-    if (namesInLeg(leg).has(k)) return leg;
-  }
-  return null;
+  return allLegs.filter(leg => namesInLeg(leg).has(k));
+}
+
+// Convenience wrapper — kept for callers that just want the most-recent.
+export function lastLegWith(name) {
+  return allLegsWith(name)[0] || null;
 }
 
 // ---------- Legs (multi-flight roster) ----------
@@ -947,6 +948,119 @@ function mergeLeg(target, source) {
   for (const k of ['flight','tail','dep','arr','flight_time','ctot']) {
     if (target[k] != null && target[k] !== '') target.dataCard[k] = target[k];
   }
+}
+
+// Authoritative calendar sync — calendar is the source of truth for
+// roster-style legs (those carrying a flight number AND a dep_date).
+//
+// Steps:
+//   1. appendLegs(incoming) — dedupe + merge as before.
+//   2. PRUNE: any leg that's roster-shaped (has both flight + dep_date)
+//      but NOT in the incoming set gets removed. Manually-typed legs
+//      (no dep_date) are spared — those came from the pilot, not ops.
+//   3. ARCHIVE: any leg whose arr_time was > 24h ago gets moved into
+//      a history record so the active leg list stays focused on the
+//      "now / soon" duty period without losing the logbook trail.
+//
+// Returns { index, added, replaced, pruned, archived } so the UI can
+// craft an honest summary toast.
+export function syncFromCalendar(incoming) {
+  const append = appendLegs(incoming || []);
+
+  // --- Prune ---
+  const c = read().current;
+  const incomingKeys = new Set(
+    (Array.isArray(incoming) ? incoming : [])
+      .map(l => fingerprintLeg(l))
+      .filter(Boolean)
+  );
+  let pruned = 0;
+  if (incomingKeys.size) {
+    const keep = [];
+    const prunedIdxs = [];
+    (c.legs || []).forEach((leg, i) => {
+      const fp = fingerprintLeg(leg);
+      // No fingerprint = manually entered → always keep.
+      if (!fp) { keep.push(leg); return; }
+      if (incomingKeys.has(fp)) { keep.push(leg); return; }
+      prunedIdxs.push(i);
+      pruned++;
+    });
+    if (pruned) {
+      c.legs = keep;
+      // If the active leg got pruned, snap to the closest remaining one.
+      if (c.legIndex >= keep.length) c.legIndex = Math.max(0, keep.length - 1);
+    }
+  }
+
+  // --- Archive past legs ---
+  const ARCHIVE_CUTOFF_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const stillActive = [];
+  const toArchive   = [];
+  for (const leg of c.legs || []) {
+    const arrAt = arrTs(leg);
+    if (Number.isFinite(arrAt) && now - arrAt > ARCHIVE_CUTOFF_MS) {
+      toArchive.push(leg);
+    } else {
+      stillActive.push(leg);
+    }
+  }
+  let archived = 0;
+  if (toArchive.length) {
+    const s = read();
+    if (!Array.isArray(s.history)) s.history = [];
+    // One synthetic flight record for this sync's archived batch — keeps
+    // history.length manageable across many syncs.
+    s.history.unshift({
+      id: 'h-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+      started: depTs(toArchive[0]) || Date.now(),
+      ended:   arrTs(toArchive[toArchive.length - 1]) || Date.now(),
+      legs:    toArchive,
+      dataCard: {}, ticks: {}, notes: {},
+      archivedAt: now,
+    });
+    s.history = s.history.slice(0, HISTORY_MAX);
+    c.legs = stillActive;
+    if (c.legIndex >= stillActive.length) {
+      c.legIndex = Math.max(0, stillActive.length - 1);
+    }
+    archived = toArchive.length;
+  }
+
+  scheduleWrite();
+  return {
+    index:    c.legIndex,
+    added:    append.added,
+    replaced: append.replaced,
+    pruned,
+    archived,
+  };
+}
+
+// Stable fingerprint for a roster-shaped leg — used by syncFromCalendar's
+// prune step. Manually-typed legs (no dep_date) return '' so they're
+// always kept. The flight number is digit-only so leading zeros + LY/ELY
+// prefix differences don't cause spurious mismatches.
+function fingerprintLeg(leg) {
+  const flight = String(leg?.flight || '').replace(/\D/g, '').replace(/^0+/, '');
+  const date   = String(leg?.dep_date || '');
+  if (!flight || !date) return '';
+  return `${flight}@${date}`;
+}
+
+function arrTs(leg) {
+  const d = leg?.arr_date, t = leg?.arr_time;
+  if (!d || !t) return NaN;
+  const dm = d.split('.');
+  if (dm.length !== 2) return NaN;
+  const y = new Date().getUTCFullYear();
+  let ts = Date.parse(`${y}-${dm[1]}-${dm[0]}T${t}:00Z`);
+  if (!Number.isFinite(ts)) return NaN;
+  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
+    ts = Date.parse(`${y + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
+  }
+  return ts;
 }
 
 // Delete a single leg by index. Adjusts legIndex if the deleted leg was

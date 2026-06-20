@@ -649,6 +649,26 @@ body.is-past-leg #card-checklist {
 .an-g-count { font-size: 11px; color: var(--fg-mute); }
 .an-delta { margin-top: 10px; font-size: 13px; color: var(--fg-mute); text-align: center; }
 
+/* Crew "Flights together" popup — fires from the ⏱ chip on a crew cell. */
+.crewlog-body { padding: 6px 4px 8px; }
+.crewlog-empty, .crewlog-count { margin: 4px 4px 10px; }
+.crewlog-list { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow: auto; }
+.crewlog-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+.crewlog-flight { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.crewlog-route  { font-weight: 600; font-variant-numeric: tabular-nums; }
+.crewlog-date   { color: var(--fg-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+.crewlog-role   { grid-column: 1 / -1; font-size: 11px; color: var(--fg-mute); }
+
 /* ---------- Checklist ---------- */
 .cl-section {
   margin: 0 0 8px;
@@ -899,6 +919,13 @@ body.is-past-leg #card-checklist {
   width: 100%;
 }
 .cal-url:focus { outline: none; border-color: var(--accent); }
+/* Labelled row for the duty / logbook URLs in Settings. */
+.cal-row { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.cal-row-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
 .cal-status {
   margin: 0; min-height: 16px;
 }
