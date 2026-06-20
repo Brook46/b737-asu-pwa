@@ -461,6 +461,44 @@ body.is-past-leg #card-checklist {
 .crew-chip-wa { color: #25d366; }
 .crew-chip-wa svg { display: block; }
 
+/* Block-time cell: visually distinct from the editable Flight time / Actual
+   so the pilot knows it's the sticky scheduled snapshot. */
+.data-cell input[data-key="block_time"][readonly] {
+  color: var(--fg-mute);
+  cursor: default;
+}
+
+/* PF / PM tri-state cell — same dimensions as a wide data-cell, with a
+   colour-coded pill (PF green, PM amber, '—' neutral). */
+.data-cell.role-cell {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.role-pill {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font: inherit; font-size: 13px; font-weight: 700;
+  letter-spacing: .06em;
+  cursor: pointer;
+  color: var(--fg-mute);
+  min-width: 56px;
+  text-align: center;
+}
+.role-cell.is-pf .role-pill {
+  background: var(--green-soft, rgba(46,168,138,0.18));
+  border-color: var(--good, #2ea88a);
+  color: var(--good, #2ea88a);
+}
+.role-cell.is-pm .role-pill {
+  background: var(--warm-soft, rgba(255,169,77,0.18));
+  border-color: var(--warm, #ffa94d);
+  color: var(--warm, #ffa94d);
+}
+.role-cell.is-none .role-pill { opacity: .7; }
+
 /* ---------- Checklist ---------- */
 .cl-section {
   margin: 0 0 8px;

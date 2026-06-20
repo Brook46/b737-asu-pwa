@@ -43,7 +43,12 @@ const KEY = 'fc.state';
 // pre-seeds empty entries so the analytics flight-count is accurate.
 // Also drops the 3h crew/flight_time merge lock — calendar always wins
 // going forward.
-const VERSION = 13;
+// v14: per-leg logbook fields land in dataCard: block_time (scheduled,
+// pinned at first sync), actual_flight_time (HH:MM, GPS or manual),
+// to_role / ldg_role (PF / PM / ''), max_g (peak landing G). Migration
+// seeds block_time = current flight_time on every existing leg so the
+// logbook export has consistent block numbers from day one.
+const VERSION = 14;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -370,6 +375,23 @@ function migrate(s) {
       }
     } else {
       flipBag(current.dataCard);
+    }
+  }
+  // v13 → v14: seed block_time = current flight_time on every existing leg.
+  // The logbook export reads block_time as the authoritative scheduled block,
+  // so back-filling now keeps history honest. Idempotent via the s.v < 14 gate.
+  if (s.v && s.v < 14) {
+    if (current.legs.length) {
+      for (const leg of current.legs) {
+        leg.dataCard = leg.dataCard || {};
+        if (!leg.dataCard.block_time) {
+          leg.dataCard.block_time = leg.flight_time || (leg.dataCard.flight_time || '');
+        }
+      }
+    } else if (current.dataCard) {
+      if (!current.dataCard.block_time) {
+        current.dataCard.block_time = current.dataCard.flight_time || '';
+      }
     }
   }
   // v12 → v13: seed the global crew registry from every existing leg's crew
@@ -747,6 +769,14 @@ export function appendLegs(newLegs) {
     if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
     if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
     if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
+    // Logbook fields: block_time is the *scheduled* block snapshot —
+    // captured once when the leg is first seen and never updated by
+    // subsequent calendar syncs. mergeLeg's dataCard-wins rule explicitly
+    // skips it (see mergeLeg). actual_flight_time / to_role / ldg_role /
+    // max_g start empty; Phase 4's GPS detector fills them.
+    if (!leg.dataCard.block_time) {
+      leg.dataCard.block_time = leg.flight_time || leg.dataCard.flight_time || '';
+    }
     for (const k of SEED_KEYS) {
       if (leg.dataCard[k] == null && leg[k] != null && leg[k] !== '') {
         leg.dataCard[k] = leg[k];
@@ -844,9 +874,12 @@ function mergeLeg(target, source) {
   for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
-  // dataCard merge — incoming wins per key for non-empty values.
+  // dataCard merge — incoming wins per key for non-empty values, EXCEPT
+  // block_time: it's the scheduled-block snapshot taken when the leg first
+  // appeared, and shouldn't shift if dispatch later edits flight_time.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
+    if (k === 'block_time' && target.dataCard.block_time) continue;
     if (v != null && v !== '') target.dataCard[k] = v;
   }
   // Ticks: union — a tick on either side stays. Otherwise an incoming
