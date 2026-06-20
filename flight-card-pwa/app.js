@@ -1346,6 +1346,12 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-wx-open]');
   if (btn && !btn.disabled) openWx();
 });
+// Big letter tap → toggle the manual A–Z strip back into view (override).
+$('wx-letter').addEventListener('click', () => {
+  const popup = document.getElementById('wx-overlay');
+  if (!popup) return;
+  popup.classList.toggle('wx-show-manual');
+});
 $('wx-close').addEventListener('click', closeWx);
 $('wx-overlay').addEventListener('click', (e) => { if (e.target.id === 'wx-overlay') closeWx(); });
 $('wx-refresh').addEventListener('click', () => loadWx({ force: true }));
@@ -1468,6 +1474,8 @@ async function openWx() {
 }
 
 function closeWx() {
+  // Reset the manual-override hint so the next open starts in default mode.
+  document.getElementById('wx-overlay')?.classList.remove('wx-show-manual');
   // Persist whichever source the popup last showed onto the data card so the
   // ATIS chip on the main screen flips to that airport. Latest-source-wins
   // semantics — one chip, one ICAO + letter at a time.
@@ -1533,6 +1541,11 @@ function paintWx({ icao, letter, metar, taf, datis, ts, datisText }) {
   wxLetterEl.textContent = letter || '—';
   wxLetterEl.classList.toggle('is-unread', !!letter && !read);
   wxLetterEl.classList.toggle('is-empty', !letter);
+  // Hide the manual A–Z chip strip when D-ATIS has already supplied a letter
+  // — the strip is fallback noise in that case. Reveal it again on tap of
+  // the big letter via the override toggle below.
+  const popup = document.getElementById('wx-overlay');
+  if (popup) popup.classList.toggle('wx-has-letter', !!letter);
   // Keep the manual chip strip in sync with whatever letter the popup is
   // currently showing, regardless of which source feeds it.
   syncChipHighlight();

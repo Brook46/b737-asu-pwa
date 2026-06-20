@@ -1167,6 +1167,15 @@ body.is-past-leg #card-checklist {
   background: var(--bg-sunk);
   border-radius: 12px;
 }
+/* Hide the A–Z strip when D-ATIS has already supplied a live letter — it
+   becomes redundant noise. The big letter is tappable to override (see
+   wx-letter-override-hint), which un-hides the strip. */
+#wx-overlay.wx-has-letter:not(.wx-show-manual) .wx-chips { display: none; }
+#wx-overlay #wx-letter { cursor: pointer; }
+#wx-overlay #wx-letter:not(.is-empty)::after {
+  content: '';
+  display: none;  /* keep markup-free; the cursor + title hint do the work */
+}
 .wx-section { display: flex; flex-direction: column; gap: 4px; }
 .wx-section-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
@@ -1563,6 +1572,30 @@ body.is-past-leg #card-checklist {
   max-width: 280px;
 }
 .pa-title-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Inline pin toggle — sits next to the PA title. Outline state by default,
+   filled accent when pinned. Same chip shows in edit mode too. */
+.pa-pin, .cl-pin {
+  -webkit-appearance: none; appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+  opacity: .55;
+  vertical-align: middle;
+}
+.pa-pin.is-on, .cl-pin.is-on {
+  opacity: 1;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pa-title-name { vertical-align: middle; }
+/* Checklist edit row: section + item pin sits right of the rename input. */
+.cl-pin { padding: 2px 6px; }
 
 /* ---------- PA: reorder buttons + @-token insert chips ---------- */
 .pa-move {

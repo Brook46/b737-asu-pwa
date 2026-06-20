@@ -282,30 +282,51 @@ function migrate(s) {
   // reseed rather than preserving customisations because each rewrite
   // was an explicit user ask. (User-renamed PAs would be lost on those
   // bumps; once the library stabilises this can become opt-in.)
+  // Pinned PAs — see setSpeechPinned. We preserve them verbatim across
+  // every reseed / patch path below. Match by id first, then by name so
+  // a user-renamed pin still survives.
+  const pinnedSpeeches = (Array.isArray(s.speeches) ? s.speeches : [])
+    .filter(sp => sp && sp.pinned);
+  const isPinnedRef = (sp) => pinnedSpeeches.some(p =>
+    (sp.id && p.id === sp.id) || (sp.name && p.name === sp.name));
   const reseedSpeeches = !s.v || s.v < 10;
-  const upgradedSpeeches = reseedSpeeches
-    ? clone(DEFAULT_SPEECHES)
-    : (Array.isArray(s.speeches) && s.speeches.length)
-      ? s.speeches.map(sp => {
-          if (sp.bodyEn || sp.bodyHe) return sp;
-          const dflt = DEFAULT_SPEECHES.find(d => d.name === sp.name);
-          return {
-            id: sp.id,
-            name: sp.name || 'PA',
-            bodyEn: sp.body || dflt?.bodyEn || '',
-            bodyHe: dflt?.bodyHe || '',
-          };
-        })
-      : clone(DEFAULT_SPEECHES);
+  let upgradedSpeeches;
+  if (reseedSpeeches) {
+    // Pinned items survive the wholesale reseed; the rest comes from
+    // DEFAULT_SPEECHES in the new order.
+    const defaults = clone(DEFAULT_SPEECHES);
+    if (pinnedSpeeches.length) {
+      // Drop defaults that the user pinned a custom version of (match by
+      // id/name) so we don't end up with two Welcome rows.
+      const filteredDefaults = defaults.filter(d => !isPinnedRef(d));
+      upgradedSpeeches = clone(pinnedSpeeches).concat(filteredDefaults);
+    } else {
+      upgradedSpeeches = defaults;
+    }
+  } else if (Array.isArray(s.speeches) && s.speeches.length) {
+    upgradedSpeeches = s.speeches.map(sp => {
+      if (sp.bodyEn || sp.bodyHe) return sp;
+      const dflt = DEFAULT_SPEECHES.find(d => d.name === sp.name);
+      return {
+        id: sp.id,
+        name: sp.name || 'PA',
+        bodyEn: sp.body || dflt?.bodyEn || '',
+        bodyHe: dflt?.bodyHe || '',
+        pinned: !!sp.pinned,
+      };
+    });
+  } else {
+    upgradedSpeeches = clone(DEFAULT_SPEECHES);
+  }
   // v10 → v11: targeted patch — overwrite the existing Welcome's body with
   // the new El Al house-style wording, and insert IOE right after Welcome
   // if the user doesn't already have it. Anything the user has renamed or
-  // added between Welcome and IOE is preserved.
+  // added between Welcome and IOE is preserved. Pinned PAs are skipped.
   if (!reseedSpeeches && s.v < 11) {
     const dfltWelcome = DEFAULT_SPEECHES.find(d => d.id === 'sp-welcome');
     const dfltIoe     = DEFAULT_SPEECHES.find(d => d.id === 'sp-ioe');
     const welcomeIdx  = upgradedSpeeches.findIndex(sp => sp.id === 'sp-welcome' || sp.name === 'Welcome');
-    if (welcomeIdx >= 0 && dfltWelcome) {
+    if (welcomeIdx >= 0 && dfltWelcome && !upgradedSpeeches[welcomeIdx].pinned) {
       upgradedSpeeches[welcomeIdx] = {
         ...upgradedSpeeches[welcomeIdx],
         bodyEn: dfltWelcome.bodyEn,
@@ -437,9 +458,22 @@ function migrate(s) {
       }
     }
   }
+  // Template handling — pre-v9 stored a different shape, so wholesale
+  // reseed for s.v < 9. For modern users (v9+), preserve their template
+  // verbatim. This is what makes section/item pinning meaningful: future
+  // schema bumps that want to reseed defaults can now selectively merge
+  // unpinned items only.
+  let upgradedTemplate;
+  if (!s.v || s.v < 9) {
+    upgradedTemplate = clone(DEFAULT_TEMPLATE);
+  } else if (s.template && Array.isArray(s.template.sections)) {
+    upgradedTemplate = s.template;
+  } else {
+    upgradedTemplate = clone(DEFAULT_TEMPLATE);
+  }
   return {
     v: VERSION,
-    template: clone(DEFAULT_TEMPLATE),
+    template: upgradedTemplate,
     speeches: upgradedSpeeches,
     current,
     history: Array.isArray(s.history) ? s.history : [],
@@ -471,6 +505,21 @@ export function addSection(name) {
   scheduleWrite();
   return id;
 }
+// Pin a checklist section so a future schema bump's template reseed
+// leaves it alone. Same shape as setSpeechPinned. Items have their own
+// pin flag so a user can pin "Preflight" without pinning every item
+// underneath.
+export function setSectionPinned(id, on) {
+  const sec = read().template.sections.find(x => x.id === id);
+  if (sec) { sec.pinned = !!on; scheduleWrite(); }
+}
+export function setItemPinned(id, on) {
+  for (const sec of read().template.sections) {
+    const it = sec.items.find(x => x.id === id);
+    if (it) { it.pinned = !!on; scheduleWrite(); return; }
+  }
+}
+
 export function renameSection(id, name) {
   const sec = read().template.sections.find(x => x.id === id);
   if (sec) { sec.name = name; scheduleWrite(); }
@@ -960,6 +1009,13 @@ export function addSpeech(name) {
   s.speeches.push({ id, name: name || 'New PA', bodyEn: '', bodyHe: '' });
   scheduleWrite();
   return id;
+}
+// Pin a PA so future schema bumps don't wipe it. Idempotent; default
+// state is unpinned. The migration paths that reseed DEFAULT_SPEECHES
+// honour this flag — see speechReseedRespectingPins.
+export function setSpeechPinned(id, on) {
+  const sp = read().speeches.find(x => x.id === id);
+  if (sp) { sp.pinned = !!on; scheduleWrite(); }
 }
 export function renameSpeech(id, name) {
   const sp = read().speeches.find(x => x.id === id);
