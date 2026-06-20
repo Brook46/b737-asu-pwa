@@ -65,22 +65,84 @@ function syncCardChev(target) {
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW register failed', err));
-  });
-  // When the SW updates and takes control of this page (via clients.claim()),
-  // the DOM is half-old / half-new — header icons and the checklist buttons
-  // are the visible casualties. Auto-reload exactly once so the user lands
-  // on a clean fresh shell every time the app updates, no manual refresh
-  // required. The guard prevents an infinite reload loop if iOS fires the
-  // event during boot.
+  // -------------- Robust SW update path --------------
+  // iOS Safari (especially in installed PWAs) is unreliable about
+  // (a) noticing a new sw.js, (b) firing controllerchange, and (c) honoring
+  // skipWaiting() called from install. Without belt-AND-braces the pilot
+  // ends up with a half-old/half-new shell after every deploy and most
+  // buttons appear frozen. We layer four mechanisms:
+  //
+  //   1. Register, then poll reg.update() every 5 min while the app is
+  //      open AND every time the tab becomes visible.
+  //   2. On `updatefound`, watch the installing SW. The moment it hits
+  //      'installed' (with a current controller present, i.e. there's an
+  //      OLD SW), post { type: 'SKIP_WAITING' } so the new SW transitions
+  //      to active instead of sitting in `waiting` forever.
+  //   3. When the new SW takes over, controllerchange fires → auto-reload.
+  //   4. As a fallback the user can always see, surface a tiny floating
+  //      "🔄 New version — tap to reload" banner so a single tap finishes
+  //      the job manually if iOS swallows controllerchange.
   let __fcReloadingForSwUpdate = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  const reloadOnce = () => {
     if (__fcReloadingForSwUpdate) return;
     __fcReloadingForSwUpdate = true;
-    // Tiny defer so any in-flight storage write can flush before we go.
     setTimeout(() => window.location.reload(), 60);
+  };
+
+  function showUpdateBanner() {
+    if (document.getElementById('fc-update-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'fc-update-banner';
+    banner.className = 'fc-update-banner';
+    banner.setAttribute('role', 'status');
+    banner.innerHTML = '🔄 <span>New version ready</span> <button type="button" class="fc-update-btn">Reload</button>';
+    banner.querySelector('button').addEventListener('click', reloadOnce);
+    document.body.appendChild(banner);
+  }
+
+  function activateWaitingSW(reg) {
+    const waiting = reg?.waiting;
+    if (!waiting) return false;
+    try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch {}
+    showUpdateBanner();
+    return true;
+  }
+
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+
+      // Immediate update check at boot.
+      try { await reg.update(); } catch {}
+
+      // Refresh every 5 min so long-lived sessions still notice deploys.
+      setInterval(() => { try { reg.update(); } catch {} }, 5 * 60 * 1000);
+      // And whenever the tab returns to the foreground.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          try { reg.update(); } catch {}
+        }
+      });
+
+      // Already a waiting SW at boot? (Happens when the previous launch
+      // installed v(N+1) but the user closed the app before controllerchange.)
+      activateWaitingSW(reg);
+
+      // When the registration notices an installing SW, watch it through
+      // to 'installed' and then either auto-skip or surface the banner.
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            activateWaitingSW(reg);
+          }
+        });
+      });
+    } catch (err) { console.warn('SW register failed', err); }
   });
+
+  navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
 }
 
 // ---------- Render shell ----------

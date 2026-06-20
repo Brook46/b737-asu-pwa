@@ -926,6 +926,42 @@ body.is-past-leg #card-checklist {
   text-transform: uppercase;
   color: var(--fg-mute);
 }
+
+/* Update banner — drops in when a new SW is waiting. Pinned to the top so
+   it stays accessible even when the data card / checklist event handlers
+   are frozen mid-version. Very high z-index so it sits above every
+   overlay we currently render. */
+.fc-update-banner {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  animation: fc-update-pop .25s ease;
+}
+.fc-update-btn {
+  -webkit-appearance: none; appearance: none;
+  background: #fff;
+  color: var(--accent);
+  border: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.fc-update-btn:active { background: rgba(255,255,255,0.85); }
+@keyframes fc-update-pop {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
 .cal-status {
   margin: 0; min-height: 16px;
 }
