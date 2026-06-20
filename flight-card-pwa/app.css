@@ -429,23 +429,26 @@ body.is-past-leg #card-checklist {
   background: var(--accent-soft);
 }
 
-/* Per-crew chip row: ✎ edit · 💬 WhatsApp · ⏱ last flight. Sits below the
-   input on any crew cell that holds a non-empty name. */
+/* Crew cells render the name input + action chips in a single row so the
+   chips sit at the right edge level with the name. */
+.crew-row {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+}
+.crew-row input { flex: 1; min-width: 0; }
 .crew-chips {
-  display: flex; gap: 6px;
-  margin-top: 6px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--line-soft);
+  display: flex; gap: 4px;
+  flex-shrink: 0;
 }
 .crew-chip {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-elev);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  width: 32px; height: 28px;
+  border-radius: 7px;
+  width: 28px; height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0;
-  font-size: 13px; line-height: 1;
+  font-size: 12px; line-height: 1;
   cursor: pointer;
   color: var(--fg);
   -webkit-user-select: none;
@@ -456,6 +459,7 @@ body.is-past-leg #card-checklist {
 .crew-chip.has-nick { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .crew-chip.is-disabled { opacity: .35; cursor: default; }
 .crew-chip-wa { color: #25d366; }
+.crew-chip-wa svg { display: block; }
 
 /* ---------- Checklist ---------- */
 .cl-section {

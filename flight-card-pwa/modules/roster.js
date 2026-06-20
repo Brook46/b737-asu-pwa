@@ -29,6 +29,32 @@ const FLIGHT_LINE_RE   = /^(\d+)\)\s+(\d{3,4})\s+([A-Z0-9]{2,4})\s+([A-Z]{3})-([
 const TIME_BLOCK_RE    = /(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*-\s*(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*,\s*(\d{1,2}:\d{2})/;
 const CABIN_LINE_RE    = /^OPR\s+\d+\s+(PUR|ST|JU|SR|SCM)\s+(.+?)(?:\s{2,}|\s+\[|$)/i;
 const NEW_FLIGHT_START = /^\d+\)\s+\d{3,4}\s+/;
+// The roster line tail looks like  `[phone:0547450555,REQ ...]`. The phone
+// is the part between `phone:` and the next comma/bracket. We grab the raw
+// digits then normaliseIsraeliPhone() converts to E.164.
+const PHONE_RE         = /\[\s*phone:\s*([+\d][\d\s-]{6,})/i;
+
+// Israeli mobiles in the roster come as `0547450555` (10 digits starting 0).
+// E.164 wants `+972541234567` — strip the leading 0, prepend +972. Numbers
+// already in E.164 (starting with +) pass through after digit-stripping;
+// anything else is returned with only the digits kept.
+function normaliseIsraeliPhone(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  if (s.startsWith('+')) return '+' + s.slice(1).replace(/\D/g, '');
+  const digits = s.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) return '+972' + digits.slice(1);
+  return digits;
+}
+
+// Pull `[phone:0547450555,...]` from a roster line and normalise. Empty
+// string when the line has no phone, which is fine — the registry just
+// doesn't get a phone for that person until a future sync supplies one.
+function extractPhone(line) {
+  const m = PHONE_RE.exec(line);
+  return m ? normaliseIsraeliPhone(m[1]) : '';
+}
 
 function isRoster(text) {
   return ROSTER_MARKERS.some(re => re.test(text));
@@ -74,8 +100,12 @@ export function parseRoster(text) {
   if (!isRoster(text)) return null;
   const lines = String(text).split(/\r?\n/);
 
-  // 1) Cockpit block — CPT + FO are duty-wide.
+  // 1) Cockpit block — CPT + FO are duty-wide. Phones get collected into a
+  // duty-wide phone map keyed by canonical (FIRSTNAME SURNAME) so the cabin
+  // loop below can extend it for each leg's cabin crew.
   let cpt = '', fo = '';
+  let cptPhone = '', foPhone = '';
+  const phones = {}; // { CANONICAL_NAME: '+972...' }
   let inCockpit = false;
   for (const raw of lines) {
     const line = raw.trim();
@@ -88,9 +118,10 @@ export function parseRoster(text) {
         const m = COCKPIT_LINE_RE.exec(line);
         if (m) {
           const role = m[1].toUpperCase();
-          const name = m[2].trim();
-          if (role === 'CAP' || role === 'CPT')          cpt = flipName(name);
-          else if (role === 'FO' || role === 'F/O' || role === 'FC') fo = flipName(name);
+          const flipped = flipName(m[2].trim());
+          const phone = extractPhone(line);
+          if (role === 'CAP' || role === 'CPT') { cpt = flipped; cptPhone = phone; if (phone) phones[flipped.toUpperCase()] = phone; }
+          else if (role === 'FO' || role === 'F/O' || role === 'FC') { fo = flipped; foPhone = phone; if (phone) phones[flipped.toUpperCase()] = phone; }
         }
       }
     }
@@ -141,7 +172,12 @@ export function parseRoster(text) {
     if (cur) {
       // Stop accepting cabin lines once we hit the next flight row (handled above)
       const cm = CABIN_LINE_RE.exec(line);
-      if (cm) cur.cabin.push(flipName(cm[2]));
+      if (cm) {
+        const flipped = flipName(cm[2]);
+        cur.cabin.push(flipped);
+        const phone = extractPhone(line);
+        if (phone) phones[flipped.toUpperCase()] = phone;
+      }
     }
   }
   if (cur) flights.push(cur);
@@ -156,7 +192,7 @@ export function parseRoster(text) {
     delete f.cabin;
   }
 
-  return { flights, cpt, fo };
+  return { flights, cpt, fo, phones };
 }
 
 // ---------- JSON roster shape ----------
