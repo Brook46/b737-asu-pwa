@@ -117,14 +117,14 @@ if ('serviceWorker' in navigator) {
 
       // Refresh every 5 min so long-lived sessions still notice deploys.
       setInterval(() => { try { reg.update(); } catch {} }, 5 * 60 * 1000);
-      // And whenever the tab returns to the foreground.
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-          try { reg.update(); } catch {}
-        }
-      });
 
-      // --- Auto-reload after backgrounding --------------------------------
+      // --- Consolidated visibilitychange listener (SW scope) -------------
+      // Was three separate listeners (SW update poll, long-resume auto-
+      // reload, calendar sync — calendar moved to the module-level handler
+      // below). Each branch runs in its own try/catch so a fault in one
+      // can't shadow the others. Smaller listener count == smaller target
+      // for iOS PWA suspension to detach.
+      //
       // iOS's PWA lifecycle aggressively suspends backgrounded apps. When
       // the pilot reopens it after even a few minutes, the JS context can
       // be alive but the top-level addEventListener handlers get detached
@@ -136,14 +136,21 @@ if ('serviceWorker' in navigator) {
       const LONG_AWAY_MS = 5 * 60 * 1000;
       let lastHiddenAt = 0;
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          lastHiddenAt = Date.now();
+        const visible = document.visibilityState === 'visible';
+        if (!visible) {
+          try { lastHiddenAt = Date.now(); } catch {}
           return;
         }
-        if (!lastHiddenAt) return; // first foreground after load — skip
-        const awayMs = Date.now() - lastHiddenAt;
-        lastHiddenAt = 0;
-        if (awayMs > LONG_AWAY_MS) reloadOnce();
+        // SW update check on foreground.
+        try { reg.update(); } catch (err) { console.warn('reg.update skipped', err); }
+        // Long-resume auto-reload.
+        try {
+          if (lastHiddenAt) {
+            const awayMs = Date.now() - lastHiddenAt;
+            lastHiddenAt = 0;
+            if (awayMs > LONG_AWAY_MS) reloadOnce();
+          }
+        } catch (err) { console.warn('long-resume reload skipped', err); }
       });
 
       // --- pageshow + bfcache ----------------------------------------------
@@ -173,6 +180,51 @@ if ('serviceWorker' in navigator) {
   });
 
   navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+
+  // -------------- Freeze detector --------------
+  // The "top buttons frozen, body buttons still work" pattern means iOS
+  // suspended us and detached top-level event listeners. Pure passive
+  // intervals (the 1-second clock tick) usually keep running, but
+  // user-driven events don't reach our handlers. We watch for that
+  // exact mismatch.
+  //
+  // Heartbeat: every pointerdown / click / keydown / fresh-visible updates
+  // lastInteractionAt. A separate touchstart updates a wantInteractAt
+  // timestamp — set ONLY when the pilot's finger touches the screen. If
+  // the wantInteractAt is recent (≤ 2 s) but lastInteractionAt is old
+  // (> 3 min), the screen is being tapped but no JS sees the events:
+  // that's the freeze. Force reload.
+  //
+  // Conservative thresholds — an idle pilot reading the data card won't
+  // trip it (no touches → no wantInteractAt update → no detection).
+  let lastInteractionAt = Date.now();
+  let wantInteractAt    = 0;
+  const interactionEvents = ['pointerdown', 'click', 'keydown'];
+  for (const t of interactionEvents) {
+    document.addEventListener(t, () => { lastInteractionAt = Date.now(); }, true);
+  }
+  // touchstart is the "pilot is trying to interact" signal — it fires from
+  // the browser's event dispatch even when our addEventListener handlers
+  // have been detached.
+  document.addEventListener('touchstart', () => {
+    wantInteractAt = Date.now();
+    lastInteractionAt = Date.now();
+  }, true);
+  const FREEZE_STALE_MS  = 3 * 60 * 1000;
+  const FREEZE_RECENT_MS = 2 * 1000;
+  setInterval(() => {
+    try {
+      if (document.visibilityState !== 'visible') return;
+      if (!document.hasFocus()) return;
+      const now = Date.now();
+      const stale  = now - lastInteractionAt > FREEZE_STALE_MS;
+      const tryingNow = now - wantInteractAt < FREEZE_RECENT_MS;
+      if (stale && tryingNow) {
+        console.warn('[fc] freeze detector tripped — reloading');
+        reloadOnce();
+      }
+    } catch {}
+  }, 30 * 1000);
 
   // Manual escape hatch: long-press the UTC clock (≥ 800 ms) → force reload.
   // The clock is a static <span> with no other event handlers, so this stays
@@ -213,7 +265,13 @@ consumeRosterFromUrl();
 // Auto-jump to the leg whose dep → arr+20m window contains "now". 30-second
 // cooldown via fc.state.lastBootJumpAt so a quick reload doesn't fight a
 // user who just manually picked a different leg.
-maybeAutoJumpToCurrentLeg();
+//
+// Deferred to a microtask: the function + its BOOT_JUMP_COOLDOWN_MS const are
+// declared further down in this file. Calling synchronously here trips a TDZ
+// ReferenceError that **halts the rest of module evaluation** — every
+// addEventListener past this point silently never runs. That was the real
+// cause of the "top buttons frozen" symptom, not iOS PWA suspension.
+queueMicrotask(maybeAutoJumpToCurrentLeg);
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -321,9 +379,8 @@ function syncSummary({ added, replaced, pruned }) {
   if (!parts.length) return 'Up to date';
   return parts.join(' · ');
 }
-$('leg-prev').addEventListener('click', () => applyLeg(storage.getLegIndex() - 1));
-$('leg-next').addEventListener('click', () => applyLeg(storage.getLegIndex() + 1));
-$('leg-now').addEventListener('click',  () => applyLeg(pickLegForNow()));
+// leg-prev / leg-next / leg-now are routed via the top-level click dispatch
+// (data-action="leg-prev" / "leg-next" / "leg-now").
 
 // Auto-jump to the current-time leg on app launch. Skipped if the user
 // manually picked a different leg within the cooldown — that avoids the
@@ -838,9 +895,7 @@ hdrCtot.addEventListener('input', () => {
 // Wire the alerts bell. Tap behaviour is split out into onBellTap so
 // every error path is contained — a permission-related throw can never
 // take down the rest of app.js wiring.
-$('hdr-ctot-bell').addEventListener('click', () => {
-  try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); }
-});
+// hdr-ctot-bell is routed via the top-level click dispatch (data-action="ctot-bell").
 // Paint the bell once on load so its icon reflects current permission
 // + opt-in state (the user may already have granted permission from a
 // previous session).
@@ -852,10 +907,84 @@ function formatHHMM(raw) {
   return digits.slice(0, digits.length - 2) + ':' + digits.slice(-2);
 }
 
+// ---------- Top-level click dispatch ----------
+// One document-level capture-phase delegate handles every button outside
+// the data card / checklist bodies. Replaces ~12 boot-time
+// `$('id').addEventListener('click', fn)` calls with one. iOS PWA
+// suspension can detach element-bound listeners (the "top buttons frozen,
+// inside-card buttons still work" pattern the pilot reports). A single
+// document-level listener is a much smaller target — one survivor
+// instead of twelve separate points of failure.
+const TOP_ACTIONS = {
+  'theme':           () => cycleTheme(),
+  'new-flight':      () => showOverlay('newflight-overlay'),
+  'data-reset-all':  () => doDataResetAll(),
+  'checklist-reset': () => doChecklistReset(),
+  'checklist-edit':  () => doChecklistEditToggle(),
+  'fr24':            () => doFr24(),
+  'pa-toggle':       () => speeches.open(),
+  'settings':        () => openSettingsSheet(),
+  'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
+  'leg-now':         () => applyLeg(pickLegForNow()),
+  'leg-next':        () => applyLeg(storage.getLegIndex() + 1),
+  'ctot-bell':       () => { try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); } },
+};
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const fn = TOP_ACTIONS[btn.dataset.action];
+  if (!fn) return;
+  e.preventDefault();
+  try { fn(e, btn); } catch (err) { console.warn('top action failed', btn.dataset.action, err); }
+}, true);
+
+async function doDataResetAll() {
+  const groups = dataCard.FIELDS.filter(g => g.resettable);
+  if (!groups.length) return;
+  const names = groups.map(g => g.group).join(', ');
+  if (!confirm(`Reset ${names}? (Flight + Crew kept.)`)) return;
+  for (const g of groups) {
+    for (const c of g.cells) storage.setDataField(c.key, '');
+  }
+  dataCard.render(dataBody);
+  speeches.notifyDataChange();
+  toast('Data card reset');
+}
+function doChecklistReset() {
+  if (!confirm('Uncheck every item on the checklist?')) return;
+  storage.resetTicks();
+  checklist.resetOverrides();
+  checklist.render(checklistBody);
+  toast('Checklist reset');
+}
+function doChecklistEditToggle() {
+  const on = !checklist.isEditMode();
+  checklist.setEditMode(on);
+  const btn = document.querySelector('[data-action="checklist-edit"]');
+  if (btn) {
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.textContent = on ? '✓' : '✎';
+    btn.title = on ? 'Done editing' : 'Edit checklist';
+  }
+  checklist.render(checklistBody);
+}
+function doFr24() {
+  const tail = storage.getCurrent().dataCard.tail || $('hdr-tail').value;
+  const reg = normaliseRegistration(tail);
+  if (!reg) { toast('Set tail # first'); return; }
+  const url = 'https://www.flightradar24.com/data/aircraft/' + encodeURIComponent(reg.toLowerCase());
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+function openSettingsSheet() {
+  showOverlay('settings-overlay');
+  try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
+  try { paintSensorsPanel(); }   catch (err) { console.warn('sensors paint skipped', err); }
+}
+
 // ---------- Header actions ----------
-$('theme-toggle').addEventListener('click', cycleTheme);
-// New Flight button → small modal: reset checklist or paste a roster
-$('new-flight').addEventListener('click', () => showOverlay('newflight-overlay'));
+// theme-toggle, new-flight, share-toggle, pa-toggle, fr24-btn → routed via
+// data-action delegate above. The remaining overlay close + roster modal
+// handlers stay direct since they live inside overlays that get re-rendered.
 $('newflight-close').addEventListener('click', () => hideOverlay('newflight-overlay'));
 $('newflight-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'newflight-overlay') hideOverlay('newflight-overlay');
@@ -879,31 +1008,9 @@ $('newflight-reset').addEventListener('click', async () => {
   toast('Reset complete');
 });
 
-// Data card head — bulk reset across every group marked `resettable: true`
-// in modules/data-card.js. By design that's SOB, ATIS, Takeoff performance,
-// and Fuel — Flight (dep/arr/flight time) and Crew survive so the
-// persistent header stays intact across a "fresh flight" reset.
-$('data-reset-all').addEventListener('click', () => {
-  const groups = dataCard.FIELDS.filter(g => g.resettable);
-  if (!groups.length) return;
-  const names = groups.map(g => g.group).join(', ');
-  if (!confirm(`Reset ${names}? (Flight + Crew kept.)`)) return;
-  for (const g of groups) {
-    for (const c of g.cells) storage.setDataField(c.key, '');
-  }
-  dataCard.render(dataBody);
-  speeches.notifyDataChange();
-  toast('Data card reset');
-});
-
-// Checklist card head — quick reset (unticks only, leaves data card alone).
-$('checklist-reset').addEventListener('click', () => {
-  if (!confirm('Uncheck every item on the checklist?')) return;
-  storage.resetTicks();
-  checklist.resetOverrides();
-  checklist.render(checklistBody);
-  toast('Checklist reset');
-});
+// data-reset-all + checklist-reset are routed via the top-level click
+// dispatch (data-action="data-reset-all" / "checklist-reset"). Logic
+// lives in doDataResetAll() / doChecklistReset() above.
 $('newflight-paste').addEventListener('click', () => {
   hideOverlay('newflight-overlay');
   $('roster-text').value = '';
@@ -950,17 +1057,9 @@ $('roster-file').addEventListener('change', async (e) => {
     toast('Could not read file: ' + (err?.message || err));
   }
 });
-$('pa-toggle').addEventListener('click', () => speeches.open());
+// pa-toggle + share-toggle are routed via the top-level click dispatch.
 
 // ---------- Settings sheet (Calendar sync + AirDrop sync + logbook + analytics) ----------
-$('share-toggle').addEventListener('click', () => {
-  showOverlay('settings-overlay');
-  // Defensive: every helper that touches the new Calendar widgets is
-  // wrapped, so a missing module or broken localStorage can't bubble up
-  // and stop the rest of the settings sheet from working.
-  try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
-  try { paintSensorsPanel(); }   catch (err) { console.warn('sensors paint skipped', err); }
-});
 $('settings-close').addEventListener('click', () => hideOverlay('settings-overlay'));
 $('settings-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'settings-overlay') hideOverlay('settings-overlay');
@@ -1122,9 +1221,8 @@ const safeAutoSync = () => {
 };
 setTimeout(safeAutoSync, 5_000);
 setInterval(safeAutoSync, 10 * 60 * 1000);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') safeAutoSync();
-});
+// calendar auto-sync runs from the consolidated module-level visibilitychange
+// listener defined below (alongside the GPS re-arm).
 
 // Filename helper — includes today's date and the active flight # if known,
 // so the receiving device can tell exports apart at a glance in the Files app.
@@ -1345,16 +1443,8 @@ function normaliseRegistration(raw) {
   if (/^[A-Z]{3}$/.test(s)) return '4X-' + s;
   return s;
 }
-$('fr24-btn').addEventListener('click', () => {
-  const tail = storage.getCurrent().dataCard.tail || $('hdr-tail').value;
-  const reg = normaliseRegistration(tail);
-  if (!reg) {
-    toast('Set tail # first');
-    return;
-  }
-  const url = 'https://www.flightradar24.com/data/aircraft/' + encodeURIComponent(reg.toLowerCase());
-  window.open(url, '_blank', 'noopener,noreferrer');
-});
+// fr24-btn is routed via the top-level click dispatch (data-action="fr24");
+// logic in doFr24() above.
 $('pa-close').addEventListener('click', () => speeches.close());
 
 $('pa-overlay').addEventListener('click', (e) => {
@@ -1499,8 +1589,14 @@ async function tryArmGps() {
     }
   });
 }
+// --- Consolidated module-level visibilitychange listener ------------------
+// Was two listeners (calendar auto-sync re-fire + GPS arm on resume). Now
+// one ordered try/catch chain. See the SW-scope handler above for the
+// other half (SW update + long-resume reload).
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') tryArmGps();
+  if (document.visibilityState !== 'visible') return;
+  try { safeAutoSync(); } catch (err) { console.warn('auto-sync skipped', err); }
+  try { tryArmGps(); }   catch (err) { console.warn('gps arm skipped', err); }
 });
 // Boot — fire after the initial auto-jump so the leg is settled.
 setTimeout(tryArmGps, 2_000);
@@ -1968,15 +2064,8 @@ document.querySelectorAll('.card-toggle').forEach(btn => {
 });
 
 // ---------- Checklist edit mode ----------
-$('checklist-edit').addEventListener('click', () => {
-  const on = !checklist.isEditMode();
-  checklist.setEditMode(on);
-  const btn = $('checklist-edit');
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-  btn.textContent = on ? '✓' : '✎';
-  btn.title = on ? 'Done editing' : 'Edit checklist';
-  checklist.render(checklistBody);
-});
+// checklist-edit is routed via the top-level click dispatch
+// (data-action="checklist-edit"); logic in doChecklistEditToggle() above.
 
 // ---------- OCR overlay ----------
 // The overlay opens via dataCard.setOnOptFmc() (wired earlier). No header
