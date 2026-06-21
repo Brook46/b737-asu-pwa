@@ -124,13 +124,16 @@ if ('serviceWorker' in navigator) {
         }
       });
 
-      // --- Auto-reload after long backgrounding ---------------------------
+      // --- Auto-reload after backgrounding --------------------------------
       // iOS's PWA lifecycle aggressively suspends backgrounded apps. When
-      // the pilot reopens it after hours away, the JS context can be alive
-      // but unresponsive — buttons frozen — until a manual reload. We catch
-      // that here: if the page was hidden for > 30 min, force a reload on
-      // return. Short Slide-Over switches (< 30 min) preserve state.
-      const LONG_AWAY_MS = 30 * 60 * 1000;
+      // the pilot reopens it after even a few minutes, the JS context can
+      // be alive but the top-level addEventListener handlers get detached
+      // while delegated handlers on re-rendered children still fire.
+      // Symptom: data card body buttons work, header + card-head buttons
+      // are frozen. Threshold tuned to be aggressive — the #hard-reload
+      // anchor in the header is the always-on backstop if a quick switch
+      // triggers an unwanted reload.
+      const LONG_AWAY_MS = 5 * 60 * 1000;
       let lastHiddenAt = 0;
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
@@ -140,11 +143,15 @@ if ('serviceWorker' in navigator) {
         if (!lastHiddenAt) return; // first foreground after load — skip
         const awayMs = Date.now() - lastHiddenAt;
         lastHiddenAt = 0;
-        if (awayMs > LONG_AWAY_MS) {
-          // Don't reload if a modal/overlay is open with unsaved input
-          // (the storage layer debounces 120 ms; let it flush).
-          reloadOnce();
-        }
+        if (awayMs > LONG_AWAY_MS) reloadOnce();
+      });
+
+      // --- pageshow + bfcache ----------------------------------------------
+      // iOS Safari can restore the page from the bfcache with persisted=true,
+      // which is the textbook "JS context alive but listeners stale" case.
+      // A reload here gives us a clean shell.
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) reloadOnce();
       });
 
       // Already a waiting SW at boot? (Happens when the previous launch
