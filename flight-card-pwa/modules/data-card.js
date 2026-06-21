@@ -45,11 +45,11 @@ export const FIELDS = [
     // Phase 4 but is also manually editable.
     { key: 'block_time',         label: 'Block',  kind: 'hhmm', readonly: true },
     { key: 'actual_flight_time', label: 'Actual', kind: 'hhmm' },
-    // Tri-state PF / PM / '' role chips. Tap cycles. Manual per leg —
-    // the GPS detector can't tell who flew the leg.
-    { key: 'to_role',  label: 'T/O',  kind: 'role', wide: true },
-    { key: 'ldg_role', label: 'LDG',  kind: 'role', wide: true },
   ]},
+  // PF / PM lives in the leg-switcher bar now (see renderLegSwitcher in
+  // app.js + the .leg-role-pill markup). Two pills next to the leg arrows
+  // are easier to spot at a glance than a row buried inside the Flight
+  // group. The dataCard fields stay the same (to_role / ldg_role).
   { id: 'g-crew',  group: 'Crew',      cells: [
     { key: 'cpt',  label: 'CPT',         kind: 'text', wide: true },
     { key: 'fo',   label: 'FO',          kind: 'text', wide: true },
@@ -58,6 +58,10 @@ export const FIELDS = [
     { key: 'cc3',  label: 'CC3',         kind: 'text', wide: true },
     { key: 'cc4',  label: 'CC4',         kind: 'text', wide: true },
     { key: 'cc5',  label: 'CC5',         kind: 'text', wide: true },
+    // Deadhead crew — positioning crew riding on this leg. Comma-separated
+    // string. Only shown when filled or when the rest of the crew row is
+    // empty (in which case all crew slots show so the user can fill them in).
+    { key: 'dh',   label: 'DH',          kind: 'text', wide: true },
   ]},
 ];
 
@@ -85,6 +89,15 @@ export function setOnChange(fn) { onChange = fn; }
 export function setOnOptFmc(fn) { onOptFmc = fn; }
 export function setOnResetGroup(fn) { onResetGroup = fn; }
 
+// Crew group: when any crew slot is filled, hide the empty ones by default
+// — the pilot wanted the box to show "all crew members and positions + DH
+// if there are any", not seven mostly-empty inputs. The "+ add" toggle in
+// the group head expands to show every slot when they need to fill in
+// another role. State is in-memory only — switching legs resets the flag,
+// which is fine because the new leg either has its own filled crew (so
+// "+ add" is needed again) or none (so all cells show automatically).
+let crewShowAll = false;
+
 export function render(root) {
   const data = storage.getCurrent().dataCard;
   const html = FIELDS.map(group => {
@@ -93,8 +106,22 @@ export function render(root) {
     // the filled count or denominator that the collapsed head shows.
     const countCells = group.cells.filter(c => c.kind !== 'metar');
     const filled = countCells.filter(c => has(data[c.key])).length;
+    // Crew group: render only filled slots when at least one is filled,
+    // unless the "+ add" toggle is on. When nothing is filled, show all so
+    // a fresh leg's crew can be typed in.
+    let renderCells = group.cells;
+    let crewAddBtn = '';
+    if (group.id === 'g-crew' && filled > 0 && !crewShowAll) {
+      renderCells = group.cells.filter(c => has(data[c.key]));
+      const hiddenCount = group.cells.length - renderCells.length;
+      if (hiddenCount > 0) {
+        crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Show ${hiddenCount} empty crew slot${hiddenCount === 1 ? '' : 's'}">+ add</button>`;
+      }
+    } else if (group.id === 'g-crew' && crewShowAll && filled > 0) {
+      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all data-collapse-empties title="Hide empty crew slots">− hide empty</button>`;
+    }
     const summary = renderSummary(group, data);
-    const cells = group.cells.map(c => renderCell(c, data[c.key])).join('');
+    const cells = renderCells.map(c => renderCell(c, data[c.key])).join('');
     const resetBtn = group.resettable
       ? `<button type="button" class="data-group-reset" data-reset-group="${group.id}" title="Reset ${escape(group.group)}" aria-label="Reset ${escape(group.group)}">↻</button>`
       : '';
@@ -111,6 +138,7 @@ export function render(root) {
           </button>
           ${resetBtn}
           ${optBtn}
+          ${crewAddBtn}
         </div>
         <div class="data-group-summary">${escape(summary)}</div>
         <div class="data-grid">${cells}</div>
@@ -434,6 +462,16 @@ function wire(root) {
       e.stopPropagation();
       e.preventDefault();
       if (onResetGroup) onResetGroup(btn.dataset.resetGroup);
+    });
+  });
+  // Crew group: "+ add" / "− hide empty" toggle — flips crewShowAll so the
+  // empty slots reveal/hide. Re-render straight away.
+  root.querySelectorAll('[data-crew-show-all]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      crewShowAll = !crewShowAll;
+      render(root);
     });
   });
   // Inline inputs (autosave on input)

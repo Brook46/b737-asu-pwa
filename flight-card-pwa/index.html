@@ -72,6 +72,18 @@
   </header>
 
   <div id="leg-switcher" class="leg-switcher hidden" role="region" aria-label="Flight leg switcher">
+    <!-- T/O & LDG role pills. Always present; renderLegSwitcher paints PF/PM/—
+         from the active leg's dataCard. data-role-key wires into the document-
+         level [data-role-key] click delegate. Moved here in Phase 13 — used to
+         live as two cells inside the Flight group of the data card. -->
+    <div class="leg-roles">
+      <button id="leg-to-role"  class="leg-role-pill is-none"
+              data-role-key="to_role"  type="button"
+              aria-label="Takeoff role: none; tap to cycle PF / PM / none">T/O&nbsp;—</button>
+      <button id="leg-ldg-role" class="leg-role-pill is-none"
+              data-role-key="ldg_role" type="button"
+              aria-label="Landing role: none; tap to cycle PF / PM / none">LDG&nbsp;—</button>
+    </div>
     <div class="leg-info">
       <span id="leg-pos"   class="leg-pos">Leg 1 / 1</span>
       <span id="leg-route" class="leg-route">—</span>
@@ -463,6 +475,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=82"></script>
+  <script type="module" src="./app.js?v=83"></script>
 </body>
 </html>
