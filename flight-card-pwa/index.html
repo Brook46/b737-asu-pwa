@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=69" />
+  <link rel="stylesheet" href="./app.css?v=84" />
 </head>
 <body>
   <header class="app-header">
@@ -396,7 +396,8 @@
           flying record.
         </p>
         <div class="settings-row-btns">
-          <button id="logbook-export" class="btn primary">Export .ics</button>
+          <button id="logbook-view"   class="btn primary">View logbook</button>
+          <button id="logbook-export" class="btn">Export .ics</button>
         </div>
       </section>
 
@@ -448,6 +449,19 @@
     </div>
   </div>
 
+  <!-- In-app Logbook overlay (Phase 14). Lists every stored leg (current
+       legs + history) newest-first. Tap a row to switch the active leg to
+       it. Lightweight read-only view — no editing, no export. -->
+  <div id="logbook-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="logbook-title">
+    <div class="ocr-sheet logbook-sheet">
+      <div class="pad-head">
+        <span id="logbook-title" class="pad-label">Logbook</span>
+        <button id="logbook-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="logbook-body" class="logbook-body"></div>
+    </div>
+  </div>
+
   <!-- Crew "last flight with" popup — opens from the ⏱ chip on any crew
        cell. Lists every leg the pilot has shared with that crew member. -->
   <div id="crewlog-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewlog-title">
@@ -475,6 +489,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=83"></script>
+  <script type="module" src="./app.js?v=84"></script>
 </body>
 </html>

@@ -602,6 +602,56 @@ body.is-past-leg #card-checklist {
 /* Analytics overlay — five colour-banded cards, inline SVG bars, no chart libs. */
 .analytics-sheet { max-width: 720px; }
 .analytics-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 8px; }
+
+/* In-app Logbook overlay (Phase 14) — read-only list of every stored leg
+   so the pilot can review history without exporting an .ics. */
+.logbook-sheet { max-width: 720px; }
+.logbook-body  { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px 8px; }
+.lb-month-h    {
+  font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fg-mute); padding: 12px 4px 2px;
+}
+.lb-row {
+  -webkit-appearance: none; appearance: none;
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--fg);
+  font: inherit; text-align: left;
+  cursor: pointer;
+}
+.lb-row.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.lb-row:active { background: var(--accent); color: #fff; }
+.lb-date {
+  font-size: 11px; font-weight: 800; letter-spacing: .05em;
+  color: var(--fg-mute);
+  font-variant-numeric: tabular-nums;
+  text-align: center; line-height: 1.1;
+}
+.lb-date .lb-day { display: block; font-size: 17px; color: var(--fg); }
+.lb-mid { min-width: 0; }
+.lb-flight { font-size: 14px; font-weight: 800; letter-spacing: .02em; }
+.lb-route  { font-size: 12px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.lb-tags   {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em;
+}
+.lb-tag    {
+  padding: 2px 6px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--line);
+  color: var(--fg-mute);
+}
+.lb-tag.is-pf { background: var(--green-soft, rgba(46,168,138,0.18)); border-color: var(--good, #2ea88a); color: var(--good, #2ea88a); }
+.lb-tag.is-pm { background: var(--warm-soft, rgba(255,169,77,0.18)); border-color: var(--warm, #ffa94d); color: var(--warm, #ffa94d); }
+.lb-empty { padding: 24px 8px; color: var(--fg-mute); font-size: 13px; text-align: center; }
 .an-card {
   background: var(--bg-sunk);
   border: 1px solid var(--line-soft);

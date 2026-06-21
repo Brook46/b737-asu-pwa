@@ -1338,6 +1338,124 @@ $('analytics-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'analytics-overlay') hideOverlay('analytics-overlay');
 });
 
+// ---------- In-app Logbook overlay (Phase 14) ----------
+// Read-only list of every stored leg, newest first. Reuses logbook.js's
+// allStoredLegs() so the source-of-truth stays consistent with the .ics
+// export. Tap a row → switch active leg via applyLeg + close the overlay.
+$('logbook-view').addEventListener('click', async () => {
+  hideOverlay('settings-overlay');
+  showOverlay('logbook-overlay');
+  const body = $('logbook-body');
+  body.innerHTML = '<p class="lb-empty">Loading…</p>';
+  try {
+    const lb = await import('./modules/logbook.js');
+    const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
+    body.innerHTML = renderLogbookList(legs);
+    wireLogbookRows(body);
+  } catch (err) {
+    console.warn('logbook view failed', err);
+    body.innerHTML = '<p class="lb-empty">Couldn\'t load the logbook.</p>';
+  }
+});
+$('logbook-close').addEventListener('click', () => hideOverlay('logbook-overlay'));
+$('logbook-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'logbook-overlay') hideOverlay('logbook-overlay');
+});
+
+function lbMonthKey(leg) {
+  // dd.mm → YYYY.mm bucket using the same rolling-window heuristic the
+  // logbook .ics exporter uses, so groupings stay consistent.
+  const dm = String(leg.dep_date || '').split('.');
+  if (dm.length !== 2) return 'Unknown date';
+  const [dd, mm] = dm;
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthIdx = parseInt(mm, 10) - 1;
+  if (!(monthIdx >= 0 && monthIdx < 12)) return 'Unknown date';
+  let year = new Date().getUTCFullYear();
+  const iso = `${year}-${mm}-${dd}T00:00:00Z`;
+  const ts  = Date.parse(iso);
+  if (Number.isFinite(ts) && Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) year += 1;
+  return `${monthNames[monthIdx]} ${year}`;
+}
+
+function renderLogbookList(legs) {
+  if (!legs.length) {
+    return '<p class="lb-empty">No legs stored yet. Sync your duty calendar or paste a roster from Settings.</p>';
+  }
+  // Active leg in fc.state.current — for highlighting the row the user
+  // currently has open in the data card.
+  const activeIdx = storage.getLegIndex();
+  const activeLeg = (storage.getLegs() || [])[activeIdx];
+  const activeKey = activeLeg ? `${activeLeg.flight}|${activeLeg.dep_date}|${activeLeg.dep}|${activeLeg.arr}` : '';
+  let lastMonth = '';
+  const parts = [];
+  for (const leg of legs) {
+    const monthH = lbMonthKey(leg);
+    if (monthH !== lastMonth) {
+      parts.push(`<div class="lb-month-h">${esc(monthH)}</div>`);
+      lastMonth = monthH;
+    }
+    const dm = String(leg.dep_date || '').split('.');
+    const day = dm[0] || '—';
+    const mon = dm[1] || '';
+    // displayFlight already prepends the ELY callsign — don't double-stamp.
+    const flight = leg.flight ? displayFlight(leg.flight) : 'Flight';
+    const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '—';
+    const time = (leg.dep_time && leg.arr_time) ? `${leg.dep_time}–${leg.arr_time}Z` : '';
+    const d = leg.dataCard || {};
+    const actual = d.actual_flight_time || d.block_time || leg.flight_time || '';
+    const toR  = String(d.to_role  || '').toUpperCase();
+    const ldgR = String(d.ldg_role || '').toUpperCase();
+    const tags = [
+      toR  ? `<span class="lb-tag ${toR === 'PF' ? 'is-pf' : toR === 'PM' ? 'is-pm' : ''}">T/O ${toR}</span>` : '',
+      ldgR ? `<span class="lb-tag ${ldgR === 'PF' ? 'is-pf' : ldgR === 'PM' ? 'is-pm' : ''}">LDG ${ldgR}</span>` : '',
+      actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
+    ].filter(Boolean).join('');
+    const key = `${leg.flight}|${leg.dep_date}|${leg.dep}|${leg.arr}`;
+    const isActive = key === activeKey;
+    parts.push(`
+      <button type="button" class="lb-row${isActive ? ' is-active' : ''}"
+              data-flight="${esc(leg.flight || '')}"
+              data-dep-date="${esc(leg.dep_date || '')}"
+              data-dep="${esc(leg.dep || '')}"
+              data-arr="${esc(leg.arr || '')}">
+        <span class="lb-date"><span class="lb-day">${esc(day)}</span>${esc(mon)}</span>
+        <span class="lb-mid">
+          <div class="lb-flight">${esc(flight)}</div>
+          <div class="lb-route">${esc(route)}${time ? '  ·  ' + esc(time) : ''}</div>
+        </span>
+        <span class="lb-tags">${tags}</span>
+      </button>
+    `);
+  }
+  return parts.join('');
+}
+
+function wireLogbookRows(body) {
+  body.addEventListener('click', (e) => {
+    const row = e.target.closest('.lb-row');
+    if (!row) return;
+    e.preventDefault();
+    // Find the matching leg in the active duty's legs[] — only those can
+    // be made the active leg via the leg switcher. Historical flights live
+    // in fc.state.history and aren't directly addressable; tapping one of
+    // those rows is a read-only ack.
+    const legs = storage.getLegs() || [];
+    const idx = legs.findIndex(l =>
+      String(l.flight || '') === row.dataset.flight &&
+      String(l.dep_date || '') === row.dataset.depDate &&
+      String(l.dep || '') === row.dataset.dep &&
+      String(l.arr || '') === row.dataset.arr
+    );
+    if (idx >= 0) {
+      hideOverlay('logbook-overlay');
+      applyLeg(idx);
+    } else {
+      toast('From a previous duty — view only');
+    }
+  }, { once: false });
+}
+
 function esc(s) {
   return String(s).replace(/[&<>"']/g, ch =>
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
