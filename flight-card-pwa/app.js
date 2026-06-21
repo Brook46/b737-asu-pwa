@@ -124,6 +124,29 @@ if ('serviceWorker' in navigator) {
         }
       });
 
+      // --- Auto-reload after long backgrounding ---------------------------
+      // iOS's PWA lifecycle aggressively suspends backgrounded apps. When
+      // the pilot reopens it after hours away, the JS context can be alive
+      // but unresponsive — buttons frozen — until a manual reload. We catch
+      // that here: if the page was hidden for > 30 min, force a reload on
+      // return. Short Slide-Over switches (< 30 min) preserve state.
+      const LONG_AWAY_MS = 30 * 60 * 1000;
+      let lastHiddenAt = 0;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          lastHiddenAt = Date.now();
+          return;
+        }
+        if (!lastHiddenAt) return; // first foreground after load — skip
+        const awayMs = Date.now() - lastHiddenAt;
+        lastHiddenAt = 0;
+        if (awayMs > LONG_AWAY_MS) {
+          // Don't reload if a modal/overlay is open with unsaved input
+          // (the storage layer debounces 120 ms; let it flush).
+          reloadOnce();
+        }
+      });
+
       // Already a waiting SW at boot? (Happens when the previous launch
       // installed v(N+1) but the user closed the app before controllerchange.)
       activateWaitingSW(reg);
@@ -143,6 +166,32 @@ if ('serviceWorker' in navigator) {
   });
 
   navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+
+  // Manual escape hatch: long-press the UTC clock (≥ 800 ms) → force reload.
+  // The clock is a static <span> with no other event handlers, so this stays
+  // tappable even when the rest of the data card / checklist JS is frozen
+  // mid-suspension.
+  const clockEl = document.getElementById('clock-utc');
+  if (clockEl) {
+    let pressT = null;
+    const clear = () => { if (pressT) { clearTimeout(pressT); pressT = null; } };
+    clockEl.addEventListener('pointerdown', () => {
+      clear();
+      pressT = setTimeout(() => {
+        pressT = null;
+        // Tiny visual feedback so the pilot knows it fired.
+        try { clockEl.style.opacity = '0.4'; } catch {}
+        reloadOnce();
+      }, 800);
+    });
+    clockEl.addEventListener('pointerup',    clear);
+    clockEl.addEventListener('pointerleave', clear);
+    clockEl.addEventListener('pointermove',  (e) => {
+      // Any movement cancels — we want a real long-press, not a slow scroll.
+      if (Math.abs(e.movementX) > 4 || Math.abs(e.movementY) > 4) clear();
+    });
+    clockEl.title = 'UTC — long-press to force reload';
+  }
 }
 
 // ---------- Render shell ----------
@@ -344,8 +393,13 @@ function pickLegForNow() {
 
 // ---------- Clocks ----------
 function startClocks() {
-  tickClocks();
-  setInterval(tickClocks, 1000);
+  // Wrap each tick so a single iteration's exception (e.g. a transient
+  // storage read failure mid-suspension) can't kill the interval queue.
+  // Without this, one bad tick = silently broken clock for the rest of
+  // the session and any tickClocks downstream callers go cold.
+  const safeTick = () => { try { tickClocks(); } catch (err) { console.warn('tick failed', err); } };
+  safeTick();
+  setInterval(safeTick, 1000);
 }
 function tickClocks() {
   const now = new Date();
@@ -1052,11 +1106,17 @@ function legDepTs(leg) {
   return ts;
 }
 // Boot probe (after a short delay so the rest of the UI is set up first),
-// then every 10 minutes, and whenever the tab becomes visible again.
-setTimeout(maybeAutoSyncCalendar, 5_000);
-setInterval(maybeAutoSyncCalendar, 10 * 60 * 1000);
+// then every 10 minutes, and whenever the tab becomes visible again. Each
+// invocation is wrapped so a transient storage / fetch error can't poison
+// the interval and freeze subsequent ticks.
+const safeAutoSync = () => {
+  try { maybeAutoSyncCalendar(); }
+  catch (err) { console.warn('calendar auto-sync skipped', err); }
+};
+setTimeout(safeAutoSync, 5_000);
+setInterval(safeAutoSync, 10 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') maybeAutoSyncCalendar();
+  if (document.visibilityState === 'visible') safeAutoSync();
 });
 
 // Filename helper — includes today's date and the active flight # if known,
