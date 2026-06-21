@@ -311,19 +311,47 @@ function renderLegSwitcher() {
   const sw = $('leg-switcher');
   const legs = storage.getLegs();
   if (!sw) return;
-  if (!legs.length || legs.length < 2) {
-    sw.classList.add('hidden');
-    return;
-  }
+  // The leg switcher is now ALSO the home for the T/O & LDG role pills
+  // (Phase 13). Always visible — even on a single-leg duty — so the pilot
+  // can mark roles without digging into the data card. Arrows still hide
+  // themselves when there's no neighbour leg.
   sw.classList.remove('hidden');
+  const hasMany = legs.length >= 2;
   const idx = storage.getLegIndex();
-  const leg = legs[idx];
-  $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
-  const flight = leg.flight ? displayFlight(leg.flight) : '';
-  const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-  $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
-  $('leg-prev').disabled = idx <= 0;
-  $('leg-next').disabled = idx >= legs.length - 1;
+  const leg = legs[idx] || storage.getCurrent();
+  const legInfo = $('leg-pos').parentElement; // .leg-info
+  if (legInfo) legInfo.style.display = hasMany ? '' : 'none';
+  const ctrls = document.querySelector('.leg-ctrls');
+  if (ctrls) ctrls.style.display = hasMany ? '' : 'none';
+  if (hasMany) {
+    $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
+    const flight = leg.flight ? displayFlight(leg.flight) : '';
+    const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
+    $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
+    $('leg-prev').disabled = idx <= 0;
+    $('leg-next').disabled = idx >= legs.length - 1;
+  }
+  paintLegRolePills();
+}
+
+// Paint the T/O & LDG pills from the active leg's dataCard. Called from
+// renderLegSwitcher and after every role-cycle tap so the colour follows
+// the value without a full leg re-render.
+function paintLegRolePills() {
+  const data = storage.getCurrent().dataCard || {};
+  for (const [id, key, label] of [
+    ['leg-to-role',  'to_role',  'T/O'],
+    ['leg-ldg-role', 'ldg_role', 'LDG'],
+  ]) {
+    const btn = $(id);
+    if (!btn) continue;
+    const v = String(data[key] || '').toUpperCase();
+    btn.classList.toggle('is-pf', v === 'PF');
+    btn.classList.toggle('is-pm', v === 'PM');
+    btn.classList.toggle('is-none', v !== 'PF' && v !== 'PM');
+    btn.innerHTML = `${label}&nbsp;${v || '—'}`;
+    btn.setAttribute('aria-label', `${label} role: ${v || 'none'}; tap to cycle`);
+  }
 }
 async function applyLeg(idx) {
   const legs = storage.getLegs();
@@ -1938,11 +1966,13 @@ dataCard.setOnChange((key) => {
 });
 
 // ---------- PF / PM role tri-state ----------
-// Tap cycles: '' → PF → PM → '' (none). Delegated so the handler survives
-// every data card re-render. Lives on the active leg's dataCard; never
-// sync-overwritten — the calendar doesn't carry the PF/PM split.
+// Tap cycles: '' → PF → PM → '' (none). Delegated at DOCUMENT level so the
+// two pills in the leg-switcher and any future legacy pills inside the
+// data card both work through a single handler. Lives on the active leg's
+// dataCard; never sync-overwritten — the calendar doesn't carry the PF/PM
+// split.
 const ROLE_CYCLE = { '': 'PF', 'PF': 'PM', 'PM': '' };
-dataBody.addEventListener('click', (e) => {
+document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-role-key]');
   if (!btn) return;
   e.preventDefault();
@@ -1951,6 +1981,9 @@ dataBody.addEventListener('click', (e) => {
   const cur = (storage.getCurrent().dataCard[key] || '').toString().toUpperCase();
   const next = ROLE_CYCLE[cur] || '';
   storage.setDataField(key, next);
+  paintLegRolePills();
+  // The data card no longer carries these pills (Phase 13), but if a future
+  // panel exposes them again, a render keeps them in sync.
   dataCard.render(dataBody);
 });
 

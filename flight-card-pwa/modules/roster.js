@@ -28,6 +28,10 @@ const COCKPIT_LINE_RE  = /^OPR\s+\d+\s+(CAP|FO|FC|F\/O|CPT)\s+(.+?)(?:\s{2,}|\s+
 const FLIGHT_LINE_RE   = /^(\d+)\)\s+(\d{3,4})\s+([A-Z0-9]{2,4})\s+([A-Z]{3})-([A-Z]{3})\s+\[([^\]]+)\]/;
 const TIME_BLOCK_RE    = /(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*-\s*(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*,\s*(\d{1,2}:\d{2})/;
 const CABIN_LINE_RE    = /^OPR\s+\d+\s+(PUR|ST|JU|SR|SCM)\s+(.+?)(?:\s{2,}|\s+\[|$)/i;
+// Deadhead positioning crew — can be either pilots or cabin crew. El Al
+// rosters mark them with DH (sometimes DHP / DHC) in the same column where
+// CPT / PUR live. Captured into a per-leg `dh` field (comma-separated).
+const DH_LINE_RE       = /^OPR\s+\d+\s+(DH|DHP|DHC|DHD)\s+(.+?)(?:\s{2,}|\s+\[|$)/i;
 const NEW_FLIGHT_START = /^\d+\)\s+\d{3,4}\s+/;
 // The roster line tail looks like  `[phone:0547450555,REQ ...]`. The phone
 // is the part between `phone:` and the next comma/bracket. We grab the raw
@@ -152,6 +156,7 @@ export function parseRoster(text) {
         ctot: '',
         cpt, fo,
         cabin: [], // ordered list of cabin crew names (PUR first, then ST/JU)
+        dh:    [], // deadhead positioning crew on this leg (DH/DHP/DHC)
       };
       const tm = TIME_BLOCK_RE.exec(block);
       if (tm) {
@@ -177,6 +182,16 @@ export function parseRoster(text) {
         cur.cabin.push(flipped);
         const phone = extractPhone(line);
         if (phone) phones[flipped.toUpperCase()] = phone;
+        continue;
+      }
+      // Deadhead positioning crew — can be either pilots or cabin crew, and
+      // the roster lists them with a DH-family prefix.
+      const dm = DH_LINE_RE.exec(line);
+      if (dm) {
+        const flipped = flipName(dm[2]);
+        cur.dh.push(flipped);
+        const phone = extractPhone(line);
+        if (phone) phones[flipped.toUpperCase()] = phone;
       }
     }
   }
@@ -185,11 +200,14 @@ export function parseRoster(text) {
   if (!flights.length) return null;
 
   // Map cabin crew to cc1..cc5 — first cabin entry (the PUR) → cc1, others fill in order.
+  // DH is collapsed to a comma-separated string so the existing data card
+  // text-input plumbing can render it without a new cell kind.
   for (const f of flights) {
     for (let i = 0; i < 5; i++) {
       f['cc' + (i + 1)] = f.cabin[i] || '';
     }
     delete f.cabin;
+    f.dh = (f.dh || []).join(', ');
   }
 
   return { flights, cpt, fo, phones };
@@ -277,6 +295,10 @@ function parseJsonRoster(arr) {
       cc3: flipName(crew.CC3 || ''),
       cc4: flipName(crew.CC4 || ''),
       cc5: flipName(crew.CC5 || ''),
+      // Deadhead positioning crew — the JSON shape carries them either as
+      // crew.DH (array or string) or as a comma-separated DHC field. Be
+      // tolerant of both so we don't drop names on a schema tweak.
+      dh: normaliseDhField(crew.DH ?? crew.DHC ?? crew.dh ?? ''),
     };
     if (leg.cpt) lastCpt = leg.cpt;
     if (leg.fo)  lastFo  = leg.fo;
@@ -286,11 +308,25 @@ function parseJsonRoster(arr) {
   return { flights, cpt: lastCpt, fo: lastFo };
 }
 
+// Normalise a DH crew value out of the JSON roster: accept array, comma-
+// separated string, or empty. Returns a clean comma-separated string of
+// flipped (FIRST LAST) display names.
+function normaliseDhField(raw) {
+  if (!raw) return '';
+  const list = Array.isArray(raw)
+    ? raw
+    : String(raw).split(/[,;]+/);
+  return list
+    .map(n => flipName(String(n).trim()))
+    .filter(Boolean)
+    .join(', ');
+}
+
 // Convert a leg into the dataCard field bag that storage.setDataBulk wants.
 export function legToFields(leg) {
   if (!leg) return {};
   const out = {};
-  const keys = ['flight','tail','dep','arr','flight_time','ctot','cpt','fo','cc1','cc2','cc3','cc4','cc5'];
+  const keys = ['flight','tail','dep','arr','flight_time','ctot','cpt','fo','cc1','cc2','cc3','cc4','cc5','dh'];
   for (const k of keys) {
     if (leg[k] !== undefined && leg[k] !== '') out[k] = leg[k];
   }

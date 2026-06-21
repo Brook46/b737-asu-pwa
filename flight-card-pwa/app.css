@@ -283,6 +283,39 @@ body.is-past-leg #card-checklist {
 }
 .leg-btn:active { background: var(--accent); color: #fff; }
 .leg-btn:disabled { opacity: .35; cursor: not-allowed; }
+/* T/O & LDG role pills inside the leg switcher (Phase 13). Compact —
+   they need to fit on the leg-switcher row next to the leg info + arrows.
+   Same PF / PM / none state colours as the old role-pill cell. */
+.leg-roles {
+  display: flex; flex-direction: column; gap: 4px;
+  flex-shrink: 0;
+}
+.leg-role-pill {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: inherit; font-size: 12px; font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--fg-mute);
+  min-width: 64px;
+  text-align: center;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.leg-role-pill.is-pf {
+  background: var(--green-soft, rgba(46,168,138,0.18));
+  border-color: var(--good, #2ea88a);
+  color: var(--good, #2ea88a);
+}
+.leg-role-pill.is-pm {
+  background: var(--warm-soft, rgba(255,169,77,0.18));
+  border-color: var(--warm, #ffa94d);
+  color: var(--warm, #ffa94d);
+}
+.leg-role-pill.is-none { opacity: .75; }
+
 .leg-info {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; align-items: flex-start;
