@@ -12,25 +12,16 @@
 //     elsewhere (current year unless > 6 months stale).
 
 import * as storage from './storage.js';
+import { rollingTs } from './dates.js';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
 // ---------- Shared helpers ----------
 
-// Combine dd.mm + HH:MM into a UTC ms timestamp. Mirrors the rolling-window
-// heuristic used by the leg switcher and logbook builder.
+// Combine dd.mm + HH:MM into a UTC ms timestamp. Shared rolling-year
+// heuristic — see modules/dates.js.
 function depTs(leg) {
-  const d = leg?.dep_date, t = leg?.dep_time;
-  if (!d || !t) return NaN;
-  const [dd, mm] = d.split('.');
-  if (!dd || !mm) return NaN;
-  const yearNow = new Date().getUTCFullYear();
-  let ts = Date.parse(`${yearNow}-${mm}-${dd}T${t}:00Z`);
-  if (!Number.isFinite(ts)) return NaN;
-  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.parse(`${yearNow + 1}-${mm}-${dd}T${t}:00Z`);
-  }
-  return ts;
+  return rollingTs(leg?.dep_date, leg?.dep_time);
 }
 
 function legYear(leg) {

@@ -10,6 +10,7 @@
 // }
 
 import { flipName } from './roster.js';
+import { rollingTs } from './dates.js';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -1023,17 +1024,8 @@ function fingerprintLeg(leg) {
 }
 
 function arrTs(leg) {
-  const d = leg?.arr_date, t = leg?.arr_time;
-  if (!d || !t) return NaN;
-  const dm = d.split('.');
-  if (dm.length !== 2) return NaN;
-  const y = new Date().getUTCFullYear();
-  let ts = Date.parse(`${y}-${dm[1]}-${dm[0]}T${t}:00Z`);
-  if (!Number.isFinite(ts)) return NaN;
-  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.parse(`${y + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
-  }
-  return ts;
+  // Shared rolling-year heuristic — see modules/dates.js.
+  return rollingTs(leg?.arr_date, leg?.arr_time);
 }
 
 // Delete a single leg by index. Adjusts legIndex if the deleted leg was
@@ -1048,22 +1040,11 @@ export function deleteLeg(idx) {
 }
 
 // Combine a leg's dep_date (dd.mm) + dep_time (HH:MM UTC) into a comparable
-// timestamp. Used by appendLegs to keep the list time-sorted.
+// timestamp. Used by appendLegs to keep the list time-sorted. Unsortable
+// legs go to the END of the list (MAX_SAFE_INTEGER, not NaN).
 function depTs(leg) {
-  const d = leg?.dep_date, t = leg?.dep_time;
-  if (!d || !t) return Number.MAX_SAFE_INTEGER;
-  const [dd, mm] = d.split('.');
-  if (!dd || !mm) return Number.MAX_SAFE_INTEGER;
-  const year = new Date().getUTCFullYear();
-  const iso = `${year}-${mm}-${dd}T${t}:00Z`;
-  let ts = Date.parse(iso);
-  if (!Number.isFinite(ts)) return Number.MAX_SAFE_INTEGER;
-  // If the parsed time is >6 months stale, assume next year (handles
-  // year-end bulletins gracefully).
-  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.parse(`${year + 1}-${mm}-${dd}T${t}:00Z`);
-  }
-  return ts;
+  const ts = rollingTs(leg?.dep_date, leg?.dep_time);
+  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
 }
 
 // Clear just the ticks (and notes) on the *active leg* (or top-level

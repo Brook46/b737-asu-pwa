@@ -6,12 +6,27 @@ import * as checklist from './modules/checklist.js';
 import * as speeches from './modules/speeches.js';
 import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js';
 import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
+import { rollingTs, rollingYear } from './modules/dates.js';
 
 const $ = (id) => document.getElementById(id);
 
 // ---------- Init theme + register SW ----------
 initTheme();
 window.fcToast = toast;  // expose for modules that don't import ui
+
+// Safety net for the ~10 dynamic import() chains that have no local catch
+// (overlays, calendar sync, sensors). A failed module fetch otherwise dies
+// silently in the console and the tapped button just does nothing.
+// Throttled: an offline burst shows ONE toast, not ten.
+let lastRejToastAt = 0;
+window.addEventListener('unhandledrejection', (e) => {
+  console.warn('[fc] unhandled rejection', e.reason);
+  const now = Date.now();
+  if (now - lastRejToastAt > 10_000) {
+    lastRejToastAt = now;
+    try { toast('Something failed to load — check connection and retry'); } catch {}
+  }
+});
 
 // The header sync + speeches notify is wired below alongside the wx clear-on-dep-change.
 
@@ -258,6 +273,12 @@ const dataBody = $('data-body');
 const checklistBody = $('checklist-body');
 const historyBody = $('history-body');
 
+// CTOT pill state classes. Declared HERE, above startClocks(), because the
+// first synchronous tick reads it — leaving it next to updateCtotColor()
+// (its natural home ~250 lines down) puts it in the temporal dead zone and
+// every boot tick throws a caught-but-noisy ReferenceError.
+const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
+
 renderAll();
 startClocks();
 syncHeaderInputs();
@@ -439,24 +460,8 @@ function pickLegForNow() {
   const legs = storage.getLegs();
   if (!legs.length) return 0;
   const now = Date.now();
-  // Resolve a leg's dep/arr as ms-since-epoch by combining dep_date (dd.mm)
-  // with dep_time (HH:MM UTC). Year is heuristically "current year unless the
-  // resulting timestamp is more than 6 months in the past, in which case roll
-  // forward a year" — handles year-end roster bulletins gracefully.
-  function toTs(d, t) {
-    if (!d || !t) return NaN;
-    const dm = d.split('.');
-    if (dm.length !== 2) return NaN;
-    const yearNow = new Date().getUTCFullYear();
-    const iso = `${yearNow}-${dm[1]}-${dm[0]}T${t}:00Z`;
-    let ts = Date.parse(iso);
-    if (!Number.isFinite(ts)) return NaN;
-    // Roll forward if the resulting time is more than 6 months stale
-    if (now - ts > 6 * 30 * 24 * 3600 * 1000) {
-      ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${t}:00Z`);
-    }
-    return ts;
-  }
+  // dd.mm + HH:MM → ms via the shared rolling-year heuristic (dates.js).
+  const toTs = (d, t) => rollingTs(d, t, now);
   // Extend the "active" window 20 min past scheduled arrival so the leg
   // stays selected during taxi-in / chock time and any modest late-arrival
   // slop. Phase 4 swaps the +20 min buffer for the actual GPS-detected
@@ -516,7 +521,8 @@ function pad(n) { return String(n).padStart(2, '0'); }
 //    Δ > +10             → red            (missed)
 // Visuals (CSS) keep the time fully readable — outline + soft tint only,
 // never a background flood that hides the digits.
-const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
+// (CTOT_CLASSES is declared up next to the render-shell consts — see the
+// TDZ note there.)
 function updateCtotColor(now = new Date()) {
   const wrap = document.querySelector('.hdr-ctot');
   if (!wrap) return;
@@ -708,20 +714,8 @@ function isLegPast(leg, now = new Date()) {
   // Prefer arr_date/time; fall back to dep_date/time when arr isn't known.
   const d = leg.arr_date || leg.dep_date;
   const t = leg.arr_time || leg.dep_time;
-  if (!d || !t) return false;
-  const dm = String(d).split('.');
-  if (dm.length !== 2) return false;
-  const tm = String(t).match(/^(\d{1,2}):(\d{2})$/);
-  if (!tm) return false;
-  const yearNow = now.getUTCFullYear();
-  let ts = Date.UTC(yearNow, parseInt(dm[1], 10) - 1, parseInt(dm[0], 10), parseInt(tm[1], 10), parseInt(tm[2], 10), 0);
-  if (!Number.isFinite(ts)) return false;
-  // Roll forward if the resulting time is >6 months stale (handles
-  // year-end roster bulletins read in January).
-  if (now.getTime() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.UTC(yearNow + 1, parseInt(dm[1], 10) - 1, parseInt(dm[0], 10), parseInt(tm[1], 10), parseInt(tm[2], 10), 0);
-  }
-  return ts < now.getTime();
+  const ts = rollingTs(d, t, now.getTime());
+  return Number.isFinite(ts) && ts < now.getTime();
 }
 // Find the index of the next upcoming leg — earliest leg whose dep_ts is
 // in the future. Returns -1 if no leg has a future dep_ts (everything
@@ -1225,19 +1219,8 @@ async function maybeAutoSyncCalendar() {
   }
 }
 function legDepTs(leg) {
-  // Same heuristic pickLegForNow uses — combine dd.mm + HH:MM as UTC,
-  // roll the year forward if the resulting timestamp is >6 months stale.
-  if (!leg || !leg.dep_date || !leg.dep_time) return NaN;
-  const dm = String(leg.dep_date).split('.');
-  if (dm.length !== 2) return NaN;
-  const yearNow = new Date().getUTCFullYear();
-  const iso = `${yearNow}-${dm[1]}-${dm[0]}T${leg.dep_time}:00Z`;
-  let ts = Date.parse(iso);
-  if (!Number.isFinite(ts)) return NaN;
-  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    ts = Date.parse(`${yearNow + 1}-${dm[1]}-${dm[0]}T${leg.dep_time}:00Z`);
-  }
-  return ts;
+  // Shared rolling-year heuristic — see modules/dates.js.
+  return rollingTs(leg?.dep_date, leg?.dep_time);
 }
 // Boot probe (after a short delay so the rest of the UI is set up first),
 // then every 10 minutes, and whenever the tab becomes visible again. Each
@@ -1363,18 +1346,15 @@ $('logbook-overlay').addEventListener('click', (e) => {
 });
 
 function lbMonthKey(leg) {
-  // dd.mm → YYYY.mm bucket using the same rolling-window heuristic the
-  // logbook .ics exporter uses, so groupings stay consistent.
+  // dd.mm → "Mon YYYY" bucket via the shared rolling-year heuristic
+  // (dates.js), so groupings match the logbook .ics exporter.
   const dm = String(leg.dep_date || '').split('.');
   if (dm.length !== 2) return 'Unknown date';
-  const [dd, mm] = dm;
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const monthIdx = parseInt(mm, 10) - 1;
+  const monthIdx = parseInt(dm[1], 10) - 1;
   if (!(monthIdx >= 0 && monthIdx < 12)) return 'Unknown date';
-  let year = new Date().getUTCFullYear();
-  const iso = `${year}-${mm}-${dd}T00:00:00Z`;
-  const ts  = Date.parse(iso);
-  if (Number.isFinite(ts) && Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) year += 1;
+  const year = rollingYear(leg.dep_date);
+  if (year == null) return 'Unknown date';
   return `${monthNames[monthIdx]} ${year}`;
 }
 
