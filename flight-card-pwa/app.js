@@ -293,6 +293,11 @@ consumeRosterFromUrl();
 // addEventListener past this point silently never runs. That was the real
 // cause of the "top buttons frozen" symptom, not iOS PWA suspension.
 queueMicrotask(maybeAutoJumpToCurrentLeg);
+// Logbook auto-push (hosted .ics the calendar apps subscribe to) — wired
+// off the critical path; the module further defers its first push by 8s
+// and only hits the network when the calendar content actually changed.
+import('./modules/logbook-push.js').then(m => m.init())
+  .catch(err => console.warn('logbook-push init failed', err));
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -1091,12 +1096,9 @@ $('settings-overlay').addEventListener('click', (e) => {
 // the calendar module's setCalendarUrl helper. paintCalendarSection
 // loads any previously-saved URL back into the field when the sheet opens.
 async function paintCalendarSection() {
-  const { getCalendarUrl, getLogbookCalendarUrl, getLastSyncAt } =
-    await import('./modules/calendar.js');
+  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js');
   const input = $('cal-url');
   if (input && document.activeElement !== input) input.value = getCalendarUrl();
-  const logInput = $('cal-url-logbook');
-  if (logInput && document.activeElement !== logInput) logInput.value = getLogbookCalendarUrl();
   const status = $('cal-status');
   if (status) {
     status.classList.remove('is-err', 'is-ok');
@@ -1105,14 +1107,50 @@ async function paintCalendarSection() {
       ? 'Last synced ' + new Date(last).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
       : '';
   }
-}
-// Autosave the optional logbook calendar URL too. Identical pattern to
-// the duty URL — type=password masks it on screen.
-$('cal-url-logbook').addEventListener('input', async () => {
+  // Logbook auto-push panel — URL + last-push status.
   try {
-    const { setLogbookCalendarUrl } = await import('./modules/calendar.js');
-    setLogbookCalendarUrl($('cal-url-logbook').value);
-  } catch (err) { console.warn('logbook url save failed', err); }
+    const lp = await import('./modules/logbook-push.js');
+    const urlInput = $('lbpush-url');
+    if (urlInput) urlInput.value = lp.subscribeUrls().https;
+    paintLbPushStatus(lp.lastPushedAt());
+  } catch (err) { console.warn('logbook-push paint failed', err); }
+}
+function paintLbPushStatus(at, errText = '') {
+  const el = $('lbpush-status');
+  if (!el) return;
+  el.classList.remove('is-err', 'is-ok');
+  if (errText) { el.classList.add('is-err'); el.textContent = errText; return; }
+  el.textContent = at
+    ? 'Last pushed ' + new Date(at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+    : 'Not pushed yet';
+}
+$('lbpush-copy').addEventListener('click', async () => {
+  try {
+    const lp = await import('./modules/logbook-push.js');
+    // Copy the https form — iOS Settings' "Add Subscribed Calendar" wants
+    // a URL it can paste; webcal:// only helps as a tappable link.
+    await navigator.clipboard.writeText(lp.subscribeUrls().https);
+    toast('Link copied — paste it in Settings → Calendar → Accounts');
+  } catch (err) {
+    console.warn('copy failed', err);
+    toast('Copy failed — long-press the URL to copy manually');
+  }
+});
+$('lbpush-now').addEventListener('click', async () => {
+  const btn = $('lbpush-now');
+  btn.disabled = true;
+  try {
+    const lp = await import('./modules/logbook-push.js');
+    const res = await lp.pushNow({ force: true });
+    if (res.ok) {
+      paintLbPushStatus(lp.lastPushedAt());
+      toast(res.skipped === 'no legs' ? 'No legs to push yet' : 'Logbook pushed');
+    } else {
+      paintLbPushStatus(0, res.error);
+    }
+  } finally {
+    btn.disabled = false;
+  }
 });
 $('cal-url').addEventListener('input', async () => {
   try {

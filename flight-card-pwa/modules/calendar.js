@@ -18,7 +18,6 @@ import { parseRoster } from './roster.js';
 import { WORKER_BASE } from './proxy.js';
 
 const URL_STORAGE_KEY        = 'fc.gcal.url';
-const LOGBOOK_URL_STORAGE_KEY = 'fc.gcal.logbookUrl';
 const LAST_SYNC_STORAGE_KEY  = 'fc.gcal.lastSyncAt';
 
 // Public API --------------------------------------------------------------
@@ -31,19 +30,9 @@ export function setCalendarUrl(url) {
   try { localStorage.setItem(URL_STORAGE_KEY, String(url || '').trim()); }
   catch {}
 }
-// Logbook calendar URL — a SEPARATE Google Calendar (or Apple Calendar)
-// that the pilot dedicates to their flying history. The app doesn't push
-// to it (Google's secret-iCal endpoint is read-only); we just store the
-// URL so the Export logbook button can show a "subscribe here" hint and
-// the user can audit which calendar they're sending the .ics to.
-export function getLogbookCalendarUrl() {
-  try { return localStorage.getItem(LOGBOOK_URL_STORAGE_KEY) || ''; }
-  catch { return ''; }
-}
-export function setLogbookCalendarUrl(url) {
-  try { localStorage.setItem(LOGBOOK_URL_STORAGE_KEY, String(url || '').trim()); }
-  catch {}
-}
+// (The old "Logbook calendar (write)" URL field is gone — replaced by the
+// hosted-.ics auto-push in modules/logbook-push.js. Its legacy localStorage
+// key is cleaned up by logbook-push init().)
 export function getLastSyncAt() {
   try {
     const v = localStorage.getItem(LAST_SYNC_STORAGE_KEY);

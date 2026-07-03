@@ -491,6 +491,10 @@ export function flush() {
   if (writeT) { clearTimeout(writeT); writeT = null; }
   if (!cache) return;
   try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) { console.warn('storage write failed', e); }
+  // Broadcast so decoupled features (logbook auto-push) can react to any
+  // persisted change without storage.js knowing they exist. Fires on ALL
+  // writes by design — listeners do their own change detection.
+  try { window.dispatchEvent(new CustomEvent('fc:state-flushed')); } catch {}
 }
 
 // ---------- State accessors ----------
