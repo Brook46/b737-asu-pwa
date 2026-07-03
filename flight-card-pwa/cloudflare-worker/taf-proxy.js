@@ -1,14 +1,26 @@
-// Flight Card — TAF + Google-Calendar CORS shim
-// ==============================================
+// Flight Card — TAF + Google-Calendar CORS shim + hosted logbook .ics
+// ====================================================================
 //
 // Free Cloudflare Worker that fronts two upstream sources the PWA can't
-// fetch directly because they don't ship Access-Control-Allow-Origin:
+// fetch directly because they don't ship Access-Control-Allow-Origin,
+// plus a tiny KV-backed store that hosts the pilot's logbook calendar:
 //
-//   GET /taf?icao=<ICAO>        →  aviationweather.gov TAF (raw text)
-//   GET /ical?url=<encoded URL> →  user's Google Calendar secret iCal feed
-//   GET /  | /healthz           →  liveness ping
+//   GET  /taf?icao=<ICAO>          →  aviationweather.gov TAF (raw text)
+//   GET  /ical?url=<encoded URL>   →  user's Google Calendar secret iCal feed
+//   POST /logbook/<token>          →  store an iCalendar document in KV
+//   GET  /logbook/<token>[.ics]    →  serve it (Apple Calendar subscribes here)
+//   GET  /  | /healthz             →  liveness ping
 //
-// Free tier (100k req/day) is comfortably more than this PWA will use.
+// Logbook auth model: the <token> is a client-generated random UUID
+// (122 bits of entropy) — knowing it IS the credential, same trust model
+// as Google's own "secret iCal address". The route regex only matches
+// UUID-shaped paths, so the namespace can't be enumerated cheaply.
+// Requires a KV namespace bound as LOGBOOK in wrangler.jsonc; until that
+// binding exists the /logbook routes answer 503 and everything else keeps
+// working.
+//
+// Free tier (100k req/day, 1k KV writes/day) is comfortably more than
+// this PWA will use.
 //
 // Why the iCal route exists
 // -------------------------
@@ -37,9 +49,27 @@ const ICAL_ALLOWED_HOSTS = new Set([
   // is rejected so this Worker can't be repurposed as an open proxy.
 ]);
 
+// UUID-shaped token, optionally suffixed .ics (Apple Calendar prefers a
+// file-looking URL). Case-insensitive; stored lowercased.
+const LOGBOOK_RE = /^\/logbook\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.ics)?$/i;
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+
+    // CORS preflight — the PWA's POST with content-type: text/calendar is
+    // a non-simple request, so browsers send OPTIONS first.
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET, POST, OPTIONS',
+          'access-control-allow-headers': 'content-type',
+          'access-control-max-age': '86400',
+        },
+      });
+    }
 
     if (url.pathname === '/' || url.pathname === '/healthz') {
       return text('Flight Card proxy OK', 200);
@@ -51,6 +81,17 @@ export default {
 
     if (url.pathname === '/ical') {
       return handleIcal(url);
+    }
+
+    const lb = url.pathname.match(LOGBOOK_RE);
+    if (lb) {
+      if (!env || !env.LOGBOOK) {
+        return text('Logbook storage not configured (KV binding missing)', 503);
+      }
+      const token = lb[1].toLowerCase();
+      if (request.method === 'POST') return handleLogbookPut(request, env, token);
+      if (request.method === 'GET')  return handleLogbookGet(env, token);
+      return text('Method not allowed', 405);
     }
 
     return text('Not found', 404);
@@ -121,6 +162,55 @@ async function handleIcal(url) {
   } catch (err) {
     return text('Upstream unreachable: ' + err.message, 502);
   }
+}
+
+// ---------- /logbook --------------------------------------------------------
+
+// The PWA POSTs its full logbook as one iCalendar document; Apple/Google
+// Calendar subscribes to the GET URL. One KV key per token, no index.
+
+async function handleLogbookPut(request, env, token) {
+  const len = parseInt(request.headers.get('content-length') || '0', 10);
+  if (len > 1_000_000) return text('Too large', 413);
+
+  const ct = (request.headers.get('content-type') || '').toLowerCase();
+  if (!ct.startsWith('text/calendar') && !ct.startsWith('text/plain')) {
+    return text('Expected text/calendar', 415);
+  }
+
+  const body = await request.text();
+  if (body.length > 1_000_000) return text('Too large', 413);
+  if (!body.trimStart().startsWith('BEGIN:VCALENDAR')) {
+    return text('Not an iCalendar document', 400);
+  }
+
+  await env.LOGBOOK.put('ics:' + token, body, {
+    metadata: { updatedAt: Date.now(), bytes: body.length },
+  });
+
+  return new Response(JSON.stringify({ ok: true, bytes: body.length }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+async function handleLogbookGet(env, token) {
+  const body = await env.LOGBOOK.get('ics:' + token);
+  if (body == null) return text('No logbook published for this token', 404);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/calendar; charset=utf-8',
+      'access-control-allow-origin': '*',
+      // Apple's subscription poller decides its own refresh cadence; no
+      // edge caching so a fresh push is visible on the very next poll.
+      'cache-control': 'no-cache',
+    },
+  });
 }
 
 // ---------- helpers ---------------------------------------------------------

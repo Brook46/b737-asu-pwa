@@ -346,21 +346,14 @@
       </div>
 
       <section class="settings-section">
-        <h3 class="settings-h">Calendars</h3>
+        <h3 class="settings-h">Duty calendar</h3>
         <p class="muted small">
-          Paste the "Secret address in iCal format" from each Google Calendar.
-          The duty calendar is your roster source — Flight Card pulls every
-          duty period from it. The logbook calendar is where the .ics
-          export goes — keep it separate so your history doesn't clutter
-          the duty view.
+          Paste the "Secret address in iCal format" from your Google
+          Calendar. Flight Card pulls every duty period from it.
         </p>
         <div class="cal-row">
           <label class="cal-row-label" for="cal-url">Duty roster (read)</label>
           <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Duty calendar secret iCal URL (hidden)" />
-        </div>
-        <div class="cal-row">
-          <label class="cal-row-label" for="cal-url-logbook">Logbook calendar (write)</label>
-          <input id="cal-url-logbook" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Optional — a different calendar for export" class="cal-url" aria-label="Logbook calendar URL (optional)" />
         </div>
         <div class="settings-row-btns">
           <button id="cal-sync" class="btn primary">Sync now</button>
@@ -371,6 +364,25 @@
           calendar. Past flown legs always stay — they're your logbook.
           Nothing is ever pushed back to El Al or to your calendar.
         </p>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-h">Logbook calendar (auto-updating)</h3>
+        <p class="muted small">
+          Flight Card publishes your logbook to a private URL after every
+          change. Subscribe once in Apple Calendar (Settings → Calendar →
+          Accounts → Add Subscribed Calendar) and it stays fresh by itself.
+          The link below is the key — anyone with it can read the calendar.
+        </p>
+        <div class="cal-row">
+          <label class="cal-row-label" for="lbpush-url">Subscribe URL</label>
+          <input id="lbpush-url" type="text" readonly autocomplete="off" spellcheck="false" class="cal-url" aria-label="Logbook subscribe URL (read-only)" />
+        </div>
+        <div class="settings-row-btns">
+          <button id="lbpush-copy" class="btn primary">Copy link</button>
+          <button id="lbpush-now"  class="btn">Push now</button>
+        </div>
+        <p id="lbpush-status" class="muted small cal-status"></p>
       </section>
 
       <section class="settings-section">
@@ -489,6 +501,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=85"></script>
+  <script type="module" src="./app.js?v=86"></script>
 </body>
 </html>
