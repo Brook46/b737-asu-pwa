@@ -1,0 +1,5219 @@
+[
+  {
+    "depth": 0,
+    "title": "שיגור",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "תכנון טיסה - כללי",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מדיניות אלעל - סדר עדיפות לתכנון טיסה",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מדיניות תכנון בקרבת מז\"א פעיל",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "דלק TANKERING",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גבהים",
+    "page": 1,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.0.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "סיווג שדות ע\"פ אלעל",
+    "page": 2,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "5.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "קטגוריות RFFS",
+    "page": 2,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "5.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "RAIM",
+    "page": 2,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "5.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שינוי המחייב OFP חדש",
+    "page": 2,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "5.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "דרישות מז\"א משדות בתכנון",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מז\"א בשדה היעד",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שדה משנה להמראה - Takeoff Alternate",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שדה משנה ליעד - Destination Alternate",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שדה משנה לנתיב (מפת עיגולים)",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מז\"א נדרש בשדות המשנה (משנה ליעד / נתיב / המראה)",
+    "page": 3,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מז\"א נדרש בשדה EDTO בתכנון",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שימוש בתחזית מז\"א TAF",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "שיטות שיגור שונות",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שיגור לשדה סגור",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שיגור במהירות גבוהה/נמוכה",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שיגור ללא שדה משנה",
+    "page": 4,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.4.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שיגור RCF",
+    "page": 5,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שחרור מטוס לטיסה ע\"י אצ\"א",
+    "page": 5,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שיגור EDTO",
+    "page": 5,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "ביצוע EDTO",
+    "page": 6,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.5.11"
+      },
+      {
+        "manualType": "SP",
+        "value": "1.6"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "FTL",
+    "page": 7,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "7.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "7.2.12"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "MEL  / CDL / NEF",
+    "page": 8,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.6.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "סדר עדיפויות בעת תקלה ביציאה לטיסה",
+    "page": 9,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.6.1.1"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.8"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "התנעה, הסעה והמראה",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "תפעול קרקעי",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הגעה למטוס (737)",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מש\"ב וצוות קבינה",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תקני שירות ותקלה שירותית",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תדרוך צוות קבינה",
+    "page": 10,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.9.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "1.4.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "בורדינג",
+    "page": 11,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.23"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הגשת ארוחה על הקרקע",
+    "page": 11,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.23"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תדריך קברניט לנוסעים",
+    "page": 11,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.23"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הודעות לנוסעים (אם הזמן מאפשר)",
+    "page": 11,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.23"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תדריך בטיחות לנוסעים (באחריות מש\"ב)",
+    "page": 11,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.23"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.18.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "דלק",
+    "page": 12,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "דלק ליציאה לטיסה",
+    "page": 12,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "נוהל תדלוק",
+    "page": 12,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תדלוק עם נוסעים",
+    "page": 12,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.6.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "העברת דלק על הקרקע",
+    "page": 13,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "פיקוח אצ\"א על תדלוק",
+    "page": 13,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.3"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "ניירת ביציאה לטיסה",
+    "page": 13,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מסמכים נדרשים לטיסה",
+    "page": 13,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "LOADSHEET",
+    "page": 13,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "LAST MINUTE CHANGE LMC -",
+    "page": 14,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "NOTOC",
+    "page": 14,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "חומרים פטורים ממגבלות חומ\"ס",
+    "page": 14,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "סוללות ליתיום",
+    "page": 14,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.7.3.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.14"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הטסת בעלי חיים",
+    "page": 15,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.21"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הטסת כלי נשק",
+    "page": 15,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.9.4"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.21"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.2"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "תפעול חורף ביציאה ובטיסה",
+    "page": 16,
+    "refs": [
+      {
+        "manualType": "SP",
+        "value": "3.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תפעול בתנאי התקרחות – ICING CONDITIONS",
+    "page": 16,
+    "refs": [
+      {
+        "manualType": "SP",
+        "value": "3.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "חתחות חמור – SEVERE TURBULENCE",
+    "page": 17,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גשם כבד / ברד – Moderate / Heavy Rain Hail or Sleet",
+    "page": 17,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "התקרחות חמורה – SEVERE ICING",
+    "page": 17,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "ICE CRYSTAL ICING",
+    "page": 18,
+    "refs": [
+      {
+        "manualType": "QRH",
+        "value": "3.3"
+      },
+      {
+        "manualType": "SP",
+        "value": "16.20"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תיקון טמפרטורות קרות – Cold Temperature Altitude Correction",
+    "page": 18,
+    "refs": [
+      {
+        "manualType": "QRH",
+        "value": "3.3"
+      },
+      {
+        "manualType": "SP",
+        "value": "16.20"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "סופות חול /אבק",
+    "page": 18,
+    "refs": [
+      {
+        "manualType": "QRH",
+        "value": "3.3"
+      },
+      {
+        "manualType": "SP",
+        "value": "16.20"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "DE ICING / ANTI ICING",
+    "page": 19,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.13"
+      },
+      {
+        "manualType": "SP",
+        "value": "16.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.7"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "התנעה",
+    "page": 19,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.2.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.13"
+      },
+      {
+        "manualType": "SP",
+        "value": "16.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.7"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "המראה",
+    "page": 20,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "3.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המראה - כללי",
+    "page": 20,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "3.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מינימה להמראה",
+    "page": 20,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "3.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תנאים בהם אסור להמריא",
+    "page": 20,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "3.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.5.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המראה ברוח צד חזקה / משבית",
+    "page": 21,
+    "refs": [
+      {
+        "manualType": "QRH OI",
+        "value": "2.16"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.79"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המראה במשקלים קלים",
+    "page": 21,
+    "refs": [
+      {
+        "manualType": "QRH OI",
+        "value": "2.16"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.79"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המראה ללא A/T",
+    "page": 21,
+    "refs": [
+      {
+        "manualType": "QRH OI",
+        "value": "2.16"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.79"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "טיסה ידנית ללא FD",
+    "page": 21,
+    "refs": [
+      {
+        "manualType": "QRH OI",
+        "value": "2.16"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.79"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תנאים להפסקת המראה",
+    "page": 22,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.4.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "NADP - Noise Abatement",
+    "page": 22,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.4.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "Wake Turbulence",
+    "page": 22,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.11.4.1"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "זמני טיסה",
+    "page": 23,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.30"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.56"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.80"
+      },
+      {
+        "manualType": "QRH",
+        "value": "7.43"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הגבלת  15 הטיה",
+    "page": 23,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.30"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.56"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.80"
+      },
+      {
+        "manualType": "QRH",
+        "value": "7.43"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מגבלות מהירות",
+    "page": 23,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.30"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.56"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.80"
+      },
+      {
+        "manualType": "QRH",
+        "value": "7.43"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שינוי גובה ושיעורי הנמכה",
+    "page": 23,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.30"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.56"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.80"
+      },
+      {
+        "manualType": "QRH",
+        "value": "7.43"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1.10"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מהירויות בטיסה",
+    "page": 24,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.36"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.54"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.56"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.80"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "שיוט",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "דלק בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "צריכת דלק בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "ניהול דלק בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "חיסכון בדלק בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "חוקי אצבע דלק בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "טמפרטורת דלק נמוכה בטיסה",
+    "page": 25,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "מזג אוויר בביצוע",
+    "page": 26,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.6.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מז\"א ביעד ובשדות משנה בביצוע",
+    "page": 26,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.6.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "דיווחי חובה מז\"א",
+    "page": 26,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.6.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "עקיפת מזג אויר פעיל",
+    "page": 26,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "1.4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.3.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.6.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.10.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "שונות",
+    "page": 27,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "נהלי RVSM",
+    "page": 27,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "דרישות חמצן",
+    "page": 27,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "דיווחי חובה לשליטה - OCC",
+    "page": 27,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.8"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "גישה ונחיתה",
+    "page": 28,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.3"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "תנאים לגישה",
+    "page": 28,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "כללי",
+    "page": 28,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מינימה לגישה",
+    "page": 28,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.2.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.3"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מינימה לקברניט חסר ניסיון – INEXPERIENCED PIC",
+    "page": 29,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המרה של Visibility ל-RVR/CMV",
+    "page": 29,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "סוגי גישות",
+    "page": 29,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישות מאושרות לשימוש אלעל",
+    "page": 29,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישות CAT II / III",
+    "page": 30,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.31"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.33"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישת NPA",
+    "page": 30,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.31"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.33"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישות RNAV/RNP",
+    "page": 30,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.31"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.33"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישות ראיה - כללי",
+    "page": 30,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.31"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.33"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הקפת ראייה – VISUAL TRAFFIC PATTERN",
+    "page": 30,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.6.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.11"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.3"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.31"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.4"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.33"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישת CIRCLE TO LAND / CIRCLING APPROACH",
+    "page": 31,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.63"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישת PRM",
+    "page": 31,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.63"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "SIDE STEP MANEUVER",
+    "page": 31,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.63"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "יירוט GS מלמעלה - GS FROM ABOVE",
+    "page": 31,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.63"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הולדינג - HOLDING",
+    "page": 32,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "4.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "תנאים לבחירת APP",
+    "page": 32,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "4.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "גישה מיוצבת והליכה סביב",
+    "page": 32,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "4.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "גישה מיוצבת Stabilized Approach",
+    "page": 32,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "4.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "APPROACH BAN",
+    "page": 32,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "4.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.12"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "Revised Touchdown Zone",
+    "page": 33,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.1"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "המשך טיסה אחרי המינימה",
+    "page": 33,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.1"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "חובה ללכת סביב – Mandatory Missed Approach",
+    "page": 33,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.8.5.1"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "הליכה סביב",
+    "page": 34,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.77"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.6"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "4.20.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.8"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.38"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.41"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "סוגי נחיתות",
+    "page": 34,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.77"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.6"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "4.20.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.8"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.38"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.41"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "נחיתה - כללי",
+    "page": 34,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.77"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.6"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "4.20.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.8"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.38"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.41"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שימוש ב-AUTOBRAKE",
+    "page": 34,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.77"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "5.6"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "4.20.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.8"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.38"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.41"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "נחיתה ברוח צד חזקה",
+    "page": 35,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "6.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.29"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "REJECTED LANDING - ה\"ס בגובה נמוך מהמינימה",
+    "page": 35,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "6.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.29"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "BOUNCED LANDING - קפיצה אחרי נגיעת כני נסע ראשיים",
+    "page": 35,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "6.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.29"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "BALKED LANDING - ה\"ס מהמסלול אחרי נגיעה",
+    "page": 35,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "6.30"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.29"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "יורדינג",
+    "page": 36,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "כללי",
+    "page": 36,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מניעת TIPPING",
+    "page": 36,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "1.4"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "אירועים המחייבים פתיחת תקלה",
+    "page": 36,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "1.4"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "חירומים",
+    "page": 37,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.3"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "3.16"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.14"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.18"
+      },
+      {
+        "manualType": "OI",
+        "value": "1.29"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.1"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.4"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5.11.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "כללי",
+    "page": 37,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.3"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "3.16"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.14"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.18"
+      },
+      {
+        "manualType": "OI",
+        "value": "1.29"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.1"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.4"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5.11.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "מתגים הדורשים אישור \"CONFIRM\"",
+    "page": 37,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.3"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "3.16"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.14"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.18"
+      },
+      {
+        "manualType": "OI",
+        "value": "1.29"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.1"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.4"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5.11.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "LAND AT THE NEAREST SUITABLE AIRPORT",
+    "page": 37,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.3"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "3.16"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.14"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "2.18"
+      },
+      {
+        "manualType": "OI",
+        "value": "1.29"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.1"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.4"
+      },
+      {
+        "manualType": "QRH CI",
+        "value": "2.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.5.11.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "תפעול לחיצים",
+    "page": 38,
+    "refs": [
+      {
+        "manualType": "QRH CI",
+        "value": "2.8"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "2.21"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.6.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.6"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "מדיניות בעת כשלון מנוע",
+    "page": 38,
+    "refs": [
+      {
+        "manualType": "QRH CI",
+        "value": "2.8"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "2.21"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.6.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.6"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "הליכה לשדה משנה - DIVERSION",
+    "page": 38,
+    "refs": [
+      {
+        "manualType": "QRH CI",
+        "value": "2.8"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "2.21"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.6.1.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "2.4.3.6"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "INCAPACITATION OF CREW MEMBERS",
+    "page": 39,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.7"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.7"
+      },
+      {
+        "manualType": "QRH OPS INFO",
+        "value": "1.28"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "אש / עשן בקבינה",
+    "page": 39,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.7"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.7"
+      },
+      {
+        "manualType": "QRH OPS INFO",
+        "value": "1.28"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "טיפול באירוע חומ\"ס בטיסה",
+    "page": 39,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.3.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.7"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.7"
+      },
+      {
+        "manualType": "QRH OPS INFO",
+        "value": "1.28"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.16"
+      },
+      {
+        "manualType": "OMA",
+        "value": "9.1.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "חטיפה",
+    "page": 40,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.18"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.25"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "11.31.45"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.11"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "הנמכת חירום – EMERGENCY DESCENT",
+    "page": 40,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.18"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.25"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "11.31.45"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.11"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "ביצוע DRIFT DOWN – כשלון מנוע בשיוט",
+    "page": 40,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.18"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "2.25"
+      },
+      {
+        "manualType": "FCOM",
+        "value": "11.31.45"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "4.11"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "כשלון שני מנועים בשיוט – LOSS OF THRUST ON BOTH ENGINES",
+    "page": 41,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.26"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "כישלון מנוע EFP",
+    "page": 41,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.26"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "כישלון מנוע בפיינל (תצורת נחיתה) - ENGINE FAILURE ON FINAL",
+    "page": 41,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "5.26"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פגיעת ציפורים - BIRD STRIKE",
+    "page": 42,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.42"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.48"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.33"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.42"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נחיתה מעל משקל מירבי - OVERWEIGHT LANDING",
+    "page": 42,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.42"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.48"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.33"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.42"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פיצוץ צמיג - TIRE FAILURE",
+    "page": 42,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.42"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.48"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.33"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.42"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נחיתה ללא ANTISKID",
+    "page": 42,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.22"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.42"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "6.48"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "1.33"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.42"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נחיתה ללא כל הגלגלים מטה",
+    "page": 43,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.43"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.47"
+      },
+      {
+        "manualType": "QRH",
+        "value": "15.5"
+      },
+      {
+        "manualType": "QRH",
+        "value": "5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.6.1"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "1.25"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פגיעת זנב - TAIL STRIKE",
+    "page": 43,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.43"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.47"
+      },
+      {
+        "manualType": "QRH",
+        "value": "15.5"
+      },
+      {
+        "manualType": "QRH",
+        "value": "5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.6.1"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "1.25"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "אבדן קשר – COMMUNICATIONS FAILURE",
+    "page": 43,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.43"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.47"
+      },
+      {
+        "manualType": "QRH",
+        "value": "15.5"
+      },
+      {
+        "manualType": "QRH",
+        "value": "5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.6.1"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "1.25"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "יירוט - INTERCEPTION",
+    "page": 43,
+    "refs": [
+      {
+        "manualType": "FCTM",
+        "value": "8.43"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "8.47"
+      },
+      {
+        "manualType": "QRH",
+        "value": "15.5"
+      },
+      {
+        "manualType": "QRH",
+        "value": "5.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.6.1"
+      },
+      {
+        "manualType": "OPS INFO",
+        "value": "1.25"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נוסע חולה / נפטר",
+    "page": 44,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.24"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.24"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "5.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נוסע אלים – DISRUPTIVE/UNRULY PASSANGERS",
+    "page": 44,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.24"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.2"
+      },
+      {
+        "manualType": "CFSM",
+        "value": "4.24"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "5.3"
+      },
+      {
+        "manualType": "OMA",
+        "value": "10.4"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פינוי חירום מתוכנן",
+    "page": 45,
+    "refs": [
+      {
+        "manualType": "CSFM",
+        "value": "3.5"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "3.15"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4.3"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "2.1"
+      },
+      {
+        "manualType": "OI",
+        "value": "2.1"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פינוי חירום ממטוס חונה",
+    "page": 45,
+    "refs": [
+      {
+        "manualType": "CSFM",
+        "value": "3.5"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "3.15"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4.3"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "2.1"
+      },
+      {
+        "manualType": "OI",
+        "value": "2.1"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פעולות לאחר אירוע בטיחות או תקרית",
+    "page": 45,
+    "refs": [
+      {
+        "manualType": "CSFM",
+        "value": "3.5"
+      },
+      {
+        "manualType": "CSFM",
+        "value": "3.15"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4.3"
+      },
+      {
+        "manualType": "QRH OI",
+        "value": "2.1"
+      },
+      {
+        "manualType": "OI",
+        "value": "2.1"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "חישובי ביצועים",
+    "page": 46,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.38"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "חישוב ביצועים להמראה",
+    "page": 46,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.9"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.6"
+      },
+      {
+        "manualType": "FCTM",
+        "value": "3.38"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "חישוב ביצועים לנחיתה",
+    "page": 47,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      },
+      {
+        "manualType": "QRH OPS INFO",
+        "value": "2.15"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "שימוש ב-OPT",
+    "page": 47,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      },
+      {
+        "manualType": "QRH OPS INFO",
+        "value": "2.15"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.5"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "גרדיאנט טיפוס בכשלון מנוע EFP",
+    "page": 48,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "גרדיאנט הליכה סביב",
+    "page": 48,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.2.8"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "דרישות עבור DRIFT DOWN",
+    "page": 49,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9.1"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "ביצועים בשיוט",
+    "page": 49,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.1.2.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.1.9.1"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "ידע כללי ונהלים שונים",
+    "page": 50,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.2"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "סמכות ואחריות ה- PIC",
+    "page": 50,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "ה-PIC יהיה PF",
+    "page": 50,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.2"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "מגבלות רפואיות",
+    "page": 50,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "0.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.1.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "4.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.3.6"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.2.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.17"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.7"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.1.5.2"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "נהלי קוקפיט",
+    "page": 51,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "אירוח בתא הטייס",
+    "page": 51,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "Controlled Rest at the Flight Deck",
+    "page": 51,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "קוקפיט שקט",
+    "page": 51,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "1.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.1"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.12.2"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.4"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.5"
+      },
+      {
+        "manualType": "OMA",
+        "value": "8.3.14.6"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "אייפד",
+    "page": 52,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.7"
+      }
+    ]
+  },
+  {
+    "depth": 2,
+    "title": "שלבים קריטיים בטיסה (AOV)",
+    "page": 52,
+    "refs": [
+      {
+        "manualType": "OMA",
+        "value": "8.3.20.1.7"
+      }
+    ]
+  },
+  {
+    "depth": 0,
+    "title": "הגדרות",
+    "page": 53,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "סוגי גבהים",
+    "page": 53,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "תאורות וסימוני מסלולים",
+    "page": 53,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "מטאורולוגיה - הגדרות",
+    "page": 54,
+    "refs": []
+  },
+  {
+    "depth": 0,
+    "title": "מערכות ומבנה מטוס 737",
+    "page": 55,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "כללי והבדלים בין מטוסים",
+    "page": 55,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "מידות / מגבלות / נתוני מטוס",
+    "page": 55,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "חוזק מסלול ACN/PCN ACR/PCR",
+    "page": 55,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "EKK",
+    "page": 56,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "EKZ – מטוס מטען",
+    "page": 56,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "מטוסי SHORT FIELD PERFORMANCE",
+    "page": 56,
+    "refs": []
+  },
+  {
+    "depth": 2,
+    "title": "מערכות שיש להן RECALL",
+    "page": 56,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 1 - WATER and WASTE",
+    "page": 57,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 2 - פנאומטיקה ומיזוג אוויר - AIR SYSTEMS",
+    "page": 57,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 3 - ANTI ICE AND RAIN",
+    "page": 59,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 4 - AUTOMATIC FLIGHT",
+    "page": 59,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 6 - חשמל",
+    "page": 62,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 7 - מנועים ו-APU",
+    "page": 63,
+    "refs": [
+      {
+        "manualType": "FCOM",
+        "value": "6.20.20"
+      }
+    ]
+  },
+  {
+    "depth": 1,
+    "title": "פרק 8 - FIRE PROTECTION",
+    "page": 65,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 9 - FLIGHT CONTROLS",
+    "page": 66,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 10 - תצוגות",
+    "page": 68,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 11 - ניווט ו-FMC",
+    "page": 69,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 12 - מערכת הדלק",
+    "page": 71,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 13 - הידראוליקה",
+    "page": 72,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 14 - LANDING GEAR",
+    "page": 73,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פרק 15 – WARNING SYSTEMS",
+    "page": 75,
+    "refs": []
+  },
+  {
+    "depth": 0,
+    "title": "MANEUVERS NNC",
+    "page": 77,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "STALL",
+    "page": 77,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "RTO",
+    "page": 77,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "GPWS WARNING",
+    "page": 77,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "TRAFFIC RA",
+    "page": 78,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "UPSET",
+    "page": 78,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "WINDSHEAR",
+    "page": 79,
+    "refs": []
+  },
+  {
+    "depth": 0,
+    "title": "בולטין – BULLETIN RECORD",
+    "page": 80,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "התראות שווא WS",
+    "page": 80,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "התראת שווא של Stick Shaker",
+    "page": 80,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "רעידות הנובעות מ-Elevator Tab",
+    "page": 80,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "מגבלות גובה ומהירות לא נכונות ב-FMC אחרי שינוי מסלול",
+    "page": 80,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "גובה לא נכון ב-FMC אחרי שינוי גישה עם נקודה משותפת",
+    "page": 81,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "אין יכולת VNAV או חישובי FMC לאחר הכנסת רוח בהנמכה, ללא גישה",
+    "page": 81,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "חריגה מהנתיב בביצוע פניית נוהל",
+    "page": 81,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "אוברשוט ביירוט ה-LOC",
+    "page": 81,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "קפיצה ב-ROLL בגישות RNP",
+    "page": 81,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "פאנל דיחוס מהבהב / כבה",
+    "page": 82,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "סחיפת מיקום ADIRU ושגיאות ב-Ground Speed",
+    "page": 82,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "אנומליה ב-Master Caution",
+    "page": 82,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "הפרעות בשידור ממיקרופון ידני עם מכשיר מחובר לשקע חשמל",
+    "page": 82,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "אנומליה ב-Air Speed Low Aural Alert",
+    "page": 82,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "התראת GS בגישות IAN (EKK) / תצוגות מסכים במטוס EKK",
+    "page": 83,
+    "refs": []
+  },
+  {
+    "depth": 1,
+    "title": "תפעול ידית מדפים",
+    "page": 83,
+    "refs": []
+  }
+]
