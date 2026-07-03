@@ -522,3 +522,54 @@ render();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+// --- PWA resume hardening (ported from flight-card Phases 10–12) ---------
+// iOS suspends installed PWAs aggressively; on resume it sometimes keeps
+// the DOM but detaches boot-time event listeners, leaving a page that
+// looks alive but ignores taps. Four independent recovery paths:
+//   1. bfcache restore  → reload (stale listeners guaranteed)
+//   2. >5 min hidden    → reload on return
+//   3. freeze detector  → screen is being touched but no JS handler has
+//      seen an event for 3+ min → reload
+//   4. new SW activates → reload once (sw.js does skipWaiting+claim, so
+//      this completes the update loop — deploys apply on next foreground)
+(function () {
+  let reloaded = false;
+  function reloadOnce() {
+    if (reloaded) return;
+    reloaded = true;
+    try { location.reload(); } catch {}
+  }
+
+  window.addEventListener('pageshow', (e) => { if (e.persisted) reloadOnce(); });
+
+  const LONG_AWAY_MS = 5 * 60 * 1000;
+  let hiddenAt = 0;
+  let swReg = null;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
+    if (swReg) { try { swReg.update(); } catch {} }
+    if (hiddenAt && Date.now() - hiddenAt > LONG_AWAY_MS) reloadOnce();
+    hiddenAt = 0;
+  });
+
+  let lastSeen = Date.now(), wantAt = 0;
+  for (const t of ['pointerdown', 'click', 'keydown']) {
+    document.addEventListener(t, () => { lastSeen = Date.now(); }, true);
+  }
+  document.addEventListener('touchstart', () => { wantAt = lastSeen = Date.now(); }, true);
+  setInterval(() => {
+    try {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastSeen > 3 * 60 * 1000 && now - wantAt < 2000) reloadOnce();
+    } catch {}
+  }, 30 * 1000);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+    navigator.serviceWorker.ready
+      .then((r) => { swReg = r; try { r.update(); } catch {} })
+      .catch(() => {});
+  }
+})();

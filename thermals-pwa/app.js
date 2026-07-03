@@ -617,10 +617,33 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     keepAwake();
     if (connected) presence.reconnectIfClosed();
+    // Check for a fresh deploy on every foreground. NOTE: deliberately no
+    // long-away auto-reload and no freeze detector here (unlike the other
+    // PWAs) — this is a live-map app whose wake-lock + reconnect logic
+    // exists to preserve in-flight state; a forced reload mid-session
+    // would throw away the map + track.
+    if (hardenSwReg) { try { hardenSwReg.update(); } catch {} }
   } else {
     wakeLock = null;   // the browser releases it when hidden
   }
 });
+
+// bfcache restore = stale listeners guaranteed → one clean reload. Safe
+// even mid-flight: a bfcache restore means the page was fully evicted
+// from memory anyway, so there's no live socket or map state to protect.
+let hardenReloaded = false;
+let hardenSwReg = null;
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && !hardenReloaded) {
+    hardenReloaded = true;
+    try { location.reload(); } catch {}
+  }
+});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.ready
+    .then((r) => { hardenSwReg = r; try { r.update(); } catch {} })
+    .catch(() => {});
+}
 
 $('toggle-3d')?.addEventListener('click', () => {
   const on = mapMod.toggle3D();
