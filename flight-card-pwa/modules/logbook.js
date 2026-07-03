@@ -19,32 +19,17 @@
 // in Jan.
 
 import * as storage from './storage.js';
+import { rollingTs } from './dates.js';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
 
 function pad2(n) { return String(n | 0).padStart(2, '0'); }
 
-// dd.mm + HH:MM (UTC) → Date object. Falls back to null when either part
-// is missing or malformed.
+// dd.mm + HH:MM (UTC) → Date object, or null when either part is missing
+// or malformed. Rolling-year rule lives in modules/dates.js.
 function toUtcDate(ddmm, hhmm) {
-  if (!ddmm || !hhmm) return null;
-  const dm = String(ddmm).split('.');
-  if (dm.length !== 2) return null;
-  const [dd, mm] = dm;
-  const [h, m] = String(hhmm).split(':');
-  if (dd == null || mm == null || h == null || m == null) return null;
-  const nowYear = new Date().getUTCFullYear();
-  let iso = `${nowYear}-${mm}-${dd}T${pad2(h)}:${pad2(m)}:00Z`;
-  let ts = Date.parse(iso);
-  if (!Number.isFinite(ts)) return null;
-  // If the resulting date is more than 6 months in the past, roll the year
-  // forward so a roster bulletin posted in December for January flights
-  // doesn't end up in last January.
-  if (Date.now() - ts > 6 * 30 * 24 * 3600 * 1000) {
-    iso = `${nowYear + 1}-${mm}-${dd}T${pad2(h)}:${pad2(m)}:00Z`;
-    ts = Date.parse(iso);
-  }
+  const ts = rollingTs(ddmm, hhmm);
   return Number.isFinite(ts) ? new Date(ts) : null;
 }
 
