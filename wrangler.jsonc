@@ -16,5 +16,11 @@
   "main": "flight-card-pwa/cloudflare-worker/taf-proxy.js",
   "compatibility_date": "2026-06-12",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // Backs the /logbook/<token> routes: the PWA publishes its logbook .ics
+  // here and Apple/Google Calendar subscribes to it. See taf-proxy.js.
+  "kv_namespaces": [
+    { "binding": "LOGBOOK", "id": "0154299bd0ec4cf29debb0d0b5acc5d8" }
+  ]
 }
