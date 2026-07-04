@@ -26,6 +26,6 @@
   // Backs the /logbook/<token> routes: the PWA publishes its logbook .ics
   // here and Apple/Google Calendar subscribes to it. See taf-proxy.js.
   "kv_namespaces": [
-    { "binding": "LOGBOOK", "id": "0154299bd0ec4cf29debb0d0b5acc5d8" }
+    { "binding": "LOGBOOK", "id": "1f728fc42a694e81bbd203c1efe06976" }
   ]
 }
