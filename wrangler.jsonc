@@ -16,6 +16,11 @@
   "main": "flight-card-pwa/cloudflare-worker/taf-proxy.js",
   "compatibility_date": "2026-06-12",
   "compatibility_flags": ["nodejs_compat"],
+  // Publish to the account's workers.dev subdomain. Older wrangler assumed
+  // this; newer wrangler in the CI build refuses to deploy without an
+  // explicit target (routes or workers_dev), failing with "specify them in
+  // your wrangler.jsonc or register a workers.dev subdomain".
+  "workers_dev": true,
   "observability": { "enabled": true },
 
   // Backs the /logbook/<token> routes: the PWA publishes its logbook .ics
