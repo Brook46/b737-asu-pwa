@@ -9,4 +9,8 @@
 //   - TAF section falls back to the ↗ aviationweather.gov deep-link
 //   - Calendar sync shows "Configure the proxy first" instead of running
 
-export const WORKER_BASE = 'https://b737-asu-pwa.zy7ps9scwm.workers.dev';
+// alonbrookstein.workers.dev is the git-connected account's subdomain
+// (registered 2026-07-04). The old zy7ps9scwm URL was a manually-deployed
+// copy in another account that never received git deploys — it kept
+// serving stale code, which is why the logbook routes 503'd for a day.
+export const WORKER_BASE = 'https://b737-asu-pwa.alonbrookstein.workers.dev';
