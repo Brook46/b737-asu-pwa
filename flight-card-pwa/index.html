@@ -13,7 +13,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Flight Card</title>
-  <link rel="stylesheet" href="./app.css?v=84" />
+  <!-- Design typefaces (Flight Deck Dashboard): Barlow for display/values,
+       Barlow Semi Condensed for letterspaced labels. display=swap so the
+       system font renders instantly and offline (the PWA must never block
+       on a CDN); Safari caches the woff2s after first online load. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./app.css?v=88" />
 </head>
 <body>
   <header class="app-header">
@@ -501,6 +508,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=87"></script>
+  <script type="module" src="./app.js?v=88"></script>
 </body>
 </html>
