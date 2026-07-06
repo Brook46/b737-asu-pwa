@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style data-omelette-injected>html,body{background:transparent}</style><script data-omelette-injected>(()=>{{const H=new URLSearchParams(location.search).get("theme");if(H==="light"||H==="dark"){document.documentElement.dataset.theme=H}}{const H=()=>{try{if(document.querySelector('meta[name="color-scheme"]'))return;const A=getComputedStyle(document.documentElement).getPropertyValue("color-scheme").trim();if(A&&A!=="normal")return;const M=(L)=>{if(!L)return null;const F=getComputedStyle(L).backgroundColor.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s/]+([\d.]+%?))?\s*\)$/);if(!F)return null;const Y=F[4]==null?1:parseFloat(F[4])/(F[4].endsWith("%")?100:1);if(Y<0.99)return null;return[+F[1],+F[2],+F[3]]};const j=M(document.body)||M(document.documentElement);if(!j)return;const x=(L)=>{const F=L/255;return F<=0.04045?F/12.92:((F+0.055)/1.055)**2.4};const G=0.2126*x(j[0])+0.7152*x(j[1])+0.0722*x(j[2]);document.documentElement.style.setProperty("color-scheme",G<0.4?"dark":"light")}catch{}};if(document.readyState==="complete")H();else window.addEventListener("load",H)}var S=[];var v=false;var P=30000;var h=3000;document.addEventListener("DOMContentLoaded",()=>{const H=window.Babel;const A="om-src-id";if(H&&H.registerPlugin&&!(H.availablePlugins&&H.availablePlugins[A])){H.registerPlugin(A,({types:G})=>({visitor:{JSXOpeningElement(L,F){const Y=L.node;if(Y.name&&Y.name.type==="JSXMemberExpression")return;for(let J=0;J<Y.attributes.length;J++){const V=Y.attributes[J];if(V.type==="JSXAttribute"&&V.name&&V.name.name==="data-om-id")return}const B=F.file&&F.file.opts&&F.file.opts.filename||"?";const w=Y.loc&&Y.loc.start;const z=`jsx:${B}:${Y.start??0}:${w?w.line:0}:${w?w.column+1:0}`;Y.attributes.push(G.jsxAttribute(G.jsxIdentifier("data-om-id"),G.stringLiteral(z)))}}}))}const M="om-text-extract";let j=false;if(v&&H&&H.registerPlugin&&!(H.availablePlugins&&H.availablePlugins[M])){const G=window.React;if(G&&G.useSyncExternalStore&&G.createElement){j=true;const L={};const F=new Set;let Y=0;window.__omTextO=L;window.__omTextSet=(z)=>{for(const J in z){const V=z[J];if(V==null)delete L[J];else L[J]=V}Y++;F.forEach((J)=>J())};const B=(z)=>{F.add(z);return()=>F.delete(z)};const w=()=>Y;window.__OmT=function z(J){G.useSyncExternalStore(B,w,w);return G.createElement("span",{"data-om-text":J.i,className:"__om-t"},J.i in L?L[J.i]:J.children)};H.registerPlugin(M,({types:z})=>{const J={style:1,script:1,noscript:1,textarea:1,title:1,option:1,text:1,tspan:1,textPath:1};const V={placeholder:1,alt:1,title:1,label:1,"aria-label":1,"aria-description":1,"aria-placeholder":1};const W=(Z,q)=>z.logicalExpression("??",z.memberExpression(z.logicalExpression("||",z.memberExpression(z.identifier("window"),z.identifier("__omTextO")),z.objectExpression([])),z.stringLiteral(Z),true),q);const Q=(Z)=>Z.file&&Z.file.opts&&Z.file.opts.filename||"?";const C=(Z)=>Z.file&&Z.file.code||"";const K=(Z,q)=>{const U=($)=>$&&$.start!=null&&$.end!=null&&($.type==="StringLiteral"||$.type==="TemplateLiteral"&&$.expressions.length===0)?[$.start,$.end]:null;const N=U(q);if(N)return N;if(q&&q.type==="Identifier"){const $=Z.scope.getBinding(q.name);if($&&$.constant&&$.path.node.type==="VariableDeclarator"){return U($.path.node.init)}}return null};const E=(Z,q,U)=>{const N=Z.node;let $=false;const R=(D,k)=>{$=true;return z.jsxElement(z.jsxOpeningElement(z.jsxIdentifier("__OmT"),[z.jsxAttribute(z.jsxIdentifier("i"),z.stringLiteral(D))],false),z.jsxClosingElement(z.jsxIdentifier("__OmT")),[k],false)};const X=N.children.map((D)=>{if(D.type==="JSXText"){if(D.start==null||D.end==null)return D;const k=U.slice(D.start,D.end);const f=k.length-k.trimStart().length;const I=k.length-k.trimEnd().length;if(f+I>=k.length)return D;return R(`txt:${q}:${D.start+f}:${D.end-I}`,D)}if(D.type==="JSXExpressionContainer"){const k=K(Z,D.expression);if(k)return R(`str:${q}:${k[0]}:${k[1]}`,D)}return D});if($)N.children=X};return{visitor:{JSXOpeningElement(Z,q){const U=Z.node;const N=Q(q);const $={};for(let R=0;R<U.attributes.length;R++){const X=U.attributes[R];if(X.type!=="JSXAttribute"||!X.name)continue;const D=X.name.name;if(!V[D])continue;if(!X.value||X.value.type!=="StringLiteral")continue;if(X.value.start==null||X.value.end==null)continue;const k=`txt:${N}:${X.value.start}:${X.value.end}`;$[D]=k;X.value=z.jsxExpressionContainer(W(k,z.stringLiteral(X.value.value)))}if(Object.keys($).length){U.attributes.push(z.jsxAttribute(z.jsxIdentifier("data-om-text-attrs"),z.stringLiteral(JSON.stringify($))))}},JSXElement(Z,q){const U=Z.node.openingElement;const N=U&&U.name&&U.name.name;if(N==="__OmT")return;if(typeof N==="string"&&J[N])return;E(Z,Q(q),C(q))},JSXFragment(Z,q){E(Z,Q(q),C(q))}}}})}}const x=j?["transform-react-jsx-source",A,M]:["transform-react-jsx-source",A];document.querySelectorAll('script[type="text/babel"],script[type="text/jsx"]').forEach((G,L)=>{const F=G.getAttribute("data-plugins")||"";const Y=x.filter((B)=>F.indexOf(B)<0);if(Y.length){G.setAttribute("data-plugins",F?`${F},${Y.join(",")}`:Y.join(","))}if(!G.hasAttribute("data-filename")){G.setAttribute("data-filename",G.getAttribute("src")||`inline-${L}`)}})});var _=window.parent;if(_&&_!==window){const H=(z,J)=>{try{_.postMessage({__omelette_log:true,type:z,data:J},"*")}catch{}};["log","warn","error"].forEach((z)=>{const J=console[z];console[z]=(...V)=>{const W=V.map((Q)=>{try{return typeof Q==="object"?JSON.stringify(Q):String(Q)}catch{try{return String(Q)}catch{return"[unstringifiable]"}}}).join(" ");H(z,W);J.apply(console,V)}});window.addEventListener("error",(z)=>{const J=z.target;if(J&&J!==window&&J.tagName){const V=J.src||J.href||"";H("resource_error",`${J.tagName} failed to load: ${V}`)}else{H("error",`${z.message||"Unknown error"} at ${z.filename||"?"}:${z.lineno||0}:${z.colno||0}`)}},true);window.addEventListener("unhandledrejection",(z)=>{const J=z.reason;const V=J instanceof Error?`${J.message} ${J.stack}`:String(J);H("error",`Unhandled rejection: ${V}`)});window.addEventListener("click",(z)=>{if(z.defaultPrevented||z.button!==0)return;if(z.metaKey||z.ctrlKey||z.shiftKey||z.altKey)return;const J=z.composedPath?z.composedPath():[];const V=["button","input","select","textarea","summary","label"];let W=null;for(const E of J){if(!(E instanceof Element))continue;if(E.localName==="a"){if(!(E instanceof HTMLAnchorElement))return;W=E;break}if(V.indexOf(E.localName)!==-1)return}if(!W)return;if(W.isContentEditable)return;const Q=W.closest("[contenteditable]");if(Q&&Q.getAttribute("contenteditable")!=="false")return;const C=(W.getAttribute("target")||"_self").toLowerCase();if(C!=="_self"&&C!=="_top"&&C!=="_parent")return;let K;try{K=new URL(W.href)}catch{return}if(K.protocol!=="http:"&&K.protocol!=="https:")return;if(location.origin==="null")return;if(K.origin===location.origin)return;z.preventDefault();window.open(K.href,"_blank","noopener,noreferrer")});const A=()=>{try{_.postMessage({type:"omelette:height",height:document.documentElement.scrollHeight},"*")}catch{}};if(window.ResizeObserver)new ResizeObserver(A).observe(document.documentElement);const M=()=>{A();if(!document.querySelector('script[type="text/babel"],script[type="text/jsx"]'))return;const z=()=>document.getElementById("root")||document.querySelector("body > div[id]");const J=z()?.firstElementChild??null;let V=0;const W=()=>{const Q=z();if(Q&&Q.firstElementChild!==J||++V>30){A();return}setTimeout(W,100)};setTimeout(W,100)};if(document.readyState==="complete")M();else window.addEventListener("load",M);const j={};let x=0;const G=(z)=>new Promise((J,V)=>{if(!S.length){V(new Error("claude.complete: no parent origin"));return}const W=`c${++x}`;const Q=()=>setTimeout(()=>{delete j[W];V(new Error(`claude.complete: no data for ${P/1000}s`))},P);const C=Q();j[W]={resolve:J,reject:V,text:"",t:C,arm:Q};try{for(const K of S){_.postMessage({__om_api:true,id:W,body:z},K)}}catch(K){clearTimeout(C);delete j[W];V(K)}});const L=8;const F=async(z,J)=>{if(!Array.isArray(z.messages)){throw new Error("claude.complete: tools require a messages array")}const V=z.messages.slice();const W={...z,tools:z.tools.map((K)=>{if(K===null||typeof K!=="object")return K;const E={};for(const Z of Object.keys(K)){if(typeof K[Z]!=="function")E[Z]=K[Z]}return E})};const Q=W.tool_choice;const C=Q!=null&&(Q.type==="any"||Q.type==="tool")?{...W,tool_choice:Q.disable_parallel_tool_use!==undefined?{type:"auto",disable_parallel_tool_use:Q.disable_parallel_tool_use}:{type:"auto"}}:W;for(let K=0;K<L;K++){const E=await G({...K===0?W:C,messages:V});const Z=E.message;const q=Z&&Array.isArray(Z.content)?Z.content:null;const U=q?q.filter(($)=>$?.type==="tool_use"):[];if(Z?.stop_reason!=="tool_use"||U.length===0){return E.text}const N=[];for(const $ of U){const R=J.get($.name);if(!R){N.push({type:"tool_result",tool_use_id:$.id,content:`no handler for tool "${$.name}"`,is_error:true});continue}try{const X=await R($.input);const D=typeof X==="string"?X:w(X)??"";N.push({type:"tool_result",tool_use_id:$.id,content:D})}catch(X){N.push({type:"tool_result",tool_use_id:$.id,content:String(X?.message??X??"tool handler failed"),is_error:true})}}V.push({role:"assistant",content:q},{role:"user",content:N})}throw new Error(`claude.complete: exceeded ${L} tool turns`)};window.claude={complete(z){const J=z;if(J!==null&&typeof J==="object"&&Array.isArray(J.tools)&&J.tools.some((V)=>V!==null&&typeof V==="object"&&typeof V.run==="function")){const V=new Map;for(const W of J.tools){if(W!==null&&typeof W==="object"&&typeof W.run==="function"){V.set(String(W.name),W.run)}}return F(J,V)}return G(z).then((V)=>V.text)}};const Y={};let B=0;window.omelette={writeFile:(z,J)=>new Promise((V,W)=>{if(!S.length){V();return}const Q=`f${++B}`;const C=setTimeout(()=>{delete Y[Q];V()},h);Y[Q]={resolve:V,reject:W,t:C};try{for(const K of S){_.postMessage({__om_file:true,id:Q,op:"write",path:z,content:J},K)}}catch{clearTimeout(C);delete Y[Q];V()}})};const w=(z)=>{try{return JSON.stringify(z)}catch{return JSON.stringify(String(z))}};window.addEventListener("message",(z)=>{if(S.indexOf(z.origin)<0)return;if(z.source!==_)return;const J=z.data;if(!J)return;if(J.type==="omelette-preview-refresh"){if(typeof J.token!=="string"||!/^[0-9a-f.-]+(\.(rc|pr-[0-9]+))?(\.[0-9]+\.[0-9a-f]{16})?$/.test(J.token))return;const Q=Math.max(1,Math.floor((J.expiresAt||0)-Date.now()/1000));document.cookie="__Host-omelette-preview="+J.token+"; Path=/; Secure; SameSite=None; Partitioned; Max-Age="+Q;return}if(J.__om_file_r){const Q=Y[J.id];if(!Q)return;clearTimeout(Q.t);delete Y[J.id];if(J.ok)Q.resolve();else Q.reject(new Error(J.error||"write failed"));return}if(J.__om_api_r){const Q=j[J.id];if(!Q)return;if(J.error!=null){clearTimeout(Q.t);delete j[J.id];Q.reject(new Error(J.error));return}if(J.chunk!=null){clearTimeout(Q.t);Q.t=Q.arm();Q.text+=J.chunk;return}if(J.done){clearTimeout(Q.t);delete j[J.id];Q.resolve({text:J.text!=null?J.text:Q.text,message:J.message});return}return}if(!J.__om_eval)return;const V=J;const W=(Q)=>{z.source.postMessage({...Q,__om_eval_r:1,id:V.id},z.origin)};try{const Q=(0,eval)(V.code);if(Q&&typeof Q.then==="function"){Q.then((C)=>W({ok:1,v:w(C)}),(C)=>W({ok:0,e:String(C)}))}else{W({ok:1,v:w(Q)})}}catch(Q){W({ok:0,e:String(Q)})}})}})();
+</script>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #E4E3DE; font-family: "Inter", system-ui, sans-serif; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+</style>
+</helmet>
+
+<div style="display:flex; flex-wrap:wrap; align-items:flex-start; gap:64px; padding:64px; min-width:100%;">
+
+  <!-- ============================================================ 2a — FLIGHT CARD · LIGHT ============================================================ -->
+  <div id="2a" style="position:relative; width:812px; flex:0 0 auto;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+      <span style="display:inline-flex; align-items:center; justify-content:center; background:#2E2E2E; color:#fff; font-family:'Barlow'; font-weight:700; font-size:13px; letter-spacing:.12em; padding:5px 12px; border-radius:999px;">2a</span>
+      <span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#6B6B6B; letter-spacing:.03em;">Flight Card · Light — Paper &amp; Teal / EFB daylight</span>
+    </div>
+
+    <div style="width:812px; background:#FAFAF8; border:1px solid #E8E6E1; border-radius:34px; box-shadow:0 8px 24px rgba(20,20,20,.08),0 30px 64px rgba(20,20,20,.10); overflow:hidden;">
+
+      <!-- Topbar -->
+      <header style="padding:20px 26px 18px; background:#2E2E2E;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:13px;">
+            <span style="display:inline-flex; width:38px; height:38px; align-items:center; justify-content:center; background:#3E8B85; border-radius:10px; color:#fff;"><i data-lucide="plane-takeoff" style="width:21px;height:21px;"></i></span>
+            <div style="line-height:1.05;">
+              <div style="font-family:'Barlow'; font-weight:700; font-size:21px; letter-spacing:.01em; color:#fff;">Flight Card</div>
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.22em; color:#7FB8B3;">B737‑800 · EL AL</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="mono" style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#B8B8B8; letter-spacing:.02em;">11:42 <span style="font-size:11px; color:#7A7A7A;">Z</span></span>
+            <button style="display:inline-flex; align-items:center; gap:6px; background:#3A3A3A; border:1px solid #555; color:#E8E6E1; font-family:'Barlow'; font-weight:600; font-size:13px; padding:8px 12px; border-radius:999px; cursor:pointer;"><i data-lucide="sun-moon" style="width:14px;height:14px;"></i>Auto</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="background:#3A3A3A; border:1px solid #555; border-radius:10px; padding:9px 14px;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; font-weight:600; letter-spacing:.16em; color:#8A8A8A;">TAIL</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:19px; color:#fff; letter-spacing:.04em;">4X‑EHA</div></div>
+          <div style="background:#3A3A3A; border:1px solid #555; border-radius:10px; padding:9px 14px;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; font-weight:600; letter-spacing:.16em; color:#8A8A8A;">FLT #</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:19px; color:#fff; letter-spacing:.04em;">LY&nbsp;315</div></div>
+        </div>
+      </header>
+
+      <!-- Leg switcher -->
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 26px; background:#F1EFEA; border-bottom:1px solid #E8E6E1;">
+        <div style="display:flex; gap:6px;">
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.06em; padding:6px 11px; border-radius:999px; background:#3E8B85; color:#fff;">T/O&nbsp;PF</span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.06em; padding:6px 11px; border-radius:999px; background:#fff; border:1px solid #E8E6E1; color:#6B6B6B;">LDG&nbsp;PM</span>
+        </div>
+        <div style="flex:1; text-align:center; line-height:1.15;">
+          <div style="font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; letter-spacing:.14em; color:#9A9A9A;">LEG 1 / 2</div>
+          <div style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#2E2E2E; letter-spacing:.04em;">TLV&nbsp;→&nbsp;ATH</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:#fff; border:1px solid #E8E6E1; border-radius:9px; color:#9A9A9A; cursor:pointer;"><i data-lucide="chevron-left" style="width:17px;height:17px;"></i></button>
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:#D7ECEA; border:1px solid #3E8B85; border-radius:9px; color:#3E8B85; cursor:pointer;"><i data-lucide="plane-takeoff" style="width:17px;height:17px;"></i></button>
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:#fff; border:1px solid #E8E6E1; border-radius:9px; color:#2E2E2E; cursor:pointer;"><i data-lucide="chevron-right" style="width:17px;height:17px;"></i></button>
+        </div>
+      </div>
+
+      <div style="padding:20px 26px 26px;">
+
+        <!-- Checklist card -->
+        <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px 12px; margin-bottom:14px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="chevron-down" style="width:16px;height:16px;color:#9A9A9A;"></i><span style="font-family:'Barlow'; font-weight:700; font-size:16px; color:#2E2E2E;">Checklist</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:4px 10px; border-radius:999px; background:#D7ECEA; color:#3E8B85; letter-spacing:.04em;">Before Start · 4/6</span>
+              <button style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; background:#FAFAF8; border:1px solid #E8E6E1; border-radius:8px; color:#9A9A9A; cursor:pointer;"><i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i></button>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#3E8B85;border-radius:6px;color:#fff;"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:#B8B6B0; text-decoration:line-through;">Gear pins &amp; covers — REMOVED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#3E8B85;border-radius:6px;color:#fff;"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:#B8B6B0; text-decoration:line-through;">Fuel — 11.4 T / CONFIRMED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#3E8B85;border-radius:6px;color:#fff;"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:#B8B6B0; text-decoration:line-through;">Passenger signs — ON</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#3E8B85;border-radius:6px;color:#fff;"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:#B8B6B0; text-decoration:line-through;">Windows — CLOSED &amp; LOCKED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;background:#fff;border:1.5px solid #D8D6D0;border-radius:6px;"></span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#2E2E2E;">MCP — V2 + ___ SET</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;background:#fff;border:1.5px solid #D8D6D0;border-radius:6px;"></span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#2E2E2E;">Takeoff briefing — COMPLETED</span></div>
+          </div>
+        </div>
+
+        <!-- Data card title -->
+        <div style="display:flex; align-items:center; gap:8px; margin:2px 2px 12px;"><i data-lucide="clipboard-list" style="width:17px;height:17px;color:#3E8B85;"></i><span style="font-family:'Barlow'; font-weight:700; font-size:14px; letter-spacing:.03em; color:#6B6B6B; text-transform:uppercase;">Data Card</span></div>
+
+        <!-- SOB + ATIS row -->
+        <div style="display:grid; grid-template-columns:1fr 1.3fr; gap:12px; margin-bottom:12px;">
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+            <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A; margin-bottom:10px;">Souls on Board</div>
+            <div style="display:flex; align-items:baseline; gap:5px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:38px; color:#2E2E2E; line-height:1;">172</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:#3E8B85; letter-spacing:.06em;">TTL</span></div>
+          </div>
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A;">ATIS · LLBG</span><span style="display:inline-flex; align-items:center; gap:4px; font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; color:#3E8B85; letter-spacing:.06em;"><i data-lucide="radio" style="width:12px;height:12px;"></i>LIVE</span></div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; background:#D7ECEA; border:1.5px solid #3E8B85; border-radius:11px; font-family:'Barlow'; font-weight:700; font-size:26px; color:#2E2E2E;">C</span>
+              <div style="line-height:1.25;"><div style="font-family:'Barlow'; font-weight:600; font-size:14px; color:#2E2E2E;">Information Charlie</div><div class="mono" style="font-family:'Barlow Semi Condensed'; font-size:11px; color:#9A9A9A; letter-spacing:.02em;">30012KT 9999 FEW040 27/14 Q1013</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Takeoff performance hero -->
+        <div style="background:#2E2E2E; border-radius:16px; padding:18px 20px 20px; color:#fff; position:relative; overflow:hidden; margin-bottom:12px;">
+          <div style="position:absolute; right:-50px; top:-50px; width:200px; height:200px; background:radial-gradient(circle,#3E8B85 0%,transparent 70%); opacity:.32;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; position:relative; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px;"><span style="background:#3E8B85; font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.1em; padding:5px 11px; border-radius:999px;">TAKEOFF PERF</span><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.06em; color:#B8B8B8;">FLAPS 5 · 65 t</span></div>
+            <button style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); color:#7FB8B3; font-family:'Barlow'; font-weight:600; font-size:12px; padding:6px 11px; border-radius:999px; cursor:pointer;"><i data-lucide="crosshair" style="width:13px;height:13px;"></i>OPT / FMC</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; position:relative; margin-bottom:12px;">
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 8px;"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#8A8A8A;">V1</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff;">142</div></div>
+            <div style="text-align:center; background:rgba(127,184,179,.14); border:1px solid rgba(127,184,179,.3); border-radius:12px; padding:14px 8px;"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">VR</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff;">146</div></div>
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px 8px;"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#8A8A8A;">V2</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff;">150</div></div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; position:relative;">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px 16px;"><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#8A8A8A;">N1 TO</span><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:24px; color:#fff;">92.4<span style="font-size:14px; color:#7FB8B3;">%</span></span></div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; background:rgba(127,184,179,.14); border:1px solid rgba(127,184,179,.3); border-radius:12px; padding:12px 16px;"><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">FLAPS</span><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:24px; color:#fff;">5</span></div>
+          </div>
+        </div>
+
+        <!-- Fuel row -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(20,20,20,.04);"><div style="display:flex;align-items:center;gap:6px;font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A; margin-bottom:8px;"><i data-lucide="fuel" style="width:13px;height:13px;color:#3E8B85;"></i>Trip Fuel</div><div style="display:flex; align-items:baseline; gap:4px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:28px; color:#2E2E2E;">8,200</span><span style="font-family:'Barlow'; font-weight:600; font-size:14px; color:#9A9A9A;">kg</span></div></div>
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(20,20,20,.04);"><div style="display:flex;align-items:center;gap:6px;font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A; margin-bottom:8px;"><i data-lucide="fuel" style="width:13px;height:13px;color:#3E8B85;"></i>Block Fuel</div><div style="display:flex; align-items:baseline; gap:4px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:28px; color:#2E2E2E;">11,400</span><span style="font-family:'Barlow'; font-weight:600; font-size:14px; color:#9A9A9A;">kg</span></div></div>
+        </div>
+
+        <!-- Flight (collapsed) -->
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid #E8E6E1; border-radius:12px; padding:14px 18px; cursor:pointer; box-shadow:0 1px 2px rgba(20,20,20,.04); margin-bottom:10px; text-align:left;">
+          <span style="display:inline-flex; align-items:center; gap:11px;"><i data-lucide="chevron-right" style="width:16px;height:16px;color:#9A9A9A;"></i><span style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#2E2E2E;">Flight</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:#9A9A9A; letter-spacing:.03em;">Dep TLV · Arr ATH · Block 2:05</span></span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:3px 9px; border-radius:999px; background:#F1EFEA; color:#9A9A9A;">5/5</span>
+        </button>
+
+        <!-- Crew (collapsed) -->
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid #E8E6E1; border-radius:12px; padding:14px 18px; cursor:pointer; box-shadow:0 1px 2px rgba(20,20,20,.04); text-align:left;">
+          <span style="display:inline-flex; align-items:center; gap:11px;"><i data-lucide="chevron-right" style="width:16px;height:16px;color:#9A9A9A;"></i><span style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#2E2E2E;">Crew</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:#9A9A9A; letter-spacing:.03em;">CPT Cohen · FO Levi · PU Adler</span></span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:3px 9px; border-radius:999px; background:#F1EFEA; color:#9A9A9A;">6/8</span>
+        </button>
+      </div>
+
+      <!-- Sensor footer -->
+      <footer style="background:#25251F; padding:14px 26px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">GND SPD</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">0<span style="font-size:11px; color:#7A7A72;"> kt</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">CTOT</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">12:15<span style="font-size:11px; color:#7A7A72;">Z</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">GPS</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">RDY</div></div>
+        <div style="text-align:center; padding:4px 14px; background:rgba(127,184,179,.14); border:1px solid rgba(127,184,179,.3); border-radius:10px;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7FB8B3;">TERMINAL</div><div class="mono" style="font-weight:700; font-size:18px; color:#fff;">GATE C4</div></div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================================ 2b — FLIGHT CARD · LIQUID GLASS DARK ============================================================ -->
+  <div id="2b" style="position:relative; width:812px; flex:0 0 auto;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+      <span style="display:inline-flex; align-items:center; justify-content:center; background:#2E2E2E; color:#fff; font-family:'Barlow'; font-weight:700; font-size:13px; letter-spacing:.12em; padding:5px 12px; border-radius:999px;">2b</span>
+      <span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#6B6B6B; letter-spacing:.03em;">Flight Card · Liquid Glass Dark — night / low-glare</span>
+    </div>
+
+    <div style="width:812px; border-radius:34px; box-shadow:0 8px 24px rgba(10,14,18,.3),0 30px 70px rgba(10,14,18,.35); overflow:hidden; position:relative; background:radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%), linear-gradient(165deg,#0b1016 0%,#0f1c20 48%,#090f13 100%);">
+      <div style="position:absolute; inset:0; background:radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,.16), transparent 62%); pointer-events:none;"></div>
+
+      <!-- Topbar glass -->
+      <header style="padding:20px 26px 18px; position:relative; background:rgba(255,255,255,.05); border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:13px;">
+            <span style="display:inline-flex; width:38px; height:38px; align-items:center; justify-content:center; background:linear-gradient(135deg,#7FB8B3,#3E8B85); border-radius:10px; color:#0b1016; box-shadow:0 4px 16px rgba(127,184,179,.45);"><i data-lucide="plane-takeoff" style="width:21px;height:21px;"></i></span>
+            <div style="line-height:1.05;">
+              <div style="font-family:'Barlow'; font-weight:700; font-size:21px; letter-spacing:.01em; color:#fff;">Flight Card</div>
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.22em; color:#7FB8B3;">B737‑800 · EL AL</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="mono" style="font-family:'Barlow'; font-weight:600; font-size:15px; color:rgba(255,255,255,.75); letter-spacing:.02em;">11:42 <span style="font-size:11px; color:rgba(255,255,255,.4);">Z</span></span>
+            <button style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:#E8E6E1; font-family:'Barlow'; font-weight:600; font-size:13px; padding:8px 12px; border-radius:999px; cursor:pointer; backdrop-filter:blur(12px);"><i data-lucide="moon" style="width:14px;height:14px;"></i>Dark</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:9px 14px; backdrop-filter:blur(12px);"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; font-weight:600; letter-spacing:.16em; color:rgba(255,255,255,.4);">TAIL</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:19px; color:#fff; letter-spacing:.04em;">4X‑EHA</div></div>
+          <div style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:9px 14px; backdrop-filter:blur(12px);"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; font-weight:600; letter-spacing:.16em; color:rgba(255,255,255,.4);">FLT #</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:19px; color:#fff; letter-spacing:.04em;">LY&nbsp;315</div></div>
+        </div>
+      </header>
+
+      <!-- Leg switcher glass -->
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 26px; position:relative; background:rgba(255,255,255,.03); border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter:blur(14px);">
+        <div style="display:flex; gap:6px;">
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.06em; padding:6px 11px; border-radius:999px; background:linear-gradient(135deg,#7FB8B3,#3E8B85); color:#0b1016; box-shadow:0 0 14px rgba(127,184,179,.4);">T/O&nbsp;PF</span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.06em; padding:6px 11px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.65);">LDG&nbsp;PM</span>
+        </div>
+        <div style="flex:1; text-align:center; line-height:1.15;">
+          <div style="font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; letter-spacing:.14em; color:rgba(255,255,255,.4);">LEG 1 / 2</div>
+          <div style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#fff; letter-spacing:.04em;">TLV&nbsp;→&nbsp;ATH</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:9px; color:rgba(255,255,255,.5); cursor:pointer;"><i data-lucide="chevron-left" style="width:17px;height:17px;"></i></button>
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,rgba(127,184,179,.24),rgba(127,184,179,.08)); border:1px solid rgba(127,184,179,.5); border-radius:9px; color:#7FB8B3; cursor:pointer; box-shadow:0 0 14px rgba(127,184,179,.25);"><i data-lucide="plane-takeoff" style="width:17px;height:17px;"></i></button>
+          <button style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:9px; color:#fff; cursor:pointer;"><i data-lucide="chevron-right" style="width:17px;height:17px;"></i></button>
+        </div>
+      </div>
+
+      <div style="padding:20px 26px 26px; position:relative;">
+
+        <!-- Checklist card glass -->
+        <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px 12px; margin-bottom:14px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:8px;"><i data-lucide="chevron-down" style="width:16px;height:16px;color:rgba(255,255,255,.5);"></i><span style="font-family:'Barlow'; font-weight:700; font-size:16px; color:#fff;">Checklist</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:4px 10px; border-radius:999px; background:linear-gradient(135deg,rgba(127,184,179,.24),rgba(127,184,179,.08)); border:1px solid rgba(127,184,179,.35); color:#7FB8B3; letter-spacing:.04em;">Before Start · 4/6</span>
+              <button style="width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px; color:rgba(255,255,255,.5); cursor:pointer;"><i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i></button>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7FB8B3,#3E8B85);border-radius:6px;color:#0b1016;box-shadow:0 0 12px rgba(127,184,179,.4);"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:rgba(255,255,255,.35); text-decoration:line-through;">Gear pins &amp; covers — REMOVED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7FB8B3,#3E8B85);border-radius:6px;color:#0b1016;box-shadow:0 0 12px rgba(127,184,179,.4);"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:rgba(255,255,255,.35); text-decoration:line-through;">Fuel — 11.4 T / CONFIRMED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7FB8B3,#3E8B85);border-radius:6px;color:#0b1016;box-shadow:0 0 12px rgba(127,184,179,.4);"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:rgba(255,255,255,.35); text-decoration:line-through;">Passenger signs — ON</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#7FB8B3,#3E8B85);border-radius:6px;color:#0b1016;box-shadow:0 0 12px rgba(127,184,179,.4);"><i data-lucide="check" style="width:13px;height:13px;"></i></span><span style="font-family:'Barlow'; font-weight:500; font-size:15px; color:rgba(255,255,255,.35); text-decoration:line-through;">Windows — CLOSED &amp; LOCKED</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.25);border-radius:6px;"></span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#fff;">MCP — V2 + ___ SET</span></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:8px 4px;"><span style="width:20px;height:20px;display:inline-flex;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.25);border-radius:6px;"></span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#fff;">Takeoff briefing — COMPLETED</span></div>
+          </div>
+        </div>
+
+        <!-- Data card title -->
+        <div style="display:flex; align-items:center; gap:8px; margin:2px 2px 12px;"><i data-lucide="clipboard-list" style="width:17px;height:17px;color:#7FB8B3;"></i><span style="font-family:'Barlow'; font-weight:700; font-size:14px; letter-spacing:.03em; color:rgba(255,255,255,.55); text-transform:uppercase;">Data Card</span></div>
+
+        <!-- SOB + ATIS row -->
+        <div style="display:grid; grid-template-columns:1fr 1.3fr; gap:12px; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+            <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:10px;">Souls on Board</div>
+            <div style="display:flex; align-items:baseline; gap:5px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:38px; color:#fff; line-height:1;">172</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:#7FB8B3; letter-spacing:.06em;">TTL</span></div>
+          </div>
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45);">ATIS · LLBG</span><span style="display:inline-flex; align-items:center; gap:4px; font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; color:#7FB8B3; letter-spacing:.06em;"><i data-lucide="radio" style="width:12px;height:12px;"></i>LIVE</span></div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; background:linear-gradient(135deg,rgba(127,184,179,.24),rgba(127,184,179,.08)); border:1.5px solid rgba(127,184,179,.5); border-radius:11px; font-family:'Barlow'; font-weight:700; font-size:26px; color:#fff; box-shadow:0 0 16px rgba(127,184,179,.25);">C</span>
+              <div style="line-height:1.25;"><div style="font-family:'Barlow'; font-weight:600; font-size:14px; color:#fff;">Information Charlie</div><div class="mono" style="font-family:'Barlow Semi Condensed'; font-size:11px; color:rgba(255,255,255,.45); letter-spacing:.02em;">30012KT 9999 FEW040 27/14 Q1013</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Takeoff performance hero glass -->
+        <div style="border-radius:18px; padding:18px 20px 20px; position:relative; overflow:hidden; margin-bottom:12px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(22px); box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 12px 40px rgba(0,0,0,.3);">
+          <div style="position:absolute; right:-50px; top:-60px; width:220px; height:220px; background:radial-gradient(circle,#7FB8B3 0%,transparent 70%); opacity:.26;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; position:relative; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px;"><span style="background:linear-gradient(135deg,#7FB8B3,#3E8B85); color:#0b1016; font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.1em; padding:5px 11px; border-radius:999px;">TAKEOFF PERF</span><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.06em; color:rgba(255,255,255,.55);">FLAPS 5 · 65 t</span></div>
+            <button style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:#7FB8B3; font-family:'Barlow'; font-weight:600; font-size:12px; padding:6px 11px; border-radius:999px; cursor:pointer; backdrop-filter:blur(12px);"><i data-lucide="crosshair" style="width:13px;height:13px;"></i>OPT / FMC</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; position:relative; margin-bottom:12px;">
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px 8px;"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:rgba(255,255,255,.45);">V1</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.35);">142</div></div>
+            <div style="text-align:center; background:linear-gradient(180deg,rgba(127,184,179,.2),rgba(127,184,179,.06)); border:1px solid rgba(127,184,179,.4); border-radius:12px; padding:14px 8px; box-shadow:0 0 24px rgba(127,184,179,.2);"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">VR</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.6);">146</div></div>
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px 8px;"><div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:rgba(255,255,255,.45);">V2</div><div class="mono" style="font-family:'Barlow'; font-weight:700; font-size:46px; line-height:1; margin-top:4px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.35);">150</div></div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; position:relative;">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px 16px;"><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:rgba(255,255,255,.45);">N1 TO</span><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:24px; color:#fff;">92.4<span style="font-size:14px; color:#7FB8B3;">%</span></span></div>
+            <div style="display:flex; align-items:baseline; justify-content:space-between; background:linear-gradient(180deg,rgba(127,184,179,.2),rgba(127,184,179,.06)); border:1px solid rgba(127,184,179,.4); border-radius:12px; padding:12px 16px; box-shadow:0 0 20px rgba(127,184,179,.15);"><span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">FLAPS</span><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:24px; color:#fff;">5</span></div>
+          </div>
+        </div>
+
+        <!-- Fuel row -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);"><div style="display:flex;align-items:center;gap:6px;font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:8px;"><i data-lucide="fuel" style="width:13px;height:13px;color:#7FB8B3;"></i>Trip Fuel</div><div style="display:flex; align-items:baseline; gap:4px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:28px; color:#fff;">8,200</span><span style="font-family:'Barlow'; font-weight:600; font-size:14px; color:rgba(255,255,255,.4);">kg</span></div></div>
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);"><div style="display:flex;align-items:center;gap:6px;font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:8px;"><i data-lucide="fuel" style="width:13px;height:13px;color:#7FB8B3;"></i>Block Fuel</div><div style="display:flex; align-items:baseline; gap:4px;"><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:28px; color:#fff;">11,400</span><span style="font-family:'Barlow'; font-weight:600; font-size:14px; color:rgba(255,255,255,.4);">kg</span></div></div>
+        </div>
+
+        <!-- Flight (collapsed) -->
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:14px 18px; cursor:pointer; backdrop-filter:blur(12px); margin-bottom:10px; text-align:left;">
+          <span style="display:inline-flex; align-items:center; gap:11px;"><i data-lucide="chevron-right" style="width:16px;height:16px;color:rgba(255,255,255,.5);"></i><span style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#fff;">Flight</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:rgba(255,255,255,.45); letter-spacing:.03em;">Dep TLV · Arr ATH · Block 2:05</span></span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.08); color:rgba(255,255,255,.5);">5/5</span>
+        </button>
+
+        <!-- Crew (collapsed) -->
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:14px 18px; cursor:pointer; backdrop-filter:blur(12px); text-align:left;">
+          <span style="display:inline-flex; align-items:center; gap:11px;"><i data-lucide="chevron-right" style="width:16px;height:16px;color:rgba(255,255,255,.5);"></i><span style="font-family:'Barlow'; font-weight:700; font-size:15px; color:#fff;">Crew</span><span style="font-family:'Barlow Semi Condensed'; font-size:13px; font-weight:600; color:rgba(255,255,255,.45); letter-spacing:.03em;">CPT Cohen · FO Levi · PU Adler</span></span>
+          <span style="font-family:'Barlow'; font-weight:700; font-size:12px; padding:3px 9px; border-radius:999px; background:rgba(255,255,255,.08); color:rgba(255,255,255,.5);">6/8</span>
+        </button>
+      </div>
+
+      <!-- Sensor footer glass -->
+      <footer style="padding:14px 26px; display:flex; align-items:center; justify-content:space-between; gap:8px; position:relative; background:rgba(0,0,0,.28); border-top:1px solid rgba(255,255,255,.08); backdrop-filter:blur(16px);">
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">GND SPD</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">0<span style="font-size:11px; color:rgba(255,255,255,.4);"> kt</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">CTOT</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">12:15<span style="font-size:11px; color:rgba(255,255,255,.4);">Z</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">GPS</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">RDY</div></div>
+        <div style="text-align:center; padding:4px 14px; background:rgba(127,184,179,.16); border:1px solid rgba(127,184,179,.4); border-radius:10px; box-shadow:0 0 16px rgba(127,184,179,.25);"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7FB8B3;">TERMINAL</div><div class="mono" style="font-weight:700; font-size:18px; color:#fff;">GATE C4</div></div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================================ 1a — LIGHT ============================================================ -->
+  <div id="1a" style="position:relative; width:812px; flex:0 0 auto;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+      <span style="display:inline-flex; align-items:center; justify-content:center; background:#2E2E2E; color:#fff; font-family:'Barlow'; font-weight:700; font-size:13px; letter-spacing:.12em; padding:5px 12px; border-radius:999px;">1a</span>
+      <span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#6B6B6B; letter-spacing:.03em;">Light · Paper &amp; Teal — daylight / EFB</span>
+    </div>
+
+    <!-- device screen -->
+    <div style="width:812px; background:#FAFAF8; border:1px solid #E8E6E1; border-radius:34px; box-shadow:0 8px 24px rgba(20,20,20,.08),0 30px 64px rgba(20,20,20,.10); overflow:hidden;">
+
+      <!-- Topbar -->
+      <header style="display:flex; align-items:center; justify-content:space-between; padding:22px 26px; background:#2E2E2E;">
+        <div style="display:flex; align-items:center; gap:13px;">
+          <span style="display:inline-flex; width:38px; height:38px; align-items:center; justify-content:center; background:#3E8B85; border-radius:10px; color:#fff;"><i data-lucide="gauge" style="width:21px;height:21px;"></i></span>
+          <div style="line-height:1.05;">
+            <div style="font-family:'Barlow'; font-weight:700; font-size:21px; letter-spacing:.01em; color:#fff;">Airspeed Unreliable</div>
+            <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.22em; color:#7FB8B3;">B737NG · QRH §10.1</div>
+          </div>
+        </div>
+        <button style="display:inline-flex; align-items:center; gap:8px; background:#3A3A3A; border:1px solid #555; color:#E8E6E1; font-family:'Barlow'; font-weight:600; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer;"><i data-lucide="sun-moon" style="width:15px;height:15px;"></i>Auto</button>
+      </header>
+
+      <div style="padding:22px 26px 26px;">
+
+        <!-- Setup row: variant + weight -->
+        <div style="display:grid; grid-template-columns:1fr 1.15fr; gap:16px; margin-bottom:16px;">
+          <!-- Variant -->
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:16px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+            <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A; margin-bottom:12px;">Aircraft</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <button style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:13px 15px; border-radius:11px; border:1.5px solid #3E8B85; background:#D7ECEA; cursor:pointer; text-align:left;">
+                <span style="font-family:'Barlow'; font-weight:700; font-size:20px; color:#2E2E2E; line-height:1;">737</span>
+                <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.04em; color:#3E8B85;">−800W</span>
+              </button>
+              <button style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:13px 15px; border-radius:11px; border:1px solid #E8E6E1; background:#FAFAF8; cursor:pointer; text-align:left;">
+                <span style="font-family:'Barlow'; font-weight:700; font-size:20px; color:#9A9A9A; line-height:1;">737</span>
+                <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.04em; color:#9A9A9A;">−900ERW</span>
+              </button>
+            </div>
+          </div>
+          <!-- Weight -->
+          <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:16px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;">
+              <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A;">Gross Weight</div>
+              <div><span class="mono" style="font-family:'Barlow'; font-weight:700; font-size:30px; color:#2E2E2E; letter-spacing:-.01em;">65.0</span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#9A9A9A; margin-left:3px;">t</span></div>
+            </div>
+            <div style="position:relative; height:8px; background:#E8E6E1; border-radius:999px; margin:16px 0 8px;">
+              <div style="position:absolute; left:0; top:0; height:100%; width:62.5%; background:linear-gradient(90deg,#7FB8B3,#3E8B85); border-radius:999px;"></div>
+              <div style="position:absolute; left:62.5%; top:50%; width:22px; height:22px; margin-left:-11px; margin-top:-11px; background:#fff; border:2px solid #3E8B85; border-radius:999px; box-shadow:0 2px 6px rgba(62,139,133,.35);"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; color:#B8B6B0; letter-spacing:.06em;"><span>40</span><span>50</span><span style="color:#3E8B85;">60</span><span>70</span><span>80</span></div>
+          </div>
+        </div>
+
+        <!-- Phase tabs -->
+        <div style="background:#fff; border:1px solid #E8E6E1; border-radius:14px; padding:14px 16px 16px; margin-bottom:16px; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+          <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#9A9A9A; margin-bottom:12px;">Flight Phase</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span style="font-family:'Barlow'; font-weight:700; font-size:14px; padding:9px 16px; border-radius:999px; background:#3E8B85; color:#fff;">Climb</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Cruise</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Descent</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Hold</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Terminal</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Final&nbsp;Appr.</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:#FAFAF8; border:1px solid #E8E6E1; color:#6B6B6B;">Go‑Around</span>
+          </div>
+        </div>
+
+        <!-- RESULT hero -->
+        <div style="background:#2E2E2E; border-radius:16px; padding:22px 24px 24px; color:#fff; position:relative; overflow:hidden; margin-bottom:14px;">
+          <div style="position:absolute; right:-50px; top:-50px; width:220px; height:220px; background:radial-gradient(circle,#3E8B85 0%,transparent 70%); opacity:.35;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; position:relative; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="background:#3E8B85; font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.1em; padding:5px 11px; border-radius:999px;">CLIMB</span>
+              <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.06em; color:#B8B8B8;">FLAPS UP · GEAR UP · 65 t</span>
+            </div>
+            <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Barlow'; font-weight:600; font-size:12px; color:#7FB8B3;"><i data-lucide="target" style="width:14px;height:14px;"></i>Fly attitude + thrust</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; position:relative;">
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 8px;">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#8A8A8A;">PITCH</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff;">9.5<span style="font-size:26px; color:#7FB8B3;">°</span></div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:#8A8A8A; letter-spacing:.08em; margin-top:4px;">NOSE UP</div>
+            </div>
+            <div style="text-align:center; background:rgba(127,184,179,.14); border:1px solid rgba(127,184,179,.3); border-radius:12px; padding:16px 8px;">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">THRUST</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff;">93<span style="font-size:26px; color:#7FB8B3;">%</span></div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:#7FB8B3; letter-spacing:.08em; margin-top:4px;">N1</div>
+            </div>
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:16px 8px;">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#8A8A8A;">TARGET</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff;">280</div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:#8A8A8A; letter-spacing:.08em; margin-top:4px;">KIAS / .74 M</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:#9A9A9A; letter-spacing:.04em; margin-bottom:16px;">Source: D6‑27370‑858‑ELA Rev.57 · §10 Performance Inflight — Airspeed Unreliable</div>
+
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:#fff; border:1px solid #E8E6E1; border-radius:12px; padding:15px 18px; cursor:pointer; box-shadow:0 1px 2px rgba(20,20,20,.04);">
+          <span style="display:inline-flex; align-items:center; gap:10px; font-family:'Barlow'; font-weight:600; font-size:15px; color:#2E2E2E;"><i data-lucide="list-checks" style="width:18px;height:18px;color:#3E8B85;"></i>QRH Procedure — 22 steps</span>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:#9A9A9A;"></i>
+        </button>
+      </div>
+
+      <!-- Sensor footer -->
+      <footer style="background:#25251F; padding:14px 26px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">GND SPD</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">412<span style="font-size:11px; color:#7A7A72;"> kt</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">TRACK</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">268<span style="font-size:11px; color:#7A7A72;">°T</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">GPS ALT</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">37,020<span style="font-size:11px; color:#7A7A72;"> ft</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7A7A72;">ACC</div><div class="mono" style="font-weight:600; font-size:18px; color:#E8E6E1;">4<span style="font-size:11px; color:#7A7A72;"> m</span></div></div>
+        <div style="text-align:center; padding:4px 14px; background:rgba(127,184,179,.14); border:1px solid rgba(127,184,179,.3); border-radius:10px;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7FB8B3;">G</div><div class="mono" style="font-weight:700; font-size:18px; color:#fff;">1.0<span style="font-size:11px; color:#7FB8B3;"> g</span></div></div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ============================================================ 1b — LIQUID GLASS DARK ============================================================ -->
+  <div id="1b" style="position:relative; width:812px; flex:0 0 auto;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+      <span style="display:inline-flex; align-items:center; justify-content:center; background:#2E2E2E; color:#fff; font-family:'Barlow'; font-weight:700; font-size:13px; letter-spacing:.12em; padding:5px 12px; border-radius:999px;">1b</span>
+      <span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:#6B6B6B; letter-spacing:.03em;">Liquid Glass · Dark cockpit — night / low-glare</span>
+    </div>
+
+    <div style="width:812px; border-radius:34px; box-shadow:0 8px 24px rgba(10,14,18,.3),0 30px 70px rgba(10,14,18,.35); overflow:hidden; position:relative; background:radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%), linear-gradient(165deg,#0b1016 0%,#0f1c20 48%,#090f13 100%);">
+      <div style="position:absolute; inset:0; background:radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,.16), transparent 62%); pointer-events:none;"></div>
+
+      <!-- Topbar glass -->
+      <header style="display:flex; align-items:center; justify-content:space-between; padding:22px 26px; position:relative; background:rgba(255,255,255,.05); border-bottom:1px solid rgba(255,255,255,.08); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);">
+        <div style="display:flex; align-items:center; gap:13px;">
+          <span style="display:inline-flex; width:38px; height:38px; align-items:center; justify-content:center; background:linear-gradient(135deg,#7FB8B3,#3E8B85); border-radius:10px; color:#0b1016; box-shadow:0 4px 16px rgba(127,184,179,.45);"><i data-lucide="gauge" style="width:21px;height:21px;"></i></span>
+          <div style="line-height:1.05;">
+            <div style="font-family:'Barlow'; font-weight:700; font-size:21px; letter-spacing:.01em; color:#fff;">Airspeed Unreliable</div>
+            <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.22em; color:#7FB8B3;">B737NG · QRH §10.1</div>
+          </div>
+        </div>
+        <button style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:#E8E6E1; font-family:'Barlow'; font-weight:600; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer; backdrop-filter:blur(12px);"><i data-lucide="moon" style="width:15px;height:15px;"></i>Dark</button>
+      </header>
+
+      <div style="padding:22px 26px 26px; position:relative;">
+
+        <!-- Setup row -->
+        <div style="display:grid; grid-template-columns:1fr 1.15fr; gap:16px; margin-bottom:16px;">
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+            <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:12px;">Aircraft</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <button style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:13px 15px; border-radius:11px; border:1.5px solid rgba(127,184,179,.55); background:linear-gradient(135deg,rgba(127,184,179,.24),rgba(127,184,179,.08)); cursor:pointer; text-align:left; box-shadow:0 0 18px rgba(127,184,179,.25);">
+                <span style="font-family:'Barlow'; font-weight:700; font-size:20px; color:#fff; line-height:1;">737</span>
+                <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.04em; color:#7FB8B3;">−800W</span>
+              </button>
+              <button style="display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:13px 15px; border-radius:11px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.03); cursor:pointer; text-align:left;">
+                <span style="font-family:'Barlow'; font-weight:700; font-size:20px; color:rgba(255,255,255,.4); line-height:1;">737</span>
+                <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.04em; color:rgba(255,255,255,.4);">−900ERW</span>
+              </button>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+            <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;">
+              <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45);">Gross Weight</div>
+              <div><span style="font-family:'Barlow'; font-weight:700; font-size:30px; color:#fff; letter-spacing:-.01em;">65.0</span><span style="font-family:'Barlow'; font-weight:600; font-size:15px; color:rgba(255,255,255,.4); margin-left:3px;">t</span></div>
+            </div>
+            <div style="position:relative; height:8px; background:rgba(255,255,255,.12); border-radius:999px; margin:16px 0 8px;">
+              <div style="position:absolute; left:0; top:0; height:100%; width:62.5%; background:linear-gradient(90deg,#7FB8B3,#3E8B85); border-radius:999px; box-shadow:0 0 12px rgba(127,184,179,.6);"></div>
+              <div style="position:absolute; left:62.5%; top:50%; width:22px; height:22px; margin-left:-11px; margin-top:-11px; background:#fff; border:2px solid #7FB8B3; border-radius:999px; box-shadow:0 0 14px rgba(127,184,179,.8);"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-family:'Barlow Semi Condensed'; font-size:11px; font-weight:600; color:rgba(255,255,255,.35); letter-spacing:.06em;"><span>40</span><span>50</span><span style="color:#7FB8B3;">60</span><span>70</span><span>80</span></div>
+          </div>
+        </div>
+
+        <!-- Phase tabs glass -->
+        <div style="background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px 16px 16px; margin-bottom:16px; backdrop-filter:blur(16px); box-shadow:inset 0 1px 0 rgba(255,255,255,.1);">
+          <div style="font-family:'Barlow'; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:12px;">Flight Phase</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span style="font-family:'Barlow'; font-weight:700; font-size:14px; padding:9px 16px; border-radius:999px; background:linear-gradient(135deg,#7FB8B3,#3E8B85); color:#0b1016; box-shadow:0 0 16px rgba(127,184,179,.4);">Climb</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Cruise</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Descent</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Hold</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Terminal</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Final&nbsp;Appr.</span>
+            <span style="font-family:'Barlow'; font-weight:600; font-size:14px; padding:9px 16px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.65);">Go‑Around</span>
+          </div>
+        </div>
+
+        <!-- RESULT glass hero -->
+        <div style="border-radius:18px; padding:22px 24px 24px; position:relative; overflow:hidden; margin-bottom:14px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(22px); box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 12px 40px rgba(0,0,0,.3);">
+          <div style="position:absolute; right:-50px; top:-60px; width:240px; height:240px; background:radial-gradient(circle,#7FB8B3 0%,transparent 70%); opacity:.28;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; position:relative; margin-bottom:20px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="background:linear-gradient(135deg,#7FB8B3,#3E8B85); color:#0b1016; font-family:'Barlow'; font-weight:700; font-size:12px; letter-spacing:.1em; padding:5px 11px; border-radius:999px;">CLIMB</span>
+              <span style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:13px; letter-spacing:.06em; color:rgba(255,255,255,.55);">FLAPS UP · GEAR UP · 65 t</span>
+            </div>
+            <span style="display:inline-flex; align-items:center; gap:6px; font-family:'Barlow'; font-weight:600; font-size:12px; color:#7FB8B3;"><i data-lucide="target" style="width:14px;height:14px;"></i>Fly attitude + thrust</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; position:relative;">
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:16px 8px;">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:rgba(255,255,255,.45);">PITCH</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.35);">9.5<span style="font-size:26px; color:#7FB8B3;">°</span></div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:rgba(255,255,255,.4); letter-spacing:.08em; margin-top:4px;">NOSE UP</div>
+            </div>
+            <div style="text-align:center; background:linear-gradient(180deg,rgba(127,184,179,.2),rgba(127,184,179,.06)); border:1px solid rgba(127,184,179,.4); border-radius:12px; padding:16px 8px; box-shadow:0 0 24px rgba(127,184,179,.2);">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:#7FB8B3;">THRUST</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.6);">93<span style="font-size:26px; color:#7FB8B3;">%</span></div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:#7FB8B3; letter-spacing:.08em; margin-top:4px;">N1</div>
+            </div>
+            <div style="text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:16px 8px;">
+              <div style="font-family:'Barlow Semi Condensed'; font-weight:600; font-size:12px; letter-spacing:.16em; color:rgba(255,255,255,.45);">TARGET</div>
+              <div style="font-family:'Barlow'; font-weight:700; font-size:56px; line-height:1; margin-top:6px; color:#fff; text-shadow:0 0 24px rgba(127,184,179,.35);">280</div>
+              <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:rgba(255,255,255,.4); letter-spacing:.08em; margin-top:4px;">KIAS / .74 M</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-family:'Barlow Semi Condensed'; font-size:12px; color:rgba(255,255,255,.4); letter-spacing:.04em; margin-bottom:16px;">Source: D6‑27370‑858‑ELA Rev.57 · §10 Performance Inflight — Airspeed Unreliable</div>
+
+        <button style="width:100%; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:15px 18px; cursor:pointer; backdrop-filter:blur(12px);">
+          <span style="display:inline-flex; align-items:center; gap:10px; font-family:'Barlow'; font-weight:600; font-size:15px; color:#fff;"><i data-lucide="list-checks" style="width:18px;height:18px;color:#7FB8B3;"></i>QRH Procedure — 22 steps</span>
+          <i data-lucide="chevron-right" style="width:18px;height:18px;color:rgba(255,255,255,.5);"></i>
+        </button>
+      </div>
+
+      <!-- Sensor footer glass -->
+      <footer style="padding:14px 26px; display:flex; align-items:center; justify-content:space-between; gap:8px; position:relative; background:rgba(0,0,0,.28); border-top:1px solid rgba(255,255,255,.08); backdrop-filter:blur(16px);">
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">GND SPD</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">412<span style="font-size:11px; color:rgba(255,255,255,.4);"> kt</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">TRACK</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">268<span style="font-size:11px; color:rgba(255,255,255,.4);">°T</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">GPS ALT</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">37,020<span style="font-size:11px; color:rgba(255,255,255,.4);"> ft</span></div></div>
+        <div style="text-align:center;"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.4);">ACC</div><div class="mono" style="font-weight:600; font-size:18px; color:#fff;">4<span style="font-size:11px; color:rgba(255,255,255,.4);"> m</span></div></div>
+        <div style="text-align:center; padding:4px 14px; background:rgba(127,184,179,.16); border:1px solid rgba(127,184,179,.4); border-radius:10px; box-shadow:0 0 16px rgba(127,184,179,.25);"><div style="font-family:'Barlow Semi Condensed'; font-size:10px; letter-spacing:.14em; color:#7FB8B3;">G</div><div class="mono" style="font-weight:700; font-size:18px; color:#fff;">1.0<span style="font-size:11px; color:#7FB8B3;"> g</span></div></div>
+      </footer>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1750,&quot;height&quot;:1250}}">
+class Component extends DCLogic {
+  componentDidMount() { this._icons(); }
+  componentDidUpdate() { this._icons(); }
+  _icons() {
+    if (window.lucide) { try { window.lucide.createIcons(); } catch (e) {} }
+    else { setTimeout(() => this._icons(), 200); }
+  }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

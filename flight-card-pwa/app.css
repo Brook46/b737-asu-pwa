@@ -1,59 +1,102 @@
 /* Flight Card — narrow-first PWA for iPadOS Slide Over.
    Target min width: 320pt. Tap targets >= 44pt. */
 
+/* Palette from the "Flight Deck Dashboard" Claude Design project
+   (_design-ref.dc.html): light = 2a "Paper & Teal / EFB daylight",
+   dark = 2b "Liquid Glass Dark / night, low-glare". The glass tokens
+   (--glass-*) drive the frosted-panel treatment layered at the end of
+   this file; in light mode they resolve to flat paper values so the
+   same rules render both treatments. */
 :root {
-  --bg: #f3f4f8;
+  --bg: #FAFAF8;
   --bg-elev: #ffffff;
-  --bg-sunk: #e9ebf1;
-  --fg: #0d1117;
-  --fg-mute: #5b6472;
-  --fg-dim:  #8a93a3;
-  --line: #d7dae3;
-  --line-soft: #e6e8ef;
-  --accent: #1e6fd1;
-  --accent-soft: #d6e5fb;
+  --bg-sunk: #F1EFEA;
+  --fg: #2E2E2E;
+  --fg-mute: #6B6B6B;
+  --fg-dim:  #9A9A9A;
+  --line: #E8E6E1;
+  --line-soft: #F0EEE9;
+  --accent: #3E8B85;
+  --accent-2: #7FB8B3;
+  --accent-soft: #D7ECEA;
+  --accent-grad: linear-gradient(135deg, #4FA39C, #3E8B85);
+  --on-accent: #ffffff;
   --good: #1c8a44;
   --warn: #b3590a;
   --danger: #c0392b;
-  --tick-bg: #e6f5ea;
-  --tick-fg: #146b35;
-  --shadow: 0 2px 10px rgba(13,17,23,0.06), 0 1px 3px rgba(13,17,23,0.06);
+  --tick-bg: #D7ECEA;
+  --tick-fg: #3E8B85;
+  --shadow: 0 1px 2px rgba(20,20,20,0.04), 0 4px 14px rgba(20,20,20,0.05);
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #E8E6E1;
+  --glass-hi: transparent;          /* inset top highlight */
+  --glass-blur: 0px;
+  --glow: none;
+  --glow-soft: none;
+  --font-display: "Barlow", -apple-system, system-ui, sans-serif;
+  --font-label: "Barlow Semi Condensed", -apple-system, system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #05080f;
-    --bg-elev: #0e131c;
-    --bg-sunk: #0a0f17;
-    --fg: #eef2f8;
-    --fg-mute: #9aa4b6;
-    --fg-dim:  #6c7689;
-    --line: #1d2533;
-    --line-soft: #141b27;
-    --accent: #5fa8ff;
-    --accent-soft: #15243d;
+    --bg: #0b1016;
+    --bg-elev: rgba(255,255,255,0.055);
+    --bg-sunk: rgba(0,0,0,0.25);
+    --fg: #ffffff;
+    --fg-mute: rgba(255,255,255,0.6);
+    --fg-dim:  rgba(255,255,255,0.4);
+    --line: rgba(255,255,255,0.12);
+    --line-soft: rgba(255,255,255,0.08);
+    --accent: #7FB8B3;
+    --accent-2: #3E8B85;
+    --accent-soft: rgba(127,184,179,0.16);
+    --accent-grad: linear-gradient(135deg, #7FB8B3, #3E8B85);
+    --on-accent: #0b1016;
     --good: #57d68d;
     --warn: #f0a55a;
     --danger: #ff6b5b;
-    --tick-bg: #133523;
-    --tick-fg: #7ee0a0;
-    --shadow: 0 2px 10px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.5);
+    --tick-bg: rgba(127,184,179,0.2);
+    --tick-fg: #7FB8B3;
+    --shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 30px rgba(0,0,0,0.3);
+    --glass-bg: rgba(255,255,255,0.055);
+    --glass-bg-strong: rgba(255,255,255,0.07);
+    --glass-border: rgba(255,255,255,0.1);
+    --glass-hi: rgba(255,255,255,0.1);
+    --glass-blur: 16px;
+    --glow: 0 0 14px rgba(127,184,179,0.4);
+    --glow-soft: 0 0 20px rgba(127,184,179,0.18);
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f3f4f8; --bg-elev: #fff; --bg-sunk: #e9ebf1;
-  --fg: #0d1117; --fg-mute: #5b6472; --fg-dim: #8a93a3;
-  --line: #d7dae3; --line-soft: #e6e8ef;
-  --accent: #1e6fd1; --accent-soft: #d6e5fb;
-  --tick-bg: #e6f5ea; --tick-fg: #146b35;
+  --bg: #FAFAF8; --bg-elev: #fff; --bg-sunk: #F1EFEA;
+  --fg: #2E2E2E; --fg-mute: #6B6B6B; --fg-dim: #9A9A9A;
+  --line: #E8E6E1; --line-soft: #F0EEE9;
+  --accent: #3E8B85; --accent-2: #7FB8B3; --accent-soft: #D7ECEA;
+  --accent-grad: linear-gradient(135deg, #4FA39C, #3E8B85);
+  --on-accent: #ffffff;
+  --tick-bg: #D7ECEA; --tick-fg: #3E8B85;
+  --shadow: 0 1px 2px rgba(20,20,20,0.04), 0 4px 14px rgba(20,20,20,0.05);
+  --glass-bg: #ffffff; --glass-bg-strong: #ffffff;
+  --glass-border: #E8E6E1; --glass-hi: transparent; --glass-blur: 0px;
+  --glow: none; --glow-soft: none;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #05080f; --bg-elev: #0e131c; --bg-sunk: #0a0f17;
-  --fg: #eef2f8; --fg-mute: #9aa4b6; --fg-dim: #6c7689;
-  --line: #1d2533; --line-soft: #141b27;
-  --accent: #5fa8ff; --accent-soft: #15243d;
-  --tick-bg: #133523; --tick-fg: #7ee0a0;
+  --bg: #0b1016;
+  --bg-elev: rgba(255,255,255,0.055); --bg-sunk: rgba(0,0,0,0.25);
+  --fg: #ffffff; --fg-mute: rgba(255,255,255,0.6); --fg-dim: rgba(255,255,255,0.4);
+  --line: rgba(255,255,255,0.12); --line-soft: rgba(255,255,255,0.08);
+  --accent: #7FB8B3; --accent-2: #3E8B85; --accent-soft: rgba(127,184,179,0.16);
+  --accent-grad: linear-gradient(135deg, #7FB8B3, #3E8B85);
+  --on-accent: #0b1016;
+  --tick-bg: rgba(127,184,179,0.2); --tick-fg: #7FB8B3;
+  --shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 30px rgba(0,0,0,0.3);
+  --glass-bg: rgba(255,255,255,0.055); --glass-bg-strong: rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.1); --glass-hi: rgba(255,255,255,0.1);
+  --glass-blur: 16px;
+  --glow: 0 0 14px rgba(127,184,179,0.4);
+  --glow-soft: 0 0 20px rgba(127,184,179,0.18);
 }
 
 * { box-sizing: border-box; }
@@ -1825,3 +1868,130 @@ body.is-past-leg #card-checklist {
   #card-checklist { grid-column: 2 / span 2; grid-row: 1; }
   #card-history { grid-column: 2; grid-row: 2; }
 }
+
+/* ==========================================================================
+   LIQUID GLASS LAYER — Phase E
+   Frosted-panel treatment from the "Flight Deck Dashboard" design (2b).
+   Additive overrides on top of the layout rules above; in light mode the
+   --glass-* tokens resolve to flat Paper & Teal values, so this section
+   renders BOTH treatments. Keep layout out of here — surfaces only.
+   ========================================================================== */
+
+/* Signature backdrop: deep blue-green gradient with two teal glows.
+   A fixed pseudo-element (not background-attachment, which iOS ignores)
+   so it stays put behind the scrolling content. Light mode: plain paper. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  body::before {
+    background:
+      radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%),
+      radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,0.16), transparent 62%),
+      linear-gradient(165deg, #0b1016 0%, #0f1c20 48%, #090f13 100%);
+  }
+}
+:root[data-theme="dark"] body::before {
+  background:
+    radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%),
+    radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,0.16), transparent 62%),
+    linear-gradient(165deg, #0b1016 0%, #0f1c20 48%, #090f13 100%);
+}
+:root[data-theme="light"] body::before { background: var(--bg); }
+body { background: transparent; }
+
+/* ---- Typography: Barlow for display/values, Semi Condensed for labels */
+.card-title, .pad-label, .lb-flight, .settings-h,
+.data-cell input, .hdr-input, .clock-utc,
+.leg-route, .an-big, .wx-letter {
+  font-family: var(--font-display);
+}
+.lbl, .leg-pos, .data-group-meta, .card-summary,
+.lb-month-h, .sensor-name, .cal-row-label, .an-big-sub {
+  font-family: var(--font-label);
+  letter-spacing: 0.1em;
+}
+
+/* ---- Major surfaces become glass panels */
+.app-header {
+  background: var(--glass-bg-strong);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.leg-switcher {
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.ocr-sheet {
+  background: var(--bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 20px 60px rgba(0,0,0,0.45);
+}
+@media (prefers-color-scheme: dark) {
+  .ocr-sheet { background: #101820; }
+}
+:root[data-theme="dark"] .ocr-sheet { background: #101820; }
+:root[data-theme="light"] .ocr-sheet { background: var(--bg); }
+.toast {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgba(0,0,0,0.35);
+}
+
+/* ---- Inner cells: subtle glass tiles */
+.data-cell, .lb-row, .sensor-row, .history-item, .an-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+/* ---- Accent-gradient states: checked ticks, active pills, primary btns */
+.cl-item.done .box {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--glow);
+}
+.btn.primary {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--glow-soft);
+}
+.leg-role-pill.is-pf {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--glow);
+}
+.leg-now {
+  box-shadow: var(--glow-soft);
+}
+.lb-row.is-active {
+  border-color: var(--accent);
+  box-shadow: var(--glow-soft);
+}
+
+/* Big numeric values glow faintly at night (V-speeds, SOB, logbook day) */
+@media (prefers-color-scheme: dark) {
+  .data-cell input, .lb-date .lb-day { text-shadow: 0 0 18px rgba(127,184,179,0.3); }
+}
+:root[data-theme="dark"] .data-cell input,
+:root[data-theme="dark"] .lb-date .lb-day { text-shadow: 0 0 18px rgba(127,184,179,0.3); }
+:root[data-theme="light"] .data-cell input,
+:root[data-theme="light"] .lb-date .lb-day { text-shadow: none; }
