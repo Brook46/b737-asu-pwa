@@ -1,17 +1,33 @@
 /* Airspeed Unreliable — B737NG PWA
    Cockpit-tuned palette, glance-readable in both themes. */
 
+/* Palette from the "Flight Deck Dashboard" Claude Design project
+   (flight-card-pwa/_design-ref.dc.html): light = 1a "Paper & Teal",
+   dark = 1b "Liquid Glass Dark cockpit". Semantic colours (warn/danger/
+   ok/amber, column tints) keep their original values — only the surface
+   + accent language changes. */
 :root {
-  --bg: #f2f3f5;
+  --bg: #FAFAF8;
   --card: #ffffff;
-  --card-border: #d7d9dd;
-  --card-elev: #fbfbfd;
-  --text: #101217;
-  --text-sub: #5b6270;
-  --text-mute: #8a909b;
-  --accent: #0f4f9f;
-  --accent-strong: #0a3a7a;
-  --accent-soft: #e2edfa;
+  --card-border: #E8E6E1;
+  --card-elev: #F7F6F2;
+  --text: #2E2E2E;
+  --text-sub: #6B6B6B;
+  --text-mute: #9A9A9A;
+  --accent: #3E8B85;
+  --accent-strong: #2E6B66;
+  --accent-soft: #D7ECEA;
+  --accent-grad: linear-gradient(135deg, #4FA39C, #3E8B85);
+  --on-accent: #ffffff;
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #E8E6E1;
+  --glass-hi: transparent;
+  --glass-blur: 0px;
+  --glow: none;
+  --glow-soft: none;
+  --font-display: "Barlow", -apple-system, system-ui, sans-serif;
+  --font-label: "Barlow Semi Condensed", -apple-system, system-ui, sans-serif;
   --warn: #c07a00;
   --warn-soft: #fff1d6;
   --danger: #b03024;
@@ -37,15 +53,24 @@
 
 :root[data-theme="dark"] {
   --bg: #0b1016;
-  --card: #161b22;
-  --card-border: #232931;
-  --card-elev: #1c2229;
-  --text: #edf0f4;
-  --text-sub: #95a0ae;
-  --text-mute: #6b7483;
-  --accent: #4a9cf0;
-  --accent-strong: #72b4f5;
-  --accent-soft: #14263f;
+  --card: rgba(255,255,255,0.055);
+  --card-border: rgba(255,255,255,0.1);
+  --card-elev: rgba(255,255,255,0.04);
+  --text: #ffffff;
+  --text-sub: rgba(255,255,255,0.6);
+  --text-mute: rgba(255,255,255,0.4);
+  --accent: #7FB8B3;
+  --accent-strong: #A5D2CE;
+  --accent-soft: rgba(127,184,179,0.16);
+  --accent-grad: linear-gradient(135deg, #7FB8B3, #3E8B85);
+  --on-accent: #0b1016;
+  --glass-bg: rgba(255,255,255,0.055);
+  --glass-bg-strong: rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.1);
+  --glass-hi: rgba(255,255,255,0.1);
+  --glass-blur: 16px;
+  --glow: 0 0 14px rgba(127,184,179,0.4);
+  --glow-soft: 0 0 20px rgba(127,184,179,0.18);
   --warn: #f0b749;
   --warn-soft: #2d2414;
   --danger: #ef7a5d;
@@ -916,4 +941,99 @@ button { cursor: pointer; }
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* ==========================================================================
+   LIQUID GLASS LAYER — from the Flight Deck Dashboard design (panel 1b).
+   Additive surface-only overrides; light mode resolves the --glass-*
+   tokens to flat Paper & Teal (panel 1a), so one set of rules renders
+   both treatments. Layout stays untouched above.
+   ========================================================================== */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+}
+:root[data-theme="dark"] body::before {
+  background:
+    radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%),
+    radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,0.16), transparent 62%),
+    linear-gradient(165deg, #0b1016 0%, #0f1c20 48%, #090f13 100%);
+}
+html, body { background: transparent; }
+
+/* Typography: Barlow for display/values, Semi Condensed for labels */
+h1, .sensor-value, .matrix-vals, .memory-title, .result-header {
+  font-family: var(--font-display);
+}
+.section-label, .sensor-label, .matrix-label, .source-cite, .flap-sub {
+  font-family: var(--font-label);
+  letter-spacing: 0.1em;
+}
+
+/* Major surfaces become glass panels */
+.topbar {
+  background: var(--glass-bg-strong);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.card {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.sensor-bar {
+  border-top: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+:root[data-theme="dark"] .sensor-bar { background: rgba(0,0,0,0.28); }
+
+/* Active selections: teal gradient + glow (phase tabs, weight/alt chips,
+   aircraft picker states use aria-pressed) */
+.phase-tab[aria-pressed="true"],
+.chip[aria-pressed="true"],
+.variant-opt[aria-pressed="true"] {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--glow);
+}
+/* The variant button's sub-label inherits the on-accent colour too */
+.variant-opt[aria-pressed="true"] .flap-sub { color: var(--on-accent); opacity: 0.75; }
+.btn-primary {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--glow-soft);
+}
+
+/* Result card = the design's glass hero: stronger fill + corner glow */
+:root[data-theme="dark"] .result-card {
+  background: var(--glass-bg-strong);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 12px 40px rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+:root[data-theme="dark"] .result-card::before {
+  content: "";
+  position: absolute;
+  right: -50px; top: -60px;
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, #7FB8B3 0%, transparent 70%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+/* Big values glow faintly at night */
+:root[data-theme="dark"] .matrix-vals,
+:root[data-theme="dark"] .sensor-value {
+  text-shadow: 0 0 18px rgba(127,184,179,0.3);
 }
