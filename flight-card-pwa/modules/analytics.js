@@ -139,28 +139,35 @@ export function avgMaxG(legs, year = null) {
   };
 }
 
-// Heuristic: which canonical name shows up as CPT on the most legs in
-// `legs`? That's almost certainly the pilot themselves. Used to filter
-// the pilot out of mostFlownCrew so the top spot isn't "you". Returns
-// '' when the data is too sparse to be confident.
+// Heuristic: which name is the app's owner (the pilot)? They're in the
+// cockpit on EVERY one of their own legs, so the most-frequent cockpit
+// crew member — counting cpt AND fo, since the user may fly either seat —
+// is almost certainly them. Requiring a majority share avoids wrongly
+// dropping a frequent colleague. Returns '' when data is too sparse.
+// Used to filter the pilot out of mostFlownCrew so the top spot isn't "you".
 function detectPilotName(legs) {
+  const COCKPIT_KEYS = ['cpt', 'fo'];
   const counts = new Map();
   let total = 0;
   for (const leg of legs) {
     const d = leg.dataCard || {};
-    const cpt = (leg.cpt || d.cpt || '').toString().trim().toUpperCase();
-    if (!cpt) continue;
-    total++;
-    counts.set(cpt, (counts.get(cpt) | 0) + 1);
+    const seen = new Set();
+    for (const k of COCKPIT_KEYS) {
+      const v = (leg[k] || d[k] || '').toString().trim().toUpperCase();
+      if (v) seen.add(v);
+    }
+    if (seen.size) total++;
+    for (const name of seen) counts.set(name, (counts.get(name) | 0) + 1);
   }
   if (total < 3) return ''; // too sparse; show everyone
   let best = '', bestN = 0;
   for (const [name, n] of counts) {
     if (n > bestN) { best = name; bestN = n; }
   }
-  // Only claim it's the pilot if they're CPT on ≥ 40 % of legs that have
-  // any CPT — otherwise it's just whoever happens to be the most-frequent.
-  return (bestN / total >= 0.4) ? best : '';
+  // The owner sits up front on essentially every leg. A rotating colleague
+  // rarely clears half, so a majority share pins the owner reliably whether
+  // they fly left or right seat.
+  return (bestN / total >= 0.5) ? best : '';
 }
 
 // Top crewmembers the pilot's flown with most. Counts unique legs per
