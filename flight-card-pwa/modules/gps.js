@@ -37,6 +37,13 @@ const FPM_AIRBORNE  = 500;
 const HOLD_AIRBORNE_SEC = 30;
 const HOLD_LANDED_SEC   = 60;
 const ALT_FLAT_FT       = 50;
+// Cruise fallback: >160 kt sustained means airborne no matter the climb
+// rate. The primary rule (>120 kt AND >500 fpm) only fires during the
+// takeoff itself — if the pilot opens the app mid-cruise or in the descent
+// the climb condition never passes and the whole state machine (and the
+// landing popup at the end of it) stays dead. Nothing on the ground taxis
+// at 160 kt, so speed alone is safe here.
+const KT_CRUISE_FALLBACK = 160;
 
 // Watch state — module-scoped so disarm() can clear everything reliably.
 let watchId       = null;
@@ -206,6 +213,16 @@ function checkAirborne() {
   if (win.length < 3) return;
   const span = (win.at(-1).ts - win[0].ts) / 1000;
   if (span < HOLD_AIRBORNE_SEC) return;
+  // Cruise fallback — app opened mid-flight. Speed alone proves airborne,
+  // but the takeoff moment was never observed: leave takeoff_at at 0 so
+  // no fabricated actual_flight_time gets written. Landing detection (and
+  // the touchdown-G popup) still run normally.
+  if (win.every(s => s.speed_kt > KT_CRUISE_FALLBACK)) {
+    phase = 'airborne';
+    takeoffAt = 0;
+    onUpdateCb && onUpdateCb('airborne', { takeoff_at: 0 });
+    return;
+  }
   // Every sample over the threshold for ground speed; mean climb >500 fpm.
   if (!win.every(s => s.speed_kt > KT_AIRBORNE)) return;
   const meanClimb = win.reduce((a, s) => a + s.climb_fpm, 0) / win.length;
