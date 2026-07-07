@@ -31,23 +31,63 @@ async function preprocess(file) {
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImage(url);
-    // Downscale very large images so OCR stays fast on iPad.
-    const MAX = 1600;
+    // Aim for ~1600–2000px on the long edge: downscale huge camera shots,
+    // but UPSCALE small crops so Tesseract has enough pixels per glyph.
+    const MAX = 2000, MIN = 1500;
     let { width: w, height: h } = img;
-    const scale = Math.min(1, MAX / Math.max(w, h));
+    const longEdge = Math.max(w, h);
+    let scale = 1;
+    if (longEdge > MAX) scale = MAX / longEdge;
+    else if (longEdge < MIN) scale = MIN / longEdge;
     w = Math.round(w * scale); h = Math.round(h * scale);
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, w, h);
-    // Grayscale + threshold (FMC text is green-on-black or green-on-white screenshots;
-    // either way thresholding boosts OCR a lot).
+
+    // Binarise with Otsu's method + automatic polarity. The old code used a
+    // fixed cutoff of 128 and always inverted, which erased the mid-tone
+    // green/grey text on a dark OPT screen (its luminance sits right at the
+    // cutoff). Otsu picks the cutoff FROM the image's own histogram, and the
+    // polarity check makes dark-theme and light-theme screenshots both come
+    // out as clean dark-text-on-white — the form Tesseract reads best.
     const imgData = ctx.getImageData(0, 0, w, h);
     const d = imgData.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const lum = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-      // Adaptive-ish: invert when background is dark
-      const v = lum > 128 ? 0 : 255;
+    const total = w * h;
+    const hist = new Array(256).fill(0);
+    const lumOf = new Uint8ClampedArray(total);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const lum = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0;
+      lumOf[p] = lum;
+      hist[lum]++;
+    }
+    // Otsu threshold — maximise between-class variance.
+    let sum = 0;
+    for (let t = 0; t < 256; t++) sum += t * hist[t];
+    let sumB = 0, wB = 0, maxVar = -1, T = 127;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t];
+      if (!wB) continue;
+      const wF = total - wB;
+      if (!wF) break;
+      sumB += t * hist[t];
+      const mB = sumB / wB;
+      const mF = (sum - sumB) / wF;
+      const between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > maxVar) { maxVar = between; T = t; }
+    }
+    // Which side is the background? The majority class is the background;
+    // the text is the minority. If the dark class (≤T) is the majority the
+    // screen is dark-themed, so the text is the bright side.
+    let below = 0;
+    for (let t = 0; t <= T; t++) below += hist[t];
+    const darkBg = below > total / 2;
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const lum = lumOf[p];
+      const isText = darkBg ? (lum > T) : (lum <= T);
+      const v = isText ? 0 : 255;   // text → black, background → white
       d[i] = d[i+1] = d[i+2] = v;
     }
     ctx.putImageData(imgData, 0, 0);
@@ -78,7 +118,12 @@ export async function ocrImage(file, onProgress) {
     logger: (m) => {
       if (m.status === 'recognizing text') onProgress?.('Reading text…', 0.25 + m.progress * 0.7);
     },
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./- ',
+    // Permissive whitelist: forcing UPPER-only made Tesseract 5's LSTM
+    // pick worse glyphs on mixed-case OPT labels. Allow lower-case + the
+    // symbols that actually appear (%, :, °, comma) so the language model
+    // has natural context; the parser regexes are all case-insensitive.
+    tessedit_char_whitelist:
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:/%°- ',
   });
   onProgress?.('Parsing…', 0.97);
   return data.text || '';
@@ -126,7 +171,10 @@ const TOKEN_PATTERNS = [
   // Buffer widened to {0,20} so the OPT label "N1 TO (%)" (and any extra
   // OCR-injected whitespace / line breaks before the value) still matches.
   { key: 'n1',    re: /\bN\s*1\b[^\d]{0,20}(\d{2,3}(?:\.\d{1,2})?)\b/i, preferLast: true },
-  { key: 'n1',    re: /\bD-?TO(?:-\d)?\b[\s\S]{0,50}?(\d{2,3}\.\d)/i,   preferLast: true },
+  // Derate label — real OPT screens print "D-TO2" / "D-TO1" (no hyphen
+  // before the digit) as well as the older "D-TO-2" / "D-TO". Optional
+  // hyphen AND optional trailing digit covers every shape.
+  { key: 'n1',    re: /\bD-?TO-?\d?\b[\s\S]{0,50}?(\d{2,3}\.\d)/i,      preferLast: true },
   // PERFORMANCE-TAKEOFF screen labels the calculated N1 simply as "TO2" (or
   // "TO1" / "TO") with the percentage on the next line — no "D-" prefix.
   // \bTO\s*\d\b avoids "TOW", "TOGW", "TKO", "NOTAM" because those have a
