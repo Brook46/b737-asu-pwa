@@ -584,7 +584,7 @@ button { cursor: pointer; }
   margin-top: 0.08rem;
 }
 
-/* ─── Procedure panel ─────────────────────────────────────── */
+/* ─── Stick Shaker CB button + photo lightbox ─────────────── */
 .procedure-btn {
   border: 1px solid var(--card-border);
   background: var(--card);
@@ -594,52 +594,68 @@ button { cursor: pointer; }
   font-size: 0.9rem;
   font-weight: 600;
 }
-.procedure-panel {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-card);
-  padding: 1rem 1.1rem 1.1rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.procedure-panel .proc-memory {
+#cb-modal.is-open { display: flex; }
+.cb-card {
   position: relative;
-  background: var(--memory-bg);
-  border: 2px solid var(--memory-border);
-  border-radius: 10px;
-  padding: 1rem 1rem 0.8rem;
-  margin: 0.4rem 0 1rem;
+  max-width: min(96vw, 1200px);
+  padding: 1.1rem 1.1rem 0.9rem;
+  text-align: center;
 }
-.procedure-panel .proc-memory::before {
-  content: "Memory Items";
-  position: absolute;
-  top: -0.65rem; left: 0.7rem;
-  background: var(--memory-border);
-  color: #fff;
-  padding: 0.08rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.procedure-panel .proc-memory ol {
-  margin: 0; padding-left: 1.2rem;
-}
-.procedure-panel .proc-memory li {
-  margin-bottom: 0.35rem; font-weight: 500;
+.cb-title {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
   color: var(--text);
 }
-.procedure-panel .proc-remainder h3 {
-  font-size: 0.7rem;
+.cb-images {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .cb-images { grid-template-columns: 1fr; }
+}
+.cb-fig {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cb-fig figcaption {
+  font-size: 0.72rem;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: var(--text-sub);
-  margin: 0.3rem 0 0.55rem;
+  text-transform: uppercase;
   font-weight: 700;
 }
-.procedure-panel ol { padding-left: 1.3rem; }
-.procedure-panel li { margin-bottom: 0.4rem; }
+.cb-image {
+  display: block;
+  width: 100%;
+  max-height: 68vh;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: #000;
+}
+.cb-hint {
+  margin: 0.7rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-sub);
+}
+.cb-close {
+  position: absolute;
+  top: 0.4rem; right: 0.55rem;
+  width: 2rem; height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
 
 /* ─── Source cite ─────────────────────────────────────────── */
 .source-cite {
@@ -870,8 +886,7 @@ button { cursor: pointer; }
       "setup result"
       "phase result"
       "cite  cite"
-      "procbtn procbtn"
-      "procpanel procpanel";
+      "procbtn procbtn";
     gap: 0.85rem 1.1rem;
     max-width: 1180px;
     padding: 1rem 1.1rem 1.4rem;
@@ -881,7 +896,6 @@ button { cursor: pointer; }
   .result-card     { grid-area: result; min-height: 480px; padding: 1.15rem 1.1rem; }
   .source-cite     { grid-area: cite; text-align: left; }
   .procedure-btn   { grid-area: procbtn; justify-self: start; }
-  .procedure-panel { grid-area: procpanel; }
 
   /* Setup-row inside the narrow sidebar — stack everything vertically. */
   .setup-row {
