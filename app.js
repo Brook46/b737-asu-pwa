@@ -495,58 +495,25 @@ function renderGoAround(gaData, w, aptAlt) {
   <div class="source-cite" style="margin-top:.55rem;">Each altitude row: <strong>Pitch</strong> · <strong>V/S fpm</strong> · <strong>KIAS</strong>.</div>`;
 }
 
-/* ─── Procedure panel (22 steps; memory items boxed) ───────────── */
-const MEMORY_STEPS = [
-  ['Autopilot (if engaged)',          'Disengage'],
-  ['Autothrottle (if engaged)',       'Disengage'],
-  ['F/D switches (both)',             'OFF'],
-  ['Set pitch attitude and thrust',   'Flaps Up: 4° / 75 % N1 · Flaps Extended: 10° / 80 % N1'],
-];
-const REMAINDER_STEPS = [
-  ['PROBE HEAT switches',             'Check ON'],
-  ['Reliable indications',            'Attitude · N1 · Ground speed · Radio altitude'],
-  ['Choose',                          'Reliable indication found → step 11 · else → step 8'],
-  ['Refer to PI‑QRH §10 tables',      'Set pitch + thrust for current config + phase'],
-  ['In trim and stabilized',          'Compare CA / FO / standby airspeed vs table — >20 kt or >0.03 M = unreliable'],
-  ['Choose',                          'Reliable found → 11 · Not → 12'],
-  ['Choose',                          'CA/FO reliable → FD ON (reliable side) · Standby only → no AP/AT/FD'],
-  ['Set pitch + thrust from §10',     'As needed'],
-  ['Non-Normal Config Landing Dist.', 'Check PI‑QRH tables or approved source'],
-  ['Autopilot (reliable side)',       'Engage if required'],
-  ['Autothrottle',                    'Do not use'],
-  ['Choose',                          'Reliable altitude → 17 · Both unreliable → 21 (no RVSM)'],
-  ['RVSM airspace requirement',       'Airplane may not meet'],
-  ['Transponder altitude source',     'Select reliable side per fleet'],
-  ['Transponder mode selector',       'TA (per fleet)'],
-  ['Transponder mode selector',       'TA ONLY (per fleet)'],
-  ['Transponder altitude reporting',  'OFF per fleet'],
-  ['Checklist complete',              'Except deferred items'],
-];
-const procBtn = $('#qrh-procedure-btn');
-const procPanel = $('#qrh-procedure');
-procBtn.addEventListener('click', () => {
-  if (procPanel.hidden) {
-    const memHTML = MEMORY_STEPS.map(([l, r]) =>
-      `<li><strong>${l}</strong> — ${r}</li>`).join('');
-    const remHTML = REMAINDER_STEPS.map(([l, r]) =>
-      `<li><strong>${l}</strong>${r && r !== '—' ? ' — ' + r : ''}</li>`).join('');
-    procPanel.innerHTML = `
-      <div class="proc-memory">
-        <ol>${memHTML}</ol>
-      </div>
-      <div class="proc-remainder">
-        <h3>Reference items</h3>
-        <ol start="5">${remHTML}</ol>
-      </div>
-      <p style="margin-top:.75rem;font-size:.75rem;color:var(--text-sub);">
-        Paraphrased for quick reference. Always verify against the current approved QRH.
-      </p>`;
-    procPanel.hidden = false;
-    procBtn.textContent = 'Hide QRH Procedure';
-  } else {
-    procPanel.hidden = true;
-    procBtn.textContent = 'QRH Procedure (22 steps)';
-  }
+/* ─── Stick Shaker CB photo lightbox ───────────────────────────── */
+const cbBtn   = $('#cb-btn');
+const cbModal = $('#cb-modal');
+const cbClose = $('#cb-close');
+function openCbModal() {
+  cbModal.setAttribute('aria-hidden', 'false');
+  cbModal.classList.add('is-open');
+}
+function closeCbModal() {
+  cbModal.setAttribute('aria-hidden', 'true');
+  cbModal.classList.remove('is-open');
+}
+cbBtn.addEventListener('click', openCbModal);
+cbClose.addEventListener('click', closeCbModal);
+cbModal.addEventListener('click', (e) => {
+  if (e.target === cbModal) closeCbModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && cbModal.classList.contains('is-open')) closeCbModal();
 });
 
 /* ─── Sensors ──────────────────────────────────────────────────── */

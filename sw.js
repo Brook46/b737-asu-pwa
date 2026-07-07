@@ -2,7 +2,7 @@
  * Cache-first for all app shell + QRH data so the app works fully offline.
  * Bump CACHE_VERSION whenever shell assets change — old caches are purged on activate.
  */
-const CACHE_VERSION = 'asu-v3';
+const CACHE_VERSION = 'asu-v6';
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,6 +16,8 @@ const APP_SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-1024.png',
+  './images/stick-shaker-cb-p6.svg',
+  './images/stick-shaker-cb-p18.svg',
   './data/qrh-800.json',
   './data/qrh-900.json'
 ];

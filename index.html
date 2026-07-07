@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=8" />
+  <link rel="stylesheet" href="app.css?v=10" />
 </head>
 <body>
   <!-- Disclaimer modal (shown once) -->
@@ -155,9 +155,27 @@
 
     <p id="source-cite" class="source-cite" aria-live="polite"></p>
 
-    <button type="button" id="qrh-procedure-btn" class="procedure-btn">QRH Procedure (22 steps)</button>
-    <div id="qrh-procedure" class="procedure-panel" hidden></div>
+    <button type="button" id="cb-btn" class="procedure-btn">Stick Shaker CB position</button>
   </main>
+
+  <!-- Stick Shaker CB photo lightbox -->
+  <div id="cb-modal" class="modal" aria-hidden="true">
+    <div class="modal-card cb-card">
+      <button type="button" id="cb-close" class="cb-close" aria-label="Close">×</button>
+      <h2 class="cb-title">Stick Shaker — Circuit Breakers</h2>
+      <div class="cb-images">
+        <figure class="cb-fig">
+          <img class="cb-image" src="images/stick-shaker-cb-p6.svg" alt="P6-1 panel with stick shaker right CB (B3, C1393) highlighted" />
+          <figcaption>P6‑1</figcaption>
+        </figure>
+        <figure class="cb-fig">
+          <img class="cb-image" src="images/stick-shaker-cb-p18.svg" alt="P18-2 panel with stick shaker left CB (E3, C1392) highlighted" />
+          <figcaption>P18‑2</figcaption>
+        </figure>
+      </div>
+      <p class="cb-hint">Tap outside to close</p>
+    </div>
+  </div>
 
   <footer class="sensor-bar" aria-label="Sensors">
     <div class="sensor-row">
@@ -193,6 +211,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=7" defer></script>
+  <script src="app.js?v=8" defer></script>
 </body>
 </html>
