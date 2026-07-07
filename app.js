@@ -138,8 +138,10 @@ function showMemoryItems() {
   $('#memory-ack').addEventListener('click', () => {
     memoryEl.setAttribute('aria-hidden', 'true');
     // Kick off sensors inside the user-gesture so iOS accepts requestPermission.
+    // Only the very first launch may show the iOS motion dialog; afterwards we
+    // probe silently and fall back to the enable button if iOS forgot the grant.
     startGPS();
-    startMotion();
+    startMotion({ allowPrompt: localStorage.getItem(SENSOR_OK_KEY) !== '1' });
   }, { once: true });
 }
 
@@ -536,6 +538,7 @@ const sensor = {
   currentG: null, peakG: null,
   gsSeenAbove60: false, landedAt: 0,
   gBuffer: [],
+  motionProbing: false,
 };
 const MS_TO_KT = 1.94384, M_TO_FT = 3.28084;
 const TOUCHDOWN_KT = 60, PEAK_WINDOW_MS = 120e3;
@@ -598,16 +601,51 @@ function startGPS() {
   );
 }
 
-async function startMotion() {
-  if (sensor.motionActive) return;
-  try {
-    if (typeof DeviceMotionEvent !== 'undefined' &&
-        typeof DeviceMotionEvent.requestPermission === 'function') {
-      const r = await DeviceMotionEvent.requestPermission();
-      if (r !== 'granted') { setSensorStatus('Motion permission denied'); reportSensorStatus(); return; }
+/* Attach a throwaway listener and see whether real motion events arrive.
+ * On iOS this succeeds silently when permission is already granted, so we
+ * never have to re-show the system dialog on later launches. */
+function probeMotion(ms = 1500) {
+  return new Promise(resolve => {
+    let done = false;
+    const probe = (e) => {
+      const a = e.accelerationIncludingGravity;
+      const g = a ? Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2) : 0;
+      if (g < 0.5) return; // ignore empty/zero events
+      done = true;
+      window.removeEventListener('devicemotion', probe);
+      resolve(true);
+    };
+    window.addEventListener('devicemotion', probe);
+    setTimeout(() => {
+      if (done) return;
+      window.removeEventListener('devicemotion', probe);
+      resolve(false);
+    }, ms);
+  });
+}
+
+async function startMotion({ allowPrompt = true } = {}) {
+  if (sensor.motionActive || sensor.motionProbing) return;
+  const needsPerm = typeof DeviceMotionEvent !== 'undefined' &&
+                    typeof DeviceMotionEvent.requestPermission === 'function';
+  if (needsPerm) {
+    if (allowPrompt) {
+      // Must run synchronously inside the user gesture — no probe first,
+      // or iOS discards the gesture and rejects the dialog.
+      try {
+        const r = await DeviceMotionEvent.requestPermission();
+        if (r !== 'granted') { setSensorStatus('Motion permission denied'); reportSensorStatus(); return; }
+      } catch {
+        setSensorStatus('Motion unavailable'); reportSensorStatus(); return;
+      }
+    } else {
+      // Silent path: if iOS still remembers the grant, events flow without
+      // any dialog; if not, leave the enable button as the fallback.
+      sensor.motionProbing = true;
+      const flowing = await probeMotion();
+      sensor.motionProbing = false;
+      if (!flowing) { reportSensorStatus(); return; }
     }
-  } catch {
-    setSensorStatus('Motion unavailable'); reportSensorStatus(); return;
   }
   window.addEventListener('devicemotion', onMotion);
   sensor.motionActive = true;
@@ -719,7 +757,7 @@ if ('serviceWorker' in navigator) {
   // lets requestPermission() resolve silently without a prompt.
   if (localStorage.getItem(SENSOR_OK_KEY) === '1') {
     startGPS();
-    startMotion();
+    startMotion({ allowPrompt: false });
   }
 
   buildSubControls();
