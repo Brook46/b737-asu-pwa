@@ -15,6 +15,7 @@
 /* ─── Persistence keys ─────────────────────────────────────────── */
 const STORE_KEY = 'asu.state.v2';
 const DISCLAIMER_KEY = 'asu.disclaimerAck.v1';
+const SENSOR_OK_KEY = 'asu.sensorsOk.v1';
 const THEME_KEY = 'asu.theme.v1';
 
 /* ─── State ────────────────────────────────────────────────────── */
@@ -509,6 +510,17 @@ function closeCbModal() {
 }
 cbBtn.addEventListener('click', openCbModal);
 cbClose.addEventListener('click', closeCbModal);
+// Tap a panel to view it solo (bigger); tap again to return to both.
+$$('.cb-fig').forEach(fig => {
+  fig.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const wrap = fig.parentElement;
+    const solo = fig.classList.contains('solo');
+    wrap.classList.toggle('solo-mode', !solo);
+    $$('.cb-fig').forEach(f => f.classList.remove('solo'));
+    if (!solo) fig.classList.add('solo');
+  });
+});
 cbModal.addEventListener('click', (e) => {
   if (e.target === cbModal) closeCbModal();
 });
@@ -570,6 +582,7 @@ function startGPS() {
       const h  = pos.coords.heading;
       const a  = pos.coords.altitude;
       const ac = pos.coords.accuracy;
+      localStorage.setItem(SENSOR_OK_KEY, '1'); // first fix = permission granted
       sensor.gs    = (s != null && s >= 0) ? Math.round(s * MS_TO_KT) : null;
       sensor.track = (h != null && !Number.isNaN(h)) ? Math.round(((h % 360) + 360) % 360) : null;
       sensor.alt   = (a != null) ? Math.round(a * M_TO_FT) : null;
@@ -598,6 +611,7 @@ async function startMotion() {
   }
   window.addEventListener('devicemotion', onMotion);
   sensor.motionActive = true;
+  localStorage.setItem(SENSOR_OK_KEY, '1');
   reportSensorStatus();
 }
 
@@ -699,6 +713,14 @@ if ('serviceWorker' in navigator) {
 
   await showDisclaimer();
   showMemoryItems(); // non-blocking; sensors kick in on "Got it" click
+
+  // Previously approved → start sensors immediately, no tap needed.
+  // Geolocation permission persists in the browser; a prior motion grant
+  // lets requestPermission() resolve silently without a prompt.
+  if (localStorage.getItem(SENSOR_OK_KEY) === '1') {
+    startGPS();
+    startMotion();
+  }
 
   buildSubControls();
   render();

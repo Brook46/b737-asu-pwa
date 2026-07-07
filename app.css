@@ -597,7 +597,7 @@ button { cursor: pointer; }
 #cb-modal.is-open { display: flex; }
 .cb-card {
   position: relative;
-  max-width: min(96vw, 1200px);
+  max-width: min(96vw, 1800px);
   padding: 1.1rem 1.1rem 0.9rem;
   text-align: center;
 }
@@ -620,7 +620,13 @@ button { cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  cursor: zoom-in;
 }
+/* Tap a panel to view it solo, much larger */
+.cb-images.solo-mode { grid-template-columns: 1fr; }
+.cb-images.solo-mode .cb-fig:not(.solo) { display: none; }
+.cb-images.solo-mode .cb-fig { cursor: zoom-out; }
+.cb-images.solo-mode .cb-image { max-height: 82vh; }
 .cb-fig figcaption {
   font-size: 0.72rem;
   letter-spacing: 0.12em;
@@ -631,7 +637,7 @@ button { cursor: pointer; }
 .cb-image {
   display: block;
   width: 100%;
-  max-height: 68vh;
+  max-height: 76vh;
   height: auto;
   object-fit: contain;
   border-radius: 10px;
