@@ -30,3 +30,9 @@ pdf-knowledge-pwa/_tanchum_seed.js
 
 # Local iOS wrapper experiment — not referenced by anything deployed
 ios/
+
+# Xcode / native build artifacts
+ios-flightcard/build/
+ios-flightcard/DerivedData/
+*.xcuserstate
+xcuserdata/
