@@ -30,6 +30,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8092", "/Users/alonbrookstein/Claude AS/thermals-pwa"],
       "port": 8092
+    },
+    {
+      "name": "GPWS",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8096", "/Users/alonbrookstein/Claude AS/gpws-pwa"],
+      "port": 8096
     }
   ]
 }
