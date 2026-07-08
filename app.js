@@ -539,7 +539,8 @@ document.addEventListener('keydown', (e) => {
 /* ─── Sensors ──────────────────────────────────────────────────── */
 const sensor = {
   geoActive: false,
-  motionActive: false,
+  motionActive: false,  // listener attached
+  motionSeen: false,    // real accelerometer data has actually arrived
   gs: null, track: null, alt: null, acc: null,
   currentG: null, peakG: null,
   gsSeenAbove60: false, landedAt: 0,
@@ -656,6 +657,13 @@ function onMotion(e) {
   // Guard: devices without a real accelerometer (e.g. desktop browsers) emit
   // events with all-zero acceleration. Treat near-zero magnitudes as no reading.
   if (g < 0.1) return;
+  if (!sensor.motionSeen) {
+    // First real reading confirms the grant is live — cache it and refresh UI.
+    sensor.motionSeen = true;
+    try { localStorage.setItem(MOTION_PERM_KEY, 'granted'); } catch {}
+    reportSensorStatus();
+    renderSensorSettings();
+  }
   sensor.currentG = g;
   const now = Date.now();
   sensor.gBuffer.push({ t: now, g });
@@ -696,17 +704,24 @@ function renderSensorG() {
   }
 }
 
+// Motion counts as truly working only once real data has arrived (or on a
+// platform that needs no permission). Attaching the listener alone isn't
+// enough — iOS may silently deliver nothing if the grant didn't persist.
+function motionWorking() {
+  return sensor.motionActive && (sensor.motionSeen || !motionNeedsPermission());
+}
+
 function reportSensorStatus() {
   const parts = [];
-  if (sensor.geoActive)    parts.push('GPS');
-  if (sensor.motionActive) parts.push('Motion');
+  if (sensor.geoActive)  parts.push('GPS');
+  if (motionWorking())   parts.push('Motion');
   if (parts.length) {
     setSensorStatus(parts.join(' · ') + ' active');
-    enableBtn.hidden = true;
   } else {
-    setSensorStatus('Tap to enable sensors');
-    enableBtn.hidden = false;
+    setSensorStatus('Sensors off — open settings to enable');
   }
+  // Keep the quick-enable button available until BOTH sensors are live.
+  enableBtn.hidden = sensor.geoActive && motionWorking();
 }
 
 enableBtn.addEventListener('click', async () => {
@@ -715,7 +730,65 @@ enableBtn.addEventListener('click', async () => {
   startGPS();
   await requestMotionPermission(); // the one gesture allowed to show the dialog
   reportSensorStatus();
+  renderSensorSettings();
   enableBtn.disabled = false;
+});
+
+/* ─── Settings modal (sensor toggles) ──────────────────────────── */
+const settingsBtn   = $('#settings-btn');
+const settingsModal = $('#settings-modal');
+const settingsClose = $('#settings-close');
+
+function sensorStateLabel(state) {
+  return state === 'granted' ? 'On'
+       : state === 'denied'  ? 'Blocked in iOS Settings'
+       : 'Tap to enable';
+}
+function renderSensorSettings() {
+  if (!settingsModal) return;
+  // Location row
+  const geoRow = settingsModal.querySelector('.sensor-setting[data-sensor="geolocation"]');
+  if (geoRow) {
+    const state = sensor.geoActive ? 'granted' : 'prompt';
+    geoRow.querySelector('.sensor-setting-state').textContent = sensorStateLabel(state);
+    geoRow.dataset.state = state;
+    geoRow.querySelector('.sensor-setting-btn').textContent = sensor.geoActive ? 'On' : 'Enable';
+  }
+  // Motion row
+  const motRow = settingsModal.querySelector('.sensor-setting[data-sensor="motion"]');
+  if (motRow) {
+    let state;
+    if (motionWorking()) state = 'granted';
+    else if (cachedMotionPermission() === 'denied') state = 'denied';
+    else state = 'prompt';
+    motRow.querySelector('.sensor-setting-state').textContent = sensorStateLabel(state);
+    motRow.dataset.state = state;
+    const btn = motRow.querySelector('.sensor-setting-btn');
+    btn.textContent = state === 'granted' ? 'On' : state === 'denied' ? 'Retry' : 'Enable';
+  }
+}
+function openSettings()  { renderSensorSettings(); settingsModal.setAttribute('aria-hidden', 'false'); settingsModal.classList.add('is-open'); }
+function closeSettings() { settingsModal.setAttribute('aria-hidden', 'true'); settingsModal.classList.remove('is-open'); }
+settingsBtn.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettings(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && settingsModal.classList.contains('is-open')) closeSettings();
+});
+// Toggle taps — each runs inside the user gesture so iOS accepts the prompt.
+settingsModal.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-sensor-req]');
+  if (!btn) return;
+  const which = btn.dataset.sensorReq;
+  btn.disabled = true;
+  if (which === 'geolocation') {
+    startGPS();
+  } else if (which === 'motion') {
+    await requestMotionPermission();
+  }
+  reportSensorStatus();
+  renderSensorSettings();
+  btn.disabled = false;
 });
 
 // Double-tap the G cell to reset touchdown state (useful for repeat landings).
