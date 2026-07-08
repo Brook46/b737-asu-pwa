@@ -651,6 +651,18 @@ button { cursor: pointer; }
 }
 .sensor-setting-btn:disabled { opacity: 0.5; }
 .settings-hint { margin-top: 0.9rem; text-align: left; }
+.settings-warn {
+  margin: 0.9rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: var(--amber-bg, rgba(255, 179, 0, 0.14));
+  border: 1px solid var(--amber, #ff9f0a);
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.settings-warn[hidden] { display: none; }
 .cb-title {
   margin: 0 0 0.7rem;
   font-size: 1rem;

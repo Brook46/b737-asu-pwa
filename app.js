@@ -137,16 +137,17 @@ function showMemoryItems() {
   memoryEl.setAttribute('aria-hidden', 'false');
   $('#memory-ack').addEventListener('click', () => {
     memoryEl.setAttribute('aria-hidden', 'true');
-    // GPS uses the browser's own persistent permission (no repeat prompt).
+    // This tap is a real user gesture — the one moment per launch where iOS
+    // will honour DeviceMotionEvent.requestPermission(). We call it every
+    // launch: it prompts only the FIRST time, and on later launches resolves
+    // 'granted' silently while actually re-arming the sensor. (Just adding
+    // the devicemotion listener without this call delivers no events on iOS
+    // after a fresh load — which is why G looked dead before.)
     startGPS();
-    // Motion: if we've been granted before, just attach the listener — iOS
-    // remembers the grant per-origin, so no dialog. If not yet granted, this
-    // is the one gesture where we may prompt (first-ever launch); afterwards
-    // the enable button is the only thing that can re-trigger the dialog.
-    if (cachedMotionPermission() === 'granted' || !motionNeedsPermission()) {
-      startMotion();
-    } else if (cachedMotionPermission() === 'prompt') {
-      requestMotionPermission(); // first-ever launch only
+    if (motionNeedsPermission() && cachedMotionPermission() !== 'denied') {
+      requestMotionPermission();
+    } else {
+      startMotion(); // non-iOS: no permission needed
     }
   }, { once: true });
 }
@@ -744,8 +745,15 @@ function sensorStateLabel(state) {
        : state === 'denied'  ? 'Blocked in iOS Settings'
        : 'Tap to enable';
 }
+function isStandalone() {
+  return window.matchMedia?.('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+}
 function renderSensorSettings() {
   if (!settingsModal) return;
+  // Warn only on iOS-in-Safari, where motion permission can't persist.
+  const warn = $('#standalone-warn');
+  if (warn) warn.hidden = !(motionNeedsPermission() && !isStandalone());
   // Location row
   const geoRow = settingsModal.querySelector('.sensor-setting[data-sensor="geolocation"]');
   if (geoRow) {
@@ -820,13 +828,12 @@ if ('serviceWorker' in navigator) {
   await showDisclaimer();
   showMemoryItems(); // non-blocking; sensors kick in on "Got it" click
 
-  // Previously granted motion → attach the listener right now, no tap and no
-  // dialog (iOS honours the per-origin grant). GPS arms here too; its own
-  // browser permission means no repeat prompt.
-  if (cachedMotionPermission() === 'granted' || !motionNeedsPermission()) {
-    startGPS();
-    startMotion();
-  }
+  // GPS needs no user gesture, so arm it right away (its iOS permission
+  // persists). Motion arming is deferred to the "Got it" tap — iOS only
+  // honours requestPermission() inside a gesture, and re-arming there is
+  // what actually makes events flow after a fresh load.
+  startGPS();
+  if (!motionNeedsPermission()) startMotion(); // non-iOS only
 
   buildSubControls();
   render();

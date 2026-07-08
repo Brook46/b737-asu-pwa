@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=12" />
+  <link rel="stylesheet" href="app.css?v=13" />
 </head>
 <body>
   <!-- Disclaimer modal (shown once) -->
@@ -116,6 +116,7 @@
         </div>
         <button type="button" class="sensor-setting-btn" data-sensor-req="motion">Enable</button>
       </div>
+      <p id="standalone-warn" class="settings-warn" hidden>⚠︎ Open from the Home‑Screen icon (not Safari) so motion permission sticks between launches. In Safari, iOS re‑asks every time. Add to Home Screen: Share → “Add to Home Screen”.</p>
       <p class="cb-hint settings-hint">Enable once per device. iOS asks for permission the first time only. Ground speed, track, GPS altitude and G‑force are device‑sensor readings and not certified for flight use.</p>
     </div>
   </div>
@@ -242,6 +243,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=12" defer></script>
+  <script src="app.js?v=13" defer></script>
 </body>
 </html>
