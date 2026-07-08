@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=11" />
+  <link rel="stylesheet" href="app.css?v=12" />
 </head>
 <body>
   <!-- Disclaimer modal (shown once) -->
@@ -86,8 +86,39 @@
         <svg id="theme-icon" class="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"></svg>
         <span id="theme-label">Auto</span>
       </button>
+      <button type="button" id="settings-btn" class="theme-btn" title="Settings" aria-label="Settings">
+        <svg class="theme-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
     </div>
   </header>
+
+  <!-- Settings: sensor toggles -->
+  <div id="settings-modal" class="modal" aria-hidden="true">
+    <div class="modal-card settings-card">
+      <button type="button" id="settings-close" class="cb-close" aria-label="Close">×</button>
+      <h2 class="settings-title">Settings</h2>
+      <p class="settings-section-label">Sensors</p>
+      <div class="sensor-setting" data-sensor="geolocation">
+        <div class="sensor-setting-info">
+          <strong>Location (GPS)</strong>
+          <span class="sensor-setting-state">—</span>
+        </div>
+        <button type="button" class="sensor-setting-btn" data-sensor-req="geolocation">Enable</button>
+      </div>
+      <div class="sensor-setting" data-sensor="motion">
+        <div class="sensor-setting-info">
+          <strong>Motion (G‑force)</strong>
+          <span class="sensor-setting-state">—</span>
+        </div>
+        <button type="button" class="sensor-setting-btn" data-sensor-req="motion">Enable</button>
+      </div>
+      <p class="cb-hint settings-hint">Enable once per device. iOS asks for permission the first time only. Ground speed, track, GPS altitude and G‑force are device‑sensor readings and not certified for flight use.</p>
+    </div>
+  </div>
 
   <main class="main">
     <!-- Setup row: aircraft + gross weight -->
@@ -211,6 +242,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=11" defer></script>
+  <script src="app.js?v=12" defer></script>
 </body>
 </html>

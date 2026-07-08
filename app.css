@@ -601,6 +601,56 @@ button { cursor: pointer; }
   padding: 1.1rem 1.1rem 0.9rem;
   text-align: center;
 }
+
+/* ─── Settings modal ──────────────────────────────────────── */
+.settings-card {
+  position: relative;
+  max-width: 420px;
+  text-align: left;
+}
+.settings-title { margin: 0 0 0.2rem; font-size: 1.2rem; }
+.settings-section-label {
+  margin: 0.8rem 0 0.5rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+  font-weight: 700;
+}
+.sensor-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem 0.15rem;
+  border-top: 1px solid var(--card-border);
+}
+.sensor-setting:last-of-type { border-bottom: 1px solid var(--card-border); }
+.sensor-setting-info { display: flex; flex-direction: column; gap: 0.15rem; }
+.sensor-setting-info strong { font-size: 0.95rem; color: var(--text); }
+.sensor-setting-state { font-size: 0.75rem; color: var(--text-sub); }
+.sensor-setting[data-state="granted"] .sensor-setting-state { color: var(--ok, #34c759); }
+.sensor-setting[data-state="denied"]  .sensor-setting-state { color: var(--danger, #ff453a); }
+.sensor-setting-btn {
+  flex: none;
+  min-width: 5.2rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sensor-setting[data-state="granted"] .sensor-setting-btn {
+  background: transparent;
+  color: var(--ok, #34c759);
+  border-color: var(--ok, #34c759);
+  cursor: default;
+}
+.sensor-setting-btn:disabled { opacity: 0.5; }
+.settings-hint { margin-top: 0.9rem; text-align: left; }
 .cb-title {
   margin: 0 0 0.7rem;
   font-size: 1rem;
