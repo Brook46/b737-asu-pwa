@@ -1,6 +1,6 @@
 /* GPWS simulator service worker — cache-first for the app shell.
    Bump VERSION on every deploy so clients pick up new assets. */
-const VERSION = 'gpws-v2';
+const VERSION = 'gpws-v3';
 const SOUNDS = [
   'pull-up.mp3', 'sink-rate.mp3', 'dont-sink.wav', 'too-low-gear.wav',
   'too-low-flaps.wav', 'too-low-terrain.wav', 'glideslope.wav', 'bank-angle.wav',
@@ -12,9 +12,9 @@ const SOUNDS = [
 const ASSETS = [
   './',
   './index.html',
-  './app.css?v=2',
-  './app.js?v=2',
-  './audio.js?v=2',
+  './app.css?v=3',
+  './app.js?v=3',
+  './audio.js?v=3',
   './manifest.json',
   './icon.svg',
   './icons/icon-192.png',

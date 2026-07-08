@@ -1,23 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#111a26"/>
+      <stop offset="0" stop-color="#141a22"/>
       <stop offset="1" stop-color="#070b11"/>
     </linearGradient>
-    <linearGradient id="terr" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffb300"/>
-      <stop offset="1" stop-color="#c47800"/>
+    <linearGradient id="lamp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5a4d"/>
+      <stop offset="0.5" stop-color="#e2201a"/>
+      <stop offset="1" stop-color="#9c0f0a"/>
     </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#ff6a5e" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ff6a5e" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="512" height="512" rx="116" fill="url(#bg)"/>
-  <!-- terrain -->
-  <path d="M0 512 L96 360 L168 430 L268 300 L352 400 L512 260 L512 512 Z" fill="url(#terr)" opacity="0.92"/>
-  <!-- aircraft climbing away -->
-  <g transform="translate(150 150) rotate(-18)">
-    <path d="M0 22 L120 22 L170 6 L188 12 L150 38 L40 44 Z" fill="#e8edf4"/>
-    <path d="M74 22 L96 -14 L112 -14 L98 22 Z" fill="#e8edf4"/>
-  </g>
-  <!-- PULL UP annunciator -->
-  <rect x="118" y="60" width="276" height="64" rx="12" fill="#b3170f" stroke="#ff6d63" stroke-width="4"/>
-  <text x="256" y="106" text-anchor="middle" font-family="Barlow, Arial, sans-serif" font-weight="700" font-size="46" letter-spacing="4" fill="#ffffff">PULL UP</text>
+  <!-- red glow halo -->
+  <rect x="70" y="120" width="372" height="272" rx="60" fill="url(#glow)"/>
+  <!-- master warning annunciator -->
+  <rect x="116" y="156" width="280" height="200" rx="26" fill="url(#lamp)" stroke="#ffb0a8" stroke-width="6"/>
+  <rect x="116" y="156" width="280" height="200" rx="26" fill="none" stroke="#5c0705" stroke-width="2"/>
+  <text x="256" y="248" text-anchor="middle" font-family="Barlow, Arial, sans-serif" font-weight="700" font-size="58" letter-spacing="4" fill="#fff">MASTER</text>
+  <text x="256" y="316" text-anchor="middle" font-family="Barlow, Arial, sans-serif" font-weight="700" font-size="58" letter-spacing="4" fill="#fff">WARNING</text>
 </svg>

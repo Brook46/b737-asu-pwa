@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=2" />
+  <link rel="stylesheet" href="app.css?v=3" />
 </head>
 <body>
 
@@ -31,104 +31,19 @@
 
   <main>
 
-    <!-- ============ PFD + ND displays ============ -->
-    <section class="panel" data-collapse>
-      <button class="panel-title" type="button" aria-expanded="true">
-        <span>Flight displays</span><span class="caret"></span>
-      </button>
-      <div class="panel-body">
-        <div class="displays">
-          <!-- Primary Flight Display -->
-          <div class="disp pfd">
-            <div class="disp-tag">PFD</div>
-            <svg viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet">
-              <!-- attitude ball -->
-              <defs>
-                <clipPath id="adiClip"><rect x="24" y="20" width="152" height="150" rx="6"/></clipPath>
-              </defs>
-              <g clip-path="url(#adiClip)">
-                <g id="pfd-horizon">
-                  <rect x="-140" y="-160" width="480" height="255" fill="#3aa1e0"/>
-                  <rect x="-140" y="95" width="480" height="360" fill="#8a5a2b"/>
-                  <line x1="-140" y1="95" x2="340" y2="95" stroke="#fff" stroke-width="2"/>
-                  <line x1="70" y1="60" x2="130" y2="60" stroke="#fff" stroke-width="1.2"/>
-                  <line x1="80" y1="130" x2="120" y2="130" stroke="#fff" stroke-width="1.2"/>
-                </g>
-              </g>
-              <rect x="24" y="20" width="152" height="150" rx="6" fill="none" stroke="#2a3444" stroke-width="2"/>
-              <!-- fixed aircraft reference -->
-              <path d="M74 95 L92 95 L100 103 L108 95 L126 95" fill="none" stroke="#ffcf33" stroke-width="3" stroke-linejoin="round"/>
-              <rect x="98" y="93" width="4" height="4" fill="#ffcf33"/>
-              <!-- glideslope scale (right) -->
-              <g id="pfd-gs" transform="translate(168 95)">
-                <line x1="0" y1="-52" x2="0" y2="52" stroke="#c9d3df" stroke-width="1"/>
-                <circle cx="0" cy="-40" r="2.2" fill="none" stroke="#c9d3df"/>
-                <circle cx="0" cy="-20" r="2.2" fill="none" stroke="#c9d3df"/>
-                <rect x="-3" y="-1.5" width="6" height="3" fill="#c9d3df"/>
-                <circle cx="0" cy="20" r="2.2" fill="none" stroke="#c9d3df"/>
-                <circle cx="0" cy="40" r="2.2" fill="none" stroke="#c9d3df"/>
-                <path id="pfd-gs-diamond" d="M0 20 l6 -6 l-6 -6 l-6 6 z" fill="#e864d2" stroke="#111" stroke-width="0.5"/>
-              </g>
-              <!-- readouts -->
-              <text x="30"  y="196" class="pfd-lbl">IAS</text>
-              <text x="30"  y="212" id="pfd-ias" class="pfd-val">250</text>
-              <text x="170" y="196" class="pfd-lbl" text-anchor="end">RA</text>
-              <text x="170" y="212" id="pfd-ra" class="pfd-val" text-anchor="end">2000</text>
-              <text x="100" y="205" id="pfd-vs" class="pfd-vs" text-anchor="middle">0 fpm</text>
-              <!-- warning annunciations (over the ADI) -->
-              <g id="pfd-warn"></g>
-            </svg>
-          </div>
-
-          <!-- Navigation Display (terrain) -->
-          <div class="disp nd">
-            <div class="disp-tag">ND &middot; TERR</div>
-            <svg viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet">
-              <defs>
-                <clipPath id="ndClip"><path d="M100 214 A150 150 0 0 1 24 40 L176 40 A150 150 0 0 1 100 214 Z"/></clipPath>
-                <radialGradient id="terrGrad" cx="50%" cy="100%" r="90%">
-                  <stop offset="0" stop-color="#0c3b12"/>
-                  <stop offset="1" stop-color="#0a1a10"/>
-                </radialGradient>
-              </defs>
-              <!-- arc frame -->
-              <path d="M100 214 A128 128 0 0 1 30 46" fill="none" stroke="#2a3444" stroke-width="1.5"/>
-              <path d="M100 214 A128 128 0 0 0 170 46" fill="none" stroke="#2a3444" stroke-width="1.5"/>
-              <g clip-path="url(#ndClip)">
-                <rect x="0" y="0" width="200" height="240" fill="url(#terrGrad)"/>
-                <!-- terrain dot pattern layers, toggled by threat -->
-                <g id="nd-terr-green"></g>
-                <g id="nd-terr-amber" opacity="0"></g>
-                <g id="nd-terr-red" opacity="0"></g>
-              </g>
-              <!-- own-ship triangle -->
-              <path d="M100 206 l-7 12 l7 -4 l7 4 z" fill="#fff"/>
-              <!-- range rings -->
-              <path d="M100 206 m-40 0 a40 40 0 0 1 80 0" fill="none" stroke="#33465a" stroke-width="0.8" stroke-dasharray="2 3"/>
-              <path d="M100 206 m-80 0 a80 80 0 0 1 160 0" fill="none" stroke="#33465a" stroke-width="0.8" stroke-dasharray="2 3"/>
-              <text x="14" y="30" class="nd-mode" id="nd-status">TERR</text>
-              <text x="186" y="30" class="nd-rng" text-anchor="end">10</text>
-            </svg>
-          </div>
-        </div>
-        <p class="hint">The PFD shows the fixed-aircraft symbol, glideslope diamond (amber when Mode 5 fires) and the red <b>PULL&nbsp;UP</b>/<b>WINDSHEAR</b> annunciations. The ND paints EGPWS terrain — green / amber / red as the threat grows, or <b>TERR&nbsp;INHIBIT</b> when the display is off.</p>
-      </div>
-    </section>
-
-    <!-- ============ Annunciators ============ -->
+    <!-- ============ 1. Glareshield annunciators (TOP, interactive) ============ -->
     <section class="panel" data-collapse>
       <button class="panel-title" type="button" aria-expanded="true">
         <span>Glareshield annunciators &amp; aural</span><span class="caret"></span>
       </button>
       <div class="panel-body">
+        <p class="hint tap-hint">Tap a light to activate that warning &amp; hear its aural — tap again to cancel. Lights also follow the flight-state logic below.</p>
         <div class="annunciator-row">
-          <div class="lamp red"    id="lamp-pullup"><span>PULL<br>UP</span></div>
-          <div class="lamp red"    id="lamp-windshear"><span>WIND<br>SHEAR</span></div>
-          <div class="lamp amber"  id="lamp-gndprox"><span>GND<br>PROX</span></div>
-          <button class="lamp amber pressable" id="lamp-belowgs" type="button">
-            <span>BELOW<br>G/S<br><small>P/RST</small></span>
-          </button>
-          <div class="lamp amber"  id="lamp-terr"><span>TERR</span></div>
+          <button class="lamp red    pressable" id="lamp-pullup"    type="button" data-manual="pullup"><span>PULL<br>UP</span></button>
+          <button class="lamp red    pressable" id="lamp-windshear" type="button" data-manual="windshear"><span>WIND<br>SHEAR</span></button>
+          <button class="lamp amber  pressable" id="lamp-gndprox"   type="button" data-manual="gndprox"><span>GND<br>PROX</span></button>
+          <button class="lamp amber  pressable" id="lamp-belowgs"   type="button" data-manual="belowgs"><span>BELOW<br>G/S<br><small>P/RST</small></span></button>
+          <button class="lamp amber  pressable" id="lamp-terr"      type="button" data-manual="terr"><span>TERR</span></button>
         </div>
         <div class="aural-strip" id="aural-strip">
           <span class="aural-tag">AURAL</span>
@@ -137,35 +52,188 @@
       </div>
     </section>
 
-    <!-- ============ Overhead module ============ -->
+    <!-- ============ 2. PFD + ND ============ -->
+    <section class="panel" data-collapse id="panel-displays">
+      <button class="panel-title" type="button" aria-expanded="true">
+        <span>Flight displays &mdash; PFD &amp; ND</span><span class="caret"></span>
+      </button>
+      <div class="panel-body">
+        <div class="displays">
+          <!-- Primary Flight Display -->
+          <div class="disp pfd">
+            <div class="disp-tag">PFD</div>
+            <svg viewBox="0 0 260 300" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <clipPath id="adiClip"><rect x="60" y="46" width="140" height="168" rx="8"/></clipPath>
+                <clipPath id="spdClip"><rect x="6" y="46" width="48" height="168"/></clipPath>
+                <clipPath id="altClip"><rect x="206" y="46" width="48" height="168"/></clipPath>
+              </defs>
+
+              <!-- FMA bar -->
+              <rect x="6" y="30" width="248" height="14" fill="#0a0d12" stroke="#223" stroke-width="0.5"/>
+              <text x="50"  y="40" class="fma">CMD</text>
+              <text x="130" y="40" class="fma" text-anchor="middle">A/P  ENGD</text>
+              <text x="210" y="40" class="fma" text-anchor="end">LNAV</text>
+
+              <!-- ADI -->
+              <g clip-path="url(#adiClip)">
+                <g id="pfd-horizon">
+                  <rect x="-260" y="-260" width="780" height="390" fill="#1ea7e0"/>
+                  <rect x="-260" y="130" width="780" height="480" fill="#8a6234"/>
+                  <line x1="-260" y1="130" x2="520" y2="130" stroke="#fff" stroke-width="1.5"/>
+                  <g id="pfd-ladder"></g>
+                </g>
+                <!-- localizer scale -->
+                <g id="pfd-loc" transform="translate(130 205)">
+                  <circle cx="-40" cy="0" r="2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                  <circle cx="-20" cy="0" r="2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                  <path d="M0 -4 l4 4 l-4 4 l-4 -4 z" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                  <circle cx="20" cy="0" r="2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                  <circle cx="40" cy="0" r="2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                </g>
+              </g>
+              <rect x="60" y="46" width="140" height="168" rx="8" fill="none" stroke="#2a3444" stroke-width="1.5"/>
+
+              <!-- roll scale (fixed) + bank pointer -->
+              <g transform="translate(130 130)" fill="none" stroke="#e8edf4" stroke-width="1">
+                <path d="M-52 -66 A84 84 0 0 1 52 -66" />
+                <line x1="0"   y1="-84" x2="0"   y2="-78"/>
+                <line x1="-29" y1="-79" x2="-32" y2="-73"/>
+                <line x1="29"  y1="-79" x2="32"  y2="-73"/>
+                <line x1="-42" y1="-73" x2="-47" y2="-66"/>
+                <line x1="42"  y1="-73" x2="47"  y2="-66"/>
+              </g>
+              <g id="pfd-bank" transform="translate(130 130)">
+                <path d="M0 -78 l-5 -9 l10 0 z" fill="#e8edf4"/>
+              </g>
+
+              <!-- fixed aircraft reference -->
+              <g stroke="#ffcf33" stroke-width="3" fill="none" stroke-linecap="round">
+                <path d="M96 130 L116 130 L124 138"/>
+                <path d="M164 130 L144 130 L136 138"/>
+              </g>
+              <rect x="128" y="128" width="4" height="4" fill="#ffcf33"/>
+
+              <!-- glideslope scale -->
+              <g id="pfd-gs" transform="translate(196 130)">
+                <line x1="0" y1="-52" x2="0" y2="52" stroke="#c9d3df" stroke-width="0.8"/>
+                <circle cx="0" cy="-40" r="2.2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                <circle cx="0" cy="-20" r="2.2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                <line x1="-4" y1="0" x2="4" y2="0" stroke="#ffcf33" stroke-width="1.5"/>
+                <circle cx="0" cy="20" r="2.2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                <circle cx="0" cy="40" r="2.2" fill="none" stroke="#c9d3df" stroke-width="0.8"/>
+                <path id="pfd-gs-diamond" d="M0 0 l5 -5 l-5 -5 l-5 5 z" fill="none" stroke="#e864d2" stroke-width="1.5"/>
+              </g>
+
+              <!-- airspeed tape -->
+              <rect x="6" y="46" width="48" height="168" fill="#0a0d12" opacity="0.55"/>
+              <g clip-path="url(#spdClip)"><g id="pfd-spd-tape"></g></g>
+              <path d="M4 122 L44 122 L52 130 L44 138 L4 138 Z" fill="#0a0d12" stroke="#e8edf4" stroke-width="1"/>
+              <text x="40" y="134" id="pfd-ias" class="tape-val" text-anchor="end">250</text>
+              <text x="30" y="58" class="tape-cap" text-anchor="middle">IAS</text>
+
+              <!-- altitude tape -->
+              <rect x="206" y="46" width="48" height="168" fill="#0a0d12" opacity="0.55"/>
+              <g clip-path="url(#altClip)"><g id="pfd-alt-tape"></g></g>
+              <path d="M256 122 L216 122 L208 130 L216 138 L256 138 Z" fill="#0a0d12" stroke="#e8edf4" stroke-width="1"/>
+              <text x="214" y="134" id="pfd-ra" class="tape-val">2000</text>
+              <text x="230" y="58" class="tape-cap" text-anchor="middle">R ALT</text>
+
+              <!-- V/S digital + heading -->
+              <text x="230" y="230" id="pfd-vs" class="pfd-vs" text-anchor="middle">0</text>
+              <text x="230" y="240" class="tape-cap" text-anchor="middle">V/S</text>
+              <rect x="112" y="224" width="36" height="15" fill="#0a0d12" stroke="#e8edf4" stroke-width="1"/>
+              <text x="130" y="235" id="pfd-hdg" class="tape-val" text-anchor="middle">270</text>
+              <text x="130" y="248" class="tape-cap" text-anchor="middle">HDG</text>
+
+              <!-- warning annunciations over ADI -->
+              <g id="pfd-warn"></g>
+            </svg>
+          </div>
+
+          <!-- Navigation Display -->
+          <div class="disp nd">
+            <div class="disp-tag">ND &middot; MAP</div>
+            <svg viewBox="0 0 260 300" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <clipPath id="ndClip"><path d="M130 250 L130 250 A150 150 0 0 1 -20 100 L280 100 A150 150 0 0 1 130 250 Z"/></clipPath>
+                <radialGradient id="terrGrad" cx="50%" cy="100%" r="95%">
+                  <stop offset="0" stop-color="#0c3b12"/>
+                  <stop offset="1" stop-color="#081410"/>
+                </radialGradient>
+              </defs>
+
+              <g clip-path="url(#ndClip)">
+                <rect x="0" y="0" width="260" height="300" fill="url(#terrGrad)"/>
+                <g id="nd-terr-green"></g>
+                <g id="nd-terr-amber" opacity="0"></g>
+                <g id="nd-terr-red" opacity="0"></g>
+              </g>
+
+              <!-- compass arc + heading ticks (filled by JS) -->
+              <g id="nd-compass" fill="none" stroke="#c9d3df" stroke-width="0.8"></g>
+              <path d="M130 250 A150 150 0 0 1 5 84" fill="none" stroke="#2a3444" stroke-width="1"/>
+              <path d="M130 250 A150 150 0 0 0 255 84" fill="none" stroke="#2a3444" stroke-width="1"/>
+
+              <!-- range rings -->
+              <path d="M130 250 m-50 0 a50 50 0 0 1 100 0" fill="none" stroke="#33465a" stroke-width="0.7" stroke-dasharray="2 3"/>
+              <path d="M130 250 m-100 0 a100 100 0 0 1 200 0" fill="none" stroke="#33465a" stroke-width="0.7" stroke-dasharray="2 3"/>
+              <text x="80" y="204" class="nd-rng">5</text>
+              <text x="30" y="154" class="nd-rng">10</text>
+
+              <!-- own-ship -->
+              <path d="M130 242 l-8 14 l8 -5 l8 5 z" fill="#fff"/>
+              <!-- heading lubber + digital -->
+              <line x1="130" y1="100" x2="130" y2="108" stroke="#e864d2" stroke-width="1.5"/>
+              <rect x="112" y="86" width="36" height="15" fill="#0a0d12" stroke="#e864d2" stroke-width="1"/>
+              <text x="130" y="97" id="nd-hdg" class="tape-val" text-anchor="middle">270</text>
+
+              <!-- windshear PWS icon (toggled) -->
+              <g id="nd-pws" opacity="0" transform="translate(130 168)"></g>
+
+              <text x="12" y="122" class="nd-mode" id="nd-status">TERR</text>
+              <text x="248" y="122" class="nd-rng" text-anchor="end" id="nd-range">WXR/TERR</text>
+            </svg>
+          </div>
+        </div>
+        <p class="hint">Simplified 737 PFD (attitude, speed/altitude tapes, glideslope, localizer) and ND terrain/weather-radar arc. Selecting a mode below drives both displays to a matching picture.</p>
+      </div>
+    </section>
+
+    <!-- ============ 3. Modes (selectable) ============ -->
     <section class="panel" data-collapse>
       <button class="panel-title" type="button" aria-expanded="true">
-        <span>Overhead &middot; GND PROX module (P5)</span><span class="caret"></span>
+        <span>Modes &mdash; tap to isolate &amp; demonstrate</span><span class="caret"></span>
+      </button>
+      <div class="panel-body">
+        <p class="hint tap-hint">Tap a mode to load a matching scenario — it highlights, drives the displays, lights the annunciators and plays its aural. Tap again to clear.</p>
+        <div id="mode-board"></div>
+      </div>
+    </section>
+
+    <!-- ============ 4. Overhead inhibit (above flight state) ============ -->
+    <section class="panel" data-collapse>
+      <button class="panel-title" type="button" aria-expanded="true">
+        <span>Overhead &middot; GND PROX inhibit (P5)</span><span class="caret"></span>
       </button>
       <div class="panel-body">
         <div class="overhead-row">
           <div class="switch-block">
             <span class="switch-name">FLAP<br>INHIBIT</span>
             <button class="gswitch" id="sw-flap" type="button" aria-pressed="false">
-              <span class="pos up">FLAP INHIBIT</span>
-              <span class="lever"></span>
-              <span class="pos dn">NORM</span>
+              <span class="pos up">FLAP INHIBIT</span><span class="lever"></span><span class="pos dn">NORM</span>
             </button>
           </div>
           <div class="switch-block">
             <span class="switch-name">GEAR<br>INHIBIT</span>
             <button class="gswitch" id="sw-gear" type="button" aria-pressed="false">
-              <span class="pos up">GEAR INHIBIT</span>
-              <span class="lever"></span>
-              <span class="pos dn">NORM</span>
+              <span class="pos up">GEAR INHIBIT</span><span class="lever"></span><span class="pos dn">NORM</span>
             </button>
           </div>
           <div class="switch-block">
             <span class="switch-name">TERR<br>INHIBIT</span>
             <button class="gswitch guarded" id="sw-terr" type="button" aria-pressed="false">
-              <span class="pos up">TERR INHIBIT</span>
-              <span class="lever"></span>
-              <span class="pos dn">NORM</span>
+              <span class="pos up">TERR INHIBIT</span><span class="lever"></span><span class="pos dn">NORM</span>
             </button>
           </div>
           <div class="switch-block">
@@ -173,21 +241,11 @@
             <button class="test-btn" id="btn-test" type="button">TEST</button>
           </div>
         </div>
-        <p class="hint">TERR INHIBIT stops EGPWS look-ahead &amp; terrain-clearance-floor alerts (basic Modes 1&ndash;7 keep working). GEAR / FLAP INHIBIT silence the Mode 4 &ldquo;TOO LOW GEAR / FLAPS&rdquo; alerts.</p>
+        <p class="hint">TERR INHIBIT stops EGPWS look-ahead, terrain-clearance-floor &amp; predictive-windshear alerts (basic Modes 1&ndash;7 keep working). GEAR / FLAP INHIBIT silence the Mode 4 &ldquo;TOO LOW GEAR / FLAPS&rdquo; alerts.</p>
       </div>
     </section>
 
-    <!-- ============ Mode board ============ -->
-    <section class="panel" data-collapse>
-      <button class="panel-title" type="button" aria-expanded="true">
-        <span>Modes &mdash; live status</span><span class="caret"></span>
-      </button>
-      <div class="panel-body">
-        <div id="mode-board"></div>
-      </div>
-    </section>
-
-    <!-- ============ Flight state (below modes, collapsed by default) ============ -->
+    <!-- ============ 5. Flight state (collapsed) ============ -->
     <section class="panel" data-collapse id="panel-state">
       <button class="panel-title" type="button" aria-expanded="false">
         <span>Flight state &mdash; scenario input</span><span class="caret"></span>
@@ -211,7 +269,7 @@
         </div>
         <div class="slider-row">
           <label for="in-bank">Bank angle</label>
-          <input type="range" id="in-bank" min="0" max="60" step="1" value="0">
+          <input type="range" id="in-bank" min="-60" max="60" step="1" value="0">
           <output id="out-bank">0&deg;</output>
         </div>
         <div class="slider-row">
@@ -267,22 +325,26 @@
             </div>
           </div>
           <div class="select-block">
-            <span class="select-name">Windshear</span>
+            <span class="select-name">Reactive windshear (Mode 7)</span>
             <div class="seg" id="seg-shear">
               <button data-v="off" class="on" type="button">NONE</button>
               <button data-v="on" type="button">SHEAR!</button>
             </div>
           </div>
+          <div class="select-block">
+            <span class="select-name">Predictive windshear (PWS radar)</span>
+            <div class="seg" id="seg-pws">
+              <button data-v="none" class="on" type="button">NONE</button>
+              <button data-v="caution" type="button">AHEAD (caution)</button>
+              <button data-v="warning" type="button">AHEAD (warning)</button>
+            </div>
+          </div>
         </div>
 
         <div class="scenario-row">
-          <span class="select-name">Quick scenarios</span>
+          <span class="select-name">Quick reset</span>
           <div class="scenario-btns">
-            <button type="button" data-scn="cfit">CFIT descent</button>
-            <button type="button" data-scn="approach">Unstable approach</button>
-            <button type="button" data-scn="terrain">Terrain ahead</button>
-            <button type="button" data-scn="shear">Windshear on T/O</button>
-            <button type="button" data-scn="reset">Reset</button>
+            <button type="button" data-scn="reset">Reset to level cruise</button>
           </div>
         </div>
       </div>
@@ -291,7 +353,7 @@
     <p class="disclaimer">Training aid only &mdash; simplified envelopes, not for operational use. Aural recordings are community GPWS/EGPWS sound sets (Boeing/Honeywell voice), not certified Honeywell audio.</p>
   </main>
 
-  <script src="audio.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <script src="audio.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
