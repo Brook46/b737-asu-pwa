@@ -15,7 +15,7 @@
 /* ─── Persistence keys ─────────────────────────────────────────── */
 const STORE_KEY = 'asu.state.v2';
 const DISCLAIMER_KEY = 'asu.disclaimerAck.v1';
-const SENSOR_OK_KEY = 'asu.sensorsOk.v1';
+const MOTION_PERM_KEY = 'asu.sensor.motion'; // 'granted' | 'denied' | 'prompt'
 const THEME_KEY = 'asu.theme.v1';
 
 /* ─── State ────────────────────────────────────────────────────── */
@@ -137,11 +137,17 @@ function showMemoryItems() {
   memoryEl.setAttribute('aria-hidden', 'false');
   $('#memory-ack').addEventListener('click', () => {
     memoryEl.setAttribute('aria-hidden', 'true');
-    // Kick off sensors inside the user-gesture so iOS accepts requestPermission.
-    // Only the very first launch may show the iOS motion dialog; afterwards we
-    // probe silently and fall back to the enable button if iOS forgot the grant.
+    // GPS uses the browser's own persistent permission (no repeat prompt).
     startGPS();
-    startMotion({ allowPrompt: localStorage.getItem(SENSOR_OK_KEY) !== '1' });
+    // Motion: if we've been granted before, just attach the listener — iOS
+    // remembers the grant per-origin, so no dialog. If not yet granted, this
+    // is the one gesture where we may prompt (first-ever launch); afterwards
+    // the enable button is the only thing that can re-trigger the dialog.
+    if (cachedMotionPermission() === 'granted' || !motionNeedsPermission()) {
+      startMotion();
+    } else if (cachedMotionPermission() === 'prompt') {
+      requestMotionPermission(); // first-ever launch only
+    }
   }, { once: true });
 }
 
@@ -538,7 +544,6 @@ const sensor = {
   currentG: null, peakG: null,
   gsSeenAbove60: false, landedAt: 0,
   gBuffer: [],
-  motionProbing: false,
 };
 const MS_TO_KT = 1.94384, M_TO_FT = 3.28084;
 const TOUCHDOWN_KT = 60, PEAK_WINDOW_MS = 120e3;
@@ -585,7 +590,6 @@ function startGPS() {
       const h  = pos.coords.heading;
       const a  = pos.coords.altitude;
       const ac = pos.coords.accuracy;
-      localStorage.setItem(SENSOR_OK_KEY, '1'); // first fix = permission granted
       sensor.gs    = (s != null && s >= 0) ? Math.round(s * MS_TO_KT) : null;
       sensor.track = (h != null && !Number.isNaN(h)) ? Math.round(((h % 360) + 360) % 360) : null;
       sensor.alt   = (a != null) ? Math.round(a * M_TO_FT) : null;
@@ -601,56 +605,47 @@ function startGPS() {
   );
 }
 
-/* Attach a throwaway listener and see whether real motion events arrive.
- * On iOS this succeeds silently when permission is already granted, so we
- * never have to re-show the system dialog on later launches. */
-function probeMotion(ms = 1500) {
-  return new Promise(resolve => {
-    let done = false;
-    const probe = (e) => {
-      const a = e.accelerationIncludingGravity;
-      const g = a ? Math.sqrt((a.x || 0) ** 2 + (a.y || 0) ** 2 + (a.z || 0) ** 2) : 0;
-      if (g < 0.5) return; // ignore empty/zero events
-      done = true;
-      window.removeEventListener('devicemotion', probe);
-      resolve(true);
-    };
-    window.addEventListener('devicemotion', probe);
-    setTimeout(() => {
-      if (done) return;
-      window.removeEventListener('devicemotion', probe);
-      resolve(false);
-    }, ms);
-  });
+/* Motion permission — mirrors the Flight Card PWA approach.
+ *
+ * The trick: iOS remembers a granted DeviceMotion permission per-origin, and
+ * once granted we can just addEventListener('devicemotion') on every launch
+ * and events flow with NO dialog. The dialog only ever appears when we call
+ * DeviceMotionEvent.requestPermission() — so we call that in exactly one
+ * place (an explicit user tap), never automatically on launch. */
+function motionNeedsPermission() {
+  return typeof DeviceMotionEvent !== 'undefined' &&
+         typeof DeviceMotionEvent.requestPermission === 'function';
+}
+function cachedMotionPermission() {
+  if (typeof DeviceMotionEvent === 'undefined') return 'denied';
+  if (!motionNeedsPermission()) return 'granted'; // non-iOS: no prompt needed
+  try { return localStorage.getItem(MOTION_PERM_KEY) || 'prompt'; }
+  catch { return 'prompt'; }
 }
 
-async function startMotion({ allowPrompt = true } = {}) {
-  if (sensor.motionActive || sensor.motionProbing) return;
-  const needsPerm = typeof DeviceMotionEvent !== 'undefined' &&
-                    typeof DeviceMotionEvent.requestPermission === 'function';
-  if (needsPerm) {
-    if (allowPrompt) {
-      // Must run synchronously inside the user gesture — no probe first,
-      // or iOS discards the gesture and rejects the dialog.
-      try {
-        const r = await DeviceMotionEvent.requestPermission();
-        if (r !== 'granted') { setSensorStatus('Motion permission denied'); reportSensorStatus(); return; }
-      } catch {
-        setSensorStatus('Motion unavailable'); reportSensorStatus(); return;
-      }
-    } else {
-      // Silent path: if iOS still remembers the grant, events flow without
-      // any dialog; if not, leave the enable button as the fallback.
-      sensor.motionProbing = true;
-      const flowing = await probeMotion();
-      sensor.motionProbing = false;
-      if (!flowing) { reportSensorStatus(); return; }
-    }
-  }
+// Attach the accelerometer listener. No requestPermission() — safe to call on
+// every launch. If the origin isn't granted, iOS simply won't deliver events
+// (handled by the enable button falling back to requestMotionPermission).
+function startMotion() {
+  if (sensor.motionActive) return;
   window.addEventListener('devicemotion', onMotion);
   sensor.motionActive = true;
-  localStorage.setItem(SENSOR_OK_KEY, '1');
   reportSensorStatus();
+}
+
+// The ONLY caller of requestPermission(). Must run inside a user gesture.
+async function requestMotionPermission() {
+  if (!motionNeedsPermission()) { startMotion(); return 'granted'; }
+  let state = 'denied';
+  try {
+    state = await DeviceMotionEvent.requestPermission();
+  } catch {
+    setSensorStatus('Motion unavailable'); reportSensorStatus(); return 'denied';
+  }
+  try { localStorage.setItem(MOTION_PERM_KEY, state); } catch {}
+  if (state === 'granted') startMotion();
+  else { setSensorStatus('Motion permission denied'); reportSensorStatus(); }
+  return state;
 }
 
 function onMotion(e) {
@@ -718,7 +713,7 @@ enableBtn.addEventListener('click', async () => {
   enableBtn.disabled = true;
   setSensorStatus('Enabling…');
   startGPS();
-  await startMotion();
+  await requestMotionPermission(); // the one gesture allowed to show the dialog
   reportSensorStatus();
   enableBtn.disabled = false;
 });
@@ -752,12 +747,12 @@ if ('serviceWorker' in navigator) {
   await showDisclaimer();
   showMemoryItems(); // non-blocking; sensors kick in on "Got it" click
 
-  // Previously approved → start sensors immediately, no tap needed.
-  // Geolocation permission persists in the browser; a prior motion grant
-  // lets requestPermission() resolve silently without a prompt.
-  if (localStorage.getItem(SENSOR_OK_KEY) === '1') {
+  // Previously granted motion → attach the listener right now, no tap and no
+  // dialog (iOS honours the per-origin grant). GPS arms here too; its own
+  // browser permission means no repeat prompt.
+  if (cachedMotionPermission() === 'granted' || !motionNeedsPermission()) {
     startGPS();
-    startMotion({ allowPrompt: false });
+    startMotion();
   }
 
   buildSubControls();
