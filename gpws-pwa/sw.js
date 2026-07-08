@@ -1,20 +1,20 @@
 /* GPWS simulator service worker — cache-first for the app shell.
    Bump VERSION on every deploy so clients pick up new assets. */
-const VERSION = 'gpws-v3';
+const VERSION = 'gpws-v4';
 const SOUNDS = [
   'pull-up.mp3', 'sink-rate.mp3', 'dont-sink.wav', 'too-low-gear.wav',
   'too-low-flaps.wav', 'too-low-terrain.wav', 'glideslope.wav', 'bank-angle.wav',
   'minimums.wav', 'terrain.wav', 'terrain-pull-up.wav', 'windshear.wav',
-  'alt-2500.wav', 'alt-1000.wav', 'alt-500.wav', 'alt-400.wav', 'alt-300.wav',
-  'alt-200.wav', 'alt-100.wav', 'alt-50.wav', 'alt-40.wav', 'alt-30.wav',
-  'alt-20.wav', 'alt-10.wav'
+  'overspeed.wav', 'stall.wav',
+  'alt-2500.wav', 'alt-1000.wav', 'alt-500.wav', 'alt-100.wav',
+  'alt-50.wav', 'alt-40.wav', 'alt-30.wav', 'alt-20.wav', 'alt-10.wav'
 ].map(f => './sounds/' + f);
 const ASSETS = [
   './',
   './index.html',
-  './app.css?v=3',
-  './app.js?v=3',
-  './audio.js?v=3',
+  './app.css?v=4',
+  './app.js?v=4',
+  './audio.js?v=4',
   './manifest.json',
   './icon.svg',
   './icons/icon-192.png',
