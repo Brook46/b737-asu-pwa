@@ -20,9 +20,21 @@ python3 dev-server.py 8096 gpws-pwa
 ## Modes covered
 Basic Modes 1–7 (excessive descent, terrain closure, altitude loss after
 takeoff, unsafe terrain clearance A/B, below glideslope, bank angle &
-altitude callouts, reactive windshear) plus EGPWS look-ahead terrain (TAD)
-and terrain clearance floor (TCF). Each shows ARMED / ACTIVE (caution/
-warning) / INHIBITED with the reason.
+altitude callouts, reactive windshear) plus EGPWS look-ahead terrain (TAD),
+terrain clearance floor (TCF), predictive windshear (PWS), and the
+Mach/airspeed (overspeed) and stall (stick-shaker) warnings. Each shows
+ARMED / ACTIVE (caution/warning) / INHIBITED with the reason.
+
+## Accuracy
+Alert envelopes, aural phrases, and PFD/ND indications follow the 737 FCOM
+**D6-27370-858-ELA**, chapters 10 (PFD/ND – Displays) and 15 (Warning
+Systems). Notable details taken from the FCOM: bank-angle schedule
+(10° at 5–30 ft rising to 35° at 130 ft), approach callouts (2500/1000/500/
+100/50/40/30/20/10 — no 400/300/200), the ND terrain colour scheme
+(15.10.11), cyan TERR mode annunciation, red PULL UP / WINDSHEAR PFD
+messages, amber BELOW G/S P-INHIBIT light, and the predictive-windshear
+caution/warning behaviour (MONITOR RADAR DISPLAY / WINDSHEAR AHEAD /
+GO AROUND WINDSHEAR AHEAD). Envelopes are still simplified for training.
 
 ## Audio attribution
 Aurals are community GPWS/EGPWS sound sets in the Boeing/Honeywell voice —

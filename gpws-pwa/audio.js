@@ -19,6 +19,8 @@
     'terrain': 'sounds/terrain.wav',            // "terrain, terrain"
     'terrain-pull-up': 'sounds/terrain-pull-up.wav',
     'windshear': 'sounds/windshear.wav',
+    'overspeed': 'sounds/overspeed.wav',
+    'stall': 'sounds/stall.wav',
     'alt-2500': 'sounds/alt-2500.wav', 'alt-1000': 'sounds/alt-1000.wav',
     'alt-500': 'sounds/alt-500.wav', 'alt-400': 'sounds/alt-400.wav',
     'alt-300': 'sounds/alt-300.wav', 'alt-200': 'sounds/alt-200.wav',
