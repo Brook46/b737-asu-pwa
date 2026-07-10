@@ -155,9 +155,13 @@ const TOKEN_PATTERNS = [
   // Order matters: loose runs first, strict runs second — when both
   // fire the strict overwrites the loose, giving the right-column value.
   // When only loose fires (no column layout), the loose value stays.
-  { key: 'v1', re: /\bV\s*1\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
-  { key: 'vr', re: /\bV\s*R\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
-  { key: 'v2', re: /\bV\s*2\b[^\d]{0,6}(\d{2,3})\b/i, preferLast: true },
+  // Loose (same-line). The digit in the label is OCR-noisy: "V1" often
+  // reads as "VI" / "Vl" (the 1 mistaken for a letter) and "V2" as "VZ".
+  // Accept those look-alikes in the label so V1 stops silently dropping.
+  // Widened gap to {0,8} to clear an extra space/newline before the value.
+  { key: 'v1', re: /\bV\s*[1Il|]\b[^\d]{0,8}(\d{2,3})\b/i, preferLast: true },
+  { key: 'vr', re: /\bV\s*R\b[^\d]{0,8}(\d{2,3})\b/i,      preferLast: true },
+  { key: 'v2', re: /\bV\s*[2Zz]\b[^\d]{0,8}(\d{2,3})\b/i,  preferLast: true },
   { key: 'v1', re: /\bV\s*1\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
   { key: 'vr', re: /\bV\s*R\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
   { key: 'v2', re: /\bV\s*2\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },

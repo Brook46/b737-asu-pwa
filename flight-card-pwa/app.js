@@ -1038,6 +1038,18 @@ $('newflight-reset').addEventListener('click', async () => {
 // data-reset-all + checklist-reset are routed via the top-level click
 // dispatch (data-action="data-reset-all" / "checklist-reset"). Logic
 // lives in doDataResetAll() / doChecklistReset() above.
+$('newflight-blank').addEventListener('click', async () => {
+  // Append a fresh empty leg and jump to it so the pilot can enter a flight
+  // by hand (tail, route, crew, V-speeds) with nothing pre-filled.
+  const idx = storage.addBlankLeg();
+  hideOverlay('newflight-overlay');
+  await applyLeg(idx);
+  checklist.resetOverrides();
+  // Focus the flight-number field so typing starts immediately.
+  const flt = $('hdr-flight');
+  if (flt) setTimeout(() => flt.focus(), 60);
+  toast('Blank flight added — enter details');
+});
 $('newflight-paste').addEventListener('click', () => {
   hideOverlay('newflight-overlay');
   $('roster-text').value = '';
@@ -1503,6 +1515,23 @@ function renderBars(rows, opts = {}) {
   return `<div class="an-bars">${html}</div>`;
 }
 
+// Compact "how long ago" for the analytics sub-labels. Past only.
+// today / yesterday / N days / N wks / N mo / N yr — plus the absolute
+// date once it's over a year so "last 2023" reads clearly.
+function relDate(ts) {
+  if (!Number.isFinite(ts)) return '';
+  const days = Math.floor((Date.now() - ts) / 86400000);
+  if (days < 0)  return 'today';
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 14)  return `${days} days ago`;
+  if (days < 60)  return `${Math.round(days / 7)} wks ago`;
+  if (days < 365) return `${Math.round(days / 30)} mo ago`;
+  const d = new Date(ts);
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];
+  return `${mon} ${d.getUTCFullYear()}`;
+}
+
 function renderAnalytics(data, { cityName, displayCrew }) {
   if (!data.legCount) {
     return `
@@ -1511,12 +1540,14 @@ function renderAnalytics(data, { cityName, displayCrew }) {
         analytics appear here.
       </p>`;
   }
-  // Top destinations
-  const topRows = data.top.map(d => ({
-    label: d.icao,
-    sub:   cityName(d.icao) || '',
-    count: d.count,
-  }));
+  // Top destinations — sub-label carries the city + when I last flew there.
+  const lastDest = data.lastDest || {};
+  const topRows = data.top.map(d => {
+    const city = cityName(d.icao) || '';
+    const last = lastDest[d.icao] ? relDate(lastDest[d.icao]) : '';
+    const sub = [city, last && `last ${last}`].filter(Boolean).join(' · ');
+    return { label: d.icao, sub, count: d.count };
+  });
   // Tail breakdown chips
   const tailChips = data.hours.byTail
     .slice(0, 5)
@@ -1546,11 +1577,16 @@ function renderAnalytics(data, { cityName, displayCrew }) {
     gContent = `<div class="an-g-split">${tile(g.pf, 'PF')}${tile(g.pm, 'PM')}</div>${delta}`;
   }
   // Most flown with — bars; labels through displayCrew so nicknames show.
-  const crewRows = data.crew.map(c => ({
-    label: displayCrew(c.name) || c.name,
-    sub:   '',
-    count: c.count,
-  }));
+  // Sub-label shows when I last flew with them.
+  const lastCrew = data.lastCrew || {};
+  const crewRows = data.crew.map(c => {
+    const last = lastCrew[c.name] ? relDate(lastCrew[c.name]) : '';
+    return {
+      label: displayCrew(c.name) || c.name,
+      sub:   last ? `last ${last}` : '',
+      count: c.count,
+    };
+  });
 
   return `
     <div class="an-card">
@@ -2348,9 +2384,17 @@ $('ocr-apply').addEventListener('click', () => {
   // would silently drop them. Pull them out and write them directly. Also
   // normalise a 3-letter Israeli-fleet tail suffix to its full 4X-XXX form.
   const headerBag = {};
+  let aircraftChange = null;   // { from, to } when the OPT tail ≠ current tail
   if (out.tail) {
     const t = String(out.tail).toUpperCase().replace(/\s+/g, '');
     headerBag.tail = /^[A-Z]{3}$/.test(t) ? '4X-' + t : t;
+    // Aircraft swap check: OPT was run for a different tail than the leg's.
+    // A frequent real event (aircraft change after roster) worth flagging
+    // loudly so the pilot notices the perf numbers are for a new jet.
+    const curTail = String(storage.getCurrent().dataCard.tail || '').toUpperCase().trim();
+    if (curTail && curTail !== headerBag.tail) {
+      aircraftChange = { from: curTail, to: headerBag.tail };
+    }
     delete out.tail;
   }
   if (out.flight) {
@@ -2363,7 +2407,20 @@ $('ocr-apply').addEventListener('click', () => {
   syncHeaderInputs();
   speeches.notifyDataChange();
   hideOverlay('ocr-overlay');
-  toast(`Applied ${totalApplied} field${totalApplied === 1 ? '' : 's'}`);
+  if (aircraftChange) {
+    // Announce + flash the tail field so the swap can't slip by unnoticed.
+    toast(`✈ Aircraft changed: ${aircraftChange.from} → ${aircraftChange.to}`, 4200);
+    const tailEl = $('hdr-tail');
+    if (tailEl) {
+      tailEl.classList.remove('aircraft-changed');
+      // reflow so the animation restarts even on a repeat swap
+      void tailEl.offsetWidth;
+      tailEl.classList.add('aircraft-changed');
+      setTimeout(() => tailEl.classList.remove('aircraft-changed'), 6000);
+    }
+  } else {
+    toast(`Applied ${totalApplied} field${totalApplied === 1 ? '' : 's'}`);
+  }
 });
 
 function resetOcrOverlay() {

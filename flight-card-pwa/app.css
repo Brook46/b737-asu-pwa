@@ -274,6 +274,18 @@ body.is-past-leg #card-checklist {
 .hdr-input::placeholder {
   color: var(--fg-dim); font-weight: 500; letter-spacing: .08em;
 }
+/* Aircraft-change flash: when an OPT scan brings a different tail than the
+   leg, the tail field pulses amber so the swap is impossible to miss. */
+.hdr-input.aircraft-changed {
+  color: var(--warn);
+  border-color: var(--warn);
+  animation: aircraft-pulse 1s ease-in-out 0s 4;
+}
+@keyframes aircraft-pulse {
+  0%, 100% { background: transparent; box-shadow: 0 0 0 0 rgba(240,165,90,0); }
+  50%      { background: var(--warn-soft, rgba(240,165,90,0.18));
+             box-shadow: 0 0 0 3px rgba(240,165,90,0.28); }
+}
 
 /* ---------- Buttons ---------- */
 .btn {
