@@ -1072,6 +1072,26 @@ export function clearDataCard() {
   scheduleWrite();
 }
 
+// Append a brand-new empty leg (everything typed by hand) and make it the
+// active one. Used by the "Blank flight" option in the New-flight sheet —
+// distinct from calendar/roster legs so it has no identity fields to seed.
+// Appends at the end (empty dep_date sorts last) so it never disturbs the
+// real roster order. Returns the new leg's index.
+export function addBlankLeg() {
+  const c = read().current;
+  if (!Array.isArray(c.legs)) c.legs = [];
+  const leg = {
+    flight: '', tail: '', dep: '', arr: '', flight_time: '', ctot: '',
+    dep_date: '', dep_time: '', arr_date: '', arr_time: '',
+    cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '', dh: '',
+    dataCard: {}, ticks: {}, notes: {},
+  };
+  c.legs.push(leg);
+  c.legIndex = c.legs.length - 1;
+  scheduleWrite();
+  return c.legIndex;
+}
+
 // ---------- Speeches ----------
 export function getSpeeches() { return read().speeches; }
 export function getSpeech(id) { return read().speeches.find(s => s.id === id); }

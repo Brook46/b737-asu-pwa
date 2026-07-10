@@ -202,6 +202,42 @@ export function mostFlownCrew(legs, n = 5, year = null) {
     .map(([name, count]) => ({ name, count }));
 }
 
+// Most recent UTC dep timestamp per non-home arrival airport, across ALL
+// time (not year-filtered) — "when did I last fly there?". Returns a plain
+// object { ICAO: ts } so it survives the storage snapshot round-trip.
+export function lastToDestination(legs) {
+  const out = {};
+  for (const leg of legs) {
+    const arr = String(leg.arr || '').toUpperCase();
+    if (!arr || HOME.has(arr)) continue;
+    const ts = depTs(leg);
+    if (!Number.isFinite(ts)) continue;
+    if (!out[arr] || ts > out[arr]) out[arr] = ts;
+  }
+  return out;
+}
+
+// Most recent UTC dep timestamp per crew member (any role), across ALL time
+// — "when did I last fly with them?". Keyed by canonical UPPERCASE name.
+export function lastWithCrew(legs) {
+  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const out = {};
+  for (const leg of legs) {
+    const d = leg.dataCard || {};
+    const ts = depTs(leg);
+    if (!Number.isFinite(ts)) continue;
+    const seen = new Set();
+    for (const k of CREW_KEYS) {
+      const v = (leg[k] || d[k] || '').toString().trim().toUpperCase();
+      if (v) seen.add(v);
+    }
+    for (const name of seen) {
+      if (!out[name] || ts > out[name]) out[name] = ts;
+    }
+  }
+  return out;
+}
+
 // Convenience: one shot at every metric for the current YTD.
 export function snapshot() {
   const legs = allLegs();
@@ -214,5 +250,8 @@ export function snapshot() {
     hours:     hoursFlown(legs, year),
     g:         avgMaxG(legs, year),
     crew:      mostFlownCrew(legs, 5, year),
+    // All-time recency maps for the "last flew" sub-labels.
+    lastDest:  lastToDestination(legs),
+    lastCrew:  lastWithCrew(legs),
   };
 }
