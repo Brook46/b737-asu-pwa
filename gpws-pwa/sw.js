@@ -1,20 +1,23 @@
 /* GPWS simulator service worker — cache-first for the app shell.
    Bump VERSION on every deploy so clients pick up new assets. */
-const VERSION = 'gpws-v4';
+const VERSION = 'gpws-v5';
 const SOUNDS = [
   'pull-up.mp3', 'sink-rate.mp3', 'dont-sink.wav', 'too-low-gear.wav',
   'too-low-flaps.wav', 'too-low-terrain.wav', 'glideslope.wav', 'bank-angle.wav',
-  'minimums.wav', 'terrain.wav', 'terrain-pull-up.wav', 'windshear.wav',
-  'overspeed.wav', 'stall.wav',
+  'minimums.wav', 'approaching-minimums.wav', 'terrain.wav', 'terrain-pull-up.wav',
+  'windshear.wav', 'overspeed.wav', 'stall.wav',
+  'obstacle-pull-up.wav', 'caution-obstacle.wav', 'bullshit.wav',
+  'tcas-traffic.wav', 'tcas-climb.wav', 'tcas-descend.wav', 'tcas-clear.wav',
+  'tcas-increase-climb.wav', 'tcas-monitor-vs.wav', 'tcas-climb-now.wav', 'tcas-descend-now.wav',
   'alt-2500.wav', 'alt-1000.wav', 'alt-500.wav', 'alt-100.wav',
   'alt-50.wav', 'alt-40.wav', 'alt-30.wav', 'alt-20.wav', 'alt-10.wav'
 ].map(f => './sounds/' + f);
 const ASSETS = [
   './',
   './index.html',
-  './app.css?v=4',
-  './app.js?v=4',
-  './audio.js?v=4',
+  './app.css?v=5',
+  './app.js?v=5',
+  './audio.js?v=5',
   './manifest.json',
   './icon.svg',
   './icons/icon-192.png',
