@@ -48,13 +48,22 @@ function fmtMin(total) {
 // each historical flight record. Sorted by UTC dep time ascending so
 // "first ever flight" → "most recent" reads naturally.
 export function allLegs() {
+  const now = Date.now();
   const out = [];
   for (const leg of storage.getLegs() || []) out.push(leg);
   for (const flight of storage.getState().history || []) {
     for (const leg of flight.legs || []) out.push(leg);
   }
-  out.sort((a, b) => (depTs(a) || 0) - (depTs(b) || 0));
-  return out;
+  // Statistics count FLOWN flights only — exclude legs whose departure is
+  // still in the future so upcoming roster doesn't inflate hours, nights,
+  // destinations or crew tallies. Undated legs (NaN dep) pass through; they
+  // contribute nothing to the year-bucketed aggregations anyway.
+  const flown = out.filter(leg => {
+    const ts = depTs(leg);
+    return !Number.isFinite(ts) || ts <= now;
+  });
+  flown.sort((a, b) => (depTs(a) || 0) - (depTs(b) || 0));
+  return flown;
 }
 
 // ---------- Aggregations ----------
