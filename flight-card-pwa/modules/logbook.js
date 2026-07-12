@@ -139,15 +139,24 @@ export function buildIcs(legs, opts = {}) {
 // history[]. Sorted by dep timestamp ascending so the calendar viewer
 // reads naturally.
 export function allStoredLegs() {
+  const now = Date.now();
   const all = [];
   for (const leg of storage.getLegs() || []) all.push(leg);
   for (const flight of storage.getState().history || []) {
     for (const leg of flight.legs || []) all.push(leg);
   }
-  all.sort((a, b) => {
+  // A logbook is flights already FLOWN — drop any leg whose scheduled
+  // departure is still in the future so the calendar never publishes
+  // upcoming duty. Undated legs (no dep_date) are kept: they can't be a
+  // future event, and buildIcs skips them anyway for lack of a window.
+  const flown = all.filter(leg => {
+    const dep = toUtcDate(leg.dep_date, leg.dep_time)?.getTime();
+    return dep == null || dep <= now;
+  });
+  flown.sort((a, b) => {
     const da = toUtcDate(a.dep_date, a.dep_time)?.getTime() || 0;
     const db = toUtcDate(b.dep_date, b.dep_time)?.getTime() || 0;
     return da - db;
   });
-  return all;
+  return flown;
 }

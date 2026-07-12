@@ -1048,7 +1048,12 @@ export function deleteLeg(idx) {
 // legs go to the END of the list (MAX_SAFE_INTEGER, not NaN).
 function depTs(leg) {
   const ts = rollingTs(leg?.dep_date, leg?.dep_time);
-  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+  if (Number.isFinite(ts)) return ts;
+  // A hand-made blank leg has no dep_date yet — sort it by when it was
+  // created so it lands among "now" flights (after everything already
+  // flown, before scheduled future legs), not dumped at the very end.
+  if (leg?.created_at) return Number(leg.created_at);
+  return Number.MAX_SAFE_INTEGER;
 }
 
 // Clear just the ticks (and notes) on the *active leg* (or top-level
@@ -1084,6 +1089,9 @@ export function addBlankLeg() {
     flight: '', tail: '', dep: '', arr: '', flight_time: '', ctot: '',
     dep_date: '', dep_time: '', arr_date: '', arr_time: '',
     cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '', dh: '',
+    // Creation time — used to position the undated blank leg chronologically
+    // in the switcher (see depTs) so it sits among "now" flights.
+    created_at: Date.now(),
     dataCard: {}, ticks: {}, notes: {},
   };
   c.legs.push(leg);

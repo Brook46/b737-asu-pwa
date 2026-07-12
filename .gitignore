@@ -14,9 +14,10 @@ node_modules/
 /tmp/
 /qlmtest/
 
-# Claude local runtime (keep launch.json, ignore rest)
+# Claude local runtime (keep launch.json + shared settings, ignore rest)
 .claude/*
 !.claude/launch.json
+!.claude/settings.json
 
 # Source PDFs are not redistributed by default
 *.pdf
