@@ -479,6 +479,8 @@ function migrate(s) {
     current,
     history: Array.isArray(s.history) ? s.history : [],
     crew,
+    // Per-airport free-text notes, keyed by ICAO. Preserved across migrations.
+    airportNotes: (s.airportNotes && typeof s.airportNotes === 'object') ? s.airportNotes : {},
   };
 }
 
@@ -728,6 +730,46 @@ export function displayCrew(name) {
 
 // Walk every stored leg (current + history) and return ALL legs that
 // named `name`. Most recent first. Used by the "last flight with" popup.
+// Every past (flown) leg that ARRIVED at the given airport, newest first —
+// powers the airport-info popup's "past flights to here" list. Future legs
+// are excluded so upcoming duty doesn't show as history.
+export function allLegsToAirport(icao) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return [];
+  const now = Date.now();
+  const all = [];
+  for (const leg of read().current.legs || []) all.push(leg);
+  for (const flight of read().history || []) {
+    for (const leg of flight.legs || []) all.push(leg);
+  }
+  const hits = all.filter(leg => {
+    if (String(leg.arr || '').trim().toUpperCase() !== k) return false;
+    const ts = depTs(leg);
+    return !Number.isFinite(ts) || ts <= now;
+  });
+  hits.sort((a, b) => (depTs(b) || 0) - (depTs(a) || 0));
+  return hits;
+}
+
+// Per-airport notes (keyed by ICAO). Free text the pilot keeps about a
+// station — parking, customs, good coffee, whatever.
+export function getAirportNote(icao) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return '';
+  const notes = read().airportNotes || {};
+  return notes[k] || '';
+}
+export function setAirportNote(icao, text) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return;
+  const s = read();
+  if (!s.airportNotes || typeof s.airportNotes !== 'object') s.airportNotes = {};
+  const t = String(text || '');
+  if (t) s.airportNotes[k] = t;
+  else delete s.airportNotes[k];
+  scheduleWrite();
+}
+
 export function allLegsWith(name) {
   const k = canon(name);
   if (!k) return [];

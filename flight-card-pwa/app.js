@@ -345,18 +345,28 @@ function renderLegSwitcher() {
   const hasMany = legs.length >= 2;
   const idx = storage.getLegIndex();
   const leg = legs[idx] || storage.getCurrent();
-  const legInfo = $('leg-pos').parentElement; // .leg-info
-  if (legInfo) legInfo.style.display = hasMany ? '' : 'none';
+  // "Leg N/M" only makes sense with more than one leg; the route (with its
+  // tappable airport buttons) stays visible for a single-leg duty too.
+  const legPos = $('leg-pos');
+  if (legPos) {
+    legPos.textContent = hasMany ? `Leg ${idx + 1} / ${legs.length}` : '';
+    legPos.style.display = hasMany ? '' : 'none';
+  }
   const ctrls = document.querySelector('.leg-ctrls');
   if (ctrls) ctrls.style.display = hasMany ? '' : 'none';
   if (hasMany) {
-    $('leg-pos').textContent = `Leg ${idx + 1} / ${legs.length}`;
-    const flight = leg.flight ? displayFlight(leg.flight) : '';
-    const route  = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-    $('leg-route').textContent = [flight, route].filter(Boolean).join('  ');
     $('leg-prev').disabled = idx <= 0;
     $('leg-next').disabled = idx >= legs.length - 1;
   }
+  // Flight number + tappable Dep / Arr codes.
+  const flightNo = $('leg-flightno');
+  if (flightNo) flightNo.textContent = leg.flight ? displayFlight(leg.flight) : '';
+  const dep = String(leg.dep || '').toUpperCase();
+  const arr = String(leg.arr || '').toUpperCase();
+  const depBtn = $('leg-dep'), arrBtn = $('leg-arr'), arrow = $('leg-arrow');
+  if (depBtn) { depBtn.textContent = dep || '—'; depBtn.dataset.airport = dep; depBtn.hidden = !dep; }
+  if (arrBtn) { arrBtn.textContent = arr || '—'; arrBtn.dataset.airport = arr; arrBtn.hidden = !arr; }
+  if (arrow) arrow.hidden = !(dep && arr);
   paintLegRolePills();
 }
 
@@ -2252,6 +2262,98 @@ function escapeHtmlSimple(s) {
 $('crewlog-close').addEventListener('click', () => hideOverlay('crewlog-overlay'));
 $('crewlog-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'crewlog-overlay') hideOverlay('crewlog-overlay');
+});
+
+// ---------- Airport info popup ----------
+// Opens from the tappable Dep / Arr codes in the leg-switcher route. Shows
+// the ICAO + city name, every past flight that arrived there (crew + date),
+// and a persistent per-airport notes box.
+let airportNoteFor = '';      // ICAO whose note the textarea is bound to
+let airportNoteT   = null;    // debounce timer for note saves
+async function showAirportInfo(icao) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return;
+  let city = '';
+  try { const { cityName } = await import('./modules/airports.js'); city = cityName(k) || ''; }
+  catch {}
+  $('airport-title').textContent = k;
+  $('airport-city').textContent = city || 'Airport';
+
+  const legs = storage.allLegsToAirport(k);
+  const body = $('airport-body');
+  if (!legs.length) {
+    body.innerHTML = `<p class="muted small crewlog-empty">No past flights to ${escapeHtmlSimple(k)} yet.</p>`;
+  } else {
+    const CREW = ['cpt','fo','cc1','cc2','cc3','cc4','cc5'];
+    const rows = legs.map(leg => {
+      const d = leg.dataCard || {};
+      const ely   = leg.flight ? `ELY${escapeHtmlSimple(leg.flight)}` : '—';
+      const route = (leg.dep && leg.arr)
+        ? `${escapeHtmlSimple(leg.dep)} → ${escapeHtmlSimple(leg.arr)}` : '—';
+      const date  = leg.dep_date ? escapeHtmlSimple(leg.dep_date) : '';
+      // Compact crew line — nickname-aware, deduped, "you" excluded is fine
+      // to keep since the pilot knows they were there.
+      const names = [];
+      const seen = new Set();
+      for (const key of CREW) {
+        const v = (leg[key] || d[key] || '').toString().trim();
+        if (!v) continue;
+        const disp = storage.displayCrew(v) || v;
+        const up = disp.toUpperCase();
+        if (seen.has(up)) continue;
+        seen.add(up);
+        names.push(escapeHtmlSimple(disp));
+      }
+      const crewLine = names.length
+        ? `<span class="airport-crew">${names.join(' · ')}</span>` : '';
+      return `
+        <div class="crewlog-row airport-row">
+          <span class="crewlog-flight">${ely}</span>
+          <span class="crewlog-route">${route}</span>
+          <span class="crewlog-date">${date}</span>
+          ${crewLine}
+        </div>`;
+    }).join('');
+    body.innerHTML = `
+      <p class="muted small crewlog-count">${legs.length} flight${legs.length === 1 ? '' : 's'} to ${escapeHtmlSimple(k)}</p>
+      <div class="crewlog-list">${rows}</div>`;
+  }
+
+  // Bind the notes textarea to this airport.
+  const ta = $('airport-notes');
+  airportNoteFor = k;
+  ta.value = storage.getAirportNote(k);
+  showOverlay('airport-overlay');
+}
+
+// Debounced note persistence.
+$('airport-notes').addEventListener('input', () => {
+  if (!airportNoteFor) return;
+  const val = $('airport-notes').value;
+  if (airportNoteT) clearTimeout(airportNoteT);
+  airportNoteT = setTimeout(() => storage.setAirportNote(airportNoteFor, val), 300);
+});
+$('airport-close').addEventListener('click', () => {
+  // Flush any pending note before closing so nothing is lost.
+  if (airportNoteT) { clearTimeout(airportNoteT); airportNoteT = null; }
+  if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+  hideOverlay('airport-overlay');
+});
+$('airport-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'airport-overlay') {
+    if (airportNoteT) { clearTimeout(airportNoteT); airportNoteT = null; }
+    if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+    hideOverlay('airport-overlay');
+  }
+});
+
+// Delegated tap handler for the Dep / Arr airport buttons in the leg
+// switcher (their data-airport is set dynamically on each render).
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-airport]');
+  if (!btn) return;
+  const code = btn.dataset.airport;
+  if (code) { e.preventDefault(); showAirportInfo(code); }
 });
 
 // ---------- Card collapsibles ----------
