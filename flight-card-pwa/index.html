@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=93" />
+  <link rel="stylesheet" href="./app.css?v=94" />
 </head>
 <body>
   <header class="app-header">
@@ -93,7 +93,12 @@
     </div>
     <div class="leg-info">
       <span id="leg-pos"   class="leg-pos">Leg 1 / 1</span>
-      <span id="leg-route" class="leg-route">—</span>
+      <span id="leg-route" class="leg-route">
+        <span id="leg-flightno" class="leg-flightno"></span>
+        <button id="leg-dep" class="leg-apt" type="button" hidden aria-label="Departure airport info">—</button>
+        <span id="leg-arrow" class="leg-arrow" hidden>→</span>
+        <button id="leg-arr" class="leg-apt" type="button" hidden aria-label="Destination airport info">—</button>
+      </span>
     </div>
     <div class="leg-ctrls">
       <button id="leg-prev" data-action="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
@@ -497,6 +502,24 @@
     </div>
   </div>
 
+  <!-- Airport info popup — opens from the tappable Dep / Arr codes in the
+       leg-switcher route. Shows the ICAO + city name, every past flight
+       that arrived there (crew + date), and a persistent notes box. -->
+  <div id="airport-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="airport-title">
+    <div class="ocr-sheet airport-sheet">
+      <div class="pad-head">
+        <span id="airport-title" class="pad-label">Airport</span>
+        <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="airport-city" class="airport-city muted small"></div>
+      <div id="airport-body" class="airport-body"></div>
+      <label class="airport-notes-label" for="airport-notes">Notes</label>
+      <textarea id="airport-notes" class="airport-notes"
+                placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."
+                rows="6"></textarea>
+    </div>
+  </div>
+
   <!-- Landing score modal — fires once when gps.js detects 'landed' and
        g.js has produced a max_g. Tap anywhere to dismiss. -->
   <div id="landing-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landing-title">
@@ -512,6 +535,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=93"></script>
+  <script type="module" src="./app.js?v=94"></script>
 </body>
 </html>
