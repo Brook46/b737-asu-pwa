@@ -2447,7 +2447,20 @@ async function maybeSyncSocialNotes(force = false) {
     if (!res.ok) return;
     const data = await res.json();
     if (data && typeof data === 'object') {
-      storage.setAirportSocialAll(data);
+      // Notes may be titled by IATA (TLV) or ICAO (LLBG); legs look them up
+      // by IATA. Store each note under BOTH codes so it matches whichever
+      // the leg uses. airports.lookup resolves the pair.
+      let expanded = data;
+      try {
+        const { lookup } = await import('./modules/airports.js');
+        expanded = {};
+        for (const [code, val] of Object.entries(data)) {
+          const a = lookup(code);
+          const keys = a ? [a.iata, a.icao, code] : [code];
+          for (const key of keys) if (key) expanded[String(key).toUpperCase()] = val;
+        }
+      } catch {}
+      storage.setAirportSocialAll(expanded);
       localStorage.setItem('fc.social.lastSync', String(Date.now()));
       // If the popup is open, refresh the visible social note.
       if (airportNoteFor && !$('airport-overlay').classList.contains('hidden')) {

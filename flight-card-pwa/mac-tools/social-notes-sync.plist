@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Weekly scheduler for social-notes-sync.sh (macOS launchd).
+
+  INSTALL:
+    1. Edit the two paths below (ProgramArguments script path + the token env)
+       and put your token in FC_SOCIAL_TOKEN.
+    2. Copy this file to  ~/Library/LaunchAgents/com.alonbrookstein.flightcard.social.plist
+    3. Load it:   launchctl load ~/Library/LaunchAgents/com.alonbrookstein.flightcard.social.plist
+    4. Test now:  launchctl start com.alonbrookstein.flightcard.social
+    (First run pops a prompt to let it read Notes — allow it.)
+
+  It runs every Monday 08:00. If the Mac is asleep at that time, launchd runs
+  it at the next wake. Change Weekday/Hour/Minute to taste.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.alonbrookstein.flightcard.social</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/alonbrookstein/Claude AS/flight-card-pwa/mac-tools/social-notes-sync.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>FC_SOCIAL_TOKEN</key>
+    <string>PUT-YOUR-UUID-HERE</string>
+    <!-- optional: <key>FC_NOTES_FOLDER</key><string>Airports</string> -->
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/fc-social-sync.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/fc-social-sync.err</string>
+</dict>
+</plist>
