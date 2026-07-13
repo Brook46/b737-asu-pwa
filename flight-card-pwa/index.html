@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=96" />
+  <link rel="stylesheet" href="./app.css?v=97" />
 </head>
 <body>
   <header class="app-header">
@@ -430,6 +430,25 @@
       </section>
 
       <section class="settings-section">
+        <h3 class="settings-h">Social notes (per-airport)</h3>
+        <p class="muted small">
+          The <strong>Social</strong> tab in each airport popup can auto-refresh
+          weekly from a feed you publish. Give it a URL that returns JSON keyed
+          by airport code, e.g.
+          <code>{ "LLBG": "…", "CDG": "…" }</code>. Export your Mac notes to
+          that file (any CORS-readable URL — a GitHub gist raw link works) and
+          the app pulls it once a week. Your <strong>Personal</strong> tab is
+          never touched.
+        </p>
+        <label class="cal-row-label" for="social-url">Social feed URL</label>
+        <input id="social-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://… .json" class="cal-url" aria-label="Social notes feed URL" />
+        <div class="settings-row-btns">
+          <button id="social-sync-now" class="btn">Sync now</button>
+        </div>
+        <div id="social-sync-status" class="cal-status muted small"></div>
+      </section>
+
+      <section class="settings-section">
         <h3 class="settings-h">Sensors</h3>
         <p class="muted small">
           Geolocation auto-detects takeoff &amp; landing; Motion captures the
@@ -517,9 +536,18 @@
       <div class="airport-cols">
         <div id="airport-body" class="airport-body"></div>
         <div class="airport-notes-col">
-          <label class="airport-notes-label" for="airport-notes">Notes</label>
+          <div class="airport-tabs" role="tablist">
+            <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
+            <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
+          </div>
+          <!-- Personal note — hand-edited by the pilot. -->
           <textarea id="airport-notes" class="airport-notes"
                     placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></textarea>
+          <!-- Social note — auto-refreshed weekly from the configured feed.
+               Editable by hand until the next sync overwrites it. -->
+          <textarea id="airport-social" class="airport-notes hidden"
+                    placeholder="Shared / crew-sourced notes for this station. Set a feed URL in Settings → Social notes to auto-update these weekly from your Mac."></textarea>
+          <div id="airport-social-hint" class="airport-social-hint muted small hidden"></div>
         </div>
       </div>
     </div>
@@ -540,6 +568,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=96"></script>
+  <script type="module" src="./app.js?v=97"></script>
 </body>
 </html>

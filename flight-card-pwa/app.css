@@ -873,6 +873,29 @@ body.is-past-leg #card-checklist {
 }
 .airport-row .airport-role b { color: var(--accent); font-weight: 800; }
 
+/* Personal / Social tabs above the notes textarea. */
+.airport-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.airport-tab {
+  -webkit-appearance: none; appearance: none;
+  font: inherit; font-weight: 700; font-size: 13px;
+  color: var(--fg-mute);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.airport-tab.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.airport-social-hint { margin: 6px 2px 0; line-height: 1.35; }
+
 .airport-notes-label {
   display: block;
   margin: 0 4px 6px;
