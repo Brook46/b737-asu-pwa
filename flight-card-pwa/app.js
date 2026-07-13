@@ -1016,7 +1016,39 @@ function openSettingsSheet() {
   showOverlay('settings-overlay');
   try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
   try { paintSensorsPanel(); }   catch (err) { console.warn('sensors paint skipped', err); }
+  try { paintSocialSection(); }  catch (err) { console.warn('social paint skipped', err); }
 }
+
+// ---- Social-notes feed settings ----
+function paintSocialSection() {
+  const input = $('social-url');
+  if (input && document.activeElement !== input) {
+    input.value = localStorage.getItem('fc.social.feedUrl') || '';
+  }
+  const status = $('social-sync-status');
+  if (status) {
+    const url  = localStorage.getItem('fc.social.feedUrl') || '';
+    const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
+    status.textContent = !url ? 'No feed configured.'
+      : last ? `Last synced ${relDate(last)}.`
+             : 'Feed set — not synced yet.';
+  }
+}
+$('social-url').addEventListener('input', () => {
+  const v = $('social-url').value.trim();
+  if (v) localStorage.setItem('fc.social.feedUrl', v);
+  else   localStorage.removeItem('fc.social.feedUrl');
+  // Reset the throttle so the new URL syncs on the next check.
+  localStorage.removeItem('fc.social.lastSync');
+});
+$('social-sync-now').addEventListener('click', async () => {
+  const url = (localStorage.getItem('fc.social.feedUrl') || '').trim();
+  if (!url) { toast('Set a feed URL first'); return; }
+  $('social-sync-status').textContent = 'Syncing…';
+  await maybeSyncSocialNotes(true);
+  paintSocialSection();
+  toast('Social notes synced');
+});
 
 // ---------- Header actions ----------
 // theme-toggle, new-flight, share-toggle, pa-toggle, fr24-btn → routed via
@@ -2268,11 +2300,21 @@ $('crewlog-overlay').addEventListener('click', (e) => {
 // Opens from the tappable Dep / Arr codes in the leg-switcher route. Shows
 // the ICAO + city name, every past flight that arrived there (crew + date),
 // and a persistent per-airport notes box.
-let airportNoteFor = '';      // ICAO whose note the textarea is bound to
-let airportNoteT   = null;    // debounce timer for note saves
+let airportNoteFor = '';      // ICAO whose notes the textareas are bound to
 async function showAirportInfo(icao) {
   const k = String(icao || '').trim().toUpperCase();
   if (!k) return;
+  // Bind + load the notes and open the sheet SYNCHRONOUSLY first, so typing
+  // works instantly even while the city lookup import resolves below.
+  airportNoteFor = k;
+  $('airport-notes').value  = storage.getAirportNote(k);
+  $('airport-social').value = storage.getAirportSocial(k);
+  paintSocialHint();
+  showAptTab(aptActiveTab);
+  $('airport-title').textContent = k;
+  $('airport-city').textContent = '…';
+  showOverlay('airport-overlay');
+
   // Show BOTH codes — IATA · ICAO (e.g. "TLV · LLBG") — plus the city.
   let city = '', codes = k;
   try {
@@ -2334,32 +2376,98 @@ async function showAirportInfo(icao) {
       <div class="crewlog-list">${rows}</div>`;
   }
 
-  // Bind the notes textarea to this airport.
-  const ta = $('airport-notes');
-  airportNoteFor = k;
-  ta.value = storage.getAirportNote(k);
-  showOverlay('airport-overlay');
 }
 
-// Debounced note persistence.
-$('airport-notes').addEventListener('input', () => {
+// ---- Personal / Social tabs ----
+let aptActiveTab = 'personal';
+function showAptTab(tab) {
+  aptActiveTab = tab === 'social' ? 'social' : 'personal';
+  const isSocial = aptActiveTab === 'social';
+  $('apt-tab-personal').classList.toggle('is-active', !isSocial);
+  $('apt-tab-social').classList.toggle('is-active', isSocial);
+  $('airport-notes').classList.toggle('hidden', isSocial);
+  $('airport-social').classList.toggle('hidden', !isSocial);
+  $('airport-social-hint').classList.toggle('hidden', !isSocial);
+}
+function paintSocialHint() {
+  const hint = $('airport-social-hint');
+  const url = localStorage.getItem('fc.social.feedUrl') || '';
+  if (!url) {
+    hint.textContent = 'No feed set — edit freely, or add a feed URL in Settings → Social notes to auto-update weekly.';
+  } else {
+    const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
+    hint.textContent = last
+      ? `Synced ${relDate(last)} from your feed · refreshes weekly (overwrites edits).`
+      : 'Feed set — will sync on next check.';
+  }
+}
+$('apt-tab-personal').addEventListener('click', () => showAptTab('personal'));
+$('apt-tab-social').addEventListener('click', () => showAptTab('social'));
+
+function flushAirportNotes() {
   if (!airportNoteFor) return;
-  const val = $('airport-notes').value;
-  if (airportNoteT) clearTimeout(airportNoteT);
-  airportNoteT = setTimeout(() => storage.setAirportNote(airportNoteFor, val), 300);
+  storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+  storage.setAirportSocial(airportNoteFor, $('airport-social').value);
+}
+
+// Save on each keystroke — storage.setAirport* already debounces the actual
+// localStorage write (scheduleWrite), and saving both fields independently
+// avoids the cross-field timer race that a shared UI debounce introduced.
+$('airport-notes').addEventListener('input', () => {
+  if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+});
+$('airport-social').addEventListener('input', () => {
+  if (airportNoteFor) storage.setAirportSocial(airportNoteFor, $('airport-social').value);
 });
 $('airport-close').addEventListener('click', () => {
-  // Flush any pending note before closing so nothing is lost.
-  if (airportNoteT) { clearTimeout(airportNoteT); airportNoteT = null; }
-  if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+  flushAirportNotes();
   hideOverlay('airport-overlay');
 });
 $('airport-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'airport-overlay') {
-    if (airportNoteT) { clearTimeout(airportNoteT); airportNoteT = null; }
-    if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+    flushAirportNotes();
     hideOverlay('airport-overlay');
   }
+});
+
+// ---- Weekly social-notes feed sync ----
+// If a feed URL is configured (Settings → Social notes), fetch a JSON map
+// { "LLBG": "text", "TLV": "text", … } at most once a week and replace the
+// social notes. The pilot publishes this file from their Mac (e.g. an
+// exported Notes → JSON dropped on any CORS-readable URL / gist / the
+// worker). We never read the Mac directly — the PWA can't.
+async function maybeSyncSocialNotes(force = false) {
+  const url = (localStorage.getItem('fc.social.feedUrl') || '').trim();
+  if (!url) return;
+  const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
+  const WEEK = 7 * 24 * 3600 * 1000;
+  if (!force && Date.now() - last < WEEK) return;
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && typeof data === 'object') {
+      storage.setAirportSocialAll(data);
+      localStorage.setItem('fc.social.lastSync', String(Date.now()));
+      // If the popup is open, refresh the visible social note.
+      if (airportNoteFor && !$('airport-overlay').classList.contains('hidden')) {
+        $('airport-social').value = storage.getAirportSocial(airportNoteFor);
+        paintSocialHint();
+      }
+    }
+  } catch (err) { console.warn('social feed sync failed', err); }
+}
+// Kick a check shortly after boot (off the critical path) and whenever the
+// tab returns to the foreground — both gated by the once-a-week throttle.
+setTimeout(() => { try { maybeSyncSocialNotes(); } catch {} }, 6_000);
+
+// Delegated tap handler for the Dep / Arr airport buttons in the leg
+// switcher (their data-airport is set dynamically on each render).
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-airport]');
+  if (!btn) return;
+  const code = btn.dataset.airport;
+  if (code) { e.preventDefault(); showAirportInfo(code); try { maybeSyncSocialNotes(); } catch {} }
 });
 
 // Delegated tap handler for the Dep / Arr airport buttons in the leg

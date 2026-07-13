@@ -480,7 +480,11 @@ function migrate(s) {
     history: Array.isArray(s.history) ? s.history : [],
     crew,
     // Per-airport free-text notes, keyed by ICAO. Preserved across migrations.
-    airportNotes: (s.airportNotes && typeof s.airportNotes === 'object') ? s.airportNotes : {},
+    // airportNotes  = the pilot's own "Personal" note (hand-edited).
+    // airportSocial = the "Social" note, auto-refreshed weekly from an
+    //                 external feed (see the social-feed sync in app.js).
+    airportNotes:  (s.airportNotes  && typeof s.airportNotes  === 'object') ? s.airportNotes  : {},
+    airportSocial: (s.airportSocial && typeof s.airportSocial === 'object') ? s.airportSocial : {},
   };
 }
 
@@ -767,6 +771,38 @@ export function setAirportNote(icao, text) {
   const t = String(text || '');
   if (t) s.airportNotes[k] = t;
   else delete s.airportNotes[k];
+  scheduleWrite();
+}
+
+// "Social" per-airport note — mirror of the personal note but fed by the
+// weekly external sync. Also editable by hand until a feed overwrites it.
+export function getAirportSocial(icao) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return '';
+  const notes = read().airportSocial || {};
+  return notes[k] || '';
+}
+export function setAirportSocial(icao, text) {
+  const k = String(icao || '').trim().toUpperCase();
+  if (!k) return;
+  const s = read();
+  if (!s.airportSocial || typeof s.airportSocial !== 'object') s.airportSocial = {};
+  const t = String(text || '');
+  if (t) s.airportSocial[k] = t;
+  else delete s.airportSocial[k];
+  scheduleWrite();
+}
+// Bulk-replace the whole social map — used by the weekly feed sync. Keys
+// normalise to UPPERCASE ICAO; empty values are dropped.
+export function setAirportSocialAll(map) {
+  if (!map || typeof map !== 'object') return;
+  const next = {};
+  for (const [code, val] of Object.entries(map)) {
+    const k = String(code || '').trim().toUpperCase();
+    const t = String(val == null ? '' : val).trim();
+    if (k && t) next[k] = t;
+  }
+  read().airportSocial = next;
   scheduleWrite();
 }
 
