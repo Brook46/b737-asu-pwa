@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=95" />
+  <link rel="stylesheet" href="./app.css?v=96" />
 </head>
 <body>
   <header class="app-header">
@@ -512,11 +512,16 @@
         <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="airport-city" class="airport-city muted small"></div>
-      <div id="airport-body" class="airport-body"></div>
-      <label class="airport-notes-label" for="airport-notes">Notes</label>
-      <textarea id="airport-notes" class="airport-notes"
-                placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."
-                rows="6"></textarea>
+      <!-- Two-column body: scrollable past-flights list on the left, the
+           notes box as the main pane on the right. -->
+      <div class="airport-cols">
+        <div id="airport-body" class="airport-body"></div>
+        <div class="airport-notes-col">
+          <label class="airport-notes-label" for="airport-notes">Notes</label>
+          <textarea id="airport-notes" class="airport-notes"
+                    placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></textarea>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -535,6 +540,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=95"></script>
+  <script type="module" src="./app.js?v=96"></script>
 </body>
 </html>

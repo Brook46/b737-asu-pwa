@@ -824,32 +824,65 @@ body.is-past-leg #card-checklist {
 .crewlog-date   { color: var(--fg-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
 .crewlog-role   { grid-column: 1 / -1; font-size: 11px; color: var(--fg-mute); }
 
-/* Airport info popup — ICAO + city, past flights here, per-airport notes. */
-.airport-sheet   { max-width: 640px; }
+/* Airport info popup — ICAO + city header, then a two-column body:
+   scrollable past-flights list on the LEFT, notes as the main pane. */
+.airport-sheet   { max-width: 860px; width: 92vw; }
 .airport-city    { margin: -2px 4px 10px; font-weight: 600; }
-.airport-body    { padding: 0 0 8px; }
+
+.airport-cols {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+/* Left: scrollable flight list. Fixed-ish width, its own vertical scroll. */
+.airport-body {
+  flex: 0 0 clamp(200px, 34%, 300px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0 2px 2px 0;
+}
+/* Right: notes take the main area and fill the sheet height. */
+.airport-notes-col {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Compact vertical flight cards so they fit the narrow left column. */
+.airport-body .airport-row {
+  display: block;
+  padding: 9px 11px;
+}
+.airport-body .airport-row .crewlog-flight { display: inline; }
+.airport-body .airport-row .crewlog-date   { float: right; }
+.airport-body .airport-row .crewlog-route  { display: block; margin-top: 2px; }
 .airport-row .airport-crew {
-  grid-column: 1 / -1;
+  display: block;
+  margin-top: 3px;
   font-size: 11px;
   color: var(--fg-mute);
   line-height: 1.35;
 }
 .airport-row .airport-role {
-  grid-column: 1 / -1;
+  display: block;
+  margin-top: 3px;
   font-size: 11px;
   color: var(--fg-mute);
   letter-spacing: .04em;
 }
 .airport-row .airport-role b { color: var(--accent); font-weight: 800; }
+
 .airport-notes-label {
   display: block;
-  margin: 8px 4px 6px;
+  margin: 0 4px 6px;
   font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
   color: var(--fg-mute);
 }
 .airport-notes {
+  flex: 1 1 auto;
   width: 100%;
-  min-height: 130px;
+  min-height: 45vh;
   resize: vertical;
   font: inherit;
   color: var(--fg);
@@ -860,6 +893,13 @@ body.is-past-leg #card-checklist {
   line-height: 1.4;
 }
 .airport-notes:focus { outline: none; border-color: var(--accent); }
+
+/* Phones (narrow / portrait): stack the list above the notes instead. */
+@media (max-width: 560px) {
+  .airport-cols { flex-direction: column; }
+  .airport-body { flex: 0 0 auto; max-height: 32vh; }
+  .airport-notes { min-height: 30vh; }
+}
 
 /* ---------- Checklist ---------- */
 .cl-section {
