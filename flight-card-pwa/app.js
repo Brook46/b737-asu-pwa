@@ -2273,10 +2273,18 @@ let airportNoteT   = null;    // debounce timer for note saves
 async function showAirportInfo(icao) {
   const k = String(icao || '').trim().toUpperCase();
   if (!k) return;
-  let city = '';
-  try { const { cityName } = await import('./modules/airports.js'); city = cityName(k) || ''; }
-  catch {}
-  $('airport-title').textContent = k;
+  // Show BOTH codes — IATA · ICAO (e.g. "TLV · LLBG") — plus the city.
+  let city = '', codes = k;
+  try {
+    const { lookup } = await import('./modules/airports.js');
+    const a = lookup(k);
+    if (a) {
+      city = a.city || '';
+      const pair = [...new Set([a.iata, a.icao].filter(Boolean))];
+      if (pair.length) codes = pair.join(' · ');
+    }
+  } catch {}
+  $('airport-title').textContent = codes;
   $('airport-city').textContent = city || 'Airport';
 
   const legs = storage.allLegsToAirport(k);
@@ -2306,11 +2314,18 @@ async function showAirportInfo(icao) {
       }
       const crewLine = names.length
         ? `<span class="airport-crew">${names.join(' · ')}</span>` : '';
+      // My PF/PM role on that leg — takeoff and landing shown separately.
+      const toR  = String(d.to_role  || '').toUpperCase();
+      const ldgR = String(d.ldg_role || '').toUpperCase();
+      const roleLine = (toR || ldgR)
+        ? `<span class="airport-role">T/O <b>${toR || '—'}</b> · LDG <b>${ldgR || '—'}</b></span>`
+        : '';
       return `
         <div class="crewlog-row airport-row">
           <span class="crewlog-flight">${ely}</span>
           <span class="crewlog-route">${route}</span>
           <span class="crewlog-date">${date}</span>
+          ${roleLine}
           ${crewLine}
         </div>`;
     }).join('');

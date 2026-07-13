@@ -834,6 +834,13 @@ body.is-past-leg #card-checklist {
   color: var(--fg-mute);
   line-height: 1.35;
 }
+.airport-row .airport-role {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--fg-mute);
+  letter-spacing: .04em;
+}
+.airport-row .airport-role b { color: var(--accent); font-weight: 800; }
 .airport-notes-label {
   display: block;
   margin: 8px 4px 6px;
