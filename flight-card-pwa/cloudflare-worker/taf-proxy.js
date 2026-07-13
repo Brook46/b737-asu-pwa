@@ -52,6 +52,10 @@ const ICAL_ALLOWED_HOSTS = new Set([
 // UUID-shaped token, optionally suffixed .ics (Apple Calendar prefers a
 // file-looking URL). Case-insensitive; stored lowercased.
 const LOGBOOK_RE = /^\/logbook\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.ics)?$/i;
+// Per-airport "social" notes feed. A weekly Mac script POSTs a JSON map
+// { "LLBG": "…", "TLV": "…" }; the PWA GETs it and fills the Social tabs.
+// Same KV namespace as the logbook, different key prefix.
+const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json)?$/i;
 
 export default {
   async fetch(request, env) {
@@ -91,6 +95,17 @@ export default {
       const token = lb[1].toLowerCase();
       if (request.method === 'POST') return handleLogbookPut(request, env, token);
       if (request.method === 'GET')  return handleLogbookGet(env, token);
+      return text('Method not allowed', 405);
+    }
+
+    const soc = url.pathname.match(SOCIAL_RE);
+    if (soc) {
+      if (!env || !env.LOGBOOK) {
+        return text('Social storage not configured (KV binding missing)', 503);
+      }
+      const token = soc[1].toLowerCase();
+      if (request.method === 'POST') return handleSocialPut(request, env, token);
+      if (request.method === 'GET')  return handleSocialGet(env, token);
       return text('Method not allowed', 405);
     }
 
@@ -208,6 +223,55 @@ async function handleLogbookGet(env, token) {
       'access-control-allow-origin': '*',
       // Apple's subscription poller decides its own refresh cadence; no
       // edge caching so a fresh push is visible on the very next poll.
+      'cache-control': 'no-cache',
+    },
+  });
+}
+
+// ---------- /social ---------------------------------------------------------
+// A weekly Mac script POSTs a JSON map of per-airport notes; the PWA GETs it.
+// Key naming: 'social:<token>'. Value is the raw JSON string.
+
+async function handleSocialPut(request, env, token) {
+  const len = parseInt(request.headers.get('content-length') || '0', 10);
+  if (len > 1_000_000) return text('Too large', 413);
+
+  const ct = (request.headers.get('content-type') || '').toLowerCase();
+  if (!ct.startsWith('application/json') && !ct.startsWith('text/plain')) {
+    return text('Expected application/json', 415);
+  }
+
+  const body = await request.text();
+  if (body.length > 1_000_000) return text('Too large', 413);
+  // Validate it parses as a JSON object of string values.
+  let obj;
+  try { obj = JSON.parse(body); } catch { return text('Not valid JSON', 400); }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return text('Expected a JSON object { "ICAO": "note", … }', 400);
+  }
+
+  await env.LOGBOOK.put('social:' + token, JSON.stringify(obj), {
+    metadata: { updatedAt: Date.now(), keys: Object.keys(obj).length },
+  });
+
+  return new Response(JSON.stringify({ ok: true, airports: Object.keys(obj).length }), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+async function handleSocialGet(env, token) {
+  const body = await env.LOGBOOK.get('social:' + token);
+  if (body == null) return text('No social notes published for this token', 404);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
       'cache-control': 'no-cache',
     },
   });
