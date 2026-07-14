@@ -32,8 +32,8 @@ set -euo pipefail
 
 WORKER_BASE="${FC_WORKER_BASE:-https://b737-asu-pwa.alonbrookstein.workers.dev}"
 FC_SOCIAL_TOKEN="${FC_SOCIAL_TOKEN:-PUT-YOUR-UUID-HERE}"
-# Optional: restrict to one Notes folder (leave empty to scan all notes).
-FC_NOTES_FOLDER="${FC_NOTES_FOLDER:-}"
+# Notes folder to read (set empty to scan every note).
+FC_NOTES_FOLDER="${FC_NOTES_FOLDER:-Airports}"
 
 if [[ "$FC_SOCIAL_TOKEN" == "PUT-YOUR-UUID-HERE" ]]; then
   echo "Set FC_SOCIAL_TOKEN first (edit this file or export it). Generate one with: uuidgen | tr A-Z a-z" >&2
