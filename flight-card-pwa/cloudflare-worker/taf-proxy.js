@@ -250,11 +250,25 @@ async function handleSocialPut(request, env, token) {
     return text('Expected a JSON object { "ICAO": "note", … }', 400);
   }
 
-  await env.LOGBOOK.put('social:' + token, JSON.stringify(obj), {
-    metadata: { updatedAt: Date.now(), keys: Object.keys(obj).length },
+  // Normalise keys HERE so the sender can stay dumb: an iOS Shortcut can
+  // just post raw note titles. A key is kept only if it STARTS with a 3–4
+  // letter airport code (optionally followed by " / ICAO", " - City", …);
+  // prose titles like "Shopping list" are dropped. Value must be non-empty.
+  const clean = {};
+  const CODE_RE = /^([A-Za-z]{3,4})(?=$|[\s/·\-–—,:])/;
+  for (const [rawKey, rawVal] of Object.entries(obj)) {
+    const m = CODE_RE.exec(String(rawKey || '').trim());
+    if (!m) continue;
+    const val = String(rawVal == null ? '' : rawVal).trim();
+    if (!val) continue;
+    clean[m[1].toUpperCase()] = val;
+  }
+
+  await env.LOGBOOK.put('social:' + token, JSON.stringify(clean), {
+    metadata: { updatedAt: Date.now(), keys: Object.keys(clean).length },
   });
 
-  return new Response(JSON.stringify({ ok: true, airports: Object.keys(obj).length }), {
+  return new Response(JSON.stringify({ ok: true, airports: Object.keys(clean).length }), {
     status: 200,
     headers: {
       'content-type': 'application/json; charset=utf-8',
