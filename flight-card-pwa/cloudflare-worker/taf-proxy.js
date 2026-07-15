@@ -243,29 +243,40 @@ async function handleSocialPut(request, env, token) {
 
   const body = await request.text();
   if (body.length > 1_000_000) return text('Too large', 413);
-  let obj;
-  try { obj = JSON.parse(body); } catch { return text('Not valid JSON', 400); }
-  if (!obj || typeof obj !== 'object') {
-    return text('Expected a JSON object or array', 400);
-  }
 
-  // Accept TWO shapes so the sender can stay as dumb as possible:
-  //   1. a map            { "TLV": "note", "CDG - Paris": "note", … }
-  //   2. a list of notes  [ { "title": "TLV", "body": "note" }, … ]
-  // Shape 2 is what a trivial iOS Shortcut produces — Find Notes → Repeat →
-  // for each note append { title: Name, body: Body } to a list. No dictionary
-  // accumulation needed on the phone. We flatten both to [key, value] pairs.
+  // Accept THREE shapes so the phone side can be as dumb as possible:
+  //   1. a map              { "TLV": "note", "CDG - Paris": "note", … }
+  //   2. a list of notes    [ { "title": "TLV", "body": "note" }, … ]
+  //   3. plain glued text   note1body <SEP> note2body <SEP> …  where each
+  //      note's FIRST line is its title (true for Apple Notes) and <SEP> is a
+  //      run of 3+ '=' or a record-separator char. This is what the simplest
+  //      possible Shortcut makes: Find Notes → Combine Text → POST. No
+  //      dictionary, no repeat, no variables on the phone at all.
+  // Everything flattens to [title, bodyText] pairs.
   const pairs = [];
-  if (Array.isArray(obj)) {
+  let obj = null;
+  try { obj = JSON.parse(body); } catch { /* not JSON → treat as shape 3 */ }
+
+  if (obj && Array.isArray(obj)) {
     for (const item of obj) {
       if (!item || typeof item !== 'object') continue;
-      // tolerate whatever the Shortcut labels them
       const k = item.title ?? item.name ?? item.Name ?? item.key ?? '';
       const v = item.body ?? item.text ?? item.note ?? item.value ?? item.Body ?? '';
       pairs.push([k, v]);
     }
-  } else {
+  } else if (obj && typeof obj === 'object') {
     for (const [k, v] of Object.entries(obj)) pairs.push([k, v]);
+  } else {
+    // Shape 3: split the blob into note blocks, first line = title.
+    for (const block of body.split(/\n*={3,}\n*|\x1e/)) {
+      const lines = block.split(/\r?\n/);
+      let i = 0;
+      while (i < lines.length && !lines[i].trim()) i++;   // skip leading blanks
+      if (i >= lines.length) continue;
+      const title = lines[i];
+      const rest = lines.slice(i + 1).join('\n').trim();
+      pairs.push([title, rest]);
+    }
   }
 
   // Normalise: keep a note only if its title STARTS with a 3–4 letter airport
