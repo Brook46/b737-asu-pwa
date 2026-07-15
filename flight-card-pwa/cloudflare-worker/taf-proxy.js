@@ -243,20 +243,37 @@ async function handleSocialPut(request, env, token) {
 
   const body = await request.text();
   if (body.length > 1_000_000) return text('Too large', 413);
-  // Validate it parses as a JSON object of string values.
   let obj;
   try { obj = JSON.parse(body); } catch { return text('Not valid JSON', 400); }
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-    return text('Expected a JSON object { "ICAO": "note", … }', 400);
+  if (!obj || typeof obj !== 'object') {
+    return text('Expected a JSON object or array', 400);
   }
 
-  // Normalise keys HERE so the sender can stay dumb: an iOS Shortcut can
-  // just post raw note titles. A key is kept only if it STARTS with a 3–4
-  // letter airport code (optionally followed by " / ICAO", " - City", …);
-  // prose titles like "Shopping list" are dropped. Value must be non-empty.
+  // Accept TWO shapes so the sender can stay as dumb as possible:
+  //   1. a map            { "TLV": "note", "CDG - Paris": "note", … }
+  //   2. a list of notes  [ { "title": "TLV", "body": "note" }, … ]
+  // Shape 2 is what a trivial iOS Shortcut produces — Find Notes → Repeat →
+  // for each note append { title: Name, body: Body } to a list. No dictionary
+  // accumulation needed on the phone. We flatten both to [key, value] pairs.
+  const pairs = [];
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      if (!item || typeof item !== 'object') continue;
+      // tolerate whatever the Shortcut labels them
+      const k = item.title ?? item.name ?? item.Name ?? item.key ?? '';
+      const v = item.body ?? item.text ?? item.note ?? item.value ?? item.Body ?? '';
+      pairs.push([k, v]);
+    }
+  } else {
+    for (const [k, v] of Object.entries(obj)) pairs.push([k, v]);
+  }
+
+  // Normalise: keep a note only if its title STARTS with a 3–4 letter airport
+  // code (optionally followed by " / ICAO", " - City", …); prose titles like
+  // "Shopping list" are dropped. Value must be non-empty.
   const clean = {};
   const CODE_RE = /^([A-Za-z]{3,4})(?=$|[\s/·\-–—,:])/;
-  for (const [rawKey, rawVal] of Object.entries(obj)) {
+  for (const [rawKey, rawVal] of pairs) {
     const m = CODE_RE.exec(String(rawKey || '').trim());
     if (!m) continue;
     const val = String(rawVal == null ? '' : rawVal).trim();
