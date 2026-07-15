@@ -162,9 +162,16 @@ const TOKEN_PATTERNS = [
   { key: 'v1', re: /\bV\s*[1Il|]\b[^\d]{0,8}(\d{2,3})\b/i, preferLast: true },
   { key: 'vr', re: /\bV\s*R\b[^\d]{0,8}(\d{2,3})\b/i,      preferLast: true },
   { key: 'v2', re: /\bV\s*[2Zz]\b[^\d]{0,8}(\d{2,3})\b/i,  preferLast: true },
-  { key: 'v1', re: /\bV\s*1\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
-  { key: 'vr', re: /\bV\s*R\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
-  { key: 'v2', re: /\bV\s*2\b\s*\n[^\n]*?\d{2,3}[^\d\n]{1,8}(\d{2,3})\b/i, preferLast: true },
+  // The value row can also carry the left-hand data (the V2 row is
+  // "CG% TRIM  <QRH> <ENTERED>" → "22.9% 6.00 153 152"). The ENTERED speed is
+  // always the RIGHTMOST number, so anchor to the LAST 2–3 digit number before
+  // the line ends. The trailing [^\d\n]*(?:\r?\n|$) forces "last": after a
+  // non-final number there's another digit ahead, so the match backtracks
+  // forward until the captured number really is the row's last one. This also
+  // stops "6.00" (→ "00") or the QRH column from being mistaken for the speed.
+  { key: 'v1', re: /\bV\s*1\b\s*\r?\n[^\n]*?(\d{2,3})[^\d\n]*(?:\r?\n|$)/i, preferLast: true },
+  { key: 'vr', re: /\bV\s*R\b\s*\r?\n[^\n]*?(\d{2,3})[^\d\n]*(?:\r?\n|$)/i, preferLast: true },
+  { key: 'v2', re: /\bV\s*2\b\s*\r?\n[^\n]*?(\d{2,3})[^\d\n]*(?:\r?\n|$)/i, preferLast: true },
 
   // Takeoff perf — N1 % target.
   // OPT FULL-thrust mode prints "N1 92.5". OPT ATM/derate mode hides N1
