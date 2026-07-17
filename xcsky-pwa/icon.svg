@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0e1830"/>
+      <stop offset="1" stop-color="#0a0f1a"/>
+    </linearGradient>
+    <linearGradient id="therm" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#e0453f"/>
+      <stop offset="0.45" stop-color="#f2c14e"/>
+      <stop offset="1" stop-color="#7cc143"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <!-- rising thermal column -->
+  <path d="M256 118 C230 170 300 200 268 250 C244 288 306 316 276 366 C256 398 300 420 256 452"
+        fill="none" stroke="url(#therm)" stroke-width="26" stroke-linecap="round"/>
+  <!-- cumulus cloud cap -->
+  <g fill="#eef2f8">
+    <ellipse cx="256" cy="150" rx="70" ry="30"/>
+    <circle cx="212" cy="150" r="30"/>
+    <circle cx="300" cy="150" r="30"/>
+    <circle cx="256" cy="128" r="34"/>
+  </g>
+</svg>
