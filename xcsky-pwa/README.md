@@ -21,6 +21,13 @@ painted over it, phone-first.
 - **KK7 overlays** — proven thermal hotspots & skyways from thermal.kk7.ch
   (layer control, top-right).
 - **Live pilots** — OGN positions with heading, altitude, climb, age (20 s poll).
+- **Ranked takeoffs (🎯)** — launch sites from ParaglidingEarth (the open
+  "paragliding map"), ranked "which launch works now": wind-direction match
+  against each site's facings + wind strength + thermal at the selected hour.
+  Top-5 are numbered; markers coloured by score; re-ranks as you scrub time.
+- **Task planner (✏️)** — tap to drop turnpoints, each with an adjustable
+  cylinder; route line, total distance and closed-triangle distance; the weather
+  field keeps updating underneath as you move the time slider.
 - **Tap anywhere → point forecast** in a bottom sheet: day summary (flyability
   0–100, soarable window), the 24 h time-height thermal plot, wind-barb profile,
   and detail cards (top, base, climb + stars, surface & altitude wind, freezing
@@ -71,8 +78,15 @@ modules/
   map.js       the always-on main map: bases, KK7 overlays, live pilots
   grid.js      gridded weather overlay: batched fetch, physics, canvas paint
   pilots.js    OGN live-pilot fetch/parse (lxml), type colours
+  takeoffs.js  ParaglidingEarth launch fetch (via worker /pge) + wind-match rank
+  planning.js  XC task planner: waypoints, cylinders, distance
   resume.js    iOS PWA resume-hardening
 ```
+
+Launch data is proxied through the repo's Cloudflare worker (`/pge` route in
+`flight-card-pwa/cloudflare-worker/taf-proxy.js`) because ParaglidingEarth sends
+no CORS header — the one exception to "no backend", reusing the worker that's
+already deployed.
 
 Maps are **Leaflet + raster tiles** (Esri imagery / OpenTopoMap): plain-DOM
 rendering, no WebGL/worker dependency, renders on every device.

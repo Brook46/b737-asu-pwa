@@ -62,9 +62,9 @@ export function initMainMap(containerId, { center, onPick }) {
 
   setSpot(center);
   map.on('click', (e) => {
-    const p = { lat: e.latlng.lat, lon: e.latlng.lng };
-    setSpot(p);
-    onPickCb && onPickCb(p);
+    // The app decides what a click means (move the forecast point, or drop a
+    // task turnpoint in plan mode), so it owns setSpot — we don't move it here.
+    onPickCb && onPickCb({ lat: e.latlng.lat, lon: e.latlng.lng });
   });
   map.on('moveend', () => { if (pilotsActive()) refreshPilots(); });
   map.on('overlayadd', (e) => { if (e.layer === pilotLayer) startPolling(); });

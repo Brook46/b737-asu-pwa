@@ -126,6 +126,24 @@ function derive(p, timeKey) {
   };
 }
 
+/**
+ * Sample the derived forecast at an arbitrary lat/lon and local time, using the
+ * nearest cached grid point. Returns null if no grid is loaded or the point is
+ * outside it. Used by the takeoff ranking.
+ */
+export function sampleAt(lat, lon, dayKey, hour) {
+  if (!cache || !cache.points.length) return null;
+  const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
+  let best = null, bestD = Infinity;
+  for (const p of cache.points) {
+    const d = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best ? derive(best, timeKey) : null;
+}
+
+export function gridReady() { return !!(cache && cache.points.length); }
+
 // ── colour ramps ──────────────────────────────────────────────────────────
 function ramp(stops, v) {
   if (v <= stops[0][0]) return stops[0].slice(1);

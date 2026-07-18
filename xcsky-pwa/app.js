@@ -13,6 +13,8 @@ import * as U from './modules/units.js';
 import * as Loc from './modules/location.js';
 import * as XMap from './modules/map.js';
 import * as Grid from './modules/grid.js';
+import * as Takeoffs from './modules/takeoffs.js';
+import * as Plan from './modules/planning.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -31,7 +33,11 @@ const state = {
   dayIndex: 0,
   hourIndex: null,     // index into the selected day's hours
   loading: false,
+  takeoffsOn: false,
 };
+
+let tkLayer = null;      // Leaflet layer group for ranked takeoff markers
+let tkSites = [];        // last-fetched launch sites for the viewport
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,6 +56,13 @@ function boot() {
       onPick: onMapPick,
     });
     Grid.watchMap(XMap.getMap(), () => state.model, renderOverlay);
+    Plan.initPlanner(XMap.getMap(), { onChange: renderPlanStats });
+    let tkT = null;
+    XMap.getMap().on('moveend', () => {
+      if (!state.takeoffsOn) return;
+      clearTimeout(tkT);
+      tkT = setTimeout(refreshTakeoffs, 600);
+    });
     refreshAll();
   };
 
@@ -133,7 +146,82 @@ function renderOverlay() {
   const day = currentDay();
   if (!day) return;
   Grid.render(XMap.getMap(), state.layer, day.dayKey, currentHourOfDay());
+  if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new time
   updateHourReadout();
+}
+
+// ── ranked takeoffs (ParaglidingEarth) ───────────────────────────────────────
+function tkGroup() {
+  if (!tkLayer) tkLayer = L.layerGroup().addTo(XMap.getMap());
+  return tkLayer;
+}
+
+async function refreshTakeoffs() {
+  if (!state.takeoffsOn) return;
+  $('tk-count').textContent = 'loading takeoffs…';
+  tkSites = await Takeoffs.fetchTakeoffs(XMap.getMap().getBounds());
+  renderTakeoffs();
+}
+
+function renderTakeoffs() {
+  const day = currentDay();
+  const layer = tkGroup();
+  layer.clearLayers();
+  if (!day || !tkSites.length) {
+    $('tk-count').textContent = tkSites.length ? '' : 'no takeoffs here';
+    return;
+  }
+  const ranked = Takeoffs.rankSites(tkSites, day.dayKey, currentHourOfDay());
+  ranked.forEach((r, i) => {
+    const rank = i + 1;
+    const top = rank <= 5;
+    const color = Takeoffs.scoreColor(r.score);
+    const html = top
+      ? `<div class="tk-pin tk-rank" style="--c:${color}">${rank}</div>`
+      : `<div class="tk-pin" style="--c:${color}"></div>`;
+    const icon = L.divIcon({ className: 'tk-icon', html, iconSize: [22, 22], iconAnchor: [11, 11] });
+    const m = L.marker([r.site.lat, r.site.lon], { icon, zIndexOffset: r.score });
+    m.bindTooltip(`#${rank} ${r.site.name}`, { direction: 'top', offset: [0, -9], opacity: 0.85 });
+    const w = r.wx;
+    m.bindPopup(
+      `<b>#${rank} · ${r.site.name}</b><br>` +
+      `Score ${r.score} — ${r.reason}<br>` +
+      `${U.alt(r.site.alt)} · wind ${U.compass(w.windDir)} ${U.wind(w.wind)} · climb ${U.climb(w.climb)}<br>` +
+      `<a href="${r.site.link}" target="_blank" rel="noopener">ParaglidingEarth ↗</a>`
+    );
+    layer.addLayer(m);
+  });
+  const best = ranked[0];
+  $('tk-count').textContent = best
+    ? `${ranked.length} takeoffs · best: ${best.site.name} (${best.score})`
+    : `${tkSites.length} takeoffs (no forecast)`;
+}
+
+function toggleTakeoffs() {
+  state.takeoffsOn = !state.takeoffsOn;
+  $('tk-btn').setAttribute('aria-pressed', String(state.takeoffsOn));
+  if (state.takeoffsOn) {
+    refreshTakeoffs();
+  } else {
+    if (tkLayer) tkLayer.clearLayers();
+    $('tk-count').textContent = '';
+  }
+}
+
+// ── task planner ──────────────────────────────────────────────────────────────
+function renderPlanStats(st) {
+  if (!st || st.n === 0) { $('plan-stats').textContent = 'Tap the map to drop turnpoints'; return; }
+  let s = `${st.n} TP · ${st.total.toFixed(1)} km`;
+  if (st.n >= 3) s += ` · triangle ${st.closed.toFixed(1)} km`;
+  $('plan-stats').textContent = s;
+}
+
+function togglePlan() {
+  const on = !Plan.isActive();
+  Plan.setActive(on);
+  $('plan-btn').setAttribute('aria-pressed', String(on));
+  $('plan-bar').classList.toggle('hidden', !on);
+  if (on) renderPlanStats(Plan.stats());
 }
 
 function renderLocName() { $('loc-name').textContent = state.loc.name; }
@@ -326,6 +414,9 @@ function clearStatus() { $('status').className = 'status hidden'; }
 
 // ── events ────────────────────────────────────────────────────────────────────
 function onMapPick(p) {
+  // In plan mode a tap drops a turnpoint instead of moving the forecast point.
+  if (Plan.isActive()) { Plan.addWaypoint(p.lat, p.lon); return; }
+  XMap.setSpot(p);
   reverseLabel(p.lat, p.lon).catch(() => '').then((name) => {
     setLocation({ name: name || `${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}`, lat: p.lat, lon: p.lon }, { fly: false });
     openSheet();
@@ -383,6 +474,22 @@ function wireEvents() {
     $('pilot-count').textContent =
       count === total ? `${count} pilots live` : `${count}🪂 · ${total} aloft`;
   });
+
+  // Tools
+  $('tk-btn').onclick = toggleTakeoffs;
+  $('plan-btn').onclick = togglePlan;
+  $('plan-undo').onclick = () => Plan.undo();
+  $('plan-clear').onclick = () => Plan.clear();
+  $('plan-done').onclick = () => {
+    Plan.setActive(false);
+    $('plan-btn').setAttribute('aria-pressed', 'false');
+    $('plan-bar').classList.add('hidden');
+  };
+  $('plan-radius').oninput = (e) => {
+    const r = +e.target.value;
+    $('plan-radius-val').textContent = r >= 1000 ? `${(r / 1000).toFixed(1)} km` : `${r} m`;
+    Plan.setRadius(r);
+  };
 
   wireLocationSheet();
 }
