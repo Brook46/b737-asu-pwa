@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
   <!-- The map IS the app -->
@@ -48,12 +48,34 @@
 
   <!-- Tool column (left) -->
   <div class="tools">
-    <button id="tk-btn" class="tool-btn" aria-pressed="false" title="Rank takeoffs in view">🎯</button>
-    <button id="plan-btn" class="tool-btn" aria-pressed="false" title="Plan an XC task">✏️</button>
+    <button id="rec-btn" class="tool-btn" aria-pressed="false" title="Best launch + route to maximise the day">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M12 3l2.1 4.7 5.1.5-3.9 3.4 1.2 5-4.5-2.7-4.5 2.7 1.2-5L4.8 8.2l5.1-.5z"/>
+      </svg>
+    </button>
+    <button id="tk-btn" class="tool-btn" aria-pressed="false" title="Rank takeoffs in view">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/>
+        <line x1="12" y1="1.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22.5"/>
+        <line x1="1.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22.5" y2="12"/>
+      </svg>
+    </button>
+    <button id="plan-btn" class="tool-btn" aria-pressed="false" title="Plan an XC task">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
+        <circle cx="5.5" cy="18.5" r="2.4"/><circle cx="18.5" cy="5.5" r="2.4"/>
+        <path d="M7.6 16.8 12 12l-1.4-3.8 4.4 1.2 1.4-1.4"/>
+      </svg>
+    </button>
   </div>
 
   <!-- Status / error banner -->
   <div id="status" class="status hidden"></div>
+
+  <!-- Recommendation summary toast -->
+  <div id="rec-toast" class="rec-toast hidden">
+    <div class="rec-toast-body"></div>
+    <button id="rec-clear" class="rec-clear" aria-label="Clear suggestion">✕</button>
+  </div>
 
   <!-- Planning bar (only in plan mode) -->
   <div id="plan-bar" class="plan-bar hidden">
@@ -78,7 +100,19 @@
       <span id="tk-count" class="pilot-count"></span>
       <span id="pilot-count" class="pilot-count"></span>
     </div>
-    <div id="layer-chips" class="layer-chips" role="tablist" aria-label="Weather layer"></div>
+    <div class="chip-scroll">
+      <div id="layer-chips" class="layer-chips" role="tablist" aria-label="Weather colour layer"></div>
+      <span class="chip-sep" aria-hidden="true"></span>
+      <button id="wind-toggle" class="toggle-chip" aria-pressed="false" title="Wind barbs">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <line x1="4" y1="9" x2="17" y2="9"/><path d="M17 9a2.5 2.5 0 1 0-2.5 2.5"/>
+          <line x1="4" y1="14" x2="13" y2="14"/><path d="M13 14a2 2 0 1 1-2 2"/>
+        </svg>Wind</button>
+      <button id="conv-toggle" class="toggle-chip" aria-pressed="false" title="Convergence lines (lift)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8h6M6 5l3 3-3 3"/><path d="M21 8h-6M18 5l-3 3 3 3" transform="translate(0 4)"/>
+        </svg>Converg</button>
+    </div>
     <nav id="day-tabs" class="day-tabs" aria-label="Forecast day"></nav>
     <div class="time-row">
       <input id="hour-slider" type="range" min="0" max="23" value="13" step="1" aria-label="Hour of day">
@@ -139,6 +173,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

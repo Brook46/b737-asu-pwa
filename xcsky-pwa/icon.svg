@@ -1,62 +1,73 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0e1a34"/>
-      <stop offset="1" stop-color="#0a0f1a"/>
+      <stop offset="0" stop-color="#16294c"/>
+      <stop offset="1" stop-color="#0a1220"/>
     </linearGradient>
     <linearGradient id="therm" x1="0" y1="1" x2="0" y2="0">
       <stop offset="0" stop-color="#e0453f"/>
-      <stop offset=".45" stop-color="#f2c14e"/>
-      <stop offset="1" stop-color="#7cc143"/>
+      <stop offset=".5" stop-color="#f4c04a"/>
+      <stop offset="1" stop-color="#8ccf45"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="62%" r="45%">
-      <stop offset="0" stop-color="#f2c14e" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#f2c14e" stop-opacity="0"/>
+    <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c7d3e6"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a7a5b"/><stop offset="1" stop-color="#7c5f45"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="60%" r="52%">
+      <stop offset="0" stop-color="#f4c04a" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#f4c04a" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
-  <circle cx="256" cy="300" r="180" fill="url(#glow)"/>
+  <rect width="512" height="512" rx="114" fill="#132445"/>
+  <rect width="512" height="512" rx="114" fill="url(#sky)"/>
+  <circle cx="256" cy="298" r="196" fill="url(#glow)"/>
 
-  <!-- rising thermal the monkey is riding -->
-  <g fill="none" stroke="url(#therm)" stroke-width="22" stroke-linecap="round">
-    <path d="M256 486 C206 452 300 418 256 384 C216 352 300 322 262 300"/>
+  <!-- smooth tapered thermal -->
+  <path d="M256 488 C214 452 300 424 260 392 C226 364 300 336 264 306"
+        fill="none" stroke="url(#therm)" stroke-width="26" stroke-linecap="round"/>
+
+  <!-- symmetric feathered wings -->
+  <g fill="url(#wing)" stroke="#aab7cd" stroke-width="3.5" stroke-linejoin="round">
+    <path d="M198 246
+             C150 214 108 214 78 224 C104 232 108 244 142 250
+             C104 258 100 276 82 288 C118 280 128 292 160 284
+             C150 302 150 318 214 274 Z"/>
+    <path d="M314 246
+             C362 214 404 214 434 224 C408 232 404 244 370 250
+             C408 258 412 276 430 288 C394 280 384 292 352 284
+             C362 302 362 318 298 274 Z"/>
   </g>
 
-  <!-- spread wings -->
-  <g fill="#eef3fb" stroke="#b7c2d6" stroke-width="4" stroke-linejoin="round">
-    <path d="M196 250 C132 206 74 220 52 236 C92 244 96 262 140 266 C98 278 96 300 74 312 C120 302 132 318 168 306 C150 330 152 348 142 362 C192 336 214 300 214 272 Z"/>
-    <path d="M316 250 C380 206 438 220 460 236 C420 244 416 262 372 266 C414 278 416 300 438 312 C392 302 380 318 344 306 C362 330 360 348 370 362 C320 336 298 300 298 272 Z"/>
-  </g>
+  <!-- monkey -->
+  <g stroke-linejoin="round">
+    <circle cx="180" cy="244" r="40" fill="url(#fur)"/>
+    <circle cx="332" cy="244" r="40" fill="url(#fur)"/>
+    <circle cx="180" cy="244" r="21" fill="#d9b489"/>
+    <circle cx="332" cy="244" r="21" fill="#d9b489"/>
 
-  <!-- crazy monkey head -->
-  <g>
-    <circle cx="182" cy="248" r="42" fill="#7d6047"/>
-    <circle cx="330" cy="248" r="42" fill="#7d6047"/>
-    <circle cx="182" cy="248" r="22" fill="#c39a72"/>
-    <circle cx="330" cy="248" r="22" fill="#c39a72"/>
+    <circle cx="256" cy="250" r="92" fill="url(#fur)"/>
+    <path d="M256 196 C300 196 320 236 320 272 C320 312 292 338 256 338
+             C220 338 192 312 192 272 C192 236 212 196 256 196 Z" fill="#e9d4b2"/>
 
-    <circle cx="256" cy="252" r="90" fill="#8d6e52"/>
-    <ellipse cx="256" cy="292" rx="64" ry="50" fill="#ecd8b6"/>
+    <!-- brows -->
+    <path d="M206 214 q28 -16 52 2" fill="none" stroke="#4a3524" stroke-width="8" stroke-linecap="round"/>
+    <path d="M306 212 q-26 -14 -50 4" fill="none" stroke="#4a3524" stroke-width="8" stroke-linecap="round"/>
 
-    <!-- wild eyebrows -->
-    <path d="M196 196 q34 -14 58 6" fill="none" stroke="#4a3524" stroke-width="9" stroke-linecap="round"/>
-    <path d="M316 190 q-30 -12 -54 10" fill="none" stroke="#4a3524" stroke-width="9" stroke-linecap="round"/>
+    <!-- eyes: lively, tidy -->
+    <ellipse cx="226" cy="240" rx="26" ry="28" fill="#fff"/>
+    <ellipse cx="286" cy="238" rx="27" ry="29" fill="#fff"/>
+    <circle cx="231" cy="244" r="11" fill="#17202b"/>
+    <circle cx="282" cy="242" r="11.5" fill="#17202b"/>
+    <circle cx="235" cy="240" r="3.4" fill="#fff"/>
+    <circle cx="286" cy="238" r="3.6" fill="#fff"/>
 
-    <!-- googly crazy eyes -->
-    <circle cx="222" cy="234" r="31" fill="#fff"/>
-    <circle cx="292" cy="230" r="35" fill="#fff"/>
-    <circle cx="231" cy="242" r="12" fill="#14181f"/>
-    <circle cx="284" cy="221" r="14" fill="#14181f"/>
-    <circle cx="227" cy="237" r="4" fill="#fff"/>
-    <circle cx="279" cy="216" r="5" fill="#fff"/>
-
-    <!-- nostrils -->
-    <ellipse cx="243" cy="288" rx="5" ry="7" fill="#5a4636"/>
-    <ellipse cx="269" cy="288" rx="5" ry="7" fill="#5a4636"/>
-
-    <!-- manic grin with a tooth -->
-    <path d="M214 306 Q256 352 298 306 Q256 328 214 306 Z" fill="#2f2016"/>
-    <path d="M236 314 h40 v10 q-20 12 -40 0 Z" fill="#fbfdff"/>
+    <!-- nose + grin -->
+    <ellipse cx="245" cy="290" rx="4.6" ry="6" fill="#5a4636"/>
+    <ellipse cx="267" cy="290" rx="4.6" ry="6" fill="#5a4636"/>
+    <path d="M222 302 Q256 340 290 302" fill="none" stroke="#3a2a1e" stroke-width="7" stroke-linecap="round"/>
+    <path d="M236 312 q20 14 40 0" fill="none" stroke="#3a2a1e" stroke-width="6" stroke-linecap="round"/>
   </g>
 </svg>
