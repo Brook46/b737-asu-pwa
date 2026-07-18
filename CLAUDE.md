@@ -12,6 +12,7 @@ A suite of vanilla-JS Progressive Web Apps for a 737 pilot, all served from one 
 - **gpws-pwa/** — GPWS warning simulator/trainer
 - **pdf-knowledge-pwa/** — PDF study/annotation companion
 - **thermals-pwa/** — live in-flight thermals map (has its own separate Cloudflare worker; `config.js` holds its API base)
+- **xcsky-pwa/** — "Sky Monkeys": free soaring/XC weather forecast (7-day thermal strength, cloud base, time-height plot, wind profile) plus a full map with KK7 thermal/skyways overlays and live pilots via OGN. Entirely keyless: Open-Meteo weather, Leaflet + Esri/OpenTopoMap tiles, thermal.kk7.ch overlays, live.glidernet.org pilots. No worker, no key, no build step.
 
 ## Branch & deploy flow
 

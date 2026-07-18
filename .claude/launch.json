@@ -32,6 +32,18 @@
       "port": 8092
     },
     {
+      "name": "Sky Monkeys",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8093", "/Users/alonbrookstein/Claude AS/xcsky-pwa"],
+      "port": 8093
+    },
+    {
+      "name": "XC Tactical",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/xc-tactical/dev-server.py", "8010"],
+      "port": 8010
+    },
+    {
       "name": "GPWS",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8096", "/Users/alonbrookstein/Claude AS/gpws-pwa"],
