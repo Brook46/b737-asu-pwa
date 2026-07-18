@@ -14,10 +14,17 @@ painted over it, phone-first.
 
 - **Gridded weather overlay — the main feature.** A lattice of Open-Meteo point
   forecasts covering the viewport is fetched in one batched call and painted as
-  a smooth colour field. Layers: **Thermals** (net climb m/s), **Top** (thermal
-  top MSL), **Base** (cumulus cloud base; blue holes transparent), **Wind**
-  (speed field + direction arrows). Scrub any of 7 days × 24 h — recolouring is
-  instant from cache; pan/zoom refetches for the new area automatically.
+  a smooth colour field. Colour layers: **Thermals** (net climb m/s), **Top**
+  (thermal top MSL), **Base** (cumulus cloud base; blue holes transparent).
+  Scrub any of 7 days × 24 h — recolouring is instant from cache; pan/zoom
+  refetches for the new area automatically.
+- **Wind & convergence overlays** — stack over any colour field. **Wind** draws
+  standard meteorological barbs (direction + strength). **Convergence**
+  highlights lift lines computed from the horizontal wind divergence (bright
+  cyan) — where air piles up and rises.
+- **Best of the day (★)** — one tap picks the top-ranked launch and sketches a
+  downwind, climb-following XC line to show the day's potential (distance +
+  direction + soarable window). Heuristic guidance, clearly labelled.
 - **KK7 overlays** — proven thermal hotspots & skyways from thermal.kk7.ch
   (layer control, top-right).
 - **Live pilots** — OGN positions with heading, altitude, climb, age (20 s poll).
@@ -76,10 +83,11 @@ modules/
   units.js     metric/imperial formatting
   location.js  GPS, search, saved spots
   map.js       the always-on main map: bases, KK7 overlays, live pilots
-  grid.js      gridded weather overlay: batched fetch, physics, canvas paint
+  grid.js      colour field + wind barbs + convergence; batched fetch, physics
   pilots.js    OGN live-pilot fetch/parse (lxml), type colours
   takeoffs.js  ParaglidingEarth launch fetch (via worker /pge) + wind-match rank
   planning.js  XC task planner: waypoints, cylinders, distance
+  recommend.js "maximise the day": best launch + downwind XC route heuristic
   resume.js    iOS PWA resume-hardening
 ```
 

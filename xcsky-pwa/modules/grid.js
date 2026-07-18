@@ -1,21 +1,23 @@
 // grid.js — the SkySight-style gridded weather overlay: the main feature.
 //
 // We fetch a COLS×ROWS lattice of Open-Meteo point forecasts covering the map
-// viewport in ONE batched call (multi-location request; ~380 KB for 42 points
-// × 7 days, <1 s), derive the soaring numbers per point per hour with the same
-// physics as the point forecast, and paint them as a smooth semi-transparent
-// canvas ImageOverlay. Scrubbing time re-colours from cache — no refetch.
+// viewport in ONE batched call (multi-location request), derive the soaring
+// numbers per point per hour, and draw THREE independent, stackable overlays:
 //
-// timezone=auto is per-point, so a grid spanning a timezone border stays in
-// each point's local solar time (which is what thermals care about). Rendering
-// looks hours up by local ISO string, not by array index.
+//   • colour field   — thermals / top / base painted as a smooth canvas
+//   • wind barbs      — standard meteorological barbs (direction + strength),
+//                       shown over whatever colour field is active
+//   • convergence     — highlighted zones where the wind field converges
+//                       (lift lines), from the horizontal wind divergence
+//
+// Scrubbing time re-renders all three from the cached grid — no refetch.
+// timezone=auto is per-point, so rendering looks hours up by local ISO string.
 
 import { lclAgl, wStar, climbRate } from './soaring.js';
 
-const COLS = 7, ROWS = 6;
-const PAD = 0.18;            // fetch this fraction beyond the viewport each side
-const ALPHA = 0.72;          // overlay opacity
-const REFETCH_DEBOUNCE = 700;
+const COLS = 9, ROWS = 7;
+const PAD = 0.16;            // fetch this fraction beyond the viewport each side
+const ALPHA = 0.72;          // colour-field opacity
 
 const HOURLY_VARS = [
   'temperature_2m', 'dewpoint_2m', 'boundary_layer_height',
@@ -23,28 +25,23 @@ const HOURLY_VARS = [
   'windspeed_10m', 'winddirection_10m',
 ];
 
-// The selectable overlay layers.
-export const LAYERS = [
-  { id: 'climb', label: 'Thermals', unit: 'm/s' },
-  { id: 'top',   label: 'Top',      unit: 'MSL' },
-  { id: 'base',  label: 'Base',     unit: 'MSL' },
-  { id: 'wind',  label: 'Wind',     unit: 'km/h' },
-  { id: 'off',   label: 'Off',      unit: '' },
+// Colour-field layers (mutually exclusive). Wind & convergence are separate,
+// stackable toggles handled by the app.
+export const COLOR_LAYERS = [
+  { id: 'climb', label: 'Thermals' },
+  { id: 'top',   label: 'Top' },
+  { id: 'base',  label: 'Base' },
+  { id: 'off',   label: 'Off' },
 ];
 
-let cache = null;    // {key, bounds:L.LatLngBounds, points:[{lat,lon,elev,idx:Map,hourly}]}
-let overlay = null;  // L.ImageOverlay
-let arrowLayer = null;
+let cache = null;    // {model, bounds, points:[{lat,lon,elev,idx:Map,hourly}]}
+let colorOverlay = null, convOverlay = null, windLayer = null;
 let fetching = false;
-let debounceT = null;
 
-const canvas = document.createElement('canvas');
-canvas.width = COLS; canvas.height = ROWS;
-
-function gridKey(b, model) {
-  return [b.getSouth().toFixed(2), b.getWest().toFixed(2),
-          b.getNorth().toFixed(2), b.getEast().toFixed(2), model].join('|');
-}
+const fieldCanvas = document.createElement('canvas');
+fieldCanvas.width = COLS; fieldCanvas.height = ROWS;
+const convCanvas = document.createElement('canvas');
+convCanvas.width = COLS; convCanvas.height = ROWS;
 
 function paddedBounds(map) {
   const b = map.getBounds();
@@ -55,13 +52,13 @@ function paddedBounds(map) {
     [b.getNorth() + dLat, b.getEast() + dLon]);
 }
 
-/** True if the current viewport is still inside the cached (padded) grid. */
 export function covered(map, model) {
   if (!cache || cache.model !== model) return false;
   return cache.bounds.contains(map.getBounds());
 }
+export function gridReady() { return !!(cache && cache.points.length); }
 
-/** Fetch (or reuse) the grid for the current viewport. Returns true if data ready. */
+/** Fetch (or reuse) the grid for the current viewport. */
 export async function ensureGrid(map, model) {
   if (covered(map, model)) return true;
   if (fetching) return false;
@@ -71,7 +68,6 @@ export async function ensureGrid(map, model) {
     const lats = [], lons = [];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        // Row 0 = north so the canvas paints top-down without flipping.
         lats.push((b.getNorth() - (r + 0.5) * (b.getNorth() - b.getSouth()) / ROWS).toFixed(3));
         lons.push((b.getWest() + (c + 0.5) * (b.getEast() - b.getWest()) / COLS).toFixed(3));
       }
@@ -86,7 +82,7 @@ export async function ensureGrid(map, model) {
     const data = await res.json();
     const arr = Array.isArray(data) ? data : [data];
     cache = {
-      key: gridKey(b, model), model, bounds: b,
+      model, bounds: b,
       points: arr.map((p) => ({
         lat: p.latitude, lon: p.longitude, elev: p.elevation || 0,
         hourly: p.hourly,
@@ -102,7 +98,7 @@ export async function ensureGrid(map, model) {
   }
 }
 
-/** Derive the soaring numbers for one grid point at a local time key "YYYY-MM-DDTHH:00". */
+/** Derive the soaring numbers for one grid point at a local time key. */
 function derive(p, timeKey) {
   const i = p.idx.get(timeKey);
   if (i === undefined) return null;
@@ -121,16 +117,12 @@ function derive(p, timeKey) {
   return {
     climb,
     top: cumulus && base != null ? Math.min(top, base) : top,
-    base: cumulus ? base : null,      // null ⇒ blue (no cu) at this point
+    base: cumulus ? base : null,
     wind: h.windspeed_10m[i], windDir: h.winddirection_10m[i],
   };
 }
 
-/**
- * Sample the derived forecast at an arbitrary lat/lon and local time, using the
- * nearest cached grid point. Returns null if no grid is loaded or the point is
- * outside it. Used by the takeoff ranking.
- */
+/** Sample the derived forecast at an arbitrary lat/lon (nearest grid point). */
 export function sampleAt(lat, lon, dayKey, hour) {
   if (!cache || !cache.points.length) return null;
   const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
@@ -141,8 +133,6 @@ export function sampleAt(lat, lon, dayKey, hour) {
   }
   return best ? derive(best, timeKey) : null;
 }
-
-export function gridReady() { return !!(cache && cache.points.length); }
 
 // ── colour ramps ──────────────────────────────────────────────────────────
 function ramp(stops, v) {
@@ -156,25 +146,20 @@ function ramp(stops, v) {
   }
   return stops[stops.length - 1].slice(1);
 }
-
-const CLIMB_STOPS = [        // matches the point-forecast lift ramp
+const CLIMB_STOPS = [
   [0.15, 100, 110, 130], [0.5, 59, 110, 165], [1.0, 47, 158, 111],
   [1.5, 124, 193, 67], [2.0, 242, 193, 78], [2.8, 239, 125, 59], [4.0, 224, 69, 63],
 ];
-const ALT_STOPS = [          // m MSL for top/base
+const ALT_STOPS = [
   [0, 70, 90, 120], [1000, 59, 110, 165], [1800, 47, 158, 111],
   [2600, 124, 193, 67], [3400, 242, 193, 78], [4200, 239, 125, 59], [5000, 224, 69, 63],
 ];
-const WIND_STOPS = [         // km/h
-  [0, 47, 158, 111], [15, 124, 193, 67], [25, 242, 193, 78],
-  [35, 239, 125, 59], [50, 224, 69, 63],
-];
 
-function cellColor(layer, d) {
+function fieldColor(layer, d) {
   if (!d) return [0, 0, 0, 0];
   switch (layer) {
     case 'climb': {
-      if (d.climb < 0.1) return [0, 0, 0, 0];       // dead air → transparent
+      if (d.climb < 0.1) return [0, 0, 0, 0];
       const a = Math.min(1, 0.55 + d.climb / 3);
       return [...ramp(CLIMB_STOPS, d.climb), Math.round(255 * ALPHA * a)];
     }
@@ -182,84 +167,161 @@ function cellColor(layer, d) {
       if (!d.top || d.climb < 0.1) return [0, 0, 0, 0];
       return [...ramp(ALT_STOPS, d.top), Math.round(255 * ALPHA)];
     case 'base':
-      if (!d.base) return [0, 0, 0, 0];             // blue hole → transparent
+      if (!d.base) return [0, 0, 0, 0];
       return [...ramp(ALT_STOPS, d.base), Math.round(255 * ALPHA)];
-    case 'wind':
-      return [...ramp(WIND_STOPS, d.wind ?? 0), Math.round(255 * ALPHA)];
     default:
       return [0, 0, 0, 0];
   }
 }
 
-/**
- * Paint the overlay for a layer at local time "YYYY-MM-DD" + hour.
- * Instant (no network) — uses the cached grid.
- */
-export function render(map, layer, dayKey, hour) {
-  if (!cache || layer === 'off') { clear(map); return; }
-  const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
-  const ctx = canvas.getContext('2d');
-  const img = ctx.createImageData(COLS, ROWS);
-  const derived = cache.points.map((p) => derive(p, timeKey));
+// ── standard wind barb (SVG for a divIcon) ──────────────────────────────────
+// Staff points toward where the wind comes FROM; feathers sit at that end.
+// Half barb = 5 kt, full barb = 10 kt, pennant = 50 kt. Calm = open circle.
+function barbSvg(kmh, dirFrom) {
+  const kt = (kmh || 0) * 0.539957;
+  const strong = kmh > 35;
+  const col = strong ? '#ff6b5c' : '#eef3fb';
+  const cx = 16, cy = 16;
+  if (kt < 2.5) {
+    return `<svg width="32" height="32" viewBox="0 0 32 32">
+      <circle cx="${cx}" cy="${cy}" r="3.4" fill="none" stroke="${col}" stroke-width="1.6"/></svg>`;
+  }
+  const L = 15;                          // staff length (up = toward FROM)
+  let parts = `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - L}" stroke="${col}" stroke-width="1.7"/>`;
+  let rem = Math.round(kt / 5) * 5;
+  let y = cy - L;                        // start at the FROM end
+  const gap = 3.4;
+  while (rem >= 50) {                    // pennant (filled triangle)
+    parts += `<path d="M${cx} ${y} L${cx + 7} ${y + 2} L${cx} ${y + 4.6} Z" fill="${col}"/>`;
+    y += 5.2; rem -= 50;
+  }
+  while (rem >= 10) {                    // full barb
+    parts += `<line x1="${cx}" y1="${y}" x2="${cx + 8}" y2="${y - 3}" stroke="${col}" stroke-width="1.7"/>`;
+    y += gap; rem -= 10;
+  }
+  if (rem >= 5) {                        // half barb
+    parts += `<line x1="${cx}" y1="${y + gap * 0.4}" x2="${cx + 4}" y2="${y + gap * 0.4 - 1.5}" stroke="${col}" stroke-width="1.7"/>`;
+  }
+  return `<svg width="32" height="32" viewBox="0 0 32 32" style="filter:drop-shadow(0 0 1.5px rgba(0,0,0,.85))">
+    <g transform="rotate(${dirFrom} ${cx} ${cy})">${parts}</g></svg>`;
+}
+
+// ── horizontal wind divergence → convergence highlight ──────────────────────
+// u eastward, v northward (m/s-ish; relative magnitudes are what matter).
+// convergence = −(∂u/∂x + ∂v/∂y); positive where air piles up ⇒ lift lines.
+function convergenceGrid(derived, bounds) {
+  const midLat = (bounds.getNorth() + bounds.getSouth()) / 2;
+  const dxKm = ((bounds.getEast() - bounds.getWest()) / COLS) * 111 * Math.cos(midLat * Math.PI / 180);
+  const dyKm = ((bounds.getNorth() - bounds.getSouth()) / ROWS) * 111;
+  const u = new Array(COLS * ROWS).fill(null), v = new Array(COLS * ROWS).fill(null);
   for (let i = 0; i < derived.length; i++) {
-    const [r, g, b, a] = cellColor(layer, derived[i]);
-    img.data.set([r, g, b, a], i * 4);
-  }
-  ctx.putImageData(img, 0, 0);
-  const url = canvas.toDataURL();
-
-  if (!overlay) {
-    overlay = L.imageOverlay(url, cache.bounds, { opacity: 1, interactive: false, className: 'wx-overlay' });
-    overlay.addTo(map);
-  } else {
-    overlay.setUrl(url);
-    overlay.setBounds(cache.bounds);
-    if (!map.hasLayer(overlay)) overlay.addTo(map);
-  }
-
-  renderArrows(map, layer === 'wind' ? derived : null);
-}
-
-/** Wind arrows at grid points (wind layer only). */
-function renderArrows(map, derived) {
-  if (arrowLayer) { arrowLayer.remove(); arrowLayer = null; }
-  if (!derived) return;
-  arrowLayer = L.layerGroup();
-  cache.points.forEach((p, i) => {
     const d = derived[i];
-    if (!d || d.wind == null) return;
-    const icon = L.divIcon({
-      className: 'wx-arrow-wrap',
-      // The glyph is a down-pointing triangle (= bearing 180°). Wind dir is
-      // where it comes FROM; we want it pointing where it GOES (dir+180), so
-      // rotate by (dir+180)−180 = dir.
-      html: `<div class="wx-arrow" style="transform:rotate(${d.windDir % 360}deg)"></div>`,
-      iconSize: [18, 18], iconAnchor: [9, 9],
-    });
-    arrowLayer.addLayer(L.marker([p.lat, p.lon], { icon, interactive: false }));
-  });
-  arrowLayer.addTo(map);
+    if (!d || d.wind == null) continue;
+    const rad = (d.windDir || 0) * Math.PI / 180;
+    u[i] = -d.wind * Math.sin(rad);       // FROM dir → vector points downwind
+    v[i] = -d.wind * Math.cos(rad);
+  }
+  const conv = new Array(COLS * ROWS).fill(0);
+  const at = (r, c) => r * COLS + c;
+  for (let r = 1; r < ROWS - 1; r++) {
+    for (let c = 1; c < COLS - 1; c++) {
+      const uE = u[at(r, c + 1)], uW = u[at(r, c - 1)];
+      const vN = v[at(r - 1, c)], vS = v[at(r + 1, c)];   // row 0 = north
+      if (uE == null || uW == null || vN == null || vS == null) continue;
+      const dudx = (uE - uW) / (2 * dxKm);
+      const dvdy = (vN - vS) / (2 * dyKm);
+      conv[at(r, c)] = -(dudx + dvdy);     // >0 ⇒ convergence
+    }
+  }
+  return conv;
 }
 
-export function clear(map) {
-  if (overlay && map.hasLayer(overlay)) overlay.remove();
-  if (arrowLayer) { arrowLayer.remove(); arrowLayer = null; }
-}
-
+// ── render ──────────────────────────────────────────────────────────────────
 /**
- * Hook map movement: when the viewport leaves the cached grid, refetch
- * (debounced) and re-render via the callback.
+ * Draw the requested overlays for a day/hour. opts = {color, wind, convergence}.
+ * All three stack; any can be off.
  */
+export function render(map, opts, dayKey, hour) {
+  if (!cache) { clearAll(map); return; }
+  const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
+  const derived = cache.points.map((p) => derive(p, timeKey));
+
+  // 1. colour field
+  if (opts.color && opts.color !== 'off') {
+    const ctx = fieldCanvas.getContext('2d');
+    const img = ctx.createImageData(COLS, ROWS);
+    for (let i = 0; i < derived.length; i++) img.data.set(fieldColor(opts.color, derived[i]), i * 4);
+    ctx.putImageData(img, 0, 0);
+    colorOverlay = putOverlay(map, colorOverlay, fieldCanvas.toDataURL(), 'wx-overlay');
+  } else {
+    colorOverlay = removeOverlay(map, colorOverlay);
+  }
+
+  // 2. convergence highlight
+  if (opts.convergence) {
+    const conv = convergenceGrid(derived, cache.bounds);
+    const peak = Math.max(0.02, ...conv);
+    const ctx = convCanvas.getContext('2d');
+    const img = ctx.createImageData(COLS, ROWS);
+    for (let i = 0; i < conv.length; i++) {
+      const t = Math.max(0, conv[i]) / peak;               // 0..1
+      const a = t > 0.35 ? Math.round(210 * Math.min(1, (t - 0.35) / 0.5)) : 0;
+      img.data.set([124, 240, 255, a], i * 4);             // bright cyan lift lines
+    }
+    ctx.putImageData(img, 0, 0);
+    convOverlay = putOverlay(map, convOverlay, convCanvas.toDataURL(), 'wx-conv');
+  } else {
+    convOverlay = removeOverlay(map, convOverlay);
+  }
+
+  // 3. wind barbs
+  if (opts.wind) {
+    if (!windLayer) windLayer = L.layerGroup().addTo(map);
+    windLayer.clearLayers();
+    cache.points.forEach((p, i) => {
+      const d = derived[i];
+      if (!d || d.wind == null) return;
+      const icon = L.divIcon({
+        className: 'wx-barb', html: barbSvg(d.wind, d.windDir),
+        iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      windLayer.addLayer(L.marker([p.lat, p.lon], { icon, interactive: false, keyboard: false }));
+    });
+  } else if (windLayer) {
+    windLayer.remove(); windLayer = null;
+  }
+}
+
+function putOverlay(map, ov, url, cls) {
+  if (!ov) {
+    ov = L.imageOverlay(url, cache.bounds, { opacity: 1, interactive: false, className: cls });
+    ov.addTo(map);
+  } else {
+    ov.setUrl(url); ov.setBounds(cache.bounds);
+    if (!map.hasLayer(ov)) ov.addTo(map);
+  }
+  return ov;
+}
+function removeOverlay(map, ov) { if (ov && map.hasLayer(ov)) ov.remove(); return ov; }
+
+function clearAll(map) {
+  colorOverlay = removeOverlay(map, colorOverlay);
+  convOverlay = removeOverlay(map, convOverlay);
+  if (windLayer) { windLayer.remove(); windLayer = null; }
+}
+export function clear(map) { clearAll(map); }
+
 export function watchMap(map, getModel, onReady) {
+  let t = null;
   map.on('moveend', () => {
-    clearTimeout(debounceT);
-    debounceT = setTimeout(async () => {
+    clearTimeout(t);
+    t = setTimeout(async () => {
       if (!covered(map, getModel()) && await ensureGrid(map, getModel())) onReady();
-    }, REFETCH_DEBOUNCE);
+    }, 700);
   });
 }
 
-/** Legend spec for the active layer: [{color, label}] */
+/** Legend for the active colour field. */
 export function legend(layer) {
   const fmt = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
   switch (layer) {
@@ -271,9 +333,6 @@ export function legend(layer) {
       return { title: layer === 'top' ? 'Thermal top MSL' : 'Cloud base MSL',
         items: [[1000, '1 km'], [1800, '1.8'], [2600, '2.6'], [3400, '3.4'], [4200, '4.2+']]
           .map(([v, l]) => ({ color: fmt(ramp(ALT_STOPS, v)), label: l })) };
-    case 'wind':
-      return { title: 'Wind km/h', items: [[10, '10'], [20, '20'], [30, '30'], [45, '45+']]
-        .map(([v, l]) => ({ color: fmt(ramp(WIND_STOPS, v)), label: l })) };
     default:
       return null;
   }

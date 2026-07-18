@@ -15,6 +15,7 @@ import * as XMap from './modules/map.js';
 import * as Grid from './modules/grid.js';
 import * as Takeoffs from './modules/takeoffs.js';
 import * as Plan from './modules/planning.js';
+import * as Recommend from './modules/recommend.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -22,12 +23,16 @@ import { installResumeHardening } from './modules/resume.js';
 const DEFAULT_LOC = { name: 'Babadağ, Turkey', lat: 36.55, lon: 29.13 };
 
 const savedModel = localStorage.getItem('xcsky.model');
+let savedColor = localStorage.getItem('xcsky.color') || localStorage.getItem('xcsky.layer');
+if (!savedColor || savedColor === 'wind') savedColor = 'climb';   // 'wind' is now a toggle
 const state = {
   loc: Loc.loadLast() || DEFAULT_LOC,
   // Reset any saved model that's no longer offered (e.g. ECMWF/ICON, which
   // lack boundary-layer height and so produce an all-zero forecast).
   model: MODELS.some((m) => m.id === savedModel) ? savedModel : 'best_match',
-  layer: localStorage.getItem('xcsky.layer') || 'climb',
+  color: savedColor,                                  // colour field: climb/top/base/off
+  windOn: localStorage.getItem('xcsky.wind') === '1', // wind barbs overlay
+  convOn: localStorage.getItem('xcsky.conv') === '1', // convergence overlay
   forecast: null,      // point forecast for state.loc
   days: [],
   dayIndex: 0,
@@ -38,6 +43,7 @@ const state = {
 
 let tkLayer = null;      // Leaflet layer group for ranked takeoff markers
 let tkSites = [];        // last-fetched launch sites for the viewport
+let recLayer = null;     // suggested-route + best-launch layer
 
 const $ = (id) => document.getElementById(id);
 
@@ -145,7 +151,9 @@ function renderAll() {
 function renderOverlay() {
   const day = currentDay();
   if (!day) return;
-  Grid.render(XMap.getMap(), state.layer, day.dayKey, currentHourOfDay());
+  Grid.render(XMap.getMap(),
+    { color: state.color, wind: state.windOn, convergence: state.convOn },
+    day.dayKey, currentHourOfDay());
   if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new time
   updateHourReadout();
 }
@@ -208,6 +216,73 @@ function toggleTakeoffs() {
   }
 }
 
+// ── "maximise the day": best launch + suggested route ────────────────────────
+async function runRecommend() {
+  const day = currentDay();
+  if (!day || !Grid.gridReady()) { setStatus('Forecast still loading…', 'error'); setTimeout(clearStatus, 1800); return; }
+  setStatus('Finding the best of the day…', 'loading');
+
+  // Best launch: top-ranked takeoff at the day's peak hour, else the point itself.
+  const s = summariseDay(day.hours, state.forecast.elevation);
+  const peakHour = s.bestHour ? s.bestHour.hourOfDay : 13;
+  let start = { lat: state.loc.lat, lon: state.loc.lon }, startName = state.loc.name;
+  try {
+    const sites = await Takeoffs.fetchTakeoffs(XMap.getMap().getBounds());
+    const ranked = Takeoffs.rankSites(sites, day.dayKey, peakHour);
+    if (ranked.length) { start = { lat: ranked[0].site.lat, lon: ranked[0].site.lon }; startName = ranked[0].site.name; }
+  } catch { /* no takeoffs → launch from the current point */ }
+
+  // Soarable window sampled from the grid at the launch (consistent with the map).
+  const hours = [];
+  for (let h = 7; h <= 20; h++) {
+    const wx = Grid.sampleAt(start.lat, start.lon, day.dayKey, h);
+    if (wx && wx.climb >= 0.5) hours.push(h);
+  }
+  const route = Recommend.recommendRoute(start, day.dayKey, hours);
+  clearStatus();
+  drawRecommendation(start, startName, route, hours, peakHour);
+}
+
+function drawRecommendation(start, startName, route, hours, peakHour) {
+  if (!recLayer) recLayer = L.layerGroup().addTo(XMap.getMap());
+  recLayer.clearLayers();
+
+  L.marker([start.lat, start.lon], {
+    icon: L.divIcon({ className: '', html: '<div class="rec-start">★</div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+    zIndexOffset: 1000,
+  }).addTo(recLayer);
+
+  let body;
+  if (route && route.km >= 3) {
+    L.polyline(route.path.map((p) => [p.lat, p.lon]), { color: '#f2c14e', weight: 4, opacity: 0.95 }).addTo(recLayer);
+    const end = route.path[route.path.length - 1];
+    L.circleMarker([end.lat, end.lon], { radius: 5, color: '#fff', weight: 2, fillColor: '#f2c14e', fillOpacity: 1 }).addTo(recLayer);
+    const win = hours.length ? `${String(hours[0]).padStart(2, '0')}–${String(hours[hours.length - 1]).padStart(2, '0')}h` : '';
+    const kmR = Math.round(route.km / 10) * 10;
+    body = `<b>Best of the day</b><br>Launch <span class="rec-hi">${startName}</span>, fly <b>${Recommend.bearingLabel(route.bearing)}</b><br>` +
+      `~<span class="rec-hi">${kmR} km</span> on a strong line, ${route.hoursFlown}h window${win ? ` (${win})` : ''}`;
+  } else {
+    body = `<b>${startName}</b> is today's pick, but the day looks weak — little usable climb for going XC.`;
+  }
+  const t = $('rec-toast');
+  t.querySelector('.rec-toast-body').innerHTML = body;
+  t.classList.remove('hidden');
+  $('rec-btn').setAttribute('aria-pressed', 'true');
+
+  // Frame it: thermals field, peak time, centred on the launch.
+  state.color = 'climb'; localStorage.setItem('xcsky.color', 'climb');
+  const idx = currentDay().hours.findIndex((h) => h.hourOfDay >= peakHour);
+  if (idx >= 0) { state.hourIndex = idx; $('hour-slider').value = String(idx); }
+  XMap.flyTo(start, Math.max(XMap.getMap().getZoom(), 9));
+  renderLayerChips(); renderLegend(); renderOverlay();
+}
+
+function clearRecommend() {
+  if (recLayer) recLayer.clearLayers();
+  $('rec-toast').classList.add('hidden');
+  $('rec-btn').setAttribute('aria-pressed', 'false');
+}
+
 // ── task planner ──────────────────────────────────────────────────────────────
 function renderPlanStats(st) {
   if (!st || st.n === 0) { $('plan-stats').textContent = 'Tap the map to drop turnpoints'; return; }
@@ -229,14 +304,14 @@ function renderLocName() { $('loc-name').textContent = state.loc.name; }
 function renderLayerChips() {
   const el = $('layer-chips');
   el.innerHTML = '';
-  for (const l of Grid.LAYERS) {
+  for (const l of Grid.COLOR_LAYERS) {
     const b = document.createElement('button');
-    b.className = 'layer-chip' + (l.id === state.layer ? ' active' : '');
+    b.className = 'layer-chip' + (l.id === state.color ? ' active' : '');
     b.textContent = l.label;
     b.setAttribute('role', 'tab');
     b.onclick = () => {
-      state.layer = l.id;
-      localStorage.setItem('xcsky.layer', l.id);
+      state.color = l.id;
+      localStorage.setItem('xcsky.color', l.id);
       renderLayerChips();
       renderLegend();
       renderOverlay();
@@ -246,11 +321,17 @@ function renderLayerChips() {
 }
 
 function renderLegend() {
-  const spec = Grid.legend(state.layer);
+  const spec = Grid.legend(state.color);
   const el = $('legend');
-  if (!spec) { el.innerHTML = ''; return; }
-  el.innerHTML = `<span class="legend-title">${spec.title}</span>` +
-    spec.items.map((it) => `<span class="legend-item"><i style="background:${it.color}"></i>${it.label}</span>`).join('');
+  let html = '';
+  if (spec) {
+    html = `<span class="legend-title">${spec.title}</span>` +
+      spec.items.map((it) => `<span class="legend-item"><i style="background:${it.color}"></i>${it.label}</span>`).join('');
+  }
+  if (state.convOn) {
+    html += `<span class="legend-item"><i style="background:#7cf0ff"></i>convergence</span>`;
+  }
+  el.innerHTML = html;
 }
 
 function renderDayTabs() {
@@ -475,7 +556,26 @@ function wireEvents() {
       count === total ? `${count} pilots live` : `${count}🪂 · ${total} aloft`;
   });
 
+  // Overlay toggles (stack over the colour field)
+  $('wind-toggle').setAttribute('aria-pressed', String(state.windOn));
+  $('conv-toggle').setAttribute('aria-pressed', String(state.convOn));
+  $('wind-toggle').onclick = () => {
+    state.windOn = !state.windOn;
+    localStorage.setItem('xcsky.wind', state.windOn ? '1' : '0');
+    $('wind-toggle').setAttribute('aria-pressed', String(state.windOn));
+    renderOverlay();
+  };
+  $('conv-toggle').onclick = () => {
+    state.convOn = !state.convOn;
+    localStorage.setItem('xcsky.conv', state.convOn ? '1' : '0');
+    $('conv-toggle').setAttribute('aria-pressed', String(state.convOn));
+    renderOverlay();
+  };
+
   // Tools
+  $('rec-btn').onclick = () =>
+    ($('rec-btn').getAttribute('aria-pressed') === 'true' ? clearRecommend() : runRecommend());
+  $('rec-clear').onclick = clearRecommend;
   $('tk-btn').onclick = toggleTakeoffs;
   $('plan-btn').onclick = togglePlan;
   $('plan-undo').onclick = () => Plan.undo();
