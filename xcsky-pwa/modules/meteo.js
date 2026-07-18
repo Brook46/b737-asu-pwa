@@ -76,6 +76,26 @@ export async function reverseLabel(lat, lon) {
   } catch { return ''; }
 }
 
+// Country lookups are cached on a coarse grid so the route fence costs at most
+// a handful of requests. Returns an ISO country code, or '' over the sea /
+// on error (which the fence treats as out-of-bounds).
+const _countryCache = new Map();
+export async function reverseCountry(lat, lon) {
+  const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+  if (_countryCache.has(key)) return _countryCache.get(key);
+  let code = '';
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const d = await res.json();
+      code = (d.countryCode || '').toUpperCase();   // '' when offshore
+    }
+  } catch { /* keep '' */ }
+  _countryCache.set(key, code);
+  return code;
+}
+
 /**
  * Fetch the full soaring forecast for a point.
  * @returns {Promise<Forecast>} normalised structure (see below).

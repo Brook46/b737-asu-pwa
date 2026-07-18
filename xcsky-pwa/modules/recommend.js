@@ -76,6 +76,13 @@ export function recommendRoute(start, dayKey, hours) {
   return { path, km, bearing: Math.round(bearingSum / flown), hoursFlown: flown };
 }
 
+/** Total length (km) of a [{lat,lon}] path. */
+export function pathDistance(path) {
+  let km = 0;
+  for (let i = 1; i < path.length; i++) km += haversineKm(path[i - 1], path[i]);
+  return km;
+}
+
 /** Compass label for a bearing. */
 export function bearingLabel(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];

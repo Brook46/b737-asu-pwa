@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=5">
+  <link rel="stylesheet" href="app.css?v=6">
 </head>
 <body>
   <!-- The map IS the app -->
@@ -170,9 +170,17 @@
       </div>
       <h3 class="saved-head">Saved spots</h3>
       <div id="saved-list" class="saved-list"></div>
+
+      <h3 class="saved-head">Airspace &amp; webcam keys</h3>
+      <p class="key-note">Optional, free &amp; stored only on this device. Airspace (CTR / no-fly) needs an
+        <a href="https://www.openaip.net" target="_blank" rel="noopener">OpenAIP</a> key; webcams need a
+        <a href="https://api.windy.com/keys" target="_blank" rel="noopener">Windy</a> key. Then enable them in the map's layers menu.</p>
+      <div class="key-row"><input id="openaip-key" type="text" placeholder="OpenAIP API key" autocomplete="off" spellcheck="false"></div>
+      <div class="key-row"><input id="windy-key" type="text" placeholder="Windy Webcams API key" autocomplete="off" spellcheck="false"></div>
+      <button id="keys-save" class="wide-btn ghost">Save keys</button>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

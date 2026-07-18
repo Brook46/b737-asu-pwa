@@ -158,6 +158,23 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   filter: drop-shadow(0 0 2px rgba(0,0,0,.8)) drop-shadow(0 0 1px rgba(255,255,255,.6));
   transform-origin: 50% 60%;
 }
+/* live wind-station markers (Pioupiou) */
+.ws-icon { background: none; border: none; }
+.ws-marker {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 5px 1px 3px;
+  background: rgba(10,15,26,.82); border: 1.5px solid var(--c, #8a93a6); border-radius: 999px;
+  box-shadow: 0 0 4px rgba(0,0,0,.7); font-variant-numeric: tabular-nums;
+}
+.ws-arrow {
+  width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-bottom: 11px solid var(--c, #8a93a6); transform-origin: 50% 60%;
+}
+.ws-spd { color: #eef3fb; font-size: .72rem; font-weight: 700; line-height: 1; }
+
+/* webcam markers (Windy) */
+.wc-icon { background: none; border: none; }
+.wc-pin { color: #5ec2ff; font-size: 1.1rem; text-shadow: 0 0 4px rgba(0,0,0,.9); }
+
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card-2); color: var(--ink); }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
 .leaflet-bottom.leaflet-right { bottom: 175px; }   /* zoom control above the dock */
@@ -332,6 +349,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 
 .saved-head { font-size: .8rem; color: var(--muted); margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .5px; }
+.key-note { font-size: .74rem; color: var(--muted); line-height: 1.5; margin: 0 0 8px; }
+.key-row { margin-bottom: 6px; }
+.key-row input {
+  width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; color: var(--ink); font-size: .9rem; font-family: ui-monospace, monospace;
+}
 .saved-list { display: grid; gap: 6px; }
 .save-current { text-align: left; background: transparent; border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; color: var(--accent); font-size: .88rem; }
 .saved-item { display: flex; gap: 6px; }
