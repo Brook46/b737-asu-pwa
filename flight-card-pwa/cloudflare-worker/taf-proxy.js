@@ -87,6 +87,10 @@ export default {
       return handleIcal(url);
     }
 
+    if (url.pathname === '/pge') {
+      return handlePge(url);
+    }
+
     const lb = url.pathname.match(LOGBOOK_RE);
     if (lb) {
       if (!env || !env.LOGBOOK) {
@@ -172,6 +176,43 @@ async function handleIcal(url) {
         'content-type': 'text/calendar; charset=utf-8',
         'access-control-allow-origin': '*',
         'cache-control': 'public, max-age=300',
+      },
+    });
+  } catch (err) {
+    return text('Upstream unreachable: ' + err.message, 502);
+  }
+}
+
+// ---------- /pge ------------------------------------------------------------
+// CORS shim for ParaglidingEarth's launch-site database, used by the Sky
+// Monkeys (xcsky) PWA to rank takeoffs. PGE serves no Access-Control header,
+// so the browser can't read it directly. We only proxy the read-only
+// bounding-box endpoint, clamp the box so it can't be abused to pull the whole
+// planet, and cache hard (launch data changes on the order of days).
+//
+//   GET /pge?n=<lat>&s=<lat>&e=<lon>&w=<lon>[&limit=<n>]
+async function handlePge(url) {
+  const n = parseFloat(url.searchParams.get('n'));
+  const s = parseFloat(url.searchParams.get('s'));
+  const e = parseFloat(url.searchParams.get('e'));
+  const w = parseFloat(url.searchParams.get('w'));
+  if (![n, s, e, w].every(Number.isFinite)) return text('Missing/invalid bbox', 400);
+  // Reject absurdly large boxes (keep the upstream query cheap).
+  if (n - s > 8 || e - w > 8 || n < s || e < w) return text('Bounding box too large', 400);
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 200);
+
+  const upstream = 'https://www.paraglidingearth.com/api/geojson/getBoundingBoxSites.php'
+    + `?north=${n.toFixed(4)}&south=${s.toFixed(4)}&east=${e.toFixed(4)}&west=${w.toFixed(4)}`
+    + `&style=detailled&limit=${limit}`;
+  try {
+    const res = await fetch(upstream, { cf: { cacheTtl: 86400, cacheEverything: true } });
+    const body = await res.text();
+    return new Response(body, {
+      status: res.status,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=86400',
       },
     });
   } catch (err) {
