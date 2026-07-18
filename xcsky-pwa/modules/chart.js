@@ -63,7 +63,10 @@ function css(name, fallback) {
  */
 export function drawTimeHeight(canvas, day, terrain, opts = {}) {
   const hours = day.hours;
-  const cssW = canvas.clientWidth || opts.width || 340;
+  // Measure the wrapper, not the canvas: setupCanvas pins style.width, so the
+  // canvas's own clientWidth goes stale when the container resizes (phone).
+  const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 12 : 0;
+  const cssW = wrapW > 40 ? wrapW : (canvas.clientWidth || opts.width || 340);
   const cssH = opts.height || 260;
   const ctx = setupCanvas(canvas, cssW, cssH);
   ctx.clearRect(0, 0, cssW, cssH);
@@ -189,7 +192,8 @@ export function drawTimeHeight(canvas, day, terrain, opts = {}) {
  * winds up the height axis with a matching altitude scale.
  */
 export function drawWindProfile(canvas, hr, terrain, opts = {}) {
-  const cssW = canvas.clientWidth || 120;
+  const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 12 : 0;
+  const cssW = wrapW > 30 ? wrapW : (canvas.clientWidth || 120);
   const cssH = opts.height || 260;
   const ctx = setupCanvas(canvas, cssW, cssH);
   ctx.clearRect(0, 0, cssW, cssH);

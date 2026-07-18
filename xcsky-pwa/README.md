@@ -9,20 +9,24 @@ Lives in the suite at `…/b737-asu-pwa/xcsky-pwa/` (folder name is historical).
 
 ## What it shows
 
-- **7-day time-height thermal plot** — each hour of the day is a column coloured
-  by achievable climb rate, from the ground up to the working top, with the
-  cumulus cloud-base line and terrain drawn in.
-- **Day summary** — flyability score (0–100), the soarable window, max thermal
-  strength and max height for each of the next 7 days.
-- **Hour detail** — thermal top, cloud base (cumulus vs blue), net climb + star
-  rating, surface wind & gust, wind at the working top, freezing level, and an
-  over-development / thunderstorm risk gauge.
-- **Wind profile** — standard barbs up the height axis for the selected hour.
-- **Full map** — satellite & topo bases, **KK7 thermal hotspots** and **KK7
-  skyways** overlays (thermal.kk7.ch), and **live pilots** with heading, altitude,
-  climb and age, tap any point → "Forecast here".
-- **Location** — GPS, place search, saved spots, map picking. Metric/imperial
-  toggle (m·km/h ↔ ft·kt).
+The **map is the app** (SkySight-style): a full-screen map with the forecast
+painted over it, phone-first.
+
+- **Gridded weather overlay — the main feature.** A lattice of Open-Meteo point
+  forecasts covering the viewport is fetched in one batched call and painted as
+  a smooth colour field. Layers: **Thermals** (net climb m/s), **Top** (thermal
+  top MSL), **Base** (cumulus cloud base; blue holes transparent), **Wind**
+  (speed field + direction arrows). Scrub any of 7 days × 24 h — recolouring is
+  instant from cache; pan/zoom refetches for the new area automatically.
+- **KK7 overlays** — proven thermal hotspots & skyways from thermal.kk7.ch
+  (layer control, top-right).
+- **Live pilots** — OGN positions with heading, altitude, climb, age (20 s poll).
+- **Tap anywhere → point forecast** in a bottom sheet: day summary (flyability
+  0–100, soarable window), the 24 h time-height thermal plot, wind-barb profile,
+  and detail cards (top, base, climb + stars, surface & altitude wind, freezing
+  level, over-development risk).
+- **Location** — GPS, place search, saved spots. Metric/imperial toggle
+  (m·km/h ↔ ft·kt).
 
 ## Live pilots — why OGN
 
@@ -64,7 +68,8 @@ modules/
   chart.js     canvas time-height plot + wind-barb profile
   units.js     metric/imperial formatting
   location.js  GPS, search, saved spots
-  map.js       full map: bases, KK7 overlays, live pilots, pick-a-point
+  map.js       the always-on main map: bases, KK7 overlays, live pilots
+  grid.js      gridded weather overlay: batched fetch, physics, canvas paint
   pilots.js    OGN live-pilot fetch/parse (lxml), type colours
   resume.js    iOS PWA resume-hardening
 ```

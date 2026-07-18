@@ -1,5 +1,10 @@
-// app.js — Sky Monkeys orchestration. Wires the data layer, soaring physics,
-// charts and the map to the UI. Vanilla ES modules, no framework.
+// app.js — Sky Monkeys orchestration, map-first.
+//
+// The map with the gridded weather overlay IS the main screen (SkySight-style):
+// pick a layer (thermals / top / base / wind), scrub day+hour, and the whole
+// viewport re-colours instantly from the cached grid. Tap anywhere → the point
+// forecast (time-height chart, wind profile, detail cards) opens as a bottom
+// sheet. Vanilla ES modules, no framework.
 
 import { fetchForecast, groupByDay, MODELS, reverseLabel } from './modules/meteo.js';
 import { deriveHour, summariseDay } from './modules/soaring.js';
@@ -7,6 +12,7 @@ import { drawTimeHeight, drawWindProfile, liftColor } from './modules/chart.js';
 import * as U from './modules/units.js';
 import * as Loc from './modules/location.js';
 import * as XMap from './modules/map.js';
+import * as Grid from './modules/grid.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -19,10 +25,11 @@ const state = {
   // Reset any saved model that's no longer offered (e.g. ECMWF/ICON, which
   // lack boundary-layer height and so produce an all-zero forecast).
   model: MODELS.some((m) => m.id === savedModel) ? savedModel : 'best_match',
-  forecast: null,
+  layer: localStorage.getItem('xcsky.layer') || 'climb',
+  forecast: null,      // point forecast for state.loc
   days: [],
   dayIndex: 0,
-  hourIndex: null,   // index into the selected day's hours
+  hourIndex: null,     // index into the selected day's hours
   loading: false,
 };
 
@@ -32,18 +39,32 @@ const $ = (id) => document.getElementById(id);
 function boot() {
   populateModelSelect();
   syncUnitsButton();
+  renderLayerChips();
   wireEvents();
-  installResumeHardening(() => { if (!state.loading) refresh(true); });
+  installResumeHardening(() => { if (!state.loading) refreshAll(true); });
 
-  // If we have no saved location, try GPS once (falls back to default silently).
-  if (!Loc.loadLast()) {
-    Loc.geolocate()
-      .then((loc) => { state.loc = loc; Loc.saveLast(loc); renderLocName(); refresh(); })
-      .catch(() => { renderLocName(); refresh(); });
-  } else {
+  const start = () => {
     renderLocName();
-    refresh();
-  }
+    XMap.initMainMap('bigmap', {
+      center: state.loc,
+      onPick: onMapPick,
+    });
+    Grid.watchMap(XMap.getMap(), () => state.model, renderOverlay);
+    refreshAll();
+  };
+
+  // Leaflet loads deferred; wait for it before building the map.
+  const waitL = () => (window.L ? afterGps(start) : setTimeout(waitL, 50));
+  waitL();
+}
+
+/** Try GPS once when there's no saved location, then continue. */
+function afterGps(next) {
+  if (Loc.loadLast()) { next(); return; }
+  Loc.geolocate()
+    .then((loc) => { state.loc = loc; Loc.saveLast(loc); })
+    .catch(() => { /* keep default */ })
+    .finally(next);
 }
 
 function populateModelSelect() {
@@ -53,12 +74,16 @@ function populateModelSelect() {
 }
 
 // ── data ─────────────────────────────────────────────────────────────────────
-async function refresh(quiet = false) {
+/** Refresh both the point forecast and the map grid. */
+async function refreshAll(quiet = false) {
   if (state.loading) return;
   state.loading = true;
   if (!quiet) setStatus('Loading forecast…', 'loading');
   try {
-    const fc = await fetchForecast({ lat: state.loc.lat, lon: state.loc.lon, model: state.model, days: 7 });
+    const [fc] = await Promise.all([
+      fetchForecast({ lat: state.loc.lat, lon: state.loc.lon, model: state.model, days: 7 }),
+      Grid.ensureGrid(XMap.getMap(), state.model),
+    ]);
     state.forecast = fc;
     state.days = groupByDay(fc);
     if (state.dayIndex >= state.days.length) state.dayIndex = 0;
@@ -67,7 +92,7 @@ async function refresh(quiet = false) {
     renderAll();
   } catch (err) {
     console.error(err);
-    setStatus(`Couldn't load forecast: ${err.message}. Tap to retry.`, 'error', () => refresh());
+    setStatus(`Couldn't load forecast: ${err.message}. Tap to retry.`, 'error', () => refreshAll());
   } finally {
     state.loading = false;
   }
@@ -83,22 +108,62 @@ function pickDefaultHour() {
   let idx = bestHour ? day.hours.findIndex((h) => h.iso === bestHour.iso) : -1;
   if (isToday) {
     const cur = day.hours.findIndex((h) => h.hourOfDay >= now.getHours());
-    if (cur >= 0) idx = cur;
+    if (cur >= 0 && idx < cur) idx = cur;
   }
   state.hourIndex = idx >= 0 ? idx : Math.min(13, day.hours.length - 1);
+}
+
+function currentDay() { return state.days[state.dayIndex]; }
+function currentHourOfDay() {
+  const day = currentDay();
+  if (!day || state.hourIndex == null) return 13;
+  return day.hours[state.hourIndex]?.hourOfDay ?? 13;
 }
 
 // ── render ───────────────────────────────────────────────────────────────────
 function renderAll() {
   renderDayTabs();
-  renderSummary();
-  renderCharts();
+  renderOverlay();
   renderLegend();
   syncSlider();
-  renderDetail();
+  renderSheet();
+}
+
+function renderOverlay() {
+  const day = currentDay();
+  if (!day) return;
+  Grid.render(XMap.getMap(), state.layer, day.dayKey, currentHourOfDay());
+  updateHourReadout();
 }
 
 function renderLocName() { $('loc-name').textContent = state.loc.name; }
+
+function renderLayerChips() {
+  const el = $('layer-chips');
+  el.innerHTML = '';
+  for (const l of Grid.LAYERS) {
+    const b = document.createElement('button');
+    b.className = 'layer-chip' + (l.id === state.layer ? ' active' : '');
+    b.textContent = l.label;
+    b.setAttribute('role', 'tab');
+    b.onclick = () => {
+      state.layer = l.id;
+      localStorage.setItem('xcsky.layer', l.id);
+      renderLayerChips();
+      renderLegend();
+      renderOverlay();
+    };
+    el.appendChild(b);
+  }
+}
+
+function renderLegend() {
+  const spec = Grid.legend(state.layer);
+  const el = $('legend');
+  if (!spec) { el.innerHTML = ''; return; }
+  el.innerHTML = `<span class="legend-title">${spec.title}</span>` +
+    spec.items.map((it) => `<span class="legend-item"><i style="background:${it.color}"></i>${it.label}</span>`).join('');
+}
 
 function renderDayTabs() {
   const tabs = $('day-tabs');
@@ -110,15 +175,24 @@ function renderDayTabs() {
     const score = s.best ? s.best.flyable.score : 0;
     btn.innerHTML = `
       <span class="day-tab-name">${U.dayLabel(day.date)}</span>
-      <span class="day-tab-dot" style="background:${flyColor(score)}"></span>
-      <span class="day-tab-climb">${s.maxClimb >= 0.3 ? s.maxClimb.toFixed(1) : '·'}</span>`;
+      <span class="day-tab-dot" style="background:${flyColor(score)}"></span>`;
     btn.onclick = () => { state.dayIndex = i; pickDefaultHour(); renderAll(); };
     tabs.appendChild(btn);
   });
 }
 
+// ── point-forecast sheet ─────────────────────────────────────────────────────
+function renderSheet() {
+  if ($('fc-sheet').classList.contains('hidden')) return;
+  $('fc-title').textContent = state.loc.name;
+  renderSummary();
+  renderCharts();
+  renderChartLegend();
+  renderDetail();
+}
+
 function renderSummary() {
-  const day = state.days[state.dayIndex];
+  const day = currentDay();
   const el = $('summary');
   if (!day) { el.innerHTML = ''; return; }
   const terrain = state.forecast.elevation;
@@ -143,23 +217,20 @@ function renderSummary() {
     </div>`;
 }
 
-function renderCharts() {
-  const day = state.days[state.dayIndex];
-  if (!day) return;
-  const terrain = state.forecast.elevation;
-  const th = $('th-chart');
-  chartHit = drawTimeHeight(th, day, terrain, { height: 260, selectedIndex: state.hourIndex });
-  const hr = day.hours[state.hourIndex];
-  if (hr) drawWindProfile($('wind-chart'), hr, terrain, { height: 260 });
-}
-
 let chartHit = null;
 
-function renderLegend() {
-  const items = [
-    ['0.5', 'weak'], ['1.0', ''], ['1.5', 'good'], ['2.0', ''], ['3.0', 'strong'],
-  ];
-  $('legend').innerHTML =
+function renderCharts() {
+  const day = currentDay();
+  if (!day || $('fc-sheet').classList.contains('hidden')) return;
+  const terrain = state.forecast.elevation;
+  chartHit = drawTimeHeight($('th-chart'), day, terrain, { height: 240, selectedIndex: state.hourIndex });
+  const hr = day.hours[state.hourIndex];
+  if (hr) drawWindProfile($('wind-chart'), hr, terrain, { height: 240 });
+}
+
+function renderChartLegend() {
+  const items = [['0.5', 'weak'], ['1.0', ''], ['1.5', 'good'], ['2.0', ''], ['3.0', 'strong']];
+  $('chart-legend').innerHTML =
     `<span class="legend-title">Climb m/s</span>` +
     items.map(([v, lab]) =>
       `<span class="legend-item"><i style="background:${liftColor(+v)}"></i>${v}${lab ? ' ' + lab : ''}</span>`
@@ -167,16 +238,14 @@ function renderLegend() {
 }
 
 function renderDetail() {
-  const day = state.days[state.dayIndex];
+  const day = currentDay();
   const el = $('detail');
   if (!day || state.hourIndex == null) { el.innerHTML = ''; return; }
   const terrain = state.forecast.elevation;
   const hr = day.hours[state.hourIndex];
   const d = deriveHour(hr, terrain);
 
-  const cloud = d.cumulus
-    ? `Cu ${U.alt(d.cloudBase)}`
-    : (d.blDepth ? 'Blue' : '—');
+  const cloud = d.cumulus ? `Cu ${U.alt(d.cloudBase)}` : (d.blDepth ? 'Blue' : '—');
   const windTop = topWind(hr, terrain);
   const stars = '★'.repeat(d.stars) + '☆'.repeat(5 - d.stars);
 
@@ -218,7 +287,7 @@ function topWind(hr, terrain) {
 }
 
 function syncSlider() {
-  const day = state.days[state.dayIndex];
+  const day = currentDay();
   const slider = $('hour-slider');
   if (!day) return;
   slider.min = '0';
@@ -228,7 +297,7 @@ function syncSlider() {
 }
 
 function updateHourReadout() {
-  const day = state.days[state.dayIndex];
+  const day = currentDay();
   if (!day || state.hourIndex == null) return;
   const hr = day.hours[state.hourIndex];
   const d = deriveHour(hr, state.forecast.elevation);
@@ -256,21 +325,43 @@ function setStatus(msg, kind, onClick) {
 function clearStatus() { $('status').className = 'status hidden'; }
 
 // ── events ────────────────────────────────────────────────────────────────────
+function onMapPick(p) {
+  reverseLabel(p.lat, p.lon).catch(() => '').then((name) => {
+    setLocation({ name: name || `${p.lat.toFixed(2)}, ${p.lon.toFixed(2)}`, lat: p.lat, lon: p.lon }, { fly: false });
+    openSheet();
+  });
+}
+
+function setLocation(loc, { fly = true } = {}) {
+  state.loc = { name: loc.name, lat: loc.lat, lon: loc.lon };
+  Loc.saveLast(state.loc);
+  renderLocName();
+  if (fly) XMap.flyTo(state.loc);
+  else XMap.setSpot(state.loc);
+  refreshAll();
+}
+
+function openSheet() { $('fc-sheet').classList.remove('hidden'); renderSheet(); }
+function closeSheet() { $('fc-sheet').classList.add('hidden'); }
+
 function wireEvents() {
   $('units-btn').onclick = () => { U.toggleSystem(); syncUnitsButton(); renderAll(); };
   $('model-select').onchange = (e) => {
     state.model = e.target.value;
     localStorage.setItem('xcsky.model', state.model);
-    refresh();
+    refreshAll();
   };
 
   const slider = $('hour-slider');
   slider.oninput = () => {
     state.hourIndex = +slider.value;
-    updateHourReadout();
-    renderCharts();
-    renderDetail();
+    renderOverlay();
+    if (!$('fc-sheet').classList.contains('hidden')) { renderCharts(); renderDetail(); }
   };
+
+  $('fc-open').onclick = openSheet;
+  $('fc-close').onclick = closeSheet;
+  $('fc-sheet').addEventListener('click', (e) => { if (e.target === $('fc-sheet')) closeSheet(); });
 
   // Tap/drag the time-height chart to select an hour.
   const th = $('th-chart');
@@ -279,33 +370,36 @@ function wireEvents() {
     const rect = th.getBoundingClientRect();
     state.hourIndex = chartHit.hourAtX(clientX - rect.left);
     $('hour-slider').value = String(state.hourIndex);
-    updateHourReadout(); renderCharts(); renderDetail();
+    renderOverlay(); renderCharts(); renderDetail();
   };
   th.addEventListener('pointerdown', (e) => { pick(e.clientX); th.setPointerCapture(e.pointerId); });
   th.addEventListener('pointermove', (e) => { if (e.buttons) pick(e.clientX); });
 
-  // Redraw charts on resize (canvas is CSS-sized).
   let rt = null;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderCharts, 150); });
 
+  document.addEventListener('pilots', (e) => {
+    const { count, total } = e.detail;
+    $('pilot-count').textContent =
+      count === total ? `${count} pilots live` : `${count}🪂 · ${total} aloft`;
+  });
+
   wireLocationSheet();
-  wireMapView();
 }
 
 function syncUnitsButton() {
-  $('units-btn').textContent = U.getSystem() === 'imperial' ? 'ft · kt' : 'm · km/h';
+  $('units-btn').textContent = U.getSystem() === 'imperial' ? 'ft·kt' : 'm·km/h';
 }
 
 // ── location sheet ────────────────────────────────────────────────────────────
 function wireLocationSheet() {
   const sheet = $('loc-sheet');
-  const open = () => { sheet.classList.remove('hidden'); renderSaved(); $('search-input').focus(); };
+  const open = () => { sheet.classList.remove('hidden'); renderSaved(); };
   const close = () => { sheet.classList.add('hidden'); $('search-results').innerHTML = ''; $('search-input').value = ''; };
   $('loc-btn').onclick = open;
   $('loc-close').onclick = close;
   sheet.addEventListener('click', (e) => { if (e.target === sheet) close(); });
 
-  // Debounced search.
   let searchT = null;
   $('search-input').addEventListener('input', (e) => {
     clearTimeout(searchT);
@@ -317,7 +411,7 @@ function wireLocationSheet() {
         $('search-results').innerHTML = results.map((r, i) =>
           `<button class="result" data-i="${i}">${r.name}</button>`).join('') || '<div class="result-empty">No matches</div>';
         $('search-results').querySelectorAll('.result').forEach((b, i) => {
-          b.onclick = () => { setLocation(results[i], true); close(); };
+          b.onclick = () => { setLocation(results[i]); close(); };
         });
       } catch { $('search-results').innerHTML = '<div class="result-empty">Search failed</div>'; }
     }, 350);
@@ -327,17 +421,14 @@ function wireLocationSheet() {
     setStatus('Getting your location…', 'loading');
     try {
       const loc = await Loc.geolocate();
-      clearStatus(); setLocation(loc, true); close();
+      clearStatus(); setLocation(loc); close();
     } catch (err) { setStatus(err.message, 'error'); setTimeout(clearStatus, 2500); }
   };
-
-  $('pick-map-btn').onclick = () => { close(); openMapView(); };
 }
 
 function renderSaved() {
   const spots = Loc.loadSpots();
   const list = $('saved-list');
-  // Offer to save the current spot if it isn't already saved.
   const cur = state.loc;
   const saveBtn = `<button class="save-current" id="save-current">+ Save “${cur.name}”</button>`;
   if (!spots.length) {
@@ -349,62 +440,13 @@ function renderSaved() {
         <button class="saved-del" data-i="${i}" aria-label="Remove">✕</button>
       </div>`).join('');
     list.querySelectorAll('.saved-go').forEach((b, i) => {
-      b.onclick = () => { setLocation(spots[i], false); $('loc-sheet').classList.add('hidden'); };
+      b.onclick = () => { setLocation(spots[i]); $('loc-sheet').classList.add('hidden'); };
     });
     list.querySelectorAll('.saved-del').forEach((b, i) => {
       b.onclick = () => { Loc.removeSpot(spots[i]); renderSaved(); };
     });
   }
   $('save-current').onclick = () => { Loc.addSpot(cur); renderSaved(); };
-}
-
-// ── full-screen map (bases + KK7 overlays + live pilots) ─────────────────────
-let mapPicked = null;
-
-function openMapView() {
-  const view = $('map-view');
-  view.classList.remove('hidden');
-  mapPicked = { ...state.loc };
-  $('map-coords').textContent = `${state.loc.lat.toFixed(3)}, ${state.loc.lon.toFixed(3)}`;
-  // Wait a frame so the container has its full-screen size before Leaflet measures.
-  requestAnimationFrame(() => {
-    XMap.openMap('bigmap', {
-      center: state.loc,
-      onPick: (p) => { mapPicked = p; $('map-coords').textContent = `${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}`; },
-    });
-  });
-}
-
-function wireMapView() {
-  $('map-btn').onclick = openMapView;
-  $('map-close').onclick = () => { $('map-view').classList.add('hidden'); XMap.closeMap(); };
-  $('map-confirm').onclick = async () => {
-    if (mapPicked) {
-      const name = await reverseLabel(mapPicked.lat, mapPicked.lon).catch(() => '');
-      setLocation({ name: name || `${mapPicked.lat.toFixed(2)}, ${mapPicked.lon.toFixed(2)}`, lat: mapPicked.lat, lon: mapPicked.lon }, false);
-    }
-    $('map-view').classList.add('hidden');
-    XMap.closeMap();
-  };
-  $('pilots-filter').onclick = () => {
-    const soaring = !XMap.getSoaringOnly();
-    XMap.setSoaringOnly(soaring);
-    $('pilots-filter').textContent = soaring ? '🪂 soaring' : '✈️ all traffic';
-  };
-  document.addEventListener('pilots', (e) => {
-    const { count, total } = e.detail;
-    $('pilot-count').textContent =
-      count === total ? `${count} live pilots (OGN)` : `${count} soaring · ${total} total (OGN)`;
-  });
-}
-
-function setLocation(loc, saveLast) {
-  state.loc = { name: loc.name, lat: loc.lat, lon: loc.lon };
-  state.dayIndex = 0;
-  if (saveLast !== false) Loc.saveLast(state.loc);
-  else Loc.saveLast(state.loc);
-  renderLocName();
-  refresh();
 }
 
 // ── service worker ────────────────────────────────────────────────────────────

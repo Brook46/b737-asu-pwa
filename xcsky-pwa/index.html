@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>Sky Monkeys — free soaring forecast</title>
   <meta name="theme-color" content="#0a0f1a">
-  <meta name="description" content="Free thermal & cross-country soaring forecast for paraglider, hang-glider and sailplane pilots. 7-day time-height thermal plots, cloud base, wind profiles, KK7 thermal maps and live pilots.">
+  <meta name="description" content="Free soaring weather on the map: gridded thermal forecast, cloud base, wind, KK7 thermal maps and live pilots — for paraglider, hang-glider and sailplane pilots.">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -18,67 +18,71 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=2">
+  <link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark">🐒</span> Sky&nbsp;Monkeys</div>
-    <div class="topbar-right">
-      <select id="model-select" class="model-select" title="Weather model" aria-label="Weather model"></select>
-      <button id="map-btn" class="chip-btn" title="Map — thermals, skyways, live pilots">🗺️ Map</button>
-      <button id="units-btn" class="chip-btn" title="Toggle units">m · km/h</button>
-    </div>
-  </header>
+  <!-- The map IS the app -->
+  <div id="bigmap" class="bigmap"></div>
 
-  <!-- Location bar -->
-  <button id="loc-btn" class="loc-bar" aria-label="Change location">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
-      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>
-    </svg>
-    <span id="loc-name">Locating…</span>
-    <span class="loc-chevron">▾</span>
-  </button>
+  <!-- Floating header -->
+  <header class="topbar">
+    <button id="loc-btn" class="loc-chip" aria-label="Change location">
+      <span class="brand-mark">🐒</span>
+      <span id="loc-name">Locating…</span>
+      <span class="loc-chevron">▾</span>
+    </button>
+    <button id="units-btn" class="chip-btn glass" title="Toggle units">m·km/h</button>
+  </header>
 
   <!-- Status / error banner -->
   <div id="status" class="status hidden"></div>
 
-  <!-- Day selector -->
-  <nav id="day-tabs" class="day-tabs" aria-label="Forecast day"></nav>
-
-  <main id="content" class="content">
-    <!-- Day summary -->
-    <section id="summary" class="summary-card"></section>
-
-    <!-- Charts: time-height + wind profile -->
-    <section class="charts">
-      <div class="chart-wrap">
-        <canvas id="th-chart" class="th-chart" height="260"></canvas>
-      </div>
-      <div class="wind-wrap">
-        <canvas id="wind-chart" class="wind-chart" height="260" width="96"></canvas>
-      </div>
-    </section>
-
-    <!-- Lift legend -->
-    <div id="legend" class="legend"></div>
-
-    <!-- Hour scrubber -->
-    <div class="scrubber">
-      <input id="hour-slider" type="range" min="0" max="23" value="13" step="1" aria-label="Hour of day">
-      <div id="hour-readout" class="hour-readout">—</div>
+  <!-- Bottom dock: weather layer + time controls -->
+  <div class="dock">
+    <div class="dock-row">
+      <div id="legend" class="legend"></div>
+      <span id="pilot-count" class="pilot-count"></span>
     </div>
+    <div id="layer-chips" class="layer-chips" role="tablist" aria-label="Weather layer"></div>
+    <nav id="day-tabs" class="day-tabs" aria-label="Forecast day"></nav>
+    <div class="time-row">
+      <input id="hour-slider" type="range" min="0" max="23" value="13" step="1" aria-label="Hour of day">
+      <button id="fc-open" class="fc-btn" aria-label="Open point forecast">
+        <span id="hour-readout" class="hour-readout">—</span>
+        <span class="fc-btn-arrow">▲</span>
+      </button>
+    </div>
+  </div>
 
-    <!-- Selected-hour detail -->
-    <section id="detail" class="detail-grid"></section>
-
-    <p class="disclaimer">
-      Model guidance only — never a substitute for your own eyes, judgement and a proper
-      pre-flight check. Data: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>.
-    </p>
-  </main>
+  <!-- Point-forecast bottom sheet -->
+  <div id="fc-sheet" class="sheet hidden" role="region" aria-label="Point forecast">
+    <div class="sheet-panel fc-panel">
+      <div class="sheet-head">
+        <h2 id="fc-title">Forecast</h2>
+        <button id="fc-close" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <section id="summary" class="summary-card"></section>
+      <section class="charts">
+        <div class="chart-wrap">
+          <canvas id="th-chart" class="th-chart" height="240"></canvas>
+        </div>
+        <div class="wind-wrap">
+          <canvas id="wind-chart" class="wind-chart" height="240" width="84"></canvas>
+        </div>
+      </section>
+      <div id="chart-legend" class="legend"></div>
+      <section id="detail" class="detail-grid"></section>
+      <p class="disclaimer">
+        Model guidance only — never a substitute for your own eyes, judgement and a proper
+        pre-flight check. Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+        · hotspots: <a href="https://thermal.kk7.ch" target="_blank" rel="noopener">kk7</a>
+        · pilots: <a href="https://live.glidernet.org" target="_blank" rel="noopener">OGN</a>.
+      </p>
+    </div>
+  </div>
 
   <!-- Location sheet -->
-  <div id="loc-sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Choose location">
+  <div id="loc-sheet" class="sheet hidden" role="region" aria-label="Choose location">
     <div class="sheet-panel">
       <div class="sheet-head">
         <h2>Location</h2>
@@ -91,28 +95,15 @@
       <button id="use-gps" class="wide-btn">
         <span>📍</span> Use my location
       </button>
-      <button id="pick-map-btn" class="wide-btn ghost">
-        <span>🗺️</span> Pick on the map
-      </button>
+      <div class="model-row">
+        <label for="model-select">Weather model</label>
+        <select id="model-select" class="model-select" aria-label="Weather model"></select>
+      </div>
       <h3 class="saved-head">Saved spots</h3>
       <div id="saved-list" class="saved-list"></div>
     </div>
   </div>
 
-  <!-- Full-screen map: bases + KK7 thermal/skyways overlays + live pilots -->
-  <div id="map-view" class="map-view hidden" role="region" aria-label="Map">
-    <div id="bigmap" class="bigmap"></div>
-    <button id="map-close" class="icon-btn map-close" aria-label="Close map">✕</button>
-    <div class="map-bar">
-      <div class="map-bar-info">
-        <span id="map-coords" class="map-coords">—</span>
-        <span id="pilot-count" class="pilot-count"></span>
-      </div>
-      <button id="pilots-filter" class="chip-btn" title="Toggle non-soaring traffic">🪂 soaring</button>
-      <button id="map-confirm" class="wide-btn slim">Forecast here</button>
-    </div>
-  </div>
-
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
