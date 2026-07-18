@@ -1,24 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0e1830"/>
+      <stop offset="0" stop-color="#0e1a34"/>
       <stop offset="1" stop-color="#0a0f1a"/>
     </linearGradient>
     <linearGradient id="therm" x1="0" y1="1" x2="0" y2="0">
       <stop offset="0" stop-color="#e0453f"/>
-      <stop offset="0.45" stop-color="#f2c14e"/>
+      <stop offset=".45" stop-color="#f2c14e"/>
       <stop offset="1" stop-color="#7cc143"/>
     </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="62%" r="45%">
+      <stop offset="0" stop-color="#f2c14e" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#f2c14e" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
   <rect width="512" height="512" rx="112" fill="url(#sky)"/>
-  <!-- rising thermal column -->
-  <path d="M256 118 C230 170 300 200 268 250 C244 288 306 316 276 366 C256 398 300 420 256 452"
-        fill="none" stroke="url(#therm)" stroke-width="26" stroke-linecap="round"/>
-  <!-- cumulus cloud cap -->
-  <g fill="#eef2f8">
-    <ellipse cx="256" cy="150" rx="70" ry="30"/>
-    <circle cx="212" cy="150" r="30"/>
-    <circle cx="300" cy="150" r="30"/>
-    <circle cx="256" cy="128" r="34"/>
+  <circle cx="256" cy="300" r="180" fill="url(#glow)"/>
+
+  <!-- rising thermal the monkey is riding -->
+  <g fill="none" stroke="url(#therm)" stroke-width="22" stroke-linecap="round">
+    <path d="M256 486 C206 452 300 418 256 384 C216 352 300 322 262 300"/>
+  </g>
+
+  <!-- spread wings -->
+  <g fill="#eef3fb" stroke="#b7c2d6" stroke-width="4" stroke-linejoin="round">
+    <path d="M196 250 C132 206 74 220 52 236 C92 244 96 262 140 266 C98 278 96 300 74 312 C120 302 132 318 168 306 C150 330 152 348 142 362 C192 336 214 300 214 272 Z"/>
+    <path d="M316 250 C380 206 438 220 460 236 C420 244 416 262 372 266 C414 278 416 300 438 312 C392 302 380 318 344 306 C362 330 360 348 370 362 C320 336 298 300 298 272 Z"/>
+  </g>
+
+  <!-- crazy monkey head -->
+  <g>
+    <circle cx="182" cy="248" r="42" fill="#7d6047"/>
+    <circle cx="330" cy="248" r="42" fill="#7d6047"/>
+    <circle cx="182" cy="248" r="22" fill="#c39a72"/>
+    <circle cx="330" cy="248" r="22" fill="#c39a72"/>
+
+    <circle cx="256" cy="252" r="90" fill="#8d6e52"/>
+    <ellipse cx="256" cy="292" rx="64" ry="50" fill="#ecd8b6"/>
+
+    <!-- wild eyebrows -->
+    <path d="M196 196 q34 -14 58 6" fill="none" stroke="#4a3524" stroke-width="9" stroke-linecap="round"/>
+    <path d="M316 190 q-30 -12 -54 10" fill="none" stroke="#4a3524" stroke-width="9" stroke-linecap="round"/>
+
+    <!-- googly crazy eyes -->
+    <circle cx="222" cy="234" r="31" fill="#fff"/>
+    <circle cx="292" cy="230" r="35" fill="#fff"/>
+    <circle cx="231" cy="242" r="12" fill="#14181f"/>
+    <circle cx="284" cy="221" r="14" fill="#14181f"/>
+    <circle cx="227" cy="237" r="4" fill="#fff"/>
+    <circle cx="279" cy="216" r="5" fill="#fff"/>
+
+    <!-- nostrils -->
+    <ellipse cx="243" cy="288" rx="5" ry="7" fill="#5a4636"/>
+    <ellipse cx="269" cy="288" rx="5" ry="7" fill="#5a4636"/>
+
+    <!-- manic grin with a tooth -->
+    <path d="M214 306 Q256 352 298 306 Q256 328 214 306 Z" fill="#2f2016"/>
+    <path d="M236 314 h40 v10 q-20 12 -40 0 Z" fill="#fbfdff"/>
   </g>
 </svg>
