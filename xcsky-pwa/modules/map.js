@@ -6,7 +6,12 @@
 // hotlinking with a `src=` attribution parameter, CORS `*`, TMS tile scheme.
 
 import { fetchPilots, typeColor, TYPE_NAMES, SOARING_TYPES, ageLabel } from './pilots.js';
+import { fetchStations, windColor, ageMin } from './stations.js';
+import { fetchWebcams, hasKey as hasWindyKey } from './webcams.js';
 import { alt as fmtAlt, wind as fmtWind, climb as fmtClimb } from './units.js';
+
+const OPENAIP_KEY_LS = 'xcsky.openaipKey';
+export function hasOpenaipKey() { return !!localStorage.getItem(OPENAIP_KEY_LS); }
 
 const SRC = 'brook46.github.io';
 const BASES = {
@@ -35,6 +40,9 @@ let pilotLayer = null;
 let pilotTimer = null;
 let soaringOnly = true;      // hide jets/GA clutter by default
 let onPickCb = null;
+let wsLayer = null, wsTimer = null;   // wind stations (Pioupiou)
+let wcLayer = null;                    // webcams (Windy)
+let airspaceLayer = null;              // airspace tiles (OpenAIP)
 
 export function getMap() { return map; }
 export function getSoaringOnly() { return soaringOnly; }
@@ -58,6 +66,17 @@ export function initMainMap(containerId, { center, onPick }) {
 
   pilotLayer = L.layerGroup().addTo(map);
   overlays['Live pilots (OGN)'] = pilotLayer;
+
+  // Extra data overlays (off by default). Airspace + webcams need a free key.
+  wsLayer = L.layerGroup();
+  overlays['Wind stations'] = wsLayer;
+  wcLayer = L.layerGroup();
+  overlays['Webcams'] = wcLayer;
+  airspaceLayer = L.tileLayer(airspaceUrl(), {
+    attribution: 'Airspace © OpenAIP', maxZoom: 14, opacity: 0.9, tileSize: 256,
+  });
+  overlays['Airspace (CTR/NFZ)'] = airspaceLayer;
+
   L.control.layers(bases, overlays, { collapsed: true, position: 'topright' }).addTo(map);
 
   setSpot(center);
@@ -66,9 +85,25 @@ export function initMainMap(containerId, { center, onPick }) {
     // task turnpoint in plan mode), so it owns setSpot — we don't move it here.
     onPickCb && onPickCb({ lat: e.latlng.lat, lon: e.latlng.lng });
   });
-  map.on('moveend', () => { if (pilotsActive()) refreshPilots(); });
-  map.on('overlayadd', (e) => { if (e.layer === pilotLayer) startPolling(); });
-  map.on('overlayremove', (e) => { if (e.layer === pilotLayer) stopPolling(); });
+  map.on('moveend', () => {
+    if (pilotsActive()) refreshPilots();
+    if (map.hasLayer(wsLayer)) refreshStations();
+    if (map.hasLayer(wcLayer)) refreshWebcams();
+  });
+  map.on('overlayadd', (e) => {
+    if (e.layer === pilotLayer) startPolling();
+    else if (e.layer === wsLayer) startStations();
+    else if (e.layer === wcLayer) {
+      if (!hasWindyKey()) { map.removeLayer(wcLayer); needKey('webcams'); }
+      else refreshWebcams();
+    } else if (e.layer === airspaceLayer && !hasOpenaipKey()) {
+      map.removeLayer(airspaceLayer); needKey('airspace');
+    }
+  });
+  map.on('overlayremove', (e) => {
+    if (e.layer === pilotLayer) stopPolling();
+    else if (e.layer === wsLayer) stopStations();
+  });
 
   // Full-viewport container: settle the tile grid once layout is final.
   const el = document.getElementById(containerId);
@@ -133,4 +168,74 @@ async function refreshPilots() {
     );
     pilotLayer.addLayer(mk);
   }
+}
+
+// ── live wind stations (Pioupiou) ────────────────────────────────────────────
+function startStations() { stopStations(); refreshStations(); wsTimer = setInterval(refreshStations, 2 * 60 * 1000); }
+function stopStations() { if (wsTimer) { clearInterval(wsTimer); wsTimer = null; } }
+
+async function refreshStations() {
+  if (!map.hasLayer(wsLayer) || document.hidden) return;
+  let sts;
+  try { sts = await fetchStations(map.getBounds()); }
+  catch { return; }
+  if (!map.hasLayer(wsLayer)) return;
+  wsLayer.clearLayers();
+  for (const s of sts) {
+    const color = windColor(s.avg);
+    const dir = (s.dir == null) ? 0 : (s.dir + 180) % 360;   // arrow blows downwind
+    const html = `<div class="ws-marker" style="--c:${color}">
+      <span class="ws-arrow" style="transform:rotate(${dir}deg)"></span>
+      <span class="ws-spd">${Math.round(s.avg)}</span></div>`;
+    const icon = L.divIcon({ className: 'ws-icon', html, iconSize: [34, 20], iconAnchor: [17, 10] });
+    const mk = L.marker([s.lat, s.lon], { icon });
+    const age = ageMin(s.date);
+    mk.bindPopup(
+      `<b>${s.name}</b><br>` +
+      `${fmtWind(s.avg)} avg · gust ${fmtWind(s.max)}<br>` +
+      `from ${compassOf(s.dir)}${age != null ? ` · ${age} min ago` : ''}<br>` +
+      `<span style="opacity:.7">Pioupiou</span>`
+    );
+    wsLayer.addLayer(mk);
+  }
+}
+
+// ── webcams (Windy) ──────────────────────────────────────────────────────────
+async function refreshWebcams() {
+  if (!map.hasLayer(wcLayer) || document.hidden) return;
+  let cams;
+  try { cams = await fetchWebcams(map.getBounds()); }
+  catch { return; }
+  if (!map.hasLayer(wcLayer)) return;
+  wcLayer.clearLayers();
+  for (const w of cams) {
+    const icon = L.divIcon({ className: 'wc-icon', html: '<div class="wc-pin">◉</div>', iconSize: [22, 22], iconAnchor: [11, 11] });
+    const mk = L.marker([w.lat, w.lon], { icon });
+    mk.bindPopup(
+      `<b>${w.title}</b><br><img src="${w.thumb}" width="220" style="border-radius:8px;display:block;margin:4px 0"/>` +
+      `<a href="${w.link}" target="_blank" rel="noopener">Open on Windy ↗</a>`,
+      { maxWidth: 240 });
+    wcLayer.addLayer(mk);
+  }
+}
+
+// ── airspace (OpenAIP tiles) ─────────────────────────────────────────────────
+function airspaceUrl() {
+  const k = localStorage.getItem(OPENAIP_KEY_LS) || 'none';
+  return `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${k}`;
+}
+/** Re-point the airspace tiles after a key is entered, and (re)enable overlays. */
+export function refreshKeys() {
+  if (airspaceLayer) airspaceLayer.setUrl(airspaceUrl());
+  if (map && map.hasLayer(wcLayer)) refreshWebcams();
+}
+
+function needKey(which) {
+  document.dispatchEvent(new CustomEvent('needkey', { detail: { which } }));
+}
+
+function compassOf(deg) {
+  if (deg == null) return '—';
+  const d = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  return d[Math.round(deg / 22.5) % 16];
 }

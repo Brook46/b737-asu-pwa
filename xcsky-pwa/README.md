@@ -24,7 +24,14 @@ painted over it, phone-first.
   cyan) — where air piles up and rises.
 - **Best of the day (★)** — one tap picks the top-ranked launch and sketches a
   downwind, climb-following XC line to show the day's potential (distance +
-  direction + soarable window). Heuristic guidance, clearly labelled.
+  direction + soarable window). The line is **fenced to the launch country**
+  (truncated at the border / coast via reverse-geocoding). Heuristic guidance,
+  clearly labelled.
+- **Live wind stations** — real-time Pioupiou sensors (keyless): a coloured
+  arrow + average speed per station, gust & age in the popup.
+- **Airspace (CTR / no-fly)** — OpenAIP airspace tiles, and **webcams** —
+  Windy nearby cams. Both need a free API key pasted into settings (stored only
+  on-device); the layer prompts with the signup link until a key is added.
 - **KK7 overlays** — proven thermal hotspots & skyways from thermal.kk7.ch
   (layer control, top-right).
 - **Live pilots** — OGN positions with heading, altitude, climb, age (20 s poll).
@@ -88,6 +95,8 @@ modules/
   takeoffs.js  ParaglidingEarth launch fetch (via worker /pge) + wind-match rank
   planning.js  XC task planner: waypoints, cylinders, distance
   recommend.js "maximise the day": best launch + downwind XC route heuristic
+  stations.js  live Pioupiou wind-station fetch + colour grading
+  webcams.js   Windy webcams fetch (on-device key)
   resume.js    iOS PWA resume-hardening
 ```
 

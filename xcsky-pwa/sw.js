@@ -3,12 +3,12 @@
 // and map tiles are network-only (fresh + huge). Leaflet CDN is cached after
 // first load.
 
-const CACHE_VERSION = 'skymonkeys-v12';
+const CACHE_VERSION = 'skymonkeys-v13';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=5',
-  './app.js?v=5',
+  './app.css?v=6',
+  './app.js?v=6',
   './manifest.json',
   './icon.svg',
   './modules/meteo.js',
@@ -22,6 +22,8 @@ const APP_SHELL = [
   './modules/takeoffs.js',
   './modules/planning.js',
   './modules/recommend.js',
+  './modules/stations.js',
+  './modules/webcams.js',
   './modules/resume.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -53,7 +55,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // Never cache the weather API, geocoding, live pilots, or map tiles.
-  if (/open-meteo\.com|bigdatacloud\.net|arcgisonline\.com|opentopomap\.org|kk7\.ch|glidernet\.org|openstreetmap\.org|tiles?/i.test(url.href)) return;
+  if (/open-meteo\.com|bigdatacloud\.net|arcgisonline\.com|opentopomap\.org|kk7\.ch|glidernet\.org|paraglidingearth|pioupiou\.fr|windy\.com|openaip\.net|openstreetmap\.org|tiles?/i.test(url.href)) return;
 
   // Leaflet CDN library + CSS: cache-first after first fetch.
   if (/unpkg\.com\/leaflet/i.test(url.href)) {

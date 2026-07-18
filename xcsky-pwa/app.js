@@ -6,7 +6,7 @@
 // forecast (time-height chart, wind profile, detail cards) opens as a bottom
 // sheet. Vanilla ES modules, no framework.
 
-import { fetchForecast, groupByDay, MODELS, reverseLabel } from './modules/meteo.js';
+import { fetchForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
 import { deriveHour, summariseDay } from './modules/soaring.js';
 import { drawTimeHeight, drawWindProfile, liftColor } from './modules/chart.js';
 import * as U from './modules/units.js';
@@ -16,6 +16,7 @@ import * as Grid from './modules/grid.js';
 import * as Takeoffs from './modules/takeoffs.js';
 import * as Plan from './modules/planning.js';
 import * as Recommend from './modules/recommend.js';
+import * as Webcams from './modules/webcams.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -238,9 +239,28 @@ async function runRecommend() {
     const wx = Grid.sampleAt(start.lat, start.lon, day.dayKey, h);
     if (wx && wx.climb >= 0.5) hours.push(h);
   }
-  const route = Recommend.recommendRoute(start, day.dayKey, hours);
+  let route = Recommend.recommendRoute(start, day.dayKey, hours);
+  // Keep the suggested flight inside the launch country — truncate at the first
+  // waypoint that crosses a border (or goes offshore). Never let a geocode
+  // hiccup blank the whole suggestion.
+  try { if (route) route = await fenceToCountry(route, start); } catch { /* keep raw route */ }
   clearStatus();
   drawRecommendation(start, startName, route, hours, peakHour);
+}
+
+/** Trim a route so it never leaves the launch's country. */
+async function fenceToCountry(route, start) {
+  const home = await reverseCountry(start.lat, start.lon);
+  if (!home) return route;                       // unknown home → don't fence
+  const kept = [route.path[0]];
+  for (let i = 1; i < route.path.length; i++) {
+    const p = route.path[i];
+    const c = await reverseCountry(p.lat, p.lon);
+    if (c !== home) break;                        // crossed a border / coast → stop here
+    kept.push(p);
+  }
+  if (kept.length === route.path.length) return route;
+  return { ...route, path: kept, km: Recommend.pathDistance(kept), hoursFlown: kept.length - 1 };
 }
 
 function drawRecommendation(start, startName, route, hours, peakHour) {
@@ -556,6 +576,15 @@ function wireEvents() {
       count === total ? `${count} pilots live` : `${count}🪂 · ${total} aloft`;
   });
 
+  document.addEventListener('needkey', (e) => {
+    const which = e.detail.which === 'airspace' ? 'Airspace (OpenAIP)' : 'Webcams (Windy)';
+    $('loc-sheet').classList.remove('hidden'); renderSaved();
+    const target = e.detail.which === 'airspace' ? $('openaip-key') : $('windy-key');
+    target.scrollIntoView({ block: 'center' }); target.focus();
+    setStatus(`${which} needs a free API key — add it below`, 'loading');
+    setTimeout(clearStatus, 3200);
+  });
+
   // Overlay toggles (stack over the colour field)
   $('wind-toggle').setAttribute('aria-pressed', String(state.windOn));
   $('conv-toggle').setAttribute('aria-pressed', String(state.convOn));
@@ -630,6 +659,18 @@ function wireLocationSheet() {
       const loc = await Loc.geolocate();
       clearStatus(); setLocation(loc); close();
     } catch (err) { setStatus(err.message, 'error'); setTimeout(clearStatus, 2500); }
+  };
+
+  // API keys (airspace / webcams) — stored on-device.
+  $('openaip-key').value = localStorage.getItem('xcsky.openaipKey') || '';
+  $('windy-key').value = Webcams.getKey();
+  $('keys-save').onclick = () => {
+    const oa = $('openaip-key').value.trim();
+    oa ? localStorage.setItem('xcsky.openaipKey', oa) : localStorage.removeItem('xcsky.openaipKey');
+    Webcams.setKey($('windy-key').value);
+    XMap.refreshKeys();
+    setStatus('Keys saved — enable Airspace / Webcams in the map layers menu', 'loading');
+    setTimeout(clearStatus, 2600);
   };
 }
 
