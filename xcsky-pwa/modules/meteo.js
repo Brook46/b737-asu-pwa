@@ -112,11 +112,21 @@ export async function fetchForecast({ lat, lon, model = 'best_match', days = 3 }
     windspeed_unit: 'kmh',
     cell_selection: 'nearest',
   });
-  const res = await fetch(`${FORECAST_API}?${params}`);
+  const res = await fetchRetry(`${FORECAST_API}?${params}`);
   if (!res.ok) throw new Error(`forecast ${res.status}`);
   const data = await res.json();
   if (!data.hourly || !data.hourly.time) throw new Error('no hourly data returned');
   return normalise(data);
+}
+
+/** fetch with one retry after a short backoff on a rate-limit (429) or 5xx. */
+export async function fetchRetry(url, opts) {
+  let res = await fetch(url, opts);
+  if (res.status === 429 || res.status >= 500) {
+    await new Promise((r) => setTimeout(r, 1500));
+    res = await fetch(url, opts);
+  }
+  return res;
 }
 
 /**
