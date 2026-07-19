@@ -14,6 +14,7 @@
 // timezone=auto is per-point, so rendering looks hours up by local ISO string.
 
 import { lclAgl, wStar, climbRate } from './soaring.js';
+import { fetchRetry } from './meteo.js';
 
 const COLS = 9, ROWS = 7;
 const PAD = 0.16;            // fetch this fraction beyond the viewport each side
@@ -23,7 +24,19 @@ const HOURLY_VARS = [
   'temperature_2m', 'dewpoint_2m', 'boundary_layer_height',
   'shortwave_radiation', 'cloud_cover_low',
   'windspeed_10m', 'winddirection_10m',
+  'windspeed_925hPa', 'winddirection_925hPa',
+  'windspeed_850hPa', 'winddirection_850hPa',
+  'windspeed_700hPa', 'winddirection_700hPa',
 ];
+
+// Selectable wind heights (surface → aloft) for the barbs / flow / altitude bar.
+export const WIND_LEVELS = [
+  { id: 'sfc', label: 'Surface', h: '10 m',   spd: 'windspeed_10m',    dir: 'winddirection_10m' },
+  { id: '925', label: '~800 m',  h: '925 hPa', spd: 'windspeed_925hPa', dir: 'winddirection_925hPa' },
+  { id: '850', label: '~1500 m', h: '850 hPa', spd: 'windspeed_850hPa', dir: 'winddirection_850hPa' },
+  { id: '700', label: '~3000 m', h: '700 hPa', spd: 'windspeed_700hPa', dir: 'winddirection_700hPa' },
+];
+function levelSpec(id) { return WIND_LEVELS.find((l) => l.id === id) || WIND_LEVELS[0]; }
 
 // Colour-field layers (mutually exclusive). Wind & convergence are separate,
 // stackable toggles handled by the app.
@@ -77,7 +90,7 @@ export async function ensureGrid(map, model) {
       hourly: HOURLY_VARS.join(','),
       models: model, forecast_days: '7', timezone: 'auto',
     });
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    const res = await fetchRetry(`https://api.open-meteo.com/v1/forecast?${params}`);
     if (!res.ok) throw new Error(`grid ${res.status}`);
     const data = await res.json();
     const arr = Array.isArray(data) ? data : [data];
@@ -120,6 +133,53 @@ function derive(p, timeKey) {
     base: cumulus ? base : null,
     wind: h.windspeed_10m[i], windDir: h.winddirection_10m[i],
   };
+}
+
+/** Wind {spd,dir} at a grid point for a chosen height level. */
+function levelWind(p, timeKey, levelId) {
+  const i = p.idx.get(timeKey);
+  if (i === undefined) return null;
+  const h = p.hourly, L = levelSpec(levelId);
+  const spd = h[L.spd] ? h[L.spd][i] : null;
+  const dir = h[L.dir] ? h[L.dir][i] : null;
+  if (spd == null) return null;
+  return { spd, dir };
+}
+
+/** Wind at every level for the nearest grid point — powers the vertical bar. */
+export function levelProfile(lat, lon, dayKey, hour) {
+  if (!cache || !cache.points.length) return [];
+  const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
+  let best = null, bestD = Infinity;
+  for (const p of cache.points) {
+    const d = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  if (!best) return [];
+  return WIND_LEVELS.map((L) => {
+    const w = levelWind(best, timeKey, L.id);
+    return { id: L.id, label: L.label, h: L.h, spd: w ? w.spd : null, dir: w ? w.dir : null };
+  });
+}
+
+/**
+ * Regular u/v wind field at a level for the animated flow. Returns
+ * {bounds, cols, rows, u, v} (row 0 = north), or null.
+ */
+export function windField(dayKey, hour, levelId) {
+  if (!cache) return null;
+  const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
+  const u = new Float32Array(COLS * ROWS), v = new Float32Array(COLS * ROWS);
+  let any = false;
+  cache.points.forEach((p, i) => {
+    const w = levelWind(p, timeKey, levelId);
+    if (!w || w.spd == null) { u[i] = NaN; v[i] = NaN; return; }
+    const rad = (w.dir || 0) * Math.PI / 180;
+    u[i] = -w.spd * Math.sin(rad);        // eastward (km/h)
+    v[i] = -w.spd * Math.cos(rad);        // northward
+    any = true;
+  });
+  return any ? { bounds: cache.bounds, cols: COLS, rows: ROWS, u, v } : null;
 }
 
 /** Sample the derived forecast at an arbitrary lat/lon (nearest grid point). */
@@ -177,7 +237,7 @@ function fieldColor(layer, d) {
 // ── standard wind barb (SVG for a divIcon) ──────────────────────────────────
 // Staff points toward where the wind comes FROM; feathers sit at that end.
 // Half barb = 5 kt, full barb = 10 kt, pennant = 50 kt. Calm = open circle.
-function barbSvg(kmh, dirFrom) {
+export function barbSvg(kmh, dirFrom) {
   const kt = (kmh || 0) * 0.539957;
   const strong = kmh > 35;
   const col = strong ? '#ff6b5c' : '#eef3fb';
@@ -209,17 +269,17 @@ function barbSvg(kmh, dirFrom) {
 // ── horizontal wind divergence → convergence highlight ──────────────────────
 // u eastward, v northward (m/s-ish; relative magnitudes are what matter).
 // convergence = −(∂u/∂x + ∂v/∂y); positive where air piles up ⇒ lift lines.
-function convergenceGrid(derived, bounds) {
+function convergenceGrid(lw, bounds) {
   const midLat = (bounds.getNorth() + bounds.getSouth()) / 2;
   const dxKm = ((bounds.getEast() - bounds.getWest()) / COLS) * 111 * Math.cos(midLat * Math.PI / 180);
   const dyKm = ((bounds.getNorth() - bounds.getSouth()) / ROWS) * 111;
   const u = new Array(COLS * ROWS).fill(null), v = new Array(COLS * ROWS).fill(null);
-  for (let i = 0; i < derived.length; i++) {
-    const d = derived[i];
-    if (!d || d.wind == null) continue;
-    const rad = (d.windDir || 0) * Math.PI / 180;
-    u[i] = -d.wind * Math.sin(rad);       // FROM dir → vector points downwind
-    v[i] = -d.wind * Math.cos(rad);
+  for (let i = 0; i < lw.length; i++) {
+    const d = lw[i];
+    if (!d || d.spd == null) continue;
+    const rad = (d.dir || 0) * Math.PI / 180;
+    u[i] = -d.spd * Math.sin(rad);        // FROM dir → vector points downwind
+    v[i] = -d.spd * Math.cos(rad);
   }
   const conv = new Array(COLS * ROWS).fill(0);
   const at = (r, c) => r * COLS + c;
@@ -245,6 +305,9 @@ export function render(map, opts, dayKey, hour) {
   if (!cache) { clearAll(map); return; }
   const timeKey = `${dayKey}T${String(hour).padStart(2, '0')}:00`;
   const derived = cache.points.map((p) => derive(p, timeKey));
+  const level = opts.windLevel || 'sfc';
+  // Wind at the chosen height, per point (drives barbs + convergence).
+  const lw = cache.points.map((p) => levelWind(p, timeKey, level));
 
   // 1. colour field
   if (opts.color && opts.color !== 'off') {
@@ -257,9 +320,9 @@ export function render(map, opts, dayKey, hour) {
     colorOverlay = removeOverlay(map, colorOverlay);
   }
 
-  // 2. convergence highlight
+  // 2. convergence highlight (from the selected-level wind field)
   if (opts.convergence) {
-    const conv = convergenceGrid(derived, cache.bounds);
+    const conv = convergenceGrid(lw, cache.bounds);
     const peak = Math.max(0.02, ...conv);
     const ctx = convCanvas.getContext('2d');
     const img = ctx.createImageData(COLS, ROWS);
@@ -274,15 +337,15 @@ export function render(map, opts, dayKey, hour) {
     convOverlay = removeOverlay(map, convOverlay);
   }
 
-  // 3. wind barbs
+  // 3. wind barbs (at the selected height)
   if (opts.wind) {
     if (!windLayer) windLayer = L.layerGroup().addTo(map);
     windLayer.clearLayers();
     cache.points.forEach((p, i) => {
-      const d = derived[i];
-      if (!d || d.wind == null) return;
+      const w = lw[i];
+      if (!w || w.spd == null) return;
       const icon = L.divIcon({
-        className: 'wx-barb', html: barbSvg(d.wind, d.windDir),
+        className: 'wx-barb', html: barbSvg(w.spd, w.dir),
         iconSize: [32, 32], iconAnchor: [16, 16],
       });
       windLayer.addLayer(L.marker([p.lat, p.lon], { icon, interactive: false, keyboard: false }));

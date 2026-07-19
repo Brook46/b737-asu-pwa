@@ -17,6 +17,7 @@ import * as Takeoffs from './modules/takeoffs.js';
 import * as Plan from './modules/planning.js';
 import * as Recommend from './modules/recommend.js';
 import * as Webcams from './modules/webcams.js';
+import * as Flow from './modules/windflow.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -34,6 +35,8 @@ const state = {
   color: savedColor,                                  // colour field: climb/top/base/off
   windOn: localStorage.getItem('xcsky.wind') === '1', // wind barbs overlay
   convOn: localStorage.getItem('xcsky.conv') === '1', // convergence overlay
+  flowOn: localStorage.getItem('xcsky.flow') === '1', // animated wind flow
+  windLevel: localStorage.getItem('xcsky.windLevel') || 'sfc',
   forecast: null,      // point forecast for state.loc
   days: [],
   dayIndex: 0,
@@ -66,6 +69,7 @@ function boot() {
     Plan.initPlanner(XMap.getMap(), { onChange: renderPlanStats });
     let tkT = null;
     XMap.getMap().on('moveend', () => {
+      if (anyWindLayer()) renderAltBar();
       if (!state.takeoffsOn) return;
       clearTimeout(tkT);
       tkT = setTimeout(refreshTakeoffs, 600);
@@ -153,10 +157,52 @@ function renderOverlay() {
   const day = currentDay();
   if (!day) return;
   Grid.render(XMap.getMap(),
-    { color: state.color, wind: state.windOn, convergence: state.convOn },
+    { color: state.color, wind: state.windOn, convergence: state.convOn, windLevel: state.windLevel },
     day.dayKey, currentHourOfDay());
+  updateFlow();
+  renderAltBar();
   if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new time
   updateHourReadout();
+}
+
+// ── animated wind flow + altitude bar ────────────────────────────────────────
+function anyWindLayer() { return state.windOn || state.convOn || state.flowOn; }
+
+function updateFlow() {
+  const day = currentDay();
+  if (state.flowOn && day) {
+    if (!Flow.isOn()) Flow.start(XMap.getMap());
+    Flow.setField(Grid.windField(day.dayKey, currentHourOfDay(), state.windLevel));
+  } else if (Flow.isOn()) {
+    Flow.stop();
+  }
+}
+
+function renderAltBar() {
+  const el = $('alt-bar');
+  const day = currentDay();
+  if (!anyWindLayer() || !day) { el.classList.add('hidden'); return; }
+  const c = XMap.getMap().getCenter();
+  const profile = Grid.levelProfile(c.lat, c.lng, day.dayKey, currentHourOfDay());
+  if (!profile.length) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  // Highest level at the top.
+  el.innerHTML = profile.slice().reverse().map((lv) => {
+    const active = lv.id === state.windLevel ? ' active' : '';
+    const barb = lv.spd != null ? Grid.barbSvg(lv.spd, lv.dir) : '';
+    return `<button class="alt-level${active}" data-lv="${lv.id}">
+      <span class="alt-barb">${barb}</span>
+      <span class="alt-level-txt"><span class="alt-level-h">${lv.label}</span>
+        <span class="alt-level-w">${lv.spd != null ? U.wind(lv.spd) : '—'} ${U.compass(lv.dir)}</span></span>
+    </button>`;
+  }).join('');
+  el.querySelectorAll('.alt-level').forEach((b) => {
+    b.onclick = () => {
+      state.windLevel = b.dataset.lv;
+      localStorage.setItem('xcsky.windLevel', state.windLevel);
+      renderOverlay();
+    };
+  });
 }
 
 // ── ranked takeoffs (ParaglidingEarth) ───────────────────────────────────────
@@ -598,6 +644,13 @@ function wireEvents() {
     state.convOn = !state.convOn;
     localStorage.setItem('xcsky.conv', state.convOn ? '1' : '0');
     $('conv-toggle').setAttribute('aria-pressed', String(state.convOn));
+    renderOverlay();
+  };
+  $('flow-toggle').setAttribute('aria-pressed', String(state.flowOn));
+  $('flow-toggle').onclick = () => {
+    state.flowOn = !state.flowOn;
+    localStorage.setItem('xcsky.flow', state.flowOn ? '1' : '0');
+    $('flow-toggle').setAttribute('aria-pressed', String(state.flowOn));
     renderOverlay();
   };
 

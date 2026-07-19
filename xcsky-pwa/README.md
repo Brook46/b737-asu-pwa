@@ -21,7 +21,11 @@ painted over it, phone-first.
 - **Wind & convergence overlays** — stack over any colour field. **Wind** draws
   standard meteorological barbs (direction + strength). **Convergence**
   highlights lift lines computed from the horizontal wind divergence (bright
-  cyan) — where air piles up and rises.
+  cyan). **Flow** animates the wind as drifting particles (Windy-style),
+  coloured by speed.
+- **Wind by height** — a right-side vertical bar shows the wind (barb + speed)
+  at surface / ~800 m / ~1500 m / ~3000 m for the map centre; tap a level and
+  the barbs, convergence and flow all switch to that height.
 - **Best of the day (★)** — one tap picks the top-ranked launch and sketches a
   downwind, climb-following XC line to show the day's potential (distance +
   direction + soarable window). The line is **fenced to the launch country**
@@ -97,6 +101,7 @@ modules/
   recommend.js "maximise the day": best launch + downwind XC route heuristic
   stations.js  live Pioupiou wind-station fetch + colour grading
   webcams.js   Windy webcams fetch (on-device key)
+  windflow.js  animated wind-flow particle layer (canvas)
   resume.js    iOS PWA resume-hardening
 ```
 

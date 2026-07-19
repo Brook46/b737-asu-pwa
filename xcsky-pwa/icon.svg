@@ -1,77 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1a3f7a"/>
-      <stop offset=".55" stop-color="#2f74b0"/>
-      <stop offset="1" stop-color="#7cc6e6"/>
+      <stop offset="0" stop-color="#2b83c9"/>
+      <stop offset="1" stop-color="#155091"/>
     </linearGradient>
-    <radialGradient id="sun" cx="50%" cy="86%" r="60%">
-      <stop offset="0" stop-color="#ffe9b0" stop-opacity=".9"/>
-      <stop offset=".4" stop-color="#ffd27a" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="therm" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0"/>
-      <stop offset=".45" stop-color="#ff9a3a" stop-opacity=".5"/>
-      <stop offset=".8" stop-color="#ffd36a" stop-opacity=".5"/>
-      <stop offset="1" stop-color="#ffe08a" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfe0f2"/>
-    </linearGradient>
-    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a07f5e"/><stop offset="1" stop-color="#7f6146"/>
-    </linearGradient>
-    <radialGradient id="cheek" cx="50%" cy="42%" r="60%">
-      <stop offset="0" stop-color="#f3e2c4"/><stop offset="1" stop-color="#e6d0aa"/>
-    </radialGradient>
   </defs>
-
   <rect width="512" height="512" rx="114" fill="url(#sky)"/>
-  <rect width="512" height="512" rx="114" fill="url(#sun)"/>
 
-  <!-- soft thermal updraft rising toward the monkey -->
-  <path d="M256 456 C234 420 286 396 258 366 C236 344 282 330 260 314"
-        fill="none" stroke="url(#therm)" stroke-width="30" stroke-linecap="round"/>
+  <!-- flat winged-monkey silhouette -->
+  <g fill="#ffffff">
+    <!-- wings -->
+    <path d="M214 250 C150 196 96 196 60 214 C104 226 108 246 150 252
+             C104 266 104 288 74 302 C120 292 132 306 176 288 C168 272 190 258 214 250 Z"/>
+    <path d="M298 250 C362 196 416 196 452 214 C408 226 404 246 362 252
+             C408 266 408 288 438 302 C392 292 380 306 336 288 C344 272 322 258 298 250 Z"/>
 
-  <!-- sleek swept wings -->
-  <g fill="url(#wing)" stroke="#b2c4da" stroke-width="3">
-    <g>
-      <path d="M206 250 C150 214 96 210 60 224 C104 236 112 250 150 256 C150 256 120 300 206 268 Z"/>
-      <path d="M206 262 C158 236 112 236 82 250 C120 258 128 272 160 278 C150 292 150 300 206 278 Z" opacity=".9"/>
-    </g>
-    <g>
-      <path d="M306 250 C362 214 416 210 452 224 C408 236 400 250 362 256 C362 256 392 300 306 268 Z"/>
-      <path d="M306 262 C354 236 400 236 430 250 C392 258 384 272 352 278 C362 292 362 300 306 278 Z" opacity=".9"/>
-    </g>
-  </g>
-
-  <!-- monkey -->
-  <g stroke-linejoin="round">
-    <circle cx="186" cy="250" r="38" fill="url(#fur)"/>
-    <circle cx="326" cy="250" r="38" fill="url(#fur)"/>
-    <circle cx="186" cy="250" r="20" fill="#d7b487"/>
-    <circle cx="326" cy="250" r="20" fill="#d7b487"/>
-
-    <circle cx="256" cy="256" r="88" fill="url(#fur)"/>
-    <path d="M256 202 C302 202 322 244 322 280 C322 320 294 346 256 346
-             C218 346 190 320 190 280 C190 244 210 202 256 202 Z" fill="url(#cheek)"/>
-
-    <!-- brows -->
-    <path d="M210 226 q26 -14 48 0" fill="none" stroke="#4d3826" stroke-width="7" stroke-linecap="round"/>
-    <path d="M302 226 q-26 -14 -48 0" fill="none" stroke="#4d3826" stroke-width="7" stroke-linecap="round"/>
-
-    <!-- eyes -->
-    <ellipse cx="228" cy="252" rx="23" ry="25" fill="#fff"/>
-    <ellipse cx="284" cy="252" rx="23" ry="25" fill="#fff"/>
-    <circle cx="232" cy="256" r="10.5" fill="#1b2129"/>
-    <circle cx="280" cy="256" r="10.5" fill="#1b2129"/>
-    <circle cx="236" cy="252" r="3.4" fill="#fff"/>
-    <circle cx="284" cy="252" r="3.4" fill="#fff"/>
-
-    <!-- nose + smile -->
-    <ellipse cx="247" cy="298" rx="4.4" ry="5.6" fill="#5f4a38"/>
-    <ellipse cx="265" cy="298" rx="4.4" ry="5.6" fill="#5f4a38"/>
-    <path d="M232 312 Q256 336 280 312" fill="none" stroke="#4a3524" stroke-width="6.5" stroke-linecap="round"/>
+    <!-- ears -->
+    <circle cx="206" cy="150" r="34"/>
+    <circle cx="306" cy="150" r="34"/>
+    <!-- head -->
+    <circle cx="256" cy="176" r="62"/>
+    <!-- body -->
+    <path d="M256 228 C304 228 326 272 326 320 C326 382 298 420 256 420
+             C214 420 186 382 186 320 C186 272 208 228 256 228 Z"/>
+    <!-- curled tail -->
+    <path d="M318 392 C378 400 402 356 374 330 C356 313 330 322 340 344
+             C347 360 330 366 312 360 Z"/>
   </g>
 </svg>
