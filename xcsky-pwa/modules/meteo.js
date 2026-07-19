@@ -22,15 +22,15 @@ export const LEVELS = [1000, 925, 850, 700, 600, 500, 400, 300];
 // pressure-level temperatures — which every one of these provides. That lets us
 // offer the full spread of global + regional models.
 export const MODELS = [
-  { id: 'best_match', label: 'Auto (best)' },
-  { id: 'gfs_seamless', label: 'GFS · NOAA' },
-  { id: 'ecmwf_ifs025', label: 'ECMWF · IFS' },
-  { id: 'icon_seamless', label: 'ICON · DWD' },
-  { id: 'icon_eu', label: 'ICON-EU · 7 km' },
-  { id: 'meteofrance_seamless', label: 'Météo-France · AROME/ARPEGE' },
-  { id: 'gem_seamless', label: 'GEM · Canada' },
-  { id: 'ukmo_seamless', label: 'UKMO · UK Met' },
-  { id: 'jma_seamless', label: 'JMA · Japan' },
+  { id: 'best_match', label: 'Auto (best)', short: 'Auto' },
+  { id: 'gfs_seamless', label: 'GFS · NOAA', short: 'GFS' },
+  { id: 'ecmwf_ifs025', label: 'ECMWF · IFS', short: 'ECMWF' },
+  { id: 'icon_seamless', label: 'ICON · DWD', short: 'ICON' },
+  { id: 'icon_eu', label: 'ICON-EU · 7 km', short: 'ICON-EU' },
+  { id: 'meteofrance_seamless', label: 'Météo-France · AROME/ARPEGE', short: 'AROME' },
+  { id: 'gem_seamless', label: 'GEM · Canada', short: 'GEM' },
+  { id: 'ukmo_seamless', label: 'UKMO · UK Met', short: 'UKMO' },
+  { id: 'jma_seamless', label: 'JMA · Japan', short: 'JMA' },
 ];
 
 // Surface / column variables (one value per hour).

@@ -43,6 +43,7 @@ const state = {
   hourIndex: null,     // index into the selected day's hours
   loading: false,
   takeoffsOn: false,
+  routesOn: false,
 };
 
 let tkLayer = null;      // Leaflet layer group for ranked takeoff markers
@@ -71,6 +72,7 @@ function boot() {
     let tkT = null;
     XMap.getMap().on('moveend', () => {
       if (anyWindLayer()) renderAltBar();
+      if (state.routesOn) refreshRoutes();
       if (!state.takeoffsOn) return;
       clearTimeout(tkT);
       tkT = setTimeout(refreshTakeoffs, 600);
@@ -94,7 +96,7 @@ function afterGps(next) {
 
 function populateModelSelect() {
   const sel = $('model-select');
-  sel.innerHTML = MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+  sel.innerHTML = MODELS.map((m) => `<option value="${m.id}" title="${m.label}">${m.short || m.label}</option>`).join('');
   sel.value = state.model;
 }
 
@@ -162,7 +164,8 @@ function renderOverlay() {
     day.dayKey, currentHourOfDay());
   updateFlow();
   renderAltBar();
-  if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new time
+  if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new day
+  if (state.routesOn) refreshRoutes();      // keyed by day+area → cheap on hour scrubs
   updateHourReadout();
 }
 
@@ -227,7 +230,8 @@ function renderTakeoffs() {
     $('tk-count').textContent = tkSites.length ? '' : 'no takeoffs here';
     return;
   }
-  const ranked = Takeoffs.rankSites(tkSites, day.dayKey, currentHourOfDay());
+  // Rank for the SELECTED DAY: each launch keeps its best hour of that day.
+  const ranked = Takeoffs.rankSitesForDay(tkSites, day.dayKey);
   ranked.forEach((r, i) => {
     const rank = i + 1;
     const top = rank <= 5;
@@ -241,7 +245,7 @@ function renderTakeoffs() {
     const w = r.wx;
     m.bindPopup(
       `<b>#${rank} · ${r.site.name}</b><br>` +
-      `Score ${r.score} — ${r.reason}<br>` +
+      `Score ${r.score} — ${r.reason} · peaks ${String(r.bestHour).padStart(2, '0')}:00<br>` +
       `${U.alt(r.site.alt)} · wind ${U.compass(w.windDir)} ${U.wind(w.wind)} · climb ${U.climb(w.climb)}<br>` +
       `<a href="${r.site.link}" target="_blank" rel="noopener">ParaglidingEarth ↗</a>`
     );
@@ -249,7 +253,7 @@ function renderTakeoffs() {
   });
   const best = ranked[0];
   $('tk-count').textContent = best
-    ? `${ranked.length} takeoffs · best: ${best.site.name} (${best.score})`
+    ? `${ranked.length} takeoffs · best ${U.dayLabel(day.date)}: ${best.site.name} (${best.score})`
     : `${tkSites.length} takeoffs (no forecast)`;
 }
 
@@ -264,6 +268,49 @@ function toggleTakeoffs() {
   }
 }
 
+// ── best routes of the day (top-3 launches → balanced XC lines) ─────────────
+let routesLayer = null, routesKey = '';
+
+async function refreshRoutes(force = false) {
+  if (!state.routesOn) return;
+  const day = currentDay();
+  if (!day || !Grid.gridReady()) return;
+  const b = XMap.getMap().getBounds();
+  const key = `${day.dayKey}|${b.getSouth().toFixed(1)},${b.getWest().toFixed(1)},${b.getNorth().toFixed(1)},${b.getEast().toFixed(1)}`;
+  if (!force && key === routesKey) return;      // same day + same area → keep
+  routesKey = key;
+
+  const sites = await Takeoffs.fetchTakeoffs(b);
+  const ranked = Takeoffs.rankSitesForDay(sites, day.dayKey);
+  if (!routesLayer) routesLayer = L.layerGroup().addTo(XMap.getMap());
+  routesLayer.clearLayers();
+  const colors = ['#f2c14e', '#5ec2ff', '#7ce0a8'];
+  ranked.slice(0, 3).forEach((r, i) => {
+    const start = { lat: r.site.lat, lon: r.site.lon };
+    const soar = [];
+    for (let h = 9; h <= 18; h++) {
+      const wx = Grid.sampleAt(start.lat, start.lon, day.dayKey, h);
+      if (wx && wx.climb >= 0.5) soar.push(h);
+    }
+    const rt = Recommend.recommendRoute(start, day.dayKey, soar);
+    if (!rt || rt.km < 10) return;
+    const xc = Math.round(Recommend.xcScore5(rt.path) / 10) * 10;
+    L.polyline(rt.path.map((p) => [p.lat, p.lon]),
+      { color: colors[i], weight: 3, opacity: 0.9, dashArray: i ? '6 5' : null }).addTo(routesLayer);
+    L.marker([start.lat, start.lon], {
+      icon: L.divIcon({ className: '', html: `<div class="route-badge" style="--c:${colors[i]}">${i + 1}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
+      zIndexOffset: 500,
+    }).bindTooltip(`#${i + 1} ${r.site.name} · ~${xc} km (5-pt)`, { direction: 'top', offset: [0, -8] }).addTo(routesLayer);
+  });
+}
+
+function toggleRoutes() {
+  state.routesOn = !state.routesOn;
+  $('routes-toggle').setAttribute('aria-pressed', String(state.routesOn));
+  if (state.routesOn) { routesKey = ''; refreshRoutes(true); }
+  else if (routesLayer) routesLayer.clearLayers();
+}
+
 // ── "maximise the day": best launch + suggested route ────────────────────────
 async function runRecommend() {
   const day = currentDay();
@@ -276,7 +323,7 @@ async function runRecommend() {
   let start = { lat: state.loc.lat, lon: state.loc.lon }, startName = state.loc.name;
   try {
     const sites = await Takeoffs.fetchTakeoffs(XMap.getMap().getBounds());
-    const ranked = Takeoffs.rankSites(sites, day.dayKey, peakHour);
+    const ranked = Takeoffs.rankSitesForDay(sites, day.dayKey);
     if (ranked.length) { start = { lat: ranked[0].site.lat, lon: ranked[0].site.lon }; startName = ranked[0].site.name; }
   } catch { /* no takeoffs → launch from the current point */ }
 
@@ -364,8 +411,10 @@ function drawRecRoute(rs, opt) {
   }
 
   const t = $('rec-toast'); t.classList.remove('hidden');
+  const xc5 = Math.round(Recommend.xcScore5(opt.path) / 10) * 10;
   t.querySelector('.rec-toast-body').innerHTML =
-    `<b>Best of the day</b> · launch <span class="rec-hi">${rs.startName}</span> · fly ${Recommend.bearingLabel(opt.bearing)}`;
+    `<b>Best of the day</b> · launch <span class="rec-hi">${rs.startName}</span> · fly ${Recommend.bearingLabel(opt.bearing)}` +
+    (xc5 >= 10 ? ` · XC 5-pt ~<span class="rec-hi">${xc5} km</span>` : '');
 
   $('rec-opts').innerHTML = rs.options.map((o, i) => {
     const km = Math.round(o.km / 10) * 10;
@@ -758,6 +807,15 @@ function wireEvents() {
   $('rec-clear').onclick = clearRecommend;
   $('tk-btn').onclick = toggleTakeoffs;
   $('plan-btn').onclick = togglePlan;
+  $('routes-toggle').onclick = toggleRoutes;
+  $('locate-btn').onclick = async () => {
+    setStatus('Getting your location…', 'loading');
+    try {
+      const loc = await Loc.geolocate();
+      clearStatus();
+      setLocation(loc);                        // flies the map to you + refetches
+    } catch (err) { setStatus(err.message, 'error'); setTimeout(clearStatus, 2500); }
+  };
   $('plan-undo').onclick = () => Plan.undo();
   $('plan-clear').onclick = () => Plan.clear();
   $('plan-done').onclick = () => {

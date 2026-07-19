@@ -103,6 +103,28 @@ export function pathDistance(path) {
   return km;
 }
 
+/**
+ * XC scoring distance over the standard 5 points (start + 3 turnpoints +
+ * finish, XContest-style free distance): pick the 3 intermediate points that
+ * maximise the summed leg distance. Paths of ≤5 points score as-is.
+ */
+export function xcScore5(path) {
+  const n = path.length;
+  if (n < 2) return 0;
+  if (n <= 5) return pathDistance(path);
+  const D = (i, j) => haversineKm(path[i], path[j]);
+  let best = 0;
+  for (let a = 1; a < n - 3; a++) {
+    for (let b = a + 1; b < n - 2; b++) {
+      for (let c = b + 1; c < n - 1; c++) {
+        const d = D(0, a) + D(a, b) + D(b, c) + D(c, n - 1);
+        if (d > best) best = d;
+      }
+    }
+  }
+  return best;
+}
+
 /** Compass label for a bearing. */
 export function bearingLabel(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];

@@ -42,19 +42,28 @@ export async function fetchTakeoffs(bounds) {
   return sites;
 }
 
+// Motorized / tow operations aren't free-flight takeoffs. PGE has no explicit
+// paramotor flag, so we drop winch-only sites (no thermals, no soaring) and
+// anything whose name declares it a motor/tow field.
+const MOTOR_RE = /paramotor|para-?moteur|\bppg\b|\bmotor\b|motori[sz]ed|\bulm\b|trike|winch|\btow(ing)?\b|treuil/i;
+
 function parseSite(f) {
   const c = f.geometry && f.geometry.coordinates;
   const p = f.properties || {};
   if (!c || c.length < 2) return null;
+  const name = p.name || 'Takeoff';
+  if (p.paragliding !== '1') return null;
+  if (MOTOR_RE.test(name)) return null;
+  if (p.winch === '1' && p.thermals !== '1' && p.soaring !== '1') return null;
   const dirs = {};
   for (const d of DIRS) dirs[d] = parseInt(p[d], 10) || 0;
   return {
     id: p.pge_site_id || `${c[1]},${c[0]}`,
-    name: p.name || 'Takeoff',
+    name,
     lat: c[1], lon: c[0],
     alt: parseInt(p.takeoff_altitude, 10) || null,
     dirs,
-    paragliding: p.paragliding === '1',
+    paragliding: true,
     thermals: p.thermals === '1',
     link: p.pge_link || `https://www.paraglidingearth.com/?site=${p.pge_site_id}`,
   };
@@ -108,6 +117,26 @@ export function rankSites(sites, dayKey, hour) {
   return sites
     .map((s) => ({ site: s, ...scoreSite(s, dayKey, hour) }))
     .filter((r) => r.wx)
+    .sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Rank the sites for a whole DAY: each site keeps its best score across the
+ * core soaring hours, plus the hour it peaks at — "which launch works today".
+ */
+export function rankSitesForDay(sites, dayKey, hours) {
+  if (!gridReady()) return [];
+  const hrs = hours || [10, 11, 12, 13, 14, 15, 16, 17];
+  return sites
+    .map((s) => {
+      let best = null;
+      for (const h of hrs) {
+        const r = scoreSite(s, dayKey, h);
+        if (r.wx && (!best || r.score > best.score)) best = { ...r, bestHour: h };
+      }
+      return best ? { site: s, ...best } : null;
+    })
+    .filter(Boolean)
     .sort((a, b) => b.score - a.score);
 }
 

@@ -18,7 +18,7 @@ import { fetchRetry } from './meteo.js';
 
 const COLS = 9, ROWS = 7;
 const PAD = 0.16;            // fetch this fraction beyond the viewport each side
-const ALPHA = 0.72;          // colour-field opacity
+const ALPHA = 0.8;           // colour-field opacity
 
 const HOURLY_VARS = [
   'temperature_2m', 'dewpoint_2m', 'boundary_layer_height',
@@ -46,6 +46,7 @@ export const COLOR_LAYERS = [
   { id: 'climb', label: 'Thermals' },
   { id: 'top',   label: 'Top' },
   { id: 'base',  label: 'Base' },
+  { id: 'xc',    label: 'XC' },
   { id: 'off',   label: 'Off' },
 ];
 
@@ -222,14 +223,33 @@ function ramp(stops, v) {
   }
   return stops[stops.length - 1].slice(1);
 }
+// Vivid, high-contrast ramps so adjacent strength bands separate at a glance.
 const CLIMB_STOPS = [
-  [0.15, 100, 110, 130], [0.5, 59, 110, 165], [1.0, 47, 158, 111],
-  [1.5, 124, 193, 67], [2.0, 242, 193, 78], [2.8, 239, 125, 59], [4.0, 224, 69, 63],
+  [0.15, 70, 105, 220], [0.5, 35, 150, 235], [1.0, 20, 195, 125],
+  [1.5, 135, 225, 35], [2.0, 255, 205, 30], [2.8, 255, 120, 30], [4.0, 235, 45, 45],
 ];
 const ALT_STOPS = [
-  [0, 70, 90, 120], [1000, 59, 110, 165], [1800, 47, 158, 111],
-  [2600, 124, 193, 67], [3400, 242, 193, 78], [4200, 239, 125, 59], [5000, 224, 69, 63],
+  [0, 60, 75, 160], [1000, 35, 130, 235], [1800, 20, 195, 145],
+  [2600, 135, 225, 35], [3400, 255, 205, 30], [4200, 255, 120, 30], [5000, 235, 45, 45],
 ];
+const XC_STOPS = [    // day XC potential, km
+  [10, 70, 105, 220], [40, 35, 150, 235], [80, 20, 195, 125],
+  [120, 135, 225, 35], [170, 255, 205, 30], [220, 255, 120, 30], [280, 235, 45, 45],
+];
+
+/**
+ * Day XC potential (km) for one grid point: sum the hourly distance-made-good
+ * (same pace model as the route recommender) across the soarable hours.
+ */
+function xcPotential(p, dayKey) {
+  let km = 0;
+  for (let h = 9; h <= 18; h++) {
+    const d = derive(p, `${dayKey}T${String(h).padStart(2, '0')}:00`);
+    if (!d || d.climb < 0.5) continue;
+    km += Math.min(30, Math.max(5, (11 + d.climb * 5 + (d.wind || 0) * 0.35) * 0.7));
+  }
+  return km;
+}
 
 function fieldColor(layer, d) {
   if (!d) return [0, 0, 0, 0];
@@ -325,11 +345,19 @@ export function render(map, opts, dayKey, hour) {
   // Wind at the chosen height, per point (drives barbs + convergence).
   const lw = cache.points.map((p) => levelWind(p, timeKey, level));
 
-  // 1. colour field
+  // 1. colour field ('xc' is a day-level field; the others are hourly)
   if (opts.color && opts.color !== 'off') {
     const ctx = fieldCanvas.getContext('2d');
     const img = ctx.createImageData(COLS, ROWS);
-    for (let i = 0; i < derived.length; i++) img.data.set(fieldColor(opts.color, derived[i]), i * 4);
+    if (opts.color === 'xc') {
+      cache.points.forEach((p, i) => {
+        const km = xcPotential(p, dayKey);
+        const px = km < 15 ? [0, 0, 0, 0] : [...ramp(XC_STOPS, km), Math.round(255 * ALPHA)];
+        img.data.set(px, i * 4);
+      });
+    } else {
+      for (let i = 0; i < derived.length; i++) img.data.set(fieldColor(opts.color, derived[i]), i * 4);
+    }
     ctx.putImageData(img, 0, 0);
     colorOverlay = putOverlay(map, colorOverlay, fieldCanvas.toDataURL(), 'wx-overlay');
   } else {
@@ -412,6 +440,9 @@ export function legend(layer) {
       return { title: layer === 'top' ? 'Thermal top MSL' : 'Cloud base MSL',
         items: [[1000, '1 km'], [1800, '1.8'], [2600, '2.6'], [3400, '3.4'], [4200, '4.2+']]
           .map(([v, l]) => ({ color: fmt(ramp(ALT_STOPS, v)), label: l })) };
+    case 'xc':
+      return { title: 'XC potential km', items: [[40, '40'], [80, '80'], [120, '120'], [170, '170'], [220, '220+']]
+        .map(([v, l]) => ({ color: fmt(ramp(XC_STOPS, v)), label: l })) };
     default:
       return null;
   }
