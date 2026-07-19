@@ -249,10 +249,20 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   box-shadow: 0 3px 14px rgba(0,0,0,.5);
 }
 .rec-toast.hidden { display: none; }
-.rec-toast-body { font-size: .8rem; line-height: 1.45; flex: 1; color: var(--muted); }
+.rec-toast { flex-direction: column; align-items: stretch; gap: 8px; }
+.rec-toast-body { font-size: .8rem; line-height: 1.45; color: var(--muted); padding-right: 22px; }
 .rec-toast-body b { color: var(--ink); }
 .rec-toast-body .rec-hi { color: #f2c14e; font-weight: 700; }
-.rec-clear { background: transparent; border: none; color: var(--muted); font-size: .95rem; flex: none; }
+.rec-clear { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: var(--muted); font-size: .95rem; }
+.rec-opts { display: flex; gap: 6px; }
+.rec-opt {
+  flex: 1; display: grid; gap: 1px; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px;
+}
+.rec-opt.active { border-color: #f2c14e; background: rgba(242,193,78,.12); }
+.rec-opt-name { font-size: .78rem; font-weight: 700; color: var(--ink); }
+.rec-opt-sub { font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rec-xsec { display: block; width: 100%; height: 118px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .rec-start {
   width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
   background: #f2c14e; color: #3a2a06; font-weight: 800; font-size: .8rem;

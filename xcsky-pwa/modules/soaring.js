@@ -18,6 +18,39 @@ const RHO = 1.10;    // air density near the surface, kg/m³ (approx)
 const HEAT_FRACTION = 0.14; // fraction of incoming shortwave → sensible heat flux
                             // (a mid-Bowen-ratio approximation over land)
 
+const DRY_LAPSE = 9.8;   // dry adiabatic lapse rate, °C per km
+
+// Standard-atmosphere MSL height (m) of a pressure level — used when a model
+// gives pressure-level temperatures but no geopotential height.
+export const STD_HEIGHT = { 925: 762, 850: 1457, 700: 3012, 600: 4206, 500: 5574 };
+
+/**
+ * Thermal top by the dry-adiabat / "Tmax" method: lift a parcel at the surface
+ * temperature dry-adiabatically and find where it meets the environmental
+ * temperature profile. Works for any model that gives pressure-level temps, so
+ * it fills in for models Open-Meteo doesn't expose boundary-layer height for.
+ *
+ * @param tSfc     surface temperature (°C)
+ * @param terrain  ground height (m MSL)
+ * @param levels   [{h, t}] ascending by MSL height, environmental temp °C
+ * @returns thermal-top height in m MSL, or null
+ */
+export function dryThermalTopMSL(tSfc, terrain, levels) {
+  if (tSfc == null || !levels || !levels.length) return null;
+  let prevH = terrain, prevDiff = 0.5;          // assume slight buoyancy at the surface
+  for (const lv of levels) {
+    if (lv.t == null || lv.h <= terrain) continue;
+    const parcelT = tSfc - DRY_LAPSE * (lv.h - terrain) / 1000;
+    const diff = parcelT - lv.t;                 // >0 ⇒ parcel warmer ⇒ still rising
+    if (diff <= 0) {
+      const frac = prevDiff / (prevDiff - diff); // linear crossing
+      return prevH + (lv.h - prevH) * Math.max(0, Math.min(1, frac));
+    }
+    prevH = lv.h; prevDiff = diff;
+  }
+  return prevH;                                  // never capped within the profile
+}
+
 /** Lifting Condensation Level above ground, metres, from surface T and dewpoint. */
 export function lclAgl(t2m, td2m) {
   if (t2m === null || td2m === null) return null;
@@ -31,8 +64,8 @@ export function lclAgl(t2m, td2m) {
  * We estimate surface sensible heat flux H from incoming shortwave radiation.
  * Returns m/s, or 0 when there's no sun / no mixed layer.
  */
-export function wStar(hr) {
-  const zi = hr.blHeight;
+export function wStar(hr, ziOverride) {
+  const zi = ziOverride != null ? ziOverride : hr.blHeight;
   const sw = hr.shortwave;
   if (!zi || zi < 50 || !sw || sw < 20) return 0;
   const tK = (hr.t2m ?? 15) + 273.15;
@@ -71,7 +104,13 @@ export function stars(net) {
  * @param {number} terrain  model cell terrain height, m MSL
  */
 export function deriveHour(hr, terrain) {
-  const zi = hr.blHeight;
+  // Mixed-layer depth: prefer the model's boundary-layer height; otherwise the
+  // dry-adiabat top from the sounding (lets models without BL height still work).
+  let zi = hr.blHeight;
+  if (zi == null && hr.levels && hr.levels.length) {
+    const top = dryThermalTopMSL(hr.t2m, terrain, hr.levels.map((l) => ({ h: l.z, t: l.t })));
+    if (top != null) zi = Math.max(0, top - terrain);
+  }
   const thermalTop = zi != null ? terrain + zi : null;   // m MSL
   const lcl = lclAgl(hr.t2m, hr.td2m);
   const cloudBase = lcl != null ? terrain + lcl : null;  // m MSL
@@ -80,7 +119,7 @@ export function deriveHour(hr, terrain) {
   const cumulus = lcl != null && zi != null && lcl < zi && (hr.cloudLow ?? 0) > 8;
   const workingTop = cumulus ? Math.min(thermalTop, cloudBase) : thermalTop;
 
-  const ws = wStar(hr);
+  const ws = wStar(hr, zi);
   const net = climbRate(ws);
   const rating = stars(net);
 

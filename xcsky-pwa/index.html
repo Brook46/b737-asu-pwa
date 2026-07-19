@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=7">
+  <link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
   <!-- The map IS the app -->
@@ -68,10 +68,12 @@
   <!-- Status / error banner -->
   <div id="status" class="status hidden"></div>
 
-  <!-- Recommendation summary toast -->
+  <!-- Recommendation panel -->
   <div id="rec-toast" class="rec-toast hidden">
-    <div class="rec-toast-body"></div>
     <button id="rec-clear" class="rec-clear" aria-label="Clear suggestion">✕</button>
+    <div class="rec-toast-body"></div>
+    <div id="rec-opts" class="rec-opts"></div>
+    <canvas id="rec-xsec" class="rec-xsec" height="118"></canvas>
   </div>
 
   <!-- Planning bar (only in plan mode) -->
@@ -108,14 +110,14 @@
           <line x1="4" y1="9" x2="17" y2="9"/><path d="M17 9a2.5 2.5 0 1 0-2.5 2.5"/>
           <line x1="4" y1="14" x2="13" y2="14"/><path d="M13 14a2 2 0 1 1-2 2"/>
         </svg>Wind</button>
-      <button id="conv-toggle" class="toggle-chip" aria-pressed="false" title="Convergence lines (lift)">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 8h6M6 5l3 3-3 3"/><path d="M21 8h-6M18 5l-3 3 3 3" transform="translate(0 4)"/>
-        </svg>Converg</button>
       <button id="flow-toggle" class="toggle-chip" aria-pressed="false" title="Animated wind flow">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
           <path d="M2 8c3-2 6 2 9 0s6-2 9 0"/><path d="M2 13c3-2 6 2 9 0s6-2 9 0"/><path d="M2 18c3-2 6 2 9 0s6-2 9 0"/>
         </svg>Flow</button>
+      <button id="conv-toggle" class="toggle-chip" aria-pressed="false" title="Convergence lines (lift)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 8h6M6 5l3 3-3 3"/><path d="M21 8h-6M18 5l-3 3 3 3" transform="translate(0 4)"/>
+        </svg>Converg</button>
     </div>
     <nav id="day-tabs" class="day-tabs" aria-label="Forecast day"></nav>
     <div class="time-row">
@@ -185,6 +187,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=7"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>
