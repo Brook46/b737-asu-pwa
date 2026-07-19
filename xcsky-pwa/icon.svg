@@ -1,30 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b83c9"/>
-      <stop offset="1" stop-color="#155091"/>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a93ad"/>
+      <stop offset="1" stop-color="#39c9cb"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e6f6f7"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="114" fill="url(#sky)"/>
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
 
-  <!-- flat winged-monkey silhouette -->
-  <g fill="#ffffff">
-    <!-- wings -->
-    <path d="M214 250 C150 196 96 196 60 214 C104 226 108 246 150 252
-             C104 266 104 288 74 302 C120 292 132 306 176 288 C168 272 190 258 214 250 Z"/>
-    <path d="M298 250 C362 196 416 196 452 214 C408 226 404 246 362 252
-             C408 266 408 288 438 302 C392 292 380 306 336 288 C344 272 322 258 298 250 Z"/>
-
-    <!-- ears -->
-    <circle cx="206" cy="150" r="34"/>
-    <circle cx="306" cy="150" r="34"/>
-    <!-- head -->
-    <circle cx="256" cy="176" r="62"/>
+  <g fill="url(#teal)" transform="translate(6 8)">
+    <!-- wings sweeping up-right -->
+    <path d="M300 196 C340 150 392 138 430 150 C398 162 392 182 356 190
+             C398 196 404 214 432 222 C392 224 380 240 342 232
+             C356 250 352 268 350 282 C326 250 300 232 292 214 Z"/>
+    <!-- head with hair tuft (upper-left) -->
+    <path d="M196 150 C205 132 226 128 236 142 C250 132 270 138 272 158
+             C292 160 300 182 288 198 C298 214 288 236 268 240
+             C250 258 214 256 200 238 C176 236 166 206 182 190
+             C170 172 180 154 196 150 Z"/>
     <!-- body -->
-    <path d="M256 228 C304 228 326 272 326 320 C326 382 298 420 256 420
-             C214 420 186 382 186 320 C186 272 208 228 256 228 Z"/>
-    <!-- curled tail -->
-    <path d="M318 392 C378 400 402 356 374 330 C356 313 330 322 340 344
-             C347 360 330 366 312 360 Z"/>
+    <path d="M250 196 C300 196 336 232 340 286 C344 344 316 386 268 392
+             C224 396 196 366 192 320 C188 262 206 200 250 196 Z"/>
+    <!-- left arm reaching down -->
+    <path d="M214 250 C176 268 150 300 138 340 C132 362 140 384 156 388
+             C164 372 160 352 176 330 C196 302 224 288 236 272 Z"/>
+    <!-- second arm/hand -->
+    <path d="M238 288 C214 316 202 352 206 388 C208 404 224 410 236 402
+             C236 384 240 360 256 336 C270 316 272 300 268 290 Z"/>
+    <!-- legs -->
+    <path d="M262 360 C250 396 250 432 262 456 C270 470 286 468 292 456
+             C288 434 292 404 300 380 C306 362 300 350 288 348 Z"/>
+    <path d="M300 356 C304 392 316 424 336 442 C350 454 364 446 362 432
+             C350 416 342 388 340 362 C338 344 326 338 314 342 Z"/>
+    <!-- tail curling into a single clean spiral -->
+    <path d="M326 298
+             C392 296 430 340 424 392
+             C450 386 474 404 470 432
+             C466 462 434 478 406 468
+             C378 458 370 428 386 408
+             C400 391 426 392 434 410"
+          fill="none" stroke="url(#teal)" stroke-width="19" stroke-linecap="round"/>
   </g>
 </svg>

@@ -8,7 +8,7 @@
 
 import { fetchForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
 import { deriveHour, summariseDay } from './modules/soaring.js';
-import { drawTimeHeight, drawWindProfile, liftColor } from './modules/chart.js';
+import { drawTimeHeight, drawWindProfile, drawRouteSection, liftColor } from './modules/chart.js';
 import * as U from './modules/units.js';
 import * as Loc from './modules/location.js';
 import * as XMap from './modules/map.js';
@@ -48,6 +48,7 @@ const state = {
 let tkLayer = null;      // Leaflet layer group for ranked takeoff markers
 let tkSites = [];        // last-fetched launch sites for the viewport
 let recLayer = null;     // suggested-route + best-launch layer
+let recState = null;     // { start, startName, dayKey, options, activeIdx }
 
 const $ = (id) => document.getElementById(id);
 
@@ -280,71 +281,101 @@ async function runRecommend() {
   } catch { /* no takeoffs → launch from the current point */ }
 
   // Soarable window sampled from the grid at the launch (consistent with the map).
-  const hours = [];
+  const soarable = [];
   for (let h = 7; h <= 20; h++) {
     const wx = Grid.sampleAt(start.lat, start.lon, day.dayKey, h);
-    if (wx && wx.climb >= 0.5) hours.push(h);
+    if (wx && wx.climb >= 0.5) soarable.push(h);
   }
-  let route = Recommend.recommendRoute(start, day.dayKey, hours);
-  // Keep the suggested flight inside the launch country — truncate at the first
-  // waypoint that crosses a border (or goes offshore). Never let a geocode
-  // hiccup blank the whole suggestion.
-  try { if (route) route = await fenceToCountry(route, start); } catch { /* keep raw route */ }
+  const options = Recommend.recommendOptions(start, day.dayKey, soarable);
   clearStatus();
-  drawRecommendation(start, startName, route, hours, peakHour);
-}
 
-/** Trim a route so it never leaves the launch's country. */
-async function fenceToCountry(route, start) {
-  const home = await reverseCountry(start.lat, start.lon);
-  if (!home) return route;                       // unknown home → don't fence
-  const kept = [route.path[0]];
-  for (let i = 1; i < route.path.length; i++) {
-    const p = route.path[i];
-    const c = await reverseCountry(p.lat, p.lon);
-    if (c !== home) break;                        // crossed a border / coast → stop here
-    kept.push(p);
-  }
-  if (kept.length === route.path.length) return route;
-  return { ...route, path: kept, km: Recommend.pathDistance(kept), hoursFlown: kept.length - 1 };
-}
-
-function drawRecommendation(start, startName, route, hours, peakHour) {
-  if (!recLayer) recLayer = L.layerGroup().addTo(XMap.getMap());
-  recLayer.clearLayers();
-
-  L.marker([start.lat, start.lon], {
-    icon: L.divIcon({ className: '', html: '<div class="rec-start">★</div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
-    zIndexOffset: 1000,
-  }).addTo(recLayer);
-
-  let body;
-  if (route && route.km >= 3) {
-    L.polyline(route.path.map((p) => [p.lat, p.lon]), { color: '#f2c14e', weight: 4, opacity: 0.95 }).addTo(recLayer);
-    const end = route.path[route.path.length - 1];
-    L.circleMarker([end.lat, end.lon], { radius: 5, color: '#fff', weight: 2, fillColor: '#f2c14e', fillOpacity: 1 }).addTo(recLayer);
-    const win = hours.length ? `${String(hours[0]).padStart(2, '0')}–${String(hours[hours.length - 1]).padStart(2, '0')}h` : '';
-    const kmR = Math.round(route.km / 10) * 10;
-    body = `<b>Best of the day</b><br>Launch <span class="rec-hi">${startName}</span>, fly <b>${Recommend.bearingLabel(route.bearing)}</b><br>` +
-      `~<span class="rec-hi">${kmR} km</span> on a strong line, ${route.hoursFlown}h window${win ? ` (${win})` : ''}`;
-  } else {
-    body = `<b>${startName}</b> is today's pick, but the day looks weak — little usable climb for going XC.`;
-  }
-  const t = $('rec-toast');
-  t.querySelector('.rec-toast-body').innerHTML = body;
-  t.classList.remove('hidden');
+  recState = { start, startName, dayKey: day.dayKey, options, activeIdx: options.length > 1 ? 1 : 0 };
   $('rec-btn').setAttribute('aria-pressed', 'true');
 
   // Frame it: thermals field, peak time, centred on the launch.
   state.color = 'climb'; localStorage.setItem('xcsky.color', 'climb');
-  const idx = currentDay().hours.findIndex((h) => h.hourOfDay >= peakHour);
+  const idx = day.hours.findIndex((h) => h.hourOfDay >= peakHour);
   if (idx >= 0) { state.hourIndex = idx; $('hour-slider').value = String(idx); }
   XMap.flyTo(start, Math.max(XMap.getMap().getZoom(), 9));
   renderLayerChips(); renderLegend(); renderOverlay();
+
+  if (!options.length) { showRecEmpty(startName); return; }
+  await showRecOption(recState.activeIdx);
+}
+
+function showRecEmpty(startName) {
+  if (recLayer) recLayer.clearLayers();
+  const t = $('rec-toast'); t.classList.remove('hidden');
+  t.querySelector('.rec-toast-body').innerHTML =
+    `<b>${startName}</b> is today's pick, but the day looks weak — little usable climb for going XC.`;
+  $('rec-opts').innerHTML = ''; $('rec-xsec').style.display = 'none';
+}
+
+/** Trim an option's route so it never leaves the launch's country. */
+async function fenceRouteToCountry(opt, start) {
+  const home = await reverseCountry(start.lat, start.lon);
+  if (!home) return opt;
+  const path = [opt.path[0]], times = [opt.times[0]];
+  for (let i = 1; i < opt.path.length; i++) {
+    const c = await reverseCountry(opt.path[i].lat, opt.path[i].lon);
+    if (c !== home) break;                        // crossed a border / coast → stop here
+    path.push(opt.path[i]); times.push(opt.times[i]);
+  }
+  if (path.length === opt.path.length) return opt;
+  return { ...opt, path, times, km: Recommend.pathDistance(path), hoursFlown: path.length - 1 };
+}
+
+async function showRecOption(idx) {
+  const rs = recState; if (!rs) return;
+  rs.activeIdx = idx;
+  let opt = rs.options[idx];
+  try { opt = await fenceRouteToCountry(opt, rs.start); } catch { /* keep raw */ }
+  drawRecRoute(rs, opt);
+}
+
+function drawRecRoute(rs, opt) {
+  if (!recLayer) recLayer = L.layerGroup().addTo(XMap.getMap());
+  recLayer.clearLayers();
+  L.marker([rs.start.lat, rs.start.lon], {
+    icon: L.divIcon({ className: '', html: '<div class="rec-start">★</div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+    zIndexOffset: 1000,
+  }).addTo(recLayer);
+
+  if (opt && opt.km >= 3) {
+    L.polyline(opt.path.map((p) => [p.lat, p.lon]), { color: '#f2c14e', weight: 4, opacity: 0.95 }).addTo(recLayer);
+    const end = opt.path[opt.path.length - 1];
+    L.circleMarker([end.lat, end.lon], { radius: 5, color: '#fff', weight: 2, fillColor: '#f2c14e', fillOpacity: 1 }).addTo(recLayer);
+  }
+
+  const t = $('rec-toast'); t.classList.remove('hidden');
+  t.querySelector('.rec-toast-body').innerHTML =
+    `<b>Best of the day</b> · launch <span class="rec-hi">${rs.startName}</span> · fly ${Recommend.bearingLabel(opt.bearing)}`;
+
+  $('rec-opts').innerHTML = rs.options.map((o, i) => {
+    const km = Math.round(o.km / 10) * 10;
+    return `<button class="rec-opt${i === rs.activeIdx ? ' active' : ''}" data-i="${i}">
+      <span class="rec-opt-name">${o.name}</span>
+      <span class="rec-opt-sub">off ${String(o.takeoffHour).padStart(2, '0')}:00 · ~${km} km</span></button>`;
+  }).join('');
+  $('rec-opts').querySelectorAll('.rec-opt').forEach((b) => { b.onclick = () => showRecOption(+b.dataset.i); });
+
+  drawRecXsection(rs, opt);
+}
+
+function drawRecXsection(rs, opt) {
+  const cv = $('rec-xsec');
+  if (!opt || opt.path.length < 2) { cv.style.display = 'none'; return; }
+  cv.style.display = 'block';
+  const samples = opt.path.map((p, i) => {
+    const wx = Grid.sampleAt(p.lat, p.lon, rs.dayKey, opt.times[i]);
+    return { hour: opt.times[i], terrain: wx ? wx.elev : 0, top: wx ? wx.top : null, base: wx ? wx.base : null, climb: wx ? wx.climb : 0 };
+  });
+  drawRouteSection(cv, samples, { height: 118 });
 }
 
 function clearRecommend() {
   if (recLayer) recLayer.clearLayers();
+  recState = null;
   $('rec-toast').classList.add('hidden');
   $('rec-btn').setAttribute('aria-pressed', 'false');
 }

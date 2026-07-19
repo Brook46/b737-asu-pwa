@@ -26,11 +26,13 @@ painted over it, phone-first.
 - **Wind by height** — a right-side vertical bar shows the wind (barb + speed)
   at surface / ~800 m / ~1500 m / ~3000 m for the map centre; tap a level and
   the barbs, convergence and flow all switch to that height.
-- **Best of the day (★)** — one tap picks the top-ranked launch and sketches a
-  downwind, climb-following XC line to show the day's potential (distance +
-  direction + soarable window). The line is **fenced to the launch country**
-  (truncated at the border / coast via reverse-geocoding). Heuristic guidance,
-  clearly labelled.
+- **Best of the day (★)** — one tap picks the top-ranked launch and offers three
+  **flight options** — Conservative / Balanced / Committed — each with a
+  **recommended takeoff time** and a downwind, climb-following XC line. A
+  **side-view cross-section** plots the working ceiling (height) against time of
+  day along the chosen route, over the terrain. Lines are **fenced to the launch
+  country** (truncated at the border / coast). Heuristic guidance, clearly
+  labelled.
 - **Live wind stations** — real-time Pioupiou sensors (keyless): a coloured
   arrow + average speed per station, gust & age in the popup.
 - **Airspace (CTR / no-fly)** — OpenAIP airspace tiles, and **webcams** —

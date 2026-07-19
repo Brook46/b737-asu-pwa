@@ -35,9 +35,12 @@ function haversineKm(a, b) {
  * @param hours  ascending list of local hours to fly (e.g. 10..17)
  * @returns {path:[{lat,lon}], km, bearing, hoursFlown} | null
  */
-export function recommendRoute(start, dayKey, hours) {
+export function recommendRoute(start, dayKey, hours, opts = {}) {
+  const factor = opts.factor || 1;         // distance scaling (risk appetite)
+  const spread = opts.spread || 35;        // how far off downwind we'll chase lift
   let pos = { lat: start.lat, lon: start.lon };
   const path = [pos];
+  const times = [hours.length ? hours[0] : 12];
   let bearingSum = 0, flown = 0;
 
   for (const hr of hours) {
@@ -45,35 +48,52 @@ export function recommendRoute(start, dayKey, hours) {
     if (!here || here.climb < 0.4) continue;              // can't climb ⇒ day's done
 
     const downwind = ((here.windDir ?? 0) + 180) % 360;   // where the air is going
-    // Try three headings around downwind; pick the one over the strongest lift.
     let bestBr = downwind, bestScore = -1;
-    for (const off of [-35, -15, 0, 15, 35]) {
+    for (const off of [-spread, -spread / 2, 0, spread / 2, spread]) {
       const br = (downwind + off + 360) % 360;
       const probe = advance(pos, br, 12);
       const wx = sampleAt(probe.lat, probe.lon, dayKey, hr);
       const climb = wx ? wx.climb : 0;
-      // Favour lift, but stay biased downwind (cos falloff off the tailwind line).
       const score = climb * (0.6 + 0.4 * Math.cos(toRad(off)));
       if (score > bestScore) { bestScore = score; bestBr = br; }
     }
 
-    // Distance actually made good in an hour of paraglider XC — deliberately
-    // conservative: a still-air pace that grows with climb, a partial downwind
-    // push, and a duty factor (you don't glide flat-out every minute).
     const vStill = 11 + here.climb * 5;                   // km/h still-air pace
     const push = (here.wind || 0) * 0.35;                 // tailwind help
-    // Made good this hour, with a duty factor and a hard cap — a paraglider XC
-    // rarely averages above ~30 km/h over the ground even on a strong day.
-    const legKm = Math.min(30, Math.max(5, (vStill + push) * 0.7));
+    const legKm = Math.min(30, Math.max(5, (vStill + push) * 0.7)) * factor;
 
     pos = advance(pos, bestBr, legKm);
     path.push(pos);
+    times.push(Math.min(23, hr + 1));
     bearingSum += bestBr; flown++;
   }
 
   if (flown === 0) return null;
   const km = path.slice(1).reduce((s, p, i) => s + haversineKm(path[i], p), 0);
-  return { path, km, bearing: Math.round(bearingSum / flown), hoursFlown: flown };
+  return { path, times, km, bearing: Math.round(bearingSum / flown), hoursFlown: flown };
+}
+
+/**
+ * Three flight options for the day from a launch, each with a recommended
+ * takeoff time. Conservative starts later / finishes earlier with shorter legs
+ * and more margin; committed launches early and chases the strongest air.
+ * @param soarable ascending list of local hours with usable climb at the launch
+ */
+export function recommendOptions(start, dayKey, soarable) {
+  if (!soarable.length) return [];
+  const first = soarable[0], last = soarable[soarable.length - 1];
+  const variants = [
+    { id: 'conservative', name: 'Conservative', startH: Math.min(last, first + 2), endH: Math.max(first + 1, last - 1), factor: 0.8, spread: 20 },
+    { id: 'balanced', name: 'Balanced', startH: Math.min(last, first + 1), endH: last, factor: 1.0, spread: 35 },
+    { id: 'committed', name: 'Committed', startH: first, endH: last, factor: 1.2, spread: 48 },
+  ];
+  const out = [];
+  for (const v of variants) {
+    const hrs = soarable.filter((h) => h >= v.startH && h <= v.endH);
+    const r = recommendRoute(start, dayKey, hrs, v);
+    if (r) out.push({ ...v, takeoffHour: v.startH, ...r });
+  }
+  return out;
 }
 
 /** Total length (km) of a [{lat,lon}] path. */

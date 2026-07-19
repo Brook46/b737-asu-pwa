@@ -13,7 +13,7 @@
 // Scrubbing time re-renders all three from the cached grid — no refetch.
 // timezone=auto is per-point, so rendering looks hours up by local ISO string.
 
-import { lclAgl, wStar, climbRate } from './soaring.js';
+import { lclAgl, wStar, climbRate, dryThermalTopMSL, STD_HEIGHT } from './soaring.js';
 import { fetchRetry } from './meteo.js';
 
 const COLS = 9, ROWS = 7;
@@ -27,6 +27,8 @@ const HOURLY_VARS = [
   'windspeed_925hPa', 'winddirection_925hPa',
   'windspeed_850hPa', 'winddirection_850hPa',
   'windspeed_700hPa', 'winddirection_700hPa',
+  // pressure-level temps → dry-adiabat thermal top for models without BL height
+  'temperature_850hPa', 'temperature_700hPa', 'temperature_600hPa',
 ];
 
 // Selectable wind heights (surface → aloft) for the barbs / flow / altitude bar.
@@ -120,10 +122,22 @@ function derive(p, timeKey) {
     t2m: h.temperature_2m[i], td2m: h.dewpoint_2m[i],
     blHeight: h.boundary_layer_height[i], shortwave: h.shortwave_radiation[i],
   };
-  const ws = wStar(hr);
+  // Mixed-layer depth: BL height when the model has it, else the dry-adiabat
+  // top from the 850/700/600 hPa temperatures (standard-atmosphere heights).
+  let zi = hr.blHeight;
+  if (zi == null) {
+    const lv = [
+      { h: STD_HEIGHT[850], t: h.temperature_850hPa && h.temperature_850hPa[i] },
+      { h: STD_HEIGHT[700], t: h.temperature_700hPa && h.temperature_700hPa[i] },
+      { h: STD_HEIGHT[600], t: h.temperature_600hPa && h.temperature_600hPa[i] },
+    ];
+    const topMSL = dryThermalTopMSL(hr.t2m, p.elev, lv);
+    zi = topMSL != null ? Math.max(0, topMSL - p.elev) : 0;
+  }
+  const ws = wStar(hr, zi);
   const climb = climbRate(ws);
   const lcl = lclAgl(hr.t2m, hr.td2m);
-  const zi = hr.blHeight || 0;
+  zi = zi || 0;
   const cumulus = lcl != null && zi > 0 && lcl < zi && (h.cloud_cover_low[i] ?? 0) > 8;
   const top = zi ? p.elev + zi : null;
   const base = lcl != null ? p.elev + lcl : null;
@@ -191,7 +205,9 @@ export function sampleAt(lat, lon, dayKey, hour) {
     const d = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
     if (d < bestD) { bestD = d; best = p; }
   }
-  return best ? derive(best, timeKey) : null;
+  if (!best) return null;
+  const d = derive(best, timeKey);
+  return d ? { ...d, elev: best.elev } : null;
 }
 
 // ── colour ramps ──────────────────────────────────────────────────────────

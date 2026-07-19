@@ -58,6 +58,89 @@ function css(name, fallback) {
 }
 
 /**
+ * Side-view of a suggested flight: x = time of day along the route, y = altitude.
+ * Shows the working ceiling (climb-coloured) you can climb to at each position,
+ * the cloud base, and the terrain underneath.
+ * @param samples [{hour, terrain, top, base, climb}] in flight order
+ */
+export function drawRouteSection(canvas, samples, opts = {}) {
+  const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 4 : 0;
+  const cssW = wrapW > 60 ? wrapW : (canvas.clientWidth || 320);
+  const cssH = opts.height || 118;
+  const ctx = setupCanvas(canvas, cssW, cssH);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (!samples || samples.length < 2) return;
+
+  const padL = 34, padR = 6, padT = 8, padB = 16;
+  const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+
+  let minA = Infinity, maxA = 0;
+  for (const s of samples) {
+    minA = Math.min(minA, s.terrain ?? 0);
+    maxA = Math.max(maxA, s.top ?? 0, s.base ?? 0);
+  }
+  minA = Math.floor(minA / 250) * 250;
+  maxA = Math.ceil((maxA + 150) / 250) * 250;
+  if (maxA <= minA) maxA = minA + 500;
+
+  const xFor = (i) => padL + plotW * (samples.length === 1 ? 0.5 : i / (samples.length - 1));
+  const yFor = (a) => padT + plotH * (1 - (a - minA) / (maxA - minA));
+
+  // gridlines + altitude labels
+  ctx.font = '9px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = css('--muted', '#8a93a6');
+  const step = (maxA - minA) > 3500 ? 1000 : 500;
+  for (let a = minA; a <= maxA; a += step) {
+    ctx.strokeStyle = css('--grid', 'rgba(255,255,255,0.06)');
+    ctx.beginPath(); ctx.moveTo(padL, yFor(a)); ctx.lineTo(cssW - padR, yFor(a)); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(String(Math.round(altNum(a))), padL - 4, yFor(a));
+  }
+
+  // working-band columns (terrain → working top), climb-coloured
+  const colW = plotW / (samples.length - 1);
+  samples.forEach((s, i) => {
+    if (s.top == null) return;
+    const x = xFor(i);
+    ctx.fillStyle = liftColor(s.climb || 0);
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x - colW / 2, yFor(s.top), colW, yFor(s.terrain ?? minA) - yFor(s.top));
+    ctx.globalAlpha = 1;
+  });
+
+  // cloud-base dashed line
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(230,235,245,0.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); let started = false;
+  samples.forEach((s, i) => {
+    if (s.base == null) { started = false; return; }
+    const x = xFor(i), y = yFor(s.base);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // terrain profile
+  ctx.beginPath();
+  samples.forEach((s, i) => { const x = xFor(i), y = yFor(s.terrain ?? minA); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.lineTo(xFor(samples.length - 1), padT + plotH); ctx.lineTo(xFor(0), padT + plotH); ctx.closePath();
+  ctx.fillStyle = css('--terrain', 'rgba(92,72,54,0.6)'); ctx.fill();
+
+  // flight ceiling line (the height you can be at)
+  ctx.beginPath(); started = false;
+  samples.forEach((s, i) => {
+    if (s.top == null) { started = false; return; }
+    const x = xFor(i), y = yFor(s.top);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = css('--accent', '#5ec2ff'); ctx.lineWidth = 2; ctx.stroke();
+
+  // hour labels
+  ctx.fillStyle = css('--muted', '#8a93a6'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  samples.forEach((s, i) => {
+    if (i % Math.ceil(samples.length / 6) !== 0 && i !== samples.length - 1) return;
+    ctx.fillText(`${String(s.hour).padStart(2, '0')}h`, xFor(i), padT + plotH + 3);
+  });
+}
+
+/**
  * Draw the time-height thermal plot for one day.
  * @returns {{hourAtX:(px:number)=>number, cols:number}} hit-test helper.
  */

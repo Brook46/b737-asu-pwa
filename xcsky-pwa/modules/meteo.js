@@ -17,12 +17,20 @@ export const LEVELS = [1000, 925, 850, 700, 600, 500, 400, 300];
 // auto-picks the best available model for the point (HRRR/ICON-D2/… near the
 // surface, GFS elsewhere) — a good default.
 //
-// Only models that return `boundary_layer_height` are offered: without BL depth
-// the whole thermal derivation collapses to zeros. ECMWF and ICON via
-// Open-Meteo return null for it (verified 2026-07), so they're excluded.
+// GFS-family models return `boundary_layer_height` directly; the others don't,
+// so their thermal top comes from the dry-adiabat method (soaring.js) using the
+// pressure-level temperatures — which every one of these provides. That lets us
+// offer the full spread of global + regional models.
 export const MODELS = [
   { id: 'best_match', label: 'Auto (best)' },
-  { id: 'gfs_seamless', label: 'GFS (NOAA)' },
+  { id: 'gfs_seamless', label: 'GFS · NOAA' },
+  { id: 'ecmwf_ifs025', label: 'ECMWF · IFS' },
+  { id: 'icon_seamless', label: 'ICON · DWD' },
+  { id: 'icon_eu', label: 'ICON-EU · 7 km' },
+  { id: 'meteofrance_seamless', label: 'Météo-France · AROME/ARPEGE' },
+  { id: 'gem_seamless', label: 'GEM · Canada' },
+  { id: 'ukmo_seamless', label: 'UKMO · UK Met' },
+  { id: 'jma_seamless', label: 'JMA · Japan' },
 ];
 
 // Surface / column variables (one value per hour).
