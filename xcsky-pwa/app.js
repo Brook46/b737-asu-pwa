@@ -8,7 +8,7 @@
 
 import { fetchForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
 import { deriveHour, summariseDay } from './modules/soaring.js';
-import { drawTimeHeight, drawWindProfile, drawRouteSection, liftColor } from './modules/chart.js';
+import { drawTimeHeight, drawWindProfile, drawRouteSection, drawSounding, liftColor } from './modules/chart.js';
 import * as U from './modules/units.js';
 import * as Loc from './modules/location.js';
 import * as XMap from './modules/map.js';
@@ -308,7 +308,8 @@ function showRecEmpty(startName) {
   const t = $('rec-toast'); t.classList.remove('hidden');
   t.querySelector('.rec-toast-body').innerHTML =
     `<b>${startName}</b> is today's pick, but the day looks weak — little usable climb for going XC.`;
-  $('rec-opts').innerHTML = ''; $('rec-xsec').style.display = 'none';
+  $('rec-opts').innerHTML = ''; $('rec-strategy').textContent = ''; $('rec-speed-legend').innerHTML = '';
+  $('rec-xsec').style.display = 'none';
 }
 
 /** Trim an option's route so it never leaves the launch's country. */
@@ -333,6 +334,15 @@ async function showRecOption(idx) {
   drawRecRoute(rs, opt);
 }
 
+// XC ground-speed colour: how fast you can fly a leg (km made good per hour).
+function speedColor(kmh) {
+  if (kmh < 12) return '#5c9cc9';   // slow — weak air
+  if (kmh < 18) return '#3fae74';
+  if (kmh < 24) return '#9fcb3f';
+  if (kmh < 28) return '#f2c14e';   // quick
+  return '#ef7d3b';                  // ripping
+}
+
 function drawRecRoute(rs, opt) {
   if (!recLayer) recLayer = L.layerGroup().addTo(XMap.getMap());
   recLayer.clearLayers();
@@ -341,8 +351,14 @@ function drawRecRoute(rs, opt) {
     zIndexOffset: 1000,
   }).addTo(recLayer);
 
+  // Draw each leg in a colour for the speed you can fly it (≈ km made good/hour).
   if (opt && opt.km >= 3) {
-    L.polyline(opt.path.map((p) => [p.lat, p.lon]), { color: '#f2c14e', weight: 4, opacity: 0.95 }).addTo(recLayer);
+    for (let i = 1; i < opt.path.length; i++) {
+      const a = opt.path[i - 1], b = opt.path[i];
+      const legKmh = haversineKm(a, b);
+      L.polyline([[a.lat, a.lon], [b.lat, b.lon]],
+        { color: speedColor(legKmh), weight: 5, opacity: 0.95, lineCap: 'round' }).addTo(recLayer);
+    }
     const end = opt.path[opt.path.length - 1];
     L.circleMarker([end.lat, end.lon], { radius: 5, color: '#fff', weight: 2, fillColor: '#f2c14e', fillOpacity: 1 }).addTo(recLayer);
   }
@@ -359,7 +375,50 @@ function drawRecRoute(rs, opt) {
   }).join('');
   $('rec-opts').querySelectorAll('.rec-opt').forEach((b) => { b.onclick = () => showRecOption(+b.dataset.i); });
 
+  $('rec-strategy').textContent = buildStrategy(opt, rs);
+  $('rec-speed-legend').innerHTML =
+    '<span class="rsl-title">Glide speed</span>' +
+    [['12', 'slow'], ['18', ''], ['24', ''], ['28', 'fast']]
+      .map(([v, l]) => `<span class="rsl-item"><i style="background:${speedColor(+v + 1)}"></i>${v}${l ? ' ' + l : ''}</span>`).join('');
+
   drawRecXsection(rs, opt);
+}
+
+const haversineKm = (a, b) => {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+/** Short tactical text tailored to the option and the day's conditions. */
+function buildStrategy(opt, rs) {
+  // Sample the launch across the flown hours for the numbers.
+  let maxClimb = 0, maxTop = 0, cu = false, windSum = 0, gustish = 0, n = 0;
+  for (const h of (opt.times || [])) {
+    const wx = Grid.sampleAt(rs.start.lat, rs.start.lon, rs.dayKey, h);
+    if (!wx) continue;
+    maxClimb = Math.max(maxClimb, wx.climb || 0);
+    maxTop = Math.max(maxTop, wx.top || 0);
+    if (wx.base != null) cu = true;
+    windSum += wx.wind || 0; gustish = Math.max(gustish, wx.wind || 0); n++;
+  }
+  const wind = n ? windSum / n : 0;
+  const dir = Recommend.bearingLabel(opt.bearing);
+  const off = `${String(opt.takeoffHour).padStart(2, '0')}:00`;
+  const topTxt = maxTop ? U.alt(maxTop) : 'the top';
+  const climbTxt = maxClimb >= 0.4 ? `${maxClimb.toFixed(1)} m/s` : 'light';
+  const sky = cu ? 'work the cumulus' : 'blue day — read the ground and other gliders';
+  const windNote = wind > 28 ? ` Wind is strong (${U.wind(wind)}) — expect rough air and commit only with height.`
+    : wind > 16 ? ` Steady ${U.wind(wind)} tailwind helps the glides.` : ' Light wind, so climbs matter more than glides.';
+
+  if (opt.id === 'conservative') {
+    return `Wait for it to switch on and launch around ${off}. Stay high — top out near ${topTxt}, ${sky}, take short hops ${dir} and land before the day over-develops. Don't get low far from a road.` + windNote;
+  }
+  if (opt.id === 'committed') {
+    return `Off early at ${off} to use the whole window. Commit downwind ${dir}, chase the strongest lines (${climbTxt} to ${topTxt}) and keep moving.` + windNote + ` Have a bail-out plan if it shuts down late.`;
+  }
+  return `Launch around ${off} into working conditions, climb to ${topTxt} and run ${dir} (${climbTxt} cores). ${cu ? 'Stay under cloudbase' : 'Blue, so centre patiently'}.` + windNote;
 }
 
 function drawRecXsection(rs, opt) {
@@ -455,6 +514,14 @@ function renderSheet() {
   renderCharts();
   renderChartLegend();
   renderDetail();
+  renderSounding();
+}
+
+function renderSounding() {
+  const day = currentDay();
+  if (!day || state.hourIndex == null || $('fc-sheet').classList.contains('hidden')) return;
+  const hr = day.hours[state.hourIndex];
+  if (hr) drawSounding($('sounding'), hr, state.forecast.elevation, { height: 210 });
 }
 
 function renderSummary() {
@@ -625,7 +692,7 @@ function wireEvents() {
   slider.oninput = () => {
     state.hourIndex = +slider.value;
     renderOverlay();
-    if (!$('fc-sheet').classList.contains('hidden')) { renderCharts(); renderDetail(); }
+    if (!$('fc-sheet').classList.contains('hidden')) { renderCharts(); renderDetail(); renderSounding(); }
   };
 
   $('fc-open').onclick = openSheet;
@@ -639,7 +706,7 @@ function wireEvents() {
     const rect = th.getBoundingClientRect();
     state.hourIndex = chartHit.hourAtX(clientX - rect.left);
     $('hour-slider').value = String(state.hourIndex);
-    renderOverlay(); renderCharts(); renderDetail();
+    renderOverlay(); renderCharts(); renderDetail(); renderSounding();
   };
   th.addEventListener('pointerdown', (e) => { pick(e.clientX); th.setPointerCapture(e.pointerId); });
   th.addEventListener('pointermove', (e) => { if (e.buttons) pick(e.clientX); });

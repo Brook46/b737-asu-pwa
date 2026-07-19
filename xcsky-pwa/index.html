@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=8">
+  <link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
   <!-- The map IS the app -->
@@ -73,7 +73,9 @@
     <button id="rec-clear" class="rec-clear" aria-label="Clear suggestion">✕</button>
     <div class="rec-toast-body"></div>
     <div id="rec-opts" class="rec-opts"></div>
+    <div id="rec-strategy" class="rec-strategy"></div>
     <canvas id="rec-xsec" class="rec-xsec" height="118"></canvas>
+    <div id="rec-speed-legend" class="rec-speed-legend"></div>
   </div>
 
   <!-- Planning bar (only in plan mode) -->
@@ -147,6 +149,8 @@
       </section>
       <div id="chart-legend" class="legend"></div>
       <section id="detail" class="detail-grid"></section>
+      <h3 class="sounding-head">Sounding</h3>
+      <div class="sounding-wrap"><canvas id="sounding" class="sounding" height="210"></canvas></div>
       <p class="disclaimer">
         Model guidance only — never a substitute for your own eyes, judgement and a proper
         pre-flight check. Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
@@ -187,6 +191,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>

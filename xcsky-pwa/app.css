@@ -262,7 +262,18 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .rec-opt.active { border-color: #f2c14e; background: rgba(242,193,78,.12); }
 .rec-opt-name { font-size: .78rem; font-weight: 700; color: var(--ink); }
 .rec-opt-sub { font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rec-strategy {
+  font-size: .76rem; line-height: 1.5; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-left: 3px solid #f2c14e;
+  border-radius: 8px; padding: 8px 10px;
+}
+.rec-strategy:empty { display: none; }
 .rec-xsec { display: block; width: 100%; height: 118px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.rec-speed-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .68rem; color: var(--muted); }
+.rec-speed-legend:empty { display: none; }
+.rsl-title { font-weight: 600; color: var(--ink); }
+.rsl-item { display: inline-flex; align-items: center; gap: 3px; }
+.rsl-item i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 .rec-start {
   width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
   background: #f2c14e; color: #3a2a06; font-weight: 800; font-size: .8rem;
@@ -360,6 +371,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .stars { color: #f2c14e; letter-spacing: 1px; font-size: .78rem; }
 .risk-bar { display: block; height: 5px; border-radius: 3px; background: var(--track); margin-top: 5px; overflow: hidden; }
 .risk-bar i { display: block; height: 100%; }
+
+.sounding-head { font-size: .8rem; color: var(--muted); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+.sounding-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px; }
+.sounding { display: block; width: 100%; }
 
 .disclaimer { color: var(--muted); font-size: .7rem; line-height: 1.5; margin: 16px 2px 0; }
 

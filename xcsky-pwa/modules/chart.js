@@ -57,6 +57,109 @@ function css(name, fallback) {
   return v || fallback;
 }
 
+/** Dewpoint (°C) from temperature and relative humidity (Magnus). */
+function dewpoint(t, rh) {
+  if (t == null || rh == null || rh <= 0) return null;
+  const a = 17.625, b = 243.04;
+  const g = Math.log(rh / 100) + a * t / (b + t);
+  return (b * g) / (a - g);
+}
+
+/**
+ * A soaring sounding: environmental temperature and dewpoint against height,
+ * with the dry adiabat lifted from the surface, and the thermal top (where the
+ * adiabat meets the environment) and cloud base (LCL) marked. Reads left→warm.
+ * @param hr       normalised point-forecast hour (t2m, td2m, levels[{z,t,rh}])
+ * @param terrain  ground height, m MSL
+ */
+export function drawSounding(canvas, hr, terrain, opts = {}) {
+  const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 12 : 0;
+  const cssW = wrapW > 60 ? wrapW : (canvas.clientWidth || 320);
+  const cssH = opts.height || 210;
+  const ctx = setupCanvas(canvas, cssW, cssH);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // Build the profile: surface point + pressure levels above the ground.
+  const env = [];      // {z, t}
+  const dew = [];      // {z, td}
+  if (hr.t2m != null) env.push({ z: terrain, t: hr.t2m });
+  if (hr.td2m != null) dew.push({ z: terrain, td: hr.td2m });
+  for (const lv of (hr.levels || [])) {
+    if (lv.z == null || lv.z < terrain) continue;
+    if (lv.t != null) env.push({ z: lv.z, t: lv.t });
+    const td = dewpoint(lv.t, lv.rh);
+    if (td != null) dew.push({ z: lv.z, td });
+  }
+  if (env.length < 2) return;
+
+  const topZ = Math.min(terrain + 6000, Math.max(...env.map((e) => e.z)));
+  const zMin = terrain, zMax = Math.ceil(topZ / 500) * 500;
+
+  // Temperature range from the visible portion, padded.
+  let tMin = Infinity, tMax = -Infinity;
+  for (const e of env) if (e.z <= zMax) { tMin = Math.min(tMin, e.t); tMax = Math.max(tMax, e.t); }
+  for (const d of dew) if (d.z <= zMax) tMin = Math.min(tMin, d.td);
+  // parcel end temp
+  const parcelTop = hr.t2m - 9.8 * (zMax - terrain) / 1000;
+  tMin = Math.min(tMin, parcelTop);
+  tMin = Math.floor((tMin - 2) / 5) * 5; tMax = Math.ceil((tMax + 2) / 5) * 5;
+
+  const padL = 34, padR = 8, padT = 8, padB = 18;
+  const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+  const xFor = (t) => padL + plotW * (t - tMin) / (tMax - tMin);
+  const yFor = (z) => padT + plotH * (1 - (z - zMin) / (zMax - zMin));
+
+  const muted = css('--muted', '#8a93a6');
+  ctx.font = '9px system-ui, sans-serif';
+
+  // gridlines
+  ctx.strokeStyle = css('--grid', 'rgba(255,255,255,0.06)');
+  ctx.fillStyle = muted; ctx.textBaseline = 'middle';
+  for (let z = zMin; z <= zMax; z += 1000) {
+    ctx.beginPath(); ctx.moveTo(padL, yFor(z)); ctx.lineTo(cssW - padR, yFor(z)); ctx.stroke();
+    ctx.textAlign = 'right'; ctx.fillText(String(Math.round(altNum(z))), padL - 4, yFor(z));
+  }
+  ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+  for (let t = tMin; t <= tMax; t += 5) ctx.fillText(`${t}°`, xFor(t), padT + plotH + 4);
+
+  const line = (pts, key, color, width, dash) => {
+    ctx.setLineDash(dash || []); ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.beginPath();
+    pts.forEach((p, i) => { const x = xFor(p[key]), y = yFor(p.z); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+
+  // dry adiabat from the surface (the parcel a thermal follows)
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(245,193,78,.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(xFor(hr.t2m), yFor(terrain));
+  ctx.lineTo(xFor(parcelTop), yFor(zMax));
+  ctx.stroke(); ctx.setLineDash([]);
+
+  line(dew, 'td', '#3fa9f5', 2);          // dewpoint (blue)
+  line(env, 't', '#e0453f', 2);           // environment temperature (red)
+
+  // thermal top: where the dry adiabat crosses the environment curve
+  const d = deriveHour(hr, terrain);
+  if (d.thermalTop && d.thermalTop <= zMax) {
+    const y = yFor(d.thermalTop);
+    ctx.strokeStyle = 'rgba(124,193,67,.9)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cssW - padR, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#9fe06b'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(`top ${Math.round(altNum(d.thermalTop))}`, padL + 3, y - 1);
+  }
+  if (d.cumulus && d.cloudBase && d.cloudBase <= zMax) {
+    const y = yFor(d.cloudBase);
+    ctx.fillStyle = '#dfe6f2'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`cu base ${Math.round(altNum(d.cloudBase))}`, padL + 3, y + 1);
+  }
+
+  // legend
+  ctx.textBaseline = 'top'; ctx.textAlign = 'right';
+  ctx.fillStyle = '#e0453f'; ctx.fillText('temp', cssW - padR, padT);
+  ctx.fillStyle = '#3fa9f5'; ctx.fillText('dew', cssW - padR, padT + 11);
+}
+
 /**
  * Side-view of a suggested flight: x = time of day along the route, y = altitude.
  * Shows the working ceiling (climb-coloured) you can climb to at each position,

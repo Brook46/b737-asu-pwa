@@ -28,11 +28,15 @@ painted over it, phone-first.
   the barbs, convergence and flow all switch to that height.
 - **Best of the day (★)** — one tap picks the top-ranked launch and offers three
   **flight options** — Conservative / Balanced / Committed — each with a
-  **recommended takeoff time** and a downwind, climb-following XC line. A
-  **side-view cross-section** plots the working ceiling (height) against time of
-  day along the chosen route, over the terrain. Lines are **fenced to the launch
-  country** (truncated at the border / coast). Heuristic guidance, clearly
+  **recommended takeoff time** and short **strategy text** tailored to the day
+  (when to launch, how high, wind/over-development cautions). The route is drawn
+  in **per-leg colours for the glide speed** you can make good, and a **side-view
+  cross-section** plots the working ceiling against time of day over the terrain.
+  Lines are **fenced to the launch country**. Heuristic guidance, clearly
   labelled.
+- **Sounding** — the point forecast includes a soaring sounding: environmental
+  temperature + dewpoint against height, the dry adiabat lifted from the surface,
+  and the thermal top / cloud base marked.
 - **Live wind stations** — real-time Pioupiou sensors (keyless): a coloured
   arrow + average speed per station, gust & age in the popup.
 - **Airspace (CTR / no-fly)** — OpenAIP airspace tiles, and **webcams** —
