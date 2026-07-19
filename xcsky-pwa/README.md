@@ -16,8 +16,14 @@ painted over it, phone-first.
   forecasts covering the viewport is fetched in one batched call and painted as
   a smooth colour field. Colour layers: **Thermals** (net climb m/s), **Top**
   (thermal top MSL), **Base** (cumulus cloud base; blue holes transparent).
+  Plus an **XC** field colouring the whole-day cross-country potential (km).
   Scrub any of 7 days × 24 h — recolouring is instant from cache; pan/zoom
   refetches for the new area automatically.
+- **Routes** — the best 3 XC lines of the day from the top-ranked launches in
+  view, distances scored XContest-style over the standard 5 points.
+- **Takeoffs (🪂)** — ranks launches for the *selected day* (best hour of each)
+  in the area you're looking at, motorised/tow sites filtered out; the crosshair
+  tool centres the map on you.
 - **Wind & convergence overlays** — stack over any colour field. **Wind** draws
   standard meteorological barbs (direction + strength). **Convergence**
   highlights lift lines computed from the horizontal wind divergence (bright
