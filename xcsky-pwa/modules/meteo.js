@@ -11,7 +11,10 @@ const FORECAST_API = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_API  = 'https://geocoding-api.open-meteo.com/v1/search';
 
 // Pressure levels used for the wind profile + sounding, high (surface) → low.
-export const LEVELS = [1000, 925, 850, 700, 600, 500, 400, 300];
+// Up to 500 hPa (~5.5 km) covers every thermal and the sounding's plotted range.
+// 400/300 hPa were pure payload — and Open-Meteo bills by variables × steps, so
+// trimming them directly reduces how often we trip the rate limit.
+export const LEVELS = [1000, 925, 850, 700, 600, 500];
 
 // Weather models Open-Meteo exposes that are useful for soaring. `best_match`
 // auto-picks the best available model for the point (HRRR/ICON-D2/… near the
@@ -127,15 +130,36 @@ export async function fetchForecast({ lat, lon, model = 'best_match', days = 3 }
   return normalise(data);
 }
 
-/** fetch with one retry after a short backoff on a rate-limit (429) or 5xx. */
-export async function fetchRetry(url, opts) {
-  let res = await fetch(url, opts);
-  if (res.status === 429 || res.status >= 500) {
-    await new Promise((r) => setTimeout(r, 1500));
-    res = await fetch(url, opts);
+/**
+ * fetch that rides out Open-Meteo's per-IP rate limit. 429/5xx are retried with
+ * exponential backoff + jitter (honouring Retry-After when the server sends it);
+ * 4xx other than 429 return immediately since retrying won't help.
+ *
+ * Mobile carriers put many phones behind one IP (CGNAT), so a 429 is usually a
+ * shared, short-lived window — waiting a few seconds almost always clears it.
+ */
+export async function fetchRetry(url, opts, { retries = 3 } = {}) {
+  let last = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, opts);
+    } catch (err) {                                  // network blip
+      if (attempt === retries) throw err;
+      await sleep(backoff(attempt));
+      continue;
+    }
+    if (res.ok) return res;
+    if (res.status !== 429 && res.status < 500) return res;
+    last = res;
+    if (attempt === retries) break;
+    const ra = parseInt(res.headers.get('retry-after') || '', 10);
+    await sleep(Number.isFinite(ra) ? Math.min(ra * 1000, 15000) : backoff(attempt));
   }
-  return res;
+  return last;
 }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const backoff = (n) => Math.min(9000, 900 * 2 ** n) + Math.random() * 600;
 
 /**
  * Reshape Open-Meteo's parallel arrays into per-hour objects. Each hour carries
