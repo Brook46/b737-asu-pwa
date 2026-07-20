@@ -105,7 +105,8 @@ function populateModelSelect() {
 async function refreshAll(quiet = false) {
   if (state.loading) return;
   state.loading = true;
-  if (!quiet) setStatus('Loading forecast…', 'loading');
+  const hadForecast = !!state.forecast;
+  if (!quiet && !hadForecast) setStatus('Loading forecast…', 'loading');
   try {
     const [fc] = await Promise.all([
       fetchForecast({ lat: state.loc.lat, lon: state.loc.lon, model: state.model, days: 7 }),
@@ -119,10 +120,29 @@ async function refreshAll(quiet = false) {
     renderAll();
   } catch (err) {
     console.error(err);
-    setStatus(`Couldn't load forecast: ${err.message}. Tap to retry.`, 'error', () => refreshAll());
+    const limited = /\b429\b/.test(err.message || '');
+    if (hadForecast) {
+      // A refresh failed but we already have a good forecast — keep showing it
+      // rather than blanking the app, and say so briefly.
+      setStatus(limited ? 'Busy upstream — still showing the last forecast'
+                        : 'Couldn\'t refresh — still showing the last forecast', 'loading');
+      setTimeout(clearStatus, 3000);
+    } else {
+      setStatus(limited
+        ? 'Weather service is busy (rate limit). Tap to try again.'
+        : `Couldn't load forecast: ${err.message}. Tap to retry.`, 'error', () => refreshAll());
+    }
   } finally {
     state.loading = false;
   }
+}
+
+// Coalesce rapid refetches (location + model changed together, etc.) so we
+// don't fire two heavy requests back-to-back and trip the limit ourselves.
+let refreshT = null;
+function scheduleRefresh() {
+  clearTimeout(refreshT);
+  refreshT = setTimeout(() => refreshAll(), 220);
 }
 
 /** Default the hour scrubber to the best hour of the selected day. */
@@ -723,7 +743,7 @@ function setLocation(loc, { fly = true } = {}) {
   renderLocName();
   if (fly) XMap.flyTo(state.loc);
   else XMap.setSpot(state.loc);
-  refreshAll();
+  scheduleRefresh();
 }
 
 function openSheet() { $('fc-sheet').classList.remove('hidden'); renderSheet(); }
@@ -734,7 +754,7 @@ function wireEvents() {
   $('model-select').onchange = (e) => {
     state.model = e.target.value;
     localStorage.setItem('xcsky.model', state.model);
-    refreshAll();
+    scheduleRefresh();
   };
 
   const slider = $('hour-slider');
