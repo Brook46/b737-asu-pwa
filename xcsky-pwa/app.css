@@ -20,6 +20,65 @@
   --safe-b:    env(safe-area-inset-bottom, 0px);
 }
 
+/* ── high-contrast direct-sun theme ──────────────────────────────────────────
+   Stark white surfaces, near-black text, saturated accents. Chosen for reading
+   the screen on launch in full sun, not for looking pretty indoors. */
+:root[data-theme="sun"] {
+  --bg:      #ffffff;
+  --bg-2:    #ffffff;
+  --card:    #ffffff;
+  --card-2:  #eef1f5;
+  --glass:   rgba(255,255,255,0.97);
+  --ink:     #000000;
+  --muted:   #33404f;
+  --line:    rgba(0,0,0,0.42);
+  --grid:    rgba(0,0,0,0.16);
+  --track:   rgba(0,0,0,0.16);
+  --accent:  #0060df;
+  --terrain: rgba(92,60,26,0.85);
+}
+:root[data-theme="sun"] .chip-btn,
+:root[data-theme="sun"] .toggle-chip,
+:root[data-theme="sun"] .layer-chip,
+:root[data-theme="sun"] .day-tab,
+:root[data-theme="sun"] .tool-btn,
+:root[data-theme="sun"] .model-select { border-width: 2px; font-weight: 700; }
+:root[data-theme="sun"] .layer-chip.active { background: #0060df; color: #fff; }
+:root[data-theme="sun"] .dock { background: linear-gradient(transparent, rgba(255,255,255,.85) 22%, #fff); }
+:root[data-theme="sun"] .rec-toast,
+:root[data-theme="sun"] .alt-bar { box-shadow: 0 2px 12px rgba(0,0,0,.28); }
+:root[data-theme="sun"] .pilot-count,
+:root[data-theme="sun"] .legend { text-shadow: none; }
+:root[data-theme="sun"] .bigmap { filter: contrast(1.06) saturate(1.12); }
+
+/* ── connection / data-freshness badge ───────────────────────────────────── */
+.conn-badge {
+  position: fixed; top: calc(60px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  z-index: 1160; padding: 7px 13px; border-radius: 999px;
+  font-size: .76rem; font-weight: 700; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--glass); color: var(--ink);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 2px 10px rgba(0,0,0,.35);
+}
+.conn-badge[hidden] { display: none; }
+.conn-badge.offline { background: #7a2318; color: #ffd9d2; border-color: #b4483a; }
+.conn-badge.stale { background: #6b4c12; color: #ffe6b3; border-color: #c08a22; cursor: pointer; }
+.conn-badge.ok { opacity: .72; font-weight: 600; }
+:root[data-theme="sun"] .conn-badge.offline { background: #c62d1a; color: #fff; }
+:root[data-theme="sun"] .conn-badge.stale { background: #b8791a; color: #fff; }
+
+/* ── touch targets: 48px minimum for gloved / in-flight use ──────────────── */
+.tool-btn { min-width: 48px; min-height: 48px; }
+.chip-btn, .toggle-chip, .layer-chip, .icon-btn, .rec-opt, .alt-level,
+.topbar .model-select, .loc-chip, .fc-btn, .day-tab, .saved-go, .saved-del, .result {
+  min-height: 48px;
+}
+.chip-btn.icon-only { display: grid; place-items: center; min-width: 48px; padding: 0; }
+.day-tab { justify-content: center; }
+#hour-slider { height: 10px; }
+#hour-slider::-webkit-slider-thumb { width: 30px; height: 30px; }
+#hour-slider::-moz-range-thumb { width: 30px; height: 30px; }
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0; height: 100%;
@@ -68,6 +127,10 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 #loc-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .loc-chevron { color: var(--muted); }
 .brand-mark { flex: none; display: block; }
+/* Theme-aware brand mark: body follows the ink colour, face punches through. */
+.brand-mark .bm-body { fill: var(--ink); }
+.brand-mark .bm-face { fill: var(--glass); }
+:root[data-theme="sun"] .brand-mark .bm-face { fill: #ffffff; }
 .chip-btn {
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
   padding: 9px 12px; font-size: .8rem; font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -295,6 +358,96 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 
 /* ── planning bar ───────────────────────────────────────── */
+/* ── model comparison ─────────────────────────────────────────────────── */
+.cmp-load { float: right; font-size: .72rem; min-height: 34px; }
+.cmp-table { display: grid; gap: 2px; }
+.cmp-row {
+  display: grid; grid-template-columns: 1.3fr .8fr 1fr 1fr .8fr; gap: 6px;
+  padding: 7px 10px; border-radius: 8px; background: var(--chip);
+  font-size: .78rem; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.cmp-row span { white-space: nowrap; }
+.cmp-row.cmp-head { background: none; color: var(--muted); font-size: .68rem;
+  text-transform: uppercase; letter-spacing: .04em; padding-bottom: 0; }
+.cmp-model { font-weight: 600; }
+.cmp-empty { padding: 8px 2px; font-size: .78rem; color: var(--muted); }
+.cmp-verdict { margin-top: 5px; padding: 7px 10px; border-radius: 8px; font-size: .76rem; }
+.cmp-verdict.good { color: #5cd39a; background: rgba(92,211,154,.1); }
+.cmp-verdict.poor { color: #f2a24e; background: rgba(242,162,78,.1); }
+/* Sunlight mode: the lift-ramp colours are too pale on white, so drop them. */
+:root[data-theme="sun"] .cmp-row span { color: var(--ink) !important; font-weight: 600; }
+:root[data-theme="sun"] .cmp-row.cmp-head span { color: var(--muted) !important; font-weight: 500; }
+:root[data-theme="sun"] .cmp-verdict.good { color: #0a6b41; background: rgba(10,107,65,.09); }
+:root[data-theme="sun"] .cmp-verdict.poor { color: #8a4a00; background: rgba(138,74,0,.09); }
+:root[data-theme="sun"] .sd-readout .sd-warn { color: #8a4a00; }
+
+/* ── thermal metrics + sounding read-out ──────────────────────────────── */
+.thermal-metrics {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;
+}
+.tm-card {
+  display: grid; gap: 2px; padding: 9px 11px; border-radius: 12px;
+  background: var(--chip); border: 1px solid var(--line);
+}
+.tm-label { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.tm-value { font-size: 1.05rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tm-sub { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sd-hint { font-size: .7rem; font-weight: 400; color: var(--muted); }
+.sounding { touch-action: none; cursor: ns-resize; }
+.sd-readout {
+  margin-top: 6px; padding: 8px 11px; min-height: 38px; border-radius: 10px;
+  background: var(--chip); border: 1px solid var(--line);
+  font-size: .78rem; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.sd-readout .sd-idle { color: var(--muted); }
+.sd-readout .sd-warn { color: #f2a24e; font-weight: 600; }
+
+/* ── task cross-section panel ─────────────────────────────────────────── */
+.task-panel {
+  /* sits directly above the planning bar, growing upward as it expands */
+  position: fixed; left: 0; right: 0; bottom: 272px; z-index: 1160;
+  max-width: 760px; margin: 0 auto; padding: 0 10px;
+  display: flex; flex-direction: column-reverse;
+}
+.task-panel.hidden { display: none; }
+.task-toggle {
+  width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 8px 12px; border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line); color: var(--ink); font-size: .82rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,.35); font-variant-numeric: tabular-nums;
+}
+.task-toggle .task-caret { transition: transform .16s ease; opacity: .7; }
+.task-toggle[aria-expanded="true"] .task-caret { transform: rotate(180deg); }
+.task-body {
+  margin-bottom: 6px; padding: 8px 6px 10px; border-radius: 12px;
+  background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line); box-shadow: 0 2px 14px rgba(0,0,0,.4);
+}
+.task-body.hidden { display: none; }
+.task-xsec { display: block; width: 100%; height: 190px; }
+.task-legs {
+  display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 6px 0;
+  font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.task-legs span {
+  background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px;
+}
+.task-legs span.total { color: var(--ink); font-weight: 600; }
+.task-fai { padding: 6px 8px 0; font-size: .74rem; color: var(--muted); }
+.task-fai.ok { color: #5cd39a; }
+.task-fai.no { color: #f2a24e; }
+
+/* ── local airspace import ────────────────────────────────────────────── */
+.as-drop {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  min-height: 68px; padding: 10px; border-radius: 12px;
+  border: 1.5px dashed var(--line); color: var(--muted); font-size: .78rem;
+}
+.as-drop.over { border-color: var(--accent); color: var(--ink); }
+.as-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.as-status { font-size: .75rem; color: var(--muted); }
+
 .plan-bar {
   position: fixed; left: 0; right: 0; bottom: 178px; z-index: 1150;
   max-width: 760px; margin: 0 auto; padding: 8px 10px;

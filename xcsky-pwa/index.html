@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=10">
+  <link rel="stylesheet" href="app.css?v=12">
 </head>
 <body>
   <!-- The map IS the app -->
@@ -28,13 +28,13 @@
   <header class="topbar">
     <button id="loc-btn" class="loc-chip" aria-label="Change location">
       <svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true">
-        <g fill="#eef3fb">
+        <g class="bm-body">
           <path d="M186 252 C130 200 82 192 50 206 C94 220 98 242 140 252 C102 266 98 288 76 302 C128 296 166 286 192 268 Z"/>
           <path d="M326 252 C382 200 430 192 462 206 C418 220 414 242 372 252 C410 266 414 288 436 302 C384 296 346 286 320 268 Z"/>
           <circle cx="198" cy="218" r="38"/><circle cx="314" cy="218" r="38"/>
           <circle cx="256" cy="254" r="82"/>
         </g>
-        <g fill="#0a0f1a">
+        <g class="bm-face">
           <circle cx="229" cy="242" r="11"/><circle cx="283" cy="242" r="11"/>
           <path d="M224 286 Q256 314 288 286 Q256 300 224 286 Z"/>
         </g>
@@ -43,8 +43,17 @@
       <span class="loc-chevron">▾</span>
     </button>
     <select id="model-select" class="model-select glass" title="Weather model" aria-label="Weather model"></select>
+    <button id="sun-btn" class="chip-btn glass icon-only" aria-pressed="false" title="High-contrast sunlight mode">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4.2"/>
+        <path d="M12 2v2.6M12 19.4V22M2 12h2.6M19.4 12H22M4.9 4.9l1.9 1.9M17.2 17.2l1.9 1.9M19.1 4.9l-1.9 1.9M6.8 17.2l-1.9 1.9"/>
+      </svg>
+    </button>
     <button id="units-btn" class="chip-btn glass" title="Toggle units">m·km/h</button>
   </header>
+
+  <!-- Connection / data freshness -->
+  <div id="conn-badge" class="conn-badge" hidden></div>
 
   <!-- Tool column (left) -->
   <div class="tools">
@@ -101,6 +110,19 @@
       <button id="plan-undo" class="chip-btn">Undo</button>
       <button id="plan-clear" class="chip-btn">Clear</button>
       <button id="plan-done" class="chip-btn">Done</button>
+    </div>
+  </div>
+
+  <!-- Task cross-section: terrain + airspace + wind along the planned legs -->
+  <div id="task-panel" class="task-panel hidden">
+    <button id="task-toggle" class="task-toggle" aria-expanded="false">
+      <span id="task-summary" class="task-summary">Task profile</span>
+      <span class="task-caret" aria-hidden="true">▾</span>
+    </button>
+    <div id="task-body" class="task-body hidden">
+      <canvas id="task-xsec" class="task-xsec" height="190"></canvas>
+      <div id="task-legs" class="task-legs"></div>
+      <div id="task-fai" class="task-fai"></div>
     </div>
   </div>
 
@@ -164,8 +186,16 @@
       </section>
       <div id="chart-legend" class="legend"></div>
       <section id="detail" class="detail-grid"></section>
-      <h3 class="sounding-head">Sounding</h3>
+      <h3 class="sounding-head">Model agreement
+        <button id="cmp-load" class="chip-btn cmp-load">Compare models</button>
+      </h3>
+      <div id="cmp-table" class="cmp-table"></div>
+
+      <h3 class="sounding-head">Thermal metrics</h3>
+      <div id="thermal-metrics" class="thermal-metrics"></div>
+      <h3 class="sounding-head">Sounding <span class="sd-hint">— drag the line to read a level</span></h3>
       <div class="sounding-wrap"><canvas id="sounding" class="sounding" height="210"></canvas></div>
+      <div id="sd-readout" class="sd-readout"></div>
       <p class="disclaimer">
         Model guidance only — never a substitute for your own eyes, judgement and a proper
         pre-flight check. Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
@@ -199,11 +229,25 @@
       <div class="key-row"><input id="openaip-key" type="text" placeholder="OpenAIP API key" autocomplete="off" spellcheck="false"></div>
       <div class="key-row"><input id="windy-key" type="text" placeholder="Windy Webcams API key" autocomplete="off" spellcheck="false"></div>
       <button id="keys-save" class="wide-btn ghost">Save keys</button>
+
+      <h3 class="saved-head">Local airspace file</h3>
+      <p class="key-note">No key? Drop in the OpenAir (<code>.txt</code>/<code>.oa</code>) or GeoJSON file your
+        national association publishes. It's parsed on-device, stored offline, drawn on the map and used in the
+        task cross-section.</p>
+      <div id="as-drop" class="as-drop">
+        <span>Drop a file here, or</span>
+        <button id="as-pick" class="chip-btn">Choose file</button>
+        <input id="as-file" type="file" accept=".txt,.oa,.air,.openair,.json,.geojson" hidden>
+      </div>
+      <div class="as-row">
+        <span id="as-status" class="as-status">No local airspace loaded</span>
+        <button id="as-clear" class="chip-btn" hidden>Clear</button>
+      </div>
       <!-- model selector lives in the top bar -->
 
     </div>
   </div>
 
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

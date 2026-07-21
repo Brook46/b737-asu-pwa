@@ -15,10 +15,13 @@
 
 import { lclAgl, wStar, climbRate, dryThermalTopMSL, STD_HEIGHT } from './soaring.js';
 import { fetchRetry } from './meteo.js';
+import * as Store from './store.js';
 
 const COLS = 9, ROWS = 7;
 const PAD = 0.16;            // fetch this fraction beyond the viewport each side
-const ALPHA = 0.8;           // colour-field opacity
+let ALPHA = 0.8;             // colour-field opacity
+/** Direct-sun mode: paint the field harder so it survives glare. */
+export function setHighContrast(on) { ALPHA = on ? 0.95 : 0.8; }
 
 const HOURLY_VARS = [
   'temperature_2m', 'dewpoint_2m', 'boundary_layer_height',
@@ -97,21 +100,41 @@ export async function ensureGrid(map, model) {
     if (!res.ok) throw new Error(`grid ${res.status}`);
     const data = await res.json();
     const arr = Array.isArray(data) ? data : [data];
-    cache = {
-      model, bounds: b,
-      points: arr.map((p) => ({
-        lat: p.latitude, lon: p.longitude, elev: p.elevation || 0,
-        hourly: p.hourly,
-        idx: new Map(p.hourly.time.map((t, i) => [t, i])),
-      })),
-    };
+    const points = arr.map((p) => ({
+      lat: p.latitude, lon: p.longitude, elev: p.elevation || 0,
+      hourly: p.hourly,
+      idx: new Map(p.hourly.time.map((t, i) => [t, i])),
+    }));
+    cache = { model, bounds: b, points };
+    // Keep the lattice for offline use. Bounds are stored as plain numbers —
+    // L.latLngBounds isn't structured-cloneable.
+    Store.put(Store.gridKey(b, model), {
+      model, points: points.map(({ lat, lon, elev, hourly }) => ({ lat, lon, elev, hourly })),
+      s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast(),
+    });
     return true;
   } catch (err) {
     console.warn('grid fetch failed', err);
-    return false;
+    return restoreGrid(map, model);
   } finally {
     fetching = false;
   }
+}
+
+/** Fall back to the last cached lattice covering this view (offline / rate-limited). */
+async function restoreGrid(map, model) {
+  try {
+    const b = paddedBounds(map);
+    const rec = await Store.get(Store.gridKey(b, model));
+    if (!rec || !rec.value || !rec.value.points) return false;
+    const v = rec.value;
+    cache = {
+      model: v.model,
+      bounds: L.latLngBounds([v.s, v.w], [v.n, v.e]),
+      points: v.points.map((p) => ({ ...p, idx: new Map(p.hourly.time.map((t, i) => [t, i])) })),
+    };
+    return true;
+  } catch { return false; }
 }
 
 /** Derive the soaring numbers for one grid point at a local time key. */

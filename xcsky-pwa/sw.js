@@ -3,7 +3,7 @@
 // and map tiles are network-only (fresh + huge). Leaflet CDN is cached after
 // first load.
 
-const CACHE_VERSION = 'skymonkeys-v17';
+const CACHE_VERSION = 'skymonkeys-v19';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,6 +25,10 @@ const APP_SHELL = [
   './modules/stations.js',
   './modules/webcams.js',
   './modules/windflow.js',
+  './modules/store.js',
+  './modules/airspace.js',
+  './modules/profile.js',
+  './modules/compare.js',
   './modules/resume.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

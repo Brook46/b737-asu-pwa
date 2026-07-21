@@ -6,9 +6,9 @@
 // forecast (time-height chart, wind profile, detail cards) opens as a bottom
 // sheet. Vanilla ES modules, no framework.
 
-import { fetchForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
+import { fetchForecast, cachedForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
 import { deriveHour, summariseDay } from './modules/soaring.js';
-import { drawTimeHeight, drawWindProfile, drawRouteSection, drawSounding, liftColor } from './modules/chart.js';
+import { drawTimeHeight, drawWindProfile, drawRouteSection, drawSounding, soundingAt, drawTaskProfile, liftColor } from './modules/chart.js';
 import * as U from './modules/units.js';
 import * as Loc from './modules/location.js';
 import * as XMap from './modules/map.js';
@@ -18,6 +18,10 @@ import * as Plan from './modules/planning.js';
 import * as Recommend from './modules/recommend.js';
 import * as Webcams from './modules/webcams.js';
 import * as Flow from './modules/windflow.js';
+import * as Store from './modules/store.js';
+import * as Airspace from './modules/airspace.js';
+import * as Profile from './modules/profile.js';
+import * as Compare from './modules/compare.js';
 import { installResumeHardening } from './modules/resume.js';
 
 // Default point if we have no saved location and GPS is unavailable:
@@ -68,7 +72,10 @@ function boot() {
       onPick: onMapPick,
     });
     Grid.watchMap(XMap.getMap(), () => state.model, renderOverlay);
-    Plan.initPlanner(XMap.getMap(), { onChange: renderPlanStats });
+    Plan.initPlanner(XMap.getMap(), {
+      onChange: (st) => { renderPlanStats(st); scheduleProfile(); },
+    });
+    initAirspaceLayer();
     let tkT = null;
     XMap.getMap().on('moveend', () => {
       if (anyWindLayer()) renderAltBar();
@@ -116,11 +123,32 @@ async function refreshAll(quiet = false) {
     state.days = groupByDay(fc);
     if (state.dayIndex >= state.days.length) state.dayIndex = 0;
     pickDefaultHour();
+    state.dataAt = Date.now();
+    state.dataStale = false;
     clearStatus();
     renderAll();
+    renderConnBadge();
   } catch (err) {
     console.error(err);
     const limited = /\b429\b/.test(err.message || '');
+    // No live data — fall back to whatever we cached for this point.
+    if (!hadForecast) {
+      const cached = await cachedForecast({ lat: state.loc.lat, lon: state.loc.lon, model: state.model })
+        .catch(() => null);
+      if (cached && cached.forecast) {
+        state.forecast = cached.forecast;
+        state.days = groupByDay(cached.forecast);
+        if (state.dayIndex >= state.days.length) state.dayIndex = 0;
+        pickDefaultHour();
+        state.dataAt = cached.at;
+        state.dataStale = true;
+        clearStatus();
+        renderAll();
+        renderConnBadge();
+        state.loading = false;
+        return;
+      }
+    }
     if (hadForecast) {
       // A refresh failed but we already have a good forecast — keep showing it
       // rather than blanking the app, and say so briefly.
@@ -186,6 +214,7 @@ function renderOverlay() {
   renderAltBar();
   if (state.takeoffsOn) renderTakeoffs();   // re-rank for the new day
   if (state.routesOn) refreshRoutes();      // keyed by day+area → cheap on hour scrubs
+  if (Plan.isActive() && !$('task-body').classList.contains('hidden')) drawProfileCanvas(Profile.taskStats(Plan.waypoints()));
   updateHourReadout();
 }
 
@@ -521,10 +550,169 @@ function togglePlan() {
   Plan.setActive(on);
   $('plan-btn').setAttribute('aria-pressed', String(on));
   $('plan-bar').classList.toggle('hidden', !on);
-  if (on) renderPlanStats(Plan.stats());
+  Airspace.setInteractive(!on, asLayer);   // let taps through to the map while planning
+  if (on) { renderPlanStats(Plan.stats()); scheduleProfile(); }
+  else $('task-panel').classList.add('hidden');
+}
+
+// ── local airspace (OpenAir / GeoJSON, imported on-device) ──────────────────
+let asLayer = null;
+
+async function initAirspaceLayer() {
+  asLayer = L.layerGroup().addTo(XMap.getMap());
+  try {
+    const { zones, meta } = await Airspace.load();
+    if (zones.length) { Airspace.render(asLayer); renderAsStatus(meta); }
+  } catch { /* no local airspace stored — that's the normal case */ }
+}
+
+function renderAsStatus(meta) {
+  const n = Airspace.count();
+  const el = $('as-status');
+  if (!el) return;
+  el.textContent = n
+    ? `${n} zones loaded${meta && meta.name ? ` from ${meta.name}` : ''}`
+    : 'No local airspace loaded';
+  $('as-clear').hidden = !n;
+}
+
+async function importAirspaceFile(file) {
+  if (!file) return;
+  setStatus(`Reading ${file.name}…`, 'loading');
+  try {
+    const text = await file.text();
+    const zones = Airspace.parseAirspace(text, file.name);
+    if (!zones.length) throw new Error('No airspace found in that file');
+    await Airspace.save(zones, { name: file.name });
+    Airspace.render(asLayer);
+    Profile.invalidate();
+    renderAsStatus({ name: file.name });
+    scheduleProfile();
+    setStatus(`${zones.length} airspace zones loaded`, 'loading');
+    setTimeout(clearStatus, 2400);
+  } catch (err) {
+    setStatus(`Airspace import failed: ${err.message}`, 'error');
+    setTimeout(clearStatus, 3200);
+  }
+}
+
+function wireAirspaceImport() {
+  const drop = $('as-drop');
+  if (!drop) return;
+  $('as-pick').onclick = () => $('as-file').click();
+  $('as-file').onchange = (e) => { importAirspaceFile(e.target.files[0]); e.target.value = ''; };
+  $('as-clear').onclick = async () => {
+    await Airspace.clear();
+    if (asLayer) asLayer.clearLayers();
+    Profile.invalidate();
+    renderAsStatus(null); scheduleProfile();
+  };
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', (e) => importAirspaceFile(e.dataTransfer.files[0]));
+  renderAsStatus(null);
+}
+
+// ── task cross-section (terrain + airspace + wind along the legs) ────────────
+let profileT = null, profileSamples = null;
+
+/** Debounced rebuild — dragging a turnpoint fires change events continuously. */
+function scheduleProfile() {
+  clearTimeout(profileT);
+  profileT = setTimeout(refreshProfile, 260);
+}
+
+async function refreshProfile() {
+  const panel = $('task-panel');
+  const wpts = Plan.waypoints();
+  if (!Plan.isActive() || wpts.length < 2) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+
+  const stats = Profile.taskStats(wpts);
+  $('task-summary').textContent =
+    `Task profile · ${stats.total.toFixed(1)} km` +
+    (stats.fai ? (stats.fai.valid ? ' · FAI ✓' : ' · FAI ✗') : '');
+
+  // Leg chips.
+  $('task-legs').innerHTML =
+    stats.legs.map((d, i) => `<span>L${i + 1} ${d.toFixed(1)} km</span>`).join('') +
+    (stats.closing ? `<span>close ${stats.closing.toFixed(1)} km</span>` : '') +
+    `<span class="total">total ${(stats.closing ? stats.perimeter : stats.total).toFixed(1)} km</span>`;
+
+  const fai = $('task-fai');
+  if (!stats.fai) {
+    fai.className = 'task-fai';
+    fai.textContent = wpts.length < 4
+      ? 'Drop 3 turnpoints for an FAI triangle check.'
+      : 'FAI triangle check applies to exactly 3 turnpoints.';
+  } else {
+    const pct = (stats.fai.minPct * 100).toFixed(1);
+    fai.className = 'task-fai ' + (stats.fai.valid ? 'ok' : 'no');
+    fai.textContent = stats.fai.valid
+      ? `FAI triangle valid — shortest side ${pct}% of perimeter (needs ≥28%).`
+      : `Not an FAI triangle — shortest side ${pct}% of perimeter (needs ≥28%).`;
+  }
+
+  if ($('task-body').classList.contains('hidden')) return;   // collapsed: skip the fetch
+
+  try {
+    profileSamples = await Profile.buildProfile(wpts);
+  } catch { profileSamples = null; }
+  drawProfileCanvas(stats);
+}
+
+function drawProfileCanvas(stats) {
+  if (!profileSamples) return;
+  const wpts = Plan.waypoints();
+  const day = currentDay();
+  const hour = currentHourOfDay();
+
+  // Wind at the mid-point of each leg, and the working top, from the grid.
+  const winds = [];
+  let top = 0;
+  for (let i = 1; i < wpts.length; i++) {
+    const mid = { lat: (wpts[i - 1].lat + wpts[i].lat) / 2, lon: (wpts[i - 1].lon + wpts[i].lon) / 2 };
+    const wx = day && hour != null ? Grid.sampleAt(mid.lat, mid.lon, day.dayKey, hour) : null;
+    winds.push(wx ? { spd: wx.wind, dir: wx.windDir } : null);
+    if (wx && wx.top) top = Math.max(top, wx.top);
+  }
+  drawTaskProfile($('task-xsec'), profileSamples, { wpts, winds, top, height: 190 });
 }
 
 function renderLocName() { $('loc-name').textContent = state.loc.name; }
+
+// ── connection / data freshness ──────────────────────────────────────────────
+function renderConnBadge() {
+  const el = $('conn-badge');
+  const offline = !navigator.onLine;
+  const at = state.dataAt ? Store.timeLabel(state.dataAt) : '';
+  if (offline) {
+    el.hidden = false; el.className = 'conn-badge offline';
+    el.textContent = at ? `Offline — cached at ${at}` : 'Offline — no cached data';
+  } else if (state.dataStale) {
+    el.hidden = false; el.className = 'conn-badge stale';
+    el.textContent = at ? `Cached at ${at} — tap to refresh` : 'Cached data — tap to refresh';
+    el.onclick = () => refreshAll();
+  } else if (at) {
+    el.hidden = false; el.className = 'conn-badge ok';
+    el.textContent = `Updated ${at}`;
+  } else {
+    el.hidden = true;
+  }
+}
+
+// ── high-contrast sunlight theme ─────────────────────────────────────────────
+function applyTheme(sun) {
+  document.documentElement.setAttribute('data-theme', sun ? 'sun' : 'night');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', sun ? '#ffffff' : '#0a0f1a');
+  $('sun-btn').setAttribute('aria-pressed', String(sun));
+  Grid.setHighContrast(sun);      // punchier overlay alpha for direct sun
+  if (state.forecast) { renderOverlay(); renderSheet(); }
+}
 
 function renderLayerChips() {
   const el = $('layer-chips');
@@ -586,11 +774,120 @@ function renderSheet() {
   renderSounding();
 }
 
+// ── model comparison ─────────────────────────────────────────────────────────
+// Loaded on demand: it's a second network request, and on a rate-limited
+// connection you don't want it firing every time the sheet opens.
+async function loadComparison() {
+  const day = currentDay();
+  if (!day) return;
+  const btn = $('cmp-load');
+  btn.disabled = true; btn.textContent = 'Comparing…';
+  try {
+    const rows = await Compare.compareDay({
+      lat: state.loc.lat, lon: state.loc.lon,
+      dayKey: day.dayKey, elevation: state.forecast.elevation,
+    });
+    renderComparison(rows);
+    btn.textContent = 'Refresh';
+  } catch (err) {
+    $('cmp-table').innerHTML = `<div class="cmp-empty">Couldn't compare models: ${err.message}</div>`;
+    btn.textContent = 'Retry';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderComparison(rows) {
+  const el = $('cmp-table');
+  if (!rows.length) { el.innerHTML = '<div class="cmp-empty">No other models cover this point.</div>'; return; }
+  const sp = Compare.spread(rows);
+  const head = '<div class="cmp-row cmp-head"><span>Model</span><span>Climb</span><span>Top</span><span>Base</span><span>Peak</span></div>';
+  const body = rows.map((r) => `
+    <div class="cmp-row">
+      <span class="cmp-model">${r.label}</span>
+      <span style="color:${liftColor(r.peakClimb)}">${r.peakClimb.toFixed(1)}</span>
+      <span>${r.peakTop != null ? U.alt(r.peakTop) : '—'}</span>
+      <span>${r.base != null ? U.alt(r.base) : 'blue'}</span>
+      <span>${String(r.bestHour).padStart(2, '0')}:00</span>
+    </div>`).join('');
+  const verdict = sp
+    ? (sp.topRange != null && sp.topRange > 800) || sp.climbRange > 0.9
+      ? `<div class="cmp-verdict poor">Models disagree — ${sp.topRange != null ? `${Math.round(sp.topRange)} m` : ''} spread on top, ${sp.climbRange.toFixed(1)} m/s on climb. Keep the plan flexible.</div>`
+      : `<div class="cmp-verdict good">Models broadly agree — a plannable day.</div>`
+    : '';
+  el.innerHTML = head + body + verdict;
+}
+
+// ── sounding + thermal metrics ───────────────────────────────────────────────
+let sdGeom = null;         // canvas geometry from the last draw (y ↔ altitude)
+let sdCursorZ = null;      // altitude MSL of the draggable read-out line
+
 function renderSounding() {
   const day = currentDay();
   if (!day || state.hourIndex == null || $('fc-sheet').classList.contains('hidden')) return;
   const hr = day.hours[state.hourIndex];
-  if (hr) drawSounding($('sounding'), hr, state.forecast.elevation, { height: 210 });
+  if (!hr) return;
+  sdGeom = drawSounding($('sounding'), hr, state.forecast.elevation,
+    { height: 210, cursorZ: sdCursorZ });
+  renderSdReadout(hr);
+  renderThermalMetrics(hr);
+}
+
+/** Convective metrics, in both m/s and knots — the numbers pilots quote. */
+function renderThermalMetrics(hr) {
+  const terrain = state.forecast.elevation;
+  const d = deriveHour(hr, terrain);
+  const kts = (ms) => (ms * 1.94384).toFixed(1);
+  const card = (label, value, sub) =>
+    `<div class="tm-card"><span class="tm-label">${label}</span>` +
+    `<span class="tm-value">${value}</span>` +
+    (sub ? `<span class="tm-sub">${sub}</span>` : '') + '</div>';
+
+  $('thermal-metrics').innerHTML = [
+    card('Climb (net)', `${d.climb.toFixed(1)} m/s`, `${kts(d.climb)} kt`),
+    card('w* (convective)', `${d.wStar.toFixed(1)} m/s`, `${kts(d.wStar)} kt`),
+    card('Thermal ceiling', d.workingTop != null ? U.alt(d.workingTop) : '—',
+      d.workingTop != null ? `${U.alt(d.band)} band` : ''),
+    card('LCL', d.lcl != null ? U.alt(terrain + d.lcl) : '—',
+      d.cumulus ? 'cumulus' : 'blue — no cu'),
+  ].join('');
+}
+
+function renderSdReadout(hr) {
+  const el = $('sd-readout');
+  if (sdCursorZ == null) {
+    el.innerHTML = '<span class="sd-idle">Drag across the sounding to read temperature, dewpoint, wind and shear at any level.</span>';
+    return;
+  }
+  const s = soundingAt(hr, state.forecast.elevation, sdCursorZ);
+  const bits = [`<b>${U.alt(sdCursorZ)}</b>`];
+  if (s.t != null) bits.push(`T ${s.t.toFixed(1)}°`);
+  if (s.td != null) bits.push(`Td ${s.td.toFixed(1)}°`);
+  if (s.t != null && s.td != null) bits.push(`spread ${(s.t - s.td).toFixed(1)}°`);
+  if (s.spd != null) bits.push(`${U.wind(s.spd)} ${s.dir != null ? U.compass(s.dir) : ''}`);
+  if (s.inversion) bits.push('<span class="sd-warn">inversion</span>');
+  if (s.shear > 25) bits.push(`<span class="sd-warn">shear ${Math.round(s.shear)}/km</span>`);
+  el.innerHTML = bits.join(' · ');
+}
+
+/** Pointer y on the sounding canvas → altitude MSL. */
+function wireSounding() {
+  const cv = $('sounding');
+  const at = (clientY) => {
+    if (!sdGeom) return;
+    const r = cv.getBoundingClientRect();
+    const y = clientY - r.top;
+    const f = 1 - (y - sdGeom.padT) / sdGeom.plotH;
+    sdCursorZ = sdGeom.zMin + (sdGeom.zMax - sdGeom.zMin) * Math.max(0, Math.min(1, f));
+    renderSounding();
+  };
+  let dragging = false;
+  cv.addEventListener('pointerdown', (e) => {
+    dragging = true; cv.setPointerCapture(e.pointerId); at(e.clientY); e.preventDefault();
+  });
+  cv.addEventListener('pointermove', (e) => { if (dragging) { at(e.clientY); e.preventDefault(); } });
+  cv.addEventListener('pointerup', () => { dragging = false; });
+  cv.addEventListener('pointercancel', () => { dragging = false; });
 }
 
 function renderSummary() {
@@ -751,6 +1048,17 @@ function closeSheet() { $('fc-sheet').classList.add('hidden'); }
 
 function wireEvents() {
   $('units-btn').onclick = () => { U.toggleSystem(); syncUnitsButton(); renderAll(); };
+
+  // Sunlight mode + connection status
+  applyTheme(localStorage.getItem('xcsky.sun') === '1');
+  $('sun-btn').onclick = () => {
+    const sun = $('sun-btn').getAttribute('aria-pressed') !== 'true';
+    localStorage.setItem('xcsky.sun', sun ? '1' : '0');
+    applyTheme(sun);
+  };
+  addEventListener('online', () => { renderConnBadge(); refreshAll(true); });
+  addEventListener('offline', renderConnBadge);
+  renderConnBadge();
   $('model-select').onchange = (e) => {
     state.model = e.target.value;
     localStorage.setItem('xcsky.model', state.model);
@@ -843,6 +1151,12 @@ function wireEvents() {
     $('plan-btn').setAttribute('aria-pressed', 'false');
     $('plan-bar').classList.add('hidden');
   };
+  $('task-toggle').onclick = () => {
+    const body = $('task-body');
+    const open = body.classList.toggle('hidden') === false;
+    $('task-toggle').setAttribute('aria-expanded', String(open));
+    if (open) refreshProfile();
+  };
   $('plan-radius').oninput = (e) => {
     const r = +e.target.value;
     $('plan-radius-val').textContent = r >= 1000 ? `${(r / 1000).toFixed(1)} km` : `${r} m`;
@@ -850,6 +1164,9 @@ function wireEvents() {
   };
 
   wireLocationSheet();
+  wireAirspaceImport();
+  wireSounding();
+  $('cmp-load').onclick = loadComparison;
 }
 
 function syncUnitsButton() {

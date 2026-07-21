@@ -7,6 +7,8 @@
 // We deliberately pull raw physical variables and derive the soaring numbers
 // ourselves in soaring.js, so the maths is auditable rather than a black box.
 
+import * as Store from './store.js';
+
 const FORECAST_API = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_API  = 'https://geocoding-api.open-meteo.com/v1/search';
 
@@ -127,7 +129,38 @@ export async function fetchForecast({ lat, lon, model = 'best_match', days = 3 }
   if (!res.ok) throw new Error(`forecast ${res.status}`);
   const data = await res.json();
   if (!data.hourly || !data.hourly.time) throw new Error('no hourly data returned');
-  return normalise(data);
+  const fc = normalise(data);
+  // Keep a copy for offline use at the launch site (fire-and-forget).
+  Store.put(Store.forecastKey(lat, lon, model), fc);
+  return fc;
+}
+
+/** Last cached forecast for a point, or null. → {forecast, at} */
+export async function cachedForecast({ lat, lon, model }) {
+  const rec = await Store.get(Store.forecastKey(lat, lon, model));
+  return rec ? { forecast: rec.value, at: rec.at } : null;
+}
+
+/**
+ * Terrain elevation (m MSL) for a list of {lat,lon} — Open-Meteo's keyless
+ * elevation endpoint, batched 100 at a time. Used by the task cross-section.
+ */
+export async function elevations(points) {
+  const out = new Array(points.length).fill(null);
+  for (let i = 0; i < points.length; i += 100) {
+    const chunk = points.slice(i, i + 100);
+    const q = new URLSearchParams({
+      latitude: chunk.map((p) => p.lat.toFixed(4)).join(','),
+      longitude: chunk.map((p) => p.lon.toFixed(4)).join(','),
+    });
+    try {
+      const res = await fetchRetry(`https://api.open-meteo.com/v1/elevation?${q}`, undefined, { retries: 2 });
+      if (!res || !res.ok) continue;
+      const d = await res.json();
+      (d.elevation || []).forEach((v, k) => { out[i + k] = v; });
+    } catch { /* leave nulls; the profile drops to sea level for those */ }
+  }
+  return out;
 }
 
 /**

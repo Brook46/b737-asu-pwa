@@ -57,6 +57,135 @@ function css(name, fallback) {
   return v || fallback;
 }
 
+/**
+ * Task cross-section: terrain along the legs, airspace floor/ceiling bands, and
+ * a wind vector per leg. x = distance along task, y = altitude MSL.
+ * @param samples from profile.buildProfile()
+ * @param opts    {wpts, winds:[{spd,dir}] per leg, height, top}
+ */
+export function drawTaskProfile(canvas, samples, opts = {}) {
+  const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 12 : 0;
+  const cssW = wrapW > 60 ? wrapW : (canvas.clientWidth || 340);
+  const cssH = opts.height || 190;
+  const ctx = setupCanvas(canvas, cssW, cssH);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (!samples || samples.length < 2) return;
+
+  const padL = 40, padR = 8, padT = 10, padB = 20;
+  const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+  const totalKm = samples[samples.length - 1].km || 1;
+
+  // Altitude range. The floor can be below sea level (Dead Sea / Jordan valley),
+  // so don't assume 0 is the bottom of the plot.
+  let maxA = 0, minA = 0;
+  for (const s of samples) {
+    maxA = Math.max(maxA, s.terrain || 0);
+    minA = Math.min(minA, s.terrain || 0);
+    for (const z of s.zones || []) if (z.floor < 1e5) maxA = Math.max(maxA, z.floor);
+  }
+  maxA = Math.max(maxA * 1.35, (opts.top || 0) * 1.1, 1200);
+  const step = maxA > 4000 ? 1000 : 500;
+  maxA = Math.ceil(maxA / 250) * 250;
+  minA = Math.floor((minA - (minA < 0 ? 50 : 0)) / step) * step;
+
+  const xFor = (km) => padL + plotW * (km / totalKm);
+  const yFor = (m) => padT + plotH * (1 - (m - minA) / (maxA - minA));
+
+  const muted = css('--muted', '#8a93a6');
+  ctx.font = '9px system-ui, sans-serif';
+
+  // altitude gridlines
+  ctx.textBaseline = 'middle';
+  for (let a = minA; a <= maxA; a += step) {
+    ctx.strokeStyle = css('--grid', 'rgba(255,255,255,0.06)');
+    ctx.beginPath(); ctx.moveTo(padL, yFor(a)); ctx.lineTo(cssW - padR, yFor(a)); ctx.stroke();
+    ctx.fillStyle = muted; ctx.textAlign = 'right';
+    ctx.fillText(String(Math.round(altNum(a))), padL - 4, yFor(a));
+  }
+
+  // ── airspace bands: draw each contiguous run of a zone as a hatched block ──
+  const seen = new Map();
+  samples.forEach((s, i) => {
+    for (const z of (s.zones || [])) {
+      const k = z.name + '|' + z.class;
+      if (!seen.has(k)) seen.set(k, { z, from: i, to: i });
+      else seen.get(k).to = i;
+    }
+  });
+  for (const { z, from, to } of seen.values()) {
+    const x0 = xFor(samples[from].km), x1 = xFor(samples[Math.min(to, samples.length - 1)].km);
+    const yTop = yFor(Math.min(z.ceil, maxA)), yBot = yFor(Math.min(z.floor, maxA));
+    const col = /^(P|R|D|TRA|TSA)/.test(z.class) ? '#e0453f'
+      : /^(CTR|C|B|A)/.test(z.class) ? '#ef7d3b' : '#f2c14e';
+    ctx.fillStyle = col; ctx.globalAlpha = 0.16;
+    ctx.fillRect(x0, yTop, Math.max(2, x1 - x0), Math.max(2, yBot - yTop));
+    ctx.globalAlpha = 1;
+    // solid floor line — the bit that actually caps you
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(x0, yBot); ctx.lineTo(x1, yBot); ctx.stroke();
+    if (x1 - x0 > 42) {
+      ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${z.class || 'A'} ${z.raw ? z.raw.floor.label : ''}`, x0 + 3, yBot - 2);
+    }
+  }
+
+  // ── terrain ──
+  ctx.beginPath();
+  samples.forEach((s, i) => { const x = xFor(s.km), y = yFor(s.terrain || 0); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.lineTo(xFor(totalKm), padT + plotH); ctx.lineTo(xFor(0), padT + plotH); ctx.closePath();
+  ctx.fillStyle = css('--terrain', 'rgba(92,72,54,0.6)'); ctx.fill();
+  ctx.strokeStyle = 'rgba(170,140,105,0.95)'; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  samples.forEach((s, i) => { const x = xFor(s.km), y = yFor(s.terrain || 0); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke();
+
+  // ── turnpoint markers ──
+  const wpts = opts.wpts || [];
+  if (wpts.length > 1) {
+    let acc = 0;
+    for (let i = 0; i < wpts.length; i++) {
+      if (i > 0) acc += haversineKmLocal(wpts[i - 1], wpts[i]);
+      const x = xFor(acc);
+      ctx.strokeStyle = 'rgba(94,194,255,.55)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#f2c14e'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(i === 0 ? 'S' : (i === wpts.length - 1 ? 'G' : String(i)), x, padT + 1);
+    }
+  }
+
+  // ── wind vector per leg (arrow points downwind) ──
+  const winds = opts.winds || [];
+  if (winds.length) {
+    const legOf = new Map();
+    samples.forEach((s) => { if (!legOf.has(s.leg)) legOf.set(s.leg, []); legOf.get(s.leg).push(s); });
+    for (const [legIdx, pts] of legOf) {
+      const w = winds[legIdx];
+      if (!w || w.spd == null) continue;
+      const mid = pts[Math.floor(pts.length / 2)];
+      const x = xFor(mid.km), y = padT + 16;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(((w.dir || 0) + 180) * Math.PI / 180);
+      ctx.strokeStyle = '#eef3fb'; ctx.fillStyle = '#eef3fb'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(0, -7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(-3.5, -3.5); ctx.lineTo(3.5, -3.5); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#eef3fb'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(`${Math.round(w.spd)}`, x, y + 10);
+    }
+  }
+
+  // x-axis distance labels
+  ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let f = 0; f <= 1.0001; f += 0.25) {
+    ctx.fillText(`${Math.round(totalKm * f)} km`, xFor(totalKm * f), padT + plotH + 4);
+  }
+}
+function haversineKmLocal(a, b) {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
 /** Dewpoint (°C) from temperature and relative humidity (Magnus). */
 function dewpoint(t, rh) {
   if (t == null || rh == null || rh <= 0) return null;
@@ -72,6 +201,49 @@ function dewpoint(t, rh) {
  * @param hr       normalised point-forecast hour (t2m, td2m, levels[{z,t,rh}])
  * @param terrain  ground height, m MSL
  */
+/**
+ * Sample the sounding at an arbitrary altitude: temperature, dewpoint, wind and
+ * whether we're inside an inversion or a shear layer. Powers the drag cursor.
+ */
+export function soundingAt(hr, terrain, zMSL) {
+  const lin = (arr, key) => {
+    const pts = arr.filter((p) => p[key] != null).sort((a, b) => a.z - b.z);
+    if (!pts.length) return null;
+    if (zMSL <= pts[0].z) return pts[0][key];
+    for (let i = 1; i < pts.length; i++) {
+      if (zMSL <= pts[i].z) {
+        const t = (zMSL - pts[i - 1].z) / (pts[i].z - pts[i - 1].z || 1);
+        return pts[i - 1][key] + (pts[i][key] - pts[i - 1][key]) * t;
+      }
+    }
+    return pts[pts.length - 1][key];
+  };
+  const env = [{ z: terrain, t: hr.t2m, rh: null, spd: hr.wind10, dir: hr.windDir10 }];
+  for (const lv of (hr.levels || [])) if (lv.z != null && lv.z >= terrain) env.push(lv);
+  env.sort((a, b) => a.z - b.z);
+
+  const t = lin(env, 't');
+  const rh = lin(env, 'rh');
+  const spd = lin(env, 'spd');
+  const dir = lin(env, 'dir');
+  const td = rh != null && t != null ? dewpoint(t, rh) : (zMSL <= terrain + 50 ? hr.td2m : null);
+
+  // Inversion: environmental temperature rising with height across the layer.
+  let inversion = false, shear = 0;
+  for (let i = 1; i < env.length; i++) {
+    const lo = env[i - 1], hi = env[i];
+    if (zMSL < lo.z || zMSL > hi.z) continue;
+    if (lo.t != null && hi.t != null && hi.t > lo.t + 0.1) inversion = true;
+    if (lo.spd != null && hi.spd != null) {
+      const dv = Math.abs((hi.spd || 0) - (lo.spd || 0));
+      const dd = Math.abs(((hi.dir || 0) - (lo.dir || 0) + 540) % 360 - 180);
+      const dz = Math.max(1, (hi.z - lo.z) / 1000);
+      shear = (dv + dd * 0.35) / dz;      // km/h + weighted veer, per km
+    }
+  }
+  return { t, td, spd, dir, inversion, shear };
+}
+
 export function drawSounding(canvas, hr, terrain, opts = {}) {
   const wrapW = canvas.parentElement ? canvas.parentElement.clientWidth - 12 : 0;
   const cssW = wrapW > 60 ? wrapW : (canvas.clientWidth || 320);
@@ -154,10 +326,23 @@ export function drawSounding(canvas, hr, terrain, opts = {}) {
     ctx.fillText(`cu base ${Math.round(altNum(d.cloudBase))}`, padL + 3, y + 1);
   }
 
+  // Draggable altitude cursor — the read-out lives in the DOM beside the canvas.
+  if (opts.cursorZ != null) {
+    const z = Math.max(zMin, Math.min(zMax, opts.cursorZ));
+    const y = yFor(z);
+    ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cssW - padR, y); ctx.stroke();
+    ctx.fillStyle = '#f2c14e';
+    ctx.beginPath(); ctx.arc(padL + 5, y, 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+
   // legend
   ctx.textBaseline = 'top'; ctx.textAlign = 'right';
   ctx.fillStyle = '#e0453f'; ctx.fillText('temp', cssW - padR, padT);
   ctx.fillStyle = '#3fa9f5'; ctx.fillText('dew', cssW - padR, padT + 11);
+
+  // Geometry so the caller can turn a pointer y into an altitude.
+  return { zMin, zMax, padT, plotH, cssH };
 }
 
 /**
