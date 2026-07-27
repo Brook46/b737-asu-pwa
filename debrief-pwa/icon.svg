@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Thermal Debrief">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12243d"/>
+      <stop offset="1" stop-color="#0a0f1a"/>
+    </linearGradient>
+    <linearGradient id="ridge2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#41566d"/>
+      <stop offset="1" stop-color="#1b2434"/>
+    </linearGradient>
+    <linearGradient id="trace" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#4696f5"/>
+      <stop offset="0.5" stop-color="#6ecd78"/>
+      <stop offset="1" stop-color="#e84e44"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="104" fill="url(#sky)"/>
+
+  <!-- terrain silhouette -->
+  <path d="M0 512V372l84-64 62 42 78-96 96 118 60-42 132 82v100z" fill="url(#ridge2)" opacity=".9"/>
+  <path d="M0 512V420l96-58 74 40 96-72 82 74 74-38 90 54v92z" fill="#141c2b"/>
+
+  <!-- flight trace: sink (blue) into a climbing spiral (red) -->
+  <path d="M52 350c46 26 92 6 128-34s58-92 96-96"
+        fill="none" stroke="url(#trace)" stroke-width="17" stroke-linecap="round"/>
+  <path d="M276 220c-34 0-62 22-62 46s26 40 58 40 60-18 60-42-24-44-56-44"
+        fill="none" stroke="#e84e44" stroke-width="16" stroke-linecap="round" opacity=".92"/>
+  <path d="M336 264c4-38 26-66 62-84"
+        fill="none" stroke="#ffc43d" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- glider at the top of the climb -->
+  <g transform="translate(398 168)">
+    <path d="M-46 6c14-20 30-28 46-28s32 8 46 28l-18 7-28-11-28 11z" fill="#eef2f8"/>
+    <path d="M0 13l24-13-17 7-7 30-7-30-17-7z" fill="#9fb4cc"/>
+    <circle cx="0" cy="40" r="9" fill="#eef2f8"/>
+  </g>
+</svg>

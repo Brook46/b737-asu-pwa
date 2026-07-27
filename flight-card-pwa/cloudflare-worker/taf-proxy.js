@@ -56,6 +56,13 @@ const LOGBOOK_RE = /^\/logbook\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 // { "LLBG": "…", "TLV": "…" }; the PWA GETs it and fills the Social tabs.
 // Same KV namespace as the logbook, different key prefix.
 const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json)?$/i;
+// Thermal Debrief share links: IGC bundle + saved camera/clock, so a pilot can
+// send a friend exactly the moment they're looking at. Same token model as the
+// logbook — the UUID is the credential — but these expire, because a shared
+// flight is a conversation, not an archive.
+const SHARE_RE   = /^\/share\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const SHARE_TTL_S = 90 * 24 * 60 * 60;      // 90 days
+const SHARE_MAX_BYTES = 6 * 1024 * 1024;    // four big IGC files, with headroom
 
 export default {
   async fetch(request, env) {
@@ -91,6 +98,15 @@ export default {
       return handlePge(url);
     }
 
+    // Thermal Debrief: XContest flight search + IGC download.
+    if (url.pathname === '/xc') {
+      return handleXcApi(request, url);
+    }
+
+    if (url.pathname === '/xcigc') {
+      return handleXcIgc(url);
+    }
+
     const lb = url.pathname.match(LOGBOOK_RE);
     if (lb) {
       if (!env || !env.LOGBOOK) {
@@ -99,6 +115,18 @@ export default {
       const token = lb[1].toLowerCase();
       if (request.method === 'POST') return handleLogbookPut(request, env, token);
       if (request.method === 'GET')  return handleLogbookGet(env, token);
+      return text('Method not allowed', 405);
+    }
+
+    // Thermal Debrief share links: a bundle of IGC files + a saved view.
+    const shr = url.pathname.match(SHARE_RE);
+    if (shr) {
+      if (!env || !env.LOGBOOK) {
+        return text('Share storage not configured (KV binding missing)', 503);
+      }
+      const token = shr[1].toLowerCase();
+      if (request.method === 'POST') return handleSharePut(request, env, token);
+      if (request.method === 'GET') return handleShareGet(env, token);
       return text('Method not allowed', 405);
     }
 
@@ -116,6 +144,146 @@ export default {
     return text('Not found', 404);
   },
 };
+
+// ---------- /share  (Thermal Debrief) ---------------------------------------
+
+async function handleSharePut(request, env, token) {
+  const body = await request.text();
+
+  if (body.length > SHARE_MAX_BYTES) {
+    return text(`Too large (${(body.length / 1e6).toFixed(1)} MB, max ${SHARE_MAX_BYTES / 1e6} MB)`, 413);
+  }
+
+  // Validate before storing: a share that can't be parsed on the way out is
+  // worse than a rejected upload, because the pilot has already sent the link.
+  let parsed;
+  try { parsed = JSON.parse(body); } catch { return text('Body is not JSON', 400); }
+  if (!parsed || !Array.isArray(parsed.flights) || !parsed.flights.length) {
+    return text('Bundle has no flights', 400);
+  }
+  for (const f of parsed.flights) {
+    if (!f || typeof f.igc !== 'string' || !/^B\d{6}\d{7}[NS]/m.test(f.igc.slice(0, 65536))) {
+      return text('A flight in the bundle has no valid IGC data', 400);
+    }
+  }
+
+  // Never overwrite: tokens are client-generated, and a silent overwrite would
+  // break a link somebody has already sent.
+  const existing = await env.LOGBOOK.get(`share:${token}`);
+  if (existing) return text('That share token already exists', 409);
+
+  await env.LOGBOOK.put(`share:${token}`, body, { expirationTtl: SHARE_TTL_S });
+
+  return new Response(JSON.stringify({ ok: true, token, bytes: body.length, expiresInDays: SHARE_TTL_S / 86400 }), {
+    status: 201,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+
+async function handleShareGet(env, token) {
+  const body = await env.LOGBOOK.get(`share:${token}`);
+  if (!body) return text('Shared flight not found or expired', 404);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      // Immutable for a day: the bundle never changes under a given token.
+      'cache-control': 'public, max-age=86400',
+    },
+  });
+}
+
+// ---------- /xc + /xcigc  (Thermal Debrief) ---------------------------------
+//
+// XContest publishes no open API: robots.txt disallows the flight-search and
+// track-download paths, and /api/data/ rejects external callers. What does
+// exist is their partner API on api.xcontest.org, which needs a key.
+//
+// So these two routes are a *thin* shim, deliberately dumb:
+//
+//   GET /xc?path=<encoded path+query>   header x-xc-key: <the caller's key>
+//   GET /xcigc?url=<encoded IGC url>
+//
+// The Worker does not know XContest's request or response shape — the client
+// supplies the path and interprets the JSON. That means when the API contract
+// turns out to differ from what debrief-pwa/modules/xcontest.js assumes, it is
+// a one-file client edit and NOT a Worker redeploy.
+//
+// The key is never stored here; it lives on the pilot's device and is forwarded
+// per request. Both routes are host-locked so this can't become an open relay.
+
+const XC_API_BASE = 'https://api.xcontest.org';
+const XC_IGC_HOSTS = new Set([
+  'api.xcontest.org',
+  'www.xcontest.org',
+  'xcontest.org',
+]);
+
+async function handleXcApi(request, url) {
+  const key = request.headers.get('x-xc-key') || url.searchParams.get('key') || '';
+  if (!key) return text('Missing XContest API key', 401);
+
+  const path = url.searchParams.get('path') || '';
+  // Must be a rooted path — never a full URL, or this becomes an open proxy.
+  if (!path.startsWith('/') || path.startsWith('//')) return text('Bad path', 400);
+
+  const upstream = XC_API_BASE + path;
+  try {
+    const res = await fetch(upstream, {
+      headers: {
+        'authorization': `Bearer ${key}`,
+        'accept': 'application/json',
+        'user-agent': 'ThermalDebrief/1.0 (+https://brook46.github.io/b737-asu-pwa/debrief-pwa/)',
+      },
+    });
+    const body = await res.text();
+    return new Response(body, {
+      status: res.status,
+      headers: {
+        'content-type': res.headers.get('content-type') || 'application/json; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'no-store',
+      },
+    });
+  } catch (err) {
+    return text(`XContest upstream error: ${err.message}`, 502);
+  }
+}
+
+async function handleXcIgc(url) {
+  const raw = url.searchParams.get('url') || '';
+  let target;
+  try { target = new URL(raw); } catch { return text('Bad url', 400); }
+  if (target.protocol !== 'https:') return text('Only https is allowed', 400);
+  if (!XC_IGC_HOSTS.has(target.hostname)) return text(`Host not allowed: ${target.hostname}`, 403);
+
+  try {
+    const res = await fetch(target.toString(), {
+      headers: { 'user-agent': 'ThermalDebrief/1.0' },
+    });
+    if (!res.ok) return text(`Upstream ${res.status}`, res.status);
+    const body = await res.text();
+    // Cheap sanity check: an IGC file has B-records. Anything else is a login
+    // page or an error, and the PWA should say so rather than "0 fixes".
+    if (!/^B\d{6}\d{7}[NS]/m.test(body.slice(0, 65536))) {
+      return text('That URL did not return an IGC file', 422);
+    }
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=86400',
+      },
+    });
+  } catch (err) {
+    return text(`IGC fetch failed: ${err.message}`, 502);
+  }
+}
 
 // ---------- /taf ------------------------------------------------------------
 

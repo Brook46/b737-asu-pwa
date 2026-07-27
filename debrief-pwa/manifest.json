@@ -1,0 +1,20 @@
+{
+  "name": "Thermal Debrief — 3D flight analysis",
+  "short_name": "Debrief",
+  "description": "Replay IGC flight logs in 3D over real terrain: climb-rate colouring, up to four tracks side by side with UTC or launch-relative sync, automatic flight highlights, and shareable replay clips and stat cards.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0f1a",
+  "theme_color": "#0a0f1a",
+  "categories": ["sports", "navigation", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

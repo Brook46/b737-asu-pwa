@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Thermal Debrief — 3D paragliding flight analysis</title>
+  <meta name="theme-color" content="#0a0f1a">
+  <meta name="description" content="Drop in your IGC logs and replay the flight in 3D: terrain, climb-rate colouring, up to four tracks side by side, automatic highlights and shareable stat cards. No account, no API key.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Debrief">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- MapLibre GL JS — the keyless fork of Mapbox GL JS. Does real 3D terrain
+       from any raster-DEM source; we point it at AWS's open Terrain Tiles.
+       deck.gl rides interleaved in MapLibre's WebGL context so the tracks are
+       depth-tested against the terrain mesh. Both are cached by the SW. -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script defer src="https://unpkg.com/deck.gl@9.0.35/dist.min.js"></script>
+
+  <link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+  <!-- The 3D canvas IS the app -->
+  <div id="map" class="map3d"></div>
+
+  <!-- ── floating header ─────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+        <path d="M3 12c4-5 9-7 13-7s9 2 13 7l-5 2-8-3-8 3z" fill="currentColor" opacity=".9"/>
+        <path d="M16 8l7 4-5 2-2 9-2-9-5-2z" fill="currentColor" opacity=".55"/>
+      </svg>
+      <span class="brand-name">Debrief</span>
+    </div>
+
+    <button id="load-btn" class="chip-btn glass primary">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>
+      </svg>
+      <span>IGC</span>
+    </button>
+    <input id="file-input" type="file" accept=".igc,.IGC,text/plain" multiple hidden>
+
+    <select id="basemap-select" class="glass model-select" aria-label="Basemap"></select>
+
+    <button id="library-btn" class="chip-btn glass icon-only" title="Flight library" aria-label="Flight library">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5h5l2 2h9v12H4z"/>
+      </svg>
+    </button>
+    <button id="export-btn" class="chip-btn glass icon-only" title="Export clip or card" aria-label="Export">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/><path d="M12 4v11M8 11l4 4 4-4"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- ── left tool rail ──────────────────────────────────────────────────── -->
+  <div class="tools">
+    <button id="fit-btn" class="tool-btn" title="Frame all tracks" aria-label="Frame all tracks">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/>
+      </svg>
+    </button>
+    <button id="cam-btn" class="tool-btn" title="Camera: free / follow / chase" aria-label="Camera mode">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 8h3l2-2h5l2 2h3a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V9a1 1 0 011-1z"/>
+        <circle cx="11" cy="13" r="3"/>
+      </svg>
+      <span id="cam-label" class="tool-tag">free</span>
+    </button>
+    <button id="highlights-btn" class="tool-btn" title="Flight highlights" aria-label="Flight highlights">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+        <path d="M12 3l2.2 4.9 5.3.5-4 3.6 1.2 5.2L12 14.6 7.3 17.2l1.2-5.2-4-3.6 5.3-.5z"/>
+      </svg>
+      <span id="hl-count" class="tool-badge" hidden>0</span>
+    </button>
+    <button id="stats-btn" class="tool-btn" title="Compare stats" aria-label="Compare stats">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M5 19V10M12 19V5M19 19v-6"/>
+      </svg>
+    </button>
+    <button id="insights-btn" class="tool-btn" title="Insights & grades" aria-label="Insights and grades">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9 18h6M10 21h4"/>
+        <path d="M12 3a6 6 0 00-3.5 10.9c.5.4.8 1 .8 1.6h5.4c0-.6.3-1.2.8-1.6A6 6 0 0012 3z"/>
+      </svg>
+    </button>
+    <button id="layers-btn" class="tool-btn" title="Terrain & layers" aria-label="Terrain and layers">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- status / error banner -->
+  <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+
+  <!-- ── empty state ─────────────────────────────────────────────────────── -->
+  <div id="empty" class="empty">
+    <div class="empty-card">
+      <h1>Replay your flight in 3D</h1>
+      <p>Drop in an <code>.igc</code> log — or up to four, to fly them side by side.
+         Everything runs on this device: no account, no upload, no API key.</p>
+      <div class="empty-actions">
+        <button id="empty-load" class="wide-btn primary">Choose IGC files</button>
+        <button id="empty-demo" class="wide-btn ghost">Load a demo flight</button>
+      </div>
+      <p class="empty-note">Terrain: AWS Terrain Tiles · imagery: Esri · elevation: Open-Meteo</p>
+    </div>
+  </div>
+
+  <!-- drag & drop target covering the whole window -->
+  <div id="dropzone" class="dropzone hidden"><span>Drop IGC files to load</span></div>
+
+  <!-- ── bottom dock ─────────────────────────────────────────────────────── -->
+  <div id="dock" class="dock hidden">
+    <!-- per-pilot pills with live readouts -->
+    <div id="track-pills" class="track-pills"></div>
+
+    <!-- colour mode + legend -->
+    <div class="chip-scroll">
+      <div id="color-chips" class="layer-chips" role="tablist" aria-label="Track colour"></div>
+      <span class="chip-sep" aria-hidden="true"></span>
+      <button id="alt-toggle" class="toggle-chip" aria-pressed="false" title="Plot altitude above sea level or above ground">MSL</button>
+      <button id="chart-toggle" class="toggle-chip" aria-pressed="true" title="Show or hide the profile chart">Profile</button>
+    </div>
+    <div id="legend" class="legend"></div>
+
+    <!-- synchronised altitude / vario profile -->
+    <div id="chart-wrap" class="chart-wrap">
+      <canvas id="chart-profile" class="chart-canvas"></canvas>
+      <canvas id="chart-overlay" class="chart-canvas chart-overlay"></canvas>
+    </div>
+
+    <!-- master transport -->
+    <div class="transport">
+      <button id="tp-start" class="tp-btn" title="Back to start" aria-label="Back to start">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path d="M6 5h2v14H6zM20 5l-10 7 10 7z"/>
+        </svg>
+      </button>
+      <button id="tp-prev" class="tp-btn" title="Previous highlight" aria-label="Previous highlight">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path d="M11 5v14L1 12zM22 5v14L12 12z"/>
+        </svg>
+      </button>
+      <button id="tp-play" class="tp-btn play" title="Play / pause" aria-label="Play">
+        <svg id="tp-play-icon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+          <path d="M7 4l13 8-13 8z"/>
+        </svg>
+      </button>
+      <button id="tp-next" class="tp-btn" title="Next highlight" aria-label="Next highlight">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path d="M13 5v14l10-7zM2 5v14l10-7z"/>
+        </svg>
+      </button>
+      <div id="speed-chips" class="speed-chips" role="group" aria-label="Playback speed"></div>
+      <button id="sync-toggle" class="sync-btn" title="Absolute UTC sync / relative-to-launch sync">
+        <span id="sync-label">UTC</span>
+      </button>
+      <span id="time-readout" class="time-readout">—</span>
+    </div>
+    <input id="scrubber" class="scrubber" type="range" min="0" max="1000" value="0" step="1" aria-label="Timeline position">
+  </div>
+
+  <!-- ── sheets ──────────────────────────────────────────────────────────── -->
+
+  <div id="library-sheet" class="sheet hidden" role="region" aria-label="Flight library">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Flights</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+      <p class="sheet-note">Up to four flights at once. Saved on this device only.</p>
+      <div id="loaded-list" class="loaded-list"></div>
+      <button id="lib-load" class="wide-btn primary">Add IGC files</button>
+      <button id="lib-demo" class="wide-btn ghost">Load demo flight</button>
+      <h3 class="sheet-sub">Import from XContest</h3>
+      <p class="sheet-note">Pick a date and country, then choose the pilots to load.
+        Needs your own XContest API key — stored on this device only, never sent anywhere
+        but XContest.</p>
+
+      <div class="xc-import">
+        <div class="xc-row">
+          <label class="xc-field">
+            <span>Date</span>
+            <input id="xc-date" type="date">
+          </label>
+          <label class="xc-field">
+            <span>Country</span>
+            <select id="xc-country" class="glass model-select"></select>
+          </label>
+        </div>
+        <button id="xc-search" class="wide-btn">Search flights</button>
+        <div id="xc-status" class="sheet-note"></div>
+        <div id="xc-results" class="xc-results"></div>
+        <button id="xc-import" class="wide-btn primary" hidden>Import selected</button>
+
+        <details class="xc-key-details">
+          <summary>API key</summary>
+          <p class="sheet-note">XContest publishes no open API — their robots.txt disallows the
+            flight-search and track-download paths, so this uses their partner API, which needs
+            a key you request from them.</p>
+          <div class="key-row">
+            <input id="xc-key" type="password" placeholder="XContest API key" autocomplete="off" spellcheck="false">
+          </div>
+          <button id="xc-key-save" class="wide-btn ghost">Save key</button>
+        </details>
+      </div>
+
+      <h3 class="sheet-sub">Saved on this device</h3>
+      <div id="saved-list" class="saved-list"></div>
+    </div>
+  </div>
+
+  <div id="layers-sheet" class="sheet hidden" role="region" aria-label="Terrain and layers">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Terrain &amp; layers</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+      <label class="row-ctrl">
+        <span>Vertical exaggeration</span>
+        <input id="exag-range" type="range" min="0" max="2.5" step="0.1" value="1">
+        <output id="exag-out">1.0×</output>
+      </label>
+      <label class="row-toggle">
+        <input id="shadow-toggle" type="checkbox" checked>
+        <span>Ground shadow <small>the track projected onto the terrain</small></span>
+      </label>
+      <label class="row-toggle">
+        <input id="hl-toggle" type="checkbox" checked>
+        <span>Highlight pins <small>markers at each detected event</small></span>
+      </label>
+      <label class="row-toggle">
+        <input id="terrain-toggle" type="checkbox" checked>
+        <span>Fetch ground elevation <small>needed for AGL, low-save detection and the terrain profile</small></span>
+      </label>
+      <div id="terrain-note" class="sheet-note"></div>
+      <h3 class="sheet-sub">Attribution</h3>
+      <p class="sheet-note">
+        Terrain mesh: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">AWS Terrain Tiles</a> ·
+        imagery © <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a> ·
+        topo © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA) ·
+        elevation <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> ·
+        rendering <a href="https://maplibre.org" target="_blank" rel="noopener">MapLibre</a> +
+        <a href="https://deck.gl" target="_blank" rel="noopener">deck.gl</a>.
+      </p>
+    </div>
+  </div>
+
+  <div id="highlights-sheet" class="sheet hidden" role="region" aria-label="Flight highlights">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Highlights</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+      <p class="sheet-note">Detected automatically. Tap one to jump the timeline and frame it.</p>
+      <div id="highlight-list" class="highlight-list"></div>
+    </div>
+  </div>
+
+  <div id="stats-sheet" class="sheet hidden" role="region" aria-label="Flight statistics">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Comparison</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+      <div id="stats-table" class="stats-table"></div>
+    </div>
+  </div>
+
+  <div id="insights-sheet" class="sheet hidden" role="region" aria-label="Insights and grades">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Insights</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+
+      <h3 class="sheet-sub">The day</h3>
+      <div id="day-summary" class="day-summary"></div>
+
+      <h3 class="sheet-sub">Where the lift was</h3>
+      <p class="sheet-note">Average climb achieved in each 250 m band. Faded bars are bands
+        with under a minute of climbing — too little to trust.</p>
+      <div class="bands-wrap"><canvas id="bands-chart" class="bands-chart"></canvas></div>
+      <div id="bands-legend" class="bands-legend"></div>
+
+      <h3 class="sheet-sub">Scorecard</h3>
+      <p class="sheet-note" id="grade-basis"></p>
+      <div id="grade-cards" class="grade-cards"></div>
+
+      <h3 class="sheet-sub">Head to head</h3>
+      <div id="compare-table" class="stats-table"></div>
+
+      <h3 class="sheet-sub">Time split</h3>
+      <div id="time-split" class="time-split"></div>
+
+      <h3 class="sheet-sub">Transitions</h3>
+      <p class="sheet-note">Each glide from the top of one thermal to the bottom of the next.</p>
+      <div id="transitions" class="transitions"></div>
+    </div>
+  </div>
+
+  <div id="export-sheet" class="sheet hidden" role="region" aria-label="Export">
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2>Export</h2>
+        <button class="icon-btn sheet-close" aria-label="Close">✕</button>
+      </div>
+
+      <h3 class="sheet-sub">Share this view</h3>
+      <p class="sheet-note">Sends a link that opens on the same flights, at the same moment,
+        from the same camera angle.</p>
+      <button id="share-full" class="wide-btn primary">Copy share link</button>
+      <button id="share-view" class="wide-btn ghost">Link for someone who has these files</button>
+      <div id="share-note" class="sheet-note"></div>
+
+      <h3 class="sheet-sub">Summary card</h3>
+      <p class="sheet-note">A PNG with every loaded flight side by side, over a still of the current view.</p>
+      <button id="export-card" class="wide-btn primary">Create PNG card</button>
+
+      <h3 class="sheet-sub">Replay clip</h3>
+      <p class="sheet-note" id="video-note">Records the live 3D view while it plays a highlight.</p>
+      <label class="row-ctrl">
+        <span>Highlight</span>
+        <select id="clip-select" class="glass model-select wide"></select>
+      </label>
+      <label class="row-ctrl">
+        <span>Playback rate</span>
+        <select id="clip-speed" class="glass model-select">
+          <option value="1">1× real time</option>
+          <option value="2" selected>2×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+        </select>
+      </label>
+      <div id="clip-estimate" class="sheet-note"></div>
+      <button id="export-clip" class="wide-btn">Record clip</button>
+      <div id="export-progress" class="progress hidden"><div id="export-bar" class="progress-bar"></div></div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=1"></script>
+</body>
+</html>

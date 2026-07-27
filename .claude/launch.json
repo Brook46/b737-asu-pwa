@@ -86,6 +86,12 @@
       "port": 8093
     },
     {
+      "name": "Thermal Debrief",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8094", "/Users/alonbrookstein/Claude AS/debrief-pwa"],
+      "port": 8094
+    },
+    {
       "name": "XC Tactical",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
