@@ -1,6 +1,8 @@
 import { parseDutyPlan } from './parser.js';
-import { renderInto, rangeLabel, addDays, startOfWeek, startOfDay } from './calendar.js';
+import { renderInto, rangeLabel, addDays, startOfWeek, startOfDay, isAllDay } from './calendar.js';
 import { eventToIcs, eventsToIcs, downloadIcs } from './ics.js';
+import { KINDS, SUBTYPES, LEGEND_GROUPS, groupOf, labelOf, defaultHiddenKinds } from './kinds.js';
+import { summarise, summaryTiles } from './summary.js';
 
 // pdf.js
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
@@ -12,9 +14,8 @@ const state = {
   events: [],
   period: null,
   notes: loadNotes(),
-  // Hide rest + dummy/vacation by default so first-timers see a focused calendar.
-  // loadUi() respects any saved choice and overrides this.
-  hiddenKinds: new Set(['rest', 'other']),
+  // Seeded from the registry; loadUi() respects any saved choice.
+  hiddenKinds: defaultHiddenKinds(),
 };
 
 const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -49,6 +50,12 @@ const els = {
   editNotes: document.getElementById('edit-notes'),
   saveEditBtn: document.getElementById('save-edit-btn'),
   cancelEditBtn: document.getElementById('cancel-edit-btn'),
+  editSubtype: document.getElementById('edit-subtype'),
+  editSubtypeRow: document.getElementById('edit-subtype-row'),
+  editAllDay: document.getElementById('edit-allday'),
+  editTimesRow: document.getElementById('edit-times-row'),
+  legend: document.getElementById('legend'),
+  summary: document.getElementById('summary'),
 };
 
 let currentEvent = null;
@@ -62,10 +69,50 @@ function loadEvents() {
     if (!raw) return null;
     const j = JSON.parse(raw);
     return {
-      events: j.events.map(ev => ({ ...ev, start: new Date(ev.start), end: new Date(ev.end) })),
+      events: j.events.map(ev => migrateEvent({ ...ev, start: new Date(ev.start), end: new Date(ev.end) })),
       period: j.period ? { ...j.period, startDate: new Date(j.period.startDate), endDate: new Date(j.period.endDate) } : null,
     };
   } catch { return null; }
+}
+
+/**
+ * Upgrade events persisted before the taxonomy refactor.
+ *
+ * Everything non-flying used to land in kind 'other' with the category encoded
+ * only in the title, and free-text events used kind 'custom'. Re-derive the
+ * real kind/subtype so old localStorage data gets the new colours, badges and
+ * counters without forcing the user to re-import their PDF.
+ */
+let migrationChangedSomething = false;
+
+function migrateEvent(ev) {
+  const before = ev.kind;
+  if (ev.kind === 'custom') ev.kind = 'note';
+
+  if (ev.kind === 'other') {
+    const t = String(ev.title || '').toLowerCase();
+    if (/dummy|reserve|standby/.test(t))      { ev.kind = 'standby';  ev.subtype = 'home';      ev.code = 'SBY'; }
+    else if (/vacation|annual|leave/.test(t)) { ev.kind = 'vacation'; ev.code = 'VAC'; }
+    else if (/day off/.test(t))               { ev.kind = 'dayOff';   ev.code = 'GDO'; }
+    else if (/training|tzi|sim|course/.test(t)) {
+      ev.kind = 'ground';
+      ev.subtype = /sim/.test(t) ? 'sim' : 'recurrent';
+      ev.code = 'GND';
+    } else if (/^duty/.test(t))               { ev.kind = 'ground';   ev.subtype = 'office';    ev.code = 'GND'; }
+  }
+
+  // Backfill schema fields added by the refactor.
+  ev.subtype = ev.subtype ?? null;
+  ev.code    = ev.code    ?? (KINDS[ev.kind]?.code ?? null);
+  ev.rawCode = ev.rawCode ?? null;
+  ev.sectors = ev.sectors ?? 0;
+  ev.blockMinutes = ev.blockMinutes ?? null;
+  ev.dutyMinutes  = ev.dutyMinutes  ?? null;
+  ev.dutyId  = ev.dutyId  ?? null;
+  ev.origin  = ev.origin  ?? 'pdf';
+  if (ev.allDay == null) ev.allDay = isAllDay(ev);
+  if (ev.kind !== before) migrationChangedSomething = true;
+  return ev;
 }
 function saveEvents() {
   try {
@@ -101,14 +148,10 @@ function saveUi() {
   } catch {}
 }
 
-// Map an event's internal kind to its legend group.
+// Map an event's internal kind to its legend group ('custom' is the
+// pre-refactor id for 'note').
 function legendGroupOf(kind) {
-  if (kind === 'pickup' || kind === 'driveHome') return 'pickup';
-  if (kind === 'flight')  return 'flight';
-  if (kind === 'restEnd') return 'rest';
-  if (kind === 'miluim')  return 'miluim';
-  if (kind === 'custom')  return 'custom';
-  return 'other';
+  return kind === 'custom' ? 'note' : groupOf(kind);
 }
 
 function visibleEvents() {
@@ -198,7 +241,44 @@ function render() {
   // Subhead: pilot name (if known)
   const sub = document.getElementById('subhead');
   if (sub) sub.textContent = state.period?.name ? state.period.name : '';
+  renderSummary();
   saveUi();
+}
+
+// --- Month summary (FTL / duty counters) ---------------------------------
+// Computed from ALL events in range, not the legend-filtered set: hiding a
+// category is a display preference and must not silently change the totals.
+function renderSummary() {
+  if (!els.summary) return;
+  if (state.view !== 'month' || state.events.length === 0) {
+    els.summary.hidden = true;
+    els.summary.innerHTML = '';
+    return;
+  }
+  const start = new Date(state.anchor.getFullYear(), state.anchor.getMonth(), 1);
+  const end   = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + 1, 1);
+  const tiles = summaryTiles(summarise(state.events, start, end));
+
+  els.summary.innerHTML = '';
+  for (const t of tiles) {
+    const tile = document.createElement('div');
+    tile.className = `sm-tile sm-${t.accent}`;
+    const val = document.createElement('div');
+    val.className = 'sm-value';
+    val.textContent = t.value;
+    if (t.unit) {
+      const u = document.createElement('span');
+      u.className = 'sm-unit';
+      u.textContent = t.unit;
+      val.appendChild(u);
+    }
+    const lab = document.createElement('div');
+    lab.className = 'sm-label';
+    lab.textContent = t.label;
+    tile.append(val, lab);
+    els.summary.appendChild(tile);
+  }
+  els.summary.hidden = false;
 }
 
 // --- Modal ---
@@ -209,13 +289,14 @@ function openModal(ev) {
   els.modalWhen.textContent = formatWhen(ev);
 
   const rows = [];
+  rows.push(['Category', labelOf(ev)]);
   if (ev.kind === 'flight') {
     const d = ev.details;
-    rows.push(['Flight', d.flight + (d.deadhead ? '  (Deadhead)' : '')]);
-    rows.push(['Route', `${d.from} → ${d.to}`]);
-    rows.push(['Departure', d.depTime]);
-    rows.push(['Arrival', d.arrTime]);
-    if (d.flightTime) rows.push(['Flight time', d.flightTime]);
+    if (d.flights) rows.push(['Flights', d.flights]);
+    if (d.route)   rows.push(['Route', d.route]);
+    if (d.legs)    rows.push(['Legs', d.legs]);
+    if (d.flightTime) rows.push(['Block time', d.flightTime]);
+    if (ev.sectors)   rows.push(['Sectors', ev.sectors]);
   } else if (ev.kind === 'pickup') {
     rows.push(['Pickup at', ev.details.airport || 'TLV']);
     rows.push(['Note', 'Be ready at end time.']);
@@ -225,8 +306,20 @@ function openModal(ev) {
   } else if (ev.kind === 'restEnd') {
     rows.push(['Rest period', ev.details.restPeriod || '']);
     rows.push(['Meaning', 'Earliest possible next duty start.']);
-  } else {
-    for (const [k,v] of Object.entries(ev.details || {})) rows.push([k, v]);
+  } else if (ev.kind === 'standby') {
+    if (ev.report)  rows.push(['Report', ev.report]);
+    if (ev.release) rows.push(['Release', ev.release]);
+    if (!ev.report) rows.push(['Window', 'Full day — no fixed reporting time.']);
+    if (ev.details.station) rows.push(['Station', ev.details.station]);
+  } else if (ev.kind === 'ground') {
+    if (ev.details.station) rows.push(['Location', ev.details.station]);
+    if (ev.dutyMinutes) rows.push(['Duty length', fmtMins(ev.dutyMinutes)]);
+  }
+  if (ev.rawCode) rows.push(['Roster code', ev.rawCode]);
+  // Anything the parser stashed that we did not render explicitly.
+  for (const [k, v] of Object.entries(ev.details || {})) {
+    if (['flights','route','legs','flightTime','airport','restPeriod','note','station','roster','from'].includes(k)) continue;
+    rows.push([k, v]);
   }
   els.modalBody.innerHTML = rows.map(([k,v]) => `<div class="row"><span class="lbl">${k}</span><span>${escapeHtml(String(v))}</span></div>`).join('');
 
@@ -273,11 +366,14 @@ function openEditModal() {
 function populateEditForm(ev) {
   els.editModeTitle.textContent = ev ? 'Edit event' : 'New event';
   const anchor = ev ? ev.start : state.anchor;
-  els.editKind.value = ev ? ev.kind : 'flight';
+  const kind = ev ? (ev.kind === 'custom' ? 'note' : ev.kind) : 'flight';
+  els.editKind.value = kind;
+  syncSubtypeField(kind, ev ? ev.subtype : null);
+  syncAllDayField(ev ? isAllDay(ev) : KINDS[kind]?.defaultAllDay);
   els.editTitle.value = ev ? ev.title : '';
   els.editDate.value  = ymdLabel(anchor);
-  els.editStart.value = ev ? hhmm(ev.start) : '08:00';
-  els.editEnd.value   = ev ? hhmm(ev.end)   : '10:00';
+  els.editStart.value = ev && !isAllDay(ev) ? hhmm(ev.start) : '08:00';
+  els.editEnd.value   = ev && !isAllDay(ev) ? hhmm(ev.end)   : '10:00';
   els.editNotes.value = ev ? (state.notes[ev.id] || '') : '';
 }
 
@@ -287,24 +383,39 @@ function saveFromForm() {
   const kind = els.editKind.value;
   const title = els.editTitle.value.trim();
   const dateStr = els.editDate.value;
+  const allDay = els.editAllDay.checked;
   const startStr = els.editStart.value;
   const endStr = els.editEnd.value;
   const noteStr = els.editNotes.value.trim();
-  if (!title || !dateStr || !startStr || !endStr) {
-    toast('Title, date, start and end are required.');
+  const subtype = SUBTYPES[kind] ? els.editSubtype.value || null : null;
+
+  if (!title || !dateStr || (!allDay && (!startStr || !endStr))) {
+    toast(allDay ? 'Title and date are required.' : 'Title, date, start and end are required.');
     return;
   }
-  const start = new Date(`${dateStr}T${startStr}`);
-  let end = new Date(`${dateStr}T${endStr}`);
-  if (end <= start) end = new Date(end.getTime() + 24*60*60*1000); // wrap past midnight
+
+  let start, end;
+  if (allDay) {
+    start = new Date(`${dateStr}T00:00`);
+    end   = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  } else {
+    start = new Date(`${dateStr}T${startStr}`);
+    end   = new Date(`${dateStr}T${endStr}`);
+    if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000); // wrap past midnight
+  }
+  const sub = allDay ? '' : `${hhmm(start)} → ${hhmm(end)}`;
+  const dutyMinutes = KINDS[kind]?.countsAsDuty && !allDay
+    ? Math.round((end - start) / 60000) : null;
 
   if (editingEvent) {
     // Edit in place — keep id, flip origin to manual so PDF re-uploads don't overwrite
     Object.assign(editingEvent, {
-      kind, title,
-      start, end,
+      kind, subtype, title,
+      start, end, allDay,
       dayKey: ymdLabel(start),
-      sub: `${hhmm(start)} → ${hhmm(end)}`,
+      sub,
+      code: KINDS[kind]?.code ?? null,
+      dutyMinutes,
       origin: 'manual',
     });
     if (noteStr) state.notes[editingEvent.id] = noteStr;
@@ -312,10 +423,16 @@ function saveFromForm() {
   } else {
     const id = 'manual-' + Math.random().toString(36).slice(2, 12);
     state.events.push({
-      id, kind, title,
-      start, end,
+      id, kind, subtype, title,
+      start, end, allDay,
       dayKey: ymdLabel(start),
-      sub: `${hhmm(start)} → ${hhmm(end)}`,
+      sub,
+      code: KINDS[kind]?.code ?? null,
+      rawCode: null,
+      sectors: 0,
+      blockMinutes: null,
+      dutyMinutes,
+      dutyId: null,
       details: {},
       origin: 'manual',
     });
@@ -348,7 +465,15 @@ function deleteCurrent() {
 }
 function formatWhen(ev) {
   const p = n => String(n).padStart(2,'0');
-  const f = d => `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const day = d => `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  const f = d => `${day(d)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (isAllDay(ev)) {
+    // Inclusive last day — the stored end is exclusive midnight.
+    const lastDay = new Date(ev.end.getTime() - 1);
+    return day(ev.start) === day(lastDay)
+      ? `${day(ev.start)} · All day`
+      : `${day(ev.start)} → ${day(lastDay)} · All day`;
+  }
   return `${f(ev.start)} → ${f(ev.end)}`;
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -360,27 +485,80 @@ els.fileInput.addEventListener('change', e => {
   e.target.value = '';
 });
 
-// Legend filters: click toggles visibility of that category. Saved across reloads.
-for (const lg of document.querySelectorAll('.legend .lg')) {
-  const kind = lg.dataset.kind;
-  if (state.hiddenKinds.has(kind)) {
-    lg.classList.add('off');
-    lg.setAttribute('aria-pressed', 'false');
+// Legend filters, generated from the registry. Click toggles visibility of
+// that category; the hidden set is persisted across reloads.
+function buildLegend() {
+  els.legend.innerHTML = '';
+  for (const g of LEGEND_GROUPS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `lg ${g.kind}`;
+    btn.dataset.kind = g.kind;
+    btn.textContent = g.label;
+    btn.title = 'Tap to hide / show';
+    const off = state.hiddenKinds.has(g.kind);
+    btn.classList.toggle('off', off);
+    btn.setAttribute('aria-pressed', off ? 'false' : 'true');
+    btn.addEventListener('click', () => {
+      const nowHidden = !state.hiddenKinds.has(g.kind);
+      if (nowHidden) state.hiddenKinds.add(g.kind);
+      else state.hiddenKinds.delete(g.kind);
+      btn.classList.toggle('off', nowHidden);
+      btn.setAttribute('aria-pressed', nowHidden ? 'false' : 'true');
+      saveUi();
+      render();
+    });
+    els.legend.appendChild(btn);
   }
-  lg.addEventListener('click', () => {
-    if (state.hiddenKinds.has(kind)) {
-      state.hiddenKinds.delete(kind);
-      lg.classList.remove('off');
-      lg.setAttribute('aria-pressed', 'true');
-    } else {
-      state.hiddenKinds.add(kind);
-      lg.classList.add('off');
-      lg.setAttribute('aria-pressed', 'false');
-    }
-    saveUi();
-    render();
-  });
 }
+
+// Type <select>, generated from the registry so a new kind needs no HTML edit.
+function buildKindSelect() {
+  els.editKind.innerHTML = '';
+  for (const [id, meta] of Object.entries(KINDS)) {
+    if (id === 'other') continue; // reachable via migration, not worth offering
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = meta.label;
+    els.editKind.appendChild(o);
+  }
+}
+
+// Subtype <select> depends on the chosen kind; the row hides when the kind
+// has no subtypes.
+function syncSubtypeField(kind, selected) {
+  const map = SUBTYPES[kind];
+  if (!map) {
+    els.editSubtypeRow.hidden = true;
+    els.editSubtype.innerHTML = '';
+    return;
+  }
+  els.editSubtype.innerHTML = '';
+  for (const [id, meta] of Object.entries(map)) {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = meta.label;
+    els.editSubtype.appendChild(o);
+  }
+  if (selected && map[selected]) els.editSubtype.value = selected;
+  els.editSubtypeRow.hidden = false;
+}
+
+function syncAllDayField(on) {
+  els.editAllDay.checked = !!on;
+  els.editTimesRow.hidden = !!on;
+}
+
+els.editKind.addEventListener('change', () => {
+  const kind = els.editKind.value;
+  syncSubtypeField(kind, null);
+  // Vacation / days off / standby are all-day by default; flights never are.
+  if (!editingEvent) syncAllDayField(KINDS[kind]?.defaultAllDay);
+});
+els.editAllDay.addEventListener('change', () => syncAllDayField(els.editAllDay.checked));
+
+buildLegend();
+buildKindSelect();
 
 // Drag-and-drop a PDF onto the page (works on desktop and iPad in split view)
 function isPdf(f) { return f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)); }
@@ -469,6 +647,7 @@ function currentRange() {
   return { start, end, label: ymdLabel(start) };
 }
 function pad2(n) { return String(n).padStart(2,'0'); }
+function fmtMins(m) { return `${Math.floor(m/60)}h ${pad2(m%60)}m`; }
 function ymdLabel(d) { return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 
 // --- Toast & busy ---
@@ -516,6 +695,9 @@ if (saved) {
   if (state.period && state.period.startDate) state.anchor = startOfDay(state.period.startDate);
 }
 loadUi(); // Restores last view + anchor, overriding the period-based default above
+// Persist the upgraded taxonomy once, so other readers of 'duty-cal:events'
+// (notably swap.js) see canonical kinds instead of the pre-refactor shape.
+if (migrationChangedSomething) saveEvents();
 render();
 
 // Service worker (best-effort)

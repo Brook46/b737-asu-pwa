@@ -1,5 +1,5 @@
 // Minimal cache-first service worker.
-const VER = 'duty-cal-v9';
+const VER = 'duty-cal-v11';
 const CORE = [
   './',
   'index.html',
@@ -7,6 +7,8 @@ const CORE = [
   'app.js',
   'parser.js',
   'calendar.js',
+  'kinds.js',
+  'summary.js',
   'ics.js',
   'manifest.json',
   'icon.svg',

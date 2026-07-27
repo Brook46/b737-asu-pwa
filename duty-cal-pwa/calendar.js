@@ -1,6 +1,8 @@
 // Renders Day / Week / Month views into a container.
 // Emits 'event-click' CustomEvent on the container when an event chip is tapped.
 
+import { groupOf, badgeOf } from './kinds.js';
+
 const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -81,14 +83,22 @@ function renderMonth(container, anchor, events) {
     for (const ev of dayEvents.slice(0, 4)) {
       const chip = document.createElement('div');
       chip.className = `month-chip chip-${chipKind(ev.kind)}`;
+      chip.dataset.eventId = ev.id;
       // For multi-day events: show start time only on the first day, otherwise mark continuation
       const dStart = startOfDay(d);
       const isFirstDay = ev.start >= dStart && ev.start < addDays(dStart, 1);
-      const icon = isFirstDay ? iconFor(ev) : '';
-      const label = isFirstDay
-        ? `${fmt(ev.start)} ${icon ? icon + ' ' : ''}${shortTitle(ev)}`
-        : `↳ ${shortTitle(ev)}`;
-      chip.textContent = label;
+      if (isAllDay(ev)) {
+        // All-day duty: lead with the roster badge, not a meaningless 00:00.
+        chip.classList.add('chip-allday');
+        const badge = badgeOf(ev);
+        if (badge) chip.appendChild(mkBadge(badge));
+        chip.appendChild(document.createTextNode(shortTitle(ev)));
+      } else {
+        const icon = isFirstDay ? iconFor(ev) : '';
+        chip.textContent = isFirstDay
+          ? `${fmt(ev.start)} ${icon ? icon + ' ' : ''}${shortTitle(ev)}`
+          : `↳ ${shortTitle(ev)}`;
+      }
       chip.title = `${ev.title} — ${ev.sub || ''}`;
       chip.addEventListener('click', e => { e.stopPropagation(); fire(container, ev); });
       chipsWrap.appendChild(chip);
@@ -113,7 +123,23 @@ function renderMonth(container, anchor, events) {
 
 function renderTimeline(container, days, events) {
   const today = new Date();
-  const eventsByDay = groupByDayKey(events);
+
+  // Split each day's events into an all-day set and a timed set. All-day
+  // duties (vacation, home reserve, days off) get their own lane above the
+  // hour grid instead of painting a full-height column over the timeline.
+  const perDay = days.map(day => {
+    const dayStart = startOfDay(day);
+    const dayEnd   = addDays(dayStart, 1);
+    const overlapping = events.filter(ev => ev.start < dayEnd && ev.end > dayStart);
+    return {
+      day, dayStart,
+      allDayEvs: overlapping.filter(isAllDay),
+      timedEvs:  overlapping.filter(ev => !isAllDay(ev)),
+    };
+  });
+  // Reserve one shared lane height so all columns and the hour gutter align.
+  const maxAllDay = perDay.reduce((n, p) => Math.max(n, p.allDayEvs.length), 0);
+  const laneH = maxAllDay ? maxAllDay * 22 + 8 : 0;
 
   const wrap = document.createElement('div');
   wrap.className = 'tl-wrap';
@@ -122,6 +148,13 @@ function renderTimeline(container, days, events) {
   const hoursCol = document.createElement('div');
   hoursCol.className = 'tl-hours';
   hoursCol.appendChild(spacer()); // align with day header
+  if (laneH) {
+    const gutter = document.createElement('div');
+    gutter.className = 'tl-allday-gutter';
+    gutter.style.height = laneH + 'px';
+    gutter.textContent = 'all-day';
+    hoursCol.appendChild(gutter);
+  }
   for (let h = 0; h < 24; h++) {
     const hh = document.createElement('div');
     hh.className = 'tl-hour';
@@ -139,7 +172,7 @@ function renderTimeline(container, days, events) {
     ? '1fr'
     : `repeat(${days.length}, minmax(140px, 1fr))`;
 
-  for (const day of days) {
+  for (const { day, dayStart, allDayEvs, timedEvs } of perDay) {
     const col = document.createElement('div');
     col.className = 'tl-day';
 
@@ -148,6 +181,24 @@ function renderTimeline(container, days, events) {
     if (sameDay(day, today)) head.classList.add('today');
     head.textContent = `${DOW_SHORT[day.getDay()]} ${day.getDate()}`;
     col.appendChild(head);
+
+    if (laneH) {
+      const lane = document.createElement('div');
+      lane.className = 'tl-allday';
+      lane.style.height = laneH + 'px';
+      for (const ev of allDayEvs) {
+        const chip = document.createElement('div');
+        chip.className = `tl-allday-chip chip-${chipKind(ev.kind)}`;
+        chip.dataset.eventId = ev.id;
+        const badge = badgeOf(ev);
+        if (badge) chip.appendChild(mkBadge(badge));
+        chip.appendChild(document.createTextNode(shortTitle(ev)));
+        chip.title = ev.title;
+        chip.addEventListener('click', e => { e.stopPropagation(); fire(container, ev); });
+        lane.appendChild(chip);
+      }
+      col.appendChild(lane);
+    }
 
     const body = document.createElement('div');
     body.className = 'tl-day-body';
@@ -158,12 +209,7 @@ function renderTimeline(container, days, events) {
       body.appendChild(line);
     }
 
-    // Events for this day — including events whose date overlaps midnight
-    const dayStart = startOfDay(day);
-    const dayEnd   = addDays(dayStart, 1);
-    const evs = events.filter(ev => ev.start < dayEnd && ev.end > dayStart);
-
-    for (const ev of evs) {
+    for (const ev of timedEvs) {
       const node = renderEventChip(ev, dayStart);
       node.addEventListener('click', e => { e.stopPropagation(); fire(container, ev); });
       body.appendChild(node);
@@ -177,10 +223,28 @@ function renderTimeline(container, days, events) {
   container.appendChild(wrap);
 }
 
+/**
+ * All-day test. Prefers the explicit flag; falls back to a midnight-to-midnight
+ * span so events persisted before the schema refactor still render correctly.
+ */
+export function isAllDay(ev) {
+  if (ev.allDay != null) return !!ev.allDay;
+  return ev.start.getHours() === 0 && ev.start.getMinutes() === 0
+      && (ev.end - ev.start) >= 24 * 60 * 60 * 1000 - 1000;
+}
+
+function mkBadge(text) {
+  const b = document.createElement('span');
+  b.className = 'chip-badge';
+  b.textContent = text;
+  return b;
+}
+
 function renderEventChip(ev, dayStart) {
   const node = document.createElement('div');
   const k = chipKind(ev.kind);
   node.className = `event ${k}`;
+  node.dataset.eventId = ev.id;
   const rowH = getComputedStyle(document.documentElement).getPropertyValue('--row-h').trim();
   const rowHpx = parseFloat(rowH) || 36;
 
@@ -202,7 +266,13 @@ function renderEventChip(ev, dayStart) {
 
   const icon = iconFor(ev);
   const title = document.createElement('b');
-  title.textContent = icon ? `${icon}  ${ev.title}` : ev.title;
+  // Non-flying duties carry their roster badge inline so the category is
+  // readable even when the chip is too short to show the full title.
+  if (BADGED_KINDS.has(ev.kind)) {
+    const badge = badgeOf(ev);
+    if (badge) title.appendChild(mkBadge(badge));
+  }
+  title.appendChild(document.createTextNode(icon ? `${icon}  ${ev.title}` : ev.title));
   const sub = document.createElement('div');
   sub.className = 'sub';
   sub.textContent = ev.sub || `${fmt(ev.start)} – ${fmt(ev.end)}`;
@@ -229,13 +299,11 @@ function isDayHour(h) { return h >= 4 && h < 22; }
 
 function spacer() { const s = document.createElement('div'); s.className = 'tl-day-header'; s.style.background = 'transparent'; s.style.borderBottomColor = 'transparent'; return s; }
 
+// Colour / filter group for an event, from the shared taxonomy.
+// 'custom' is the pre-refactor id for what is now 'note'.
 function chipKind(kind) {
-  if (kind === 'pickup' || kind === 'driveHome') return 'pickup';
-  if (kind === 'flight') return 'flight';
-  if (kind === 'restEnd') return 'rest';
-  if (kind === 'miluim') return 'miluim';
-  if (kind === 'custom') return 'custom';
-  return 'other';
+  if (kind === 'custom') return 'note';
+  return groupOf(kind);
 }
 function shortTitle(ev) {
   if (ev.kind === 'pickup') return 'Pickup';
@@ -244,14 +312,9 @@ function shortTitle(ev) {
   if (ev.kind === 'flight') return ev.title.replace(/^DH\s*/, '').split('  ')[0];
   return ev.title;
 }
-function groupByDayKey(events) {
-  const m = new Map();
-  for (const ev of events) {
-    if (!m.has(ev.dayKey)) m.set(ev.dayKey, []);
-    m.get(ev.dayKey).push(ev);
-  }
-  return m;
-}
+// Kinds that show a roster badge on the chip. Flights and the pickup /
+// drive-home / rest markers read fine without one.
+const BADGED_KINDS = new Set(['standby','ground','vacation','dayOff','miluim','note','custom','other']);
 
 function groupByOverlappingDays(events) {
   const m = new Map();

@@ -3,13 +3,13 @@
 // Input: raw text extracted from the PDF (single string, item-by-item).
 // Output: { period: {startDate, endDate, name}, events: [...] }
 //
-// Each event has the shape:
-//   { id, kind: 'pickup'|'flight'|'driveHome'|'restEnd'|'other',
-//     start: Date, end: Date, dayKey: 'YYYY-MM-DD', title, sub, dutyId,
-//     details: { ... raw fields ... } }
+// The event shape is documented in kinds.js, which is also the single source
+// of truth for the category taxonomy (kind / subtype / roster codes).
+
+import { KINDS, SUBTYPES, classifyCode } from './kinds.js';
 
 const MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
-const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const PICKUP_RE = /PICKUP\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})/;
 
 function parseDDMMMYY(s) {
   // "01Jun26"
@@ -80,8 +80,12 @@ export function parseDutyPlan(rawText) {
   }
   body = body.slice(0, cutAt);
 
-  // Split into per-day chunks using day-of-week + 2-digit markers
-  const dayMarker = /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(\d{2})\b/g;
+  // Split into per-day chunks using day-of-week + 2-digit markers.
+  // No leading \b: the PDF text layer sometimes runs days together with no
+  // separator ("Fri05 XSat06Sun07Mon08 PICKUP…"), and a word boundary would
+  // silently swallow every following day into the previous one. The trailing
+  // (?!\d) keeps "Mon08" from matching inside a longer number.
+  const dayMarker = /(Mon|Tue|Wed|Thu|Fri|Sat|Sun)(\d{2})(?!\d)/g;
   const matches = [];
   let m;
   while ((m = dayMarker.exec(body)) !== null) {
@@ -113,61 +117,63 @@ export function parseDutyPlan(rawText) {
     const dayKey = ymd(date);
 
     const content = c.content;
-    if (!content || /^X(\s|$)/.test(content)) {
-      // X = day off, skip (or add a marker? keep silent)
-      // But still record rest-end if applicable
+
+    // Blank cell = unassigned day. Deliberately distinct from a rostered day
+    // off ("X"), which is a guaranteed day off and does get an event.
+    if (!content) { maybeEmitRestEnd(); continue; }
+
+    // ---- Guaranteed day off: the roster prints a bare "X" ----------------
+    if (/^X(\s|$)/.test(content)) {
+      events.push(makeAllDay('dayOff', 'Day off', date, dayKey, { code: 'GDO', rawCode: 'X' }));
       maybeEmitRestEnd();
       continue;
     }
 
-    // Reserve / training / vacation patterns (no flights)
-    const dummyRe = /^DUMMY\s+R\s+([A-Z]{3})/;
-    const vacRe   = /^VAC_FLD\s+R\s+([A-Z]{3})/;
-    const tziRe   = /^TZI\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})/; // training
-    const dtyRe   = /^Dty\s+(\d{4})\s+(\d{4})/;             // generic duty
+    // ---- Non-flying duty: standby / vacation / ground --------------------
+    const nf = matchNonFlyingDuty(content);
+    if (nf) {
+      if (nf.startHHMM && nf.endHHMM) {
+        // Timed duty — sim session, office day, airport standby with a window.
+        dutyCounter++; lastDutyId = 'd' + dutyCounter;
+        const block = makeBlock(nf.kind, titleForDuty(nf), date, nf.startHHMM, nf.endHHMM, dayKey,
+          { roster: nf.rawCode, ...(nf.station ? { station: nf.station } : {}) }, lastDutyId);
+        block.subtype = nf.subtype;
+        block.code    = nf.code;
+        block.rawCode = nf.rawCode;
+        block.dutyMinutes = Math.round((block.end - block.start) / 60000);
+        if (nf.kind === 'standby') {
+          block.report  = fmtHM(nf.startHHMM);
+          block.release = fmtHM(nf.endHHMM);
+        }
+        events.push(block);
 
-    if (dummyRe.test(content)) {
-      events.push(makeOther('Dummy', date, 0, 24*60, dayKey, content));
-      maybeEmitRestEnd();
-      continue;
-    }
-    if (vacRe.test(content)) {
-      events.push(makeOther('Vacation', date, 0, 24*60, dayKey, content));
-      maybeEmitRestEnd();
-      continue;
-    }
-    const tziM = tziRe.exec(content);
-    if (tziM) {
-      dutyCounter++; lastDutyId = 'd' + dutyCounter;
-      const training = makeBlock('other', 'Training (TZI)', date, tziM[2], tziM[3], dayKey, { airport: tziM[1] }, lastDutyId);
-      events.push(training);
-      // pickup is normally before training — extend it up to the training start
-      const pickupRe = /PICKUP\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})/;
-      const pu = pickupRe.exec(content);
-      if (pu) {
-        const pickup = makeBlock('pickup', 'Pickup', date, pu[2], pu[3], dayKey, { airport: pu[1], readyTime: fmtHM(pu[3]) }, lastDutyId);
-        pickup.end = new Date(training.start);
-        pickup.sub = `${fmtHM(pu[2])} → ${tziM[2].slice(0,2)}:${tziM[2].slice(2,4)}`;
-        events.push(pickup);
+        // A pickup often precedes a ground duty — stretch it to the duty start.
+        const pu0 = PICKUP_RE.exec(content);
+        if (pu0) {
+          const pickup = makeBlock('pickup', 'Pickup', date, pu0[2], pu0[3], dayKey,
+            { airport: pu0[1], readyTime: fmtHM(pu0[3]) }, lastDutyId);
+          pickup.end = new Date(block.start);
+          pickup.sub = `${fmtHM(pu0[2])} → ${fmtHM(nf.startHHMM)}`;
+          events.push(pickup);
+        }
+
+        const tabM0 = /\[TAB\s+(\d+:\d{2})\]/.exec(content);
+        if (tabM0) {
+          lastTabMinutes = parseHMM(tabM0[1]);
+          lastTlvArrivalDate = timeOnDate(date, nf.endHHMM);
+        }
+      } else {
+        // All-day duty — home reserve, vacation block, …
+        events.push(makeAllDay(nf.kind, titleForDuty(nf), date, dayKey, {
+          code: nf.code, rawCode: nf.rawCode, subtype: nf.subtype, station: nf.station,
+        }));
       }
-      const tabM = /\[TAB\s+(\d+:\d{2})\]/.exec(content);
-      if (tabM) {
-        lastTabMinutes = parseHMM(tabM[1]);
-        lastTlvArrivalDate = timeOnDate(date, tziM[3]);
-        maybeEmitRestEnd();
-      }
-      continue;
-    }
-    const dtyM = dtyRe.exec(content);
-    if (dtyM) {
-      dutyCounter++; lastDutyId = 'd' + dutyCounter;
-      events.push(makeBlock('other', 'Duty', date, dtyM[1], dtyM[2], dayKey, {}, lastDutyId));
+      maybeEmitRestEnd();
       continue;
     }
 
     // Flight day. Look for PICKUP and flight legs.
-    const pickupRe = /PICKUP\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})/;
-    const pu = pickupRe.exec(content);
+    const pu = PICKUP_RE.exec(content);
 
     // Flight legs: optional DH/ prefix, "LY <num> <FROM> <!?HHMM>(-?\d?) <!?HHMM>(-?\d?) <TO>"
     // We're tolerant about the "B737" suffix and bracket info.
@@ -238,6 +244,8 @@ export function parseDutyPlan(rawText) {
           end:   last.end,
           title: routeStr,
           sub: `${first.depTime} → ${last.arrTime}`,
+          sectors: computedLegs.filter(l => !l.deadhead).length,
+          blockMinutes: null, // filled from [FT hh:mm] below
           details: {
             flights: flightNos,
             route: routeStr,
@@ -286,6 +294,7 @@ export function parseDutyPlan(rawText) {
         for (let i = events.length - 1; i >= 0; i--) {
           if (events[i].dayKey === dayKey && events[i].kind === 'flight') {
             events[i].details.flightTime = ftM[1];
+            events[i].blockMinutes = parseHMM(ftM[1]);
             break;
           }
         }
@@ -321,11 +330,19 @@ export function parseDutyPlan(rawText) {
   // (e.g. TLV→FRA on Wed, FRA→TLV on Thu becomes one block).
   const merged = mergeFlightsByDuty(events);
 
-  // Tag origin and assign stable, content-based IDs so the same event keeps
-  // the same id across re-parses.
+  // Normalise every event to the full schema, tag origin, and assign stable
+  // content-based IDs so the same event keeps its id across re-parses.
   for (const ev of merged) {
-    ev.id = stableEventId(ev);
-    ev.origin = 'pdf';
+    ev.id      = stableEventId(ev);
+    ev.origin  = 'pdf';
+    ev.subtype = ev.subtype ?? null;
+    ev.code    = ev.code    ?? (KINDS[ev.kind]?.code ?? null);
+    ev.rawCode = ev.rawCode ?? null;
+    ev.allDay  = ev.allDay  ?? false;
+    ev.sectors = ev.sectors ?? 0;
+    ev.blockMinutes = ev.blockMinutes ?? null;
+    ev.dutyMinutes  = ev.dutyMinutes  ?? null;
+    ev.dutyId  = ev.dutyId  ?? null;
   }
 
   return {
@@ -385,6 +402,8 @@ function mergeFlightsByDuty(events) {
         end: last.end,
         title: routeStr,
         sub: `${shortDayTime(first.start)} → ${shortDayTime(last.end)}`,
+        sectors: session.reduce((s, f) => s + (f.sectors || 0), 0),
+        blockMinutes: session.reduce((s, f) => s + (f.blockMinutes || 0), 0) || null,
         details: {
           flights: session.map(f => f.details.flights).filter(Boolean).join(' / '),
           route: routeStr,
@@ -414,17 +433,84 @@ function dateForDayOfMonth(day, periodStart, periodEnd) {
   return null;
 }
 
-function makeOther(title, date, startMin, endMin, dayKey, raw) {
-  const start = addMinutes(new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0), startMin);
-  const end   = addMinutes(start, endMin - startMin);
+/**
+ * Recognise a non-flying duty row: standby, vacation, ground duty.
+ *
+ * Handles rows where a PICKUP clause precedes the duty code — the PDF text
+ * layer runs them together ("PICKUP TLV 0700 0710TZI TLV 0800 1600"), which
+ * an anchored /^TZI/ match silently missed.
+ *
+ * @returns {{kind,subtype,code,rawCode,station,startHHMM,endHHMM}|null}
+ */
+function matchNonFlyingDuty(content) {
+  if (/\bLY\s*\d/.test(content)) return null;             // row carries flight legs
+
+  let rest = content.replace(PICKUP_RE, ' ')              // drop leading pickup clause
+                    .replace(/\[[^\]]*\]/g, ' ')          // drop [FT 04:45][TAB 11:10]
+                    .trim();
+  if (!rest) return null;
+
+  const m = /^([A-Za-z][A-Za-z0-9_]{0,9})\b\s*(R\b)?\s*([A-Z]{3})?\s*(\d{4})?\s*(\d{4})?/.exec(rest);
+  if (!m) return null;
+
+  const rawCode = m[1].toUpperCase();
+  if (rawCode === 'PICKUP') return null;
+
+  const reserveFlag = !!m[2];
+  const station   = m[3] || null;
+  const startHHMM = m[4] || null;
+  const endHHMM   = m[5] || null;
+
+  let cls = classifyCode(rawCode);
+
+  // "Dty 0800 1600" — a duty block with no category code of its own.
+  if (!cls && rawCode === 'DTY' && startHHMM && endHHMM) {
+    cls = { kind: 'ground', subtype: 'office', code: 'GND' };
+  }
+  // Unrecognised code that still looks like a rostered block (code + window,
+  // no flight legs) is a ground duty — far more useful than a generic note.
+  if (!cls && startHHMM && endHHMM && /^[A-Z][A-Z0-9_]{1,9}$/.test(rawCode)) {
+    cls = { kind: 'ground', subtype: 'course', code: 'GND' };
+  }
+  if (!cls) return null;
+
+  let subtype = cls.subtype;
+  if (cls.kind === 'standby') {
+    // "R" (reserve) or no reporting window ⇒ home reserve.
+    // An explicit reporting window ⇒ airport standby.
+    subtype = (reserveFlag || !startHHMM) ? 'home' : 'airport';
+  }
+  return { ...cls, subtype, rawCode, station, startHHMM, endHHMM };
+}
+
+function titleForDuty(nf) {
+  const sub = nf.subtype && SUBTYPES[nf.kind]?.[nf.subtype];
+  if (nf.kind === 'standby')  return sub ? `Standby — ${sub.label}` : 'Standby';
+  if (nf.kind === 'vacation') return 'Vacation';
+  if (nf.kind === 'dayOff')   return 'Day off';
+  if (nf.kind === 'ground')   return sub ? `${sub.label} (${nf.rawCode})` : `Ground duty (${nf.rawCode})`;
+  return KINDS[nf.kind]?.label || nf.rawCode;
+}
+
+function makeAllDay(kind, title, date, dayKey, extra = {}) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
   return {
     id: cryptoId(),
-    kind: 'other',
+    kind,
+    subtype: extra.subtype || null,
+    code:    extra.code || KINDS[kind]?.code || null,
+    rawCode: extra.rawCode || null,
     dayKey,
-    start, end,
+    start,
+    end: addMinutes(start, 24 * 60),
+    allDay: true,
     title,
     sub: '',
-    details: { raw: raw.slice(0, 80) },
+    dutyId: null,
+    details: {
+      ...(extra.station ? { station: extra.station } : {}),
+      ...(extra.rawCode ? { roster: extra.rawCode } : {}),
+    },
   };
 }
 

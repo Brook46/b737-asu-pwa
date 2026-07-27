@@ -41,6 +41,9 @@
     </div>
   </div>
 
+  <!-- FTL / duty counters for the visible month (month view only) -->
+  <div id="summary" class="summary" hidden aria-label="Month totals"></div>
+
   <div id="busy" class="busy" hidden><div class="spinner"></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -63,14 +66,8 @@
     </div>
   </main>
 
-  <div class="legend" role="group" aria-label="Toggle event categories">
-    <button type="button" class="lg pickup" data-kind="pickup" aria-pressed="true" title="Tap to hide / show">Pickup / drive home</button>
-    <button type="button" class="lg flight" data-kind="flight" aria-pressed="true" title="Tap to hide / show">Flight</button>
-    <button type="button" class="lg rest"   data-kind="rest"   aria-pressed="true" title="Tap to hide / show">End of rest</button>
-    <button type="button" class="lg miluim" data-kind="miluim" aria-pressed="true" title="Tap to hide / show">Miluim</button>
-    <button type="button" class="lg custom" data-kind="custom" aria-pressed="true" title="Tap to hide / show">Note / custom</button>
-    <button type="button" class="lg other"  data-kind="other"  aria-pressed="true" title="Tap to hide / show">Dummy / training / vacation</button>
-  </div>
+  <!-- Category filters — generated from LEGEND_GROUPS in kinds.js -->
+  <div class="legend" id="legend" role="group" aria-label="Toggle event categories"></div>
 
   <!-- Event details / edit modal -->
   <div id="modal" class="modal" hidden>
@@ -96,15 +93,13 @@
         <h2 id="edit-mode-title">New event</h2>
         <div class="form-row">
           <label for="edit-kind">Type</label>
-          <select id="edit-kind">
-            <option value="flight">Flight</option>
-            <option value="pickup">Pickup</option>
-            <option value="driveHome">Drive home</option>
-            <option value="restEnd">End of rest</option>
-            <option value="miluim">Miluim</option>
-            <option value="custom">Note / custom event</option>
-            <option value="other">Other (training / dummy / vacation)</option>
-          </select>
+          <!-- options generated from KINDS in kinds.js -->
+          <select id="edit-kind"></select>
+        </div>
+        <!-- Only shown for kinds that define subtypes (standby, ground duty) -->
+        <div class="form-row" id="edit-subtype-row" hidden>
+          <label for="edit-subtype">Category</label>
+          <select id="edit-subtype"></select>
         </div>
         <div class="form-row">
           <label for="edit-title">Title</label>
@@ -114,7 +109,13 @@
           <label for="edit-date">Date</label>
           <input id="edit-date" type="date" />
         </div>
-        <div class="form-row two-col">
+        <div class="form-row check-row">
+          <label for="edit-allday">
+            <input id="edit-allday" type="checkbox" />
+            <span>All day</span>
+          </label>
+        </div>
+        <div class="form-row two-col" id="edit-times-row">
           <div>
             <label for="edit-start">Start</label>
             <input id="edit-start" type="time" />

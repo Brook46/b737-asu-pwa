@@ -7,12 +7,18 @@
   --muted: #8b949e;
   --accent: #58a6ff;
 
-  --c-pickup: #f59e0b;     /* amber */
-  --c-flight: #3b82f6;     /* blue */
-  --c-rest:   #22c55e;     /* green */
-  --c-other:  #a855f7;     /* purple */
-  --c-miluim: #6b7c3a;     /* olive — IDF green */
-  --c-custom: #64748b;     /* slate gray — neutral note */
+  /* Category colours. Each is a distinct hue so categories stay separable
+     on a small phone screen; `on-*` is the text colour for light fills. */
+  --c-pickup:   #f59e0b;   /* amber  — pickup / drive home */
+  --c-flight:   #3b82f6;   /* blue   — flight */
+  --c-rest:     #22c55e;   /* green  — end of rest */
+  --c-standby:  #14b8a6;   /* teal   — standby / reserve */
+  --c-ground:   #a855f7;   /* purple — ground duty, sim, training */
+  --c-vacation: #ec4899;   /* pink   — vacation / annual leave */
+  --c-dayoff:   #475569;   /* slate  — guaranteed day off */
+  --c-miluim:   #6b7c3a;   /* olive  — IDF reserve */
+  --c-note:     #64748b;   /* gray   — free-text note */
+  --c-other:    #7c3aed;   /* violet — unclassified */
 
   --row-h: 36px; /* hourly row height */
 }
@@ -71,12 +77,16 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .lg:hover { background: var(--panel-2); }
 .lg.off { opacity: 0.35; text-decoration: line-through; }
 .lg::before { content: ""; width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.lg.pickup::before { background: var(--c-pickup); }
-.lg.flight::before { background: var(--c-flight); }
-.lg.rest::before   { background: var(--c-rest); }
-.lg.other::before  { background: var(--c-other); }
-.lg.miluim::before { background: var(--c-miluim); }
-.lg.custom::before { background: var(--c-custom); }
+.lg.pickup::before   { background: var(--c-pickup); }
+.lg.flight::before   { background: var(--c-flight); }
+.lg.rest::before     { background: var(--c-rest); }
+.lg.other::before    { background: var(--c-other); }
+.lg.miluim::before   { background: var(--c-miluim); }
+.lg.note::before     { background: var(--c-note); }
+.lg.standby::before  { background: var(--c-standby); }
+.lg.ground::before   { background: var(--c-ground); }
+.lg.vacation::before { background: var(--c-vacation); }
+.lg.dayOff::before   { background: var(--c-dayoff); }
 
 /* ------- Month view ------- */
 .month-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 6px; }
@@ -88,17 +98,53 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .day-num { display: inline-block; min-width: 22px; padding: 1px 5px; border-radius: 11px; font-size: 12px; color: var(--muted); }
 .month-chips { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .month-chip { font-size: 11px; padding: 2px 5px; border-radius: 3px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip-pickup { background: var(--c-pickup); color: #1a0a00; }
-.chip-flight { background: var(--c-flight); }
-.chip-rest   { background: var(--c-rest); color: #002400; }
-.chip-other  { background: var(--c-other); }
-.chip-miluim { background: var(--c-miluim); }
-.chip-custom { background: var(--c-custom); }
+.chip-pickup   { background: var(--c-pickup); color: #1a0a00; }
+.chip-flight   { background: var(--c-flight); }
+.chip-rest     { background: var(--c-rest); color: #002400; }
+.chip-other    { background: var(--c-other); }
+.chip-miluim   { background: var(--c-miluim); }
+.chip-note     { background: var(--c-note); }
+.chip-standby  { background: var(--c-standby); color: #00201c; }
+.chip-ground   { background: var(--c-ground); }
+.chip-vacation { background: var(--c-vacation); }
+.chip-dayoff, .chip-dayOff { background: var(--c-dayoff); }
+
+/* Roster badge shown inside a chip, e.g. SBY / GND / OFF */
+.chip-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 800; letter-spacing: 0.4px;
+  line-height: 1.4; padding: 0 4px; margin-right: 5px;
+  border-radius: 3px; vertical-align: 1px;
+  background: rgba(0,0,0,0.28); color: inherit;
+  text-transform: uppercase; white-space: nowrap;
+}
+.month-chip.chip-allday { font-weight: 600; }
 
 /* ------- Day & Week view ------- */
 .tl-wrap { display: grid; grid-template-columns: 56px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel-2); }
 .tl-hours { background: var(--panel); border-right: 1px solid var(--line); position: relative; z-index: 1; }
 .tl-days-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* All-day lane: vacation / standby / days off sit above the hour grid rather
+   than painting a full-height column over the timeline. */
+.tl-allday {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+  padding: 3px 4px; display: flex; flex-direction: column; gap: 2px;
+  overflow: hidden;
+}
+.tl-allday-chip {
+  font-size: 11px; line-height: 1.45; height: 20px;
+  padding: 0 6px; border-radius: 4px; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer;
+}
+.tl-allday-gutter {
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 6px; font-size: 9px; letter-spacing: .3px;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+  text-transform: uppercase;
+}
 .tl-hour { height: var(--row-h); padding: 2px 6px 0 0; text-align: right; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); position: relative; }
 .tl-days { display: grid; }
 .tl-day { position: relative; border-right: 1px solid var(--line); }
@@ -117,12 +163,16 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 }
 .event b { font-weight: 700; display: block; font-size: 12px; }
 .event .sub { opacity: 0.9; font-size: 10px; }
-.event.pickup { background: var(--c-pickup); color: #1a0a00; }
-.event.flight { background: var(--c-flight); }
-.event.rest   { background: var(--c-rest); color: #002400; }
-.event.other  { background: var(--c-other); }
-.event.miluim { background: var(--c-miluim); }
-.event.custom { background: var(--c-custom); }
+.event.pickup   { background: var(--c-pickup); color: #1a0a00; }
+.event.flight   { background: var(--c-flight); }
+.event.rest     { background: var(--c-rest); color: #002400; }
+.event.other    { background: var(--c-other); }
+.event.miluim   { background: var(--c-miluim); }
+.event.note     { background: var(--c-note); }
+.event.standby  { background: var(--c-standby); color: #00201c; }
+.event.ground   { background: var(--c-ground); }
+.event.vacation { background: var(--c-vacation); }
+.event.dayOff   { background: var(--c-dayoff); }
 .event.rest-marker {
   background: transparent; border-top: 2px solid var(--c-rest); border-radius: 0;
   height: 18px; padding: 0 6px; color: var(--c-rest); font-weight: 700;
@@ -157,8 +207,45 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .form-row input[type="time"], .form-row input[type="date"] { font-variant-numeric: tabular-nums; }
 .form-row.two-col { flex-direction: row; gap: 12px; }
 .form-row.two-col > div { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.form-row[hidden] { display: none; }
+.form-row.check-row > label {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--ink); font-size: 14px; cursor: pointer; min-height: 40px;
+}
+.form-row.check-row input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; accent-color: var(--accent); }
 
 .muted { color: var(--muted); }
+
+/* ------- Month summary (FTL / duty counters) ------- */
+.summary {
+  display: flex; gap: 8px; padding: 10px 14px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--line); background: var(--bg);
+  scrollbar-width: none;
+}
+.summary::-webkit-scrollbar { display: none; }
+.summary[hidden] { display: none; }
+.sm-tile {
+  flex: 0 0 auto; min-width: 76px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 7px 11px 6px;
+  border-left-width: 3px;
+}
+.sm-value {
+  font-size: 17px; font-weight: 700; line-height: 1.15;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.2px;
+}
+.sm-unit { font-size: 10px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.sm-label {
+  font-size: 10px; color: var(--muted); margin-top: 2px;
+  text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
+}
+.sm-flight   { border-left-color: var(--c-flight); }
+.sm-ground   { border-left-color: var(--c-ground); }
+.sm-pickup   { border-left-color: var(--c-pickup); }
+.sm-standby  { border-left-color: var(--c-standby); }
+.sm-dayOff   { border-left-color: var(--c-dayoff); }
+.sm-vacation { border-left-color: var(--c-vacation); }
 
 /* Toast */
 .toast {

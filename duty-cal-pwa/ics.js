@@ -2,9 +2,20 @@
 // Times are exported in "floating" local time (no TZ marker) — they appear in
 // the calendar app at the same wall-clock time you saw in the PDF.
 
+import { KINDS, labelOf } from './kinds.js';
+
 function pad(n) { return String(n).padStart(2,'0'); }
 function fmt(d) {
   return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+}
+/** RFC5545 DATE value (no time) — used for all-day events. */
+function fmtDate(d) {
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+}
+function isAllDayEvent(ev) {
+  if (ev.allDay != null) return !!ev.allDay;
+  return ev.start.getHours() === 0 && ev.start.getMinutes() === 0
+      && (ev.end - ev.start) >= 24*60*60*1000 - 1000;
 }
 function esc(s) {
   return String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
@@ -31,28 +42,39 @@ function wrapCal(veventBlocks) {
 
 function vevent(ev, note) {
   const dt = fmt(new Date());
+  // All-day duties export as DATE values so phones show them in the all-day
+  // banner instead of a 24-hour block covering the whole day.
+  const when = isAllDayEvent(ev)
+    ? [`DTSTART;VALUE=DATE:${fmtDate(ev.start)}`, `DTEND;VALUE=DATE:${fmtDate(ev.end)}`]
+    : [`DTSTART:${fmt(ev.start)}`, `DTEND:${fmt(ev.end)}`];
   return [
     'BEGIN:VEVENT',
     `UID:${ev.id}@duty-cal-pwa`,
     `DTSTAMP:${dt}`,
-    `DTSTART:${fmt(ev.start)}`,
-    `DTEND:${fmt(ev.end)}`,
+    ...when,
     `SUMMARY:${esc(prettyTitle(ev))}`,
     `DESCRIPTION:${esc(buildDescription(ev, note))}`,
+    `CATEGORIES:${esc((KINDS[ev.kind]?.label || 'Duty').toUpperCase())}`,
     'END:VEVENT',
   ].join('\r\n');
 }
 
+const TITLE_ICONS = {
+  flight: '✈︎', pickup: '🚗', driveHome: '🏠', restEnd: '⏰',
+  standby: '📟', ground: '🎓', vacation: '🌴', dayOff: '🛌', miluim: '🎖️', note: '📝',
+};
+
 function prettyTitle(ev) {
-  if (ev.kind === 'flight') return '✈︎ ' + ev.title;
-  if (ev.kind === 'pickup') return '🚗 Pickup';
-  if (ev.kind === 'driveHome') return '🏠 Drive home';
-  if (ev.kind === 'restEnd') return '⏰ End of rest';
-  return ev.title;
+  const icon = TITLE_ICONS[ev.kind];
+  const base = ev.kind === 'pickup'    ? 'Pickup'
+             : ev.kind === 'driveHome' ? 'Drive home'
+             : ev.kind === 'restEnd'   ? 'End of rest'
+             : ev.title;
+  return icon ? `${icon} ${base}` : base;
 }
 
 function buildDescription(ev, note) {
-  const lines = [];
+  const lines = [labelOf(ev)];
   const d = ev.details || {};
   for (const [k, v] of Object.entries(d)) {
     if (v == null || v === '') continue;

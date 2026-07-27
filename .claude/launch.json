@@ -20,6 +20,12 @@
       "port": 8090
     },
     {
+      "name": "Duty Calendar (no-cache)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8091", "/Users/alonbrookstein/Claude AS/duty-cal-pwa"],
+      "port": 8091
+    },
+    {
       "name": "Flight Card",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8095", "--directory", "/Users/alonbrookstein/Claude AS/flight-card-pwa"],
