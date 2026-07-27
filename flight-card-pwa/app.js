@@ -298,6 +298,13 @@ queueMicrotask(maybeAutoJumpToCurrentLeg);
 // and only hits the network when the calendar content actually changed.
 import('./modules/logbook-push.js').then(m => m.init())
   .catch(err => console.warn('logbook-push init failed', err));
+// If this load came from tapping the header ↻, refresh every remote source
+// too. Deferred so it never competes with first paint (and so the functions
+// it calls are long past their declarations — see the TDZ note above).
+setTimeout(() => {
+  try { consumeSyncAfterReload(); }
+  catch (err) { console.warn('post-reload sync skipped', err); }
+}, 1_200);
 
 // If the user just shared roster text via the iOS Share Sheet → share-roster.html,
 // it bounces back to ./?roster=<encoded>. Parse and apply, then strip the URL.
@@ -777,7 +784,7 @@ function syncChipTag(routeEl, selector, className, label, want) {
 
 // ---------- Header tail/flight inputs ----------
 // Select-all on focus for header inputs so a single keystroke replaces the value
-['hdr-tail', 'hdr-flight', 'hdr-ctot'].forEach(id => {
+['hdr-tail', 'hdr-flight', 'hdr-ctot', 'hdr-fltime'].forEach(id => {
   const el = $(id);
   if (!el) return;
   el.addEventListener('focus', () => {
@@ -790,6 +797,8 @@ function syncHeaderInputs() {
   const tail = $('hdr-tail');
   const flt  = $('hdr-flight');
   const ctot = $('hdr-ctot');
+  const ftm  = $('hdr-fltime');
+  if (ftm  && document.activeElement !== ftm)  ftm.value  = data.flight_time || '';
   if (tail && document.activeElement !== tail) tail.value = data.tail || '';
   // Display the flight number with the ELY callsign prefix — the canonical
   // way a 737NG pilot says it on the radio. Storage keeps just the digits.
@@ -798,6 +807,21 @@ function syncHeaderInputs() {
 }
 $('hdr-tail').addEventListener('input', () => {
   storage.setDataField('tail', $('hdr-tail').value.toUpperCase());
+  speeches.notifyDataChange();
+});
+// Header flight-time box — the same field as the Flight group's "Flight time"
+// cell, shown twice. Typing here writes storage and repaints the data-card
+// cell; typing there comes back through dataCard.setOnChange → syncHeaderInputs.
+// Neither path re-renders the card, so whichever box has focus keeps it.
+$('hdr-fltime').addEventListener('input', () => {
+  const el = $('hdr-fltime');
+  const formatted = formatHHMM(el.value);
+  if (el.value !== formatted) {
+    el.value = formatted;
+    try { el.setSelectionRange(formatted.length, formatted.length); } catch {}
+  }
+  storage.setDataField('flight_time', formatted);
+  try { dataCard.paintCell(dataBody, 'flight_time'); } catch (err) { console.warn('cell paint failed', err); }
   speeches.notifyDataChange();
 });
 // Flight number input — typing a new number means "I'm starting a different
@@ -1222,7 +1246,7 @@ $('cal-sync').addEventListener('click', () => runCalendarSync('manual'));
 // only, and only when something actually changed).
 let calSyncRunning = false;
 async function runCalendarSync(source) {
-  if (calSyncRunning) return;
+  if (calSyncRunning) return false;
   const status = $('cal-status');
   const btn    = $('cal-sync');
   if (source === 'manual') {
@@ -1239,7 +1263,7 @@ async function runCalendarSync(source) {
       if (source === 'manual') {
         throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
       }
-      return; // auto: silently no-op when nothing to add
+      return false; // auto: silently no-op when nothing to add
     }
     // Authoritative sync: append/merge incoming, then prune ONLY future
     // legs missing from the duty calendar. Past flown legs and manually-
@@ -1273,16 +1297,61 @@ async function runCalendarSync(source) {
       storage.setLastBootJumpAt(0);
       maybeAutoJumpToCurrentLeg();
     } catch (err) { console.warn('post-sync jump skipped', err); }
+    return true;
   } catch (err) {
     if (source === 'manual' && status) {
       status.classList.add('is-err');
       status.textContent = err?.message || String(err);
     }
     console.warn(`calendar ${source} sync failed`, err);
+    return false;
   } finally {
     calSyncRunning = false;
     if (source === 'manual' && btn) btn.disabled = false;
   }
+}
+
+// ---------- Header ↻ : reload AND refresh every remote source ----------
+// #hard-reload is deliberately a plain <a href="./"> so it still navigates
+// when JS is wedged — which means we must NOT preventDefault it to run the
+// syncs first: the navigation would cancel them mid-flight. Instead the tap
+// leaves a flag and the freshly-booted page picks it up (below), so the
+// reload stays 100% native AND the syncs run against the new code.
+const SYNC_AFTER_RELOAD_KEY = 'fc.syncAfterReload';
+$('hard-reload')?.addEventListener('pointerdown', () => {
+  try { localStorage.setItem(SYNC_AFTER_RELOAD_KEY, String(Date.now())); } catch {}
+});
+
+function consumeSyncAfterReload() {
+  let ts = 0;
+  try {
+    ts = Number(localStorage.getItem(SYNC_AFTER_RELOAD_KEY) || 0);
+    localStorage.removeItem(SYNC_AFTER_RELOAD_KEY);
+  } catch {}
+  // Honour only a flag from the reload that just happened — one left behind
+  // by a crash must not trigger a surprise sync days later.
+  if (!ts || Date.now() - ts > 2 * 60 * 1000) return;
+  runFullSync();
+}
+
+// Calendar → social notes → logbook push, each isolated so one failure can't
+// stop the others. Only sources that are actually configured are reported.
+async function runFullSync() {
+  toast('Refreshing…');
+  const done = [];
+  try {
+    const { isConfigured } = await import('./modules/calendar.js');
+    if (isConfigured() && await runCalendarSync('auto')) done.push('calendar');
+  } catch (err) { console.warn('refresh: calendar sync failed', err); }
+  try {
+    if (await maybeSyncSocialNotes(true)) done.push('notes');
+  } catch (err) { console.warn('refresh: social sync failed', err); }
+  try {
+    const lp = await import('./modules/logbook-push.js');
+    const res = await lp.pushNow({ force: true });
+    if (res?.ok && !res.skipped) done.push('logbook');
+  } catch (err) { console.warn('refresh: logbook push failed', err); }
+  toast(done.length ? `Synced ${done.join(' · ')}` : 'Already up to date');
 }
 
 // Auto-refresh: fires the same sync 3 hours before any upcoming leg's
@@ -2161,7 +2230,8 @@ dataCard.setOnResetGroup((groupId) => {
 });
 
 dataCard.setOnChange((key) => {
-  if (key === 'tail' || key === 'flight' || key === 'ctot') syncHeaderInputs();
+  // flight_time is mirrored in the header box, so it syncs like tail/flight/ctot.
+  if (key === 'tail' || key === 'flight' || key === 'ctot' || key === 'flight_time') syncHeaderInputs();
   // Keep the wx popup's source codes in sync with whatever the user types
   if ((key === 'dep' || key === 'arr') && !document.getElementById('wx-overlay').classList.contains('hidden')) {
     paintWxSrcRow();
@@ -2300,14 +2370,14 @@ $('crewlog-overlay').addEventListener('click', (e) => {
 // Opens from the tappable Dep / Arr codes in the leg-switcher route. Shows
 // the ICAO + city name, every past flight that arrived there (crew + date),
 // and a persistent per-airport notes box.
-let airportNoteFor = '';      // ICAO whose notes the textareas are bound to
+let airportNoteFor = '';      // ICAO whose notes the editors are bound to
 async function showAirportInfo(icao) {
   const k = String(icao || '').trim().toUpperCase();
   if (!k) return;
   // Bind + load the notes and open the sheet SYNCHRONOUSLY first, so typing
   // works instantly even while the city lookup import resolves below.
   airportNoteFor = k;
-  $('airport-notes').value  = storage.getAirportNote(k);
+  setNoteHtml(storage.getAirportNote(k));
   $('airport-social').value = storage.getAirportSocial(k);
   paintSocialHint();
   showAptTab(aptActiveTab);
@@ -2378,6 +2448,73 @@ async function showAirportInfo(icao) {
 
 }
 
+// ---- Personal note: rich text (bold / colours) + bidi ----
+// The personal note is a contenteditable div, so its value is HTML rather
+// than plain text. Everything that leaves or enters storage passes through
+// sanitizeNoteHtml: an allowlist that keeps only inline emphasis, line
+// structure and a text colour. Pastes are forced to plain text, so the only
+// markup that can ever reach storage is what our own toolbar produced.
+const NOTE_TAGS = new Set(['B','STRONG','I','EM','U','BR','DIV','P','SPAN','FONT']);
+function sanitizeNoteHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = String(html || '');       // inert: template content never runs
+  const walk = (node) => {
+    for (const child of [...node.children]) {
+      if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') { child.remove(); continue; }
+      walk(child);
+      if (!NOTE_TAGS.has(child.tagName)) { child.replaceWith(...child.childNodes); continue; }
+      // Keep only the handful of inline styles the toolbar can produce, then
+      // drop every other attribute — that includes any on* handler or style
+      // (position, background, url()…) a paste could otherwise smuggle in.
+      const keep = {
+        color: child.style?.color || (child.tagName === 'FONT' ? child.getAttribute('color') : '') || '',
+        fontWeight: child.style?.fontWeight || '',
+        fontStyle: child.style?.fontStyle || '',
+        textDecoration: child.style?.textDecoration || '',
+      };
+      for (const attr of [...child.attributes]) child.removeAttribute(attr.name);
+      if (keep.color && /^#[0-9a-f]{3,8}$|^rgba?\([\d\s,.%]+\)$|^[a-z]{3,20}$/i.test(keep.color)) {
+        child.style.color = keep.color;
+      }
+      if (/^(bold|[1-9]00)$/i.test(keep.fontWeight))      child.style.fontWeight = keep.fontWeight;
+      if (/^italic$/i.test(keep.fontStyle))               child.style.fontStyle = keep.fontStyle;
+      if (/^underline$/i.test(keep.textDecoration))       child.style.textDecoration = keep.textDecoration;
+    }
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+// Notes saved before rich text existed are plain strings — render their
+// newlines rather than collapsing them into one run-on line. Test for a real
+// tag, not just a '<', so a legacy note saying "wind < 10kt" still keeps its
+// line breaks instead of being mistaken for markup.
+const NOTE_HTML_RE = /<(?:br|div|p|span|b|i|u|strong|em|font)\b[^>]*>/i;
+function noteToHtml(stored) {
+  const s = String(stored || '');
+  if (!s) return '';
+  if (!NOTE_HTML_RE.test(s)) return escapeHtmlSimple(s).replace(/\n/g, '<br>');
+  return sanitizeNoteHtml(s);
+}
+function setNoteHtml(stored) {
+  const el = $('airport-notes');
+  if (!el) return;
+  el.innerHTML = noteToHtml(stored);
+  paintNoteEmpty();
+}
+// An "empty" contenteditable still holds <br> or an empty <div>, so :empty
+// can't drive the placeholder — drive it off the text content instead.
+function paintNoteEmpty() {
+  const el = $('airport-notes');
+  if (!el) return;
+  el.classList.toggle('is-empty', !el.textContent.trim());
+}
+function currentNoteHtml() {
+  const el = $('airport-notes');
+  if (!el) return '';
+  if (!el.textContent.trim()) return '';   // don't persist stray <br> as content
+  return sanitizeNoteHtml(el.innerHTML);
+}
+
 // ---- Personal / Social tabs ----
 let aptActiveTab = 'personal';
 function showAptTab(tab) {
@@ -2386,6 +2523,7 @@ function showAptTab(tab) {
   $('apt-tab-personal').classList.toggle('is-active', !isSocial);
   $('apt-tab-social').classList.toggle('is-active', isSocial);
   $('airport-notes').classList.toggle('hidden', isSocial);
+  $('apt-fmt').classList.toggle('hidden', isSocial);
   $('airport-social').classList.toggle('hidden', !isSocial);
   $('airport-social-hint').classList.toggle('hidden', !isSocial);
 }
@@ -2406,7 +2544,7 @@ $('apt-tab-social').addEventListener('click', () => showAptTab('social'));
 
 function flushAirportNotes() {
   if (!airportNoteFor) return;
-  storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+  storage.setAirportNote(airportNoteFor, currentNoteHtml());
   storage.setAirportSocial(airportNoteFor, $('airport-social').value);
 }
 
@@ -2414,7 +2552,39 @@ function flushAirportNotes() {
 // localStorage write (scheduleWrite), and saving both fields independently
 // avoids the cross-field timer race that a shared UI debounce introduced.
 $('airport-notes').addEventListener('input', () => {
-  if (airportNoteFor) storage.setAirportNote(airportNoteFor, $('airport-notes').value);
+  paintNoteEmpty();
+  if (airportNoteFor) storage.setAirportNote(airportNoteFor, currentNoteHtml());
+});
+// Paste as PLAIN text. Keeps pasted web content from dragging in fonts,
+// backgrounds and markup we'd only have to strip again, and means the
+// sanitiser never has to face anything it didn't produce itself.
+$('airport-notes').addEventListener('paste', (e) => {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
+  if (text) document.execCommand('insertText', false, text);
+});
+// Formatting bar. pointerdown + preventDefault so the button never steals
+// focus from the editor — execCommand needs the selection to still be live.
+$('apt-fmt').addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('[data-apt-fmt], [data-apt-color]');
+  if (!btn) return;
+  e.preventDefault();
+  const el = $('airport-notes');
+  el.focus();
+  try {
+    if (btn.dataset.aptColor) {
+      // styleWithCSS → <span style="color:…"> rather than a legacy <font> tag.
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('foreColor', false, btn.dataset.aptColor);
+    } else {
+      // …but bold/italic are better off as plain <b>/<i> elements: semantic,
+      // and they survive the sanitiser without depending on style parsing.
+      document.execCommand('styleWithCSS', false, false);
+      document.execCommand(btn.dataset.aptFmt, false, null);
+    }
+  } catch (err) { console.warn('note format failed', err); }
+  paintNoteEmpty();
+  if (airportNoteFor) storage.setAirportNote(airportNoteFor, currentNoteHtml());
 });
 $('airport-social').addEventListener('input', () => {
   if (airportNoteFor) storage.setAirportSocial(airportNoteFor, $('airport-social').value);
@@ -2438,13 +2608,13 @@ $('airport-overlay').addEventListener('click', (e) => {
 // worker). We never read the Mac directly — the PWA can't.
 async function maybeSyncSocialNotes(force = false) {
   const url = (localStorage.getItem('fc.social.feedUrl') || '').trim();
-  if (!url) return;
+  if (!url) return false;
   const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
   const WEEK = 7 * 24 * 3600 * 1000;
-  if (!force && Date.now() - last < WEEK) return;
+  if (!force && Date.now() - last < WEEK) return false;
   try {
     const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const data = await res.json();
     if (data && typeof data === 'object') {
       // Notes may be titled by IATA (TLV) or ICAO (LLBG); legs look them up
@@ -2467,8 +2637,10 @@ async function maybeSyncSocialNotes(force = false) {
         $('airport-social').value = storage.getAirportSocial(airportNoteFor);
         paintSocialHint();
       }
+      return true;
     }
   } catch (err) { console.warn('social feed sync failed', err); }
+  return false;
 }
 // Kick a check shortly after boot (off the critical path) and whenever the
 // tab returns to the foreground — both gated by the once-a-week throttle.
@@ -2481,15 +2653,6 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   const code = btn.dataset.airport;
   if (code) { e.preventDefault(); showAirportInfo(code); try { maybeSyncSocialNotes(); } catch {} }
-});
-
-// Delegated tap handler for the Dep / Arr airport buttons in the leg
-// switcher (their data-airport is set dynamically on each render).
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-airport]');
-  if (!btn) return;
-  const code = btn.dataset.airport;
-  if (code) { e.preventDefault(); showAirportInfo(code); }
 });
 
 // ---------- Card collapsibles ----------

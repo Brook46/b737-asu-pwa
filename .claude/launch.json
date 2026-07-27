@@ -4,61 +4,114 @@
     {
       "name": "PWA static server",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8000"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8000"
+      ],
       "port": 8000
     },
     {
       "name": "B737 Companion",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8080", "/Users/alonbrookstein/Claude AS/pdf-knowledge-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8080",
+        "/Users/alonbrookstein/Claude AS/pdf-knowledge-pwa"
+      ],
       "port": 8080
     },
     {
       "name": "Duty Calendar",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8090", "--directory", "/Users/alonbrookstein/Claude AS/duty-cal-pwa"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8090",
+        "--directory",
+        "/Users/alonbrookstein/Claude AS/duty-cal-pwa"
+      ],
       "port": 8090
     },
     {
       "name": "Duty Calendar (no-cache)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8091", "/Users/alonbrookstein/Claude AS/duty-cal-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8091",
+        "/Users/alonbrookstein/Claude AS/duty-cal-pwa"
+      ],
       "port": 8091
     },
     {
       "name": "Suite root (no-cache)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8097", "/Users/alonbrookstein/Claude AS"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8097",
+        "/Users/alonbrookstein/Claude AS"
+      ],
       "port": 8097
     },
     {
       "name": "Flight Card",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8095", "--directory", "/Users/alonbrookstein/Claude AS/flight-card-pwa"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8095",
+        "--directory",
+        "/Users/alonbrookstein/Claude AS/flight-card-pwa"
+      ],
       "port": 8095
     },
     {
       "name": "Thermals",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8092", "/Users/alonbrookstein/Claude AS/thermals-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8092",
+        "/Users/alonbrookstein/Claude AS/thermals-pwa"
+      ],
       "port": 8092
     },
     {
       "name": "Sky Monkeys",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8093", "/Users/alonbrookstein/Claude AS/xcsky-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8093",
+        "/Users/alonbrookstein/Claude AS/xcsky-pwa"
+      ],
       "port": 8093
     },
     {
       "name": "XC Tactical",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/xc-tactical/dev-server.py", "8010"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/xc-tactical/dev-server.py",
+        "8010"
+      ],
       "port": 8010
     },
     {
       "name": "GPWS",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8096", "/Users/alonbrookstein/Claude AS/gpws-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8096",
+        "/Users/alonbrookstein/Claude AS/gpws-pwa"
+      ],
+      "port": 8096
+    },
+    {
+      "name": "Flight Card (no-cache)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8096",
+        "/Users/alonbrookstein/Claude AS/flight-card-pwa"
+      ],
       "port": 8096
     }
   ]

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=98" />
+  <link rel="stylesheet" href="./app.css?v=100" />
 </head>
 <body>
   <header class="app-header">
@@ -73,6 +73,10 @@
       </div>
     </div>
     <div class="hdr-row hdr-row-2">
+      <!-- Flight time mirrors the Flight group's "Flight time" cell — edit
+           either one and both update (see syncHeaderInputs + the flight_time
+           branch in dataCard.setOnChange). Sits left of the tail, under CTOT. -->
+      <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" maxlength="5" aria-label="Flight time (HH:MM)" />
       <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
       <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
     </div>
@@ -208,7 +212,7 @@
       </div>
 
       <div id="pa-legend" class="pa-legend hidden">
-        <span class="pa-legend-hint">@tod resolves to morning / noon / afternoon / evening / night, Hebrew-aware.</span>
+        <span class="pa-legend-hint">@crew names everyone on board automatically (@cockpit / @cabin for one half). @tod resolves to morning / noon / afternoon / evening / night, Hebrew-aware.</span>
       </div>
 
       <div id="pa-body" class="pa-body"></div>
@@ -540,9 +544,27 @@
             <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
             <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
           </div>
-          <!-- Personal note — hand-edited by the pilot. -->
-          <textarea id="airport-notes" class="airport-notes"
-                    placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></textarea>
+          <!-- Formatting bar — Personal tab only. Bold / italic + a small
+               colour set. Uses execCommand: deprecated on paper, but still
+               the only rich-text API iOS Safari's contenteditable honours. -->
+          <div id="apt-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-color" data-apt-color="#e5484d" style="--swatch:#e5484d" title="Red"    aria-label="Red text"></button>
+            <button type="button" class="apt-color" data-apt-color="#f5a524" style="--swatch:#f5a524" title="Amber"  aria-label="Amber text"></button>
+            <button type="button" class="apt-color" data-apt-color="#30a46c" style="--swatch:#30a46c" title="Green"  aria-label="Green text"></button>
+            <button type="button" class="apt-color" data-apt-color="#3b82f6" style="--swatch:#3b82f6" title="Blue"   aria-label="Blue text"></button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="removeFormat" title="Clear formatting" aria-label="Clear formatting">✕</button>
+          </div>
+          <!-- Personal note — hand-edited by the pilot. contenteditable (not a
+               textarea) so bold + colours survive; CSS unicode-bidi:plaintext
+               gives per-line RTL/LTR so Hebrew and English lines each align
+               to their own side. -->
+          <div id="airport-notes" class="airport-notes" contenteditable="true"
+               role="textbox" aria-multiline="true" aria-label="Personal note"
+               data-placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></div>
           <!-- Social note — auto-refreshed weekly from the configured feed.
                Editable by hand until the next sync overwrites it. -->
           <textarea id="airport-social" class="airport-notes hidden"
@@ -568,6 +590,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=99"></script>
+  <script type="module" src="./app.js?v=100"></script>
 </body>
 </html>

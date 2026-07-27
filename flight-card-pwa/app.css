@@ -914,8 +914,52 @@ body.is-past-leg #card-checklist {
   border-radius: 12px;
   padding: 12px 14px;
   line-height: 1.4;
+  /* Bidi: each LINE picks its own direction from its first strong character,
+     so a Hebrew line right-aligns and an English line left-aligns inside the
+     same note. text-align:start then follows that per-line direction. Works
+     on both the contenteditable div and the social textarea. */
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 .airport-notes:focus { outline: none; border-color: var(--accent); }
+/* contenteditable needs its own scroll + placeholder (no native ones). */
+div.airport-notes { overflow-y: auto; max-height: 60vh; -webkit-user-select: text; user-select: text; }
+div.airport-notes.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--fg-dim);
+  pointer-events: none;
+}
+
+/* Bold / italic / colour bar above the personal note. */
+.apt-fmt-bar {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 8px;
+  flex-wrap: wrap;
+}
+.apt-fmt-bar.hidden { display: none; }
+.apt-fmt-btn {
+  -webkit-appearance: none; appearance: none;
+  font: inherit; font-size: 13px; line-height: 1;
+  min-width: 30px; height: 30px;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.apt-fmt-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+.apt-fmt-sep {
+  width: 1px; height: 18px; background: var(--line); margin: 0 2px;
+}
+.apt-color {
+  -webkit-appearance: none; appearance: none;
+  width: 22px; height: 22px; padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--swatch, var(--fg));
+  cursor: pointer;
+}
+.apt-color:active { border-color: var(--fg); }
 
 /* Phones (narrow / portrait): stack the list above the notes instead. */
 @media (max-width: 560px) {

@@ -19,9 +19,13 @@ let lastFocusedTa = null;
 // verbatim on the chip; tap inserts "@<token>" at the cursor. Order
 // matches roughly how often a PA uses them — identity first, dynamic
 // time/date last — so the most-used ones are easiest to thumb.
+// @crew / @cockpit / @cabin come first: they expand to the WHOLE crew in one
+// token ("Captain Alon, First Officer Dan and Maya"), so a PA written once
+// keeps naming everyone correctly on every leg without re-editing.
 const INSERT_TOKENS = [
-  '@cpt', '@fo', '@PU', '@flight', '@tail',
-  '@dep', '@arr', '@flighttime',
+  '@crew', '@cockpit', '@cabin',
+  '@cpt', '@fo', '@PU', '@cc2', '@cc3', '@cc4', '@cc5',
+  '@flight', '@tail', '@dep', '@arr', '@flighttime',
   '@time', '@utc', '@date', '@tod',
 ];
 
@@ -68,6 +72,39 @@ function todBucket(date = new Date()) {
   return 'night';
 }
 
+// ---- Whole-crew tokens ----
+// @crew / @cockpit / @cabin build a natural-language list from whichever crew
+// slots are filled on the active leg, so the PA never has to be re-edited when
+// the crew changes. Role titles are prefixed for the three slots that have
+// one; CC2–CC5 are named only. Names go through storage.displayCrew so saved
+// nicknames win, same as the single-crew tokens.
+const CREW_ROLES_EN = { cpt: 'Captain', fo: 'First Officer', cc1: 'Purser' };
+const CREW_ROLES_HE = { cpt: 'קברניט',  fo: 'קצין ראשון',   cc1: 'ממונה'  };
+const CABIN_KEYS   = ['cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+const COCKPIT_KEYS = ['cpt', 'fo'];
+
+function crewList(data, lang, keys) {
+  const roles = lang === 'he' ? CREW_ROLES_HE : CREW_ROLES_EN;
+  const parts = [];
+  const seen = new Set();
+  for (const key of keys) {
+    const raw = String(data[key] || '').trim();
+    if (!raw) continue;
+    const name = storage.displayCrew(raw) || raw;
+    const dedupe = name.toUpperCase();
+    if (seen.has(dedupe)) continue;      // same person in two slots → once
+    seen.add(dedupe);
+    parts.push(roles[key] ? `${roles[key]} ${name}` : name);
+  }
+  if (!parts.length) return null;        // → token renders as unresolved
+  if (parts.length === 1) return parts[0];
+  const last = parts.pop();
+  // Hebrew's "and" is the prefix ו attached to the following word ("דן ומאיה").
+  return lang === 'he'
+    ? `${parts.join(', ')} ו${last}`
+    : `${parts.join(', ')} and ${last}`;
+}
+
 function dynamicValue(token, data, lang = 'en') {
   // Auto values that are computed (not from dataCard).
   const t = token.toLowerCase();
@@ -80,6 +117,9 @@ function dynamicValue(token, data, lang = 'en') {
     const b = todBucket(now);
     return (lang === 'he' ? TOD_BUCKETS_HE : TOD_BUCKETS_EN)[b];
   }
+  if (t === 'crew')    return crewList(data, lang, [...COCKPIT_KEYS, ...CABIN_KEYS]);
+  if (t === 'cockpit') return crewList(data, lang, COCKPIT_KEYS);
+  if (t === 'cabin')   return crewList(data, lang, CABIN_KEYS);
   return null;
 }
 

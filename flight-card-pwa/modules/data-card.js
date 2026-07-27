@@ -567,6 +567,20 @@ function wire(root) {
   // do here. Manual letter chips live inside the popup and dispatch back.
 }
 
+// Repaint ONE cell from storage without re-rendering the card (a full render
+// destroys whatever input the user is typing in). Used when a value is edited
+// somewhere else — e.g. the header's mirrored flight-time box.
+export function paintCell(root, key) {
+  if (!root) return;
+  const inp = root.querySelector(`input[data-key="${key}"]`);
+  if (inp && document.activeElement !== inp) {
+    const def = CELL_INDEX.get(key);
+    const raw = storage.getCurrent().dataCard[key];
+    inp.value = (raw == null || raw === '') ? '' : formatValue(def, raw);
+  }
+  updateGroupMeta(root, key);
+}
+
 function updateGroupMeta(root, changedKey) {
   const data = storage.getCurrent().dataCard;
   for (const g of FIELDS) {
