@@ -8,7 +8,8 @@ A suite of vanilla-JS Progressive Web Apps for a 737 pilot, all served from one 
 
 - **Root** (`index.html`, `app.js`) — Airspeed Unreliable QRH quick-reference (see README.md)
 - **flight-card-pwa/** — flight card with roster OCR, weather (TAF/METAR), logbook, calendar sync; the most complex app (`modules/` holds ~19 ES modules)
-- **duty-cal-pwa/** — duty roster calendar (parses duty-plan PDFs)
+- **duty-cal-pwa/** — duty roster calendar (parses duty-plan PDFs). Day/week/month views, all-day lane, FTL counters, .ics export. `kinds.js` is the single source of truth for the duty taxonomy (kind / subtype / roster codes / colours) — parser, renderer, summary and ICS all read from it, so a new duty category is one entry there plus one CSS variable.
+- **swap-pwa/** — "Roster Swap": crew flight-exchange board, a **separate app at its own URL**. Reads the calendar's roster read-only from shared `localStorage` (`duty-cal:events`, same origin) via its own `roster.js`; it never imports calendar code and never writes `duty-cal:*`. Talks to a Google Apps Script backend (`swap-pwa/backend/Code.gs`). Availability rules in `roster.js` are an allow-list — an unrecognised duty kind counts as *busy*, so a new calendar category can never advertise the pilot as free by mistake.
 - **gpws-pwa/** — GPWS warning simulator/trainer
 - **pdf-knowledge-pwa/** — PDF study/annotation companion
 - **thermals-pwa/** — live in-flight thermals map (has its own separate Cloudflare worker; `config.js` holds its API base)

@@ -1,0 +1,119 @@
+/* swap.css — Roster Swap, a standalone PWA.
+   Shares the Duty Calendar's dark palette but carries its own shell, since
+   the two are separate apps at separate URLs. */
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #0e1116; color: #e8eef7;
+  font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+
+/* App shell */
+.swap-topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top));
+  background: #161b22; border-bottom: 1px solid #232a34;
+  position: sticky; top: 0; z-index: 5;
+}
+.swap-brand-block { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.swap-brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+.swap-subhead { font-size: 12px; color: #8ea2bf; }
+.swap-topbar-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.swap-root { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
+.swap-root.busy { opacity: .6; pointer-events: none; }
+.swap-link { display: inline-block; text-decoration: none; margin-top: 6px; }
+a.swap-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.swap-row-actions { display: flex; gap: 6px; }
+
+/* Duty picker list — replaces tapping a chip on the calendar */
+.swap-list { display: flex; flex-direction: column; gap: 6px; }
+.swap-list-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: #131a24; border: 1px solid #232d3b; border-radius: 10px;
+  padding: 10px 12px; color: #e8eef7; cursor: pointer; text-align: left;
+  font: inherit; min-height: 52px;
+}
+.swap-list-row:hover { background: #17202c; }
+.swap-list-row.marked { border-color: #ffd166; box-shadow: inset 3px 0 0 #ffd166; }
+.swap-list-row.past { opacity: .5; }
+.swap-list-check { font-size: 17px; color: #8ea2bf; flex: 0 0 auto; }
+.swap-list-row.marked .swap-list-check { color: #ffd166; }
+.swap-list-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.swap-list-route { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swap-list-when { font-size: 12px; color: #8ea2bf; }
+
+/* Toasts */
+.swap-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+  background: #1b2330; color: #e8eef7; border: 1px solid #33415a; border-radius: 10px;
+  padding: 10px 16px; font-size: 14px; z-index: 1000; opacity: 0; transition: .28s ease;
+  max-width: min(92vw, 420px); box-shadow: 0 8px 30px rgba(0,0,0,.4);
+}
+.swap-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.swap-toast-warn { border-color: #b9791f; }
+.swap-toast-ok { border-color: #2f9e5f; }
+
+.swap-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; }
+.swap-profile { border-bottom: 1px solid #1b2230; }
+.swap-toolbar { display: flex; gap: 8px; padding: 10px 16px; flex-wrap: wrap; }
+
+.swap-section { padding: 6px 16px 14px; border-top: 1px solid #161d27; }
+.swap-section h4 { margin: 12px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #8ea2bf; }
+.swap-hint { color: #8ea2bf; font-size: 12px; margin: 4px 0; }
+.swap-empty { padding: 8px 0; }
+.swap-sub { font-size: 11px; color: #8ea2bf; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+
+/* Buttons */
+.swap-btn { background: #1b2330; color: #e8eef7; border: 1px solid #33415a; border-radius: 9px; padding: 8px 12px; font-size: 14px; cursor: pointer; }
+.swap-btn:hover { background: #222d3d; }
+.swap-btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.swap-btn.danger { border-color: #7f2a2a; color: #ffb4b4; }
+.swap-btn.small { padding: 5px 9px; font-size: 12px; }
+.swap-btn.active { background: #ffd166; border-color: #ffd166; color: #1a1400; }
+.swap-x { background: none; border: none; color: #8ea2bf; font-size: 24px; line-height: 1; cursor: pointer; }
+
+/* Duty cards */
+.swap-duty-card { background: #131a24; border: 1px solid #232d3b; border-radius: 10px; padding: 10px 12px; margin: 8px 0; position: relative; }
+.swap-duty-route { font-weight: 700; font-size: 15px; }
+.swap-duty-when { color: #b7c4d8; font-size: 12px; margin-top: 2px; }
+.swap-duty-meta { color: #8ea2bf; font-size: 12px; margin-top: 4px; }
+.swap-duty-card .swap-btn.small { position: absolute; top: 8px; right: 8px; }
+
+.swap-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.swap-chip { background: #14202e; border: 1px solid #24435e; border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+
+/* Match review cards */
+.swap-match { background: #131a24; border: 1px solid #2a3547; border-radius: 12px; padding: 12px; margin: 10px 0; }
+.swap-match.confirmed { border-color: #2f9e5f; }
+.swap-match.declined { opacity: .55; }
+.swap-match-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.swap-match-badge { background: #24435e; color: #cfe6ff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.swap-match.confirmed .swap-match-badge { background: #1f5c3a; color: #b8f0cf; }
+.swap-match-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.swap-arrow { font-size: 20px; color: #6f86a6; text-align: center; }
+.swap-match-actions { display: flex; gap: 8px; margin-top: 10px; }
+.swap-match-actions .swap-btn { flex: 1; }
+
+/* Modals */
+.swap-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 950; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.swap-card { background: #0e1116; border: 1px solid #26303f; border-radius: 14px; width: min(480px, 96vw); max-height: 90dvh; display: flex; flex-direction: column; color: #e8eef7; }
+.swap-card-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #202a37; }
+.swap-card-head h3 { margin: 0; font-size: 16px; }
+.swap-card-body { padding: 14px 16px; overflow-y: auto; }
+.swap-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid #202a37; }
+
+.swap-form { display: flex; flex-direction: column; gap: 10px; }
+.swap-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8ea2bf; }
+.swap-in { background: #131a24; border: 1px solid #2a3547; border-radius: 8px; padding: 9px 11px; color: #e8eef7; font-size: 15px; }
+.swap-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #e8eef7; }
+.swap-check-lg { font-weight: 600; padding: 6px 0; }
+.swap-check input, .swap-day input { accent-color: #2563eb; }
+
+/* Free-to-fly day grid */
+.swap-daygrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+.swap-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 8px; border: 1px solid #2a3547; background: #131a24; color: #e8eef7; cursor: pointer; }
+.swap-day-dow { font-size: 10px; color: #8ea2bf; }
+.swap-day-num { font-size: 15px; font-weight: 600; }
+.swap-day.on { background: #14324f; border-color: #2f7fd6; }
+.swap-day.busy { opacity: .4; cursor: not-allowed; }

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Roster Swap</title>
+  <meta name="theme-color" content="#0e1116" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="swap.css" />
+</head>
+<body>
+  <header class="swap-topbar">
+    <div class="swap-brand-block">
+      <div class="swap-brand">⇄ Roster Swap</div>
+      <div class="swap-subhead">Flight exchange board</div>
+    </div>
+    <div class="swap-topbar-actions">
+      <button id="refresh-btn" class="swap-btn small" title="Reload roster from the Duty Calendar">⟳ Roster</button>
+      <a class="swap-btn small" href="../duty-cal-pwa/" title="Open the Duty Calendar app">📅 Calendar</a>
+    </div>
+  </header>
+
+  <main id="swap-root" class="swap-root"></main>
+
+  <script type="module" src="swap.js"></script>
+</body>
+</html>

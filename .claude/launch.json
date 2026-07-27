@@ -26,6 +26,12 @@
       "port": 8091
     },
     {
+      "name": "Suite root (no-cache)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8097", "/Users/alonbrookstein/Claude AS"],
+      "port": 8097
+    },
+    {
       "name": "Flight Card",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8095", "--directory", "/Users/alonbrookstein/Claude AS/flight-card-pwa"],
