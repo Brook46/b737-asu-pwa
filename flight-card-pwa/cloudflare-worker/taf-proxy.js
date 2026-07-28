@@ -526,41 +526,84 @@ async function handleSocialPut(request, env, token, merge = false) {
     clean[m[1].toUpperCase()] = val;
   }
 
-  // Merge mode (POST …/social/<token>/add) keeps whatever is already stored
-  // and folds this payload in. It exists so an iOS Shortcut can POST ONE note
-  // per request inside a Repeat — no Combine Text, no separator, no dictionary
-  // to mis-wire. Replace mode (the bare route) still overwrites everything, so
-  // the Mac exporter that ships the whole map in one shot is unaffected.
-  let final = clean;
+  // Merge mode (POST …/social/<token>/add) writes each airport to its OWN KV
+  // key. That matters: an iOS Shortcut posts one note per request inside a
+  // Repeat, i.e. several writes within a second or two, and KV reads are only
+  // eventually consistent — a read-modify-write of a single shared blob loses
+  // notes when a request reads a copy from before the previous one landed
+  // (observed: 4 notes posted, 2 survived). Independent keys have no such
+  // race. handleSocialGet reassembles them.
   if (merge) {
-    let existing = {};
+    const codes = Object.keys(clean);
+    await Promise.all(codes.map(code =>
+      env.LOGBOOK.put(noteKey(token, code), clean[code], {
+        metadata: { updatedAt: Date.now() },
+      })));
+    // Best-effort total. KV list is itself eventually consistent, so union it
+    // with what this request just wrote — otherwise the count can go backwards
+    // mid-loop and look broken.
+    let total;
     try {
-      const prev = await env.LOGBOOK.get('social:' + token);
-      if (prev) existing = JSON.parse(prev) || {};
-    } catch { /* unreadable previous value → start clean */ }
-    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-      final = { ...existing, ...clean };
-    }
+      const seen = new Set(codes);
+      for (const c of Object.keys(await readSocialMap(env, token))) seen.add(c);
+      total = seen.size;
+    } catch { total = codes.length; }
+    return json({ ok: true, saved: codes, airports: total });
   }
 
-  await env.LOGBOOK.put('social:' + token, JSON.stringify(final), {
-    metadata: { updatedAt: Date.now(), keys: Object.keys(final).length },
+  // Replace mode (the bare route) is authoritative: it overwrites the blob AND
+  // drops the per-note keys, so posting {} is a genuine full reset.
+  await env.LOGBOOK.put('social:' + token, JSON.stringify(clean), {
+    metadata: { updatedAt: Date.now(), keys: Object.keys(clean).length },
   });
+  try { await clearSocialNotes(env, token); } catch { /* best effort */ }
 
-  return new Response(JSON.stringify({ ok: true, airports: Object.keys(final).length }), {
-    status: 200,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'access-control-allow-origin': '*',
-      'cache-control': 'no-store',
-    },
-  });
+  return json({ ok: true, airports: Object.keys(clean).length });
+}
+
+// Per-note KV key. One key per airport code → writes never collide.
+function noteKey(token, code) { return `socialn:${token}:${code}`; }
+
+// Reassemble the full map: the whole-map blob first, then the per-note keys
+// (which win, being the newer mechanism).
+async function readSocialMap(env, token) {
+  const out = {};
+  try {
+    const blob = await env.LOGBOOK.get('social:' + token);
+    if (blob) {
+      const parsed = JSON.parse(blob);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) Object.assign(out, parsed);
+    }
+  } catch { /* corrupt blob → ignore it */ }
+  const prefix = noteKey(token, '');
+  let cursor;
+  do {
+    const res = await env.LOGBOOK.list({ prefix, cursor });
+    cursor = res.list_complete ? null : res.cursor;
+    const vals = await Promise.all(res.keys.map(k => env.LOGBOOK.get(k.name)));
+    res.keys.forEach((k, i) => {
+      if (vals[i] != null) out[k.name.slice(prefix.length)] = vals[i];
+    });
+  } while (cursor);
+  return out;
+}
+
+async function clearSocialNotes(env, token) {
+  const prefix = noteKey(token, '');
+  let cursor;
+  do {
+    const res = await env.LOGBOOK.list({ prefix, cursor });
+    cursor = res.list_complete ? null : res.cursor;
+    await Promise.all(res.keys.map(k => env.LOGBOOK.delete(k.name)));
+  } while (cursor);
 }
 
 async function handleSocialGet(env, token) {
-  const body = await env.LOGBOOK.get('social:' + token);
-  if (body == null) return text('No social notes published for this token', 404);
-  return new Response(body, {
+  const map = await readSocialMap(env, token);
+  if (!Object.keys(map).length) {
+    return text('No social notes published for this token', 404);
+  }
+  return new Response(JSON.stringify(map), {
     status: 200,
     headers: {
       'content-type': 'application/json; charset=utf-8',
@@ -571,6 +614,17 @@ async function handleSocialGet(env, token) {
 }
 
 // ---------- helpers ---------------------------------------------------------
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}
 
 function text(body, status) {
   return new Response(body, {
