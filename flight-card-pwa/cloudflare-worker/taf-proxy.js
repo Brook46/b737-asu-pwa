@@ -55,7 +55,7 @@ const LOGBOOK_RE = /^\/logbook\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 // Per-airport "social" notes feed. A weekly Mac script POSTs a JSON map
 // { "LLBG": "…", "TLV": "…" }; the PWA GETs it and fills the Social tabs.
 // Same KV namespace as the logbook, different key prefix.
-const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json)?$/i;
+const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json|\/add)?$/i;
 // Thermal Debrief share links: IGC bundle + saved camera/clock, so a pilot can
 // send a friend exactly the moment they're looking at. Same token model as the
 // logbook — the UUID is the credential — but these expire, because a shared
@@ -136,7 +136,8 @@ export default {
         return text('Social storage not configured (KV binding missing)', 503);
       }
       const token = soc[1].toLowerCase();
-      if (request.method === 'POST') return handleSocialPut(request, env, token);
+      const merge = /\/add$/i.test(url.pathname) || url.searchParams.get('merge') === '1';
+      if (request.method === 'POST') return handleSocialPut(request, env, token, merge);
       if (request.method === 'GET')  return handleSocialGet(env, token);
       return text('Method not allowed', 405);
     }
@@ -465,7 +466,7 @@ async function handleLogbookGet(env, token) {
 // A weekly Mac script POSTs a JSON map of per-airport notes; the PWA GETs it.
 // Key naming: 'social:<token>'. Value is the raw JSON string.
 
-async function handleSocialPut(request, env, token) {
+async function handleSocialPut(request, env, token, merge = false) {
   const len = parseInt(request.headers.get('content-length') || '0', 10);
   if (len > 1_000_000) return text('Too large', 413);
 
@@ -525,11 +526,28 @@ async function handleSocialPut(request, env, token) {
     clean[m[1].toUpperCase()] = val;
   }
 
-  await env.LOGBOOK.put('social:' + token, JSON.stringify(clean), {
-    metadata: { updatedAt: Date.now(), keys: Object.keys(clean).length },
+  // Merge mode (POST …/social/<token>/add) keeps whatever is already stored
+  // and folds this payload in. It exists so an iOS Shortcut can POST ONE note
+  // per request inside a Repeat — no Combine Text, no separator, no dictionary
+  // to mis-wire. Replace mode (the bare route) still overwrites everything, so
+  // the Mac exporter that ships the whole map in one shot is unaffected.
+  let final = clean;
+  if (merge) {
+    let existing = {};
+    try {
+      const prev = await env.LOGBOOK.get('social:' + token);
+      if (prev) existing = JSON.parse(prev) || {};
+    } catch { /* unreadable previous value → start clean */ }
+    if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+      final = { ...existing, ...clean };
+    }
+  }
+
+  await env.LOGBOOK.put('social:' + token, JSON.stringify(final), {
+    metadata: { updatedAt: Date.now(), keys: Object.keys(final).length },
   });
 
-  return new Response(JSON.stringify({ ok: true, airports: Object.keys(clean).length }), {
+  return new Response(JSON.stringify({ ok: true, airports: Object.keys(final).length }), {
     status: 200,
     headers: {
       'content-type': 'application/json; charset=utf-8',
