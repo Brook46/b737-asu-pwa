@@ -448,6 +448,19 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   border-radius: 11px; border: 1px solid var(--line);
   background: var(--card); color: var(--ink); font: inherit; font-size: .82rem;
 }
+/* the draggable "Send to Debrief" bookmarklet */
+.bm-row { display: flex; gap: 9px; align-items: stretch; margin-bottom: 4px; }
+.bm-link {
+  flex: 1 1 auto; min-height: 44px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 0 14px; border-radius: 11px;
+  border: 1px solid #3f9edd;
+  background: linear-gradient(180deg, #2f8fd0, #1f6da6);
+  color: #fff; font-size: .86rem; font-weight: 700;
+  text-decoration: none; cursor: grab; user-select: all;
+}
+.bm-link:active { cursor: grabbing; transform: scale(.99); }
+
 .paste-input {
   width: 100%; margin: 6px 0 9px; padding: 9px 11px;
   border-radius: 11px; border: 1px solid var(--line);

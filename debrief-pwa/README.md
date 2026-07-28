@@ -207,7 +207,31 @@ tracked separately, so changing day doesn't forget that you hid someone.
 
 ## Importing other pilots' flights
 
-Three routes in, none of which needs an API:
+**One tap, from XContest itself:** the *Send to Debrief* bookmarklet (Flights →
+One-tap import). Add it once, then open any flight page — XContest, DHV-XC, a
+comp site — and tap it. The flight opens in Debrief already loaded.
+
+This is the one automated-looking thing here, and it is deliberately a different
+kind of thing from the importer that was refused. It runs in the pilot's own
+browser, in their own session, on a page they navigated to themselves, one
+flight at a time. It reaches flights only they can see, it enumerates nothing,
+and it touches no search endpoint. That is a "save this page" button, not a
+crawler — which is exactly why it can exist when a date-and-country importer
+cannot.
+
+Mechanically: it finds the IGC link on the current page, fetches it with the
+pilot's own cookies (same-origin, so no proxy and no CORS), then hands the text
+straight to Debrief via `postMessage`. Nothing is uploaded anywhere — the file
+goes between two browser tabs. Debrief validates the payload as IGC, caps its
+size, and names the sending origin in the confirmation. It also copies the
+flight to the clipboard, so if the popup is blocked — routine on iOS — one tap
+on **Paste from clipboard** finishes the job instead of the import failing
+silently.
+
+Because it keys on "a link to an IGC file" rather than any site's markup, it
+survives those sites reshuffling their pages, and works on ones never tested.
+
+Three more routes in, none of which needs an API:
 
 1. **Drop the files** — up to four at once, or "Open with Debrief" from a file
    manager where the browser supports it (Chrome/Edge desktop; iOS Safari uses

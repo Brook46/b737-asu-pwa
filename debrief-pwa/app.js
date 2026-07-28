@@ -1367,7 +1367,10 @@ function initXcImport() {
     if (e.key === 'Enter') { e.preventDefault(); importFromUrl(); }
   });
   $('paste-load').addEventListener('click', importFromPaste);
+  $('paste-clip').addEventListener('click', pasteFromClipboard);
+  renderBookmarklet();
   wireFileHandlers();
+  wireHandoff();
 }
 
 /**
@@ -1377,6 +1380,35 @@ function initXcImport() {
  * IGC is plain ASCII, so it survives being copied out of a message or an email
  * body, which is how one pilot actually sends another a track.
  */
+/**
+ * Read the clipboard and load it if it holds a flight — the one-tap end of the
+ * bookmarklet's fallback path, and useful on its own when a friend sends the
+ * file contents in a message.
+ *
+ * Runs from a click because that is what iOS requires before it will surface
+ * the clipboard at all.
+ */
+async function pasteFromClipboard() {
+  const note = $('paste-note');
+  const setNote = (msg, bad) => { note.textContent = msg; note.style.color = bad ? '#ff9a8f' : ''; };
+
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    setNote('This browser will not let a page read the clipboard — paste into the box below instead.', true);
+    return;
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text || !looksLikeIGC(text)) {
+      setNote('The clipboard does not contain an IGC flight.', true);
+      return;
+    }
+    $('paste-input').value = text;
+    importFromPaste();
+  } catch {
+    setNote('Clipboard access was refused — paste into the box below instead.', true);
+  }
+}
+
 function importFromPaste() {
   const input = $('paste-input');
   const note = $('paste-note');
@@ -1413,6 +1445,132 @@ function importFromPaste() {
   } catch (err) {
     setNote(err.message, true);
   }
+}
+
+/** Largest IGC accepted over the bookmarklet handoff — a very long flight. */
+const HANDOFF_MAX_BYTES = 12 * 1024 * 1024;
+
+/**
+ * Receive a flight from the "Send to Debrief" bookmarklet.
+ *
+ * The bookmarklet runs in the pilot's own browser, on a flight page they
+ * navigated to themselves, using their own session — so it reaches flights only
+ * they can see, and it is one flight at a time by definition. That is what makes
+ * it a "save this page" button rather than a crawler, which is why it exists at
+ * all when an automated importer does not.
+ *
+ * The IGC never leaves the two tabs: the page posts it straight here.
+ *
+ * The listener is armed unconditionally rather than only when `window.opener`
+ * exists. Popup blockers, `noopener` defaults and PWA launch behaviour all
+ * produce a target window with no opener, and gating on it made the import fail
+ * silently in exactly those cases. The guards that matter are on the payload,
+ * not on how the window was opened:
+ *   • it must parse as IGC, and be under a sane size
+ *   • the sending origin is shown to the pilot, so an unexpected source is visible
+ * The worst a hostile sender achieves is putting a flight in the local library.
+ */
+function wireHandoff() {
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (!d || d.type !== 'thermal-debrief-igc' || typeof d.igc !== 'string') return;
+
+    if (d.igc.length > HANDOFF_MAX_BYTES) {
+      showStatus('That flight is too large to import.', 'error', 5000);
+      return;
+    }
+    if (!looksLikeIGC(d.igc)) {
+      showStatus(`${e.origin} sent something that isn't an IGC file.`, 'error', 5000);
+      return;
+    }
+    if (state.tracks.length >= MAX_TRACKS) {
+      showStatus('Four flights is the limit — remove one first.', 'warn', 5000);
+      return;
+    }
+
+    try {
+      const name = typeof d.name === 'string' && d.name ? d.name.slice(0, 80) : 'flight.igc';
+      const track = buildTrack(d.igc, { color: nextColor(), fileName: name });
+      state.tracks.push(track);
+      Store.saveFlight({
+        id: track.id, igc: d.igc, pilotName: track.pilotName,
+        color: track.color, fileName: name, date: track.date,
+      });
+      setEmptyVisible(false);
+      focusDayOf([track]);
+      rememberActive();
+      refreshAll({ fit: true });
+      resolveTerrain([track]);
+      showStatus(`Loaded ${track.pilotName} from ${hostOf(e.origin)}`, '', 3200);
+    } catch (err) {
+      showStatus(`Could not read that flight: ${err.message}`, 'error', 5000);
+    }
+  });
+
+  // Tell the opener we're ready to receive. Sent after boot so the handoff can't
+  // arrive before the app can render it.
+  try { window.opener.postMessage({ type: 'thermal-debrief-ready' }, '*'); } catch { /* opener gone */ }
+}
+
+const hostOf = (origin) => { try { return new URL(origin).hostname; } catch { return origin; } };
+
+/**
+ * Build the "Send to Debrief" bookmarklet against THIS deployment's URL, so it
+ * works the same from localhost as from the published site.
+ *
+ * Deliberately not XContest-specific: it looks for a link to an IGC file on
+ * whatever page it is run from, which makes it work on DHV-XC, competition
+ * sites and club pages too — and keeps it from breaking when one site reshuffles
+ * its markup.
+ */
+function renderBookmarklet() {
+  const target = location.origin + location.pathname;
+  const code = `javascript:(function(){` +
+    `var D=${JSON.stringify(target)};` +
+    `var L=[].slice.call(document.querySelectorAll('a[href]')).map(function(a){return a.href});` +
+    `var u=L.filter(function(h){return /\\.igc(\\?|$)/i.test(h)})[0]||` +
+    `L.filter(function(h){return /igc/i.test(h)&&/download|track|file|export/i.test(h)})[0];` +
+    `if(!u){alert('No IGC download link on this page.\\\\nOpen the flight page that has the IGC download, then tap this again.');return;}` +
+    `fetch(u,{credentials:'include'}).then(function(r){return r.text()}).then(function(t){` +
+    `if(!/^B\\d{6}\\d{7}[NS]/m.test(t.slice(0,65536))){alert('That link did not return an IGC file.\\\\nYou may need to be logged in, or the pilot may not share their track.');return;}` +
+    // Copy as well as post. If the popup is blocked or opens without an opener
+    // — routine on iOS — Debrief's "Paste from clipboard" finishes the job in
+    // one tap instead of the import failing with nothing to show for it.
+    `try{navigator.clipboard&&navigator.clipboard.writeText(t)}catch(e){}` +
+    `var w=window.open(D,'_blank');` +
+    `if(!w){alert('Pop-up blocked — the flight is on your clipboard.\\\\nOpen Debrief and tap \\u201CPaste from clipboard\\u201D.');return;}` +
+    `var n=(u.split('/').pop()||'flight.igc').split('?')[0];` +
+    `function h(e){if(e.data&&e.data.type==='thermal-debrief-ready'){` +
+    `w.postMessage({type:'thermal-debrief-igc',igc:t,name:n},new URL(D).origin);` +
+    `window.removeEventListener('message',h);}}` +
+    `window.addEventListener('message',h);` +
+    `}).catch(function(e){alert('Could not fetch the IGC: '+e.message)})})();`;
+
+  const link = $('bm-link');
+  link.href = code;
+  link.addEventListener('click', (e) => {
+    // Clicking it here would run it against Debrief's own page, which has no
+    // IGC link — it is meant to be dragged to the bookmarks bar, not clicked.
+    e.preventDefault();
+    showStatus('Drag this to your bookmarks bar, or tap Copy and save it as a bookmark.', '', 5000);
+  });
+
+  $('bm-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      showStatus('Copied. Save it as a bookmark named “Send to Debrief”.', '', 4200);
+    } catch {
+      // Clipboard denied — fall back to selecting it so the pilot can copy manually.
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;height:80px;z-index:99999';
+      document.body.appendChild(ta);
+      ta.select();
+      showStatus('Copy the selected text, then tap anywhere to dismiss.', 'warn', 8000);
+      const kill = () => { ta.remove(); document.removeEventListener('click', kill); };
+      setTimeout(() => document.addEventListener('click', kill), 300);
+    }
+  });
 }
 
 /**

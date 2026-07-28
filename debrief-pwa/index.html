@@ -21,7 +21,7 @@
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://unpkg.com/deck.gl@9.0.35/dist.min.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=3">
+  <link rel="stylesheet" href="app.css?v=4">
 </head>
 <body>
   <!-- The 3D canvas IS the app -->
@@ -199,10 +199,30 @@
         <p class="sheet-note">Needs nothing at all — no key, no server, not even a connection.
           If a friend sends you an IGC in a message or email, open it, copy the text and paste
           it here.</p>
+        <button id="paste-clip" class="wide-btn primary">Paste from clipboard</button>
         <textarea id="paste-input" class="paste-input" rows="4" spellcheck="false"
                   placeholder="AXCT… &#10;HFPLTPILOT:… &#10;B1042005148…"></textarea>
         <button id="paste-load" class="wide-btn">Load pasted flight</button>
         <div id="paste-note" class="sheet-note"></div>
+      </details>
+
+      <h3 class="sheet-sub">One-tap import from XContest</h3>
+      <p class="sheet-note">A bookmark you add once. Open any flight page on XContest —
+        or DHV-XC, a comp site, anywhere with an IGC download — and tap it. The flight
+        opens here, already loaded. It runs in your browser using your own login, so it
+        works on flights only you can see.</p>
+      <div class="bm-row">
+        <a id="bm-link" class="bm-link" href="#" draggable="true">✈ Send to Debrief</a>
+        <button id="bm-copy" class="chip-btn">Copy</button>
+      </div>
+      <details class="xc-key-details">
+        <summary>How to add it</summary>
+        <p class="sheet-note"><b>Mac / PC:</b> drag the blue button up to your bookmarks bar.</p>
+        <p class="sheet-note"><b>iPad / iPhone:</b> tap <b>Copy</b> above. In Safari, bookmark
+          any page (Share → Add Bookmark), then open Bookmarks → Edit, rename it
+          “Send to Debrief” and replace its address with what you copied.</p>
+        <p class="sheet-note">Nothing is uploaded anywhere — the flight goes straight from
+          the page you're looking at into this app.</p>
       </details>
 
       <h3 class="sheet-sub">Import from XContest</h3>
@@ -371,6 +391,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=3"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>
