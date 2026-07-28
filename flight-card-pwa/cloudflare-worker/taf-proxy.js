@@ -254,24 +254,48 @@ async function handleXcApi(request, url) {
   }
 }
 
+/**
+ * Fetch a publicly served IGC file so the PWA can import it.
+ *
+ * Deliberately NOT host-locked to one league: pilots are handed IGC links from
+ * clubs, comps, mailing lists and each league's own download button, and a
+ * whitelist of two domains would make the feature useless. It is kept from
+ * becoming an open proxy by only ever returning content that parses as IGC —
+ * a login page, an HTML error or a JSON API response all come back 422 — plus
+ * a size cap and a block on non-public hostnames.
+ */
+const PRIVATE_HOST_RE = /^(localhost$|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[|0\.0\.0\.0$|.*\.internal$|.*\.local$)/i;
+const IGC_MAX_BYTES = 12 * 1024 * 1024;
+
 async function handleXcIgc(url) {
   const raw = url.searchParams.get('url') || '';
   let target;
   try { target = new URL(raw); } catch { return text('Bad url', 400); }
-  if (target.protocol !== 'https:') return text('Only https is allowed', 400);
-  if (!XC_IGC_HOSTS.has(target.hostname)) return text(`Host not allowed: ${target.hostname}`, 403);
+  if (target.protocol !== 'https:') return text('Only https links are supported', 400);
+  if (PRIVATE_HOST_RE.test(target.hostname)) return text('That host is not reachable', 403);
 
   try {
     const res = await fetch(target.toString(), {
-      headers: { 'user-agent': 'ThermalDebrief/1.0' },
+      headers: {
+        'user-agent': 'ThermalDebrief/1.0 (+https://brook46.github.io/b737-asu-pwa/debrief-pwa/)',
+        'accept': 'text/plain, application/octet-stream, */*',
+      },
+      redirect: 'follow',
     });
-    if (!res.ok) return text(`Upstream ${res.status}`, res.status);
+    if (!res.ok) return text(`The server returned ${res.status} for that link`, res.status === 404 ? 404 : 502);
+
+    const declared = Number(res.headers.get('content-length') || 0);
+    if (declared > IGC_MAX_BYTES) return text('That file is too large', 413);
+
     const body = await res.text();
-    // Cheap sanity check: an IGC file has B-records. Anything else is a login
-    // page or an error, and the PWA should say so rather than "0 fixes".
+    if (body.length > IGC_MAX_BYTES) return text('That file is too large', 413);
+
+    // The gate that keeps this from being a general-purpose proxy: it must look
+    // like a flight log, or nothing comes back.
     if (!/^B\d{6}\d{7}[NS]/m.test(body.slice(0, 65536))) {
-      return text('That URL did not return an IGC file', 422);
+      return text('That link did not return an IGC file — if the flight needs a login, download it in your browser and drop the file in instead', 422);
     }
+
     return new Response(body, {
       status: 200,
       headers: {
@@ -281,7 +305,7 @@ async function handleXcIgc(url) {
       },
     });
   } catch (err) {
-    return text(`IGC fetch failed: ${err.message}`, 502);
+    return text(`Could not fetch that link: ${err.message}`, 502);
   }
 }
 

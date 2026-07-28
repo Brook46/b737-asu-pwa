@@ -21,7 +21,7 @@
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://unpkg.com/deck.gl@9.0.35/dist.min.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=1">
+  <link rel="stylesheet" href="app.css?v=2">
 </head>
 <body>
   <!-- The 3D canvas IS the app -->
@@ -180,6 +180,17 @@
       <div id="loaded-list" class="loaded-list"></div>
       <button id="lib-load" class="wide-btn primary">Add IGC files</button>
       <button id="lib-demo" class="wide-btn ghost">Load demo flight</button>
+      <h3 class="sheet-sub">Import from a link</h3>
+      <p class="sheet-note">Paste a direct link to an <code>.igc</code> file — from a club site,
+        a competition results page, or a league's own download button. Works with no key and no
+        account. If the flight needs a login, download it in your browser and drop the file in.</p>
+      <div class="xc-row">
+        <input id="url-input" class="url-input" type="url" placeholder="https://…/flight.igc"
+               autocomplete="off" spellcheck="false" enterkeyhint="go">
+        <button id="url-load" class="chip-btn primary">Load</button>
+      </div>
+      <div id="url-note" class="sheet-note"></div>
+
       <h3 class="sheet-sub">Import from XContest</h3>
       <p class="sheet-note">Pick a date and country, then choose the pilots to load.
         Needs your own XContest API key — stored on this device only, never sent anywhere
@@ -346,6 +357,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1"></script>
+  <script type="module" src="app.js?v=2"></script>
 </body>
 </html>

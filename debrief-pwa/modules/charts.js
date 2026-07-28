@@ -168,13 +168,24 @@ function drawGrid(ctx, g, w, h, domain, mode) {
 }
 
 /**
- * Terrain silhouette. Only the first track with terrain is drawn: two pilots on
- * different lines have different ground beneath them, and overlapping two brown
- * silhouettes reads as neither.
+ * Terrain silhouette under the pilot who launched first.
+ *
+ * Only one track's ground is drawn: two pilots on different lines have
+ * different terrain beneath them, and overlapping two brown silhouettes reads
+ * as neither. The earliest launch is the right one to show because it spans the
+ * most of the timeline — anyone who launched later sits inside that window, so
+ * the ground stays meaningful for the whole chart rather than stopping short.
+ *
+ * @returns {import('../types').FlightTrack|null} whose terrain was drawn
  */
 function drawTerrain(ctx, g, tracks, toClock) {
-  const t = tracks.find((x) => x.hasTerrain);
-  if (!t) return;
+  const withTerrain = tracks.filter((x) => x.hasTerrain);
+  if (!withTerrain.length) return null;
+
+  // `_origin` is the detected launch time, cached by the timeline; fall back to
+  // the first fix for a track the timeline hasn't seen yet.
+  const launchAt = (x) => (x._origin ?? x.points[0].timestamp);
+  const t = withTerrain.reduce((a, b) => (launchAt(b) < launchAt(a) ? b : a));
   const pts = t.points;
   const stride = Math.max(1, Math.floor(pts.length / (g.plotW * 2)));
 
@@ -196,6 +207,17 @@ function drawTerrain(ctx, g, tracks, toClock) {
   ctx.strokeStyle = 'rgba(190,160,120,0.5)';
   ctx.lineWidth = 1;
   ctx.stroke();
+
+  // Name whose ground this is — with several pilots loaded it is otherwise
+  // impossible to tell, and reading someone else's terrain is misleading.
+  if (tracks.length > 1) {
+    ctx.font = '9px -apple-system, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(214,190,158,0.85)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`ground: ${t.pilotName}`, g.plotL + 4, g.plotB - 3);
+  }
+  return t;
 }
 
 /**

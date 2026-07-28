@@ -427,6 +427,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   background: var(--card); color: var(--ink);
   font: inherit; font-size: .84rem;
 }
+.url-input {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 11px;
+  border-radius: 11px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); font: inherit; font-size: .82rem;
+}
 .xc-results { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
 .xc-flight {
   display: flex; align-items: center; gap: 10px;
@@ -562,6 +567,25 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .g-c { background: rgba(255,196,61,.18); color: #ffd379; }
 .g-d { background: rgba(232,120,68,.18); color: #ff9f77; }
 .g-e { background: rgba(232,78,68,.18); color: #ff8f86; }
+
+/* "you vs the day" table inside a scorecard */
+.vs-day { margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line); }
+.vs-title { font-size: .74rem; font-weight: 700; margin-bottom: 6px; }
+.vs-title small { font-weight: 500; color: var(--muted); margin-left: 5px; }
+.vs-table { width: 100%; border-collapse: collapse; font-size: .75rem; }
+.vs-table th {
+  font-size: .62rem; font-weight: 600; color: var(--muted);
+  text-align: right; padding: 0 5px 3px; text-transform: uppercase; letter-spacing: .04em;
+}
+.vs-table th:first-child { text-align: left; }
+.vs-table td { padding: 4px 5px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vs-table td:first-child { text-align: left; color: var(--muted); }
+.vs-table tbody tr:nth-child(odd) { background: rgba(255,255,255,.03); }
+.vs-mine { font-weight: 750; }
+.vs-avg { color: var(--muted); }
+.vs-delta { font-weight: 700; min-width: 4em; }
+.vs-delta.up { color: #8fe39a; }
+.vs-delta.down { color: #ff9f77; }
 
 /* competition-style XC score, inside the scorecard */
 .xc-score { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--line); }

@@ -59,8 +59,13 @@ a minute), `[`/`]` for highlights, `c` to cycle the camera, `Home`, `Esc`.
   one actionable sentence aimed at the weakest category. Heuristic, and labelled
   as such. With two or more pilots from the same day, Climb and Height are
   re-based against what the others actually achieved rather than a fixed scale.
+- **You vs the day** — each pilot's own numbers next to what everyone managed:
+  *"average climb was 1.3, yours was 1.4."* Deltas are coloured, and anything
+  within 2% of the day's mean reads as `=` rather than a fake win. Only appears
+  with two or more flights loaded — with one, there is no "day" to compare to.
 - **Head to head** — average climb, core conversion, gain per climb, transition
-  glide, open distance, XC speed, time climbing, and where climbs topped out.
+  glide, free distance, XC speed, time climbing, where climbs topped out, plus
+  **turn bias** and **left/right thermal counts** side by side.
 - **Time split** — climbing vs transitions vs unclassified, plus left/right turn
   bias and how many thermals were turned each way.
 - **Transitions** — every glide from the top of one thermal to the bottom of the
@@ -71,11 +76,16 @@ a minute), `[`/`]` for highlights, `c` to cycle the camera, `Home`, `Esc`.
 Three measurement choices are worth knowing about, because the obvious ones are
 wrong:
 
-- **XC speed uses open distance**, the greatest separation between any two fixes
-  in flight order. Ground-track distance counts every 360, so the pilot who
-  circles most would post the fastest "cross-country speed". Launch-to-landing
-  straight line collapses an out-and-return — two real 150 km flights score 28 km
-  that way because the pilots came home; open distance scores them at 52 km.
+- **Distance is free distance over five points** — start, up to three turnpoints
+  and end, in flight order. This is what XC leagues score, and the alternatives
+  are all wrong: ground-track distance counts every 360 (so the pilot who circles
+  most posts the fastest "speed"), launch-to-landing collapses an out-and-return,
+  and two-point open distance loses every corner. On two real flights in this
+  app's storage the same day reads **29 km** straight-line, **52 km** open, and
+  **89 km** free — only the last is what those pilots actually flew. Solved by
+  dynamic programming, `best[k][j] = max_{i≤j}(best[k-1][i] + d(i,j))`, which is
+  O(legs·n²) instead of the O(n⁵) of brute force: 9 ms on a 16 000-fix track.
+  Track distance is deliberately not displayed anywhere.
 - **Speed is only graded on cross-country flights.** A ridge-soaring session is
   detected as local and its speed left ungraded, since marking it down for being
   slow is noise, not feedback.
@@ -182,6 +192,31 @@ reload. Any worker a previous run installed is torn down instead.
 Per the repo's [CLAUDE.md](../CLAUDE.md): bump `CACHE_VERSION` in `sw.js`, bump
 the `?v=` on `app.js`/`app.css` in `index.html`, add any new module to the
 service worker precache list, and run `scripts/check-deploy.sh` after merging.
+
+## Importing other pilots' flights
+
+**Paste an IGC link** (Flights → Import from a link) is the path that works
+today: any publicly served `.igc` URL — a club site, a competition results page,
+a league's own download button. No key, no account. The Worker fetches it and
+only returns content that parses as a flight log, so a login page or an HTML
+error comes back as a clear message rather than a broken import.
+
+No flight database offers a usable search API, and this was checked rather than
+assumed:
+
+| Platform | API | robots.txt | Verdict |
+|---|---|---|---|
+| XContest | none public; partner API undocumented | disallows flight-search + `track.php` | ✗ |
+| DHV-XC | excellent, keyless, CORS-open (`d[]=date`, `cc[]=country`, 1.98 M flights) | **`Disallow: /`** whole site | ✗ |
+| WeGlide | exists, documented | allows all | 403s non-browser traffic, no CORS |
+| SkyLines | open source, works | allows all | almost entirely sailplanes |
+
+DHV-XC was the painful one — its API is genuinely excellent and would have done
+exactly what was wanted, but a site-wide `Disallow: /` is a site-wide
+`Disallow: /`, and it gets the same answer XContest got.
+
+For comparing with friends, the **share link** is better than any of them: full
+IGC fidelity, no third party, and it works in both directions.
 
 ## XContest import — read before relying on it
 

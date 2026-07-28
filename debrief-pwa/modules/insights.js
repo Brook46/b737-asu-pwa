@@ -55,6 +55,8 @@ export function pilotInsights(track) {
     transitions,
     thermals,
     openDistance: openDistance(track),
+    freeDistance: freeDistance(track).distance,
+    freePoints: freeDistance(track).points,
     kind: flightKind(track),
     xcSpeed: xcSpeedOf(track),
     cloudbase: cloudbaseEstimate(thermals),
@@ -234,8 +236,16 @@ function transitionStats(transitions) {
   };
 }
 
-/** Fixes sampled when computing open distance — 500² pairs is instant. */
-const OPEN_DIST_SAMPLES = 500;
+/**
+ * Fixes sampled for the distance measures.
+ *
+ * Open and free distance MUST decimate identically. A 5-point chain can always
+ * collapse to 2 points (the DP allows repeated indices), so free distance is
+ * mathematically never less than open distance — but on different sample sets
+ * that invariant breaks, and a straight-line flight then reports a free distance
+ * slightly *below* its open distance, which reads as a bug.
+ */
+const OPEN_DIST_SAMPLES = 400;
 
 /**
  * Open distance: the greatest separation between any two fixes, in flight
@@ -271,9 +281,105 @@ export function openDistance(track) {
   return best;
 }
 
-/** Open distance per hour airborne — the speed that means "got somewhere". */
+/** Points in the dynamic program: start + 3 turnpoints + end. */
+const FREE_LEGS = 4;
+/** Must equal OPEN_DIST_SAMPLES — see the note there. */
+const FREE_SAMPLES = OPEN_DIST_SAMPLES;
+
+/**
+ * Free distance over five points — start, up to three turnpoints, and end,
+ * in flight order. This is the distance XC leagues actually score, and it is
+ * what a pilot means by "how far did I go".
+ *
+ * Open distance (two points) undercounts every real XC flight, because flying
+ * out and back, or round a triangle, puts most of the distance in the corners.
+ *
+ * Solved by dynamic programming rather than brute force: choosing 5 of n points
+ * is O(n⁵), but each leg only needs the best chain ending at each index, so
+ * `best[k][j] = max over i ≤ j of (best[k-1][i] + d(i,j))` gives O(legs · n²).
+ * At 400 samples that's ~320k distance evaluations — a few milliseconds.
+ *
+ * @returns {{distance:number, points:number[]}} metres, and the 5 fix indices
+ */
+export function freeDistance(track) {
+  if (track._freeDist) return track._freeDist;
+
+  const pts = track.points;
+  const stride = Math.max(1, Math.ceil(pts.length / FREE_SAMPLES));
+  /** @type {number[]} indices into track.points */
+  const idx = [];
+  for (let i = 0; i < pts.length; i += stride) idx.push(i);
+  if (idx[idx.length - 1] !== pts.length - 1) idx.push(pts.length - 1);
+
+  const n = idx.length;
+  if (n < 2) {
+    track._freeDist = { distance: 0, points: [] };
+    return track._freeDist;
+  }
+
+  // Equirectangular metres, so each of the ~320k inner-loop distances is two
+  // multiplies instead of a haversine.
+  //
+  // The constants are deliberately the *spherical* ones matching metrics.distance()
+  // rather than more accurate ellipsoidal ones: every other distance in the app
+  // is haversine on this radius, and a free distance computed on a different
+  // earth model would read as smaller than the open distance it must exceed.
+  const R = 6371008.8;
+  const degToM = (R * Math.PI) / 180;
+  const lat0 = pts[idx[0]].lat * Math.PI / 180;
+  const mPerLat = degToM;
+  const mPerLng = degToM * Math.cos(lat0);
+  const xs = new Float64Array(n);
+  const ys = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    xs[i] = pts[idx[i]].lng * mPerLng;
+    ys[i] = pts[idx[i]].lat * mPerLat;
+  }
+  const dist = (a, b) => Math.hypot(xs[a] - xs[b], ys[a] - ys[b]);
+
+  // best[j] = longest chain of `leg` legs ending at j; from[leg][j] = predecessor.
+  let best = new Float64Array(n);          // leg 0: a chain of one point, length 0
+  const from = [];
+  for (let leg = 0; leg < FREE_LEGS; leg++) {
+    const next = new Float64Array(n).fill(-Infinity);
+    const back = new Int32Array(n).fill(-1);
+    for (let j = 0; j < n; j++) {
+      let bestVal = -Infinity, bestI = -1;
+      for (let i = 0; i <= j; i++) {
+        if (best[i] === -Infinity) continue;
+        const v = best[i] + dist(i, j);
+        if (v > bestVal) { bestVal = v; bestI = i; }
+      }
+      next[j] = bestVal;
+      back[j] = bestI;
+    }
+    from.push(back);
+    best = next;
+  }
+
+  let endIdx = 0;
+  for (let j = 1; j < n; j++) if (best[j] > best[endIdx]) endIdx = j;
+
+  // Walk the backpointers to recover the five points, earliest first.
+  const chain = [endIdx];
+  let cur = endIdx;
+  for (let leg = FREE_LEGS - 1; leg >= 0; leg--) {
+    cur = from[leg][cur];
+    if (cur < 0) break;
+    chain.push(cur);
+  }
+  chain.reverse();
+
+  track._freeDist = {
+    distance: Math.max(0, best[endIdx]),
+    points: chain.map((k) => idx[k]),
+  };
+  return track._freeDist;
+}
+
+/** Free distance per hour airborne — the speed that means "got somewhere". */
 function xcSpeedOf(track) {
-  return openDistance(track) / (track.metrics.duration || 1);
+  return freeDistance(track).distance / (track.metrics.duration || 1);
 }
 
 /**
@@ -285,9 +391,9 @@ function xcSpeedOf(track) {
  * spends most of its track going somewhere rather than round in circles.
  */
 export function flightKind(track) {
-  const open = openDistance(track);
+  const free = freeDistance(track).distance;
   const trackDist = track.metrics.totalDistance || 1;
-  return (open >= 15000 && open / trackDist >= 0.2) ? 'xc' : 'local';
+  return (free >= 15000 && free / trackDist >= 0.25) ? 'xc' : 'local';
 }
 
 /** Where the climbs topped out — the median thermal exit, a fair cloudbase proxy. */
@@ -353,12 +459,30 @@ export function analyseDay(tracks) {
   // nearly the whole flight and says nothing about where the day was won.
   const working = percentileBand(bands, 0.25, 0.75);
 
+  // Per-metric means across the pilots who flew, so a scorecard can say
+  // "your 1.5 m/s against the day's 1.2" instead of a bare number.
+  const mean = (fn) => {
+    const vals = list.map((t) => fn(pilotInsights(t), t)).filter((v) => Number.isFinite(v) && v > 0);
+    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+  };
+  const means = {
+    climb: climbSec > 0 ? climbGain / climbSec : 0,
+    centring: mean((i) => i.thermalStats.consistency),
+    glide: mean((i) => i.transitionStats.avgGlide),
+    freeKm: mean((i) => i.freeDistance / 1000),
+    xcKmh: mean((i) => i.xcSpeed * 3.6),
+    thermalGain: mean((i) => i.thermalStats.avgGain),
+    climbPct: mean((i) => i.timeSplit.climbPct),
+    cloudbase: mean((i) => i.cloudbase),
+  };
+
   return {
     pilots: list.length,
     date: list[0].date,
     avgClimb: climbSec > 0 ? climbGain / climbSec : 0,
     totalClimbSec: climbSec,
     bestClimb: best,
+    means,
     /** Best *pilot average* climb — the fair ceiling for grading. */
     bestPilotClimb,
     bands,
@@ -472,8 +596,8 @@ export function gradeFlight(track, day) {
       detail: heightScore.detail },
     { id: 'speed', label: 'Speed', score: speedScore, basis: 'absolute',
       detail: ins.kind === 'xc'
-        ? `${speedKmh.toFixed(1)} km/h over ${(ins.openDistance / 1000).toFixed(0)} km open distance`
-        : `local flight — ${(ins.openDistance / 1000).toFixed(0)} km open distance off ${(m.totalDistance / 1000).toFixed(0)} km flown, so speed isn't graded` },
+        ? `${speedKmh.toFixed(1)} km/h over ${(ins.freeDistance / 1000).toFixed(0)} km free distance`
+        : `local flight — ${(ins.freeDistance / 1000).toFixed(0)} km free distance off ${(m.totalDistance / 1000).toFixed(0)} km flown, so speed isn't graded` },
   ];
 
   const rated = categories.filter((c) => Number.isFinite(c.score));
@@ -552,7 +676,7 @@ function adviceFor(categories, ins, day) {
     case 'height':
       return `${worst.detail}. Getting low costs far more time than a slow climb does — leave earlier and stay in the top of the band.`;
     case 'speed':
-      return `${(ins.openDistance / 1000).toFixed(0)} km open distance in ${fmtMin(ins.timeSplit.totalSec)} — a lot of the day went into circling rather than moving. Take fewer, better climbs and push on.`;
+      return `${(ins.freeDistance / 1000).toFixed(0)} km free distance in ${fmtMin(ins.timeSplit.totalSec)} — a lot of the day went into circling rather than moving. Take fewer, better climbs and push on.`;
     default:
       return '';
   }
@@ -580,7 +704,7 @@ export function xcScore(track) {
   const ins = pilotInsights(track);
   if (!ins) return null;
 
-  const openKm = ins.openDistance / 1000;
+  const openKm = ins.freeDistance / 1000;
   const speedKmh = ins.xcSpeed * 3.6;
   const climb = ins.thermalStats.avgClimb;
   const glide = ins.transitionStats.avgGlide;
@@ -589,7 +713,7 @@ export function xcScore(track) {
     {
       id: 'distance', label: 'Distance', weight: 0.45,
       score: scoreFrom([[3, 8], [10, 26], [30, 50], [60, 72], [100, 88], [150, 96], [250, 100]], openKm),
-      detail: `${openKm.toFixed(1)} km open distance`,
+      detail: `${openKm.toFixed(1)} km free distance over 5 points`,
     },
     {
       id: 'speed', label: 'Speed', weight: 0.30,
@@ -616,9 +740,62 @@ export function xcScore(track) {
     score: Math.round(total),
     components,
     openKm,
-    /** XContest free-flight points equivalent: km × 1.0, no triangle bonus. */
+    /** League points equivalent: km × 1.0, no triangle bonus (see above). */
     freeDistancePoints: Math.round(openKm * 100) / 100,
   };
+}
+
+// ── this pilot vs the day ───────────────────────────────────────────────────
+
+/**
+ * The comparison a pilot actually wants after a group flight: their own number
+ * next to what everyone managed. "Average climb was 1.2, yours was 1.5."
+ *
+ * Returns null when only one flight is loaded — there is no "the day" to
+ * compare against, and inventing one would be worse than saying nothing.
+ *
+ * @returns {{label:string, mine:string, day:string, delta:string,
+ *            better:boolean|null}[]|null}
+ */
+export function versusDay(track, day) {
+  if (!day || day.pilots < 2 || !day.means) return null;
+  const ins = pilotInsights(track);
+  if (!ins) return null;
+
+  const rows = [
+    { label: 'Average climb', mine: ins.thermalStats.avgClimb, day: day.means.climb,
+      fmt: (v) => `${v.toFixed(1)} m/s`, higherIsBetter: true },
+    { label: 'Core conversion', mine: ins.thermalStats.consistency * 100, day: day.means.centring * 100,
+      fmt: (v) => `${Math.round(v)}%`, higherIsBetter: true },
+    { label: 'Gain per climb', mine: ins.thermalStats.avgGain, day: day.means.thermalGain,
+      fmt: (v) => `${Math.round(v)} m`, higherIsBetter: true },
+    { label: 'Transition glide', mine: ins.transitionStats.avgGlide, day: day.means.glide,
+      fmt: (v) => `${v.toFixed(1)}:1`, higherIsBetter: true },
+    { label: 'Free distance', mine: ins.freeDistance / 1000, day: day.means.freeKm,
+      fmt: (v) => `${v.toFixed(1)} km`, higherIsBetter: true },
+    { label: 'XC speed', mine: ins.xcSpeed * 3.6, day: day.means.xcKmh,
+      fmt: (v) => `${v.toFixed(1)} km/h`, higherIsBetter: true },
+    { label: 'Climbs topped at', mine: ins.cloudbase ?? NaN, day: day.means.cloudbase,
+      fmt: (v) => `${Math.round(v)} m`, higherIsBetter: true },
+    // Time circling has no "better" direction on its own — see COMPARE_ROWS.
+    { label: 'Time climbing', mine: ins.timeSplit.climbPct, day: day.means.climbPct,
+      fmt: (v) => `${Math.round(v)}%`, higherIsBetter: null },
+  ];
+
+  return rows
+    .filter((r) => Number.isFinite(r.mine) && Number.isFinite(r.day) && r.day > 0)
+    .map((r) => {
+      const diff = r.mine - r.day;
+      // Within 2% of the day's mean is "the same", not a win or a loss.
+      const same = Math.abs(diff) < Math.abs(r.day) * 0.02;
+      return {
+        label: r.label,
+        mine: r.fmt(r.mine),
+        day: r.fmt(r.day),
+        delta: same ? '=' : `${diff > 0 ? '+' : '−'}${r.fmt(Math.abs(diff))}`,
+        better: r.higherIsBetter === null || same ? null : (diff > 0) === r.higherIsBetter,
+      };
+    });
 }
 
 // ── head-to-head ────────────────────────────────────────────────────────────
@@ -637,8 +814,8 @@ export const COMPARE_ROWS = [
     get: (t) => pilotInsights(t).transitionStats.totalDistance / 1000, fmt: (v) => `${v.toFixed(1)} km` },
   { id: 'xcScore', label: 'XC score', unit: '', better: 'high',
     get: (t) => xcScore(t).score, fmt: (v) => `${Math.round(v)}/100` },
-  { id: 'openDist', label: 'Open distance', unit: 'km', better: 'high',
-    get: (t) => pilotInsights(t).openDistance / 1000, fmt: (v) => `${v.toFixed(1)} km` },
+  { id: 'freeDist', label: 'Free distance (5 pt)', unit: 'km', better: 'high',
+    get: (t) => pilotInsights(t).freeDistance / 1000, fmt: (v) => `${v.toFixed(1)} km` },
   { id: 'xcSpeed', label: 'XC speed', unit: 'km/h', better: 'high',
     get: (t) => pilotInsights(t).xcSpeed * 3.6, fmt: (v) => `${v.toFixed(1)} km/h` },
   // No winner: circling less is only better if you kept the height. A pilot who
@@ -647,6 +824,15 @@ export const COMPARE_ROWS = [
     get: (t) => pilotInsights(t).timeSplit.climbPct, fmt: (v) => `${Math.round(v)}%` },
   { id: 'cloudbase', label: 'Climbs topped at', unit: 'm', better: 'high',
     get: (t) => pilotInsights(t).cloudbase ?? NaN, fmt: (v) => (Number.isFinite(v) ? `${Math.round(v)} m` : '—') },
+  // Turn direction has no better or worse — but a strong bias is worth seeing
+  // side by side, because it's usually a habit rather than a choice.
+  { id: 'turnBias', label: 'Turn bias', unit: '', better: 'none',
+    text: (t) => `${t.metrics.turnBias.leftPercent}% L / ${t.metrics.turnBias.rightPercent}% R` },
+  { id: 'thermalDirs', label: 'Thermals L / R', unit: '', better: 'none',
+    text: (t) => {
+      const s = pilotInsights(t).thermalStats;
+      return `${s.leftCount} L / ${s.rightCount} R`;
+    } },
 ];
 
 /**
@@ -655,6 +841,15 @@ export const COMPARE_ROWS = [
 export function compareTracks(tracks) {
   const list = tracks.filter((t) => t.visible !== false && t._derived);
   return COMPARE_ROWS.map((row) => {
+    // Text rows (turn bias, thermal directions) have no numeric ordering.
+    if (row.text) {
+      return {
+        row,
+        values: [],
+        display: list.map((t) => { try { return row.text(t); } catch { return '—'; } }),
+        bestIdx: -1,
+      };
+    }
     const values = list.map((t) => {
       try { return row.get(t); } catch { return NaN; }
     });
@@ -678,4 +873,5 @@ export function compareTracks(tracks) {
 export function invalidate(track) {
   delete track._insights;
   delete track._openDist;
+  delete track._freeDist;
 }

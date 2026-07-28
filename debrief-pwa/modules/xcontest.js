@@ -142,8 +142,8 @@ function readFlight(f) {
 // ── download ────────────────────────────────────────────────────────────────
 
 /**
- * Fetch one flight's IGC text through the Worker (which host-locks the URL and
- * verifies it really is an IGC before returning it).
+ * Fetch one flight's IGC text through the Worker (which verifies the response
+ * really is a flight log before returning it).
  * @param {{igcUrl:string, pilotName:string}} flight
  * @returns {Promise<string>} raw IGC
  */
@@ -151,14 +151,43 @@ export async function fetchIgc(flight) {
   if (!flight || !flight.igcUrl) {
     throw new Error(`No IGC link for ${flight ? flight.pilotName : 'that flight'} — the pilot may not have made the track public.`);
   }
+  return fetchIgcUrl(flight.igcUrl);
+}
+
+/**
+ * Import any publicly served IGC file by URL.
+ *
+ * This is the path that actually works today. No flight database offers a
+ * usable API: XContest publishes none and disallows its search and track
+ * endpoints, DHV-XC's API is open and CORS-enabled but its robots.txt disallows
+ * the whole site, WeGlide's API blocks non-browser traffic and sends no CORS
+ * headers, and SkyLines is almost entirely sailplanes. A link the pilot chose
+ * and pasted sidesteps all of that.
+ *
+ * @param {string} url
+ * @returns {Promise<string>} raw IGC
+ */
+export async function fetchIgcUrl(url) {
+  const clean = String(url || '').trim();
+  if (!clean) throw new Error('Paste a link first.');
+
+  let parsed;
+  try { parsed = new URL(clean); } catch { throw new Error('That does not look like a link.'); }
+  if (parsed.protocol !== 'https:') throw new Error('Only https links are supported.');
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${WORKER_BASE}/xcigc?url=${encodeURIComponent(flight.igcUrl)}`, { signal: ctrl.signal });
+    const res = await fetch(`${WORKER_BASE}/xcigc?url=${encodeURIComponent(clean)}`, { signal: ctrl.signal });
     const body = await res.text();
-    if (!res.ok) throw new Error(body.slice(0, 140) || `HTTP ${res.status}`);
+    if (res.status === 404 && /no \/xcigc|not found/i.test(body)) {
+      throw new Error('The Cloudflare Worker has no /xcigc route yet — it needs redeploying.');
+    }
+    if (!res.ok) throw new Error(body.slice(0, 200) || `HTTP ${res.status}`);
     return body;
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('That link timed out.');
+    throw err;
   } finally {
     clearTimeout(timer);
   }

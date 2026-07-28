@@ -454,6 +454,9 @@ function markerLayers() {
       position: [sample.lng, sample.lat, sample.alt + 6],
       text: `${track.pilotName}  ${Math.round(sample.alt)} m  ${sample.vario > 0 ? '+' : ''}${sample.vario.toFixed(1)} m/s`,
       rgb,
+      // Stack the labels: pilots who flew together sit on top of each other, and
+      // two overlapping labels read as neither.
+      row: labels.length,
     });
 
     // Bright trail over the last TRAIL_SEC seconds — cheap to rebuild because
@@ -511,7 +514,7 @@ function markerLayers() {
       getColor: [255, 255, 255, 235],
       getSize: 12,
       sizeUnits: 'pixels',
-      getPixelOffset: [0, -20],
+      getPixelOffset: (d) => [0, -20 - d.row * 15],
       background: true,
       getBackgroundColor: [10, 15, 26, 190],
       backgroundPadding: [5, 3, 5, 3],

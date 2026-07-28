@@ -8,13 +8,13 @@
 // Map tiles, the DEM and the elevation API are network-only: they're huge,
 // change per viewport, and MapLibre keeps its own in-memory tile cache.
 
-const CACHE_VERSION = 'debrief-v1';
+const CACHE_VERSION = 'debrief-v2';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=1',
-  './app.js?v=1',
+  './app.css?v=2',
+  './app.js?v=2',
   './manifest.json',
   './icon.svg',
   './modules/igc.js',

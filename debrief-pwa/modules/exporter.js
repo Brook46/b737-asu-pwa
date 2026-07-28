@@ -275,7 +275,7 @@ function drawCardSparklines(ctx, tracks) {
 
 const CARD_ROWS = [
   { label: 'Duration', get: (t) => fmtDuration(t.metrics.duration || 0) },
-  { label: 'Distance', get: (t) => fmtDist(t.metrics.totalDistance) },
+  { label: 'Free distance', get: (t) => fmtDist(t._insights ? t._insights.freeDistance : t.metrics.straightDistance) },
   { label: 'Max altitude', get: (t) => fmtAlt(t.metrics.maxAlt) },
   { label: 'Best climb', get: (t) => `${(t.metrics.maxClimb || 0).toFixed(1)} m/s` },
   { label: 'Height gained', get: (t) => fmtAlt(t.metrics.totalClimb || 0) },
@@ -337,7 +337,7 @@ function drawCardTable(ctx, tracks) {
 function bestIndex(label, tracks) {
   const pick = {
     'Duration': (t) => t.metrics.duration,
-    'Distance': (t) => t.metrics.totalDistance,
+    'Free distance': (t) => (t._insights ? t._insights.freeDistance : t.metrics.straightDistance),
     'Max altitude': (t) => t.metrics.maxAlt,
     'Best climb': (t) => t.metrics.maxClimb,
     'Height gained': (t) => t.metrics.totalClimb,

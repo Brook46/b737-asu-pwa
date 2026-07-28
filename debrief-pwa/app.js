@@ -17,7 +17,7 @@ import { analyse, computeMetrics } from './modules/metrics.js';
 import { detectHighlights, HIGHLIGHT_META, rankAcrossTracks } from './modules/highlights.js';
 import { attachTerrain } from './modules/terrain.js';
 import { COLOR_MODES, DEFAULT_MODE, TRACK_COLORS, legendGradient, modeValue, rgbCss } from './modules/colors.js';
-import { analyseDay, pilotInsights, gradeFlight, xcScore, compareTracks, invalidate as invalidateInsights } from './modules/insights.js';
+import { analyseDay, pilotInsights, gradeFlight, xcScore, compareTracks, versusDay, invalidate as invalidateInsights } from './modules/insights.js';
 import { Timeline, SPEEDS } from './modules/timeline.js';
 import * as Map3D from './modules/map3d.js';
 import * as Charts from './modules/charts.js';
@@ -612,8 +612,12 @@ const STAT_ROWS = [
   { label: 'Date', get: (t) => fmtDate(t.date), plain: true },
   { label: 'Glider', get: (t) => t.gliderType || '—', plain: true },
   { label: 'Duration', get: (t) => fmtDuration(t.metrics.duration || 0), rank: (t) => t.metrics.duration },
-  { label: 'Track distance', get: (t) => fmtDist(t.metrics.totalDistance), rank: (t) => t.metrics.totalDistance },
-  { label: 'Straight line', get: (t) => fmtDist(t.metrics.straightDistance || 0), rank: (t) => t.metrics.straightDistance },
+  {
+    label: 'Free distance',
+    get: (t) => fmtDist(pilotInsights(t).freeDistance),
+    rank: (t) => pilotInsights(t).freeDistance,
+    note: 'Free distance over five points — start, up to three turnpoints and end, in flight order. This is the distance XC leagues score.',
+  },
   { label: 'Max altitude', get: (t) => fmtAlt(t.metrics.maxAlt), rank: (t) => t.metrics.maxAlt },
   {
     label: 'Lowest AGL',
@@ -781,6 +785,25 @@ function renderGrades(tracks, day) {
       .map((c) => `${c.label}: ${escapeHtml(c.detail)}`)
       .join(' · ');
 
+    // "Average climb was 1.2, yours was 1.5" — the comparison a pilot actually
+    // wants after flying with others. Absent when only one flight is loaded.
+    const vs = versusDay(track, day);
+    const vsBlock = vs && vs.length ? `
+      <div class="vs-day">
+        <div class="vs-title">You vs the day <small>${day.pilots} pilots</small></div>
+        <table class="vs-table">
+          <thead><tr><th></th><th>you</th><th>day</th><th></th></tr></thead>
+          <tbody>${vs.map((r) => `
+            <tr>
+              <td>${r.label}</td>
+              <td class="vs-mine">${escapeHtml(r.mine)}</td>
+              <td class="vs-avg">${escapeHtml(r.day)}</td>
+              <td class="vs-delta ${r.better === null ? '' : r.better ? 'up' : 'down'}">${escapeHtml(r.delta)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '';
+
     // The competition score answers a different question from the letter grade:
     // "how big was the flight" rather than "how well was the day flown".
     const xc = xcScore(track);
@@ -789,7 +812,7 @@ function renderGrades(tracks, day) {
         <div class="xc-head">
           <span class="xc-num">${xc.score}</span>
           <span class="xc-label">XC score<small>distance &amp; speed weighted</small></span>
-          <span class="xc-pts">${xc.freeDistancePoints.toFixed(1)} pts<small>open distance</small></span>
+          <span class="xc-pts">${xc.freeDistancePoints.toFixed(1)} pts<small>free distance</small></span>
         </div>
         <div class="xc-bars">
           ${xc.components.map((c) => `
@@ -815,6 +838,7 @@ function renderGrades(tracks, day) {
       <div class="grade-rows">${rows}</div>
       <div class="grade-detail">${details}</div>
       ${g.advice ? `<div class="grade-advice">${escapeHtml(g.advice)}</div>` : ''}
+      ${vsBlock}
       ${xcBlock}`;
     host.appendChild(card);
   }
@@ -1226,6 +1250,50 @@ function initXcImport() {
   });
   $('xc-search').addEventListener('click', runXcSearch);
   $('xc-import').addEventListener('click', importXcSelected);
+
+  $('url-load').addEventListener('click', importFromUrl);
+  $('url-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); importFromUrl(); }
+  });
+}
+
+/** Load a single publicly served IGC file by URL. */
+async function importFromUrl() {
+  const input = $('url-input');
+  const note = $('url-note');
+  const setNote = (msg, bad) => { note.textContent = msg; note.style.color = bad ? '#ff9a8f' : ''; };
+
+  if (state.tracks.length >= MAX_TRACKS) {
+    setNote('Four flights is the limit — remove one first.', true);
+    return;
+  }
+
+  const btn = $('url-load');
+  btn.disabled = true;
+  setNote('Fetching…');
+  try {
+    const igc = await XC.fetchIgcUrl(input.value);
+    const name = decodeURIComponent(input.value.split('/').pop().split('?')[0]) || 'flight.igc';
+    const track = buildTrack(igc, { color: nextColor(), fileName: name });
+    state.tracks.push(track);
+    Store.saveFlight({
+      id: track.id, igc, pilotName: track.pilotName,
+      color: track.color, fileName: name, date: track.date,
+    });
+    setEmptyVisible(false);
+    rememberActive();
+    refreshAll({ fit: true });
+    renderLibrary();
+    resolveTerrain([track]);
+    input.value = '';
+    setNote('');
+    closeSheets();
+    showStatus(`Loaded ${track.pilotName}`, '', 2600);
+  } catch (err) {
+    setNote(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function setXcStatus(msg, kind = '') {
