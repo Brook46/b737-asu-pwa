@@ -13,6 +13,7 @@
 
 import { segmentColors, hexToRgb } from './colors.js';
 import { HIGHLIGHT_META } from './highlights.js';
+import { cylinderRing, roleOf } from './xctsk.js';
 
 /** Keyless raster basemaps. Attribution is a licence condition, not decoration. */
 export const BASEMAPS = [
@@ -63,6 +64,7 @@ const state = {
   camera: 'free',          // 'free' | 'follow' | 'chase'
   followId: null,
   snapshot: null,          // last timeline tick
+  task: null,              // normalised XCTSK task, drawn as cylinders
   staticLayers: [],        // cached track geometry (rebuilt only on change)
   onPick: null,
 };
@@ -316,10 +318,101 @@ function shiftGround(ground, segs) {
   return out;
 }
 
+/** How tall a task cylinder is drawn, metres. Tall enough to read against
+ *  terrain from a low camera, short enough not to hide the tracks. */
+const CYL_HEIGHT = 400;
+
+export function setTask(task) {
+  state.task = task || null;
+  rebuildStatic();
+  render();
+}
+
+/**
+ * Draw the task as real cylinders: a ring on the ground, a ring at height, and
+ * struts joining them.
+ *
+ * Built from paths rather than an extruded polygon deliberately — an extruded
+ * SolidPolygonLayer measures its elevation from sea level, so over terrain the
+ * cylinders would sink into the hillside or float above it. Rings drawn at an
+ * explicit altitude sit exactly where the turnpoint is.
+ */
+function taskLayers() {
+  const task = state.task;
+  if (!task || !task.points.length) return [];
+
+  const rings = [];
+  const struts = [];
+  const labels = [];
+
+  for (const tp of task.points) {
+    if (tp.isTakeoff) continue;              // not a navigation cylinder
+    const { rgb } = roleOf(tp);
+    const base = tp.alt;
+    const top = tp.alt + CYL_HEIGHT;
+
+    rings.push({ path: cylinderRing(tp, base), rgb, width: 3 });
+    rings.push({ path: cylinderRing(tp, top), rgb, width: 1.6 });
+
+    // Eight uprights read as a cylinder without turning into a mesh.
+    const b = cylinderRing(tp, base, 8);
+    const t = cylinderRing(tp, top, 8);
+    for (let i = 0; i < 8; i++) struts.push({ from: b[i], to: t[i], rgb });
+
+    labels.push({
+      position: [tp.lon, tp.lat, top],
+      text: `${tp.name}  ${Math.round(tp.radius)} m`,
+      rgb,
+    });
+  }
+
+  const out = [];
+  out.push(new deck.PathLayer({
+    id: 'task-rings',
+    data: rings,
+    getPath: (d) => d.path,
+    getColor: (d) => [...d.rgb, 220],
+    getWidth: (d) => d.width,
+    widthUnits: 'pixels',
+    widthMinPixels: 1.5,
+    parameters: { depthTest: true },
+  }));
+  out.push(new deck.LineLayer({
+    id: 'task-struts',
+    data: struts,
+    getSourcePosition: (d) => d.from,
+    getTargetPosition: (d) => d.to,
+    getColor: (d) => [...d.rgb, 90],
+    getWidth: 1.2,
+    widthUnits: 'pixels',
+  }));
+
+  const chars = new Set();
+  for (const l of labels) for (const ch of l.text) chars.add(ch);
+  out.push(new deck.TextLayer({
+    id: 'task-labels',
+    data: labels,
+    getPosition: (d) => d.position,
+    getText: (d) => d.text,
+    getColor: (d) => [...d.rgb, 245],
+    getSize: 11,
+    sizeUnits: 'pixels',
+    getPixelOffset: [0, -8],
+    background: true,
+    getBackgroundColor: [10, 15, 26, 200],
+    backgroundPadding: [4, 2, 4, 2],
+    fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+    fontWeight: 700,
+    characterSet: [...chars],
+  }));
+
+  return out;
+}
+
 /** Static layers: the tracks themselves, their ground shadows, highlight pins. */
 function rebuildStatic() {
   if (!deckReady) return;
-  const layers = [];
+  const layers = taskLayers();
 
   for (const track of state.tracks) {
     if (track.visible === false || !track._geo) continue;

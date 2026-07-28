@@ -26,6 +26,7 @@ import * as Exporter from './modules/exporter.js';
 import { demoFlights } from './modules/demo.js';
 import * as XC from './modules/xcontest.js';
 import * as Share from './modules/share.js';
+import * as Task from './modules/xctsk.js';
 import { installResumeHardening } from './modules/resume.js';
 import { fmtAlt, fmtClock, fmtClockShort, fmtDate, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtAgl } from './modules/format.js';
 
@@ -55,6 +56,8 @@ const state = {
    * explicit choice, not the default.
    */
   dateFilter: null,
+  /** Normalised XCTSK competition task, or null. */
+  task: null,
   /** View state from a share link, applied once the map and tracks are ready. */
   pendingView: null,
   mapReady: false,
@@ -90,6 +93,7 @@ function boot() {
       state.mapReady = true;
       Map3D.setBasemap(state.basemap);
       Map3D.setColorMode(state.colorMode);
+      if (state.task) Map3D.setTask(state.task);
       // Flights may have finished loading while the GL context was still
       // starting; without this they'd sit in state with nothing on the map.
       if (state.tracks.length) {
@@ -793,6 +797,7 @@ function renderInsights() {
     for (const id of hosts) $(id).innerHTML = '<div class="empty-row">Load a flight to see insights.</div>';
     $('bands-legend').innerHTML = '';
     $('grade-basis').textContent = '';
+    $('task-section').hidden = true;
     return;
   }
 
@@ -802,6 +807,7 @@ function renderInsights() {
   renderGrades(tracks, day);
   renderCompare(tracks);
   renderTimeSplit(tracks);
+  renderTaskAnalysis();
   renderTransitions(tracks);
 }
 
@@ -1339,6 +1345,148 @@ async function shareFull() {
     setShareNote(err.message, 'error');
   } finally {
     btn.disabled = false;
+  }
+}
+
+// ── competition task ────────────────────────────────────────────────────────
+
+function initTask() {
+  $('task-load').addEventListener('click', loadTaskCode);
+  $('task-code').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); loadTaskCode(); }
+  });
+  const saved = Store.pref('taskCode', '');
+  if (saved) {
+    $('task-code').value = saved;
+    // Restore silently: a failure here shouldn't greet the pilot with an error.
+    loadTaskCode(true).catch(() => {});
+  }
+}
+
+async function loadTaskCode(silent) {
+  const code = $('task-code').value;
+  const note = $('task-note');
+  const setNote = (m, bad) => { note.textContent = m; note.style.color = bad ? '#ff9a8f' : ''; };
+
+  const btn = $('task-load');
+  btn.disabled = true;
+  if (!silent) setNote('Loading task…');
+
+  try {
+    const task = await Task.loadTask(code);
+    state.task = task;
+    Store.setPref('taskCode', task.code);
+    if (state.mapReady) Map3D.setTask(task);
+    setNote('');
+    renderTaskSummary();
+    renderInsights();
+    if (!silent) {
+      showStatus(`Task ${task.code}: ${task.nav.length} turnpoints, ${fmtDist(Task.nominalDistance(task))} nominal`, '', 4200);
+      closeSheets();
+    }
+  } catch (err) {
+    if (!silent) setNote(err.message, true);
+    throw err;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function clearTask() {
+  state.task = null;
+  Store.setPref('taskCode', '');
+  $('task-code').value = '';
+  if (state.mapReady) Map3D.setTask(null);
+  renderTaskSummary();
+  renderInsights();
+}
+
+function renderTaskSummary() {
+  const host = $('task-summary');
+  const task = state.task;
+  if (!task) { host.innerHTML = ''; return; }
+
+  host.innerHTML = `
+    <div class="task-head">
+      <b>${escapeHtml(task.code)}</b>
+      <span>${task.nav.length} turnpoints · ${escapeHtml(fmtDist(Task.nominalDistance(task)))} nominal
+        ${task.sss ? ` · ${escapeHtml(task.sss.type)}` : ''}
+        ${task.sss && task.sss.timeGates.length ? ` · start ${escapeHtml(task.sss.timeGates[0])}` : ''}</span>
+    </div>
+    <div class="task-tps">${task.nav.map((tp) => {
+      const r = Task.roleOf(tp);
+      return `<span class="task-tp" style="border-color:${rgbCss(r.rgb, .5)};color:${rgbCss(r.rgb)}">
+        ${escapeHtml(tp.name)}<small>${Math.round(tp.radius)} m</small></span>`;
+    }).join('')}</div>`;
+
+  const clear = document.createElement('button');
+  clear.className = 'wide-btn ghost';
+  clear.textContent = 'Remove task';
+  clear.addEventListener('click', clearTask);
+  host.appendChild(clear);
+}
+
+/** Per-pilot task performance: what they tagged, and what each leg cost. */
+function renderTaskAnalysis() {
+  const section = $('task-section');
+  const host = $('task-analysis');
+  const tracks = state.tracks.filter((t) => t.visible !== false && t._derived);
+
+  if (!state.task || !tracks.length) { section.hidden = true; host.innerHTML = ''; return; }
+  section.hidden = false;
+  host.innerHTML = '';
+
+  const results = tracks.map((t) => ({ track: t, r: Task.analyseTaskFlight(t, state.task) }))
+    .filter((x) => x.r);
+  if (!results.length) { host.innerHTML = '<div class="empty-row">No task data.</div>'; return; }
+
+  // Fastest completed task time wins the highlight.
+  let best = null;
+  for (const x of results) {
+    if (x.r.inGoal && x.r.taskTime && (!best || x.r.taskTime < best.r.taskTime)) best = x;
+  }
+
+  for (const { track, r } of results) {
+    const wrap = document.createElement('div');
+    wrap.className = 'task-pilot';
+
+    const outcome = r.inGoal
+      ? `<span class="task-ok">Goal${r.taskTime ? ` in ${fmtDuration(r.taskTime)}` : ''}</span>`
+      : `<span class="task-miss">Landed out — ${r.tagged}/${r.total} turnpoints</span>`;
+    const winner = best && best.track.id === track.id && results.length > 1
+      ? '<span class="task-win">fastest</span>' : '';
+
+    wrap.innerHTML = `
+      <div class="task-pilot-head">
+        <b style="color:${track.color}">${escapeHtml(track.pilotName)}</b>
+        ${outcome} ${winner}
+        ${r.taskSpeed ? `<span class="task-speed">${escapeHtml(fmtSpeed(r.taskSpeed))} on task</span>` : ''}
+      </div>
+      <div class="task-tags">${r.tags.map((t) => {
+        const role = Task.roleOf(t.tp);
+        return `<span class="task-tag ${t.tagged ? 'hit' : 'missed'}"
+          style="${t.tagged ? `border-color:${rgbCss(role.rgb, .55)}` : ''}">
+          ${escapeHtml(t.tp.name)}
+          <small>${t.tagged ? fmtClockShort(t.time) : 'missed'}</small></span>`;
+      }).join('')}</div>`;
+
+    if (r.legs.length) {
+      const rows = r.legs.map((l) => `<tr>
+        <td>${escapeHtml(l.from.name)} → ${escapeHtml(l.to.name)}</td>
+        <td>${escapeHtml(fmtDuration(l.duration))}</td>
+        <td>${escapeHtml(fmtDist(l.flown))}</td>
+        <td>${escapeHtml(fmtSpeed(l.speed))}</td>
+        <td class="${l.detour > 1.25 ? 'poor' : l.detour < 1.08 ? 'good' : ''}">${l.detour.toFixed(2)}×</td>
+      </tr>`).join('');
+      const table = document.createElement('table');
+      table.className = 'trans-table';
+      table.innerHTML = `<thead><tr><th>leg</th><th>time</th><th>flown</th><th>speed</th>
+        <th title="Flown distance divided by the straight line between the two tags">detour</th>
+      </tr></thead><tbody>${rows}</tbody>`;
+      wrap.appendChild(table);
+    }
+
+    host.appendChild(wrap);
   }
 }
 
@@ -2033,6 +2181,7 @@ function wireEvents() {
   $('clip-speed').addEventListener('change', updateClipEstimate);
 
   initXcImport();
+  initTask();
   wireHashLinks();
   wireKeyboard();
 

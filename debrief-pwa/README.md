@@ -193,6 +193,36 @@ Per the repo's [CLAUDE.md](../CLAUDE.md): bump `CACHE_VERSION` in `sw.js`, bump
 the `?v=` on `app.js`/`app.css` in `index.html`, add any new module to the
 service worker precache list, and run `scripts/check-deploy.sh` after merging.
 
+## Competition tasks
+
+Enter the task code your organiser published (Flights → Competition task) and
+the course appears: turnpoint cylinders drawn in 3D on the terrain, start in
+green, ESS in red, goal in gold. Every loaded pilot is then checked against it —
+which cylinders they tagged and when, leg-by-leg time, distance and speed, and a
+**detour factor** per leg (flown distance ÷ the straight line between the two
+tags), which is where a line choice shows up as a number.
+
+Source: `tools.xcontest.org/api/xctsk` — the XCTrack task store. It is the one
+XContest API that is unambiguously usable: no key, no account,
+`access-control-allow-origin: *` on every read endpoint, and no `robots.txt` on
+that subdomain at all. So it is called straight from the browser — no Worker, no
+proxy. Format: [XCTrack Competition Interfaces](https://xctrack.org/Competition_Interfaces.html).
+
+Two rules from the spec are applied centrally rather than at each use site, and
+both matter: `TAKEOFF` is not a navigation cylinder, and the last turnpoint is
+always goal — including when it is also the ESS.
+
+**Tagging is sequential.** A cylinder only counts once the previous one is
+tagged, so flying through turnpoint 4 on the way to turnpoint 2 does not score
+it; when a cylinder is never entered the analysis stops there rather than
+reporting later tags that would imply a completion that never happened.
+
+The nominal distance shown is centre-to-centre less both radii. That is the
+standard quick approximation, **not** the optimised distance a scoring server
+computes (real optimisation picks the best point on each cylinder, over the whole
+task), so it runs a little long on tasks with big cylinders — it is labelled
+"nominal" everywhere it appears for that reason.
+
 ## Flying days
 
 Flights from different dates are **separated by default**. Loading a second

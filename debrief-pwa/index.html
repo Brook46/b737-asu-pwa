@@ -21,7 +21,7 @@
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://unpkg.com/deck.gl@9.0.35/dist.min.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
   <!-- The 3D canvas IS the app -->
@@ -206,6 +206,18 @@
         <div id="paste-note" class="sheet-note"></div>
       </details>
 
+      <h3 class="sheet-sub">Competition task</h3>
+      <p class="sheet-note">Enter the task code your organiser published (4 letters, or the
+        longer permanent hash). The cylinders appear on the map and every loaded pilot is
+        checked against them. From XContest's open task store — no key, no account.</p>
+      <div class="xc-row">
+        <input id="task-code" class="url-input" type="text" placeholder="task code, e.g. baba"
+               autocomplete="off" spellcheck="false" maxlength="24" enterkeyhint="go">
+        <button id="task-load" class="chip-btn primary">Load</button>
+      </div>
+      <div id="task-note" class="sheet-note"></div>
+      <div id="task-summary" class="task-summary"></div>
+
       <h3 class="sheet-sub">One-tap import from XContest</h3>
       <p class="sheet-note">A bookmark you add once. Open any flight page on XContest —
         or DHV-XC, a comp site, anywhere with an IGC download — and tap it. The flight
@@ -346,6 +358,11 @@
       <h3 class="sheet-sub">Time split</h3>
       <div id="time-split" class="time-split"></div>
 
+      <div id="task-section" hidden>
+        <h3 class="sheet-sub">Task</h3>
+        <div id="task-analysis"></div>
+      </div>
+
       <h3 class="sheet-sub">Transitions</h3>
       <p class="sheet-note">Each glide from the top of one thermal to the bottom of the next.</p>
       <div id="transitions" class="transitions"></div>
@@ -391,6 +408,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>

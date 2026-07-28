@@ -448,6 +448,45 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   border-radius: 11px; border: 1px solid var(--line);
   background: var(--card); color: var(--ink); font: inherit; font-size: .82rem;
 }
+/* ── competition task ────────────────────────────────────────────────────── */
+.task-summary { display: grid; gap: 8px; margin: 8px 0 4px; }
+.task-summary:empty { display: none; }
+.task-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; font-size: .8rem; }
+.task-head b { font-size: .92rem; font-weight: 750; letter-spacing: .03em; text-transform: uppercase; }
+.task-head span { color: var(--muted); font-size: .72rem; }
+.task-tps { display: flex; flex-wrap: wrap; gap: 5px; }
+.task-tp {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  font-size: .72rem; font-weight: 650;
+}
+.task-tp small { color: var(--muted); font-weight: 500; font-size: .64rem; }
+
+.task-pilot { margin-bottom: 14px; }
+.task-pilot-head {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: .8rem; margin-bottom: 6px;
+}
+.task-ok { color: #8fe39a; font-weight: 650; }
+.task-miss { color: #ff9f77; font-weight: 650; }
+.task-win {
+  padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,196,61,.16); color: #ffd379;
+  font-size: .64rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em;
+}
+.task-speed { margin-left: auto; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.task-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.task-tag {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 4px 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  font-size: .71rem; font-weight: 650;
+}
+.task-tag small { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.task-tag.missed { opacity: .5; border-style: dashed; }
+.task-tag.missed small { color: #ff9f77; }
+
 /* the draggable "Send to Debrief" bookmarklet */
 .bm-row { display: flex; gap: 9px; align-items: stretch; margin-bottom: 4px; }
 .bm-link {
