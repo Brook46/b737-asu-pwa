@@ -222,6 +222,22 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 }
 .dock.hidden { display: none; }
 
+/* flying-day selector — only present when several dates are loaded */
+.date-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.date-chips::-webkit-scrollbar { display: none; }
+.date-chips[hidden] { display: none; }
+.date-chip {
+  flex: 0 0 auto; padding: 0 11px; min-height: 34px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--glass); color: var(--muted);
+  font-size: .74rem; font-weight: 650; white-space: nowrap;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.date-chip.active {
+  color: var(--ink); border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(94, 194, 255, .3) inset;
+}
+
 /* per-pilot pills */
 .track-pills { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .track-pills::-webkit-scrollbar { display: none; }
@@ -431,6 +447,13 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 11px;
   border-radius: 11px; border: 1px solid var(--line);
   background: var(--card); color: var(--ink); font: inherit; font-size: .82rem;
+}
+.paste-input {
+  width: 100%; margin: 6px 0 9px; padding: 9px 11px;
+  border-radius: 11px; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .72rem; line-height: 1.4; resize: vertical;
 }
 .xc-results { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
 .xc-flight {

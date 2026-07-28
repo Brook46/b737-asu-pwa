@@ -193,13 +193,34 @@ Per the repo's [CLAUDE.md](../CLAUDE.md): bump `CACHE_VERSION` in `sw.js`, bump
 the `?v=` on `app.js`/`app.css` in `index.html`, add any new module to the
 service worker precache list, and run `scripts/check-deploy.sh` after merging.
 
+## Flying days
+
+Flights from different dates are **separated by default**. Loading a second
+day adds a day selector to the dock, and only the selected day is on screen —
+overlaying two days puts gliders in the air together that never were, and
+stretches the UTC clock across the gap between them.
+
+**All days** is the explicit opt-in when you do want to compare lines flown on
+different days; sync switches to launch-relative automatically, because a UTC
+clock spanning two dates is meaningless. Hiding a pilot and switching day are
+tracked separately, so changing day doesn't forget that you hid someone.
+
 ## Importing other pilots' flights
 
-**Paste an IGC link** (Flights → Import from a link) is the path that works
-today: any publicly served `.igc` URL — a club site, a competition results page,
-a league's own download button. No key, no account. The Worker fetches it and
-only returns content that parses as a flight log, so a login page or an HTML
-error comes back as a clear message rather than a broken import.
+Three routes in, none of which needs an API:
+
+1. **Drop the files** — up to four at once, or "Open with Debrief" from a file
+   manager where the browser supports it (Chrome/Edge desktop; iOS Safari uses
+   the picker).
+2. **Paste the file contents** (Flights → Import from a link → *…or paste the
+   file contents*) — needs nothing at all: no key, no server, not even a
+   connection. An IGC is plain ASCII, so it survives being copied out of a
+   message or an email body, which is how one pilot actually sends another a
+   track.
+3. **Paste an IGC link** — any publicly served `.igc` URL: a club site, a
+   competition results page, a league's own download button. The Worker fetches
+   it and only returns content that parses as a flight log, so a login page or
+   an HTML error comes back as a clear message rather than a broken import.
 
 No flight database offers a usable search API, and this was checked rather than
 assumed:

@@ -31,6 +31,8 @@ import { fmtAlt, fmtClock, fmtClockShort, fmtDate, fmtDist, fmtDuration, fmtGlid
 
 /** The spec's ceiling: two to four tracks is a comparison, more is a mess. */
 const MAX_TRACKS = 4;
+/** Sentinel for "show every flying day at once" — distinct from "unset". */
+const ALL_DAYS = 'all';
 /** Readouts refresh at 12 Hz — the clock runs at 60, but text can't be read that fast. */
 const READOUT_MS = 80;
 
@@ -45,6 +47,14 @@ const state = {
   chartVisible: Store.pref('chart', '1') === '1',
   fetchTerrain: Store.pref('terrain', '1') === '1',
   chartGeo: null,
+  /**
+   * Which flying day is on screen: an ISO date, or null meaning "all days at
+   * once". Flights from different days are separated by default — overlaying
+   * them puts gliders on screen that were never in the air together, and the
+   * UTC clock spans the gap between the dates. Showing them together is an
+   * explicit choice, not the default.
+   */
+  dateFilter: null,
   /** View state from a share link, applied once the map and tracks are ready. */
   pendingView: null,
   mapReady: false,
@@ -253,6 +263,7 @@ async function addFiles(files) {
   }
 
   setEmptyVisible(false);
+  focusDayOf(added);
   refreshAll({ fit: true });
   rememberActive();
 
@@ -267,11 +278,13 @@ async function addFiles(files) {
 }
 
 function loadDemo() {
-  if (state.tracks.length) {
-    showStatus('Remove the loaded flights first to load the demo.', 'warn');
+  // The demo is a different flying day from anything already loaded, which the
+  // day filter now handles — so it only needs room, not an empty app.
+  const files = demoFlights().map((f) => new File([f.igc], f.fileName, { type: 'text/plain' }));
+  if (state.tracks.length >= MAX_TRACKS) {
+    showStatus('Four flights is the limit — remove one first.', 'warn');
     return;
   }
-  const files = demoFlights().map((f) => new File([f.igc], f.fileName, { type: 'text/plain' }));
   addFiles(files);
 }
 
@@ -336,6 +349,7 @@ function rememberActive() {
 
 /** Push current state into every surface. Cheap enough to call on any change. */
 function refreshAll(opts = {}) {
+  applyVisibility();
   if (state.mapReady) {
     Map3D.setTracks(state.tracks);
     if (opts.fit) Map3D.fitTracks(state.tracks);
@@ -349,6 +363,7 @@ function refreshAll(opts = {}) {
   }
 
   setDockVisible(state.tracks.length > 0);
+  renderDateChips();
   renderPills();
   renderChart();
   renderHighlightList();
@@ -458,8 +473,90 @@ function renderPills() {
 }
 
 function toggleTrack(track) {
-  track.visible = track.visible === false;
+  // `userHidden` is intent; `visible` is the result of that intent AND the day
+  // filter. Keeping them separate means switching days doesn't silently forget
+  // that a pilot was hidden, and un-hiding doesn't drag in another day.
+  track.userHidden = !track.userHidden;
+  applyVisibility();
   refreshAll();
+}
+
+/** Distinct flying days across the loaded flights, newest first. */
+function loadedDates() {
+  return [...new Set(state.tracks.map((t) => t.date))].sort().reverse();
+}
+
+/**
+ * Resolve each track's `visible` from the user's intent and the active day.
+ *
+ * `dateFilter` has three states, and they must stay distinct: `null` means the
+ * pilot hasn't chosen (so pick the newest day for them), `ALL_DAYS` means they
+ * deliberately asked to see everything at once, and an ISO date means that day.
+ * Conflating "unset" with "show all" makes the All days button undo itself.
+ */
+function applyVisibility() {
+  const dates = loadedDates();
+  // A filter naming a day that is no longer loaded would hide everything.
+  if (state.dateFilter && state.dateFilter !== ALL_DAYS && !dates.includes(state.dateFilter)) {
+    state.dateFilter = null;
+  }
+  // With several days loaded and no choice yet, show the most recent one.
+  if (state.dateFilter === null && dates.length > 1) state.dateFilter = dates[0];
+
+  for (const t of state.tracks) {
+    const dayOk = state.dateFilter === null
+      || state.dateFilter === ALL_DAYS
+      || t.date === state.dateFilter;
+    t.visible = dayOk && !t.userHidden;
+  }
+}
+
+/**
+ * Jump to the day the just-loaded flights belong to.
+ *
+ * Without this, importing a flight from a different day than the one on screen
+ * would appear to do nothing — it would load, then be filtered straight out.
+ * If the new flights span several days there is no single day to show, so fall
+ * back to showing everything.
+ */
+function focusDayOf(tracks) {
+  const dates = [...new Set((tracks || []).map((t) => t.date))];
+  if (dates.length === 1) state.dateFilter = dates[0];
+  else if (dates.length > 1) state.dateFilter = ALL_DAYS;
+}
+
+function setDateFilter(value) {
+  state.dateFilter = value;
+  applyVisibility();
+  refreshAll({ fit: true });
+}
+
+function renderDateChips() {
+  const host = $('date-chips');
+  const dates = loadedDates();
+
+  // One flying day is the normal case — no chips, no clutter.
+  if (dates.length < 2) { host.hidden = true; host.innerHTML = ''; return; }
+  host.hidden = false;
+  host.innerHTML = '';
+
+  const chip = (label, value, title) => {
+    const b = document.createElement('button');
+    b.className = `date-chip${state.dateFilter === value ? ' active' : ''}`;
+    b.textContent = label;
+    b.title = title;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(state.dateFilter === value));
+    b.addEventListener('click', () => setDateFilter(value));
+    host.appendChild(b);
+  };
+
+  for (const d of dates) {
+    const n = state.tracks.filter((t) => t.date === d).length;
+    chip(`${fmtDate(d)}${n > 1 ? ` · ${n}` : ''}`, d, `Show only ${fmtDate(d)}`);
+  }
+  chip('All days', ALL_DAYS,
+    'Overlay every loaded day at once — useful for comparing lines flown on different days');
 }
 
 function renderColorChips() {
@@ -547,6 +644,10 @@ function renderChart() {
   const wrap = $('chart-wrap');
   wrap.classList.toggle('hidden', !state.chartVisible);
   $('chart-toggle').setAttribute('aria-pressed', String(state.chartVisible));
+  // Showing or hiding the chart resizes the dock, which moves the map controls.
+  // Done here rather than left to the ResizeObserver because observer callbacks
+  // are delivered on an animation frame, which a backgrounded tab never runs.
+  syncDockHeight();
   if (!state.chartVisible || !state.tracks.length) { state.chartGeo = null; return; }
 
   state.chartGeo = Charts.drawProfile($('chart-profile'), {
@@ -994,7 +1095,12 @@ function renderLibrary() {
 
     const vis = document.createElement('button');
     vis.className = 'flight-act';
-    vis.textContent = track.visible === false ? 'Show' : 'Hide';
+    // Distinguish "you hid this" from "this is another day" — the second is
+    // not something the Hide button can undo.
+    const otherDay = !track.userHidden && track.visible === false;
+    vis.textContent = otherDay ? 'Other day' : track.userHidden ? 'Show' : 'Hide';
+    vis.disabled = otherDay;
+    vis.title = otherDay ? `Flown on ${fmtDate(track.date)} — switch day in the dock to see it` : '';
     vis.addEventListener('click', () => { toggleTrack(track); renderLibrary(); });
 
     const del = document.createElement('button');
@@ -1045,6 +1151,7 @@ async function renderSavedList() {
         });
         state.tracks.push(track);
         setEmptyVisible(false);
+        focusDayOf([track]);
         rememberActive();
         refreshAll({ fit: true });
         renderLibrary();
@@ -1095,9 +1202,13 @@ function applySharedView(view) {
   // Visibility before the clock: the domain depends on which tracks are active.
   if (Array.isArray(view.vis) && view.vis.length) {
     const wanted = new Set(view.vis);
-    for (const t of state.tracks) t.visible = wanted.has(t.id);
-    if (!state.tracks.some((t) => t.visible)) {
-      for (const t of state.tracks) t.visible = true;   // never show nothing
+    const known = state.tracks.filter((t) => wanted.has(t.id));
+    if (known.length) {
+      for (const t of state.tracks) t.userHidden = !wanted.has(t.id);
+      // The sender may have been showing several days at once; honour that
+      // rather than filtering their view down to one day on arrival.
+      focusDayOf(known);
+      applyVisibility();
     }
   }
 
@@ -1255,6 +1366,71 @@ function initXcImport() {
   $('url-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); importFromUrl(); }
   });
+  $('paste-load').addEventListener('click', importFromPaste);
+  wireFileHandlers();
+}
+
+/**
+ * Load a flight from pasted IGC text.
+ *
+ * The lowest-dependency import there is: no key, no proxy, no connection. An
+ * IGC is plain ASCII, so it survives being copied out of a message or an email
+ * body, which is how one pilot actually sends another a track.
+ */
+function importFromPaste() {
+  const input = $('paste-input');
+  const note = $('paste-note');
+  const setNote = (msg, bad) => { note.textContent = msg; note.style.color = bad ? '#ff9a8f' : ''; };
+
+  if (state.tracks.length >= MAX_TRACKS) {
+    setNote('Four flights is the limit — remove one first.', true);
+    return;
+  }
+  const text = input.value;
+  if (!text.trim()) { setNote('Paste the contents of an IGC file first.', true); return; }
+  if (!looksLikeIGC(text)) {
+    setNote('That does not contain IGC fix records — make sure you copied the whole file, including the B-record lines.', true);
+    return;
+  }
+
+  try {
+    const track = buildTrack(text, { color: nextColor(), fileName: 'pasted.igc' });
+    state.tracks.push(track);
+    Store.saveFlight({
+      id: track.id, igc: text, pilotName: track.pilotName,
+      color: track.color, fileName: track.fileName, date: track.date,
+    });
+    setEmptyVisible(false);
+    focusDayOf([track]);
+    rememberActive();
+    refreshAll({ fit: true });
+    renderLibrary();
+    resolveTerrain([track]);
+    input.value = '';
+    setNote('');
+    closeSheets();
+    showStatus(`Loaded ${track.pilotName}`, '', 2600);
+  } catch (err) {
+    setNote(err.message, true);
+  }
+}
+
+/**
+ * Let the OS hand .igc files straight to the app — "Open with Debrief" from a
+ * file manager, rather than going through the picker. Chrome and Edge on
+ * desktop support this; iOS Safari does not yet, where the file picker and the
+ * paste box remain the routes in.
+ */
+function wireFileHandlers() {
+  if (!('launchQueue' in window) || !('files' in LaunchParams.prototype)) return;
+  window.launchQueue.setConsumer(async (params) => {
+    if (!params || !params.files || !params.files.length) return;
+    const files = [];
+    for (const handle of params.files) {
+      try { files.push(await handle.getFile()); } catch { /* permission withdrawn */ }
+    }
+    if (files.length) addFiles(files);
+  });
 }
 
 /** Load a single publicly served IGC file by URL. */
@@ -1281,6 +1457,7 @@ async function importFromUrl() {
       color: track.color, fileName: name, date: track.date,
     });
     setEmptyVisible(false);
+    focusDayOf([track]);
     rememberActive();
     refreshAll({ fit: true });
     renderLibrary();
@@ -1420,6 +1597,7 @@ async function importXcSelected() {
   }
 
   setEmptyVisible(false);
+  focusDayOf(added);
   rememberActive();
   refreshAll({ fit: true });
   renderLibrary();
@@ -1703,7 +1881,16 @@ function wireEvents() {
   window.addEventListener('resize', debounce(() => {
     Map3D.resize();
     renderChart();
+    syncDockHeight();
   }, 140));
+
+  // A tab that starts backgrounded lays out at zero height, so the first
+  // measurement clamps to nothing and the map controls stay buried. The dock
+  // itself never resizes on becoming visible, so its observer won't fire —
+  // re-measure when the page is shown.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncDockHeight();
+  });
 
   // The canvas has to be measured to be drawn, and it can be measured at the
   // wrong size — while the dock is still display:none, mid rotation, or before
@@ -1716,7 +1903,37 @@ function wireEvents() {
       if (w > 0 && Math.abs(w - lastW) > 1) { lastW = w; renderChart(); }
     }, 60));
     ro.observe($('chart-wrap'));
+
+    // Keep the map's own zoom/compass controls clear of the dock. The dock
+    // changes height whenever the profile chart is toggled, a pilot is added,
+    // or the device rotates, so a fixed offset buries the controls under it.
+    const dockRo = new ResizeObserver(() => syncDockHeight());
+    dockRo.observe($('dock'));
   }
+  syncDockHeight();
+}
+
+/**
+ * Publish the dock's real height as `--dock-h`, which the MapLibre control
+ * stack is offset by.
+ *
+ * Clamped so the controls can never be pushed off the top of the screen: on a
+ * short landscape phone the dock can be over half the viewport, and an
+ * unclamped offset would move the zoom buttons out of reach entirely — the
+ * opposite of the problem this solves.
+ */
+function syncDockHeight() {
+  // A backgrounded tab lays out at zero height. Writing a clamp derived from
+  // that would pin the offset to 0 and bury the controls; better to keep the
+  // last good value and re-measure on visibilitychange.
+  if (window.innerHeight < 300) return;
+
+  const dock = $('dock');
+  const visible = dock && !dock.classList.contains('hidden');
+  const raw = visible ? dock.getBoundingClientRect().height : 0;
+  const cap = Math.max(0, window.innerHeight - 200);
+  const h = Math.round(Math.min(raw, cap));
+  document.documentElement.style.setProperty('--dock-h', `${h}px`);
 }
 
 function wireDragAndDrop() {
@@ -1850,7 +2067,10 @@ function updateTransportEnabled() {
   $('scrubber').disabled = !has;
 }
 
-function setDockVisible(on) { $('dock').classList.toggle('hidden', !on); }
+function setDockVisible(on) {
+  $('dock').classList.toggle('hidden', !on);
+  syncDockHeight();
+}
 function setEmptyVisible(on) { $('empty').classList.toggle('hidden', !on); }
 
 function openSheet(id) {

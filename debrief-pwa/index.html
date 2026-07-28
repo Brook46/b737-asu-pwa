@@ -21,7 +21,7 @@
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://unpkg.com/deck.gl@9.0.35/dist.min.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=2">
+  <link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
   <!-- The 3D canvas IS the app -->
@@ -119,6 +119,9 @@
 
   <!-- ── bottom dock ─────────────────────────────────────────────────────── -->
   <div id="dock" class="dock hidden">
+    <!-- flying days: only shown when the loaded flights span more than one date -->
+    <div id="date-chips" class="date-chips" role="tablist" aria-label="Flying day" hidden></div>
+
     <!-- per-pilot pills with live readouts -->
     <div id="track-pills" class="track-pills"></div>
 
@@ -190,6 +193,17 @@
         <button id="url-load" class="chip-btn primary">Load</button>
       </div>
       <div id="url-note" class="sheet-note"></div>
+
+      <details class="xc-key-details">
+        <summary>…or paste the file contents</summary>
+        <p class="sheet-note">Needs nothing at all — no key, no server, not even a connection.
+          If a friend sends you an IGC in a message or email, open it, copy the text and paste
+          it here.</p>
+        <textarea id="paste-input" class="paste-input" rows="4" spellcheck="false"
+                  placeholder="AXCT… &#10;HFPLTPILOT:… &#10;B1042005148…"></textarea>
+        <button id="paste-load" class="wide-btn">Load pasted flight</button>
+        <div id="paste-note" class="sheet-note"></div>
+      </details>
 
       <h3 class="sheet-sub">Import from XContest</h3>
       <p class="sheet-note">Pick a date and country, then choose the pilots to load.
@@ -357,6 +371,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
