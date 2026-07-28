@@ -101,6 +101,16 @@
       "port": 8010
     },
     {
+      "name": "Airline Radar",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8098",
+        "/Users/alonbrookstein/Claude AS/airline-radar-pwa"
+      ],
+      "port": 8098
+    },
+    {
       "name": "GPWS",
       "runtimeExecutable": "python3",
       "runtimeArgs": [

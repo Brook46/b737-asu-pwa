@@ -982,7 +982,7 @@ const TOP_ACTIONS = {
   'data-reset-all':  () => doDataResetAll(),
   'checklist-reset': () => doChecklistReset(),
   'checklist-edit':  () => doChecklistEditToggle(),
-  'fr24':            () => doFr24(),
+  'radar':           () => doRadar(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
   'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
@@ -1029,12 +1029,22 @@ function doChecklistEditToggle() {
   }
   checklist.render(checklistBody);
 }
-function doFr24() {
+function doRadar() {
   const tail = storage.getCurrent().dataCard.tail || $('hdr-tail').value;
   const reg = normaliseRegistration(tail);
   if (!reg) { toast('Set tail # first'); return; }
-  const url = 'https://www.flightradar24.com/data/aircraft/' + encodeURIComponent(reg.toLowerCase());
-  window.open(url, '_blank', 'noopener,noreferrer');
+
+  // Airline Radar opens straight onto this tail. We also hand over the roster's
+  // scheduled arrival: its feeds are keyless ADS-B, which carries no schedule,
+  // so the STA we know from the duty plan is the only one it can show.
+  const params = new URLSearchParams({ reg });
+  const leg = (storage.getLegs() || [])[storage.getLegIndex()] || null;
+  const sta = leg && leg.arr_time ? String(leg.arr_time).trim() : '';
+  if (sta) { params.set('sta', sta); params.set('from', 'roster'); }
+
+  const url = new URL('../airline-radar-pwa/', location.href);
+  url.search = params.toString();
+  window.open(url.toString(), '_blank', 'noopener,noreferrer');
 }
 function openSettingsSheet() {
   showOverlay('settings-overlay');
@@ -1075,7 +1085,7 @@ $('social-sync-now').addEventListener('click', async () => {
 });
 
 // ---------- Header actions ----------
-// theme-toggle, new-flight, share-toggle, pa-toggle, fr24-btn → routed via
+// theme-toggle, new-flight, share-toggle, pa-toggle, radar-btn → routed via
 // data-action delegate above. The remaining overlay close + roster modal
 // handlers stay direct since they live inside overlays that get re-rendered.
 $('newflight-close').addEventListener('click', () => hideOverlay('newflight-overlay'));
@@ -1745,7 +1755,7 @@ $('sync-import').addEventListener('change', async (e) => {
   }
 });
 
-// ---------- Flightradar24 quick-track ----------
+// ---------- Airline Radar quick-track ----------
 // Three-letter input (e.g. "EHE") is treated as an Israeli-fleet registration
 // suffix and prefixed with "4X-". Anything else passes through untouched.
 function normaliseRegistration(raw) {
@@ -1754,8 +1764,8 @@ function normaliseRegistration(raw) {
   if (/^[A-Z]{3}$/.test(s)) return '4X-' + s;
   return s;
 }
-// fr24-btn is routed via the top-level click dispatch (data-action="fr24");
-// logic in doFr24() above.
+// radar-btn is routed via the top-level click dispatch (data-action="radar");
+// logic in doRadar() above.
 $('pa-close').addEventListener('click', () => speeches.close());
 
 $('pa-overlay').addEventListener('click', (e) => {

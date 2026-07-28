@@ -1,0 +1,419 @@
+/* Airline Radar — a radar screen, phone-first. The map fills the viewport and
+   everything else floats over it: a glass header, a tool column, an altitude
+   legend, and two bottom sheets (the flight list, and the selected flight).
+   Dark by design: this is a night-friendly traffic display, not a document. */
+
+:root {
+  --bg:      #070b14;
+  --glass:   rgba(10, 15, 26, 0.88);
+  --glass-2: rgba(16, 23, 38, 0.94);
+  --ink:     #eaf0f9;
+  --muted:   #8d97ad;
+  --line:    rgba(255, 255, 255, 0.10);
+  --accent:  #5ec2ff;
+  --hot:     #ef5da8;
+  --ok:      #37d67a;
+  --warn:    #f6c343;
+  --radius:  14px;
+  --safe-t:  env(safe-area-inset-top, 0px);
+  --safe-b:  env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.map { position: fixed; inset: 0; background: var(--bg); }
+
+/* Leaflet chrome, toned down to match */
+.leaflet-container { background: #0a1020; font: inherit; }
+.leaflet-control-attribution {
+  background: rgba(7, 11, 20, .72) !important; color: var(--muted) !important;
+  font-size: 10px !important; backdrop-filter: blur(6px);
+}
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.leaflet-bar a, .leaflet-control-layers-toggle {
+  background: var(--glass) !important; color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+.leaflet-control-layers-expanded {
+  background: var(--glass-2) !important; color: var(--ink) !important;
+  border: 1px solid var(--line) !important; border-radius: 12px;
+}
+.leaflet-bottom.leaflet-right { margin-bottom: calc(64px + var(--safe-b)); }
+
+/* ── header ───────────────────────────────────────────────────────────────── */
+.topbar {
+  position: fixed; z-index: 1200; left: 8px; right: 8px; top: calc(8px + var(--safe-t));
+  display: flex; align-items: center; gap: 8px;
+}
+.brand {
+  display: flex; align-items: center; gap: 7px; flex: none;
+  padding: 8px 11px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--line);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font-weight: 700; font-size: .84rem; letter-spacing: .01em; color: var(--ink);
+}
+.brand svg { color: var(--accent); flex: none; }
+.brand span { white-space: nowrap; }
+
+.search { flex: 1 1 auto; min-width: 0; }
+.search input {
+  width: 100%; padding: 9px 13px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--ink);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font: inherit; font-size: .86rem; outline: none;
+}
+.search input::placeholder { color: var(--muted); }
+.search input:focus { border-color: var(--accent); }
+
+/* Status pill. It says "Live" in words — a bare coloured dot tells a new user
+   nothing about what it is or what it would mean if it changed. */
+.live {
+  flex: none; height: 34px; border-radius: 999px; padding: 0 11px;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--glass); border: 1px solid var(--line);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .02em;
+}
+.live span { white-space: nowrap; }
+.live[data-mode="live"] span { color: var(--ok); }
+.live[data-mode="error"] span { color: #ff6b6b; }
+.live i { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); display: block; }
+.live[data-mode="polling"] i { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+.live[data-mode="error"] i { background: #ff5a5a; }
+@keyframes pulse { 50% { opacity: .25; } }
+
+/* ── tool column ──────────────────────────────────────────────────────────── */
+.tools {
+  position: fixed; z-index: 1150; left: 8px; top: calc(62px + var(--safe-t));
+  display: flex; flex-direction: column; gap: 7px;
+}
+.tool-btn {
+  width: 52px; min-height: 48px; border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--ink);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  cursor: pointer; padding: 5px 2px 4px;
+}
+.tool-btn b {
+  font-size: .55rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--muted); text-transform: uppercase; line-height: 1;
+}
+.tool-btn[aria-pressed="true"] { color: var(--accent); border-color: rgba(94, 194, 255, .55); }
+.tool-btn[aria-pressed="true"] b { color: var(--accent); }
+.tool-btn:active { transform: scale(.94); }
+
+/* ── active filter chips ──────────────────────────────────────────────────── */
+.chips {
+  position: fixed; z-index: 1180; left: 68px; right: 8px; top: calc(50px + var(--safe-t));
+  display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; justify-content: flex-end;
+}
+.chip {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px; border-radius: 999px; cursor: pointer;
+  background: rgba(94, 194, 255, .18); border: 1px solid rgba(94, 194, 255, .55);
+  color: #cfeaff; font: inherit; font-size: .72rem; font-weight: 700;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.chip i { font-style: normal; opacity: .75; }
+
+/* ── airline picker ───────────────────────────────────────────────────────── */
+.picker {
+  /* Clear of the tool column: the button that opens this stays visible and
+     tappable, so it can be used to close it again. */
+  position: fixed; z-index: 1270; left: 68px; top: calc(56px + var(--safe-t));
+  width: min(320px, calc(100vw - 76px)); max-height: min(66vh, 520px);
+  display: none; flex-direction: column;
+  background: var(--glass-2); border: 1px solid var(--line); border-radius: 16px;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .55); overflow: hidden;
+}
+.picker.open { display: flex; }
+.picker-close {
+  position: absolute; right: 8px; top: 8px; z-index: 2;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: rgba(255, 255, 255, .07); border: 1px solid var(--line);
+  color: var(--ink); font-size: .72rem; cursor: pointer;
+}
+.picker-body { display: flex; flex-direction: column; min-height: 0; padding: 12px; }
+.pick-head { display: flex; align-items: center; gap: 8px; padding-right: 30px; margin-bottom: 9px; }
+.pick-head b { font-size: .84rem; }
+.pick-clear {
+  margin-left: auto; padding: 5px 9px; border-radius: 8px;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: .7rem; font-weight: 600; cursor: pointer;
+}
+.pick-clear[disabled] { opacity: .4; cursor: default; }
+.pick-search input {
+  width: 100%; padding: 8px 11px; margin-bottom: 8px; border-radius: 9px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: .8rem; outline: none;
+}
+.pick-list { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+.pick-row {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 8px 9px; margin-bottom: 3px; border-radius: 9px;
+  background: rgba(255, 255, 255, .03); border: 1px solid transparent;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.pick-row.on { background: rgba(94, 194, 255, .16); border-color: rgba(94, 194, 255, .5); }
+.pick-tick { flex: none; width: 14px; color: var(--accent); font-size: .8rem; }
+.pick-name {
+  flex: 1 1 auto; min-width: 0; font-size: .8rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pick-name i { font-style: normal; color: var(--muted); font-weight: 500; margin-left: 6px; font-size: .68rem; }
+.pick-count { flex: none; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.pick-empty { padding: 18px; text-align: center; color: var(--muted); font-size: .78rem; }
+
+/* ── legend ───────────────────────────────────────────────────────────────── */
+.legend {
+  position: fixed; z-index: 1140; left: 8px; bottom: calc(72px + var(--safe-b));
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 7px 9px; border-radius: 11px;
+  background: var(--glass); border: 1px solid var(--line);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  font-size: .64rem; color: var(--muted); letter-spacing: .02em;
+}
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 5px; border-radius: 2px; display: block; }
+
+/* ── status banner ────────────────────────────────────────────────────────── */
+.status {
+  position: fixed; z-index: 1300; top: calc(56px + var(--safe-t)); left: 50%;
+  transform: translateX(-50%); max-width: min(92vw, 460px);
+  padding: 9px 14px; border-radius: 999px; text-align: center;
+  background: var(--glass-2); border: 1px solid var(--line); color: var(--ink);
+  font-size: .78rem; font-weight: 600;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+}
+.status.hidden { display: none; }
+
+/* ── aircraft markers ─────────────────────────────────────────────────────── */
+.plane-icon { background: none; border: 0; }
+.plane-wrap { position: relative; display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.plane-wrap.selected { filter: drop-shadow(0 0 6px rgba(255, 255, 255, .85)); }
+.plane-tag {
+  position: absolute; left: 105%; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; line-height: 1.1; white-space: nowrap;
+  font-size: 10px; font-weight: 700; color: #eaf0f9;
+  text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none;
+}
+.plane-tag b { font-weight: 500; font-size: 9px; color: #b9c4d6; }
+.plane-tag.sel { color: #fff; font-size: 11px; }
+.plane-tag.ghost { color: #9aa6bd; font-style: italic; }
+.plane-tag.ghost b { color: #7f8ba3; font-style: normal; }
+.plane-wrap.ghost { filter: none; opacity: .92; }
+
+.apt-icon { background: none; border: 0; }
+.apt { position: relative; }
+.apt-dot {
+  display: block; width: 10px; height: 10px; border-radius: 999px;
+  background: #0b1220; border: 2px solid var(--accent);
+}
+.apt.to .apt-dot { border-color: var(--hot); }
+.apt-lbl {
+  position: absolute; left: 14px; top: -3px; display: flex; flex-direction: column;
+  line-height: 1.15; white-space: nowrap; font-size: 11px; font-weight: 800; color: #fff;
+  text-shadow: 0 1px 3px #000;
+}
+.apt-lbl b { font-weight: 500; font-size: 9.5px; color: #c3ccdc; }
+
+/* ── flight list sheet ────────────────────────────────────────────────────── */
+.list-sheet {
+  position: fixed; z-index: 1250; left: 0; right: 0; bottom: 0;
+  max-height: min(58vh, 520px); display: flex; flex-direction: column;
+  background: var(--glass-2); border-top: 1px solid var(--line);
+  border-radius: 18px 18px 0 0;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  transform: translateY(calc(100% - 46px - var(--safe-b)));
+  transition: transform .22s ease;
+  padding-bottom: var(--safe-b);
+}
+.list-sheet.open { transform: translateY(0); }
+.list-head {
+  flex: none; height: 46px; width: 100%; position: relative;
+  display: flex; align-items: center; gap: 10px; padding: 0 16px;
+  background: none; border: 0; color: var(--ink); font: inherit; cursor: pointer;
+}
+.grip {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  width: 34px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .22);
+}
+.count { font-weight: 700; font-size: .86rem; }
+.stamp { margin-left: auto; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.list-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 8px 10px; }
+
+.fl-row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; margin-bottom: 3px; border-radius: 11px;
+  background: rgba(255, 255, 255, .03); border: 1px solid transparent;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.fl-row.sel { background: rgba(94, 194, 255, .14); border-color: rgba(94, 194, 255, .5); }
+.fl-dot { flex: none; width: 9px; height: 9px; border-radius: 999px; }
+.fl-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.fl-cs { font-weight: 700; font-size: .85rem; letter-spacing: .02em; }
+.fl-alert {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px;
+  border-radius: 999px; background: #ff4d4d; color: #fff; font-size: .62rem;
+  font-style: normal; font-weight: 800; vertical-align: middle;
+}
+.fl-sub {
+  color: var(--muted); font-size: .74rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fl-row.ghost { background: rgba(255, 255, 255, .015); border-color: rgba(255, 255, 255, .07); border-style: dashed; }
+.fl-row.ghost .fl-cs { color: #b3bccd; }
+.fl-alt.ghosted { color: #9aa6bd; }
+.fl-right { flex: none; text-align: right; display: flex; flex-direction: column; }
+.fl-alt { font-weight: 700; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.fl-type { color: var(--muted); font-size: .68rem; }
+
+.list-empty { padding: 26px 18px; text-align: center; color: var(--ink); font-size: .84rem; }
+.list-empty span { color: var(--muted); font-size: .76rem; }
+
+/* ── detail sheet ─────────────────────────────────────────────────────────── */
+.detail-sheet {
+  position: fixed; z-index: 1290; left: 0; right: 0; bottom: 0;
+  max-height: min(76vh, 680px); display: flex; flex-direction: column;
+  background: var(--glass-2); border-top: 1px solid var(--line);
+  border-radius: 18px 18px 0 0;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .5);
+  transform: translateY(102%); transition: transform .24s ease;
+  padding-bottom: var(--safe-b);
+}
+.detail-sheet.open { transform: translateY(0); }
+.detail-body { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 16px 18px; }
+
+.sheet-grip {
+  width: 34px; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .22);
+  margin: 8px auto 4px;
+}
+.sheet-alert {
+  margin: 4px 0 8px; padding: 8px 12px; border-radius: 10px;
+  background: rgba(255, 77, 77, .16); border: 1px solid rgba(255, 77, 77, .5);
+  color: #ffb4b4; font-weight: 700; font-size: .8rem; text-align: center;
+}
+.sheet-ghost {
+  margin: 4px 0 8px; padding: 9px 12px; border-radius: 10px;
+  background: rgba(154, 166, 189, .12); border: 1px dashed rgba(154, 166, 189, .5);
+  color: #c8d1e0; font-size: .78rem; font-weight: 600; line-height: 1.4;
+}
+.sheet-ghost span { display: block; margin-top: 3px; color: var(--muted); font-weight: 400; font-size: .72rem; }
+.sheet-head { display: flex; align-items: flex-start; gap: 12px; padding: 4px 0 12px; }
+.sheet-id { flex: 1 1 auto; min-width: 0; }
+.sheet-id h2 { margin: 0; font-size: 1.32rem; font-weight: 800; letter-spacing: .02em; }
+.sheet-id p {
+  margin: 2px 0 0; color: var(--muted); font-size: .78rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sheet-alt { flex: none; text-align: right; line-height: 1.15; }
+.sheet-alt b { display: block; font-size: 1.18rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sheet-alt span { font-size: .7rem; color: var(--muted); }
+.sheet-close {
+  flex: none; width: 30px; height: 30px; border-radius: 999px;
+  background: rgba(255, 255, 255, .07); border: 1px solid var(--line);
+  color: var(--ink); font-size: .8rem; cursor: pointer;
+}
+
+/* route strip */
+.route-strip {
+  display: flex; align-items: center; gap: 10px; padding: 12px;
+  border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line);
+}
+.route-strip.empty { justify-content: center; color: var(--muted); font-size: .78rem; }
+.rs-end { flex: none; width: 74px; display: flex; flex-direction: column; }
+.rs-end.right { text-align: right; }
+.rs-end b { font-size: 1.02rem; font-weight: 800; letter-spacing: .03em; }
+.rs-end span {
+  color: var(--muted); font-size: .68rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rs-mid { flex: 1 1 auto; min-width: 0; }
+.rs-bar {
+  position: relative; height: 3px; border-radius: 999px;
+  background: rgba(255, 255, 255, .14); margin: 9px 0 7px;
+}
+.rs-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); }
+.rs-plane {
+  position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(90deg);
+  font-size: .82rem; color: #fff; text-shadow: 0 0 6px rgba(0, 0, 0, .8);
+}
+.rs-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; }
+
+/* arrival: scheduled vs estimated */
+.arrival {
+  display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap;
+}
+.arr-cell {
+  flex: 1 1 130px; min-width: 0; padding: 9px 11px; border-radius: 11px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.arr-cell span { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; }
+.arr-cell b { font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.arr-cell i { font-style: normal; color: var(--muted); font-size: .68rem; }
+.arr-cell.delta { flex: 0 0 auto; align-items: center; justify-content: center; }
+.arr-delta { font-size: .78rem; font-weight: 800; text-transform: none; letter-spacing: 0; }
+.arr-delta.on { color: var(--ok); }
+.arr-delta.late { color: var(--warn); }
+.arr-delta.early { color: var(--accent); }
+
+/* actions */
+.sheet-actions { display: flex; gap: 7px; margin: 12px 0; }
+.act {
+  flex: 1 1 0; padding: 9px 8px; border-radius: 10px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer;
+}
+.act.on { background: rgba(94, 194, 255, .18); border-color: rgba(94, 194, 255, .6); color: #cfeaff; }
+.act:active { transform: scale(.97); }
+
+/* data grid */
+.sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+@media (min-width: 560px) { .sheet-grid { grid-template-columns: repeat(3, 1fr); } }
+.cellv {
+  padding: 8px 10px; border-radius: 10px;
+  background: rgba(255, 255, 255, .035); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.cellv span { color: var(--muted); font-size: .64rem; text-transform: uppercase; letter-spacing: .05em; }
+.cellv b {
+  font-size: .84rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  /* Type names ("Boeing 777-300ER") are longer than the cell — wrap them rather
+     than truncating to "BOEING 77…", which tells the reader nothing. */
+  overflow-wrap: anywhere; line-height: 1.25;
+}
+
+.sheet-photo { margin: 12px 0 0; }
+.sheet-photo img {
+  width: 100%; max-height: 190px; object-fit: cover;
+  border-radius: 12px; border: 1px solid var(--line); display: block;
+}
+.sheet-photo figcaption { color: var(--muted); font-size: .62rem; margin-top: 4px; text-align: right; }
+
+.sheet-note { color: var(--muted); font-size: .72rem; margin: 12px 0 0; line-height: 1.45; }
+
+/* ── wide screens: sheets become a side rail ──────────────────────────────── */
+@media (min-width: 820px) {
+  .list-sheet, .detail-sheet {
+    left: auto; right: 10px; bottom: 10px; width: 380px;
+    border-radius: 16px; border: 1px solid var(--line);
+  }
+  .list-sheet { top: calc(58px + var(--safe-t)); max-height: none; transform: none; }
+  .list-sheet .grip { display: none; }
+  .detail-sheet { top: auto; max-height: min(72vh, 720px); }
+  /* One rail, one panel: the detail view replaces the list rather than
+     stacking on it (body class, because the list precedes it in the DOM). */
+  body.has-detail .list-sheet { display: none; }
+  .legend { bottom: 12px; }
+}
