@@ -539,16 +539,11 @@ async function handleSocialPut(request, env, token, merge = false) {
       env.LOGBOOK.put(noteKey(token, code), clean[code], {
         metadata: { updatedAt: Date.now() },
       })));
-    // Best-effort total. KV list is itself eventually consistent, so union it
-    // with what this request just wrote — otherwise the count can go backwards
-    // mid-loop and look broken.
-    let total;
-    try {
-      const seen = new Set(codes);
-      for (const c of Object.keys(await readSocialMap(env, token))) seen.add(c);
-      total = seen.size;
-    } catch { total = codes.length; }
-    return json({ ok: true, saved: codes, airports: total });
+    // Deliberately NO running total here. KV's list index lags writes by a few
+    // seconds, so a count computed mid-loop reads low and looks like the sync
+    // is failing when it isn't. Report what THIS request stored; the feed URL
+    // is the place to see the full set once it settles.
+    return json({ ok: true, saved: codes });
   }
 
   // Replace mode (the bare route) is authoritative: it overwrites the blob AND
