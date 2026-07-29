@@ -25,7 +25,9 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
 - Emergency squawks (7500 / 7600 / 7700) are called out in red, in the list and
   at the top of the detail sheet.
 - **Follow** keeps the map on the selected aircraft; **Show route** frames the
-  whole city pair.
+  whole city pair. Follow re-centres four times a second, so it stands down the
+  moment you take the wheel — dragging the map, or asking for your own position
+  with the Me button, both cancel it.
 
 ## Data sources — both keyless, both CORS-open
 
@@ -55,13 +57,15 @@ different places, and the UI labels them so they can't be confused:
 The one thing that does know it is the flight card, which has the duty roster.
 When it opens this app it passes the leg's scheduled arrival in the link, the
 STA row fills in, and the sheet shows the difference — *on schedule*, *12 min
-late*, *8 min early*.
+late*, *1h07 early*. A scheduled time belongs to one flight, so if a link names
+several aircraft the STA is left off rather than pinned to the wrong one.
 
 ## Opening on one aircraft (deep links)
 
     airline-radar-pwa/?reg=4X-EKM
     airline-radar-pwa/?tail=EKM              # three letters ⇒ 4X-EKM
     airline-radar-pwa/?flight=ELY348
+    airline-radar-pwa/?tail=EKM,EHH          # several, comma-separated
     airline-radar-pwa/?reg=4X-EKM&sta=21:15&from=roster
 
 The app runs the query, finds the aircraft anywhere in the world, moves the map
@@ -84,6 +88,16 @@ filtering:
    aircraft, the app also asks the feed's global `/v2/reg/` and `/v2/callsign/`
    endpoints, and if it's airborne anywhere in the world it appears on the map
    (and the map moves to it, once, when it's off-screen).
+
+**Several aircraft at once.** Terms stack like addresses on an email: type one,
+press Enter (or a comma), and it becomes a chip; type the next. Each chip is
+searched for in its own right — its own global lookup — and the results are the
+union, so you can watch six aeroplanes at the same time. Backspace in an empty
+box takes the last one back off, and each chip has an ✕.
+
+Naming an aircraft outranks the airline filter. If you've filtered to El Al and
+then search a tail belonging to someone else, you get that aircraft: you asked
+for it by name, so hiding it would just look like the search was broken.
 
 **Three-letter shorthand.** A 737 fleet is talked about by the last three
 letters of the tail — "EKM", "EHH", "EDL" — so a bare three-letter query is read

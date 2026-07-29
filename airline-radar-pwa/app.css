@@ -122,6 +122,9 @@ html, body {
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .chip i { font-style: normal; opacity: .75; }
+/* Search terms read differently from airline filters: they're what you typed. */
+.chip.term { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .3); color: var(--ink); }
+.chip.term.typing { border-style: dashed; opacity: .8; }
 
 /* ── airline picker ───────────────────────────────────────────────────────── */
 .picker {

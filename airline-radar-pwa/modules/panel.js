@@ -230,9 +230,11 @@ function arrivalBlock(ac, arrival) {
   if (etaAt && staAt) {
     const mins = Math.round((etaAt - staAt) / 60000);
     const late = mins > 0;
+    // fmt.dur rolls over into hours — "1h07 late" reads instantly, "67 min
+    // late" makes the reader do the arithmetic.
     delta = Math.abs(mins) < 3
       ? '<span class="arr-delta on">on schedule</span>'
-      : `<span class="arr-delta ${late ? 'late' : 'early'}">${Math.abs(mins)} min ${late ? 'late' : 'early'}</span>`;
+      : `<span class="arr-delta ${late ? 'late' : 'early'}">${esc(fmt.dur(Math.abs(mins)))} ${late ? 'late' : 'early'}</span>`;
   }
 
   return `<div class="arrival">

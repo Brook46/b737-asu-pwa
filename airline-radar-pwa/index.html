@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=3">
+  <link rel="stylesheet" href="app.css?v=4">
 </head>
 <body>
   <!-- The map is the app -->
@@ -35,7 +35,7 @@
       <span>Airline Radar</span>
     </div>
     <label class="search">
-      <input id="search" type="search" placeholder="Flight, tail (EKM), airline, airport" autocomplete="off" aria-label="Search flights">
+      <input id="search" type="search" placeholder="Tail (EKM) or flight — Enter adds another" autocomplete="off" aria-label="Search flights; press Enter to add another aircraft">
     </label>
     <div id="live" class="live" data-mode="polling" title="Live"><i></i><span>Live</span></div>
   </header>
@@ -114,6 +114,6 @@
     <div id="detail-body" class="detail-body"></div>
   </section>
 
-  <script type="module" src="app.js?v=3"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

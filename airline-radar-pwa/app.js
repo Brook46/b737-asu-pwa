@@ -24,6 +24,7 @@ const MOVE_DEBOUNCE_MS = 700;
 const LOOKUP_DEBOUNCE_MS = 600;  // wait for typing to settle before a global lookup
 const PREFETCH_PER_CYCLE = 6;    // route lookups started per refresh (≈3 s of queue)
 const GHOST_MAX_AGE_MS = 30 * 60 * 1000;  // how long a lost contact stays on the map
+const MAX_TOKENS = 6;            // searched aircraft at once — each is its own lookup
 const VIEW_KEY = 'airadar.view';
 const PREFS_KEY = 'airadar.prefs';
 const AIRLINES_KEY = 'airadar.airlines';
@@ -37,10 +38,11 @@ const state = {
   lastAt: 0,
   error: '',
   clipped: false,
-  query: '',
+  query: '',             // the text still being typed
   parsed: search.parseQuery(''),
+  tokens: [],            // committed search terms, like addresses on an email
   lookupNote: '',        // what the global lookup found, for the status line
-  pannedFor: '',         // query we already jumped the map for
+  pannedFor: '',         // query set we already moved the map for
   airlines: new Set(),   // operator codes to show; empty = all
   pickerQuery: '',
   deepLink: null,        // {query, sta, staSource} — see readDeepLink()
@@ -58,10 +60,13 @@ const state = {
  */
 function readDeepLink() {
   const p = new URLSearchParams(location.search);
-  const query = (p.get('reg') || p.get('tail') || p.get('flight') || p.get('q') || '').trim();
-  if (!query) return null;
+  const raw = (p.get('reg') || p.get('tail') || p.get('flight') || p.get('q') || '').trim();
+  if (!raw) return null;
+  // Comma-separated opens several aircraft at once, same as typing them.
+  const queries = raw.split(',').map((s) => s.trim()).filter(Boolean).slice(0, MAX_TOKENS);
+  if (!queries.length) return null;
   return {
-    query,
+    queries,
     sta: (p.get('sta') || '').trim(),
     staSource: (p.get('from') || '').trim().slice(0, 24),
   };
@@ -167,8 +172,10 @@ async function refresh(force = false) {
       if (who) showStatus(`${who} stopped transmitting — last position kept on the map.`);
     }
 
-    // Keep a searched-for aircraft moving even while it's off the map.
-    if (search.isTargeted(state.parsed)) runLookup();
+    // Keep searched-for aircraft moving even while they're off the map. This
+    // has to consider the committed terms, not just what's in the box — a
+    // deep-linked or chipped aircraft has no text being typed at all.
+    if (activeQueries().some(search.isTargeted)) runLookup();
 
     prefetchRoutes(out);
     draw();
@@ -204,77 +211,134 @@ function prefetchRoutes(list) {
  * you can't filter your way to an aeroplane that isn't in the box you're
  * looking at.
  */
-async function runLookup() {
-  const p = state.parsed;
-  const forText = p.text;
-  if (!search.isTargeted(p)) { state.remote = []; state.lookupNote = ''; return; }
+/**
+ * Every search term in play: the ones already committed, plus whatever is
+ * still being typed. They combine as OR — "show me EKA *and* EHH" — which is
+ * what adding a second aircraft is supposed to mean.
+ */
+function activeQueries() {
+  const out = state.tokens.map((t) => search.parseQuery(t));
+  if (state.parsed.text) out.push(state.parsed);
+  return out;
+}
 
-  const { raw } = await search.lookupGlobal(p, fetchOne);
-  if (state.parsed.text !== forText) return;        // the query moved on
+/** Identity of the current query set, so an in-flight lookup can tell it's stale. */
+function queryKey() {
+  return activeQueries().map((p) => p.text).join('|');
+}
+
+/** Turn one raw record from a by-name lookup into a displayable aircraft. */
+function asAircraft(rec) {
+  // An explicit registration/callsign search is a direct request for *that*
+  // aircraft, so it is shown whether or not it passes the airline filter.
+  const cls = classify(rec) || {
+    code: String(rec.flight || '').trim().toUpperCase().slice(0, 3),
+    flightNo: '',
+    airline: null,
+  };
+  const ac = normalise(rec, cls);
+  ac.airline = ac.airline || lookupAirline(ac.code);
+  return ac;
+}
+
+async function runLookup() {
+  const targeted = activeQueries().filter(search.isTargeted).slice(0, MAX_TOKENS);
+  const key = queryKey();
+  if (!targeted.length) { state.remote = []; state.lookupNote = ''; return; }
 
   const found = [];
-  for (const rec of raw) {
-    if (!Number.isFinite(rec.lat) || !Number.isFinite(rec.lon)) continue;
-    // An explicit registration/callsign search is a direct request for *that*
-    // aircraft, so it is shown whether or not it passes the airline filter.
-    const cls = classify(rec) || {
-      code: String(rec.flight || '').trim().toUpperCase().slice(0, 3),
-      flightNo: '',
-      airline: null,
-    };
-    const ac = normalise(rec, cls);
-    ac.airline = ac.airline || lookupAirline(ac.code);
-    found.push(ac);
+  const missed = [];
+  for (const p of targeted) {
+    const { raw } = await search.lookupGlobal(p, fetchOne);
+    if (queryKey() !== key) return;                 // the query set moved on
+    const hits = raw.filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
+    if (hits.length) hits.forEach((r) => found.push(asAircraft(r)));
+    else missed.push(p);
   }
   state.remote = found;
 
-  if (!found.length) {
-    const ghost = history.ghosts().find((e) => search.matches(history.asAircraft(e), p, null));
-    state.lookupNote = ghost
-      ? `${search.describe(p)} isn't transmitting — showing where it was ${fmt.ago(ghost.at)}.`
-      : `Nothing is transmitting as ${search.describe(p)} right now.`;
-    // Opened from the flight card: still show the aircraft's card, on its last
-    // known position, rather than leaving the user staring at an empty map.
-    if (state.deepLink && !state.autoSelected && ghost) {
-      state.autoSelected = true;
-      radar.panTo(ghost.lat, ghost.lon, Math.max(radar.getMap().getZoom(), 7));
-      select(ghost.hex);
-      return;
-    }
-    draw();
-    return;
+  // Say which of the named aircraft aren't answering, and offer the last known
+  // position for any that we remember.
+  const ghosts = missed.map((p) => ({
+    p, ghost: history.ghosts().find((e) => search.matches(history.asAircraft(e), p, null)),
+  }));
+  state.lookupNote = ghosts.slice(0, 2).map(({ p, ghost }) => (ghost
+    ? `${search.describe(p)} isn't transmitting — showing where it was ${fmt.ago(ghost.at)}.`
+    : `Nothing is transmitting as ${search.describe(p)} right now.`)).join(' ');
+
+  // Bring the named aircraft into view: one gets a pan, several get framed.
+  const map = radar.getMap();
+  const points = found.map((a) => [a.lat, a.lon]);
+  for (const { ghost } of ghosts) if (ghost) points.push([ghost.lat, ghost.lon]);
+  const anyVisible = map && points.some((pt) => map.getBounds().contains(pt));
+  if (map && points.length && !anyVisible && state.pannedFor !== key) {
+    state.pannedFor = key;
+    if (points.length === 1) radar.panTo(points[0][0], points[0][1], Math.max(map.getZoom(), 7));
+    else radar.fitPoints(points);
+    const names = found.map((a) => a.callsign || a.reg).filter(Boolean);
+    showStatus(names.length === 1
+      ? `${names[0]} found — map moved to it.`
+      : `${points.length} aircraft found — map moved to them.`);
   }
 
-  state.lookupNote = '';
-  const map = radar.getMap();
-  const one = found[0];
-  const offMap = map && !map.getBounds().contains([one.lat, one.lon]);
-  if (found.length === 1 && offMap && state.pannedFor !== forText) {
-    state.pannedFor = forText;
-    radar.panTo(one.lat, one.lon, Math.max(map.getZoom(), 7));
-    showStatus(`${one.callsign || one.reg} found — map moved to it.`);
-  }
   // Arriving from the flight card: open the aircraft's card, once.
-  if (state.deepLink && !state.autoSelected && found.length) {
-    state.autoSelected = true;
-    select(one.hex);
-    return;
+  if (state.deepLink && !state.autoSelected) {
+    const first = found[0] || ghosts.map((g) => g.ghost).find(Boolean);
+    if (first) {
+      state.autoSelected = true;
+      select(first.hex);
+      return;
+    }
   }
   draw();
 }
 
-/** Re-read the query, filter immediately, and schedule the global lookup. */
+/** Re-read the text in the box, filter immediately, schedule the lookup. */
 function onQueryChanged(raw) {
   state.query = raw;
   state.parsed = search.parseQuery(raw);
   state.lookupNote = '';
-  if (!search.isTargeted(state.parsed)) { state.remote = []; state.pannedFor = ''; }
+  if (!activeQueries().some(search.isTargeted)) { state.remote = []; state.pannedFor = ''; }
   draw();
 
   clearTimeout(lookupTimer);
-  if (state.parsed.text.length >= 3) {
+  if (state.parsed.text.length >= 3 || state.tokens.length) {
     lookupTimer = setTimeout(runLookup, LOOKUP_DEBOUNCE_MS);
   }
+}
+
+/**
+ * Commit what's typed as its own term and clear the box, the way an email
+ * client turns a typed address into a pill when you press Enter. Terms stack:
+ * each one is searched for in its own right, so several aircraft can be
+ * tracked at once.
+ */
+function commitToken(raw) {
+  const t = String(raw || state.query).trim();
+  if (!t) return false;
+  const norm = t.toUpperCase();
+  if (state.tokens.length >= MAX_TOKENS) {
+    showStatus(`Up to ${MAX_TOKENS} at a time — remove one first.`);
+    return false;
+  }
+  if (!state.tokens.some((x) => x.toUpperCase() === norm)) state.tokens.push(t);
+  $('#search').value = '';
+  state.query = '';
+  state.parsed = search.parseQuery('');
+  state.pannedFor = '';
+  draw();
+  clearTimeout(lookupTimer);
+  runLookup();
+  return true;
+}
+
+function removeToken(raw) {
+  state.tokens = state.tokens.filter((t) => t !== raw);
+  state.pannedFor = '';
+  state.lookupNote = '';
+  draw();
+  clearTimeout(lookupTimer);
+  runLookup();
 }
 
 // ── rendering ───────────────────────────────────────────────────────────────
@@ -297,20 +361,25 @@ function airlineOk(ac) {
  * looking for is usually the one that *isn't* conveniently in front of you.
  */
 function visible() {
-  const p = state.parsed;
-  const searching = !!p.text;
+  const qs = activeQueries();
+  const searching = qs.length > 0;
+  const hit = (ac) => qs.some((p) => search.matches(ac, p, routeOf(ac)));
+  // Asking for an aircraft by tail or callsign outranks the airline filter:
+  // you named it, so hiding it because its operator isn't ticked would just
+  // look like the search was broken.
+  const named = (ac) => qs.some((p) => search.isTargeted(p) && search.matches(ac, p, routeOf(ac)));
   const byHex = new Map();
 
   for (const ac of state.aircraft) {
-    if (!airlineOk(ac)) continue;
-    if (searching && !search.matches(ac, p, routeOf(ac))) continue;
+    if (!airlineOk(ac) && !named(ac)) continue;
+    if (searching && !hit(ac)) continue;
     byHex.set(ac.hex, ac);
   }
 
-  // Aircraft found by name/registration anywhere in the world.
+  // Aircraft found by name/registration anywhere in the world — these only
+  // exist because they were asked for, so no filter applies.
   for (const ac of state.remote) {
     if (byHex.has(ac.hex)) continue;
-    if (!airlineOk(ac)) continue;
     byHex.set(ac.hex, ac);
   }
 
@@ -321,9 +390,9 @@ function visible() {
       if (byHex.has(e.hex)) continue;
       if (!Number.isFinite(e.lat)) continue;
       const ac = history.asAircraft(e);
-      if (!airlineOk(ac)) continue;
+      if (!airlineOk(ac) && !named(ac)) continue;
       if (searching) {
-        if (!search.matches(ac, p, routeOf(ac))) continue;
+        if (!hit(ac)) continue;
       } else if (!e.wentDark || Date.now() - (e.at || 0) > GHOST_MAX_AGE_MS) {
         continue;
       }
@@ -400,9 +469,12 @@ function draw() {
  */
 function arrivalFor(ac, route) {
   const dl = state.deepLink;
-  const isLinked = dl && ac && (
-    search.normReg(ac.reg) === search.normReg(search.parseQuery(dl.query).reg || dl.query)
-    || ac.callsign === dl.query.toUpperCase()
+  // A scheduled time belongs to one flight. If the link named several
+  // aircraft there is no way to know whose STA it is, so we don't guess.
+  const single = dl && dl.queries.length === 1 ? dl.queries[0] : '';
+  const isLinked = single && ac && (
+    search.normReg(ac.reg) === search.normReg(search.parseQuery(single).reg || single)
+    || ac.callsign === single.toUpperCase()
   );
   const staAt = isLinked && dl.sta ? fmt.parseStaUtc(dl.sta) : 0;
   return {
@@ -414,10 +486,12 @@ function arrivalFor(ac, route) {
 
 /** Why the list is empty — the answer differs for a filter and for a search. */
 function emptyMessage() {
-  if (state.parsed.text) {
+  const qs = activeQueries();
+  if (qs.length) {
+    const names = qs.map((p) => search.describe(p)).join(', ');
     return {
-      title: `Nothing matches ${search.describe(state.parsed)}.`,
-      hint: search.isTargeted(state.parsed)
+      title: qs.length === 1 ? `Nothing matches ${names}.` : `Nothing matches ${names}.`,
+      hint: qs.every(search.isTargeted)
         ? 'Not in view and not transmitting anywhere the network can hear it.'
         : 'Try a callsign (ELY387), a tail (EKA), an airline or an airport code.',
     };
@@ -556,8 +630,12 @@ function drawFilterChips() {
     const a = lookupAirline(code);
     chips.push(`<button class="chip" data-drop-airline="${code}">${a ? a.name : code}<i>✕</i></button>`);
   }
+  // One chip per committed search term, plus the text still being typed.
+  for (const t of state.tokens) {
+    chips.push(`<button class="chip term" data-drop-token="${escAttr(t)}">${escAttr(t)}<i>✕</i></button>`);
+  }
   if (state.query.trim()) {
-    chips.push(`<button class="chip" data-drop-query="1">“${state.query.trim()}”<i>✕</i></button>`);
+    chips.push(`<button class="chip term typing" data-drop-query="1">${escAttr(state.query.trim())}<i>✕</i></button>`);
   }
   el.innerHTML = chips.join('');
   el.hidden = !chips.length;
@@ -567,9 +645,16 @@ function drawFilterChips() {
     drawPicker();
     draw();
   }));
+  el.querySelectorAll('[data-drop-token]').forEach((b) => b.addEventListener('click', () => {
+    removeToken(b.dataset.dropToken);
+  }));
   const dq = el.querySelector('[data-drop-query]');
   if (dq) dq.addEventListener('click', () => { $('#search').value = ''; onQueryChanged(''); });
 }
+
+const escAttr = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
 
 let statusTimer = null;
 function showStatus(msg, sticky) {
@@ -612,6 +697,9 @@ function boot() {
       clearTimeout(moveTimer);
       moveTimer = setTimeout(() => refresh(true), MOVE_DEBOUNCE_MS);
     },
+    // The map cancels follow when the user drags; repaint so the sheet's
+    // Follow button stops claiming it's on.
+    onFollowCancelled: () => draw(),
   });
 
   buildLegend();
@@ -629,18 +717,36 @@ function boot() {
 
   $('#search').addEventListener('input', (e) => {
     if (e.target.value) $('#list').classList.add('open');
+    // A comma finishes a term, so "EKA, EHH" works as one piece of typing.
+    if (e.target.value.includes(',')) {
+      const parts = e.target.value.split(',');
+      const tail = parts.pop();
+      parts.forEach((p) => p.trim() && commitToken(p));
+      e.target.value = tail.trim();
+    }
     onQueryChanged(e.target.value);
   });
-  // Enter runs the global lookup at once instead of waiting out the debounce.
+
   $('#search').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    clearTimeout(lookupTimer);
-    runLookup();
+    // Enter commits what's typed as its own term and clears the box, so the
+    // next aircraft can be typed straight after — like addressing an email.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!commitToken()) { clearTimeout(lookupTimer); runLookup(); }
+      return;
+    }
+    // Backspace in an empty box takes the last term back off.
+    if (e.key === 'Backspace' && !e.target.value && state.tokens.length) {
+      e.preventDefault();
+      removeToken(state.tokens[state.tokens.length - 1]);
+    }
   });
 
   $('#locate-btn').addEventListener('click', () => {
     if (!navigator.geolocation) { showStatus('This device has no location service.'); return; }
+    // Asking for your own position outranks following an aircraft — otherwise
+    // follow drags the map back off you a quarter-second later.
+    if (radar.cancelFollow()) draw();
     showStatus('Locating…');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -656,10 +762,12 @@ function boot() {
   // A deep link is a search that has already been typed for you.
   state.deepLink = readDeepLink();
   if (state.deepLink) {
-    $('#search').value = state.deepLink.query;
-    onQueryChanged(state.deepLink.query);
+    // Every named aircraft becomes a committed term, exactly as if it had been
+    // typed in and entered.
+    state.tokens = state.deepLink.queries.slice();
+    onQueryChanged('');
     // Cancel the typing debounce: the first refresh below runs the lookup
-    // itself, so the aircraft is fetched once rather than twice.
+    // itself, so the aircraft are fetched once rather than twice.
     clearTimeout(lookupTimer);
   }
 

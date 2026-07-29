@@ -37,15 +37,17 @@ let markers = new Map();        // hex → {marker, state, fix}
 let trails = new Map();         // hex → [[lat,lon], …]
 let drTimer = null;
 let onSelect = null;
+let onFollowOff = null;
 let showLabels = true, showTrails = true;
 let selectedHex = null;
 let followSelected = false;
 
 export function getMap() { return map; }
 
-export function initMap(id, { center, zoom, onSelectAircraft, onMove }) {
+export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCancelled }) {
   if (!window.L || map) return map;
   onSelect = onSelectAircraft;
+  onFollowOff = onFollowCancelled;
 
   map = L.map(id, {
     zoomControl: false,
@@ -69,6 +71,12 @@ export function initMap(id, { center, zoom, onSelectAircraft, onMove }) {
   map.on('click', () => onSelect && onSelect(null));
   map.on('moveend zoomend', () => { if (onMove) onMove(); });
 
+  // Dragging the map is the user taking the wheel. Follow re-centres four times
+  // a second, so leaving it on would drag the view straight back and make the
+  // map feel broken. `dragstart` only fires for real gestures — panTo and
+  // setView don't trigger it — so following can't cancel itself.
+  map.on('dragstart', () => cancelFollow());
+
   // A map built in a hidden tab, a rotated iPad or a standalone PWA restored
   // from the background comes back with a stale container size — Leaflet only
   // re-measures when told to, and until it does the view (and therefore the
@@ -91,6 +99,17 @@ export function setTrails(v) {
 }
 export function setFollow(v) { followSelected = v; }
 export function getFollow() { return followSelected; }
+
+/**
+ * Stop following, because the user asked the map to go somewhere else.
+ * Silent when follow wasn't on, so callers can use it unconditionally.
+ */
+export function cancelFollow() {
+  if (!followSelected) return false;
+  followSelected = false;
+  if (onFollowOff) onFollowOff();
+  return true;
+}
 
 /** "just now" / "12m ago" — how stale a last-known position is. */
 function ghostAge(ac) {
@@ -283,6 +302,13 @@ export function fitRoute(ac, route) {
   if (route && route.destination && Number.isFinite(route.destination.lat)) pts.push([route.destination.lat, route.destination.lon]);
   if (pts.length < 2) { map.setView(pts[0], Math.max(map.getZoom(), 8)); return; }
   map.fitBounds(L.latLngBounds(pts).pad(0.18), { animate: true });
+}
+
+/** Frame several points at once — used when a search names more than one aircraft. */
+export function fitPoints(points) {
+  if (!map || !points || !points.length) return;
+  if (points.length === 1) { map.setView(points[0], Math.max(map.getZoom(), 7)); return; }
+  map.fitBounds(L.latLngBounds(points).pad(0.25), { animate: true });
 }
 
 export function panTo(lat, lon, zoom) {
