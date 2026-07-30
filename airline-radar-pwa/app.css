@@ -83,8 +83,10 @@ html, body {
 }
 .live span { white-space: nowrap; }
 .live[data-mode="live"] span { color: var(--ok); }
+.live[data-mode="dr"] span { color: var(--warn); }
 .live[data-mode="error"] span { color: #ff6b6b; }
 .live i { width: 8px; height: 8px; border-radius: 999px; background: var(--ok); display: block; }
+.live[data-mode="dr"] i { background: var(--warn); animation: pulse 1.8s ease-in-out infinite; }
 .live[data-mode="polling"] i { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
 .live[data-mode="error"] i { background: #ff5a5a; }
 @keyframes pulse { 50% { opacity: .25; } }
@@ -215,6 +217,18 @@ html, body {
 .plane-tag.ghost b { color: #7f8ba3; font-style: normal; }
 .plane-wrap.ghost { filter: none; opacity: .92; }
 
+/* ── runways ──────────────────────────────────────────────────────────────── */
+.rwy-icon { background: none; border: 0; }
+.rwy-thr {
+  display: block; text-align: center; font-size: 11px; font-weight: 800;
+  color: #f2f6ff; letter-spacing: .04em; text-shadow: 0 1px 3px #000, 0 0 5px #000;
+}
+.rwy-thr.derived { opacity: .75; font-style: italic; }
+.rwy-len {
+  display: block; text-align: center; white-space: nowrap;
+  font-size: 9.5px; font-weight: 600; color: #c3ccdc; text-shadow: 0 1px 3px #000;
+}
+
 .apt-icon { background: none; border: 0; }
 .apt { position: relative; }
 .apt-dot {
@@ -237,8 +251,9 @@ html, body {
   border-radius: 18px 18px 0 0;
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   transform: translateY(calc(100% - 46px - var(--safe-b)));
-  transition: transform .22s ease;
+  transition: transform .22s ease, max-height .2s ease;
   padding-bottom: var(--safe-b);
+  overflow: hidden;
 }
 .list-sheet.open { transform: translateY(0); }
 .list-head {
@@ -325,8 +340,29 @@ html, body {
 .sheet-close {
   flex: none; width: 30px; height: 30px; border-radius: 999px;
   background: rgba(255, 255, 255, .07); border: 1px solid var(--line);
-  color: var(--ink); font-size: .8rem; cursor: pointer;
+  color: var(--ink); font-size: .8rem; cursor: pointer; padding: 0;
 }
+
+/* The top of a sheet is the fold handle: drag it up or down. The grip is a
+   bigger touch target than it looks, and never scrolls the page under it. */
+.sheet-grip, .list-head, .sheet-head { touch-action: none; }
+.sheet-grip { cursor: grab; padding: 6px 0; }
+.detail-sheet .sheet-grip {
+  width: 44px; height: 4px; background-clip: content-box; margin: 6px auto 2px;
+}
+
+/* Folded: just the identity line and the altitude, so the map is usable while
+   an aircraft stays selected. */
+.detail-sheet.collapsed .sheet-ghost,
+.detail-sheet.collapsed .sheet-alert,
+.detail-sheet.collapsed .route-strip,
+.detail-sheet.collapsed .arrival,
+.detail-sheet.collapsed .sheet-actions,
+.detail-sheet.collapsed .sheet-grid,
+.detail-sheet.collapsed .sheet-photo,
+.detail-sheet.collapsed .sheet-note { display: none; }
+.detail-sheet.collapsed .sheet-head { padding-bottom: 4px; }
+.detail-sheet.collapsed .detail-body { padding-bottom: 8px; }
 
 /* route strip */
 .route-strip {
@@ -348,9 +384,10 @@ html, body {
 }
 .rs-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--accent); }
 .rs-plane {
-  position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(90deg);
-  font-size: .82rem; color: #fff; text-shadow: 0 0 6px rgba(0, 0, 0, .8);
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  line-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8));
 }
+.rs-plane svg { display: block; }
 .rs-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; }
 
 /* arrival: scheduled vs estimated */
@@ -370,6 +407,7 @@ html, body {
 .arr-delta.on { color: var(--ok); }
 .arr-delta.late { color: var(--warn); }
 .arr-delta.early { color: var(--accent); }
+.arr-delta.off { color: var(--muted); font-weight: 600; font-size: .68rem; text-align: center; }
 
 /* actions */
 .sheet-actions { display: flex; gap: 7px; margin: 12px 0; }
@@ -412,7 +450,10 @@ html, body {
     left: auto; right: 10px; bottom: 10px; width: 380px;
     border-radius: 16px; border: 1px solid var(--line);
   }
-  .list-sheet { top: calc(58px + var(--safe-t)); max-height: none; transform: none; }
+  /* Anchored to the bottom rather than stretched top-to-bottom, so the same
+     header tap that slides the sheet up on a phone folds it down here. */
+  .list-sheet { top: auto; max-height: min(68vh, 640px); transform: none; }
+  .list-sheet:not(.open) { max-height: 46px; }
   .list-sheet .grip { display: none; }
   .detail-sheet { top: auto; max-height: min(72vh, 720px); }
   /* One rail, one panel: the detail view replaces the list rather than

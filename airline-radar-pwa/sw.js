@@ -4,12 +4,12 @@
 // cell. Live data is deliberately never cached: an ADS-B position or a map tile
 // served from cache would be a lie about where an aircraft is.
 
-const CACHE_VERSION = 'airadar-v4';
+const CACHE_VERSION = 'airadar-v6';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=4',
-  './app.js?v=4',
+  './app.css?v=6',
+  './app.js?v=6',
   './manifest.json',
   './icon.svg',
   './modules/adsb.js',
@@ -20,6 +20,7 @@ const APP_SHELL = [
   './modules/panel.js',
   './modules/fmt.js',
   './modules/search.js',
+  './modules/runways.js',
   './modules/history.js',
   './modules/resume.js',
   './icons/icon-192.png',

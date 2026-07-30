@@ -87,18 +87,28 @@ export function dur(mins) {
 }
 
 /**
- * Parse a scheduled time handed to us as "HHMM"/"HH:MM" (UTC) into a timestamp
- * today, rolling to tomorrow if that would already be in the past — a roster
- * arrival of 0030 read at 2300 means half an hour from now, not 22½ hours ago.
+ * Parse a scheduled time given as "HHMM"/"HH:MM" (UTC) into a timestamp.
+ *
+ * A clock time carries no date, so the day has to be chosen — and it must be
+ * chosen against the *arrival*, not against the current moment. A flight
+ * landing at 0545Z tomorrow scheduled for 0930Z is 3h45 early on the right day
+ * and nonsense on any other; anchoring to "now" is what produced deltas of
+ * several hours. Whichever of yesterday/today/tomorrow lands nearest the
+ * anchor is the day meant, so the difference is always within ±12 h.
  */
-export function parseStaUtc(raw, now = Date.now()) {
+export function parseStaUtc(raw, anchor = Date.now()) {
   const m = /^(\d{1,2}):?(\d{2})$/.exec(String(raw || '').trim());
   if (!m) return 0;
   const h = Number(m[1]); const min = Number(m[2]);
   if (h > 23 || min > 59) return 0;
-  const d = new Date(now);
-  const ts = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, min, 0, 0);
-  return ts < now - 18 * 3600 * 1000 ? ts + 24 * 3600 * 1000 : ts;
+  const d = new Date(anchor);
+  const base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, min, 0, 0);
+  const DAY = 24 * 3600 * 1000;
+  let best = base;
+  for (const off of [-DAY, 0, DAY]) {
+    if (Math.abs(base + off - anchor) < Math.abs(best - anchor)) best = base + off;
+  }
+  return best;
 }
 
 export function clock(ts) {

@@ -11,11 +11,17 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
 
 - Every airliner within the map view, as a rotated symbol coloured by altitude
   (grey on the ground → cyan climbing → green → amber → pink at cruise levels).
-- Callsign + altitude labels, and a trail of where each aircraft has been since
-  the app opened.
+- Each symbol is labelled with its **tail number**, altitude underneath — the
+  registration names the aeroplane itself, which is what a crew recognises. The
+  callsign stays in the list and on the detail card.
+- A trail of where each aircraft has been since the app opened.
+- **Runways**, once you're zoomed in past z12: drawn to scale with centreline
+  markings, threshold numbers at the correct ends, and length in metres and
+  feet. Tap one for width, surface and lighting.
 - A live list of the flights in view, nearest first, with airline, route and
   aircraft type.
-- Tap any flight for the detail sheet: airline and flight number, origin →
+- Tap any flight for the detail sheet — headed by the **tail number**, with
+  flight level and vertical speed beneath it: airline and flight number, origin →
   destination with progress and minutes to run, altitude, ground speed, IAS and
   Mach, track, selected altitude, QNH, wind aloft, OAT, squawk, registration,
   Mode-S address and an airframe photo where one exists.
@@ -28,6 +34,20 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
   whole city pair. Follow re-centres four times a second, so it stands down the
   moment you take the wheel — dragging the map, or asking for your own position
   with the Me button, both cancel it.
+- Both panels **fold by dragging their top edge** up or down (or tapping it).
+  There's no fold button: the gesture is the affordance.
+
+## A card that doesn't move under your finger
+
+The aircraft card refreshes every five seconds, and the first version rebuilt
+its HTML each time. Rows for unknown values vanished and came back, the photo
+arrived late, and the whole thing reflowed — text moved while you were reading
+it and a tap could land on a button that had just shifted.
+
+Now the card's structure is built once per aircraft and only its values are
+patched in. The grid always carries the same fourteen rows in the same order,
+showing "—" for anything unknown, so nothing can change height. A photo that
+fails to load stays gone instead of returning on every refresh.
 
 ## Data sources — both keyless, both CORS-open
 
@@ -35,10 +55,43 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
 |---|---|---|
 | Live positions | `api.airplanes.live/v2/point/…` | The only free community ADS-B aggregator that sends `Access-Control-Allow-Origin: *`, so the page can fetch it directly. `adsb.lol` and `opendata.adsb.fi` serve identical JSON but no CORS header — usable only behind a proxy, which this suite doesn't need. |
 | Routes, airlines, airframes | `api.adsbdb.com/v0/…` | ADS-B carries no route: an aircraft broadcasts position and callsign, never its city pair. adsbdb maps callsign → airline + origin/destination, and hex/registration → type, owner and photo. |
+| Runways | `overpass-api.de` (OpenStreetMap) | `aeroway=runway` ways carry geometry, `ref`, `length`, `width` and `surface`. Keyless and CORS-open. The public mirrors are no use: `overpass.osm.ch` is a Switzerland-only extract, the others were unreachable — so a 504 gets two backed-off retries and otherwise degrades to no runways. |
 
 Politeness: one position request per 5-second refresh (the feed's guidance is
 max 1/s), and route lookups go through a single serial queue at ≤ 2/s, cached in
 `localStorage` so a callsign is asked about once, not once per refresh.
+
+## Live, DR, or no feed
+
+The badge in the corner says what the display is actually doing:
+
+- **Live** — positions are current, refreshed every 5 s.
+- **DR** — no new data has arrived, so the symbols are being *dead-reckoned*:
+  flown on from their last fix at their last known ground speed and track.
+  The picture keeps moving the right way through a dropped refresh or a lost
+  signal, which is what you want, but it is not a position report — hence the
+  name rather than a green "Live".
+- **No feed** — 90 seconds without data. Extrapolating further would be
+  invention, so the symbols stop where they were last actually known.
+
+## Runways
+
+Past zoom 12 the map draws the runways in view from OpenStreetMap. Two details
+that are easy to get wrong and matter:
+
+- **OSM splits a runway into several ways** wherever another runway or taxiway
+  crosses it. Drawn naively that yields a "77 m runway" label mid-strip and
+  threshold numbers repeated at every junction. Segments sharing a `ref` at the
+  same airport are merged into one runway: its ends are the furthest-apart
+  endpoints, and anything under 500 m is treated as a stub and skipped.
+- **Threshold numbers must land on the right ends.** Runway 08 is the one you
+  line up on heading ~080°, so its threshold is at the *west* end. The tagged
+  numbers are matched against the bearing along the geometry rather than
+  assumed in order. Verified against Ben Gurion: 03 south, 08 west, 12
+  north-west, with 4,062 m / 3,112 m / 2,772 m matching the published figures.
+
+Where a runway has no `ref`, the numbers are derived from its bearing and shown
+in italics to mark them as computed rather than surveyed.
 
 ## Arrival times: what is real and what isn't
 
@@ -49,6 +102,12 @@ different places, and the UI labels them so they can't be confused:
   divided by the speed the aircraft is doing right now. No descent profile, no
   arrival routing, no wind change — so it runs a few minutes optimistic, and it
   says where it came from rather than pretending to be an airline's estimate.
+A clock time carries no date, so the STA's day is chosen against the *estimated
+arrival*, not against the current moment — anchoring to "now" is what produced
+deltas of several hours. If the two are still more than six hours apart the
+scheduled time can't belong to this leg, and the card says so instead of
+printing a confident-looking nonsense figure.
+
 - **STA** is *not* available. ADS-B carries position and callsign, never a
   schedule, and there is no free keyless schedule feed (adsbdb has routes but no
   times; the schedule APIs all want a key). So the app never invents one: the

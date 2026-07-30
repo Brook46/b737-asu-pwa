@@ -25,6 +25,7 @@ const LOOKUP_DEBOUNCE_MS = 600;  // wait for typing to settle before a global lo
 const PREFETCH_PER_CYCLE = 6;    // route lookups started per refresh (≈3 s of queue)
 const GHOST_MAX_AGE_MS = 30 * 60 * 1000;  // how long a lost contact stays on the map
 const MAX_TOKENS = 6;            // searched aircraft at once — each is its own lookup
+const STALE_MS = 12000;          // beyond ~2 refreshes we're dead-reckoning, not live
 const VIEW_KEY = 'airadar.view';
 const PREFS_KEY = 'airadar.prefs';
 const AIRLINES_KEY = 'airadar.airlines';
@@ -45,8 +46,9 @@ const state = {
   pannedFor: '',         // query set we already moved the map for
   airlines: new Set(),   // operator codes to show; empty = all
   pickerQuery: '',
-  deepLink: null,        // {query, sta, staSource} — see readDeepLink()
+  deepLink: null,        // {queries, sta, staSource} — see readDeepLink()
   autoSelected: false,   // the deep-linked aircraft has been opened once
+  detailCollapsed: false,// the aircraft card is folded down to its header
   prefs: loadPrefs(),
 };
 
@@ -143,7 +145,7 @@ async function refresh(force = false) {
   if (!map || busy) return;
   if (!force && document.visibilityState !== 'visible') return;
   busy = true;
-  setLive('polling');
+  updateLiveBadge(true);
   try {
     const c = map.getCenter();
     const radius = radiusForMap(map);
@@ -181,11 +183,14 @@ async function refresh(force = false) {
     draw();
   } catch (err) {
     state.error = String(err && err.message ? err.message : err);
-    setLive('error');
-    showStatus(`Feed unavailable — ${state.error}`, true);
+    // Not necessarily broken — one dropped refresh just means the picture is
+    // being dead-reckoned for a few seconds. Only say so if it persists.
+    if (Date.now() - state.lastAt > radar.DR_MAX_MS) {
+      showStatus(`Feed unavailable — ${state.error}`, true);
+    }
   } finally {
     busy = false;
-    if (!state.error) setLive('live');
+    updateLiveBadge(false);
   }
 }
 
@@ -417,6 +422,7 @@ function draw() {
   $('#count').textContent = `${live === 1 ? '1 flight' : `${live} flights`}`
     + (ghosts ? ` · ${ghosts} last seen` : '');
   $('#stamp').textContent = state.lastAt ? fmt.clock(state.lastAt) : '';
+  if (!busy) updateLiveBadge(false);
   drawFilterChips();
 
   renderList($('#list-body'), list, {
@@ -453,10 +459,11 @@ function draw() {
   renderDetail(body, sel, route, state.selectedInfo, {
     following: radar.getFollow(),
     arrival: arrivalFor(sel, route),
+    onAction: (act) => onDetailAction(act, sel, route),
   });
   body.scrollTop = keep;
   sheet.classList.add('open');
-  wireDetailButtons(sel, route);
+  sheet.classList.toggle('collapsed', state.detailCollapsed);
   radar.drawRoute(sel, route);
 }
 
@@ -476,9 +483,13 @@ function arrivalFor(ac, route) {
     search.normReg(ac.reg) === search.normReg(search.parseQuery(single).reg || single)
     || ac.callsign === single.toUpperCase()
   );
-  const staAt = isLinked && dl.sta ? fmt.parseStaUtc(dl.sta) : 0;
+  // Anchor the scheduled clock time to the estimated arrival, so the two are
+  // being compared on the same day (see fmt.parseStaUtc).
+  const est = ac.ghost ? null : eta(ac, route);
+  const anchor = est && est.at ? est.at : Date.now();
+  const staAt = isLinked && dl.sta ? fmt.parseStaUtc(dl.sta, anchor) : 0;
   return {
-    eta: ac.ghost ? null : eta(ac, route),
+    eta: est,
     staAt,
     staSource: staAt ? (dl.staSource || 'roster') : '',
   };
@@ -508,23 +519,17 @@ function emptyMessage() {
   };
 }
 
-function wireDetailButtons(ac, route) {
-  const body = $('#detail-body');
-  const close = body.querySelector('.sheet-close');
-  if (close) close.addEventListener('click', () => select(null));
-  body.querySelectorAll('[data-act]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const act = btn.dataset.act;
-      if (act === 'follow') {
-        radar.setFollow(!radar.getFollow());
-        draw();
-      } else if (act === 'fit') {
-        radar.fitRoute(ac, route);
-      } else if (act === 'center') {
-        radar.panTo(ac.lat, ac.lon, Math.max(8, radar.getMap().getZoom()));
-      }
-    });
-  });
+function onDetailAction(act, ac, route) {
+  if (act === 'close') {
+    select(null);
+  } else if (act === 'follow') {
+    radar.setFollow(!radar.getFollow());
+    draw();
+  } else if (act === 'fit') {
+    radar.fitRoute(ac, route);
+  } else if (act === 'center') {
+    radar.panTo(ac.lat, ac.lon, Math.max(8, radar.getMap().getZoom()));
+  }
 }
 
 // ── selection ───────────────────────────────────────────────────────────────
@@ -552,14 +557,41 @@ function select(hex) {
 
 // ── chrome: sheets, toggles, status ─────────────────────────────────────────
 
+const LIVE_TEXT = { live: 'Live', polling: 'Updating', dr: 'DR', error: 'No feed' };
+const LIVE_TITLE = {
+  live: `Positions refresh every ${REFRESH_MS / 1000} seconds`,
+  polling: 'Fetching positions…',
+  dr: 'Dead reckoning — no new data, so aircraft are being flown on from their last fix',
+  error: 'No new positions. Symbols are frozen at their last known place.',
+};
+
 function setLive(mode) {
   const el = $('#live');
   el.dataset.mode = mode;
-  const text = mode === 'error' ? 'No feed' : (mode === 'polling' ? 'Updating' : 'Live');
-  el.querySelector('span').textContent = text;
-  el.title = mode === 'error'
-    ? 'The position feed is not answering'
-    : `Positions refresh every ${REFRESH_MS / 1000} seconds`;
+  el.querySelector('span').textContent = LIVE_TEXT[mode] || 'Live';
+  el.title = LIVE_TITLE[mode] || '';
+}
+
+/**
+ * Say what the display is actually doing.
+ *
+ * Between refreshes — and through a dropped one — the symbols keep flying on
+ * their last known track, which is dead reckoning, exactly as a crew would mean
+ * it. That is genuinely useful (the picture keeps moving the right way) and
+ * genuinely not a position report, so the badge says DR rather than Live for as
+ * long as it lasts, and No feed once the extrapolation has been given up.
+ */
+function updateLiveBadge(polling) {
+  if (!state.lastAt) { setLive(state.error ? 'error' : 'polling'); return; }
+  const age = Date.now() - state.lastAt;
+  // A fetch being in flight doesn't make the data fresh. If what's on screen is
+  // already extrapolated, keep saying DR rather than flashing "Updating" —
+  // otherwise the badge looks healthy for a moment every five seconds while
+  // the feed is down.
+  if (age > radar.DR_MAX_MS) { setLive('error'); return; }
+  if (age > STALE_MS) { setLive('dr'); return; }
+  if (polling) { setLive('polling'); return; }
+  setLive(state.error ? 'dr' : 'live');
 }
 
 // ── airline picker ──────────────────────────────────────────────────────────
@@ -667,6 +699,68 @@ function showStatus(msg, sticky) {
 
 function collapseList() { $('#list').classList.remove('open'); }
 
+/**
+ * Drag the top of a sheet up or down to open or fold it.
+ *
+ * The gesture is the affordance — a phone user reaches for the top edge of a
+ * card and pulls, and there's no button to hunt for. The sheet follows the
+ * finger while dragging and snaps on release; a short drag counts as a tap so
+ * the header still toggles.
+ *
+ * @param {HTMLElement} sheet     the sheet element
+ * @param {() => boolean} isOpen  current state
+ * @param {(v:boolean) => void} setOpen  apply the new state
+ */
+function installDragToFold(sheet, isOpen, setOpen) {
+  const SNAP_PX = 40;
+  let startY = 0;
+  let dy = 0;
+  let dragging = false;
+  let pointerId = null;
+
+  const grabbable = (target) => !!target.closest('.sheet-grip, .sheet-head, .list-head')
+    && !target.closest('button.sheet-close, button.act');
+
+  sheet.addEventListener('pointerdown', (e) => {
+    if (!grabbable(e.target)) return;
+    dragging = true;
+    pointerId = e.pointerId;
+    startY = e.clientY;
+    dy = 0;
+    sheet.style.transition = 'none';
+    try { sheet.setPointerCapture(pointerId); } catch { /* not fatal */ }
+  });
+
+  sheet.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== pointerId) return;
+    dy = e.clientY - startY;
+    // Only the direction that means something: down folds an open sheet, up
+    // opens a folded one. Resisting the other way keeps the gesture honest.
+    const allowed = isOpen() ? Math.max(0, dy) : Math.min(0, dy);
+    sheet.style.transform = `translateY(${allowed * 0.6}px)`;
+    if (Math.abs(dy) > 6) e.preventDefault();
+  });
+
+  const finish = (e) => {
+    if (!dragging || (e && e.pointerId !== pointerId)) return;
+    dragging = false;
+    try { sheet.releasePointerCapture(pointerId); } catch { /* ignore */ }
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (Math.abs(dy) >= SNAP_PX) {
+      setOpen(dy < 0);
+      // A drag ends with a click on the same element; without swallowing it the
+      // header's tap-to-toggle would immediately undo the drag.
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      sheet.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => sheet.removeEventListener('click', swallow, { capture: true }), 400);
+    }
+    dy = 0;
+  };
+  sheet.addEventListener('pointerup', finish);
+  sheet.addEventListener('pointercancel', finish);
+}
+
 function toggleChip(id, key, apply) {
   const btn = $(id);
   const set = (v) => {
@@ -713,7 +807,15 @@ function boot() {
   $('#airline-btn').addEventListener('click', () => togglePicker());
   $('#picker-close').addEventListener('click', () => togglePicker(false));
 
+  // The header is the fold handle: tap it, or drag it up and down.
   $('#list-head').addEventListener('click', () => $('#list').classList.toggle('open'));
+  if (window.matchMedia('(min-width: 820px)').matches) $('#list').classList.add('open');
+  installDragToFold($('#list'),
+    () => $('#list').classList.contains('open'),
+    (v) => $('#list').classList.toggle('open', v));
+  installDragToFold($('#detail'),
+    () => !state.detailCollapsed,
+    (v) => { state.detailCollapsed = !v; draw(); });
 
   $('#search').addEventListener('input', (e) => {
     if (e.target.value) $('#list').classList.add('open');

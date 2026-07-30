@@ -6,8 +6,7 @@
 // whatever the transponder and the database say it is, not something we trust.
 
 import * as fmt from './fmt.js';
-import { altColor } from './aircraft.js';
-import { familyOf } from './aircraft.js';
+import { altColor, familyOf, planeSvg } from './aircraft.js';
 import { routeLabel, progress, haversine, eta } from './routes.js';
 import { squawkAlert } from './adsb.js';
 
@@ -56,8 +55,101 @@ export function renderList(el, list, { selectedHex, routeFor, onPick, emptyMessa
 }
 
 /** The detail sheet for one flight. `route` / `info` may still be loading. */
-export function renderDetail(el, ac, route, info, { following, arrival }) {
-  if (!ac) { el.innerHTML = ''; return; }
+// Every row the card can ever show, in a fixed order. The set never changes
+// between refreshes — a value that isn't known reads "—" rather than removing
+// its row — because rows appearing and disappearing every five seconds is what
+// made the card jump under the reader's finger.
+const CELLS = [
+  ['type', 'Aircraft'],
+  ['reg', 'Registration'],
+  ['gs', 'Ground speed'],
+  ['ias', 'IAS / Mach'],
+  ['track', 'Track'],
+  ['alt', 'Altitude'],
+  ['navalt', 'Selected alt'],
+  ['qnh', 'QNH set'],
+  ['wind', 'Wind aloft'],
+  ['oat', 'OAT'],
+  ['squawk', 'Squawk'],
+  ['hex', 'Mode S'],
+  ['operator', 'Operator'],
+  ['seen', 'Position'],
+];
+
+let builtFor = '';   // hex the current skeleton belongs to
+
+/** The card's fixed structure. Built once per aircraft, then only filled in. */
+function skeleton() {
+  return `
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-alert" data-f="alert" hidden></div>
+    <div class="sheet-ghost" data-f="ghost" hidden></div>
+    <header class="sheet-head">
+      <div class="sheet-id">
+        <h2 data-f="callsign"></h2>
+        <p data-f="operator-line"></p>
+      </div>
+      <div class="sheet-alt">
+        <b data-f="tail"></b>
+        <span data-f="level"></span>
+      </div>
+      <button class="sheet-close" aria-label="Close">✕</button>
+    </header>
+
+    <div data-f="route-strip"></div>
+    <div data-f="arrival"></div>
+
+    <div class="sheet-actions">
+      <button class="act" data-act="follow" data-f="follow-btn">Follow</button>
+      <button class="act" data-act="fit">Show route</button>
+      <button class="act" data-act="center" data-f="center-btn">Centre</button>
+    </div>
+
+    <div class="sheet-grid">
+      ${CELLS.map(([k, label]) =>
+    `<div class="cellv"><span>${esc(label)}</span><b data-f="c-${k}">—</b></div>`).join('')}
+    </div>
+
+    <figure class="sheet-photo" data-f="photo" hidden>
+      <img alt="" loading="lazy" referrerpolicy="no-referrer">
+      <figcaption>Photo: airport-data.com</figcaption>
+    </figure>
+
+    <p class="sheet-note" data-f="note" hidden></p>`;
+}
+
+/**
+ * Draw or update the card for one aircraft.
+ *
+ * The structure is built once and then patched in place. Replacing innerHTML
+ * on every 5-second refresh reflowed the whole card — text you were reading
+ * moved, and a tap could land on a button that had just shifted.
+ */
+export function renderDetail(el, ac, route, info, { following, arrival, onAction }) {
+  if (!ac) { el.innerHTML = ''; builtFor = ''; return; }
+
+  if (builtFor !== ac.hex) {
+    el.innerHTML = skeleton();
+    builtFor = ac.hex;
+    // Wire once per skeleton, so listeners can't stack up across refreshes.
+    el.querySelectorAll('[data-act]').forEach((b) => {
+      b.addEventListener('click', () => onAction && onAction(b.dataset.act));
+    });
+    const close = el.querySelector('.sheet-close');
+    if (close) close.addEventListener('click', () => onAction && onAction('close'));
+    const img = el.querySelector('.sheet-photo img');
+    if (img) {
+      img.addEventListener('error', () => {
+        // Remember which URL failed: the next refresh patches the same src back
+        // in, and without this the broken-image icon returns every five seconds.
+        img.dataset.failed = img.getAttribute('src') || '';
+        el.querySelector('[data-f="photo"]').hidden = true;
+      });
+    }
+  }
+
+  const f = (name) => el.querySelector(`[data-f="${name}"]`);
+  const set = (name, text) => { const n = f(name); if (n && n.textContent !== text) n.textContent = text; };
 
   const airlineName = (route && route.airline && route.airline.name)
     || (ac.airline && ac.airline.name)
@@ -66,69 +158,75 @@ export function renderDetail(el, ac, route, info, { following, arrival }) {
   const iso = (route && route.airline && route.airline.countryIso)
     || (ac.airline && ac.airline.country) || '';
   const flightIata = route && route.iata ? route.iata : '';
+
+  set('callsign', ac.callsign || ac.reg || '');
+  set('operator-line', `${fmt.flag(iso)} ${airlineName}${flightIata ? ` · ${flightIata}` : ''}`.trim());
+
+  // The aeroplane's own name leads here too; the level sits under it.
+  set('tail', ac.reg || (info && info.reg) || ac.hex.toUpperCase());
+  set('level', ac.ghost
+    ? `${fmt.alt(ac.alt, ac.onGround)} · ${fmt.ago(ac.lastSeenAt)}`
+    : `${fmt.alt(ac.alt, ac.onGround)} · ${fmt.vs(ac.vs)}`);
+  const altBox = el.querySelector('.sheet-alt');
+  if (altBox) altBox.style.color = ac.ghost ? '#9aa6bd' : altColor(ac.alt);
+
   const alert = squawkAlert(ac.squawk) || (ac.emergency ? `Emergency: ${ac.emergency}` : '');
+  const alertEl = f('alert');
+  alertEl.hidden = !alert;
+  if (alert) set('alert', alert);
 
-  el.innerHTML = `
-    <div class="sheet-grip"></div>
-    ${alert ? `<div class="sheet-alert">${esc(alert)}</div>` : ''}
-    ${ac.ghost ? `<div class="sheet-ghost">
-      ${ac.wentDark
-    ? `Contact lost ${esc(fmt.ago(ac.lastSeenAt))}, airborne at ${esc(fmt.alt(ac.alt, ac.onGround))}.`
-    : `Not transmitting. Last seen ${esc(fmt.ago(ac.lastSeenAt))}.`}
-      <span>The symbol marks that last position — it is a memory, not a track.</span>
-    </div>` : ''}
-    <header class="sheet-head">
-      <div class="sheet-id">
-        <h2>${esc(ac.callsign || ac.reg)}</h2>
-        <p>${fmt.flag(iso)} ${esc(airlineName)}${flightIata ? ` · ${esc(flightIata)}` : ''}</p>
-      </div>
-      <div class="sheet-alt" style="color:${ac.ghost ? '#9aa6bd' : altColor(ac.alt)}">
-        <b>${esc(fmt.alt(ac.alt, ac.onGround))}</b>
-        <span>${ac.ghost ? esc(fmt.ago(ac.lastSeenAt)) : esc(fmt.vs(ac.vs))}</span>
-      </div>
-      <button class="sheet-close" aria-label="Close">✕</button>
-    </header>
+  const ghostEl = f('ghost');
+  ghostEl.hidden = !ac.ghost;
+  if (ac.ghost) {
+    ghostEl.innerHTML = `${ac.wentDark
+      ? `Contact lost ${esc(fmt.ago(ac.lastSeenAt))}, airborne at ${esc(fmt.alt(ac.alt, ac.onGround))}.`
+      : `Not transmitting. Last seen ${esc(fmt.ago(ac.lastSeenAt))}.`}
+      <span>The symbol marks that last position — it is a memory, not a track.</span>`;
+  }
 
-    ${routeStrip(ac, route, arrival)}
-    ${arrivalBlock(ac, arrival)}
+  // Route strip and arrival block are compact enough to re-render wholesale,
+  // and their height is fixed, so they can't shove anything around.
+  const rs = f('route-strip');
+  const rsHtml = routeStrip(ac, route, arrival);
+  if (rs.innerHTML !== rsHtml) rs.innerHTML = rsHtml;
+  const ar = f('arrival');
+  const arHtml = arrivalBlock(ac, arrival);
+  if (ar.innerHTML !== arHtml) ar.innerHTML = arHtml;
 
-    <div class="sheet-actions">
-      ${ac.ghost ? '' : `<button class="act ${following ? 'on' : ''}" data-act="follow">${following ? 'Following' : 'Follow'}</button>`}
-      <button class="act" data-act="fit">Show route</button>
-      <button class="act" data-act="center">${ac.ghost ? 'Go to last position' : 'Centre'}</button>
-    </div>
+  const followBtn = f('follow-btn');
+  followBtn.hidden = !!ac.ghost;
+  followBtn.textContent = following ? 'Following' : 'Follow';
+  followBtn.classList.toggle('on', !!following);
+  set('center-btn', ac.ghost ? 'Go to last position' : 'Centre');
 
-    <div class="sheet-grid">
-      ${cell('Aircraft', familyOf(ac.type, ac.desc || (info && info.type)) || '—')}
-      ${cell('Registration', ac.reg || (info && info.reg) || '—')}
-      ${cell('Ground speed', fmt.kt(ac.gs))}
-      ${cell('IAS / Mach', `${ac.ias ? Math.round(ac.ias) : '—'}${ac.mach ? ` / M${ac.mach.toFixed(2)}` : ''}`)}
-      ${cell('Track', fmt.deg(ac.track))}
-      ${cell('Altitude', fmt.feet(ac.alt))}
-      ${ac.nav_alt ? cell('Selected alt', fmt.feet(Math.round(ac.nav_alt / 100) * 100)) : ''}
-      ${ac.qnh ? cell('QNH set', `${ac.qnh.toFixed(1)} hPa`) : ''}
-      ${ac.wind ? cell('Wind aloft', `${fmt.deg(ac.wind.dir)} / ${Math.round(ac.wind.speed)} kt`) : ''}
-      ${ac.oat !== null ? cell('OAT', `${Math.round(ac.oat)} °C`) : ''}
-      ${cell('Squawk', ac.squawk || '—')}
-      ${cell('Mode S', ac.hex.toUpperCase())}
-      ${info && info.owner ? cell('Operator', info.owner) : ''}
-      ${cell('Position', fmt.age(ac.seen))}
-    </div>
+  set('c-type', familyOf(ac.type, ac.desc || (info && info.type)) || '—');
+  set('c-reg', ac.reg || (info && info.reg) || '—');
+  set('c-gs', fmt.kt(ac.gs));
+  set('c-ias', ac.ias || ac.mach
+    ? `${ac.ias ? Math.round(ac.ias) : '—'}${ac.mach ? ` / M${ac.mach.toFixed(2)}` : ''}`
+    : '—');
+  set('c-track', fmt.deg(ac.track));
+  set('c-alt', fmt.feet(ac.alt));
+  set('c-navalt', ac.nav_alt ? fmt.feet(Math.round(ac.nav_alt / 100) * 100) : '—');
+  set('c-qnh', ac.qnh ? `${ac.qnh.toFixed(1)} hPa` : '—');
+  set('c-wind', ac.wind ? `${fmt.deg(ac.wind.dir)} / ${Math.round(ac.wind.speed)} kt` : '—');
+  set('c-oat', ac.oat !== null && ac.oat !== undefined ? `${Math.round(ac.oat)} °C` : '—');
+  set('c-squawk', ac.squawk || '—');
+  set('c-hex', ac.hex.toUpperCase());
+  set('c-operator', (info && info.owner) || '—');
+  set('c-seen', fmt.age(ac.seen));
 
-    ${info && (info.photo || info.thumb) ? `<figure class="sheet-photo">
-      <img src="${esc(info.photo || info.thumb)}" alt="${esc(info.reg || ac.reg)}"
-           loading="lazy" referrerpolicy="no-referrer"
-           onerror="this.closest('figure').remove()">
-      <figcaption>Photo: airport-data.com</figcaption>
-    </figure>` : ''}
+  const photo = f('photo');
+  const src = info && (info.photo || info.thumb);
+  const img = photo.querySelector('img');
+  if (src && img.getAttribute('src') !== src) { img.src = src; img.alt = info.reg || ac.reg || ''; }
+  photo.hidden = !src || img.dataset.failed === src;
 
-    ${!route ? `<p class="sheet-note">No route on file for this callsign — adsbdb only
-      knows scheduled city pairs, so charters and repositioning flights show up blank.</p>` : ''}
-  `;
-}
-
-function cell(label, value) {
-  return `<div class="cellv"><span>${esc(label)}</span><b>${esc(value)}</b></div>`;
+  const note = f('note');
+  note.hidden = !!route;
+  if (!route) {
+    set('note', 'No route on file for this callsign — adsbdb only knows scheduled city pairs, so charters and repositioning flights show up blank.');
+  }
 }
 
 /**
@@ -193,7 +291,10 @@ function routeStrip(ac, route, arrival) {
     </div>
     <div class="rs-mid">
       <div class="rs-bar"><i style="width:${pct === null ? 0 : Math.round(pct * 100)}%"></i>
-        <span class="rs-plane" style="left:${pct === null ? 0 : Math.round(pct * 100)}%">✈</span></div>
+        <span class="rs-plane" style="left:${pct === null ? 0 : Math.round(pct * 100)}%">${
+  // Our own silhouette at track 090 — it points right, along the bar, towards
+  // the destination. The ✈ glyph was rotated per-font and pointed anywhere.
+  planeSvg({ color: '#ffffff', track: 90, scale: 0.52 })}</span></div>
       <div class="rs-meta">
         ${gone !== null ? `<span>${esc(fmt.nm(gone))} flown</span>` : '<span></span>'}
         ${Number.isFinite(mins) ? `<span>${esc(fmt.dur(mins))} to run</span>`
@@ -230,11 +331,18 @@ function arrivalBlock(ac, arrival) {
   if (etaAt && staAt) {
     const mins = Math.round((etaAt - staAt) / 60000);
     const late = mins > 0;
-    // fmt.dur rolls over into hours — "1h07 late" reads instantly, "67 min
-    // late" makes the reader do the arithmetic.
-    delta = Math.abs(mins) < 3
-      ? '<span class="arr-delta on">on schedule</span>'
-      : `<span class="arr-delta ${late ? 'late' : 'early'}">${esc(fmt.dur(Math.abs(mins)))} ${late ? 'late' : 'early'}</span>`;
+    if (Math.abs(mins) > 6 * 60) {
+      // Hours apart means the scheduled time isn't this leg's — a stale roster
+      // entry, or the tail flying a different sector. Saying "5h early" would
+      // be worse than saying nothing.
+      delta = '<span class="arr-delta off">schedule doesn\'t match this leg</span>';
+    } else {
+      // fmt.dur rolls over into hours — "1h07 late" reads instantly, "67 min
+      // late" makes the reader do the arithmetic.
+      delta = Math.abs(mins) < 3
+        ? '<span class="arr-delta on">on schedule</span>'
+        : `<span class="arr-delta ${late ? 'late' : 'early'}">${esc(fmt.dur(Math.abs(mins)))} ${late ? 'late' : 'early'}</span>`;
+    }
   }
 
   return `<div class="arrival">

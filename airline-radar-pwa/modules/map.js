@@ -14,6 +14,7 @@
 
 import { altColor, planeSvg, sizeFor } from './aircraft.js';
 import { alt as fmtAlt, ago as fmtAgo } from './fmt.js';
+import * as runways from './runways.js';
 
 const BASES = {
   Dark: () => L.tileLayer(
@@ -31,8 +32,14 @@ const TRAIL_MAX = 120;          // ~10 min of history at a 5 s refresh
 const DR_MS = 250;              // dead-reckoning tick
 const KT_TO_DEG_LAT = 1 / 60;   // 1 NM ≈ 1' of latitude
 
+// How long a symbol may be flown forward from its last fix. Long enough to
+// carry the picture across a dropped refresh or a lost signal, short enough
+// that nobody is looking at a confident-looking position that is minutes of
+// guesswork old.
+export const DR_MAX_MS = 90 * 1000;
+
 let map = null;
-let planeLayer = null, trailLayer = null, routeLayer = null;
+let planeLayer = null, trailLayer = null, routeLayer = null, runwayLayer = null;
 let markers = new Map();        // hex → {marker, state, fix}
 let trails = new Map();         // hex → [[lat,lon], …]
 let drTimer = null;
@@ -63,13 +70,15 @@ export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCa
   bases.Dark.addTo(map);
   L.control.layers(bases, {}, { position: 'bottomright', collapsed: true }).addTo(map);
 
+  // Runways sit under everything: they're scenery, not traffic.
+  runwayLayer = L.layerGroup().addTo(map);
   trailLayer = L.layerGroup().addTo(map);
   routeLayer = L.layerGroup().addTo(map);
   planeLayer = L.layerGroup().addTo(map);
 
   // Tapping empty map clears the selection — same gesture as closing the sheet.
   map.on('click', () => onSelect && onSelect(null));
-  map.on('moveend zoomend', () => { if (onMove) onMove(); });
+  map.on('moveend zoomend', () => { if (onMove) onMove(); refreshRunways(); });
 
   // Dragging the map is the user taking the wheel. Follow re-centres four times
   // a second, so leaving it on would drag the view straight back and make the
@@ -89,6 +98,7 @@ export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCa
   });
 
   startDeadReckoning();
+  refreshRunways();
   return map;
 }
 
@@ -123,9 +133,13 @@ function iconFor(ac, selected) {
     color, track: ac.track, scale: sizeFor(ac.type),
     selected, ground: ac.onGround, ghost: ac.ghost,
   });
+  // The tail number leads: it names the aeroplane itself, which is what a crew
+  // recognises. Flight level sits under it, and the callsign stays in the list
+  // and on the detail card.
+  const primary = ac.reg || ac.callsign || '';
   const second = ac.ghost ? `last seen ${ghostAge(ac)}` : fmtAlt(ac.alt, ac.onGround);
   const tag = showLabels
-    ? `<span class="plane-tag${selected ? ' sel' : ''}${ac.ghost ? ' ghost' : ''}">${ac.callsign || ac.reg}<b>${second}</b></span>`
+    ? `<span class="plane-tag${selected ? ' sel' : ''}${ac.ghost ? ' ghost' : ''}">${primary}<b>${second}</b></span>`
     : '';
   const size = Math.round(30 * sizeFor(ac.type));
   return L.divIcon({
@@ -139,7 +153,7 @@ function iconFor(ac, selected) {
 /** Cheap signature of everything that affects the drawn icon. */
 function sigOf(ac, selected) {
   const ghostBit = ac.ghost ? `g${ghostAge(ac)}` : '';
-  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.callsign}|${ghostBit}`;
+  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.reg || ac.callsign}|${ghostBit}`;
 }
 
 /**
@@ -239,8 +253,11 @@ function startDeadReckoning() {
     for (const [, rec] of markers) {
       const f = rec.fix;
       if (!f || f.ground || !f.gs || f.gs < 40 || !Number.isFinite(f.track)) continue;
-      const hrs = (Date.now() - f.at) / 3_600_000;
-      if (hrs > 0.02) continue;                 // stale fix — leave it where it is
+      const age = Date.now() - f.at;
+      // Past the DR limit the extrapolation stops: the symbol stays at the last
+      // place we actually knew about rather than flying on indefinitely.
+      if (age > DR_MAX_MS) continue;
+      const hrs = age / 3_600_000;
       const nmGone = f.gs * hrs;
       const rad = f.track * Math.PI / 180;
       const dLat = nmGone * Math.cos(rad) * KT_TO_DEG_LAT;
@@ -302,6 +319,106 @@ export function fitRoute(ac, route) {
   if (route && route.destination && Number.isFinite(route.destination.lat)) pts.push([route.destination.lat, route.destination.lon]);
   if (pts.length < 2) { map.setView(pts[0], Math.max(map.getZoom(), 8)); return; }
   map.fitBounds(L.latLngBounds(pts).pad(0.18), { animate: true });
+}
+
+// ── runways ─────────────────────────────────────────────────────────────────
+
+/**
+ * Draw the runways in view, once the map is close enough in for them to be
+ * more than a smudge. Each strip is drawn to scale with its threshold numbers
+ * at the correct ends and its length on the centreline.
+ */
+function drawRunways() {
+  if (!runwayLayer) return;
+  runwayLayer.clearLayers();
+  const z = map.getZoom();
+  if (z < runways.MIN_ZOOM) return;
+
+  const bounds = map.getBounds();
+  // Widen with zoom: a runway is ~45 m across, which is sub-pixel until you're
+  // well in, so below that it's drawn as a legible line rather than to scale.
+  const weight = Math.max(3, Math.min(16, (z - 10) * 2.4));
+  const showText = z >= 13;
+
+  for (const rw of runways.known()) {
+    if (rw.lengthM < runways.MIN_LENGTH_M) continue;   // stub or mapping artefact
+    if (!rw.coords.some((p) => bounds.contains(p))) continue;
+
+    // Draw the real geometry (every mapped segment), but label the runway once.
+    for (const part of rw.parts) {
+      L.polyline(part, {
+        color: '#0b1220', weight: weight + 3, opacity: 0.9, interactive: false, lineCap: 'butt',
+      }).addTo(runwayLayer);
+    }
+    let strip = null;
+    for (const part of rw.parts) {
+      strip = L.polyline(part, {
+        color: '#c7d0e0', weight, opacity: 0.92, lineCap: 'butt',
+      }).addTo(runwayLayer);
+      // Centreline dashes, once the strip is wide enough to hold them.
+      if (weight >= 7) {
+        L.polyline(part, {
+          color: '#0b1220', weight: 1.4, opacity: 0.65, dashArray: '9 11', interactive: false,
+        }).addTo(runwayLayer);
+      }
+    }
+    if (!strip) continue;
+
+    strip.bindPopup(`<b>${rw.ref || rw.thresholds.map((t) => t.name).join('/')}</b><br>
+      ${runways.lengthLabel(rw.lengthM)}${rw.lengthMeasured ? ' (measured)' : ''}
+      ${rw.widthM ? `<br>${rw.widthM} m wide` : ''}
+      ${rw.surface ? `<br>${rw.surface}` : ''}${rw.lit ? ' · lit' : ''}`);
+
+    if (!showText) continue;
+
+    for (const t of rw.thresholds) {
+      L.marker(t.at, {
+        interactive: false,
+        icon: L.divIcon({
+          className: 'rwy-icon',
+          html: `<span class="rwy-thr${t.derived ? ' derived' : ''}">${t.name}</span>`,
+          iconSize: [26, 16],
+          iconAnchor: [13, 8],
+        }),
+      }).addTo(runwayLayer);
+    }
+
+    // A third of the way along, not the middle: runways cross near their
+    // centres, and two length labels stacked on the intersection are unreadable.
+    const at = [
+      rw.coords[0][0] + (rw.coords[1][0] - rw.coords[0][0]) * 0.33,
+      rw.coords[0][1] + (rw.coords[1][1] - rw.coords[0][1]) * 0.33,
+    ];
+    L.marker(at, {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'rwy-icon',
+        html: `<span class="rwy-len">${runways.lengthLabel(rw.lengthM)}</span>`,
+        iconSize: [120, 14],
+        iconAnchor: [60, -8],
+      }),
+    }).addTo(runwayLayer);
+  }
+}
+
+let runwayRetry = null;
+
+/**
+ * Fetch (if this patch is new) and redraw. Failure is silent — runways are
+ * scenery, and Overpass is a shared free service that answers 504 when it's
+ * busy. One backed-off retry covers that without leaving a user who isn't
+ * moving the map staring at a runway-less airport.
+ */
+function refreshRunways(attempt = 0) {
+  clearTimeout(runwayRetry);
+  if (!map || map.getZoom() < runways.MIN_ZOOM) { if (runwayLayer) runwayLayer.clearLayers(); return; }
+  drawRunways();                       // paint what we already know immediately
+  runways.fetchIn(map.getBounds())
+    .then(() => drawRunways())
+    .catch(() => {
+      if (attempt >= 2) return;
+      runwayRetry = setTimeout(() => refreshRunways(attempt + 1), 9000 * (attempt + 1));
+    });
 }
 
 /** Frame several points at once — used when a search names more than one aircraft. */
