@@ -1,5 +1,5 @@
 // Service worker: offline-first, but self-healing rather than stubbornly stale.
-const VER = 'duty-cal-v16';
+const VER = 'duty-cal-v17';
 const CORE = [
   './',
   'index.html',

@@ -57,9 +57,7 @@ export function callsignOf(flightNo) {
 export function radarTarget(ev, now = Date.now()) {
   if (!ev || ev.kind !== 'flight') return null;
 
-  const legs = (ev.legList || [])
-    .map(l => ({ ...l, depMs: Date.parse(l.dep), arrMs: Date.parse(l.arr) }))
-    .filter(l => Number.isFinite(l.depMs) && Number.isFinite(l.arrMs) && callsignOf(l.no));
+  const legs = legsOf(ev);
   if (!legs.length) return null;
 
   const inWindow = l => now >= l.depMs - BEFORE_DEPARTURE && now <= l.arrMs + AFTER_ARRIVAL;
@@ -89,7 +87,7 @@ export function radarTarget(ev, now = Date.now()) {
   }
 
   const cs = callsignOf(chosen.no);
-  const route = `${chosen.from} → ${chosen.to}`;
+  const route = chosen.label || `${chosen.from} → ${chosen.to}`;
 
   if (live.length) {
     const phase = airborne ? 'airborne' : (chosen === upcoming ? 'upcoming' : 'landed');
@@ -122,10 +120,77 @@ export function radarTarget(ev, now = Date.now()) {
 /** Is this flight airborne right now? Used for the calendar-chip marker. */
 export function isAirborneNow(ev, now = Date.now()) {
   if (!ev || ev.kind !== 'flight') return false;
-  return (ev.legList || []).some(l => {
-    const dep = Date.parse(l.dep), arr = Date.parse(l.arr);
-    return Number.isFinite(dep) && Number.isFinite(arr) && now >= dep && now <= arr;
-  });
+  return legsOf(ev).some(l => now >= l.depMs && now <= l.arrMs);
+}
+
+/**
+ * Legs for an event, as {no, from, to, depMs, arrMs}.
+ *
+ * Rosters imported before legList existed still live in localStorage, and a
+ * feature that silently does nothing for them is worse than no feature. So
+ * fall back through what older events do carry, rather than making the user
+ * re-import a PDF they already loaded.
+ */
+function legsOf(ev) {
+  const structured = (ev.legList || [])
+    .map(l => ({ no: l.no, from: l.from, to: l.to, depMs: Date.parse(l.dep), arrMs: Date.parse(l.arr) }))
+    .filter(l => Number.isFinite(l.depMs) && Number.isFinite(l.arrMs) && callsignOf(l.no));
+  if (structured.length) return structured;
+
+  const fromLines = legsFromDetailLines(ev);
+  if (fromLines.length) return fromLines;
+
+  // Last resort: treat the whole session as one leg, using the first flight
+  // number and the ends of the printed route.
+  const no = (String(ev.details?.flights || '').match(/[A-Z]{2}\s*\d{1,4}/) || [])[0];
+  if (!no || !callsignOf(no)) return [];
+  const route = String(ev.details?.route || ev.title || '').trim();
+  const stops = route.split('→').map(s => s.trim());
+  return [{
+    no,
+    from: stops[0] || '',
+    to: stops[stops.length - 1] || '',
+    // One synthetic leg stands for the whole session, so "TLV → TLV" on a
+    // round trip would be true but useless. Carry the printed route instead.
+    label: route,
+    depMs: +ev.start,
+    arrMs: +ev.end,
+  }];
+}
+
+/**
+ * Rebuild legs from the human-readable summary the old parser stored, e.g.
+ *   "DH LY337  TLV 06:50 (loc) → AMS 11:05 (loc)"
+ * Only clock times were kept, so times are re-anchored to the event's own
+ * start and walked forward — each stamp must be at or after the previous one,
+ * which is what makes an overnight or multi-day trip come out right.
+ */
+function legsFromDetailLines(ev) {
+  const text = String(ev.details?.legs || '');
+  if (!text || !(ev.start instanceof Date)) return [];
+  const re = /(DH\s+)?([A-Z]{2}\s?\d{1,4})\s+([A-Z]{3})\s+(\d{1,2}:\d{2})(?:\s*\(loc\))?\s*→\s*([A-Z]{3})\s+(\d{1,2}:\d{2})/g;
+
+  const out = [];
+  let after = new Date(ev.start.getTime() - 60 * 1000);   // let the first dep equal ev.start
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const no = m[2].replace(/\s+/g, '');
+    if (!callsignOf(no)) continue;
+    const dep = atOrAfter(m[4], after);
+    const arr = atOrAfter(m[6], dep);
+    out.push({ no, from: m[3], to: m[5], depMs: +dep, arrMs: +arr });
+    after = arr;
+  }
+  return out;
+}
+
+/** The first moment at "HH:MM" that is not before `after`. */
+function atOrAfter(hhmm, after) {
+  const [h, min] = hhmm.split(':').map(Number);
+  const d = new Date(after);
+  d.setHours(h, min, 0, 0);
+  while (d < after) d.setDate(d.getDate() + 1);
+  return d;
 }
 
 function pad2(n) { return String(n).padStart(2, '0'); }
