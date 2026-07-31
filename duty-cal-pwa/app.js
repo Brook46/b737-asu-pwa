@@ -3,6 +3,7 @@ import { renderInto, rangeLabel, addDays, startOfWeek, startOfDay, isAllDay } fr
 import { eventToIcs, eventsToIcs, downloadIcs } from './ics.js';
 import { KINDS, SUBTYPES, LEGEND_GROUPS, groupOf, labelOf, defaultHiddenKinds } from './kinds.js';
 import { summarise, summaryTiles } from './summary.js';
+import { radarTarget } from './radar.js';
 
 // pdf.js
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
@@ -323,8 +324,33 @@ function openModal(ev) {
   }
   els.modalBody.innerHTML = rows.map(([k,v]) => `<div class="row"><span class="lbl">${k}</span><span>${escapeHtml(String(v))}</span></div>`).join('');
 
+  renderRadarLink(ev);
+
   els.modalNotes.value = state.notes[ev.id] || '';
   els.modal.hidden = false;
+}
+
+// Offer live tracking only while the aeroplane could actually be transmitting.
+// Outside that window the same flight number belongs to a different day's
+// aircraft, so a link would point at the wrong one.
+function renderRadarLink(ev) {
+  const box = document.getElementById('modal-radar');
+  if (!box) return;
+  const target = radarTarget(ev);
+  if (!target) { box.hidden = true; box.innerHTML = ''; return; }
+
+  box.innerHTML = '';
+  const a = document.createElement('a');
+  a.className = 'btn radar-btn';
+  a.href = target.href;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.textContent = `📡 ${target.label}`;
+  const note = document.createElement('span');
+  note.className = 'radar-note';
+  note.textContent = target.note;
+  box.append(a, note);
+  box.hidden = false;
 }
 function closeModal() {
   if (currentEvent && !els.modalView.hidden) {

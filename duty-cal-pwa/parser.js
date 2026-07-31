@@ -246,6 +246,17 @@ export function parseDutyPlan(rawText) {
           sub: `${first.depTime} → ${last.arrTime}`,
           sectors: computedLegs.filter(l => !l.deadhead).length,
           blockMinutes: null, // filled from [FT hh:mm] below
+          // Structured legs, so a consumer can pick the one that is actually
+          // airborne right now (see radar.js) rather than guessing from the
+          // human-readable summary in details.legs.
+          legList: computedLegs.map(l => ({
+            no: l.flightNo,
+            from: l.from,
+            to: l.to,
+            dep: l.start.toISOString(),
+            arr: l.end.toISOString(),
+            deadhead: l.deadhead,
+          })),
           details: {
             flights: flightNos,
             route: routeStr,
@@ -340,6 +351,7 @@ export function parseDutyPlan(rawText) {
     ev.rawCode = ev.rawCode ?? null;
     ev.allDay  = ev.allDay  ?? false;
     ev.sectors = ev.sectors ?? 0;
+    ev.legList = ev.legList ?? [];
     ev.blockMinutes = ev.blockMinutes ?? null;
     ev.dutyMinutes  = ev.dutyMinutes  ?? null;
     ev.dutyId  = ev.dutyId  ?? null;
@@ -404,6 +416,7 @@ function mergeFlightsByDuty(events) {
         sub: `${shortDayTime(first.start)} → ${shortDayTime(last.end)}`,
         sectors: session.reduce((s, f) => s + (f.sectors || 0), 0),
         blockMinutes: session.reduce((s, f) => s + (f.blockMinutes || 0), 0) || null,
+        legList: session.flatMap(f => f.legList || []),
         details: {
           flights: session.map(f => f.details.flights).filter(Boolean).join(' / '),
           route: routeStr,

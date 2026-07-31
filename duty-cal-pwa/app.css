@@ -185,6 +185,16 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 .modal-close { position: absolute; top: 6px; right: 8px; background: transparent; border: none; color: var(--ink); font-size: 28px; line-height: 1; cursor: pointer; padding: 4px 10px; }
 .modal-card h2 { margin: 0 0 4px; font-size: 18px; }
 .modal-when { font-size: 13px; margin-bottom: 10px; }
+
+/* Live-tracking handover to Airline Radar */
+.modal-radar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+.modal-radar[hidden] { display: none; }
+.radar-btn {
+  display: inline-flex; align-items: center; text-decoration: none;
+  background: #0e3a34; border-color: #14b8a6; color: #7ff0dd; font-weight: 600;
+}
+.radar-btn:hover { background: #12483f; }
+.radar-note { font-size: 12px; color: var(--muted); }
 .modal-body { font-size: 14px; }
 .modal-body .row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
 .modal-body .row:last-child { border-bottom: none; }
