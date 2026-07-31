@@ -340,6 +340,7 @@ function renderRadarLink(ev) {
   if (!target) { box.hidden = true; box.innerHTML = ''; return; }
 
   box.innerHTML = '';
+  box.classList.toggle('is-live', target.live);
   const a = document.createElement('a');
   a.className = 'btn radar-btn';
   a.href = target.href;

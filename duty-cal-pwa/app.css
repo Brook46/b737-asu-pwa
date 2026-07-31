@@ -189,12 +189,33 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 /* Live-tracking handover to Airline Radar */
 .modal-radar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
 .modal-radar[hidden] { display: none; }
+/* Muted by default: the callsign is real, but today's aircraft — not this leg. */
 .radar-btn {
   display: inline-flex; align-items: center; text-decoration: none;
-  background: #0e3a34; border-color: #14b8a6; color: #7ff0dd; font-weight: 600;
+  background: var(--panel-2); border-color: var(--line); color: var(--ink); font-weight: 600;
 }
-.radar-btn:hover { background: #12483f; }
+.radar-btn:hover { background: #232b35; }
 .radar-note { font-size: 12px; color: var(--muted); }
+
+/* Live: this really is the aeroplane on the roster line. */
+.modal-radar.is-live .radar-btn {
+  background: #0e3a34; border-color: #14b8a6; color: #7ff0dd;
+  box-shadow: 0 0 0 3px rgba(20,184,166,.15);
+}
+.modal-radar.is-live .radar-btn:hover { background: #12483f; }
+.modal-radar.is-live .radar-note { color: #7ff0dd; }
+
+/* Live marker on the calendar chip, so it's findable without opening a duty */
+.live-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #2dd4bf; margin-right: 5px; vertical-align: 1px;
+  box-shadow: 0 0 0 0 rgba(45,212,191,.7); animation: livePulse 1.8s ease-out infinite;
+}
+@keyframes livePulse {
+  70%  { box-shadow: 0 0 0 6px rgba(45,212,191,0); }
+  100% { box-shadow: 0 0 0 0 rgba(45,212,191,0); }
+}
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 .modal-body { font-size: 14px; }
 .modal-body .row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
 .modal-body .row:last-child { border-bottom: none; }

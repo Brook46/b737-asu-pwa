@@ -2,6 +2,7 @@
 // Emits 'event-click' CustomEvent on the container when an event chip is tapped.
 
 import { groupOf, badgeOf } from './kinds.js';
+import { isAirborneNow } from './radar.js';
 
 const DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -95,9 +96,13 @@ function renderMonth(container, anchor, events) {
         chip.appendChild(document.createTextNode(shortTitle(ev)));
       } else {
         const icon = isFirstDay ? iconFor(ev) : '';
-        chip.textContent = isFirstDay
+        const text = isFirstDay
           ? `${fmt(ev.start)} ${icon ? icon + ' ' : ''}${shortTitle(ev)}`
           : `↳ ${shortTitle(ev)}`;
+        // Month is the default view, so the airborne marker has to live here
+        // too — not only on the day/week timeline chips.
+        if (isAirborneNow(ev)) chip.appendChild(mkLiveDot());
+        chip.appendChild(document.createTextNode(text));
       }
       chip.title = `${ev.title} — ${ev.sub || ''}`;
       chip.addEventListener('click', e => { e.stopPropagation(); fire(container, ev); });
@@ -240,6 +245,13 @@ function mkBadge(text) {
   return b;
 }
 
+function mkLiveDot() {
+  const d = document.createElement('span');
+  d.className = 'live-dot';
+  d.title = 'Airborne now — tap to track';
+  return d;
+}
+
 function renderEventChip(ev, dayStart) {
   const node = document.createElement('div');
   const k = chipKind(ev.kind);
@@ -272,6 +284,8 @@ function renderEventChip(ev, dayStart) {
     const badge = badgeOf(ev);
     if (badge) title.appendChild(mkBadge(badge));
   }
+  // A flight in the air right now is worth spotting from the calendar itself.
+  if (isAirborneNow(ev)) title.appendChild(mkLiveDot());
   title.appendChild(document.createTextNode(icon ? `${icon}  ${ev.title}` : ev.title));
   const sub = document.createElement('div');
   sub.className = 'sub';

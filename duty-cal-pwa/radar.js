@@ -43,10 +43,16 @@ export function callsignOf(flightNo) {
 }
 
 /**
- * Decide whether — and with what — to open Airline Radar for this event.
+ * Build the Airline Radar hand-off for an event.
  *
- * @returns {{href, label, note, callsigns}|null} null when tracking would be
- *          misleading (not a flight, unknown airline, or outside the window).
+ * Always returns a link for a recognisable flight — an invisible feature is a
+ * feature nobody finds. What changes with time is the *promise* it makes:
+ * inside the live window the aeroplane on screen is this leg, outside it the
+ * same callsign belongs to another day's aircraft, and `live:false` says so
+ * plainly rather than hiding the link or quietly pointing at the wrong jet.
+ *
+ * @returns {{href, label, note, live, callsigns}|null}
+ *          null only when there is nothing sane to look up.
  */
 export function radarTarget(ev, now = Date.now()) {
   if (!ev || ev.kind !== 'flight') return null;
@@ -57,43 +63,78 @@ export function radarTarget(ev, now = Date.now()) {
   if (!legs.length) return null;
 
   const inWindow = l => now >= l.depMs - BEFORE_DEPARTURE && now <= l.arrMs + AFTER_ARRIVAL;
-
   const live = legs.filter(inWindow);
-  if (!live.length) return null;
 
-  // Which leg does the pilot mean right now? Airborne wins. Otherwise the next
-  // one to depart — during a turnaround the leg that just landed is still
-  // inside its tail window, and pointing at it would be looking backwards.
-  const airborne = live.find(l => now >= l.depMs && now <= l.arrMs);
-  const upcoming = live.filter(l => l.depMs > now).sort((a, b) => a.depMs - b.depMs)[0];
-  const landed   = live.filter(l => l.arrMs < now).sort((a, b) => b.arrMs - a.arrMs)[0];
-  const chosen = airborne || upcoming || landed;
-  const phase = airborne ? 'airborne' : (chosen === upcoming ? 'upcoming' : 'landed');
-  const callsigns = live.map(l => callsignOf(l.no));
+  // Which leg does the pilot mean? Airborne wins. Otherwise the next to depart
+  // — during a turnaround the leg that just landed is still inside its tail
+  // window, and pointing at it would be looking backwards.
+  const pool = live.length ? live : legs;
+  const airborne = pool.find(l => now >= l.depMs && now <= l.arrMs);
+  const upcoming = pool.filter(l => l.depMs > now).sort((a, b) => a.depMs - b.depMs)[0];
+  const landed   = pool.filter(l => l.arrMs < now).sort((a, b) => b.arrMs - a.arrMs)[0];
+  const chosen = airborne || upcoming || landed || pool[0];
+  const callsigns = pool.map(l => callsignOf(l.no));
 
   const params = new URLSearchParams({ flight: callsigns.join(',') });
 
   // Hand over the scheduled arrival: keyless ADS-B carries no schedule, so the
   // roster's STA is the only one Airline Radar can show. Roster times are
   // local at the event airport; only a TLV arrival is reliably in the phone's
-  // own timezone, so that is the only one we convert and send.
-  if (chosen.to === 'TLV') {
+  // own timezone, so that is the only one we convert and send. Meaningless
+  // once we are outside the window — it would describe a different day.
+  if (live.length && chosen.to === 'TLV') {
     const arr = new Date(chosen.arrMs);
     params.set('sta', `${pad2(arr.getUTCHours())}:${pad2(arr.getUTCMinutes())}`);
     params.set('from', 'roster');
   }
 
-  const label = `Track ${callsignOf(chosen.no)}${phase === 'airborne' ? ' live' : ''}`;
+  const cs = callsignOf(chosen.no);
   const route = `${chosen.from} → ${chosen.to}`;
-  const note = phase === 'airborne' ? `${route}, airborne now`
-             : phase === 'upcoming' ? `${route}, departs ${clock(chosen.depMs)}`
-             : `${route}, landed ${clock(chosen.arrMs)}`;
 
-  return { href: RADAR_URL + '?' + params.toString(), label, note, callsigns };
+  if (live.length) {
+    const phase = airborne ? 'airborne' : (chosen === upcoming ? 'upcoming' : 'landed');
+    return {
+      href: RADAR_URL + '?' + params.toString(),
+      label: `Track ${cs}${phase === 'airborne' ? ' live' : ''}`,
+      note: phase === 'airborne' ? `${route} · airborne now`
+          : phase === 'upcoming' ? `${route} · departs ${clock(chosen.depMs)}`
+          : `${route} · landed ${clock(chosen.arrMs)}`,
+      live: true,
+      callsigns,
+    };
+  }
+
+  // Outside the window. Still useful — the same flight number runs most days,
+  // so this shows how the route is running today — but say that outright.
+  const days = Math.round((startOfDay(chosen.depMs) - startOfDay(now)) / (24 * HOUR));
+  const when = days === 0 ? 'later today'
+             : days > 0   ? `in ${days} day${days === 1 ? '' : 's'}`
+             : `${-days} day${days === -1 ? '' : 's'} ago`;
+  return {
+    href: RADAR_URL + '?' + params.toString(),
+    label: `Look up ${cs}`,
+    note: `${route} · ${when} — radar shows today's ${cs}`,
+    live: false,
+    callsigns,
+  };
+}
+
+/** Is this flight airborne right now? Used for the calendar-chip marker. */
+export function isAirborneNow(ev, now = Date.now()) {
+  if (!ev || ev.kind !== 'flight') return false;
+  return (ev.legList || []).some(l => {
+    const dep = Date.parse(l.dep), arr = Date.parse(l.arr);
+    return Number.isFinite(dep) && Number.isFinite(arr) && now >= dep && now <= arr;
+  });
 }
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function clock(ms) {
   const d = new Date(ms);
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function startOfDay(ms) {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
