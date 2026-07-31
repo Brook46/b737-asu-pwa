@@ -57,6 +57,8 @@ const els = {
   editTimesRow: document.getElementById('edit-times-row'),
   legend: document.getElementById('legend'),
   summary: document.getElementById('summary'),
+  refreshBtn: document.getElementById('refresh-btn'),
+  appVersion: document.getElementById('app-version'),
 };
 
 let currentEvent = null;
@@ -239,8 +241,9 @@ function render() {
   for (const b of els.viewBtns) {
     b.classList.toggle('active', b.dataset.view === state.view);
   }
-  // Subhead: pilot name (if known)
-  const sub = document.getElementById('subhead');
+  // Subhead: pilot name (if known). The build version sits beside it and is
+  // written separately by showVersion().
+  const sub = document.getElementById('subhead-name');
   if (sub) sub.textContent = state.period?.name ? state.period.name : '';
   renderSummary();
   saveUi();
@@ -690,6 +693,87 @@ function showBusy(on) {
   if (el) el.hidden = !on;
 }
 
+// --- Updates -------------------------------------------------------------
+// A plain reload does NOT get you new code: the service worker answers from
+// cache, so the app can sit on an old build indefinitely. This asks the worker
+// to re-check, activates any new build, and — if the worker itself is wedged
+// on a stale script — clears the caches and starts clean.
+
+const shortVer = v => String(v || '').replace('duty-cal-', '');
+
+/** Version of the worker currently controlling this page. */
+function runningVersion(timeout = 1500) {
+  return new Promise(resolve => {
+    const sw = navigator.serviceWorker?.controller;
+    if (!sw) return resolve(null);
+    const ch = new MessageChannel();
+    const t = setTimeout(() => resolve(null), timeout);
+    ch.port1.onmessage = e => { clearTimeout(t); resolve(e.data?.version || null); };
+    try { sw.postMessage({ type: 'GET_VERSION' }, [ch.port2]); }
+    catch { clearTimeout(t); resolve(null); }
+  });
+}
+
+/** Version sitting on the server right now, read past every cache. */
+async function deployedVersion() {
+  try {
+    const res = await fetch('sw.js', { cache: 'no-store' });
+    const txt = await res.text();
+    return (/const VER\s*=\s*['"]([^'"]+)['"]/.exec(txt) || [])[1] || null;
+  } catch { return null; }
+}
+
+async function showVersion() {
+  if (!els.appVersion) return;
+  const v = await runningVersion();
+  els.appVersion.textContent = v ? shortVer(v) : 'no offline cache';
+}
+
+let updating = false;
+async function checkForUpdate() {
+  if (updating) return;
+  if (!('serviceWorker' in navigator)) { location.reload(); return; }
+  updating = true;
+  els.refreshBtn?.classList.add('spinning');
+  toast('Checking for updates…');
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { location.reload(); return; }
+
+    await reg.update();                       // re-fetch sw.js from the network
+    const pending = reg.waiting || reg.installing;
+    if (pending) {
+      toast('New version found — updating…');
+      pending.postMessage({ type: 'SKIP_WAITING' });
+      // controllerchange (in the resume-hardening block below) reloads once the
+      // new worker takes over; this is only a safety net if it never fires.
+      setTimeout(() => location.reload(), 3000);
+      return;
+    }
+
+    // No new worker appeared. That can still mean we're stale — a cached sw.js
+    // makes update() a no-op — so compare running against deployed directly.
+    const [running, deployed] = await Promise.all([runningVersion(), deployedVersion()]);
+    if (running && deployed && running !== deployed) {
+      toast('Clearing stale cache…');
+      for (const k of await caches.keys()) await caches.delete(k);
+      await reg.unregister();
+      setTimeout(() => location.reload(), 300);
+      return;
+    }
+    toast(`Up to date · ${shortVer(running || deployed) || 'current'}`);
+    showVersion();
+  } catch (err) {
+    console.error(err);
+    toast('Update check failed — ' + err.message, 3500);
+  } finally {
+    updating = false;
+    els.refreshBtn?.classList.remove('spinning');
+  }
+}
+
+els.refreshBtn?.addEventListener('click', checkForUpdate);
+
 // --- Keyboard shortcuts ---
 document.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
@@ -730,6 +814,9 @@ render();
 // Service worker (best-effort)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Show the running build once a worker is controlling the page.
+  navigator.serviceWorker.ready.then(showVersion).catch(() => {});
+  if (navigator.serviceWorker.controller) showVersion();
 }
 
 // --- PWA resume hardening (ported from flight-card Phases 10–12) ---------

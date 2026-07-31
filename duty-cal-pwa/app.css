@@ -247,6 +247,13 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 
 .muted { color: var(--muted); }
 
+/* Running build + update control */
+.version-chip { font-variant-numeric: tabular-nums; letter-spacing: .3px; opacity: .75; }
+/* Separator only when a pilot name is present before it */
+#subhead-name:not(:empty) + .version-chip::before { content: ' · '; }
+#refresh-btn { font-size: 16px; line-height: 1; padding: 7px 11px; }
+#refresh-btn.spinning { animation: spin 0.9s linear infinite; pointer-events: none; opacity: .7; }
+
 /* ------- Month summary (FTL / duty counters) ------- */
 .summary {
   display: flex; gap: 8px; padding: 10px 14px;

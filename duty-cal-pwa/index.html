@@ -17,7 +17,9 @@
   <header class="topbar">
     <div class="brand-block">
       <div class="brand">Duty Calendar</div>
-      <div id="subhead" class="subhead muted"></div>
+      <div class="subhead muted">
+        <span id="subhead-name"></span><span id="app-version" class="version-chip"></span>
+      </div>
     </div>
     <div class="topbar-actions">
       <label class="file-btn" title="Load duty-plan PDF">
@@ -26,6 +28,7 @@
       </label>
       <button id="add-event-btn" class="btn" title="Add a new event">＋ Add</button>
       <button id="export-all-btn" class="btn" title="Export the current view to .ics">⤒ Export</button>
+      <button id="refresh-btn" class="btn" title="Check for a new version" aria-label="Check for updates">↻</button>
     </div>
   </header>
 
@@ -68,6 +71,7 @@
 
   <!-- Category filters — generated from LEGEND_GROUPS in kinds.js -->
   <div class="legend" id="legend" role="group" aria-label="Toggle event categories"></div>
+
 
   <!-- Event details / edit modal -->
   <div id="modal" class="modal" hidden>
