@@ -1,5 +1,5 @@
 // Service worker: offline-first, but self-healing rather than stubbornly stale.
-const VER = 'duty-cal-v17';
+const VER = 'duty-cal-v18';
 const CORE = [
   './',
   'index.html',
@@ -52,6 +52,9 @@ self.addEventListener('fetch', e => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // cross-origin: straight to network
+  // Never serve the worker script from cache — the page reads it to find out
+  // whether a newer build exists, and a cached answer makes that check lie.
+  if (url.pathname.endsWith('/sw.js')) return;
 
   e.respondWith((async () => {
     const cache = await caches.open(VER);

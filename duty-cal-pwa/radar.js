@@ -58,7 +58,18 @@ export function radarTarget(ev, now = Date.now()) {
   if (!ev || ev.kind !== 'flight') return null;
 
   const legs = legsOf(ev);
-  if (!legs.length) return null;
+  // Nothing recognisable to look up — still offer the app rather than showing
+  // nothing, because a silently missing control is indistinguishable from a
+  // broken one.
+  if (!legs.length) {
+    return {
+      href: RADAR_URL,
+      label: 'Open Airline Radar',
+      note: 'No flight number on this duty — search there by tail or callsign',
+      live: false,
+      callsigns: [],
+    };
+  }
 
   const inWindow = l => now >= l.depMs - BEFORE_DEPARTURE && now <= l.arrMs + AFTER_ARRIVAL;
   const live = legs.filter(inWindow);
@@ -140,10 +151,12 @@ function legsOf(ev) {
   const fromLines = legsFromDetailLines(ev);
   if (fromLines.length) return fromLines;
 
-  // Last resort: treat the whole session as one leg, using the first flight
-  // number and the ends of the printed route.
-  const no = (String(ev.details?.flights || '').match(/[A-Z]{2}\s*\d{1,4}/) || [])[0];
-  if (!no || !callsignOf(no)) return [];
+  // Last resort: treat the whole session as one leg. Scan every string the
+  // event carries for a flight number rather than trusting one field name —
+  // details has changed shape across versions and a roster imported months
+  // ago must not lose the link over it.
+  const no = anyFlightNumber(ev);
+  if (!no) return [];
   const route = String(ev.details?.route || ev.title || '').trim();
   const stops = route.split('→').map(s => s.trim());
   return [{
@@ -182,6 +195,29 @@ function legsFromDetailLines(ev) {
     after = arr;
   }
   return out;
+}
+
+/**
+ * Any recognisable flight number anywhere on the event — title, sub, or any
+ * string in details, whatever that object happened to look like when this
+ * roster was imported.
+ */
+function anyFlightNumber(ev) {
+  const pool = [ev.title, ev.sub];
+  const d = ev.details;
+  if (d && typeof d === 'object') {
+    for (const v of Object.values(d)) if (typeof v === 'string') pool.push(v);
+  }
+  for (const s of pool) {
+    if (!s) continue;
+    const re = /\b([A-Z]{2})\s?(\d{1,4})\b/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      const cand = m[1] + m[2];
+      if (callsignOf(cand)) return cand;
+    }
+  }
+  return null;
 }
 
 /** The first moment at "HH:MM" that is not before `after`. */

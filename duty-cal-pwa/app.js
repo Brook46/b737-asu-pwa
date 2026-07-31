@@ -714,10 +714,17 @@ function runningVersion(timeout = 1500) {
   });
 }
 
-/** Version sitting on the server right now, read past every cache. */
+/**
+ * Version sitting on the server right now.
+ *
+ * The unique query string matters: a plain fetch('sw.js') is intercepted by
+ * the service worker and answered from its own cache, so it would report the
+ * version we already have and never detect being behind. cache:'no-store'
+ * alone does not help — that governs the HTTP cache, not the worker.
+ */
 async function deployedVersion() {
   try {
-    const res = await fetch('sw.js', { cache: 'no-store' });
+    const res = await fetch(`sw.js?_=${Date.now()}`, { cache: 'no-store' });
     const txt = await res.text();
     return (/const VER\s*=\s*['"]([^'"]+)['"]/.exec(txt) || [])[1] || null;
   } catch { return null; }
@@ -773,6 +780,38 @@ async function checkForUpdate() {
 }
 
 els.refreshBtn?.addEventListener('click', checkForUpdate);
+
+/**
+ * Tell the user when the app is behind, instead of relying on them to go
+ * looking. iOS keeps a home-screen PWA's worker alive for a long time, so
+ * without this a device can sit on an old build indefinitely and every fix
+ * looks like it never shipped.
+ */
+async function announceUpdateIfBehind() {
+  if (!('serviceWorker' in navigator) || !navigator.onLine) return;
+  try {
+    const [running, deployed] = await Promise.all([runningVersion(), deployedVersion()]);
+    // The worker can update itself between boots, so re-paint the chip from
+    // what is actually running — a stale version label is worse than none.
+    if (els.appVersion && running) els.appVersion.textContent = shortVer(running);
+    if (!running || !deployed || running === deployed) {
+      document.getElementById('update-bar')?.setAttribute('hidden', '');
+      return;
+    }
+    const bar = document.getElementById('update-bar');
+    if (!bar) return;
+    bar.querySelector('.update-text').textContent =
+      `Update available — ${shortVer(running)} → ${shortVer(deployed)}`;
+    bar.hidden = false;
+    bar.querySelector('button').onclick = checkForUpdate;
+  } catch { /* offline or blocked — nothing to announce */ }
+}
+
+// Check on boot and whenever the app is brought back to the foreground.
+setTimeout(announceUpdateIfBehind, 1200);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') setTimeout(announceUpdateIfBehind, 500);
+});
 
 // --- Keyboard shortcuts ---
 document.addEventListener('keydown', e => {

@@ -47,6 +47,12 @@
   <!-- FTL / duty counters for the visible month (month view only) -->
   <div id="summary" class="summary" hidden aria-label="Month totals"></div>
 
+  <!-- Shown automatically when the running build is behind what's deployed -->
+  <div id="update-bar" class="update-bar" role="status" hidden>
+    <span class="update-text"></span>
+    <button type="button" class="btn primary">Update now</button>
+  </div>
+
   <div id="busy" class="busy" hidden><div class="spinner"></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

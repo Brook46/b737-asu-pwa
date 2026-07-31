@@ -247,6 +247,15 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); fo
 
 .muted { color: var(--muted); }
 
+/* "You are behind" bar — deliberately loud; a missed update reads as a bug */
+.update-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; background: #10312b; border-bottom: 1px solid #14b8a6;
+  color: #7ff0dd; font-size: 13px; font-weight: 600;
+}
+.update-bar[hidden] { display: none; }
+.update-bar .btn { margin-left: auto; }
+
 /* Running build + update control */
 .version-chip { font-variant-numeric: tabular-nums; letter-spacing: .3px; opacity: .75; }
 /* Separator only when a pilot name is present before it */
