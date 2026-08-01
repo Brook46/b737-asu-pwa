@@ -128,6 +128,40 @@ export function radarTarget(ev, now = Date.now()) {
   };
 }
 
+/**
+ * Absolute tracking URL for an exported calendar event.
+ *
+ * Two things differ from the in-app link, both because an .ics is read
+ * somewhere else, later:
+ *
+ *  - It is absolute. A relative path means nothing once the event is sitting
+ *    in Apple or Google Calendar.
+ *  - It is not gated on the live window. The whole point is that you open the
+ *    calendar entry on the day of the flight, which is exactly when the
+ *    callsign is live — gating on export time would strip the link from every
+ *    future duty, i.e. all of them.
+ */
+export function radarExportUrl(ev) {
+  if (!ev || ev.kind !== 'flight') return null;
+  const legs = legsOf(ev);
+  const callsigns = [...new Set(legs.map(l => callsignOf(l.no)).filter(Boolean))];
+  if (!callsigns.length) return null;
+
+  const params = new URLSearchParams({ flight: callsigns.join(',') });
+  const last = legs[legs.length - 1];
+  if (last && last.to === 'TLV' && Number.isFinite(last.arrMs)) {
+    const arr = new Date(last.arrMs);
+    params.set('sta', `${pad2(arr.getUTCHours())}:${pad2(arr.getUTCMinutes())}`);
+    params.set('from', 'roster');
+  }
+  return absoluteRadarBase() + '?' + params.toString();
+}
+
+function absoluteRadarBase() {
+  try { return new URL(RADAR_URL, location.href).href; }
+  catch { return RADAR_URL; }
+}
+
 /** Is this flight airborne right now? Used for the calendar-chip marker. */
 export function isAirborneNow(ev, now = Date.now()) {
   if (!ev || ev.kind !== 'flight') return false;

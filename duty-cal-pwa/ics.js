@@ -3,6 +3,7 @@
 // the calendar app at the same wall-clock time you saw in the PDF.
 
 import { KINDS, labelOf } from './kinds.js';
+import { radarExportUrl } from './radar.js';
 
 function pad(n) { return String(n).padStart(2,'0'); }
 function fmt(d) {
@@ -35,9 +36,23 @@ function wrapCal(veventBlocks) {
     'VERSION:2.0',
     'PRODID:-//duty-cal-pwa//EN',
     'CALSCALE:GREGORIAN',
-    ...veventBlocks,
+    ...veventBlocks.flat(),
     'END:VCALENDAR',
-  ].join('\r\n');
+  ].map(fold).join('\r\n');
+}
+
+/**
+ * RFC5545 content lines are limited to 75 octets; longer ones must be folded
+ * onto continuation lines starting with a space. Tracking URLs push
+ * DESCRIPTION well past that, and some calendar importers do reject over-long
+ * lines. Folding is done on code points so an emoji is never split in half.
+ */
+function fold(line) {
+  const chars = Array.from(line);
+  if (chars.length <= 72) return line;
+  const parts = [chars.slice(0, 72).join('')];
+  for (let i = 72; i < chars.length; i += 71) parts.push(' ' + chars.slice(i, i + 71).join(''));
+  return parts.join('\r\n');
 }
 
 function vevent(ev, note) {
@@ -47,16 +62,24 @@ function vevent(ev, note) {
   const when = isAllDayEvent(ev)
     ? [`DTSTART;VALUE=DATE:${fmtDate(ev.start)}`, `DTEND;VALUE=DATE:${fmtDate(ev.end)}`]
     : [`DTSTART:${fmt(ev.start)}`, `DTEND:${fmt(ev.end)}`];
+
+  // Flights carry a live-tracking link. URL: is what Apple and Google surface
+  // as a tappable link on the event; the copy in DESCRIPTION is the fallback
+  // for clients that ignore URL, and is what makes it visible in a shared
+  // invite or a printed agenda.
+  const track = radarExportUrl(ev);
+
   return [
     'BEGIN:VEVENT',
     `UID:${ev.id}@duty-cal-pwa`,
     `DTSTAMP:${dt}`,
     ...when,
     `SUMMARY:${esc(prettyTitle(ev))}`,
-    `DESCRIPTION:${esc(buildDescription(ev, note))}`,
+    `DESCRIPTION:${esc(buildDescription(ev, note, track))}`,
+    ...(track ? [`URL;VALUE=URI:${track}`] : []),
     `CATEGORIES:${esc((KINDS[ev.kind]?.label || 'Duty').toUpperCase())}`,
     'END:VEVENT',
-  ].join('\r\n');
+  ];
 }
 
 const TITLE_ICONS = {
@@ -73,19 +96,28 @@ function prettyTitle(ev) {
   return icon ? `${icon} ${base}` : base;
 }
 
-function buildDescription(ev, note) {
+const DETAIL_LABELS = {
+  flights: 'Flights', route: 'Route', legs: 'Legs', flightTime: 'Block time',
+  airport: 'Pickup at', station: 'Station', roster: 'Roster code',
+  restPeriod: 'Rest period', readyTime: 'Ready by', note: 'Note', from: 'From',
+};
+
+function buildDescription(ev, note, track) {
   const lines = [labelOf(ev)];
   const d = ev.details || {};
   for (const [k, v] of Object.entries(d)) {
     if (v == null || v === '') continue;
-    lines.push(`${k}: ${v}`);
+    lines.push(`${DETAIL_LABELS[k] || k}: ${v}`);
   }
+  if (track) { lines.push(''); lines.push(`Track live: ${track}`); }
   if (note) { lines.push(''); lines.push('Notes:'); lines.push(note); }
   return lines.join('\n');
 }
 
 export function downloadIcs(filename, ics) {
-  const blob = new Blob([ics], { type: 'text/calendar' });
+  // Declare the charset: summaries carry → and emoji, and some importers
+  // assume Latin-1 without it and mangle them.
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
