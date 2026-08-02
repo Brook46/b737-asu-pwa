@@ -18,11 +18,13 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=8">
+  <link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
-  <!-- The map is the app -->
+  <!-- The map is the app. The 3D canvas mounts into its own container on
+       demand, so its ~1 MB of WebGL libraries never load unless asked for. -->
   <div id="map" class="map"></div>
+  <div id="map3d" class="map map3d" hidden></div>
 
   <!-- Floating header: brand, search, live state -->
   <header class="topbar">
@@ -78,6 +80,12 @@
       </svg>
       <b>Ground</b>
     </button>
+    <button id="view3d-btn" class="tool-btn" aria-pressed="false" title="Switch between the flat map and the 3D view">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l8 4.5-8 4.5-8-4.5z"/><path d="M4 12l8 4.5 8-4.5"/><path d="M4 16.5L12 21l8-4.5"/>
+      </svg>
+      <b>3D</b>
+    </button>
     <button id="locate-btn" class="tool-btn" title="Centre the map on me">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
         <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.3" fill="currentColor" stroke="none"/>
@@ -115,6 +123,6 @@
     <div id="detail-body" class="detail-body"></div>
   </section>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>

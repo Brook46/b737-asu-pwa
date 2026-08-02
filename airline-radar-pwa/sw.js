@@ -4,12 +4,12 @@
 // cell. Live data is deliberately never cached: an ADS-B position or a map tile
 // served from cache would be a lie about where an aircraft is.
 
-const CACHE_VERSION = 'airadar-v8';
+const CACHE_VERSION = 'airadar-v9';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=8',
-  './app.js?v=8',
+  './app.css?v=9',
+  './app.js?v=9',
   './manifest.json',
   './icon.svg',
   './modules/adsb.js',
@@ -21,6 +21,7 @@ const APP_SHELL = [
   './modules/fmt.js',
   './modules/search.js',
   './modules/runways.js',
+  './modules/map3d.js',
   './modules/history.js',
   './modules/resume.js',
   './icons/icon-192.png',
@@ -56,7 +57,7 @@ self.addEventListener('fetch', (event) => {
   if (/airplanes\.live|adsbdb\.com|basemaps\.cartocdn\.com|arcgisonline\.com|airport-data\.com|tile/i.test(url.href)) return;
 
   // Leaflet from the CDN: cache-first after the first load.
-  if (/unpkg\.com\/leaflet/i.test(url.href)) {
+  if (/unpkg\.com\/(leaflet|maplibre-gl|deck\.gl)/i.test(url.href)) {
     event.respondWith(
       caches.open(CACHE_VERSION).then(async (cache) => {
         const cached = await cache.match(req);

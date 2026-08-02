@@ -8,9 +8,10 @@
 // Everything else in here is state plumbing: selection, filters, view
 // persistence and the two bottom sheets.
 
-import { fetchArea, fetchOne, radiusForMap, normalise, MAX_RADIUS_NM } from './modules/adsb.js';
+import { fetchArea, fetchOne, radiusForMap, radiusForZoom, normalise, MAX_RADIUS_NM } from './modules/adsb.js';
 import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airlines.js';
 import * as radar from './modules/map.js';
+import * as sky from './modules/map3d.js';
 import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js';
 import { renderList, renderDetail, renderAirlines } from './modules/panel.js';
 import { LEGEND, altColor as altColorOf, sizeClass, classLine } from './modules/aircraft.js';
@@ -51,6 +52,7 @@ const state = {
   deepLink: null,        // {queries, sta, staSource} — see readDeepLink()
   autoSelected: false,   // the deep-linked aircraft has been opened once
   detailCollapsed: false,// the aircraft card is folded down to its header
+  view3d: false,         // the 3D canvas is the active view
   prefs: loadPrefs(),
 };
 
@@ -161,8 +163,10 @@ async function refresh(force = false) {
   busy = true;
   updateLiveBadge(true);
   try {
-    const c = map.getCenter();
-    const radius = radiusForMap(map);
+    // Whichever view is on screen decides the patch of sky we ask about.
+    const v3 = state.view3d && sky.isOpen() ? sky.getView() : null;
+    const c = v3 ? { lat: v3.lat, lng: v3.lon } : map.getCenter();
+    const radius = v3 ? radiusForZoom(v3.zoom) : radiusForMap(map);
     const { aircraft, at, clipped } = await fetchArea(c.lat, c.lng, radius);
 
     const out = [];
@@ -472,6 +476,10 @@ const SMALL_KINDS = new Set(['light', 'heli', 'bizjet']);
 
 /** Is the map wide enough that small aircraft are just noise? */
 function decluttering() {
+  if (state.view3d && sky.isOpen()) {
+    const v = sky.getView();
+    return !!v && v.zoom < DECLUTTER_ZOOM;
+  }
   const map = radar.getMap();
   return !!map && map.getZoom() < DECLUTTER_ZOOM;
 }
@@ -547,6 +555,7 @@ function visible() {
 function draw() {
   const list = visible();
   radar.render(list, state.selectedHex);
+  if (state.view3d && sky.isOpen()) sky.setTraffic(list, state.selectedHex);
 
   const live = list.filter((a) => !a.ghost).length;
   const ghosts = list.length - live;
@@ -596,6 +605,7 @@ function draw() {
   sheet.classList.add('open');
   sheet.classList.toggle('collapsed', state.detailCollapsed);
   radar.drawRoute(sel, route);
+  if (state.view3d && sky.isOpen()) sky.setRoute(sel, route, radar.trackFor(sel.hex));
 }
 
 /**
@@ -856,6 +866,77 @@ function showStatus(msg, sticky) {
 function collapseList() { $('#list').classList.remove('open'); }
 
 /**
+ * Switch between the flat map and the 3D view.
+ *
+ * The two share a centre and zoom, and both drive the same selection — the 3D
+ * view is a different way of looking at the same state, not a separate app. It
+ * mounts on first use (that's when its libraries download) and stays mounted
+ * after that, so flipping back and forth is instant.
+ */
+async function toggle3D(on) {
+  const want = on === undefined ? !state.view3d : on;
+  const btn = $('#view3d-btn');
+
+  if (!want) {
+    state.view3d = false;
+    // Hand the camera back: whatever you were looking at in 3D is what the
+    // flat map should show.
+    const v = sky.getView();
+    $('#map3d').hidden = true;
+    $('#map').hidden = false;
+    btn.setAttribute('aria-pressed', 'false');
+    if (v) radar.panTo(v.lat, v.lon, Math.round(v.zoom));
+    radar.getMap().invalidateSize({ animate: false });
+    return;
+  }
+
+  if (!sky.hasWebGL()) {
+    showStatus('This device has no usable WebGL, so the 3D view can’t start.', true);
+    return;
+  }
+
+  btn.setAttribute('aria-pressed', 'true');
+  $('#map3d').hidden = false;
+  $('#map').hidden = true;
+  state.view3d = true;
+
+  if (!sky.isOpen()) {
+    showStatus('Loading the 3D view…');
+    try {
+      const m = radar.getMap();
+      const c = m.getCenter();
+      await sky.open('map3d', {
+        center: { lat: c.lat, lon: c.lng },
+        zoom: m.getZoom(),
+        onSelect: (hex) => select(hex),
+      });
+      // Moving the 3D camera asks the feed about the new patch of sky, exactly
+      // as panning the flat map does.
+      sky.getMap().on('moveend', () => {
+        if (!state.view3d) return;
+        clearTimeout(moveTimer);
+        moveTimer = setTimeout(() => refresh(true), MOVE_DEBOUNCE_MS);
+      });
+      $('#status').classList.add('hidden');
+    } catch (err) {
+      state.view3d = false;
+      $('#map3d').hidden = true;
+      $('#map').hidden = false;
+      btn.setAttribute('aria-pressed', 'false');
+      showStatus(String(err && err.message ? err.message : err), true);
+      return;
+    }
+  } else {
+    const m = radar.getMap();
+    const c = m.getCenter();
+    sky.resize();
+    sky.flyTo(c.lat, c.lng, m.getZoom());
+  }
+
+  draw();
+}
+
+/**
  * Drag the top of a sheet up or down to open or fold it.
  *
  * The gesture is the affordance — a phone user reaches for the top edge of a
@@ -963,6 +1044,7 @@ function boot() {
   toggleChip('#ghosts-btn', 'ghosts', () => draw());
 
   $('#airline-btn').addEventListener('click', () => togglePicker());
+  $('#view3d-btn').addEventListener('click', () => toggle3D());
   $('#picker-close').addEventListener('click', () => togglePicker(false));
 
   // The header is the fold handle: tap it, or drag it up and down.

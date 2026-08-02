@@ -61,6 +61,16 @@ export function radiusForMap(map) {
 }
 
 /**
+ * The same question from a zoom level alone, for the 3D view — a tilted camera
+ * has no rectangular "bounds" to measure, so the radius comes from the scale.
+ * At z8 a phone screen spans roughly 150 NM, and each zoom level halves it.
+ */
+export function radiusForZoom(zoom) {
+  const z = Number.isFinite(zoom) ? zoom : 8;
+  return Math.max(10, Math.min(MAX_RADIUS_NM, Math.round(150 * (2 ** (8 - z)))));
+}
+
+/**
  * One snapshot of the sky around a point.
  * @param {number} lat @param {number} lon
  * @param {number} radiusNm  clamped to the API's 250 NM ceiling

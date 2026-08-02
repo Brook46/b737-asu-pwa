@@ -136,6 +136,37 @@ light aircraft: an A350 whose transponder omitted the flight number is still an
 airliner, and putting it under "light & private" is the kind of small lie that
 makes the whole display untrustworthy.
 
+## 3D view
+
+The **3D** button swaps the flat map for a tilted terrain view with the traffic
+flying above it. Same stack as Thermal Debrief and for the same reasons:
+MapLibre GL JS is the keyless fork of Mapbox GL JS and does real 3D terrain from
+any raster-DEM source, AWS's open Terrain Tiles give global 90 m elevation with
+no token, and deck.gl rides *interleaved* in MapLibre's WebGL context so
+geometry is depth-tested against the terrain mesh.
+
+- **Aircraft sit at their real altitude, 1:1**, each with a thin line down to
+  the ground. The drop line is what makes height readable; exaggerating altitude
+  would put the aeroplane over terrain it isn't actually above.
+- The selected flight's **flown track is drawn in three dimensions**, so a climb
+  or a descent is visible as a climb or a descent — which is the thing a flat
+  track fundamentally can't show.
+- Symbols keep their size class and silhouette, laid flat in the horizontal
+  plane so heading still reads as heading; labels stay billboarded upright.
+- Tapping an aircraft selects it, exactly as on the flat map — the two views
+  share one selection, one search and one camera position.
+
+**The libraries load on demand**, the first time 3D is asked for. They are about
+a megabyte between them, and the point of the Leaflet map is that this app
+starts instantly on any device — so nobody pays for 3D until they want it. After
+that, flipping between the two views is instant. No WebGL, or a CDN that won't
+load, and the app says so and stays in 2D.
+
+One CSS trap worth knowing: MapLibre's stylesheet arrives at runtime, *after*
+`app.css`, and its `.maplibregl-map { position: relative }` beats a plain `.map`
+rule on source order — which collapses the container to zero height and renders
+a black screen. The container is addressed by id (`#map3d.map3d`) so it wins.
+
 ## The flown track
 
 Selecting an aircraft draws the path it actually flew — every position report,

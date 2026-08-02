@@ -517,3 +517,21 @@ html, body {
   display: block; font-style: normal; color: var(--muted);
   font-size: .62rem; font-weight: 500; letter-spacing: .02em;
 }
+
+/* The 3D canvas sits in the same box as the flat map; only one is ever shown.
+   Addressed by id on purpose: MapLibre's stylesheet loads at runtime, after
+   this one, and its `.maplibregl-map { position: relative }` beats a plain
+   `.map` rule on source order — which collapses the container to zero height
+   and renders a black screen. An id always wins that fight. */
+#map3d.map3d { position: fixed; inset: 0; z-index: 1; }
+.map3d .maplibregl-ctrl-bottom-right { margin-bottom: calc(64px + var(--safe-b)); }
+.map3d .maplibregl-ctrl-attrib {
+  background: rgba(7, 11, 20, .72) !important;
+  color: var(--muted) !important; font-size: 10px !important;
+}
+.map3d .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
+.map3d .maplibregl-ctrl-group {
+  background: var(--glass) !important; border: 1px solid var(--line) !important;
+}
+.map3d .maplibregl-ctrl-group button + button { border-top-color: var(--line) !important; }
+.map3d .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg) brightness(1.1); }

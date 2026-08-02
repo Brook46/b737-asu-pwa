@@ -224,6 +224,38 @@ function podMarks(cls, stroke) {
        fill="${stroke}" opacity=".75"/>`).join('');
 }
 
+/**
+ * The bare silhouette as a standalone white-on-transparent SVG, for the 3D
+ * view's icon atlas. White because deck.gl tints a masked icon by its own
+ * colour — the same altitude colour the 2D map uses, applied per aircraft.
+ */
+export function silhouetteSvg(key) {
+  const white = '#ffffff';
+  if (key === 'heli') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+      <path d="M16 8 c1.6 0 2.6 1.6 2.6 4.2 l0 7.4 3.2 3.2 0 1.8 -5.8 -1.4 -5.8 1.4 0 -1.8 3.2 -3.2 0 -7.4 c0 -2.6 1 -4.2 2.6 -4.2 z" fill="${white}"/>
+      <g stroke="${white}" stroke-width="1.8" stroke-linecap="round">
+        <line x1="5" y1="5" x2="27" y2="27"/><line x1="27" y1="5" x2="5" y2="27"/>
+      </g></svg>`;
+  }
+  const d = SHAPES[key] || SHAPES.airline;
+  const pods = (PODS[key] || []).map(([x, y]) =>
+    `<rect x="${x - 1.05}" y="${y - 1.5}" width="2.1" height="3.6" rx="1" fill="${white}"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+    <path d="${d}" fill="${white}"/>${pods}</svg>`;
+}
+
+/** Every silhouette the 3D atlas needs, in a fixed order. */
+export const SILHOUETTE_KEYS = ['super', 'heavy', 'airline', 'regional', 'military', 'bizjet', 'light', 'heli'];
+
+/** Which silhouette an aircraft uses — shared by the 2D map and the 3D atlas. */
+export function silhouetteKey(kind, type, category) {
+  if (kind === 'heli') return 'heli';
+  if (kind && kind !== 'airline') return SILHOUETTE_KEYS.includes(kind) ? kind : 'airline';
+  const cls = sizeClass(type, category);
+  return SHAPES[cls] ? cls : 'airline';
+}
+
 export function planeSvg({ color, track, scale = 1, selected = false, ground = false, ghost = false, kind = 'airline', cls = '' }) {
   const w = Math.round(30 * scale);
   const rot = Number.isFinite(track) ? track : 0;
