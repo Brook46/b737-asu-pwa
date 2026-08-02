@@ -1,0 +1,490 @@
+:root {
+  --night-top: #0e122e;
+  --night-bot: #241247;
+  --ink: #fff4e0;
+  --accent: #ffcf5c;
+  --glass: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.hidden { display: none !important; }
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--night-top);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---------- layout shell ---------- */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+.brand { font-size: 17px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+.icon-btn {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  backdrop-filter: blur(6px);
+}
+
+#screens { position: fixed; inset: 0; }
+.screen {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.screen.active { display: flex; }
+
+.bottom-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding-bottom: var(--safe-bottom);
+  display: flex;
+  background: rgba(10, 12, 30, 0.75);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--glass-border);
+  z-index: 20;
+}
+.nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 0 8px;
+  opacity: 0.55;
+}
+.nav-tab.active { opacity: 1; }
+.nav-icon { font-size: 26px; }
+.nav-label { font-size: 12px; font-weight: 600; }
+
+/* ---------- Explore screen: orrery ---------- */
+#explore-screen {
+  background: radial-gradient(ellipse at center, var(--night-bot) 0%, var(--night-top) 70%);
+  touch-action: none; /* pinch-to-zoom is handled ourselves in orbits.js */
+}
+.orrery {
+  position: relative;
+  width: 1px; height: 1px; /* the rings size themselves; this is just the rotation origin */
+  transform-origin: center center;
+}
+.body-btn.sun-btn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: 0 0 46px 14px rgba(255, 207, 92, 0.55);
+  z-index: 5;
+}
+.orbit-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.orbit-spin {
+  position: absolute; inset: 0;
+  /* transform (rotate) is set per-frame in orbits.js from the planet's real
+     ecliptic longitude on the selected date — not a CSS animation. */
+}
+/* orbit-counter sits at the ring's edge (top:0 of the already-full-size orbit-spin)
+   and spins the opposite way around ITS OWN small center. That's the trick: rotating
+   a full-ring-sized box the opposite way would cancel the orbit-spin's translation
+   too (net identity, planet frozen in place) — rotating this small edge-positioned
+   box only cancels the *orientation* it inherited, leaving the translation intact. */
+.orbit-counter {
+  position: absolute;
+  top: 0; left: 50%;
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+}
+/* While paused, a manual date jump eases smoothly into place. While playing, every
+   frame already sets a fresh transform, so a transition would just add lag. */
+.orrery:not(.playing) .orbit-spin,
+.orrery:not(.playing) .orbit-counter,
+.orrery:not(.playing) .sphere-shade {
+  transition: transform 0.6s ease;
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.body-btn {
+  position: relative;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+/* Visual size stays true to catalog.js (small planets must look small, or the
+   spacing math in catalog.js's computeOrbitRadii() no longer holds and circles
+   overlap) — but the actual tap target still expands invisibly to 44px so small
+   planets stay easy to hit. --size-px is set inline per body in orbits.js. */
+.body-btn::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * max(0px, (44px - var(--size-px, 44px)) / 2));
+}
+/* Earth's atmosphere: a soft blue rim glow that marks it out as the one planet
+   with air and oceans. box-shadow (not filter/glow-on-frame) so it isn't cut
+   off by .planet-frame's own overflow:hidden. */
+.body-btn[data-id="earth"] {
+  box-shadow: 0 0 6px 1px rgba(110, 190, 255, 0.55);
+}
+/* Clips the spinning texture (and the shading layers riding on top of it) to the
+   circle — body-btn itself can't have overflow:hidden, since the Saturn ring and
+   the Earth's mini-moon are its OTHER children and need to render outside it. */
+.planet-frame {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+/* Self-rotation, not orbit motion: same seamless-loop trick as the card's
+   #spin-texture (200%-wide strip, background-size 50% 100%, translateX -50%
+   loops back to an identical frame) so every orrery planet visibly turns on its
+   own axis. Speed/direction (spinSec/reverse) come from catalog.js per planet. */
+.planet-texture {
+  position: absolute; inset: 0;
+  width: 200%; height: 100%;
+  background-repeat: repeat-x;
+  background-size: 50% 100%;
+  animation-name: spin-tex;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.orrery:not(.playing) .planet-texture { animation-play-state: paused; }
+/* Roundness cue that holds regardless of Sun direction: a soft all-around rim. */
+.sphere-vignette {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(0,0,0,0.4) 100%);
+}
+/* Day/night terminator + sunward highlight. Local "down" (+y, pre-rotation) = the
+   side facing the Sun — orbits.js rotates this by the planet's own orbital angle
+   so that direction always points at the real Sun on screen. */
+.sphere-shade {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 78%, rgba(255,255,255,0.32), transparent 50%),
+    linear-gradient(to top, rgba(0,0,0,0) 22%, rgba(6,4,16,0.88) 100%);
+}
+/* Saturn's ring, shared by the orrery icon and the card. A single flat image
+   would just sit on top of the planet like a bar; splitting it into a back half
+   (painted before the opaque .planet-frame, so the frame naturally occludes it)
+   and a front half (painted after everything) is what makes it read as actually
+   wrapping AROUND the sphere. Sized as a percentage of the OWN parent box (the
+   body-btn / spin-wrap, i.e. the planet's own circle) so the same rule works at
+   any size — orrery icon or full card — with no per-instance JS math. Matches
+   the generated PNG's own aspect ratio (480:170) so background-size:contain
+   doesn't need to letterbox. See catalog.js RING_PAD for why this specific
+   288%/102% sizing also has to be accounted for in orbit spacing. */
+.ring-layer {
+  position: absolute;
+  width: 288%; height: 102%;
+  left: 50%; top: 50%;
+  background-image: url('icons/textures/saturn-ring.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-14deg);
+}
+.ring-layer.ring-back { clip-path: inset(0 0 50% 0); }
+.ring-layer.ring-front { clip-path: inset(50% 0 0 0); }
+/* At 8px there's no room for a real .planet-frame/.sphere-shade rig — an inset
+   box-shadow is the cheap trick that still reads as a lit 3D ball this small. */
+.mini-moon {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background-image: url('icons/textures/moon.jpg');
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset -2.5px -2px 2px rgba(0, 0, 0, 0.7), inset 1px 1px 1.5px rgba(255, 255, 255, 0.35);
+  top: -11px; left: 50%;
+  margin-left: -4px;
+  animation: spin 3.2s linear infinite;
+  transform-origin: 4px 21px;
+}
+.orrery:not(.playing) .mini-moon { animation-play-state: paused; }
+
+.starfield {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.galaxy {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(38px);
+  opacity: 0.55;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: galaxy-drift ease-in-out infinite alternate;
+}
+.galaxy-a {
+  width: 260px; height: 180px;
+  top: 6%; left: -8%;
+  background: radial-gradient(circle at 40% 40%, rgba(255,150,220,0.55), rgba(120,60,200,0.25) 55%, transparent 75%);
+  animation-duration: 46s;
+}
+.galaxy-b {
+  width: 220px; height: 220px;
+  bottom: 8%; right: -10%;
+  background: radial-gradient(circle at 60% 40%, rgba(120,190,255,0.5), rgba(60,80,200,0.2) 55%, transparent 75%);
+  animation-duration: 55s;
+  animation-delay: -12s;
+}
+.galaxy-c {
+  width: 180px; height: 140px;
+  top: 58%; left: 62%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,210,140,0.4), rgba(200,100,60,0.15) 55%, transparent 75%);
+  animation-duration: 60s;
+  animation-delay: -30s;
+}
+@keyframes galaxy-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(18px, -14px) scale(1.08); }
+}
+
+.explore-controls {
+  position: absolute;
+  left: 12px; right: 12px;
+  bottom: calc(var(--safe-bottom) + 82px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(10, 12, 30, 0.55);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+}
+.ctrl-btn {
+  flex: 0 0 auto;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+}
+.ctrl-btn.text-btn {
+  width: auto;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+.date-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 38px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color-scheme: dark;
+}
+.zoom-group {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- planet card ---------- */
+.planet-card {
+  position: fixed; inset: 0;
+  z-index: 40;
+  background: rgba(6, 8, 22, 0.94);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+.card-close {
+  position: absolute;
+  top: calc(var(--safe-top) + 14px);
+  right: 16px;
+}
+.spin-wrap {
+  position: relative;
+  width: min(52vw, 220px);
+  height: min(52vw, 220px);
+}
+.spin-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.08), inset 0 0 30px rgba(0,0,0,0.4);
+}
+/* Same atmosphere glow as the orrery Earth icon, layered on top of the card's
+   own glow/shadow rather than replacing it. */
+.planet-card.is-earth .spin-frame {
+  box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.08), inset 0 0 30px rgba(0,0,0,0.4), 0 0 46px 10px rgba(110, 190, 255, 0.5);
+}
+.spin-texture {
+  position: absolute; inset: 0;
+  width: 200%; height: 100%;
+  background-repeat: repeat-x;
+  background-size: 50% 100%;
+  animation: spin-tex 9s linear infinite;
+}
+@keyframes spin-tex { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+/* Fixed "studio light from the left" for the card close-up — there's no orbit
+   angle here to compute a real Sun direction from. .sphere-shade's local
+   convention is "lit toward +y (down)"; rotating 90deg turns that into "lit
+   toward -x (left)", matching the reference photo's Sun-on-the-left lighting. */
+.card-shade { transform: rotate(90deg); }
+.moon-phase-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.08);
+  /* Softens the algorithmically-drawn terminator/limb edges just enough that
+     they read as a real photographed sphere instead of a vector cutout. */
+  filter: blur(0.6px);
+}
+.card-name { font-size: 28px; margin: 0; }
+.card-fact { font-size: 17px; line-height: 1.5; max-width: 320px; margin: 0; opacity: 0.9; }
+.card-safety { font-size: 15px; color: #ffb0a0; margin: 0; max-width: 320px; }
+.card-nav { display: flex; gap: 28px; margin-top: 8px; }
+.nav-btn {
+  width: 56px; height: 56px;
+  font-size: 22px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+}
+
+/* ---------- Sky screen ---------- */
+#sky-screen {
+  background: linear-gradient(to bottom, #060814 0%, #131a3a 55%, #1c2350 100%);
+}
+.sky-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+.wide-btn {
+  padding: 18px 30px;
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #2a1c00;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(255, 207, 92, 0.35);
+}
+.sky-gate-note { font-size: 14px; opacity: 0.7; max-width: 260px; }
+
+.sky-view { position: absolute; inset: 0; touch-action: none; }
+.const-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.const-line {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 4;
+}
+
+.sky-markers, .sky-arrows { position: absolute; inset: 0; }
+.sky-marker {
+  position: absolute;
+  top: 0; left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: none;
+}
+.marker-glyph { display: block; filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
+.marker-label {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0,0,0,0.4);
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.sky-marker-body { width: 56px; }
+.sky-marker-body .marker-glyph { font-size: 34px; }
+.sky-marker-star { width: 40px; }
+.sky-marker-star .marker-glyph { font-size: 14px; }
+.sky-marker-star .marker-label { display: none; }
+.sky-marker.found .marker-glyph { animation: found-pop 0.9s ease-out; }
+@keyframes found-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.6) rotate(-8deg); }
+  60% { transform: scale(1.3) rotate(8deg); }
+  100% { transform: scale(1); }
+}
+
+.sky-arrow {
+  position: absolute;
+  top: 0; left: 0;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.arrow-chevron { position: absolute; font-size: 26px; opacity: 0.85; }
+
+.reticle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 26px; height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.sky-daynote {
+  position: absolute;
+  left: 16px; right: 16px;
+  bottom: calc(var(--safe-bottom) + 84px);
+  background: rgba(0,0,0,0.5);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 15px;
+  text-align: center;
+}

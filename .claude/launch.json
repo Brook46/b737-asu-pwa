@@ -129,6 +129,16 @@
         "/Users/alonbrookstein/Claude AS/flight-card-pwa"
       ],
       "port": 8096
+    },
+    {
+      "name": "Sky Club",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8199",
+        "/Users/alonbrookstein/Claude AS/sky-club-pwa"
+      ],
+      "port": 8199
     }
   ]
 }

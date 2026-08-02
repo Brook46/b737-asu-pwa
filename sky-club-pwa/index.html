@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Sky Club</title>
+  <meta name="theme-color" content="#0e122e">
+  <meta name="description" content="A tap-and-look solar system and real-sky explorer for little astronauts — point your phone at the sky to find the Sun, Moon, planets and stars.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sky Club">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="app.css?v=6">
+</head>
+<body>
+
+  <header class="topbar">
+    <span class="brand">🚀 Sky Club</span>
+    <button id="mute-btn" class="icon-btn mute-btn" aria-label="Mute" aria-pressed="false">🔊</button>
+  </header>
+
+  <main id="screens">
+    <section id="explore-screen" class="screen active" aria-label="Explore the solar system">
+      <canvas id="starfield" class="starfield" aria-hidden="true"></canvas>
+      <div class="galaxy galaxy-a" aria-hidden="true"></div>
+      <div class="galaxy galaxy-b" aria-hidden="true"></div>
+      <div class="galaxy galaxy-c" aria-hidden="true"></div>
+      <div id="orrery" class="orrery"></div>
+      <div class="explore-controls">
+        <button id="play-btn" class="ctrl-btn" aria-label="Pause">⏸️</button>
+        <input id="date-input" type="date" class="date-input" aria-label="Date">
+        <button id="today-btn" class="ctrl-btn text-btn">Today</button>
+        <div class="zoom-group">
+          <button id="zoom-out-btn" class="ctrl-btn" aria-label="Zoom out">−</button>
+          <button id="zoom-in-btn" class="ctrl-btn" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="sky-screen" class="screen" aria-label="Look at the real sky">
+      <div id="sky-gate" class="sky-gate">
+        <button id="sky-start" class="wide-btn">🔭 Look at the Sky</button>
+        <p class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
+      </div>
+      <div id="sky-view" class="sky-view hidden">
+        <svg id="const-lines" class="const-lines"></svg>
+        <div id="sky-markers" class="sky-markers"></div>
+        <div id="sky-arrows" class="sky-arrows"></div>
+        <div class="reticle" aria-hidden="true"></div>
+        <div id="sky-daynote" class="sky-daynote hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Screens">
+    <button id="nav-explore" class="nav-tab active" aria-pressed="true">
+      <span class="nav-icon">🪐</span><span class="nav-label">Explore</span>
+    </button>
+    <button id="nav-sky" class="nav-tab" aria-pressed="false">
+      <span class="nav-icon">🔭</span><span class="nav-label">Sky</span>
+    </button>
+  </nav>
+
+  <div id="planet-card" class="planet-card hidden">
+    <button id="card-close" class="icon-btn card-close" aria-label="Close">✕</button>
+    <div class="spin-wrap">
+      <div id="card-ring-back" class="ring-layer ring-back hidden"></div>
+      <div class="spin-frame">
+        <div id="spin-texture" class="spin-texture"></div>
+        <div class="sphere-vignette"></div>
+        <div id="card-shade" class="sphere-shade card-shade hidden"></div>
+      </div>
+      <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
+      <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
+    </div>
+    <h2 id="card-name" class="card-name"></h2>
+    <p id="card-fact" class="card-fact"></p>
+    <p id="card-safety" class="card-safety hidden"></p>
+    <div class="card-nav">
+      <button id="card-prev" class="nav-btn" aria-label="Previous">◀</button>
+      <button id="card-next" class="nav-btn" aria-label="Next">▶</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=6"></script>
+</body>
+</html>
