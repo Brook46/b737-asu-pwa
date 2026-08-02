@@ -16,6 +16,8 @@ import { say } from './speech.js';
 const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
 const DARK_ALT_THRESHOLD = -4; // sun below this altitude ⇒ dark enough for stars
+const NAMED_STAR_MAG = 1.5;    // stars this bright or brighter show their name always
+const DEFAULT_STAR_COLOR = '#eef4ff';
 
 let stars = [];
 let constellations = [];
@@ -24,9 +26,11 @@ let lastCalc = 0;
 let currentBodies = [];
 let currentStars = [];
 let isDark = false;
-const markerEls = new Map();  // id -> marker button
-const arrowEls = new Map();   // id -> arrow div
-const lineEls = [];           // { el, aId, bId }
+const markerEls = new Map();     // id -> marker button
+const arrowEls = new Map();      // id -> arrow div
+const lineEls = [];              // { el, aId, bId }
+const conLabelEls = new Map();   // constellation id -> label button
+const conStarIds = new Map();    // constellation id -> unique star ids in its lines
 
 export async function initSky() {
   document.getElementById('sky-start').addEventListener('click', startSky);
@@ -43,36 +47,58 @@ export async function initSky() {
   }
 }
 
+// Stays on the gate (not the sky view) until location actually succeeds, so a
+// failure never leaves the user staring at a blank/dead sky with no way back —
+// that silent-failure was the #1 complaint. requestOrientationPermission() has
+// to be the first thing called, synchronously, so it's still inside the tap.
 async function startSky() {
-  const gate = document.getElementById('sky-gate');
-  const view = document.getElementById('sky-view');
-  gate.classList.add('hidden');
-  view.classList.remove('hidden');
+  const gateNote = document.getElementById('sky-gate-note');
+  const startBtn = document.getElementById('sky-start');
 
   const orientPromise = requestOrientationPermission();
+  startBtn.disabled = true;
+  gateNote.textContent = 'Finding you… hold on a moment.';
+
   try {
     await geolocate();
-  } catch {
-    document.getElementById('sky-daynote').textContent = "Couldn't find your location — try again outside, or drag the sky with your finger.";
-    document.getElementById('sky-daynote').classList.remove('hidden');
+  } catch (err) {
+    startBtn.disabled = false;
+    startBtn.textContent = '🔭 Try Again';
+    gateNote.textContent = err.denied
+      ? 'Location is turned off for Sky Club. Turn it on in Settings, then try again.'
+      : "Couldn't find your location. Check you're connected, then try again.";
+    await orientPromise;
+    return;
   }
   await orientPromise;
 
-  buildMarkers();
-  started = true;
-  requestAnimationFrame(loop);
+  startBtn.disabled = false;
+  startBtn.textContent = '🔭 Look at the Sky';
+  gateNote.textContent = "We'll use where you are, and where you point your phone.";
+  document.getElementById('sky-gate').classList.add('hidden');
+  document.getElementById('sky-view').classList.remove('hidden');
+
+  if (!started) {
+    buildMarkers();
+    started = true;
+    requestAnimationFrame(loop);
+  }
 }
 
 function buildMarkers() {
   const markers = document.getElementById('sky-markers');
   const arrows = document.getElementById('sky-arrows');
   const svg = document.getElementById('const-lines');
+  const labels = document.getElementById('const-labels');
   markers.innerHTML = '';
   arrows.innerHTML = '';
   svg.innerHTML = '';
+  labels.innerHTML = '';
   markerEls.clear();
   arrowEls.clear();
   lineEls.length = 0;
+  conLabelEls.clear();
+  conStarIds.clear();
 
   for (const id of Object.keys(SKY_BODIES)) {
     const body = SKY_BODIES[id];
@@ -80,15 +106,20 @@ function buildMarkers() {
     arrowEls.set(id, makeArrow(arrows, body.emoji));
   }
   for (const s of stars) {
-    markerEls.set(s.id, makeMarker(markers, '⭐', s.name, false));
+    markerEls.set(s.id, makeStarMarker(markers, s));
   }
   for (const con of constellations) {
+    const ids = new Set();
     for (const [a, b] of con.lines) {
+      ids.add(a);
+      ids.add(b);
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('class', 'const-line');
       svg.appendChild(line);
       lineEls.push({ el: line, aId: a, bId: b });
     }
+    conStarIds.set(con.id, [...ids]);
+    conLabelEls.set(con.id, makeConstellationLabel(labels, con));
   }
 }
 
@@ -97,6 +128,34 @@ function makeMarker(container, emoji, name, big) {
   btn.className = (big ? 'sky-marker sky-marker-body' : 'sky-marker sky-marker-star') + ' hidden';
   btn.innerHTML = `<span class="marker-glyph">${emoji}</span><span class="marker-label">${name}</span>`;
   btn.addEventListener('click', () => catchBody(name, btn));
+  container.appendChild(btn);
+  return btn;
+}
+
+// A real star is a point of light, sized/colored by how bright it actually is —
+// not a cartoon ⭐. --star-size/--star-color/--twinkle-delay are read by
+// app.css; color defaults to white unless the catalog calls out a real tint
+// (red/orange giants like Betelgeuse and Antares genuinely look that way).
+function makeStarMarker(container, star) {
+  const btn = document.createElement('button');
+  const named = star.mag <= NAMED_STAR_MAG;
+  btn.className = 'sky-marker sky-marker-star hidden' + (named ? ' named' : '');
+  const size = Math.max(3, Math.min(11, 9 - star.mag * 1.6));
+  btn.style.setProperty('--star-size', `${size.toFixed(1)}px`);
+  btn.style.setProperty('--star-color', star.color || DEFAULT_STAR_COLOR);
+  btn.style.setProperty('--twinkle-delay', `${(Math.random() * 2.6).toFixed(2)}s`);
+  btn.innerHTML = `<span class="marker-glyph"></span><span class="marker-label">${star.name}</span>`;
+  btn.setAttribute('aria-label', star.name);
+  btn.addEventListener('click', () => catchBody(star.name, btn));
+  container.appendChild(btn);
+  return btn;
+}
+
+function makeConstellationLabel(container, con) {
+  const btn = document.createElement('button');
+  btn.className = 'const-label hidden';
+  btn.textContent = con.name;
+  btn.addEventListener('click', () => say(con.name, con.fact));
   container.appendChild(btn);
   return btn;
 }
@@ -214,6 +273,22 @@ function project() {
       el.classList.remove('hidden');
     } else {
       el.classList.add('hidden');
+    }
+  }
+
+  // A constellation's name shows once at least half its stars are actually on
+  // screen — "here's what you're looking at", not a label chasing one lone dot.
+  for (const [conId, ids] of conStarIds) {
+    const label = conLabelEls.get(conId);
+    if (!label) continue;
+    const pts = ids.map((id) => positions[id]).filter(Boolean);
+    if (pts.length >= Math.ceil(ids.length / 2)) {
+      const lx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+      const ly = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+      label.style.transform = `translate(${lx - label.offsetWidth / 2}px, ${ly - label.offsetHeight / 2}px)`;
+      label.classList.remove('hidden');
+    } else {
+      label.classList.add('hidden');
     }
   }
 }

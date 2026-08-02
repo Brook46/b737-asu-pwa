@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Sky Club">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="stylesheet" href="app.css?v=6">
+  <link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
 
@@ -42,10 +42,11 @@
     <section id="sky-screen" class="screen" aria-label="Look at the real sky">
       <div id="sky-gate" class="sky-gate">
         <button id="sky-start" class="wide-btn">🔭 Look at the Sky</button>
-        <p class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
+        <p id="sky-gate-note" class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
       </div>
       <div id="sky-view" class="sky-view hidden">
         <svg id="const-lines" class="const-lines"></svg>
+        <div id="const-labels" class="const-labels"></div>
         <div id="sky-markers" class="sky-markers"></div>
         <div id="sky-arrows" class="sky-arrows"></div>
         <div class="reticle" aria-hidden="true"></div>
@@ -84,6 +85,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=7"></script>
 </body>
 </html>

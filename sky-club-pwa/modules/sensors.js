@@ -12,20 +12,36 @@ export const sensorState = {
   usingDevice: false, // true once real device-orientation events are flowing
 };
 
-export function geolocate() {
+function getPositionOnce() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('Geolocation unavailable'));
+    if (!navigator.geolocation) return reject(Object.assign(new Error('Geolocation unavailable'), { denied: false }));
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sensorState.lat = pos.coords.latitude;
-        sensorState.lon = pos.coords.longitude;
-        sensorState.hasLocation = true;
-        resolve(sensorState);
-      },
-      (err) => reject(new Error(err.code === 1 ? 'Location permission denied' : 'Could not get location')),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      resolve,
+      (err) => reject(Object.assign(new Error(err.code === 1 ? 'Location permission denied' : 'Could not get location'), { denied: err.code === 1 })),
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
     );
   });
+}
+
+/**
+ * A first GPS fix — especially indoors, or right after opening the app — can
+ * simply time out once with no real problem; a single silent retry clears most
+ * of those before bothering the user. A permission *denial* is never retried
+ * (asking again won't change the answer without the user acting first).
+ */
+export async function geolocate() {
+  let pos;
+  try {
+    pos = await getPositionOnce();
+  } catch (err) {
+    if (err.denied) throw err;
+    await new Promise((r) => setTimeout(r, 1500));
+    pos = await getPositionOnce(); // let this one's rejection propagate as-is
+  }
+  sensorState.lat = pos.coords.latitude;
+  sensorState.lon = pos.coords.longitude;
+  sensorState.hasLocation = true;
+  return sensorState;
 }
 
 function orientationNeedsPermission() {

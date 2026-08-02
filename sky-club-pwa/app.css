@@ -427,6 +427,21 @@ button {
   stroke-width: 1.4;
   stroke-dasharray: 3 4;
 }
+.const-labels { position: absolute; inset: 0; pointer-events: none; }
+/* "What am I looking at?" — a soft floating name over a constellation once
+   enough of its own stars are on screen (see project()'s centroid math). */
+.const-label {
+  position: absolute;
+  top: 0; left: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  white-space: nowrap;
+  padding: 6px 10px;
+  pointer-events: auto;
+}
 
 .sky-markers, .sky-arrows { position: absolute; inset: 0; }
 .sky-marker {
@@ -449,10 +464,48 @@ button {
 }
 .sky-marker-body { width: 56px; }
 .sky-marker-body .marker-glyph { font-size: 34px; }
-.sky-marker-star { width: 40px; }
-.sky-marker-star .marker-glyph { font-size: 14px; }
+/* Real stars are a point of light, not a cartoon shape — a small glowing dot
+   sized/colored per star (--star-size/--star-color, set inline from magnitude
+   and, for a few well-known giants, real star color) with an independent
+   twinkle so a whole sky of them doesn't pulse in lockstep. Padding gives a
+   44px-ish tap target without inflating the tiny visible dot. */
+.sky-marker-star {
+  width: 28px;
+  padding: 9px;
+  margin: -9px;
+}
+.sky-marker-star .marker-glyph {
+  display: block;
+  width: var(--star-size, 4px);
+  height: var(--star-size, 4px);
+  border-radius: 50%;
+  background: var(--star-color, #eef4ff);
+  box-shadow: 0 0 3px 1px var(--star-color, #eef4ff), 0 0 7px 2px rgba(180, 200, 255, 0.35);
+  animation: star-twinkle 2.6s ease-in-out infinite;
+  animation-delay: var(--twinkle-delay, 0s);
+  filter: none;
+}
 .sky-marker-star .marker-label { display: none; }
+.sky-marker-star.named .marker-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  background: none;
+  padding: 0;
+  opacity: 0.85;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.55; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
 .sky-marker.found .marker-glyph { animation: found-pop 0.9s ease-out; }
+.sky-marker-star.found .marker-glyph { animation: star-found-pop 0.9s ease-out; }
+@keyframes star-found-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(2.4); box-shadow: 0 0 10px 4px var(--star-color, #eef4ff), 0 0 18px 6px rgba(180, 200, 255, 0.5); }
+  100% { transform: scale(1); }
+}
 @keyframes found-pop {
   0% { transform: scale(1); }
   30% { transform: scale(1.6) rotate(-8deg); }

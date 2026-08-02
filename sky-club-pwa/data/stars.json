@@ -1,107 +1,1336 @@
 {
-  "_comment": "Bright naked-eye stars (J2000 RA in decimal hours, Dec in decimal degrees, mag = apparent magnitude). Curated for a small, uncluttered kids' sky — not a full catalog.",
+  "_comment": "Bright naked-eye stars (J2000 RA in decimal hours, Dec in decimal degrees, mag = apparent magnitude). Curated for a kids' sky \u2014 not a full catalog, but a real one: coordinates good to roughly a degree, not for astrometry.",
   "stars": [
-    { "id": "sirius",    "name": "Sirius",    "ra": 6.752,  "dec": -16.716, "mag": -1.46, "con": "canismajor" },
-    { "id": "canopus",   "name": "Canopus",   "ra": 6.399,  "dec": -52.696, "mag": -0.74, "con": null },
-    { "id": "rigilkent", "name": "Rigil Kentaurus", "ra": 14.660, "dec": -60.834, "mag": -0.27, "con": null },
-    { "id": "arcturus",  "name": "Arcturus",  "ra": 14.261, "dec": 19.182,  "mag": -0.05, "con": null },
-    { "id": "vega",      "name": "Vega",      "ra": 18.615, "dec": 38.784,  "mag": 0.03,  "con": "summertriangle" },
-    { "id": "capella",   "name": "Capella",   "ra": 5.278,  "dec": 45.998,  "mag": 0.08,  "con": null },
-    { "id": "rigel",     "name": "Rigel",     "ra": 5.242,  "dec": -8.202,  "mag": 0.13,  "con": "orion" },
-    { "id": "procyon",   "name": "Procyon",   "ra": 7.655,  "dec": 5.225,   "mag": 0.34,  "con": null },
-    { "id": "betelgeuse","name": "Betelgeuse","ra": 5.919,  "dec": 7.407,   "mag": 0.50,  "con": "orion" },
-    { "id": "achernar",  "name": "Achernar",  "ra": 1.629,  "dec": -57.237, "mag": 0.46,  "con": null },
-    { "id": "hadar",     "name": "Hadar",     "ra": 14.064, "dec": -60.373, "mag": 0.61,  "con": null },
-    { "id": "altair",    "name": "Altair",    "ra": 19.846, "dec": 8.868,   "mag": 0.76,  "con": "summertriangle" },
-    { "id": "acrux",     "name": "Acrux",     "ra": 12.443, "dec": -63.099, "mag": 0.77,  "con": "southerncross" },
-    { "id": "aldebaran", "name": "Aldebaran", "ra": 4.599,  "dec": 16.509,  "mag": 0.85,  "con": "taurus" },
-    { "id": "antares",   "name": "Antares",   "ra": 16.490, "dec": -26.432, "mag": 0.96,  "con": "scorpius" },
-    { "id": "spica",     "name": "Spica",     "ra": 13.420, "dec": -11.161, "mag": 0.98,  "con": null },
-    { "id": "pollux",    "name": "Pollux",    "ra": 7.755,  "dec": 28.026,  "mag": 1.14,  "con": "gemini" },
-    { "id": "fomalhaut", "name": "Fomalhaut", "ra": 22.961, "dec": -29.622, "mag": 1.16,  "con": null },
-    { "id": "deneb",     "name": "Deneb",     "ra": 20.690, "dec": 45.280,  "mag": 1.25,  "con": "cygnus" },
-    { "id": "mimosa",    "name": "Mimosa",    "ra": 12.795, "dec": -59.689, "mag": 1.25,  "con": "southerncross" },
-    { "id": "regulus",   "name": "Regulus",   "ra": 10.139, "dec": 11.967,  "mag": 1.36,  "con": "leo" },
-    { "id": "castor",    "name": "Castor",    "ra": 7.577,  "dec": 31.888,  "mag": 1.58,  "con": "gemini" },
-    { "id": "bellatrix", "name": "Bellatrix", "ra": 5.418,  "dec": 6.350,   "mag": 1.64,  "con": "orion" },
-    { "id": "elnath",    "name": "Elnath",    "ra": 5.438,  "dec": 28.608,  "mag": 1.65,  "con": "taurus" },
-    { "id": "shaula",    "name": "Shaula",    "ra": 17.560, "dec": -37.104, "mag": 1.62,  "con": "scorpius" },
-    { "id": "alnilam",   "name": "Alnilam",   "ra": 5.604,  "dec": -1.202,  "mag": 1.69,  "con": "orion" },
-    { "id": "alioth",    "name": "Alioth",    "ra": 12.900, "dec": 55.960,  "mag": 1.77,  "con": "bigdipper" },
-    { "id": "dubhe",     "name": "Dubhe",     "ra": 11.062, "dec": 61.751,  "mag": 1.79,  "con": "bigdipper" },
-    { "id": "alnitak",   "name": "Alnitak",   "ra": 5.679,  "dec": -1.943,  "mag": 1.74,  "con": "orion" },
-    { "id": "alkaid",    "name": "Alkaid",    "ra": 13.792, "dec": 49.313,  "mag": 1.86,  "con": "bigdipper" },
-    { "id": "sargas",    "name": "Sargas",    "ra": 17.622, "dec": -42.998, "mag": 1.87,  "con": "scorpius" },
-    { "id": "polaris",   "name": "Polaris",   "ra": 2.530,  "dec": 89.264,  "mag": 1.98,  "con": null },
-    { "id": "saiph",     "name": "Saiph",     "ra": 5.796,  "dec": -9.670,  "mag": 2.09,  "con": "orion" },
-    { "id": "mintaka",   "name": "Mintaka",   "ra": 5.533,  "dec": -0.299,  "mag": 2.23,  "con": "orion" },
-    { "id": "mizar",     "name": "Mizar",     "ra": 13.399, "dec": 54.925,  "mag": 2.23,  "con": "bigdipper" },
-    { "id": "schedar",   "name": "Schedar",   "ra": 0.675,  "dec": 56.537,  "mag": 2.24,  "con": "cassiopeia" },
-    { "id": "caph",      "name": "Caph",      "ra": 0.153,  "dec": 59.150,  "mag": 2.28,  "con": "cassiopeia" },
-    { "id": "dschubba",  "name": "Dschubba",  "ra": 16.005, "dec": -22.622, "mag": 2.29,  "con": "scorpius" },
-    { "id": "denebola",  "name": "Denebola",  "ra": 11.818, "dec": 14.572,  "mag": 2.14,  "con": "leo" },
-    { "id": "merak",     "name": "Merak",     "ra": 11.031, "dec": 56.382,  "mag": 2.37,  "con": "bigdipper" },
-    { "id": "phecda",    "name": "Phecda",    "ra": 11.897, "dec": 53.695,  "mag": 2.44,  "con": "bigdipper" },
-    { "id": "gammacas",  "name": "Navi",      "ra": 0.945,  "dec": 60.717,  "mag": 2.47,  "con": "cassiopeia" },
-    { "id": "algieba",   "name": "Algieba",   "ra": 10.333, "dec": 19.842,  "mag": 2.61,  "con": "leo" },
-    { "id": "ruchbah",   "name": "Ruchbah",   "ra": 1.430,  "dec": 60.235,  "mag": 2.68,  "con": "cassiopeia" },
-    { "id": "gacrux",    "name": "Gacrux",    "ra": 12.519, "dec": -57.113, "mag": 1.63,  "con": "southerncross" },
-    { "id": "deltacrux", "name": "Imai",      "ra": 12.252, "dec": -58.749, "mag": 2.79,  "con": "southerncross" },
-    { "id": "sadr",      "name": "Sadr",      "ra": 20.370, "dec": 40.257,  "mag": 2.23,  "con": "cygnus" },
-    { "id": "albireo",   "name": "Albireo",   "ra": 19.512, "dec": 27.960,  "mag": 3.18,  "con": "cygnus" },
-    { "id": "megrez",    "name": "Megrez",    "ra": 12.257, "dec": 57.033,  "mag": 3.32,  "con": "bigdipper" },
-    { "id": "segin",     "name": "Segin",     "ra": 1.906,  "dec": 63.670,  "mag": 3.35,  "con": "cassiopeia" }
+    {
+      "id": "sirius",
+      "name": "Sirius",
+      "ra": 6.752,
+      "dec": -16.716,
+      "mag": -1.46,
+      "con": "canismajor"
+    },
+    {
+      "id": "canopus",
+      "name": "Canopus",
+      "ra": 6.399,
+      "dec": -52.696,
+      "mag": -0.74,
+      "con": "carina"
+    },
+    {
+      "id": "rigilkent",
+      "name": "Rigil Kentaurus",
+      "ra": 14.66,
+      "dec": -60.834,
+      "mag": -0.27,
+      "con": "centaurus"
+    },
+    {
+      "id": "arcturus",
+      "name": "Arcturus",
+      "ra": 14.261,
+      "dec": 19.182,
+      "mag": -0.05,
+      "con": "bootes",
+      "color": "#ffcf8a"
+    },
+    {
+      "id": "vega",
+      "name": "Vega",
+      "ra": 18.615,
+      "dec": 38.784,
+      "mag": 0.03,
+      "con": "lyra"
+    },
+    {
+      "id": "capella",
+      "name": "Capella",
+      "ra": 5.278,
+      "dec": 45.998,
+      "mag": 0.08,
+      "con": "auriga",
+      "color": "#fff3c9"
+    },
+    {
+      "id": "rigel",
+      "name": "Rigel",
+      "ra": 5.242,
+      "dec": -8.202,
+      "mag": 0.13,
+      "con": "orion"
+    },
+    {
+      "id": "procyon",
+      "name": "Procyon",
+      "ra": 7.655,
+      "dec": 5.225,
+      "mag": 0.34,
+      "con": "canisminor"
+    },
+    {
+      "id": "betelgeuse",
+      "name": "Betelgeuse",
+      "ra": 5.919,
+      "dec": 7.407,
+      "mag": 0.5,
+      "con": "orion",
+      "color": "#ff8f6b"
+    },
+    {
+      "id": "achernar",
+      "name": "Achernar",
+      "ra": 1.629,
+      "dec": -57.237,
+      "mag": 0.46,
+      "con": null
+    },
+    {
+      "id": "hadar",
+      "name": "Hadar",
+      "ra": 14.064,
+      "dec": -60.373,
+      "mag": 0.61,
+      "con": "centaurus"
+    },
+    {
+      "id": "altair",
+      "name": "Altair",
+      "ra": 19.846,
+      "dec": 8.868,
+      "mag": 0.76,
+      "con": "aquila"
+    },
+    {
+      "id": "acrux",
+      "name": "Acrux",
+      "ra": 12.443,
+      "dec": -63.099,
+      "mag": 0.77,
+      "con": "southerncross"
+    },
+    {
+      "id": "aldebaran",
+      "name": "Aldebaran",
+      "ra": 4.599,
+      "dec": 16.509,
+      "mag": 0.85,
+      "con": "taurus",
+      "color": "#ffb37a"
+    },
+    {
+      "id": "antares",
+      "name": "Antares",
+      "ra": 16.49,
+      "dec": -26.432,
+      "mag": 0.96,
+      "con": "scorpius",
+      "color": "#ff6b5b"
+    },
+    {
+      "id": "spica",
+      "name": "Spica",
+      "ra": 13.42,
+      "dec": -11.161,
+      "mag": 0.98,
+      "con": "virgo"
+    },
+    {
+      "id": "pollux",
+      "name": "Pollux",
+      "ra": 7.755,
+      "dec": 28.026,
+      "mag": 1.14,
+      "con": "gemini"
+    },
+    {
+      "id": "fomalhaut",
+      "name": "Fomalhaut",
+      "ra": 22.961,
+      "dec": -29.622,
+      "mag": 1.16,
+      "con": null
+    },
+    {
+      "id": "deneb",
+      "name": "Deneb",
+      "ra": 20.69,
+      "dec": 45.28,
+      "mag": 1.25,
+      "con": "cygnus"
+    },
+    {
+      "id": "mimosa",
+      "name": "Mimosa",
+      "ra": 12.795,
+      "dec": -59.689,
+      "mag": 1.25,
+      "con": "southerncross"
+    },
+    {
+      "id": "regulus",
+      "name": "Regulus",
+      "ra": 10.139,
+      "dec": 11.967,
+      "mag": 1.36,
+      "con": "leo"
+    },
+    {
+      "id": "adhara",
+      "name": "Adhara",
+      "ra": 6.977,
+      "dec": -28.972,
+      "mag": 1.5,
+      "con": "canismajor"
+    },
+    {
+      "id": "castor",
+      "name": "Castor",
+      "ra": 7.577,
+      "dec": 31.888,
+      "mag": 1.58,
+      "con": "gemini"
+    },
+    {
+      "id": "gacrux",
+      "name": "Gacrux",
+      "ra": 12.519,
+      "dec": -57.113,
+      "mag": 1.63,
+      "con": "southerncross",
+      "color": "#ffab8a"
+    },
+    {
+      "id": "bellatrix",
+      "name": "Bellatrix",
+      "ra": 5.418,
+      "dec": 6.35,
+      "mag": 1.64,
+      "con": "orion"
+    },
+    {
+      "id": "elnath",
+      "name": "Elnath",
+      "ra": 5.438,
+      "dec": 28.608,
+      "mag": 1.65,
+      "con": "taurus"
+    },
+    {
+      "id": "miaplacidus",
+      "name": "Miaplacidus",
+      "ra": 9.22,
+      "dec": -69.717,
+      "mag": 1.67,
+      "con": "carina"
+    },
+    {
+      "id": "shaula",
+      "name": "Shaula",
+      "ra": 17.56,
+      "dec": -37.104,
+      "mag": 1.62,
+      "con": "scorpius"
+    },
+    {
+      "id": "alnilam",
+      "name": "Alnilam",
+      "ra": 5.604,
+      "dec": -1.202,
+      "mag": 1.69,
+      "con": "orion"
+    },
+    {
+      "id": "alnitak",
+      "name": "Alnitak",
+      "ra": 5.679,
+      "dec": -1.943,
+      "mag": 1.74,
+      "con": "orion"
+    },
+    {
+      "id": "alnair",
+      "name": "Alnair",
+      "ra": 22.137,
+      "dec": -46.961,
+      "mag": 1.74,
+      "con": null
+    },
+    {
+      "id": "alioth",
+      "name": "Alioth",
+      "ra": 12.9,
+      "dec": 55.96,
+      "mag": 1.77,
+      "con": "bigdipper"
+    },
+    {
+      "id": "mirfak",
+      "name": "Mirfak",
+      "ra": 3.405,
+      "dec": 49.861,
+      "mag": 1.79,
+      "con": "perseus"
+    },
+    {
+      "id": "dubhe",
+      "name": "Dubhe",
+      "ra": 11.062,
+      "dec": 61.751,
+      "mag": 1.79,
+      "con": "bigdipper"
+    },
+    {
+      "id": "wezen",
+      "name": "Wezen",
+      "ra": 7.14,
+      "dec": -26.393,
+      "mag": 1.83,
+      "con": "canismajor"
+    },
+    {
+      "id": "kausaustralis",
+      "name": "Kaus Australis",
+      "ra": 18.403,
+      "dec": -34.384,
+      "mag": 1.85,
+      "con": "sagittarius"
+    },
+    {
+      "id": "avior",
+      "name": "Avior",
+      "ra": 8.375,
+      "dec": -59.51,
+      "mag": 1.86,
+      "con": "carina"
+    },
+    {
+      "id": "alkaid",
+      "name": "Alkaid",
+      "ra": 13.792,
+      "dec": 49.313,
+      "mag": 1.86,
+      "con": "bigdipper"
+    },
+    {
+      "id": "sargas",
+      "name": "Sargas",
+      "ra": 17.622,
+      "dec": -42.998,
+      "mag": 1.87,
+      "con": "scorpius"
+    },
+    {
+      "id": "menkalinan",
+      "name": "Menkalinan",
+      "ra": 5.992,
+      "dec": 44.947,
+      "mag": 1.9,
+      "con": "auriga"
+    },
+    {
+      "id": "alhena",
+      "name": "Alhena",
+      "ra": 6.629,
+      "dec": 16.399,
+      "mag": 1.93,
+      "con": "gemini"
+    },
+    {
+      "id": "peacock",
+      "name": "Peacock",
+      "ra": 20.428,
+      "dec": -56.735,
+      "mag": 1.94,
+      "con": null
+    },
+    {
+      "id": "alphard",
+      "name": "Alphard",
+      "ra": 9.46,
+      "dec": -8.659,
+      "mag": 1.98,
+      "con": null
+    },
+    {
+      "id": "polaris",
+      "name": "Polaris",
+      "ra": 2.53,
+      "dec": 89.264,
+      "mag": 1.98,
+      "con": "ursaminor"
+    },
+    {
+      "id": "mirzam",
+      "name": "Mirzam",
+      "ra": 6.378,
+      "dec": -17.956,
+      "mag": 1.98,
+      "con": "canismajor"
+    },
+    {
+      "id": "hamal",
+      "name": "Hamal",
+      "ra": 2.119,
+      "dec": 23.462,
+      "mag": 2.01,
+      "con": "aries"
+    },
+    {
+      "id": "diphda",
+      "name": "Diphda",
+      "ra": 0.726,
+      "dec": -17.987,
+      "mag": 2.04,
+      "con": "cetus"
+    },
+    {
+      "id": "nunki",
+      "name": "Nunki",
+      "ra": 18.921,
+      "dec": -26.297,
+      "mag": 2.05,
+      "con": "sagittarius"
+    },
+    {
+      "id": "menkent",
+      "name": "Menkent",
+      "ra": 14.112,
+      "dec": -36.37,
+      "mag": 2.06,
+      "con": "centaurus"
+    },
+    {
+      "id": "mirach",
+      "name": "Mirach",
+      "ra": 1.162,
+      "dec": 35.621,
+      "mag": 2.07,
+      "con": "andromeda",
+      "color": "#ffb98a"
+    },
+    {
+      "id": "alpheratz",
+      "name": "Alpheratz",
+      "ra": 0.139,
+      "dec": 29.09,
+      "mag": 2.06,
+      "con": "andromeda"
+    },
+    {
+      "id": "kochab",
+      "name": "Kochab",
+      "ra": 14.845,
+      "dec": 74.156,
+      "mag": 2.08,
+      "con": "ursaminor"
+    },
+    {
+      "id": "rasalhague",
+      "name": "Rasalhague",
+      "ra": 17.582,
+      "dec": 12.56,
+      "mag": 2.08,
+      "con": "ophiuchus"
+    },
+    {
+      "id": "saiph",
+      "name": "Saiph",
+      "ra": 5.796,
+      "dec": -9.67,
+      "mag": 2.09,
+      "con": "orion"
+    },
+    {
+      "id": "almach",
+      "name": "Almach",
+      "ra": 2.065,
+      "dec": 42.33,
+      "mag": 2.1,
+      "con": "andromeda"
+    },
+    {
+      "id": "algol",
+      "name": "Algol",
+      "ra": 3.136,
+      "dec": 40.956,
+      "mag": 2.12,
+      "con": "perseus"
+    },
+    {
+      "id": "denebola",
+      "name": "Denebola",
+      "ra": 11.818,
+      "dec": 14.572,
+      "mag": 2.14,
+      "con": "leo"
+    },
+    {
+      "id": "naos",
+      "name": "Naos",
+      "ra": 8.059,
+      "dec": -40.003,
+      "mag": 2.21,
+      "con": "puppis"
+    },
+    {
+      "id": "eltanin",
+      "name": "Eltanin",
+      "ra": 17.943,
+      "dec": 51.489,
+      "mag": 2.23,
+      "con": "draco"
+    },
+    {
+      "id": "mintaka",
+      "name": "Mintaka",
+      "ra": 5.533,
+      "dec": -0.299,
+      "mag": 2.23,
+      "con": "orion"
+    },
+    {
+      "id": "mizar",
+      "name": "Mizar",
+      "ra": 13.399,
+      "dec": 54.925,
+      "mag": 2.23,
+      "con": "bigdipper"
+    },
+    {
+      "id": "schedar",
+      "name": "Schedar",
+      "ra": 0.675,
+      "dec": 56.537,
+      "mag": 2.24,
+      "con": "cassiopeia"
+    },
+    {
+      "id": "alphecca",
+      "name": "Alphecca",
+      "ra": 15.578,
+      "dec": 26.715,
+      "mag": 2.23,
+      "con": "coronaborealis"
+    },
+    {
+      "id": "sadr",
+      "name": "Sadr",
+      "ra": 20.37,
+      "dec": 40.257,
+      "mag": 2.23,
+      "con": "cygnus"
+    },
+    {
+      "id": "caph",
+      "name": "Caph",
+      "ra": 0.153,
+      "dec": 59.15,
+      "mag": 2.28,
+      "con": "cassiopeia"
+    },
+    {
+      "id": "dschubba",
+      "name": "Dschubba",
+      "ra": 16.005,
+      "dec": -22.622,
+      "mag": 2.29,
+      "con": "scorpius"
+    },
+    {
+      "id": "sabik",
+      "name": "Sabik",
+      "ra": 17.173,
+      "dec": -15.725,
+      "mag": 2.43,
+      "con": "ophiuchus"
+    },
+    {
+      "id": "alderamin",
+      "name": "Alderamin",
+      "ra": 21.31,
+      "dec": 62.585,
+      "mag": 2.44,
+      "con": "cepheus"
+    },
+    {
+      "id": "menkar",
+      "name": "Menkar",
+      "ra": 3.038,
+      "dec": 4.09,
+      "mag": 2.54,
+      "con": "cetus"
+    },
+    {
+      "id": "markab",
+      "name": "Markab",
+      "ra": 23.079,
+      "dec": 15.205,
+      "mag": 2.49,
+      "con": "pegasus"
+    },
+    {
+      "id": "gienah",
+      "name": "Gienah",
+      "ra": 12.264,
+      "dec": -17.542,
+      "mag": 2.59,
+      "con": "corvus"
+    },
+    {
+      "id": "algieba",
+      "name": "Algieba",
+      "ra": 10.333,
+      "dec": 19.842,
+      "mag": 2.61,
+      "con": "leo"
+    },
+    {
+      "id": "sheratan",
+      "name": "Sheratan",
+      "ra": 1.911,
+      "dec": 20.808,
+      "mag": 2.64,
+      "con": "aries"
+    },
+    {
+      "id": "kraz",
+      "name": "Kraz",
+      "ra": 12.567,
+      "dec": -23.397,
+      "mag": 2.65,
+      "con": "corvus"
+    },
+    {
+      "id": "izar",
+      "name": "Izar",
+      "ra": 14.749,
+      "dec": 27.074,
+      "mag": 2.37,
+      "con": "bootes"
+    },
+    {
+      "id": "muphrid",
+      "name": "Muphrid",
+      "ra": 13.911,
+      "dec": 18.398,
+      "mag": 2.68,
+      "con": "bootes"
+    },
+    {
+      "id": "ruchbah",
+      "name": "Ruchbah",
+      "ra": 1.43,
+      "dec": 60.235,
+      "mag": 2.68,
+      "con": "cassiopeia"
+    },
+    {
+      "id": "kausmedia",
+      "name": "Kaus Media",
+      "ra": 18.351,
+      "dec": -29.828,
+      "mag": 2.72,
+      "con": "sagittarius"
+    },
+    {
+      "id": "tarazed",
+      "name": "Tarazed",
+      "ra": 19.771,
+      "dec": 10.613,
+      "mag": 2.72,
+      "con": "aquila"
+    },
+    {
+      "id": "zubenelgenubi",
+      "name": "Zubenelgenubi",
+      "ra": 14.848,
+      "dec": -16.042,
+      "mag": 2.75,
+      "con": "libra"
+    },
+    {
+      "id": "ascella",
+      "name": "Ascella",
+      "ra": 19.045,
+      "dec": -29.88,
+      "mag": 2.6,
+      "con": "sagittarius"
+    },
+    {
+      "id": "rastaban",
+      "name": "Rastaban",
+      "ra": 17.507,
+      "dec": 52.301,
+      "mag": 2.79,
+      "con": "draco"
+    },
+    {
+      "id": "kausborealis",
+      "name": "Kaus Borealis",
+      "ra": 18.278,
+      "dec": -25.422,
+      "mag": 2.82,
+      "con": "sagittarius"
+    },
+    {
+      "id": "algenib",
+      "name": "Algenib",
+      "ra": 0.221,
+      "dec": 15.183,
+      "mag": 2.83,
+      "con": "pegasus"
+    },
+    {
+      "id": "deltacrux",
+      "name": "Imai",
+      "ra": 12.252,
+      "dec": -58.749,
+      "mag": 2.79,
+      "con": "southerncross"
+    },
+    {
+      "id": "algorab",
+      "name": "Algorab",
+      "ra": 12.596,
+      "dec": -16.515,
+      "mag": 2.94,
+      "con": "corvus"
+    },
+    {
+      "id": "gomeisa",
+      "name": "Gomeisa",
+      "ra": 7.452,
+      "dec": 8.289,
+      "mag": 2.9,
+      "con": "canisminor"
+    },
+    {
+      "id": "minkar",
+      "name": "Minkar",
+      "ra": 12.159,
+      "dec": -22.62,
+      "mag": 3.0,
+      "con": "corvus"
+    },
+    {
+      "id": "seginus",
+      "name": "Seginus",
+      "ra": 14.535,
+      "dec": 38.308,
+      "mag": 3.03,
+      "con": "bootes"
+    },
+    {
+      "id": "scheat",
+      "name": "Scheat",
+      "ra": 23.063,
+      "dec": 28.083,
+      "mag": 2.42,
+      "con": "pegasus"
+    },
+    {
+      "id": "merak",
+      "name": "Merak",
+      "ra": 11.031,
+      "dec": 56.382,
+      "mag": 2.37,
+      "con": "bigdipper"
+    },
+    {
+      "id": "phecda",
+      "name": "Phecda",
+      "ra": 11.897,
+      "dec": 53.695,
+      "mag": 2.44,
+      "con": "bigdipper"
+    },
+    {
+      "id": "gammacas",
+      "name": "Navi",
+      "ra": 0.945,
+      "dec": 60.717,
+      "mag": 2.47,
+      "con": "cassiopeia"
+    },
+    {
+      "id": "enif",
+      "name": "Enif",
+      "ra": 21.736,
+      "dec": 9.875,
+      "mag": 2.39,
+      "con": "pegasus"
+    },
+    {
+      "id": "thuban",
+      "name": "Thuban",
+      "ra": 14.073,
+      "dec": 64.376,
+      "mag": 3.65,
+      "con": "draco"
+    },
+    {
+      "id": "sulafat",
+      "name": "Sulafat",
+      "ra": 18.983,
+      "dec": 32.69,
+      "mag": 3.24,
+      "con": "lyra"
+    },
+    {
+      "id": "albireo",
+      "name": "Albireo",
+      "ra": 19.512,
+      "dec": 27.96,
+      "mag": 3.18,
+      "con": "cygnus"
+    },
+    {
+      "id": "sheliak",
+      "name": "Sheliak",
+      "ra": 18.835,
+      "dec": 33.363,
+      "mag": 3.52,
+      "con": "lyra"
+    },
+    {
+      "id": "pherkad",
+      "name": "Pherkad",
+      "ra": 15.345,
+      "dec": 71.834,
+      "mag": 3.05,
+      "con": "ursaminor"
+    },
+    {
+      "id": "alshain",
+      "name": "Alshain",
+      "ra": 19.922,
+      "dec": 6.407,
+      "mag": 3.71,
+      "con": "aquila"
+    },
+    {
+      "id": "megrez",
+      "name": "Megrez",
+      "ra": 12.257,
+      "dec": 57.033,
+      "mag": 3.32,
+      "con": "bigdipper"
+    },
+    {
+      "id": "segin",
+      "name": "Segin",
+      "ra": 1.906,
+      "dec": 63.67,
+      "mag": 3.35,
+      "con": "cassiopeia"
+    }
   ],
   "constellations": [
     {
-      "id": "bigdipper", "name": "The Big Dipper", "emoji": "🥄", "kind": "asterism",
+      "id": "bigdipper",
+      "name": "The Big Dipper",
+      "emoji": "\ud83e\udd44",
+      "kind": "asterism",
       "fact": "It looks like a big spoon in the sky! People use it to find the North Star.",
-      "lines": [["dubhe","merak"],["merak","phecda"],["phecda","megrez"],["megrez","dubhe"],["megrez","alioth"],["alioth","mizar"],["mizar","alkaid"]]
+      "lines": [
+        [
+          "dubhe",
+          "merak"
+        ],
+        [
+          "merak",
+          "phecda"
+        ],
+        [
+          "phecda",
+          "megrez"
+        ],
+        [
+          "megrez",
+          "dubhe"
+        ],
+        [
+          "megrez",
+          "alioth"
+        ],
+        [
+          "alioth",
+          "mizar"
+        ],
+        [
+          "mizar",
+          "alkaid"
+        ]
+      ]
     },
     {
-      "id": "orion", "name": "Orion the Hunter", "emoji": "🏹", "kind": "constellation",
-      "fact": "Orion has three stars in a row — that's his belt!",
-      "lines": [["bellatrix","betelgeuse"],["bellatrix","mintaka"],["betelgeuse","alnitak"],["mintaka","alnilam"],["alnilam","alnitak"],["mintaka","rigel"],["alnitak","saiph"],["rigel","saiph"]]
+      "id": "orion",
+      "name": "Orion the Hunter",
+      "emoji": "\ud83c\udff9",
+      "kind": "constellation",
+      "fact": "Orion has three stars in a row \u2014 that's his belt!",
+      "lines": [
+        [
+          "bellatrix",
+          "betelgeuse"
+        ],
+        [
+          "bellatrix",
+          "mintaka"
+        ],
+        [
+          "betelgeuse",
+          "alnitak"
+        ],
+        [
+          "mintaka",
+          "alnilam"
+        ],
+        [
+          "alnilam",
+          "alnitak"
+        ],
+        [
+          "mintaka",
+          "rigel"
+        ],
+        [
+          "alnitak",
+          "saiph"
+        ],
+        [
+          "rigel",
+          "saiph"
+        ]
+      ]
     },
     {
-      "id": "cassiopeia", "name": "Cassiopeia", "emoji": "👑", "kind": "constellation",
-      "fact": "It's shaped like a big letter W — a queen's crown in the sky.",
-      "lines": [["caph","schedar"],["schedar","gammacas"],["gammacas","ruchbah"],["ruchbah","segin"]]
+      "id": "cassiopeia",
+      "name": "Cassiopeia",
+      "emoji": "\ud83d\udc51",
+      "kind": "constellation",
+      "fact": "It's shaped like a big letter W \u2014 a queen's crown in the sky.",
+      "lines": [
+        [
+          "caph",
+          "schedar"
+        ],
+        [
+          "schedar",
+          "gammacas"
+        ],
+        [
+          "gammacas",
+          "ruchbah"
+        ],
+        [
+          "ruchbah",
+          "segin"
+        ]
+      ]
     },
     {
-      "id": "southerncross", "name": "The Southern Cross", "emoji": "✝️", "kind": "asterism",
+      "id": "southerncross",
+      "name": "The Southern Cross",
+      "emoji": "\u271d\ufe0f",
+      "kind": "asterism",
       "fact": "Sailors and pilots use this tiny cross to find south!",
-      "lines": [["acrux","gacrux"],["mimosa","deltacrux"]]
+      "lines": [
+        [
+          "acrux",
+          "gacrux"
+        ],
+        [
+          "mimosa",
+          "deltacrux"
+        ]
+      ]
     },
     {
-      "id": "scorpius", "name": "Scorpius the Scorpion", "emoji": "🦂", "kind": "constellation",
+      "id": "scorpius",
+      "name": "Scorpius the Scorpion",
+      "emoji": "\ud83e\udd82",
+      "kind": "constellation",
       "fact": "Its curly tail has a bright red star called Antares.",
-      "lines": [["dschubba","antares"],["antares","shaula"],["shaula","sargas"]]
+      "lines": [
+        [
+          "dschubba",
+          "antares"
+        ],
+        [
+          "antares",
+          "shaula"
+        ],
+        [
+          "shaula",
+          "sargas"
+        ]
+      ]
     },
     {
-      "id": "leo", "name": "Leo the Lion", "emoji": "🦁", "kind": "constellation",
+      "id": "leo",
+      "name": "Leo the Lion",
+      "emoji": "\ud83e\udd81",
+      "kind": "constellation",
       "fact": "Leo the Lion has a bright heart-star called Regulus.",
-      "lines": [["algieba","regulus"],["algieba","denebola"]]
+      "lines": [
+        [
+          "algieba",
+          "regulus"
+        ],
+        [
+          "algieba",
+          "denebola"
+        ]
+      ]
     },
     {
-      "id": "cygnus", "name": "Cygnus the Swan", "emoji": "🦢", "kind": "constellation",
+      "id": "cygnus",
+      "name": "Cygnus the Swan",
+      "emoji": "\ud83e\udda2",
+      "kind": "constellation",
       "fact": "A swan flying along the Milky Way, with its tail star Deneb.",
-      "lines": [["deneb","sadr"],["sadr","albireo"]]
+      "lines": [
+        [
+          "deneb",
+          "sadr"
+        ],
+        [
+          "sadr",
+          "albireo"
+        ]
+      ]
     },
     {
-      "id": "taurus", "name": "Taurus the Bull", "emoji": "🐂", "kind": "constellation",
+      "id": "taurus",
+      "name": "Taurus the Bull",
+      "emoji": "\ud83d\udc02",
+      "kind": "constellation",
       "fact": "Its bright orange eye is a star called Aldebaran.",
-      "lines": [["aldebaran","elnath"]]
+      "lines": [
+        [
+          "aldebaran",
+          "elnath"
+        ]
+      ]
     },
     {
-      "id": "gemini", "name": "Gemini the Twins", "emoji": "👬", "kind": "constellation",
-      "fact": "Two bright stars side by side — Castor and Pollux, the twins.",
-      "lines": [["castor","pollux"]]
+      "id": "gemini",
+      "name": "Gemini the Twins",
+      "emoji": "\ud83d\udc6c",
+      "kind": "constellation",
+      "fact": "Two bright stars side by side \u2014 Castor and Pollux, the twins.",
+      "lines": [
+        [
+          "castor",
+          "pollux"
+        ],
+        [
+          "pollux",
+          "alhena"
+        ]
+      ]
     },
     {
-      "id": "summertriangle", "name": "The Summer Triangle", "emoji": "🔺", "kind": "asterism",
+      "id": "summertriangle",
+      "name": "The Summer Triangle",
+      "emoji": "\ud83d\udd3a",
+      "kind": "asterism",
       "fact": "Three super-bright stars from three different constellations, making one big triangle.",
-      "lines": [["vega","deneb"],["deneb","altair"],["altair","vega"]]
+      "lines": [
+        [
+          "vega",
+          "deneb"
+        ],
+        [
+          "deneb",
+          "altair"
+        ],
+        [
+          "altair",
+          "vega"
+        ]
+      ]
+    },
+    {
+      "id": "ursaminor",
+      "name": "The Little Dipper",
+      "emoji": "\ud83e\udd44",
+      "kind": "asterism",
+      "fact": "A tiny spoon with the North Star, Polaris, right at the end of its handle!",
+      "lines": [
+        [
+          "polaris",
+          "kochab"
+        ],
+        [
+          "kochab",
+          "pherkad"
+        ]
+      ]
+    },
+    {
+      "id": "pegasus",
+      "name": "Pegasus the Flying Horse",
+      "emoji": "\ud83d\udc34",
+      "kind": "constellation",
+      "fact": "A giant square in the sky \u2014 the body of a flying horse!",
+      "lines": [
+        [
+          "markab",
+          "scheat"
+        ],
+        [
+          "scheat",
+          "alpheratz"
+        ],
+        [
+          "alpheratz",
+          "algenib"
+        ],
+        [
+          "algenib",
+          "markab"
+        ]
+      ]
+    },
+    {
+      "id": "andromeda",
+      "name": "Andromeda the Princess",
+      "emoji": "\ud83d\udc78",
+      "kind": "constellation",
+      "fact": "A princess in the stars, connected to the flying horse Pegasus.",
+      "lines": [
+        [
+          "alpheratz",
+          "mirach"
+        ],
+        [
+          "mirach",
+          "almach"
+        ]
+      ]
+    },
+    {
+      "id": "perseus",
+      "name": "Perseus the Hero",
+      "emoji": "\ud83e\uddb8",
+      "kind": "constellation",
+      "fact": "A hero holding a special star that blinks \u2014 that's Algol, the Demon Star!",
+      "lines": [
+        [
+          "mirfak",
+          "algol"
+        ]
+      ]
+    },
+    {
+      "id": "auriga",
+      "name": "Auriga the Charioteer",
+      "emoji": "\ud83c\udfce\ufe0f",
+      "kind": "constellation",
+      "fact": "The Charioteer, holding his bright goat-star, Capella.",
+      "lines": [
+        [
+          "capella",
+          "menkalinan"
+        ]
+      ]
+    },
+    {
+      "id": "bootes",
+      "name": "Bo\u00f6tes the Herdsman",
+      "emoji": "\ud83e\uddd1\u200d\ud83c\udf3e",
+      "kind": "constellation",
+      "fact": "The Herdsman, with the bright orange giant star Arcturus glowing below.",
+      "lines": [
+        [
+          "arcturus",
+          "izar"
+        ],
+        [
+          "arcturus",
+          "muphrid"
+        ],
+        [
+          "izar",
+          "seginus"
+        ]
+      ]
+    },
+    {
+      "id": "lyra",
+      "name": "Lyra the Harp",
+      "emoji": "\ud83c\udfb5",
+      "kind": "constellation",
+      "fact": "A tiny harp with the bright blue star Vega.",
+      "lines": [
+        [
+          "vega",
+          "sheliak"
+        ],
+        [
+          "sheliak",
+          "sulafat"
+        ]
+      ]
+    },
+    {
+      "id": "aquila",
+      "name": "Aquila the Eagle",
+      "emoji": "\ud83e\udd85",
+      "kind": "constellation",
+      "fact": "An eagle soaring along the Milky Way, with the bright star Altair.",
+      "lines": [
+        [
+          "tarazed",
+          "altair"
+        ],
+        [
+          "altair",
+          "alshain"
+        ]
+      ]
+    },
+    {
+      "id": "canisminor",
+      "name": "The Little Dog",
+      "emoji": "\ud83d\udc15",
+      "kind": "constellation",
+      "fact": "The Little Dog, trotting along with just two bright stars.",
+      "lines": [
+        [
+          "procyon",
+          "gomeisa"
+        ]
+      ]
+    },
+    {
+      "id": "centaurus",
+      "name": "Centaurus",
+      "emoji": "\ud83d\udc0e",
+      "kind": "constellation",
+      "fact": "A half-horse, half-person with two of the brightest stars in the whole sky.",
+      "lines": [
+        [
+          "rigilkent",
+          "hadar"
+        ]
+      ]
+    },
+    {
+      "id": "draco",
+      "name": "Draco the Dragon",
+      "emoji": "\ud83d\udc09",
+      "kind": "constellation",
+      "fact": "A long dragon that winds all the way around the North Star.",
+      "lines": [
+        [
+          "thuban",
+          "rastaban"
+        ],
+        [
+          "rastaban",
+          "eltanin"
+        ]
+      ]
+    },
+    {
+      "id": "corvus",
+      "name": "Corvus the Crow",
+      "emoji": "\ud83d\udc26",
+      "kind": "constellation",
+      "fact": "A crow, shaped like a little kite in the sky.",
+      "lines": [
+        [
+          "gienah",
+          "algorab"
+        ],
+        [
+          "algorab",
+          "kraz"
+        ],
+        [
+          "kraz",
+          "minkar"
+        ],
+        [
+          "minkar",
+          "gienah"
+        ]
+      ]
+    },
+    {
+      "id": "sagittarius",
+      "name": "Sagittarius the Archer",
+      "emoji": "\ud83c\udff9",
+      "kind": "constellation",
+      "fact": "An archer \u2014 its brightest stars make the shape of a teapot!",
+      "lines": [
+        [
+          "kausaustralis",
+          "kausmedia"
+        ],
+        [
+          "kausmedia",
+          "kausborealis"
+        ],
+        [
+          "kausaustralis",
+          "ascella"
+        ],
+        [
+          "ascella",
+          "nunki"
+        ]
+      ]
+    },
+    {
+      "id": "canismajor",
+      "name": "The Big Dog",
+      "emoji": "\ud83d\udc15\u200d\ud83e\uddba",
+      "kind": "constellation",
+      "fact": "The Big Dog, led by Sirius \u2014 the very brightest star in the whole night sky!",
+      "lines": [
+        [
+          "sirius",
+          "mirzam"
+        ],
+        [
+          "sirius",
+          "wezen"
+        ],
+        [
+          "wezen",
+          "adhara"
+        ]
+      ]
+    },
+    {
+      "id": "aries",
+      "name": "Aries the Ram",
+      "emoji": "\ud83d\udc0f",
+      "kind": "constellation",
+      "fact": "The Ram \u2014 just a simple curved line of stars.",
+      "lines": [
+        [
+          "hamal",
+          "sheratan"
+        ]
+      ]
+    },
+    {
+      "id": "cetus",
+      "name": "Cetus the Sea Monster",
+      "emoji": "\ud83d\udc33",
+      "kind": "constellation",
+      "fact": "A big sea monster from an old story about a princess and a hero.",
+      "lines": [
+        [
+          "menkar",
+          "diphda"
+        ]
+      ]
     }
   ]
 }
