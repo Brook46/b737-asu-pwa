@@ -241,15 +241,43 @@ export const AIRLINES = {
 // digits) but are not scheduled airline traffic: business-jet fleets, military
 // transport and air-ambulance. Without this list a NetJets Global or a USAF
 // C-17 would sail through the "large aircraft" branch of classify().
-const NOT_AIRLINE = new Set([
-  // business / fractional jet operators
+const BIZJET_OPS = new Set([
   'NJE', 'EJA', 'EJM', 'LXJ', 'JTL', 'VTE', 'GAJ', 'TWY', 'VJT', 'XOJ', 'DPJ',
   'FJO', 'IJM', 'LNX', 'OPT', 'PVT', 'RVR', 'TFF', 'JMN', 'CNS', 'PJS',
-  // military / state transport
+]);
+const MILITARY_OPS = new Set([
   'RCH', 'RRR', 'CNV', 'IAM', 'ASY', 'FAF', 'GAF', 'NOW', 'BAF', 'HAF', 'IAF',
-  'CFC', 'AME', 'BOXER', 'DUKE', 'JAKE', 'SPAR', 'SAM',
-  // survey / calibration / medevac
-  'FCL', 'CAL9', 'LIF', 'MED', 'AMB',
+  'CFC', 'AME', 'BOXER', 'DUKE', 'JAKE', 'SPAR', 'SAM', 'NATO', 'AWACS',
+  'HOIST', 'REACH', 'BLUE', 'TARTN', 'ASCOT', 'RFR', 'CTM', 'IAM1', 'PLF',
+]);
+const MEDICAL_OPS = new Set(['FCL', 'CAL9', 'LIF', 'MED', 'AMB', 'HEMS', 'RESQ']);
+const NOT_AIRLINE = new Set([...BIZJET_OPS, ...MILITARY_OPS, ...MEDICAL_OPS]);
+
+// Rotorcraft and military types, by ICAO type code. Neither list needs to be
+// exhaustive: ADS-B category A7 catches most helicopters on its own, and an
+// unrecognised military transport still lands in "other" rather than pretending
+// to be an airliner.
+const HELI_TYPES = new Set([
+  'EC20', 'EC25', 'EC30', 'EC35', 'EC45', 'EC55', 'EC75', 'H125', 'H130',
+  'H135', 'H145', 'H155', 'H160', 'H175', 'H500', 'H60', 'A109', 'A119',
+  'A139', 'A169', 'A189', 'AS32', 'AS35', 'AS50', 'AS55', 'AS65', 'B06',
+  'B06T', 'B212', 'B214', 'B222', 'B407', 'B412', 'B429', 'B430', 'B505',
+  'B525', 'BK17', 'EH10', 'GAZL', 'LYNX', 'MI8', 'MI17', 'MI24', 'PUMA',
+  'R22', 'R44', 'R66', 'S61', 'S64', 'S76', 'S92', 'UH1', 'CH47', 'V22',
+]);
+const MILITARY_TYPES = new Set([
+  'A400', 'C130', 'C30J', 'C17', 'C5M', 'C160', 'K35R', 'KC46', 'KC10',
+  'E3TF', 'E3CF', 'E6', 'E8', 'P8', 'P3', 'RC35', 'B52', 'B1', 'B2',
+  'F15', 'F16', 'F18', 'F22', 'F35', 'EUFI', 'RFAL', 'TOR', 'MG29', 'SU27',
+  'SU30', 'SU34', 'A10', 'AV8B', 'C295', 'CN35', 'C27J', 'U2', 'GLF5',
+  'H60', 'AH64', 'AH1', 'MQ9', 'RQ4', 'T6', 'TEX2', 'HAWK', 'M346', 'L39',
+]);
+const BIZJET_TYPES = new Set([
+  'GLEX', 'GL5T', 'GL7T', 'GLF4', 'GLF5', 'GLF6', 'GA5C', 'GA6C', 'G280',
+  'CL30', 'CL35', 'CL60', 'CRJ1', 'C25A', 'C25B', 'C25C', 'C500', 'C510',
+  'C525', 'C550', 'C560', 'C56X', 'C650', 'C680', 'C68A', 'C700', 'C750',
+  'E35L', 'E50P', 'E55P', 'E545', 'E550', 'F2TH', 'F900', 'FA7X', 'FA8X',
+  'LJ35', 'LJ45', 'LJ60', 'LJ75', 'H25B', 'HDJT', 'PC24', 'BE40',
 ]);
 
 // Aircraft ICAO type codes that mean "airliner" even when the operator code is
@@ -280,41 +308,78 @@ export function lookup(code) {
   return { code, name: row[0], iata: row[1], country: row[2] };
 }
 
+/** The kinds of traffic the map can show. Airlines are the default layer. */
+export const KIND = {
+  AIRLINE: 'airline',
+  MILITARY: 'military',
+  HELI: 'heli',
+  BIZJET: 'bizjet',
+  LIGHT: 'light',
+};
+
+export const KIND_LABEL = {
+  airline: 'Airlines',
+  military: 'Military & state',
+  heli: 'Helicopters',
+  bizjet: 'Business jets',
+  light: 'Light & private',
+};
+
 /**
- * Decide whether one raw ADS-B record is airline traffic, and pull out the bits
- * the rest of the app needs.
+ * Sort one raw ADS-B record into a kind, and pull out the bits the rest of the
+ * app needs.
  *
- * The rule, in order:
- *   1. There must be a callsign, and it must be an ICAO flight-number callsign
- *      (three letters + digits). A registration in the callsign field is a
- *      private flight; no callsign at all is usually an unidentified target.
- *   2. Known bizjet/military operator codes are out, whatever they're flying.
- *   3. A known airline code is in.
- *   4. Otherwise the aircraft itself has to look like an airliner — a known
- *      airliner type, or ADS-B category A3/A4/A5 (large, high-vortex, heavy).
+ * The app was built airliners-only, and that is still the default layer — but
+ * the other traffic is in the same feed, so it is classified here and the map
+ * decides what to draw. The order matters: an aircraft is judged on what it IS
+ * (rotorcraft, military type) before what its callsign looks like, because a
+ * military transport flies an airline-shaped callsign in an airliner-sized
+ * aeroplane and would otherwise pass as a scheduled flight.
  *
- * @returns {{code:string, flightNo:string, airline:object|null}|null}
- *          null when the aircraft is not airline traffic.
+ * @returns {{kind:string, code:string, flightNo:string, airline:object|null}}
+ *          never null — every record lands in some kind.
  */
 export function classify(ac) {
   const callsign = String(ac.flight || '').trim().toUpperCase();
-  if (!callsign) return null;
-
-  // A callsign identical to the registration is a private/GA flight.
-  const reg = String(ac.r || '').trim().toUpperCase().replace(/-/g, '');
-  if (reg && callsign.replace(/-/g, '') === reg) return null;
-
-  const m = /^([A-Z]{3})(\d{1,4}[A-Z]{0,2})$/.exec(callsign);
-  if (!m) return null;
-  const code = m[1];
-  if (NOT_AIRLINE.has(code)) return null;
-
-  const airline = lookup(code);
-  if (airline) return { code, flightNo: m[2], airline };
-
-  // Unknown operator: let the aircraft vouch for it.
   const type = String(ac.t || '').toUpperCase();
   const cat = String(ac.category || '').toUpperCase();
+  const m = /^([A-Z]{3})(\d{1,4}[A-Z]{0,2})$/.exec(callsign);
+  const code = m ? m[1] : '';
+  const flightNo = m ? m[2] : '';
+
+  // 1. Rotorcraft — ADS-B category A7 is the authoritative signal.
+  if (cat === 'A7' || HELI_TYPES.has(type)) {
+    return { kind: KIND.HELI, code, flightNo, airline: null };
+  }
+  // 2. Military and state, by operator callsign or by airframe.
+  if ((code && MILITARY_OPS.has(code)) || MILITARY_TYPES.has(type)) {
+    return { kind: KIND.MILITARY, code, flightNo, airline: null };
+  }
+  // 3. Business jets.
+  if ((code && BIZJET_OPS.has(code)) || BIZJET_TYPES.has(type)) {
+    return { kind: KIND.BIZJET, code, flightNo, airline: null };
+  }
+
+  // 4. Airline traffic: an ICAO flight-number callsign that isn't just the
+  //    registration, from a known airline or on an airliner-sized aeroplane.
+  const reg = String(ac.r || '').trim().toUpperCase().replace(/-/g, '');
+  const isRegCallsign = reg && callsign.replace(/-/g, '') === reg;
   const looksBig = AIRLINER_TYPES.has(type) || cat === 'A3' || cat === 'A4' || cat === 'A5';
-  return looksBig ? { code, flightNo: m[2], airline: null } : null;
+  if (m && !isRegCallsign && !NOT_AIRLINE.has(code)) {
+    const airline = lookup(code);
+    if (airline) return { kind: KIND.AIRLINE, code, flightNo, airline };
+    if (looksBig) return { kind: KIND.AIRLINE, code, flightNo, airline: null };
+  }
+
+  // 5. An airliner-sized aeroplane with no usable callsign is still an
+  //    airliner — unidentified, not light aircraft. Filing an A350 under
+  //    "light & private" because its transponder omitted the flight number is
+  //    exactly the sort of small lie that makes the whole display untrustworthy.
+  if (looksBig) return { kind: KIND.AIRLINE, code, flightNo, airline: null };
+
+  // 6. Everything else: GA, private, gliders, unidentified small stuff.
+  return { kind: KIND.LIGHT, code, flightNo, airline: null };
 }
+
+/** Was this record airline traffic? Kept for the places that only care. */
+export function isAirline(cls) { return !!cls && cls.kind === KIND.AIRLINE; }

@@ -62,7 +62,7 @@ html, body {
 .brand svg { color: var(--accent); flex: none; }
 .brand span { white-space: nowrap; }
 
-.search { flex: 1 1 auto; min-width: 0; }
+.search { flex: 1 1 auto; min-width: 0; position: relative; }
 .search input {
   width: 100%; padding: 9px 13px; border-radius: 999px;
   background: var(--glass); border: 1px solid var(--line); color: var(--ink);
@@ -71,6 +71,31 @@ html, body {
 }
 .search input::placeholder { color: var(--muted); }
 .search input:focus { border-color: var(--accent); }
+
+/* Matching aircraft, offered as you type — pick one instead of guessing the
+   exact callsign. */
+.suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 1300;
+  max-height: min(52vh, 380px); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 5px; border-radius: 13px;
+  background: var(--glass-2); border: 1px solid var(--line);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .55);
+}
+.sug-row {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 8px 9px; border-radius: 9px; cursor: pointer;
+  background: none; border: 0; color: var(--ink); font: inherit; text-align: left;
+}
+.sug-row:hover, .sug-row:focus { background: rgba(255, 255, 255, .07); }
+.sug-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; }
+.sug-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.sug-main b { font-size: .84rem; font-weight: 700; letter-spacing: .02em; }
+.sug-main i {
+  font-style: normal; color: var(--muted); font-size: .72rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sug-alt { flex: none; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
 
 /* Status pill. It says "Live" in words — a bare coloured dot tells a new user
    nothing about what it is or what it would mean if it changed. */
@@ -160,6 +185,15 @@ html, body {
   background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
   color: var(--ink); font: inherit; font-size: .8rem; outline: none;
 }
+.kind-list { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.kind-row {
+  width: 100%; display: flex; align-items: center; gap: 9px;
+  padding: 8px 9px; border-radius: 9px;
+  background: rgba(255, 255, 255, .03); border: 1px solid transparent;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.kind-row.on { background: rgba(94, 194, 255, .16); border-color: rgba(94, 194, 255, .5); }
+
 .pick-list { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
 .pick-row {
   width: 100%; display: flex; align-items: center; gap: 9px;
@@ -390,6 +424,15 @@ html, body {
 .rs-plane svg { display: block; }
 .rs-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; }
 
+/* a route the aircraft's own telemetry contradicts */
+.route-doubt {
+  margin-bottom: 6px; padding: 8px 11px; border-radius: 10px;
+  background: rgba(246, 195, 67, .12); border: 1px solid rgba(246, 195, 67, .45);
+  color: #f0d79a; font-size: .72rem; line-height: 1.4;
+}
+.route-strip.doubted { border-color: rgba(246, 195, 67, .45); }
+.route-strip.doubted .rs-end b { color: #f0d79a; }
+
 /* arrival: scheduled vs estimated */
 .arrival {
   display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap;
@@ -460,4 +503,10 @@ html, body {
      stacking on it (body class, because the list precedes it in the DOM). */
   body.has-detail .list-sheet { display: none; }
   .legend { bottom: 12px; }
+}
+
+/* header of the "which of these did you mean?" list */
+.sug-head {
+  padding: 7px 10px 6px; color: var(--muted);
+  font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
 }

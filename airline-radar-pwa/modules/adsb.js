@@ -108,6 +108,7 @@ export function normalise(ac, cls) {
   return {
     hex: String(ac.hex || '').toLowerCase(),
     callsign: String(ac.flight || '').trim().toUpperCase(),
+    kind: cls.kind || 'airline',
     code: cls.code,
     flightNo: cls.flightNo,
     airline: cls.airline,

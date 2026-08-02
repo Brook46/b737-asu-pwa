@@ -7,7 +7,7 @@
 
 import * as fmt from './fmt.js';
 import { altColor, familyOf, planeSvg } from './aircraft.js';
-import { routeLabel, progress, haversine, eta } from './routes.js';
+import { routeLabel, progress, haversine, eta, routeSanity } from './routes.js';
 import { squawkAlert } from './adsb.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
@@ -115,6 +115,7 @@ function skeleton() {
       <figcaption>Photo: airport-data.com</figcaption>
     </figure>
 
+    <p class="sheet-note" data-f="track-note" hidden></p>
     <p class="sheet-note" data-f="note" hidden></p>`;
 }
 
@@ -222,6 +223,18 @@ export function renderDetail(el, ac, route, info, { following, arrival, onAction
   if (src && img.getAttribute('src') !== src) { img.src = src; img.alt = info.reg || ac.reg || ''; }
   photo.hidden = !src || img.dataset.failed === src;
 
+  // Say what the drawn track is, so the solid line isn't taken for the whole
+  // flight: it's what this app watched, not a track history from departure.
+  const trk = f('track-note');
+  const span = arrival && arrival.track;
+  if (span && span.points >= 2) {
+    trk.hidden = false;
+    set('track-note', `Track shown: the last ${fmt.dur(span.minutes)} watched by this app`
+      + `${route && route.origin ? `. The dashed line back to ${route.origin.iata || route.origin.icao} is the missing part — no free feed publishes a flight's earlier track.` : '.'}`);
+  } else {
+    trk.hidden = true;
+  }
+
   const note = f('note');
   note.hidden = !!route;
   if (!route) {
@@ -237,7 +250,7 @@ export function renderDetail(el, ac, route, info, { following, arrival, onAction
  * @param {Array<{code,name,count}>} options
  * @param {Set<string>} selected
  */
-export function renderAirlines(el, options, selected, { query, onToggle, onClear }) {
+export function renderAirlines(el, options, selected, { query, onToggle, onClear, kinds, kindCounts, onToggleKind }) {
   const q = String(query || '').trim().toUpperCase();
   const rows = options
     .filter((o) => !q || o.code.includes(q) || o.name.toUpperCase().includes(q))
@@ -249,7 +262,17 @@ export function renderAirlines(el, options, selected, { query, onToggle, onClear
       return a.name.localeCompare(b.name);
     });
 
+  // Which layers are drawn at all comes before which airline within them.
+  const kindRows = (kinds || []).map(({ key, label, on, count }) => `
+    <button class="kind-row${on ? ' on' : ''}" data-kind="${esc(key)}">
+      <span class="pick-tick">${on ? '✓' : ''}</span>
+      <span class="pick-name">${esc(label)}</span>
+      <span class="pick-count">${count || ''}</span>
+    </button>`).join('');
+
   el.innerHTML = `
+    <div class="pick-head"><b>Show on the map</b></div>
+    <div class="kind-list">${kindRows}</div>
     <div class="pick-head">
       <b>Airlines in view</b>
       <button class="pick-clear" ${selected.size ? '' : 'disabled'}>Show all</button>
@@ -271,6 +294,9 @@ export function renderAirlines(el, options, selected, { query, onToggle, onClear
   el.querySelectorAll('.pick-row').forEach((b) => {
     b.addEventListener('click', () => onToggle(b.dataset.code));
   });
+  el.querySelectorAll('.kind-row').forEach((b) => {
+    b.addEventListener('click', () => onToggleKind && onToggleKind(b.dataset.kind));
+  });
   el.querySelector('.pick-clear').addEventListener('click', onClear);
 }
 
@@ -283,8 +309,12 @@ function routeStrip(ac, route, arrival) {
   const toGo = d && Number.isFinite(d.lat) ? haversine(ac.lat, ac.lon, d.lat, d.lon) : null;
   const gone = o && Number.isFinite(o.lat) ? haversine(o.lat, o.lon, ac.lat, ac.lon) : null;
   const mins = arrival && arrival.eta ? arrival.eta.minutes : null;
+  const sanity = routeSanity(ac, route);
 
-  return `<div class="route-strip">
+  return `${sanity.ok ? '' : `<div class="route-doubt">
+    Route may be wrong — ${esc(sanity.reason)}. Callsign routes come from a
+    schedule database, and callsigns get reused.</div>`}
+  <div class="route-strip${sanity.ok ? '' : ' doubted'}">
     <div class="rs-end">
       <b>${esc(o ? (o.iata || o.icao) : '—')}</b>
       <span>${esc(o ? (o.city || o.name) : 'Unknown origin')}</span>
@@ -320,16 +350,21 @@ function routeStrip(ac, route, arrival) {
  * know it, and the row says so rather than showing a made-up time.
  */
 function arrivalBlock(ac, arrival) {
-  if (!arrival || (!arrival.eta && !arrival.staAt)) return '';
+  if (!arrival || (!arrival.eta && !arrival.staAt && !arrival.ataAt)) return '';
   const eta = arrival.eta;
   const etaAt = eta && eta.at ? eta.at : 0;
   const staAt = arrival.staAt || 0;
+  const ataAt = arrival.ataAt || 0;
 
-  // Both known: say whether it is running early or late, which is the number a
-  // crew actually cares about.
+  // Once it's down, the actual time is the one that matters and the estimate is
+  // history — so ATA replaces ETA in the same slot rather than sitting beside
+  // it, and the difference is measured against whichever is the live answer.
+  const actual = !!ataAt;
+  const compareAt = ataAt || etaAt;
+
   let delta = '';
-  if (etaAt && staAt) {
-    const mins = Math.round((etaAt - staAt) / 60000);
+  if (compareAt && staAt) {
+    const mins = Math.round((compareAt - staAt) / 60000);
     const late = mins > 0;
     if (Math.abs(mins) > 6 * 60) {
       // Hours apart means the scheduled time isn't this leg's — a stale roster
@@ -337,24 +372,29 @@ function arrivalBlock(ac, arrival) {
       // be worse than saying nothing.
       delta = '<span class="arr-delta off">schedule doesn\'t match this leg</span>';
     } else {
-      // fmt.dur rolls over into hours — "1h07 late" reads instantly, "67 min
-      // late" makes the reader do the arithmetic.
+      const word = actual ? (late ? 'late' : 'early') : (late ? 'late' : 'early');
       delta = Math.abs(mins) < 3
-        ? '<span class="arr-delta on">on schedule</span>'
-        : `<span class="arr-delta ${late ? 'late' : 'early'}">${esc(fmt.dur(Math.abs(mins)))} ${late ? 'late' : 'early'}</span>`;
+        ? `<span class="arr-delta on">${actual ? 'landed on schedule' : 'on schedule'}</span>`
+        : `<span class="arr-delta ${late ? 'late' : 'early'}">${actual ? 'landed ' : ''}${esc(fmt.dur(Math.abs(mins)))} ${word}${actual ? '' : ' (est.)'}</span>`;
     }
   }
 
+  const rightLabel = actual ? 'ATA · observed' : 'ETA · ground speed';
+  const rightSub = actual
+    ? `${esc(fmt.hhmmLocal(ataAt))} · touchdown seen`
+    : (etaAt ? `${esc(fmt.hhmmLocal(etaAt))} · ${esc(fmt.dur(eta.minutes))} to run`
+      : (ac.onGround ? 'on the ground' : 'no destination on file'));
+
   return `<div class="arrival">
     <div class="arr-cell">
-      <span>STA${arrival.staSource ? ` · ${esc(arrival.staSource)}` : ''}</span>
+      <span>STA · scheduled${arrival.staSource ? ` · ${esc(arrival.staSource)}` : ''}</span>
       <b>${staAt ? esc(fmt.hhmmZ(staAt)) : '—'}</b>
       <i>${staAt ? esc(fmt.hhmmLocal(staAt)) : 'no schedule feed'}</i>
     </div>
     <div class="arr-cell">
-      <span>ETA · ground speed</span>
-      <b>${etaAt ? esc(fmt.hhmmZ(etaAt)) : '—'}</b>
-      <i>${etaAt ? `${esc(fmt.hhmmLocal(etaAt))} · ${esc(fmt.dur(eta.minutes))} to run` : (ac.onGround ? 'on the ground' : 'no destination on file')}</i>
+      <span>${rightLabel}</span>
+      <b>${compareAt ? esc(fmt.hhmmZ(compareAt)) : '—'}</b>
+      <i>${rightSub}</i>
     </div>
     ${delta ? `<div class="arr-cell delta">${delta}</div>` : ''}
   </div>`;

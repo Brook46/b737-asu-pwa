@@ -18,7 +18,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="app.css?v=6">
+  <link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
   <!-- The map is the app -->
@@ -36,6 +36,7 @@
     </div>
     <label class="search">
       <input id="search" type="search" placeholder="Tail (EKM) or flight — Enter adds another" autocomplete="off" aria-label="Search flights; press Enter to add another aircraft">
+      <div id="suggest" class="suggest" hidden role="listbox" aria-label="Matching aircraft"></div>
     </label>
     <div id="live" class="live" data-mode="polling" title="Live"><i></i><span>Live</span></div>
   </header>
@@ -45,11 +46,11 @@
 
   <!-- Tool column. Every button is labelled: an icon alone is a guessing game. -->
   <div class="tools">
-    <button id="airline-btn" class="tool-btn" aria-pressed="false" title="Show only chosen airlines">
+    <button id="airline-btn" class="tool-btn" aria-pressed="false" title="Choose which traffic and which airlines to show">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 5h16l-6.2 7.3V19l-3.6 2v-8.7z"/>
       </svg>
-      <b>Airline</b>
+      <b>Filter</b>
     </button>
     <button id="labels-btn" class="tool-btn" aria-pressed="true" title="Callsign and altitude labels on the map">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
@@ -114,6 +115,6 @@
     <div id="detail-body" class="detail-body"></div>
   </section>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=7"></script>
 </body>
 </html>

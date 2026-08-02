@@ -93,15 +93,74 @@ that are easy to get wrong and matter:
 Where a runway has no `ref`, the numbers are derived from its bearing and shown
 in italics to mark them as computed rather than surveyed.
 
+## Other traffic
+
+The default layer is still airlines only — that's what the app is for — but the
+other traffic is in the same feed, so the **Filter** button switches on
+**Military & state**, **Helicopters**, **Business jets** and **Light & private**
+with live counts per layer. Each kind gets its own silhouette (delta for
+military, slim jet for bizjets, straight-wing prop for light, rotor disc for
+helicopters), so kinds are told apart by shape and colour stays free to mean
+altitude.
+
+Classification order matters: an aircraft is judged on what it *is* before what
+its callsign looks like, because a military transport flies an airline-shaped
+callsign in an airliner-sized aeroplane. One deliberate exception — an
+airliner-sized airframe with no usable callsign is filed under airlines, not
+light aircraft: an A350 whose transponder omitted the flight number is still an
+airliner, and putting it under "light & private" is the kind of small lie that
+makes the whole display untrustworthy.
+
+## The flown track
+
+Selecting an aircraft draws the path it actually flew — every position report,
+coloured by the altitude it was at, so a departure turn curves and a climb
+changes colour. It replaces the straight origin-to-aircraft line.
+
+**It is not a track from departure, and the app doesn't pretend otherwise.** No
+free ADS-B source publishes track history a browser can read: the readsb
+`globe.*/data/traces/…` files on airplanes.live and adsb.fi are Cloudflare-
+blocked (403, no CORS), adsb.lol redirects, and OpenSky's `/tracks` needs OAuth.
+So the track is what *this app* watched, and the gap back to the departure
+airport is drawn faint and dashed to say so. The card states the span in words:
+"Track shown: the last 22 min watched by this app."
+
+The selected aircraft keeps ~40 min of track and holds onto it when it drops out
+of a refresh or off the edge of the view; everything else keeps ~10 min. Tracks
+for the last few watched aircraft are saved to `localStorage`, because the app
+reloads itself after a long spell in the background (resume hardening) — which
+is exactly when losing the track would hurt most.
+
+## Wrong routes
+
+adsbdb keys routes on the callsign alone, and callsigns get reused — the same
+number flies a different sector another day, charters borrow numbers,
+repositioning legs keep the number they're positioning for. The result was a
+card stating a destination with total confidence and being simply wrong.
+
+`routeSanity()` checks the claimed route against the aircraft's own telemetry
+and flags it rather than hiding it: **heading the wrong way** (cruising above
+10,000 ft, beyond 40 NM, with the destination more than 100° off the nose) or
+**nowhere near the corridor** (further from the origin than the whole leg while
+still far from the destination). Both are deliberately loose — arrivals
+manoeuvre and departures turn — so only clear contradictions trip them.
+
 ## Arrival times: what is real and what isn't
 
 Each flight shows an **ETA** and, where it can, an **STA**. They come from very
 different places, and the UI labels them so they can't be confused:
 
+Three different things, labelled so they can't be confused:
+
 - **ETA · ground speed** is computed here: great-circle distance still to fly,
   divided by the speed the aircraft is doing right now. No descent profile, no
   arrival routing, no wind change — so it runs a few minutes optimistic, and it
   says where it came from rather than pretending to be an airline's estimate.
+- **ATA · observed** replaces the ETA once it's down. It is the moment we
+  watched the aircraft go from airborne to on-ground — recorded only for a
+  transition actually witnessed, so an aeroplane first seen already parked gets
+  no arrival time rather than an invented one. The difference line then reads
+  "landed 12 min late" instead of the estimated "12 min late (est.)".
 A clock time carries no date, so the STA's day is chosen against the *estimated
 arrival*, not against the current moment — anchoring to "now" is what produced
 deltas of several hours. If the two are still more than six hours apart the
@@ -147,6 +206,12 @@ filtering:
    aircraft, the app also asks the feed's global `/v2/reg/` and `/v2/callsign/`
    endpoints, and if it's airborne anywhere in the world it appears on the map
    (and the map moves to it, once, when it's off-screen).
+
+**Pick from the matches.** Typing shows the aircraft the text could mean — live,
+found by global lookup, or last seen — with tail, operator and route; tap one
+instead of guessing the exact callsign. Tapping the map where several aircraft
+overlap offers the same chooser ("3 aircraft here — pick one") rather than
+letting whichever symbol happens to be on top swallow the tap.
 
 **Several aircraft at once.** Terms stack like addresses on an email: type one,
 press Enter (or a comma), and it becomes a chip; type the next. Each chip is

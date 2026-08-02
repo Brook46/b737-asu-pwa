@@ -28,7 +28,12 @@ const BASES = {
     { attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }),
 };
 
-const TRAIL_MAX = 120;          // ~10 min of history at a 5 s refresh
+// Trail length, in position reports (~5 s apart). The aircraft being watched
+// keeps a long one — that's the flown track, and it's the whole point of
+// selecting it — while everything else keeps just enough to show where it came
+// from, so a busy area doesn't cost thousands of points to redraw every refresh.
+const TRAIL_MAX = 480;          // selected: ~40 min
+const TRAIL_MAX_OTHER = 120;    // everything else: ~10 min
 const DR_MS = 250;              // dead-reckoning tick
 const KT_TO_DEG_LAT = 1 / 60;   // 1 NM ≈ 1' of latitude
 
@@ -44,6 +49,7 @@ let markers = new Map();        // hex → {marker, state, fix}
 let trails = new Map();         // hex → [[lat,lon], …]
 let drTimer = null;
 let onSelect = null;
+let onStack = null;
 let onFollowOff = null;
 let showLabels = true, showTrails = true;
 let selectedHex = null;
@@ -51,9 +57,10 @@ let followSelected = false;
 
 export function getMap() { return map; }
 
-export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCancelled }) {
+export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCancelled, onStackTapped }) {
   if (!window.L || map) return map;
   onSelect = onSelectAircraft;
+  onStack = onStackTapped;
   onFollowOff = onFollowCancelled;
 
   map = L.map(id, {
@@ -97,6 +104,7 @@ export function initMap(id, { center, zoom, onSelectAircraft, onMove, onFollowCa
     if (document.visibilityState === 'visible') setTimeout(resize, 60);
   });
 
+  loadTracks();
   startDeadReckoning();
   refreshRunways();
   return map;
@@ -121,6 +129,22 @@ export function cancelFollow() {
   return true;
 }
 
+const STACK_PX = 22;   // how close counts as "on top of each other" on screen
+
+/** Every drawn aircraft within STACK_PX of a point, nearest first. */
+function markersNear(latlng, hexFirst) {
+  if (!map) return [];
+  const origin = map.latLngToContainerPoint(latlng);
+  const out = [];
+  for (const [hex, rec] of markers) {
+    const p = map.latLngToContainerPoint(rec.marker.getLatLng());
+    const d = Math.hypot(p.x - origin.x, p.y - origin.y);
+    if (d <= STACK_PX) out.push({ hex, d });
+  }
+  out.sort((a, b) => (a.hex === hexFirst ? -1 : b.hex === hexFirst ? 1 : a.d - b.d));
+  return out.map((o) => o.hex);
+}
+
 /** "just now" / "12m ago" — how stale a last-known position is. */
 function ghostAge(ac) {
   return fmtAgo(ac.lastSeenAt);
@@ -131,7 +155,7 @@ function iconFor(ac, selected) {
   const color = ac.ghost ? '#9aa6bd' : altColor(ac.alt);
   const svg = planeSvg({
     color, track: ac.track, scale: sizeFor(ac.type),
-    selected, ground: ac.onGround, ghost: ac.ghost,
+    selected, ground: ac.onGround, ghost: ac.ghost, kind: ac.kind || 'airline',
   });
   // The tail number leads: it names the aeroplane itself, which is what a crew
   // recognises. Flight level sits under it, and the callsign stays in the list
@@ -182,7 +206,12 @@ export function render(list, selHex) {
       });
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        if (onSelect) onSelect(ac.hex);
+        // Near an airport several aircraft sit within a few pixels of each
+        // other and whichever happens to be on top swallows the tap. Offer the
+        // whole stack instead of guessing which one was meant.
+        const stack = markersNear(marker.getLatLng(), ac.hex);
+        if (stack.length > 1 && onStack) onStack(stack);
+        else if (onSelect) onSelect(ac.hex);
       });
       marker.addTo(planeLayer);
       rec = { marker, sig, fix: null };
@@ -204,27 +233,64 @@ export function render(list, selHex) {
       at: Date.now(), ground: ac.onGround,
     };
 
-    if (showTrails && !ac.ghost) {
+    // The flown track is recorded here, one point per position report, with the
+    // altitude and time so it can be drawn the way the flight actually was.
+    // Nothing else records it: no free ADS-B aggregator exposes a CORS-readable
+    // track history, so what the app watched is the only track it can have.
+    if (!ac.ghost) {
       const t = trails.get(ac.hex) || [];
       const last = t[t.length - 1];
-      if (!last || Math.abs(last[0] - ac.lat) > 1e-5 || Math.abs(last[1] - ac.lon) > 1e-5) {
-        t.push([ac.lat, ac.lon]);
-        if (t.length > TRAIL_MAX) t.shift();
+      if (!last || Math.abs(last.lat - ac.lat) > 1e-5 || Math.abs(last.lon - ac.lon) > 1e-5) {
+        t.push({ lat: ac.lat, lon: ac.lon, alt: ac.alt, at: Date.now() });
+        const cap = ac.hex === selectedHex ? TRAIL_MAX : TRAIL_MAX_OTHER;
+        while (t.length > cap) t.shift();
         trails.set(ac.hex, t);
       }
     }
   }
 
-  // Drop anything that left the area.
+  // Drop anything that left the area — but keep the selected aircraft's track,
+  // which is the one the user is watching and the one worth accumulating. It
+  // survives the aircraft dipping out of a refresh or off the edge of the view.
   for (const [hex, rec] of markers) {
     if (!seen.has(hex)) {
       planeLayer.removeLayer(rec.marker);
       markers.delete(hex);
-      trails.delete(hex);
+      if (hex !== selectedHex) trails.delete(hex);
     }
   }
 
   drawTrails();
+  saveTracksSoon();
+}
+
+const latlngs = (pts) => pts.map((p) => [p.lat, p.lon]);
+
+/**
+ * The selected aircraft's flown track, drawn the way the flight happened:
+ * coloured by the altitude it was at, so a climb, a cruise and a descent are
+ * visible in the line itself.
+ *
+ * Drawn in chunks rather than per-point — one polyline per pair of points would
+ * be hundreds of layers for a long track, and the colour barely changes between
+ * two consecutive fixes anyway.
+ */
+function drawFlownTrack(pts, layer) {
+  const CHUNK = 8;
+  for (let i = 0; i < pts.length - 1; i += CHUNK) {
+    const seg = pts.slice(i, Math.min(pts.length, i + CHUNK + 1));
+    if (seg.length < 2) break;
+    const alts = seg.map((p) => p.alt).filter((a) => Number.isFinite(a));
+    const mean = alts.length ? alts.reduce((s, a) => s + a, 0) / alts.length : null;
+    L.polyline(latlngs(seg), {
+      color: altColor(mean),
+      weight: 3.4,
+      opacity: 0.95,
+      interactive: false,
+      lineCap: 'round',
+      smoothFactor: 1,
+    }).addTo(layer);
+  }
 }
 
 function drawTrails() {
@@ -232,17 +298,61 @@ function drawTrails() {
   if (!showTrails) return;
   for (const [hex, pts] of trails) {
     if (pts.length < 2) continue;
-    const sel = hex === selectedHex;
-    // Only the selected aircraft gets a full-strength trail; the rest stay faint
-    // so a busy TMA doesn't turn into spaghetti.
-    L.polyline(pts, {
-      color: sel ? '#ffffff' : '#5ec2ff',
-      weight: sel ? 2.4 : 1.2,
-      opacity: sel ? 0.9 : 0.35,
+    // The selected aircraft's track is drawn by drawRoute, in altitude colours
+    // and alongside the rest of its route; here we only draw the others.
+    if (hex === selectedHex) continue;
+    L.polyline(latlngs(pts), {
+      color: '#5ec2ff',
+      weight: 1.2,
+      opacity: 0.35,
       interactive: false,
       smoothFactor: 1.5,
     }).addTo(trailLayer);
   }
+}
+
+/** The recorded track for one aircraft: [{lat,lon,alt,at}, …]. */
+export function trackFor(hex) { return trails.get(hex) || []; }
+
+// ── keeping a track across a reload ─────────────────────────────────────────
+//
+// The app reloads itself after a long spell in the background (resume
+// hardening), which is exactly when a track is most worth having — so the ones
+// being watched are written to localStorage and read back at start-up. Only a
+// handful are kept: this is the flight you're following, not a flight log.
+
+const TRACKS_KEY = 'airadar.tracks';
+const TRACKS_MAX = 4;
+const TRACK_TTL_MS = 6 * 3600 * 1000;
+
+function loadTracks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TRACKS_KEY) || '{}');
+    const now = Date.now();
+    for (const [hex, pts] of Object.entries(raw)) {
+      if (!Array.isArray(pts) || pts.length < 2) continue;
+      const fresh = pts.filter((p) => p && Number.isFinite(p.lat) && now - (p.at || 0) < TRACK_TTL_MS);
+      if (fresh.length >= 2) trails.set(hex, fresh.slice(-TRAIL_MAX));
+    }
+  } catch { /* nothing worth recovering */ }
+}
+
+let saveTracksTimer = null;
+function saveTracksSoon() {
+  if (saveTracksTimer) return;
+  saveTracksTimer = setTimeout(() => {
+    saveTracksTimer = null;
+    try {
+      const keep = {};
+      const hexes = [selectedHex, ...trails.keys()].filter(Boolean);
+      for (const hex of hexes) {
+        if (Object.keys(keep).length >= TRACKS_MAX) break;
+        const pts = trails.get(hex);
+        if (pts && pts.length >= 2) keep[hex] = pts;
+      }
+      localStorage.setItem(TRACKS_KEY, JSON.stringify(keep));
+    } catch { /* quota — the in-memory track still works */ }
+  }, 10000);
 }
 
 /** Move the symbols along their track between position updates. */
@@ -278,13 +388,27 @@ function startDeadReckoning() {
  */
 export function drawRoute(ac, route) {
   routeLayer.clearLayers();
-  if (!ac || !route) return;
+  if (!ac) return;
   const here = [ac.lat, ac.lon];
-  const o = route.origin, d = route.destination;
+  const o = route && route.origin, d = route && route.destination;
+
+  // What the aircraft actually flew, as far back as we watched it. The rest of
+  // the way back to the departure airport is a straight line because nobody
+  // gives it to us — every free ADS-B aggregator's track history is either
+  // behind a login or blocked to browsers — so it is drawn faint and dashed to
+  // say plainly "this bit is inferred, that bit was observed".
+  const track = trails.get(ac.hex) || [];
+  const flown = track.length >= 2 ? track : null;
+  if (flown) drawFlownTrack([...flown, { lat: ac.lat, lon: ac.lon, alt: ac.alt }], routeLayer);
 
   if (o && Number.isFinite(o.lat)) {
-    L.polyline([[o.lat, o.lon], here], {
-      color: '#5ec2ff', weight: 2, opacity: 0.75, interactive: false,
+    const joinTo = flown ? [flown[0].lat, flown[0].lon] : here;
+    L.polyline([[o.lat, o.lon], joinTo], {
+      color: '#5ec2ff',
+      weight: flown ? 1.6 : 2,
+      opacity: flown ? 0.4 : 0.75,
+      dashArray: flown ? '4 7' : null,
+      interactive: false,
     }).addTo(routeLayer);
     airportDot(o, 'from').addTo(routeLayer);
   }
@@ -294,6 +418,13 @@ export function drawRoute(ac, route) {
     }).addTo(routeLayer);
     airportDot(d, 'to').addTo(routeLayer);
   }
+}
+
+/** How much of the selected aircraft's flight we have actually watched. */
+export function trackSpan(hex) {
+  const t = trails.get(hex) || [];
+  if (t.length < 2) return null;
+  return { points: t.length, fromAt: t[0].at, minutes: (Date.now() - t[0].at) / 60000 };
 }
 
 function airportDot(ap, kind) {

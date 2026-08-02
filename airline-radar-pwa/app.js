@@ -9,11 +9,11 @@
 // persistence and the two bottom sheets.
 
 import { fetchArea, fetchOne, radiusForMap, normalise, MAX_RADIUS_NM } from './modules/adsb.js';
-import { classify, lookup as lookupAirline } from './modules/airlines.js';
+import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airlines.js';
 import * as radar from './modules/map.js';
-import { lookupRoute, lookupAircraft, cachedRoute, eta } from './modules/routes.js';
+import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js';
 import { renderList, renderDetail, renderAirlines } from './modules/panel.js';
-import { LEGEND } from './modules/aircraft.js';
+import { LEGEND, altColor as altColorOf } from './modules/aircraft.js';
 import { installResumeHardening } from './modules/resume.js';
 import * as history from './modules/history.js';
 import * as search from './modules/search.js';
@@ -29,6 +29,7 @@ const STALE_MS = 12000;          // beyond ~2 refreshes we're dead-reckoning, no
 const VIEW_KEY = 'airadar.view';
 const PREFS_KEY = 'airadar.prefs';
 const AIRLINES_KEY = 'airadar.airlines';
+const KINDS_KEY = 'airadar.kinds';
 const DEFAULT_VIEW = { lat: 32.01, lon: 34.89, zoom: 8 };   // Ben Gurion TMA
 
 const state = {
@@ -45,6 +46,7 @@ const state = {
   lookupNote: '',        // what the global lookup found, for the status line
   pannedFor: '',         // query set we already moved the map for
   airlines: new Set(),   // operator codes to show; empty = all
+  kinds: new Set(['airline']),   // which kinds of traffic are drawn
   pickerQuery: '',
   deepLink: null,        // {queries, sta, staSource} — see readDeepLink()
   autoSelected: false,   // the deep-linked aircraft has been opened once
@@ -113,6 +115,18 @@ function saveAirlines() {
   try { localStorage.setItem(AIRLINES_KEY, JSON.stringify([...state.airlines])); } catch { /* ignore */ }
 }
 
+function loadKinds() {
+  try {
+    const a = JSON.parse(localStorage.getItem(KINDS_KEY) || 'null');
+    if (Array.isArray(a) && a.length) return new Set(a.filter((k) => KIND_LABEL[k]));
+  } catch { /* ignore */ }
+  return new Set(['airline']);   // the app's default layer
+}
+
+function saveKinds() {
+  try { localStorage.setItem(KINDS_KEY, JSON.stringify([...state.kinds])); } catch { /* ignore */ }
+}
+
 function loadView() {
   try {
     const v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null');
@@ -154,9 +168,9 @@ async function refresh(force = false) {
     const out = [];
     for (const raw of aircraft) {
       if (!Number.isFinite(raw.lat) || !Number.isFinite(raw.lon)) continue;
-      const cls = classify(raw);
-      if (!cls) continue;                                   // not airline traffic
-      const ac = normalise(raw, cls);
+      // Everything is classified; which kinds are drawn is the layer filter's
+      // job (see kindOk), so switching a layer on doesn't need a new fetch.
+      const ac = normalise(raw, classify(raw));
       if (ac.onGround && !state.prefs.ground) continue;
       out.push(ac);
     }
@@ -298,6 +312,94 @@ async function runLookup() {
   draw();
 }
 
+/**
+ * Offer the aircraft the typed text could mean, so choosing one is a tap
+ * instead of a guess at the exact callsign. Draws from what's in view, what the
+ * global lookup found, and what we last saw — the same three sources the list
+ * uses — so a tail that has stopped transmitting is still offered.
+ */
+function drawSuggestions() {
+  const el = $('#suggest');
+  const q = state.parsed.text;
+  if (!q || q.length < 2) { el.hidden = true; el.innerHTML = ''; return; }
+
+  const seen = new Set(state.tokens.map((t) => t.toUpperCase()));
+  const pool = [...state.aircraft, ...state.remote];
+  for (const e of history.ghosts()) pool.push(history.asAircraft(e));
+
+  const hits = [];
+  const used = new Set();
+  for (const ac of pool) {
+    if (used.has(ac.hex)) continue;
+    if (!search.matches(ac, state.parsed, routeOf(ac))) continue;
+    if (seen.has((ac.callsign || '').toUpperCase())) continue;
+    used.add(ac.hex);
+    hits.push(ac);
+    if (hits.length >= 8) break;
+  }
+  if (!hits.length) { el.hidden = true; el.innerHTML = ''; return; }
+
+  el.innerHTML = hits.map((ac) => {
+    const route = routeOf(ac);
+    const r = routeLabelOf(route);
+    const who = (ac.airline && ac.airline.name)
+      || (route && route.airline && route.airline.name) || ac.code || '';
+    return `<button class="sug-row" data-hex="${escAttr(ac.hex)}" role="option">
+      <span class="sug-dot" style="background:${ac.ghost ? '#9aa6bd' : altColorOf(ac.alt)}"></span>
+      <span class="sug-main"><b>${escAttr(ac.callsign || ac.reg)}</b>
+        <i>${escAttr([ac.reg, who, r].filter(Boolean).join(' · '))}</i></span>
+      <span class="sug-alt">${escAttr(ac.ghost ? 'last seen' : fmt.alt(ac.alt, ac.onGround))}</span>
+    </button>`;
+  }).join('');
+  el.hidden = false;
+  el.querySelectorAll('.sug-row').forEach((b) => {
+    b.addEventListener('mousedown', (e) => e.preventDefault());   // keep focus
+    b.addEventListener('click', () => {
+      const ac = pool.find((a) => a.hex === b.dataset.hex);
+      if (!ac) return;
+      // Picking one is the same as typing its callsign and pressing Enter.
+      $('#search').value = '';
+      commitToken(ac.callsign || ac.reg || ac.hex);
+      hideSuggestions();
+      select(ac.hex);
+    });
+  });
+}
+
+function hideSuggestions() {
+  const el = $('#suggest');
+  if (el) { el.hidden = true; el.innerHTML = ''; }
+}
+
+/**
+ * Several aircraft under one tap: show them all and let the user say which.
+ * Reuses the suggestion list, since it answers the same question — "which of
+ * these did you mean?" — and appears anchored to the search box either way.
+ */
+function showStack(hexes) {
+  const el = $('#suggest');
+  const list = visible();
+  const picks = hexes.map((h) => list.find((a) => a.hex === h)).filter(Boolean);
+  if (picks.length < 2) { if (picks[0]) select(picks[0].hex); return; }
+
+  el.innerHTML = `<div class="sug-head">${picks.length} aircraft here — pick one</div>`
+    + picks.map((ac) => {
+      const route = routeOf(ac);
+      const who = (ac.airline && ac.airline.name)
+        || (route && route.airline && route.airline.name) || ac.code || '';
+      return `<button class="sug-row" data-hex="${escAttr(ac.hex)}" role="option">
+        <span class="sug-dot" style="background:${ac.ghost ? '#9aa6bd' : altColorOf(ac.alt)}"></span>
+        <span class="sug-main"><b>${escAttr(ac.callsign || ac.reg)}</b>
+          <i>${escAttr([ac.reg, who, routeLabelOf(route)].filter(Boolean).join(' · '))}</i></span>
+        <span class="sug-alt">${escAttr(fmt.alt(ac.alt, ac.onGround))}</span>
+      </button>`;
+    }).join('');
+  el.hidden = false;
+  el.querySelectorAll('.sug-row').forEach((b) => {
+    b.addEventListener('click', () => { hideSuggestions(); select(b.dataset.hex); });
+  });
+}
+
 /** Re-read the text in the box, filter immediately, schedule the lookup. */
 function onQueryChanged(raw) {
   state.query = raw;
@@ -305,6 +407,7 @@ function onQueryChanged(raw) {
   state.lookupNote = '';
   if (!activeQueries().some(search.isTargeted)) { state.remote = []; state.pannedFor = ''; }
   draw();
+  drawSuggestions();
 
   clearTimeout(lookupTimer);
   if (state.parsed.text.length >= 3 || state.tokens.length) {
@@ -330,6 +433,7 @@ function commitToken(raw) {
   $('#search').value = '';
   state.query = '';
   state.parsed = search.parseQuery('');
+  hideSuggestions();
   state.pannedFor = '';
   draw();
   clearTimeout(lookupTimer);
@@ -352,7 +456,16 @@ const routeOf = (ac) => cachedRoute(ac.callsign) || null;
 
 /** Does this aircraft survive the airline picker? */
 function airlineOk(ac) {
-  return state.airlines.size === 0 || state.airlines.has(ac.code);
+  if (state.airlines.size === 0) return true;
+  // The airline picker only governs airline traffic; ticking "El Al" shouldn't
+  // silently hide every helicopter as well.
+  if (ac.kind && ac.kind !== 'airline') return true;
+  return state.airlines.has(ac.code);
+}
+
+/** Is this kind of traffic switched on? */
+function kindOk(ac) {
+  return state.kinds.has(ac.kind || 'airline');
 }
 
 /**
@@ -376,7 +489,7 @@ function visible() {
   const byHex = new Map();
 
   for (const ac of state.aircraft) {
-    if (!airlineOk(ac) && !named(ac)) continue;
+    if (!(airlineOk(ac) && kindOk(ac)) && !named(ac)) continue;
     if (searching && !hit(ac)) continue;
     byHex.set(ac.hex, ac);
   }
@@ -395,7 +508,7 @@ function visible() {
       if (byHex.has(e.hex)) continue;
       if (!Number.isFinite(e.lat)) continue;
       const ac = history.asAircraft(e);
-      if (!airlineOk(ac) && !named(ac)) continue;
+      if (!(airlineOk(ac) && kindOk(ac)) && !named(ac)) continue;
       if (searching) {
         if (!hit(ac)) continue;
       } else if (!e.wentDark || Date.now() - (e.at || 0) > GHOST_MAX_AGE_MS) {
@@ -486,12 +599,15 @@ function arrivalFor(ac, route) {
   // Anchor the scheduled clock time to the estimated arrival, so the two are
   // being compared on the same day (see fmt.parseStaUtc).
   const est = ac.ghost ? null : eta(ac, route);
-  const anchor = est && est.at ? est.at : Date.now();
+  const ataAt = history.landedAt(ac.hex);
+  const anchor = ataAt || (est && est.at ? est.at : Date.now());
   const staAt = isLinked && dl.sta ? fmt.parseStaUtc(dl.sta, anchor) : 0;
   return {
     eta: est,
+    ataAt,
     staAt,
     staSource: staAt ? (dl.staSource || 'roster') : '',
+    track: radar.trackSpan(ac.hex),
   };
 }
 
@@ -600,6 +716,10 @@ function updateLiveBadge(polling) {
 function airlineOptions() {
   const counts = new Map();
   for (const ac of state.aircraft) {
+    // Only airline traffic with an identified operator belongs in this list —
+    // a callsign-less airliner has no operator to filter by, and an empty row
+    // with a count next to it is just a puzzle.
+    if (ac.kind !== 'airline' || !ac.code) continue;
     const name = (ac.airline && ac.airline.name)
       || (cachedRoute(ac.callsign) && cachedRoute(ac.callsign).airline
         && cachedRoute(ac.callsign).airline.name) || ac.code;
@@ -618,8 +738,23 @@ function airlineOptions() {
 }
 
 function drawPicker() {
+  const counts = {};
+  for (const ac of state.aircraft) counts[ac.kind] = (counts[ac.kind] || 0) + 1;
+  const kinds = Object.entries(KIND_LABEL).map(([key, label]) => ({
+    key, label, on: state.kinds.has(key), count: counts[key] || 0,
+  }));
+
   renderAirlines($('#picker-body'), airlineOptions(), state.airlines, {
     query: state.pickerQuery,
+    kinds,
+    onToggleKind: (k) => {
+      if (state.kinds.has(k)) state.kinds.delete(k);
+      else state.kinds.add(k);
+      if (!state.kinds.size) state.kinds.add('airline');   // never show nothing
+      saveKinds();
+      drawPicker();
+      draw();
+    },
     onToggle: (code) => {
       if (state.airlines.has(code)) state.airlines.delete(code);
       else state.airlines.add(code);
@@ -794,10 +929,12 @@ function boot() {
     // The map cancels follow when the user drags; repaint so the sheet's
     // Follow button stops claiming it's on.
     onFollowCancelled: () => draw(),
+    onStackTapped: (hexes) => showStack(hexes),
   });
 
   buildLegend();
   state.airlines = loadAirlines();
+  state.kinds = loadKinds();
 
   toggleChip('#labels-btn', 'labels', (v) => { radar.setLabels(v); radar.render(visible(), state.selectedHex); });
   toggleChip('#trails-btn', 'trails', (v) => radar.setTrails(v));

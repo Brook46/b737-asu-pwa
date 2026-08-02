@@ -100,6 +100,12 @@ export function record(list, area) {
   for (const ac of list) {
     seen.add(ac.hex);
     const prev = entries[ac.hex];
+    // The moment an aircraft we were watching airborne shows up on the ground
+    // is the only actual arrival time a position feed can give us. Recorded
+    // once, and only for a transition we actually witnessed — an aircraft first
+    // seen already parked has no ATA, and inventing one from "first seen on the
+    // ground" would put a landing time on an aeroplane that landed yesterday.
+    const justLanded = prev && !prev.onGround && ac.onGround && prev.alt > 0;
     entries[ac.hex] = {
       hex: ac.hex,
       callsign: ac.callsign,
@@ -118,6 +124,9 @@ export function record(list, area) {
       lostAt: 0,
       wentDark: false,
       firstSeen: (prev && prev.firstSeen) || now,
+      landedAt: justLanded ? now : (prev && ac.onGround ? prev.landedAt || 0 : 0),
+      landedLat: justLanded ? ac.lat : (prev && ac.onGround ? prev.landedLat : undefined),
+      landedLon: justLanded ? ac.lon : (prev && ac.onGround ? prev.landedLon : undefined),
     };
   }
 
@@ -189,6 +198,12 @@ export function asAircraft(e) {
     lastSeenAt: e.at || 0,
     wentDark: !!e.wentDark,
   };
+}
+
+/** When we watched this aircraft touch down, if we did. 0 otherwise. */
+export function landedAt(hex) {
+  const e = entries[hex];
+  return (e && e.landedAt) || 0;
 }
 
 export function count() { return Object.keys(entries).length; }

@@ -211,6 +211,66 @@ export function eta(ac, route, now = Date.now()) {
   return { minutes, at: now + minutes * 60000, toGoNm };
 }
 
+/** Initial great-circle bearing from one point to another, degrees true. */
+export function bearingTo(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const y = Math.sin((lon2 - lon1) * rad) * Math.cos(lat2 * rad);
+  const x = Math.cos(lat1 * rad) * Math.sin(lat2 * rad)
+    - Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos((lon2 - lon1) * rad);
+  return (Math.atan2(y, x) / rad + 360) % 360;
+}
+
+const angleDiff = (a, b) => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+
+/**
+ * Does this route actually describe what the aircraft is doing?
+ *
+ * adsbdb keys routes on the callsign alone, and callsigns get reused: the same
+ * flight number flies a different sector on a different day, charters borrow
+ * numbers, and repositioning legs keep the number of the flight they're
+ * positioning for. The result is a card that states a destination with total
+ * confidence and is simply wrong.
+ *
+ * Two checks against the aircraft's own telemetry, both deliberately loose so
+ * that only clear contradictions trip them:
+ *
+ *   • Heading the wrong way — cruising, well clear of the airport, with the
+ *     destination more than 100° off the nose. Arrivals manoeuvre and holds
+ *     circle, so this only counts above 10,000 ft and beyond 40 NM.
+ *   • Nowhere near the corridor — further from both ends than the city pair is
+ *     from itself, which no aircraft flying that route can be.
+ *
+ * @returns {{ok:boolean, reason:string}}
+ */
+export function routeSanity(ac, route) {
+  if (!route || !ac || ac.ghost) return { ok: true, reason: '' };
+  const o = route.origin, d = route.destination;
+  const hasO = o && Number.isFinite(o.lat);
+  const hasD = d && Number.isFinite(d.lat);
+  if (!hasD && !hasO) return { ok: true, reason: '' };
+
+  if (hasD) {
+    const toDest = haversine(ac.lat, ac.lon, d.lat, d.lon);
+    if (!ac.onGround && Number.isFinite(ac.track) && ac.gs > 200
+        && ac.alt > 10000 && toDest > 40) {
+      const brg = bearingTo(ac.lat, ac.lon, d.lat, d.lon);
+      if (angleDiff(brg, ac.track) > 100) {
+        return { ok: false, reason: `tracking ${Math.round(ac.track)}° away from ${d.iata || d.icao}` };
+      }
+    }
+    if (hasO) {
+      const legLength = haversine(o.lat, o.lon, d.lat, d.lon);
+      const fromOrigin = haversine(o.lat, o.lon, ac.lat, ac.lon);
+      // Being further from the origin than the whole leg, while still a long
+      // way from the destination, puts the aircraft outside the corridor.
+      if (legLength > 50 && fromOrigin > legLength * 1.25 && toDest > legLength * 0.5) {
+        return { ok: false, reason: 'position is off this city pair' };
+      }
+    }
+  }
+  return { ok: true, reason: '' };
+}
+
 /** Great-circle distance in nautical miles. */
 export function haversine(lat1, lon1, lat2, lon2) {
   const R = 3440.065; // NM
