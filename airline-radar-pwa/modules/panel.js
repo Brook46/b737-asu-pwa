@@ -6,7 +6,7 @@
 // whatever the transponder and the database say it is, not something we trust.
 
 import * as fmt from './fmt.js';
-import { altColor, familyOf, planeSvg } from './aircraft.js';
+import { altColor, familyOf, planeSvg, classLine } from './aircraft.js';
 import { routeLabel, progress, haversine, eta, routeSanity } from './routes.js';
 import { squawkAlert } from './adsb.js';
 
@@ -61,6 +61,7 @@ export function renderList(el, list, { selectedHex, routeFor, onPick, emptyMessa
 // made the card jump under the reader's finger.
 const CELLS = [
   ['type', 'Aircraft'],
+  ['class', 'Family / class'],
   ['reg', 'Registration'],
   ['gs', 'Ground speed'],
   ['ias', 'IAS / Mach'],
@@ -201,6 +202,7 @@ export function renderDetail(el, ac, route, info, { following, arrival, onAction
   set('center-btn', ac.ghost ? 'Go to last position' : 'Centre');
 
   set('c-type', familyOf(ac.type, ac.desc || (info && info.type)) || '—');
+  set('c-class', ac.type ? classLine(ac.type, ac.category) : '—');
   set('c-reg', ac.reg || (info && info.reg) || '—');
   set('c-gs', fmt.kt(ac.gs));
   set('c-ias', ac.ias || ac.mach
@@ -263,10 +265,10 @@ export function renderAirlines(el, options, selected, { query, onToggle, onClear
     });
 
   // Which layers are drawn at all comes before which airline within them.
-  const kindRows = (kinds || []).map(({ key, label, on, count }) => `
-    <button class="kind-row${on ? ' on' : ''}" data-kind="${esc(key)}">
+  const kindRows = (kinds || []).map(({ key, label, on, count, muted }) => `
+    <button class="kind-row${on ? ' on' : ''}${muted ? ' muted' : ''}" data-kind="${esc(key)}">
       <span class="pick-tick">${on ? '✓' : ''}</span>
-      <span class="pick-name">${esc(label)}</span>
+      <span class="pick-name">${esc(label)}${muted ? '<i>hidden — zoomed out</i>' : ''}</span>
       <span class="pick-count">${count || ''}</span>
     </button>`).join('');
 

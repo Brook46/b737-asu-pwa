@@ -510,3 +510,10 @@ html, body {
   padding: 7px 10px 6px; color: var(--muted);
   font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
 }
+
+/* A layer that's switched on but suppressed by zoom reads dimmed, not off. */
+.kind-row.muted { opacity: .6; }
+.kind-row .pick-name i {
+  display: block; font-style: normal; color: var(--muted);
+  font-size: .62rem; font-weight: 500; letter-spacing: .02em;
+}

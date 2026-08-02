@@ -12,7 +12,7 @@
 // from the last fix using ground speed and track, so the picture moves the way
 // a radar picture moves instead of stepping every five seconds.
 
-import { altColor, planeSvg, sizeFor } from './aircraft.js';
+import { altColor, planeSvg, sizeFor, sizeClass } from './aircraft.js';
 import { alt as fmtAlt, ago as fmtAgo } from './fmt.js';
 import * as runways from './runways.js';
 
@@ -154,8 +154,9 @@ function ghostAge(ac) {
 function iconFor(ac, selected) {
   const color = ac.ghost ? '#9aa6bd' : altColor(ac.alt);
   const svg = planeSvg({
-    color, track: ac.track, scale: sizeFor(ac.type),
+    color, track: ac.track, scale: sizeFor(ac.type, ac.category),
     selected, ground: ac.onGround, ghost: ac.ghost, kind: ac.kind || 'airline',
+    cls: sizeClass(ac.type, ac.category),
   });
   // The tail number leads: it names the aeroplane itself, which is what a crew
   // recognises. Flight level sits under it, and the callsign stays in the list
@@ -165,7 +166,7 @@ function iconFor(ac, selected) {
   const tag = showLabels
     ? `<span class="plane-tag${selected ? ' sel' : ''}${ac.ghost ? ' ghost' : ''}">${primary}<b>${second}</b></span>`
     : '';
-  const size = Math.round(30 * sizeFor(ac.type));
+  const size = Math.round(30 * sizeFor(ac.type, ac.category));
   return L.divIcon({
     html: `<div class="plane-wrap${selected ? ' selected' : ''}${ac.ghost ? ' ghost' : ''}">${svg}${tag}</div>`,
     className: 'plane-icon',
@@ -177,7 +178,7 @@ function iconFor(ac, selected) {
 /** Cheap signature of everything that affects the drawn icon. */
 function sigOf(ac, selected) {
   const ghostBit = ac.ghost ? `g${ghostAge(ac)}` : '';
-  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.reg || ac.callsign}|${ghostBit}`;
+  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.reg || ac.callsign}|${ac.type}|${ghostBit}`;
 }
 
 /**

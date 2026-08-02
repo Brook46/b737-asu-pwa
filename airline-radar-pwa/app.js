@@ -13,7 +13,7 @@ import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airline
 import * as radar from './modules/map.js';
 import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js';
 import { renderList, renderDetail, renderAirlines } from './modules/panel.js';
-import { LEGEND, altColor as altColorOf } from './modules/aircraft.js';
+import { LEGEND, altColor as altColorOf, sizeClass, classLine } from './modules/aircraft.js';
 import { installResumeHardening } from './modules/resume.js';
 import * as history from './modules/history.js';
 import * as search from './modules/search.js';
@@ -463,9 +463,27 @@ function airlineOk(ac) {
   return state.airlines.has(ac.code);
 }
 
-/** Is this kind of traffic switched on? */
+// Zoomed out past this, small aircraft are dropped from the picture. A light
+// aircraft pottering around a field is meaningful at 20 NM across the screen
+// and pure clutter at 600 — at that scale the only traffic worth drawing is
+// what crosses the country.
+const DECLUTTER_ZOOM = 7;
+const SMALL_KINDS = new Set(['light', 'heli', 'bizjet']);
+
+/** Is the map wide enough that small aircraft are just noise? */
+function decluttering() {
+  const map = radar.getMap();
+  return !!map && map.getZoom() < DECLUTTER_ZOOM;
+}
+
+/** Is this kind of traffic switched on, and worth drawing at this zoom? */
 function kindOk(ac) {
-  return state.kinds.has(ac.kind || 'airline');
+  const kind = ac.kind || 'airline';
+  if (!state.kinds.has(kind)) return false;
+  if (decluttering() && SMALL_KINDS.has(kind)) return false;
+  // Regional turboprops stay; a Cessna-sized airframe doesn't.
+  if (decluttering() && sizeClass(ac.type, ac.category) === 'light') return false;
+  return true;
 }
 
 /**
@@ -740,8 +758,11 @@ function airlineOptions() {
 function drawPicker() {
   const counts = {};
   for (const ac of state.aircraft) counts[ac.kind] = (counts[ac.kind] || 0) + 1;
+  const dz = decluttering();
   const kinds = Object.entries(KIND_LABEL).map(([key, label]) => ({
     key, label, on: state.kinds.has(key), count: counts[key] || 0,
+    // Switched on but not drawn, because the map is too far out to be useful.
+    muted: dz && SMALL_KINDS.has(key) && state.kinds.has(key),
   }));
 
   renderAirlines($('#picker-body'), airlineOptions(), state.airlines, {

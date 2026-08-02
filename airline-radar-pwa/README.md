@@ -93,6 +93,31 @@ that are easy to get wrong and matter:
 Where a runway has no `ref`, the numbers are derived from its bearing and shown
 in italics to mark them as computed rather than surveyed.
 
+## Size classes
+
+Every aircraft is sorted into a wake-turbulence-ish class — **Super**, **Heavy**,
+**Medium**, **Regional**, **Light** — which sets both the symbol's size and its
+silhouette: a widebody has a longer fuselage and a wider, more swept wing than a
+737, a regional turboprop has a short straight wing, and heavies carry engine
+pods on the wing (four of them on a Super) so a Jumbo doesn't read like a twin.
+
+Classification is type-code first, ADS-B category second — the type is the
+stronger signal. Short military type codes are matched **exactly**, never as
+prefixes: `C17` as a prefix also matches the Cessna 172, which is how a training
+aeroplane ends up drawn as a Globemaster.
+
+The card names the aeroplane properly: `Boeing 737-800` on one row and
+`737NG · Medium` on the next, so the model, the family a crew actually says out
+loud, and the size class are all there.
+
+## Zoomed-out decluttering
+
+Below zoom 7 the small stuff is dropped: light aircraft, helicopters and
+business jets. A Cessna pottering around a field is meaningful when the screen
+is 20 NM across and pure noise when it's 600. Their layers stay switched on and
+the filter sheet shows them dimmed with "hidden — zoomed out" and the live count
+beside it, so nothing disappears without saying why.
+
 ## Other traffic
 
 The default layer is still airlines only — that's what the app is for — but the
