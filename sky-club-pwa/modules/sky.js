@@ -17,6 +17,7 @@ const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
 const DARK_ALT_THRESHOLD = -4; // sun below this altitude ⇒ dark enough for stars
 const NAMED_STAR_MAG = 1.5;    // stars this bright or brighter show their name always
+const FLARE_STAR_MAG = 0.2;    // the handful of hero-bright stars get a lens-flare sparkle
 const DEFAULT_STAR_COLOR = '#eef4ff';
 
 let stars = [];
@@ -139,7 +140,8 @@ function makeMarker(container, emoji, name, big) {
 function makeStarMarker(container, star) {
   const btn = document.createElement('button');
   const named = star.mag <= NAMED_STAR_MAG;
-  btn.className = 'sky-marker sky-marker-star hidden' + (named ? ' named' : '');
+  const flare = star.mag <= FLARE_STAR_MAG;
+  btn.className = 'sky-marker sky-marker-star hidden' + (named ? ' named' : '') + (flare ? ' flare' : '');
   const size = Math.max(3, Math.min(11, 9 - star.mag * 1.6));
   btn.style.setProperty('--star-size', `${size.toFixed(1)}px`);
   btn.style.setProperty('--star-color', star.color || DEFAULT_STAR_COLOR);

@@ -104,6 +104,21 @@ button {
   box-shadow: 0 0 46px 14px rgba(255, 207, 92, 0.55);
   z-index: 5;
 }
+/* A soft radiant cross behind the Sun's own texture (::before paints before real
+   children, so it sits behind, not on top) — a plain glow reads as "a lit
+   circle"; a flare reads as "a star", matching a real bright-sun photo. */
+.body-btn.sun-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 210%; height: 210%;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(90deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%),
+    linear-gradient(0deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%);
+  filter: blur(1px);
+  pointer-events: none;
+}
 .orbit-ring {
   position: absolute;
   top: 50%; left: 50%;
@@ -362,6 +377,21 @@ button {
 .planet-card.is-earth .spin-frame {
   box-shadow: 0 0 60px 10px rgba(255, 255, 255, 0.08), inset 0 0 30px rgba(0,0,0,0.4), 0 0 46px 10px rgba(110, 190, 255, 0.5);
 }
+/* Same lens-flare cross as the orrery Sun icon. Attached to .spin-wrap, not
+   .spin-frame — the frame clips overflow to the circle, which would cut the
+   flare's arms off right at the edge instead of letting them radiate outward. */
+.planet-card.is-sun .spin-wrap::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 190%; height: 190%;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(90deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%),
+    linear-gradient(0deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%);
+  filter: blur(1.5px);
+  pointer-events: none;
+}
 .spin-texture {
   position: absolute; inset: 0;
   width: 200%; height: 100%;
@@ -484,6 +514,31 @@ button {
   animation: star-twinkle 2.6s ease-in-out infinite;
   animation-delay: var(--twinkle-delay, 0s);
   filter: none;
+}
+/* The handful of hero-bright stars (Sirius, Canopus...) get a lens-flare cross,
+   like real astrophotography — a plain dot reads as "faint" no matter how big
+   you make it. Pseudo-elements so no extra DOM per star; sized off --star-size
+   so brighter (bigger) stars get a proportionally longer spike. */
+.sky-marker-star.flare .marker-glyph { position: relative; }
+.sky-marker-star.flare .marker-glyph::before,
+.sky-marker-star.flare .marker-glyph::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  background: linear-gradient(90deg, transparent, var(--star-color, #eef4ff) 46%, var(--star-color, #eef4ff) 54%, transparent);
+  opacity: 0.65;
+  animation: star-twinkle 2.6s ease-in-out infinite;
+  animation-delay: var(--twinkle-delay, 0s);
+}
+.sky-marker-star.flare .marker-glyph::before {
+  width: calc(var(--star-size, 4px) * 4.5);
+  height: 1px;
+  transform: translate(-50%, -50%);
+}
+.sky-marker-star.flare .marker-glyph::after {
+  width: 1px;
+  height: calc(var(--star-size, 4px) * 4.5);
+  transform: translate(-50%, -50%);
 }
 .sky-marker-star .marker-label { display: none; }
 .sky-marker-star.named .marker-label {

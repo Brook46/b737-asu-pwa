@@ -19,25 +19,43 @@ export function initStarfield(canvas) {
     canvas.height = Math.max(1, Math.round(h * dpr));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const count = Math.max(40, Math.round((w * h) / DENSITY));
-    stars = Array.from({ length: count }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      r: Math.random() * 1.2 + 0.3,
-      base: Math.random() * 0.5 + 0.35,
-      phase: Math.random() * Math.PI * 2,
-      speed: Math.random() * 0.8 + 0.25,
-    }));
+    // A handful of "hero" stars get a bigger disc + a lens-flare cross (drawn in
+    // drawStars) — a field of same-size dots reads as flat; a couple of bright
+    // sparkly ones give it the depth real astrophotography has.
+    const flareCount = Math.min(5, Math.max(2, Math.round(count / 45)));
+    stars = Array.from({ length: count }, (_, i) => {
+      const flare = i < flareCount;
+      return {
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: flare ? 1.8 + Math.random() * 0.5 : Math.random() * 1.2 + 0.3,
+        base: Math.random() * 0.5 + 0.35,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.8 + 0.25,
+        flare,
+      };
+    });
   }
 
   function drawStars(t) {
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#fff';
     for (const s of stars) {
       const a = s.base * (0.55 + 0.45 * Math.sin((t / 1000) * s.speed + s.phase));
       ctx.globalAlpha = a;
+      ctx.fillStyle = '#fff';
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
+      if (s.flare) {
+        const len = s.r * 9 + 3;
+        ctx.globalAlpha = a * 0.55;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(s.x - len, s.y); ctx.lineTo(s.x + len, s.y);
+        ctx.moveTo(s.x, s.y - len); ctx.lineTo(s.x, s.y + len);
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
   }

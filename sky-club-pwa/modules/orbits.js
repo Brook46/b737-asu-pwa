@@ -325,6 +325,7 @@ function renderCard() {
   const isSun = body.id === 'sun';
 
   document.getElementById('planet-card').classList.toggle('is-earth', body.id === 'earth');
+  document.getElementById('planet-card').classList.toggle('is-sun', isSun);
 
   const texture = document.getElementById('spin-texture');
   texture.style.backgroundImage = `url(${body.texture})`;
