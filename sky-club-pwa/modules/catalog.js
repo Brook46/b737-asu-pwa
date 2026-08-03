@@ -3,14 +3,14 @@
 
 export const SUN = {
   id: 'sun', name: 'Sun', emoji: '☀️', texture: 'icons/textures/sun.jpg',
-  color: '#ffcf5c', sizePx: 84,
+  color: '#ffcf5c', sizePx: 84, skySize: 40,
   fact: 'The Sun is a giant ball of glowing fire that gives us light and warmth.',
   safety: 'Never look right at the real sun — it can hurt your eyes!',
 };
 
 export const MOON = {
   id: 'moon', name: 'Moon', emoji: '🌙', texture: 'icons/textures/moon.jpg',
-  color: '#dfe3ea', sizePx: 14,
+  color: '#dfe3ea', light: '#f3f5fe', dark: '#9397ab', sizePx: 14, skySize: 46,
   fact: 'The Moon circles our Earth and lights up our night sky.',
 };
 
@@ -28,27 +28,29 @@ export const MOON = {
 // planet's real ecliptic longitude for the selected date (astro.js), not a fixed
 // animation speed — so this is a real (if compressed) picture of the solar system
 // on any given day, not just a decorative spin.
-// spinSec/reverse: a self-rotation speed for visual life, not a physically-timed
-// day length (Mercury's real day is 59 Earth-days — invisible on any human time
-// scale). Kept slow/majestic on purpose — a fast spin reads as a toy top, not a
-// planet turning. Venus and Uranus really do spin backwards relative to their
-// orbit, so they get reverse:true as a small true-to-life touch.
+// light/dark: the exact two-tone gradient pairs from the Nocturne design mockup
+// (`Sky Club.dc.html`'s DATA/SKY arrays) — used for the orrery's small orbiting
+// dot and the Sky screen's marker, both flat glowing spheres rather than the
+// photo texture (which only reads well at the bigger card size, see orbits.js).
+// skySize: a modest, roughly-brightness-ordered size for the Sky-screen marker —
+// independent of sizePx (which is scaled for the orrery's real-diameter ordering
+// and would make the Sun comically huge as a sky marker).
 export const PLANETS = [
-  { id: 'mercury', name: 'Mercury', emoji: '🪨', texture: 'icons/textures/mercury.jpg', color: '#b9a89a', sizePx: 14, spinSec: 26,
+  { id: 'mercury', name: 'Mercury', emoji: '🪨', texture: 'icons/textures/mercury.jpg', color: '#b9a89a', light: '#d8cdc2', dark: '#6f6157', sizePx: 14, skySize: 16,
     fact: 'Mercury is the closest planet to the Sun and gets super hot in the day.' },
-  { id: 'venus', name: 'Venus', emoji: '🌕', texture: 'icons/textures/venus.jpg', color: '#e8c48c', sizePx: 18, spinSec: 34, reverse: true,
+  { id: 'venus', name: 'Venus', emoji: '🌕', texture: 'icons/textures/venus.jpg', color: '#e8c48c', light: '#f7e3b4', dark: '#b8863c', sizePx: 18, skySize: 20,
     fact: 'Venus is wrapped in thick clouds and is the hottest planet of all!' },
-  { id: 'earth', name: 'Earth', emoji: '🌍', texture: 'icons/textures/earth.jpg', color: '#5aa4e8', sizePx: 19, spinSec: 16,
+  { id: 'earth', name: 'Earth', emoji: '🌍', texture: 'icons/textures/earth.jpg', color: '#5aa4e8', light: '#8fd0ee', dark: '#255f92', sizePx: 19, skySize: 20,
     fact: 'Earth is our home — the only planet with oceans, air, and you!' },
-  { id: 'mars', name: 'Mars', emoji: '🔴', texture: 'icons/textures/mars.jpg', color: '#e07a5f', sizePx: 15, spinSec: 17,
+  { id: 'mars', name: 'Mars', emoji: '🔴', texture: 'icons/textures/mars.jpg', color: '#e07a5f', light: '#f09468', dark: '#93381f', sizePx: 15, skySize: 17,
     fact: 'Mars is called the Red Planet because its dusty ground is rusty orange.' },
-  { id: 'jupiter', name: 'Jupiter', emoji: '🟠', texture: 'icons/textures/jupiter.jpg', color: '#d9a066', sizePx: 46, spinSec: 10,
+  { id: 'jupiter', name: 'Jupiter', emoji: '🟠', texture: 'icons/textures/jupiter.jpg', color: '#d9a066', light: '#f2d3ac', dark: '#94643c', sizePx: 46, skySize: 22,
     fact: 'Jupiter is the biggest planet — over a thousand Earths could fit inside!' },
-  { id: 'saturn', name: 'Saturn', emoji: '🪐', texture: 'icons/textures/saturn.jpg', color: '#e8cf9a', sizePx: 43, spinSec: 11, ring: true,
+  { id: 'saturn', name: 'Saturn', emoji: '🪐', texture: 'icons/textures/saturn.jpg', color: '#e8cf9a', light: '#f6e5b8', dark: '#a8874a', sizePx: 43, skySize: 19, ring: true,
     fact: 'Saturn wears beautiful rings made of ice and rock, like a hat!' },
-  { id: 'uranus', name: 'Uranus', emoji: '🔵', texture: 'icons/textures/uranus.jpg', color: '#9fd8d8', sizePx: 30, spinSec: 19, reverse: true,
+  { id: 'uranus', name: 'Uranus', emoji: '🔵', texture: 'icons/textures/uranus.jpg', color: '#9fd8d8', light: '#bdeef2', dark: '#4b8c9c', sizePx: 30, skySize: 16,
     fact: 'Uranus spins on its side, rolling around the Sun like a ball.' },
-  { id: 'neptune', name: 'Neptune', emoji: '🔷', texture: 'icons/textures/neptune.jpg', color: '#5b7fe0', sizePx: 29, spinSec: 20,
+  { id: 'neptune', name: 'Neptune', emoji: '🔷', texture: 'icons/textures/neptune.jpg', color: '#5b7fe0', light: '#9db4f7', dark: '#2f4794', sizePx: 29, skySize: 16,
     fact: 'Neptune is a deep blue planet, way out at the edge of our solar family.' },
 ];
 

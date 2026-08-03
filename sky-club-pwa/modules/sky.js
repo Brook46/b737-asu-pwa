@@ -49,10 +49,11 @@ export async function initSky() {
   }
 }
 
-// Stays on the gate (not the sky view) until location actually succeeds, so a
-// failure never leaves the user staring at a blank/dead sky with no way back —
-// that silent-failure was the #1 complaint. requestOrientationPermission() has
-// to be the first thing called, synchronously, so it's still inside the tap.
+// Always gets into the sky view — geolocate() itself never throws anymore
+// (see sensors.js): a real fix is used when available, otherwise an approximate
+// default location so a denied/unavailable permission is never a dead end with
+// no in-app way forward. requestOrientationPermission() has to be the first
+// thing called, synchronously, so it's still inside the tap.
 async function startSky() {
   const gateNote = document.getElementById('sky-gate-note');
   const startBtn = document.getElementById('sky-start');
@@ -61,17 +62,7 @@ async function startSky() {
   startBtn.disabled = true;
   gateNote.textContent = 'Finding you… hold on a moment.';
 
-  try {
-    await geolocate();
-  } catch (err) {
-    startBtn.disabled = false;
-    startBtn.innerHTML = '<i class="ph-fill ph-binoculars"></i> Try Again';
-    gateNote.textContent = err.denied
-      ? 'Location is turned off for Sky Club. Turn it on in Settings, then try again.'
-      : "Couldn't find your location. Check you're connected, then try again.";
-    await orientPromise;
-    return;
-  }
+  await geolocate();
   await orientPromise;
 
   startBtn.disabled = false;
@@ -84,6 +75,9 @@ async function startSky() {
     buildMarkers();
     started = true;
     requestAnimationFrame(loop);
+    if (sensorState.usingDefaultLocation) {
+      showToast(document.getElementById('sky-toast'), "Not sure exactly where you are — the sky might be a little off!");
+    }
   }
 }
 
@@ -104,8 +98,8 @@ function buildMarkers() {
 
   for (const id of Object.keys(SKY_BODIES)) {
     const body = SKY_BODIES[id];
-    markerEls.set(id, makeMarker(markers, id, body.emoji, body.name, true));
-    arrowEls.set(id, makeArrow(arrows, body.emoji));
+    markerEls.set(id, makeMarker(markers, body));
+    arrowEls.set(id, makeArrow(arrows, body));
   }
   for (const s of stars) {
     markerEls.set(s.id, makeStarMarker(markers, s));
@@ -125,11 +119,30 @@ function buildMarkers() {
   }
 }
 
-function makeMarker(container, id, emoji, name, big) {
+// Sun/Moon/planets render as the same flat glowing "candy" sphere as the
+// orrery's small dots (see app.css .body-dot / makeBodyButton in orbits.js) —
+// not the emoji glyph the app used to show here, which read as a cartoon
+// sticker floating in an otherwise sleek sky, clashing badly with the design.
+// skySize/light/dark come from catalog.js; the Sun gets its own fixed
+// warm-glow gradient, same as the orrery.
+function makeMarker(container, body) {
   const btn = document.createElement('button');
-  btn.className = (big ? 'sky-marker sky-marker-body' : 'sky-marker sky-marker-star') + ' hidden';
-  btn.innerHTML = `<span class="marker-glyph">${emoji}</span><span class="marker-label">${name}</span>`;
-  btn.addEventListener('click', () => catchBody(id, name, btn));
+  btn.className = 'sky-marker sky-marker-body hidden';
+  const size = body.skySize || 24;
+  btn.style.setProperty('--marker-size', `${size}px`);
+  const dot = document.createElement('span');
+  dot.className = body.id === 'sun' ? 'body-dot sun-dot marker-dot' : 'body-dot marker-dot';
+  if (body.id !== 'sun') {
+    dot.style.setProperty('--dot-light', body.light);
+    dot.style.setProperty('--dot-dark', body.dark);
+    dot.style.setProperty('--dot-glow', `${Math.round(size * 0.9)}px`);
+  }
+  const label = document.createElement('span');
+  label.className = 'marker-label';
+  label.textContent = body.name;
+  btn.appendChild(dot);
+  btn.appendChild(label);
+  btn.addEventListener('click', () => catchBody(body.id, body.name, btn));
   container.appendChild(btn);
   return btn;
 }
@@ -163,10 +176,24 @@ function makeConstellationLabel(container, con) {
   return btn;
 }
 
-function makeArrow(container, emoji) {
+// A small version of the same glowing sphere as the on-screen marker (not the
+// emoji glyph this used to show) — "turn this way" should look like a hint
+// toward the same glowing world, not a different, cartoonish icon.
+function makeArrow(container, body) {
   const div = document.createElement('div');
   div.className = 'sky-arrow hidden';
-  div.innerHTML = `<span class="arrow-glyph">${emoji}</span><span class="arrow-chevron">➜</span>`;
+  const dotClass = body.id === 'sun' ? 'body-dot sun-dot arrow-dot' : 'body-dot arrow-dot';
+  const dot = document.createElement('span');
+  dot.className = dotClass;
+  if (body.id !== 'sun') {
+    dot.style.setProperty('--dot-light', body.light);
+    dot.style.setProperty('--dot-dark', body.dark);
+    dot.style.setProperty('--dot-glow', '8px');
+  }
+  const chevron = document.createElement('i');
+  chevron.className = 'ph-fill ph-caret-right arrow-chevron';
+  div.appendChild(dot);
+  div.appendChild(chevron);
   container.appendChild(div);
   return div;
 }

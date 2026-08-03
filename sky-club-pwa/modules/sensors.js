@@ -5,8 +5,15 @@
 
 const ORIENT_PERM_KEY = 'skyclub.orientPerm';
 
+// Used only when real location isn't available (denied, unsupported, or just
+// slow/flaky) — Sky mode must never dead-end waiting on a permission a toddler
+// can't grant themselves; an approximate sky beats a permanently stuck gate.
+const DEFAULT_LAT = 32.0853;
+const DEFAULT_LON = 34.7818;
+
 export const sensorState = {
   lat: null, lon: null, hasLocation: false,
+  usingDefaultLocation: false, // true when we fell back instead of a real fix
   heading: 0,     // compass bearing in degrees, 0 = north, clockwise
   pitch: 0,       // degrees above the horizon the phone is "looking", + up
   usingDevice: false, // true once real device-orientation events are flowing
@@ -28,20 +35,43 @@ function getPositionOnce() {
  * simply time out once with no real problem; a single silent retry clears most
  * of those before bothering the user. A permission *denial* is never retried
  * (asking again won't change the answer without the user acting first).
+ *
+ * This never throws: real location is always attempted (and used when it
+ * succeeds), but any failure — denied, timed out, or no geolocation API at
+ * all — falls back to an approximate default rather than leaving Sky mode
+ * stuck on a dead-end error with no in-app way forward. A toddler can't go
+ * fix a permission in Settings; the sky should still work.
  */
 export async function geolocate() {
   let pos;
   try {
     pos = await getPositionOnce();
   } catch (err) {
-    if (err.denied) throw err;
-    await new Promise((r) => setTimeout(r, 1500));
-    pos = await getPositionOnce(); // let this one's rejection propagate as-is
+    if (!err.denied) {
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        pos = await getPositionOnce();
+      } catch {
+        useDefaultLocation();
+        return sensorState;
+      }
+    } else {
+      useDefaultLocation();
+      return sensorState;
+    }
   }
   sensorState.lat = pos.coords.latitude;
   sensorState.lon = pos.coords.longitude;
   sensorState.hasLocation = true;
+  sensorState.usingDefaultLocation = false;
   return sensorState;
+}
+
+function useDefaultLocation() {
+  sensorState.lat = DEFAULT_LAT;
+  sensorState.lon = DEFAULT_LON;
+  sensorState.hasLocation = true;
+  sensorState.usingDefaultLocation = true;
 }
 
 function orientationNeedsPermission() {

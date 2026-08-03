@@ -266,28 +266,12 @@ button {
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  box-shadow: 0 0 46px 14px rgba(255, 207, 92, 0.55);
   z-index: 5;
-}
-/* A soft radiant cross behind the Sun's own texture (::before paints before real
-   children, so it sits behind, not on top) — a plain glow reads as "a lit
-   circle"; a flare reads as "a star", matching a real bright-sun photo. */
-.body-btn.sun-btn::before {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  width: 210%; height: 210%;
-  transform: translate(-50%, -50%);
-  background:
-    linear-gradient(90deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%),
-    linear-gradient(0deg, transparent 48.7%, rgba(255, 224, 160, 0.4) 49.85%, rgba(255, 224, 160, 0.4) 50.15%, transparent 51.3%);
-  filter: blur(1px);
-  pointer-events: none;
 }
 .orbit-ring {
   position: absolute;
   top: 50%; left: 50%;
-  border: 1px dashed rgba(150, 138, 224, 0.2);
+  border: 1px solid rgba(233, 233, 237, 0.1);
   border-radius: 50%;
   transform: translate(-50%, -50%);
 }
@@ -310,8 +294,7 @@ button {
 /* While paused, a manual date jump eases smoothly into place. While playing, every
    frame already sets a fresh transform, so a transition would just add lag. */
 .orrery:not(.playing) .orbit-spin,
-.orrery:not(.playing) .orbit-counter,
-.orrery:not(.playing) .sphere-shade {
+.orrery:not(.playing) .orbit-counter {
   transition: transform 0.6s ease;
 }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -331,33 +314,39 @@ button {
   inset: calc(-1 * max(0px, (44px - var(--size-px, 44px)) / 2));
 }
 /* Earth's atmosphere: a soft blue rim glow that marks it out as the one planet
-   with air and oceans. box-shadow (not filter/glow-on-frame) so it isn't cut
-   off by .planet-frame's own overflow:hidden. */
+   with air and oceans. On the outer .body-btn (not .body-dot), so it isn't cut
+   off by the dot's own rounded edge. */
 .body-btn[data-id="earth"] {
   box-shadow: 0 0 6px 1px rgba(110, 190, 255, 0.55);
 }
-/* Clips the spinning texture (and the shading layers riding on top of it) to the
-   circle — body-btn itself can't have overflow:hidden, since the Saturn ring and
-   the Earth's mini-moon are its OTHER children and need to render outside it. */
-.planet-frame {
+/* The orrery's flat "glowing candy" sphere — the exact Nocturne design recipe:
+   a highlight near the top-left fading through a light tone into a dark tone,
+   plus a soft glow sized off the body's own diameter (--dot-glow, set inline
+   per body in orbits.js). Deliberately NOT the photo texture used by the bigger
+   detail card — at 14-46px a small JPG reads as a blurry smudge, while this
+   flat gradient reads as a crisp, colorful sphere, which is both what the
+   design specifies and what actually looks good at this size. */
+.body-dot {
   position: absolute; inset: 0;
   border-radius: 50%;
-  overflow: hidden;
+  background: radial-gradient(circle at 33% 28%, #fff, var(--dot-light, #fff) 42%, var(--dot-dark, #333) 88%);
+  box-shadow: 0 0 var(--dot-glow, 10px) rgba(233, 233, 237, 0.35), inset -2px -3px 6px rgba(0, 0, 0, 0.5);
 }
-/* Self-rotation, not orbit motion: same seamless-loop trick as the card's
-   #spin-texture (200%-wide strip, background-size 50% 100%, translateX -50%
-   loops back to an identical frame) so every orrery planet visibly turns on its
-   own axis. Speed/direction (spinSec/reverse) come from catalog.js per planet. */
-.planet-texture {
-  position: absolute; inset: 0;
-  width: 200%; height: 100%;
-  background-repeat: repeat-x;
-  background-size: 50% 100%;
-  animation-name: spin-tex;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+.body-dot.sun-dot {
+  background: radial-gradient(circle at 36% 30%, #fff3c4, #ffc45c 42%, #f08a2c 78%, #c25a15);
+  box-shadow: 0 0 34px rgba(255, 177, 74, 0.65), 0 0 90px rgba(255, 140, 40, 0.35);
 }
-.orrery:not(.playing) .planet-texture { animation-play-state: paused; }
+/* Saturn's orrery ring: a single rotated ellipse border (the design's own
+   simple treatment for this small scale) — not the front/back-split PNG the
+   card uses, which only pays for itself at the card's much bigger size. */
+.body-ring {
+  position: absolute;
+  left: 50%; top: 50%;
+  border-radius: 50%;
+  border: 2px solid rgba(246, 229, 184, 0.75);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
 /* Roundness cue that holds regardless of Sun direction: a soft all-around rim. */
 .sphere-vignette {
   position: absolute; inset: 0;
@@ -399,16 +388,14 @@ button {
 }
 .ring-layer.ring-back { clip-path: inset(0 0 50% 0); }
 .ring-layer.ring-front { clip-path: inset(50% 0 0 0); }
-/* At 8px there's no room for a real .planet-frame/.sphere-shade rig — an inset
-   box-shadow is the cheap trick that still reads as a lit 3D ball this small. */
+/* Same flat two-tone gradient recipe as .body-dot, just inlined at this tiny
+   size rather than a nested button+dot pair. */
 .mini-moon {
   position: absolute;
   width: 8px; height: 8px;
   border-radius: 50%;
-  background-image: url('icons/textures/moon.jpg');
-  background-size: cover;
-  background-position: center;
-  box-shadow: inset -2.5px -2px 2px rgba(0, 0, 0, 0.7), inset 1px 1px 1.5px rgba(255, 255, 255, 0.35);
+  background: radial-gradient(circle at 33% 28%, #fff, var(--dot-light, #f3f5fe) 42%, var(--dot-dark, #9397ab) 88%);
+  box-shadow: 0 0 4px rgba(233, 233, 237, 0.4);
   top: -11px; left: 50%;
   margin-left: -4px;
   animation: spin 3.2s linear infinite;
@@ -706,8 +693,30 @@ button {
   border-radius: 8px;
   white-space: nowrap;
 }
-.sky-marker-body { width: 56px; }
-.sky-marker-body .marker-glyph { font-size: 34px; }
+.sky-marker-body {
+  min-width: 44px; min-height: 44px;
+  padding: 6px;
+  margin: -6px;
+}
+/* Same flat glowing sphere as the orrery (.body-dot in app.css, shared by
+   makeBodyButton in orbits.js) — sized per body via --marker-size (skySize in
+   catalog.js), overriding .body-dot's absolute/inset-0 positioning since here
+   the dot sizes itself rather than filling an already-sized parent. */
+.marker-dot {
+  position: relative;
+  width: var(--marker-size, 24px);
+  height: var(--marker-size, 24px);
+  display: block;
+}
+.sky-marker-body .marker-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: none;
+  padding: 0;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
 /* Real stars are a point of light, not a cartoon shape — a small glowing dot
    sized/colored per star (--star-size/--star-color, set inline from magnitude
    and, for a few well-known giants, real star color) with an independent
@@ -768,7 +777,8 @@ button {
   0%, 100% { opacity: 0.55; transform: scale(0.82); }
   50% { opacity: 1; transform: scale(1); }
 }
-.sky-marker.found .marker-glyph { animation: found-pop 0.9s ease-out; }
+.sky-marker.found .marker-glyph,
+.sky-marker.found .marker-dot { animation: found-pop 0.9s ease-out; }
 .sky-marker-star.found .marker-glyph { animation: star-found-pop 0.9s ease-out; }
 @keyframes star-found-pop {
   0% { transform: scale(1); }
@@ -787,9 +797,9 @@ button {
   top: 0; left: 0;
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
 }
-.arrow-chevron { position: absolute; font-size: 26px; opacity: 0.85; }
+.arrow-dot { position: relative; width: 16px; height: 16px; flex: none; }
+.arrow-chevron { position: absolute; right: -4px; font-size: 20px; opacity: 0.85; color: var(--accent-300); }
 
 .reticle {
   position: absolute;

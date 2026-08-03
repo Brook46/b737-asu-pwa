@@ -47,14 +47,8 @@ export function initExplore() {
   orrery.innerHTML = '';
   rings.clear();
 
-  const sunBtn = makeBodyButton(SUN, SUN.sizePx, { spinSec: 40 });
+  const sunBtn = makeBodyButton(SUN, SUN.sizePx);
   sunBtn.classList.add('sun-btn');
-  // Just the rim-darkening vignette, not the day/night .sphere-shade — the Sun
-  // is self-luminous, but real photos do show genuine limb darkening (the edge
-  // looks dimmer than the center from viewing angle through the photosphere).
-  const sunVignette = document.createElement('div');
-  sunVignette.className = 'sphere-vignette';
-  sunBtn.querySelector('.planet-frame').appendChild(sunVignette);
   orrery.appendChild(sunBtn);
 
   for (const planet of PLANETS) {
@@ -68,21 +62,21 @@ export function initExplore() {
     const counter = document.createElement('div');
     counter.className = 'orbit-counter';
 
-    const btn = makeBodyButton(planet, planet.sizePx, { spinSec: planet.spinSec, reverse: planet.reverse });
-    if (planet.ring) addRing(btn, btn.querySelector('.planet-frame'));
+    const btn = makeBodyButton(planet, planet.sizePx);
     if (planet.id === 'earth') {
       const moonDot = document.createElement('span');
       moonDot.className = 'mini-moon';
+      moonDot.style.setProperty('--dot-light', MOON.light);
+      moonDot.style.setProperty('--dot-dark', MOON.dark);
       moonDot.setAttribute('aria-hidden', 'true');
       btn.appendChild(moonDot);
     }
-    const shade = addSphereShading(btn.querySelector('.planet-frame'));
 
     counter.appendChild(btn);
     spin.appendChild(counter);
     ring.appendChild(spin);
     orrery.appendChild(ring);
-    rings.set(planet.id, { spin, counter, shade });
+    rings.set(planet.id, { spin, counter });
   }
 
   document.querySelectorAll('.body-btn').forEach((btn) => {
@@ -190,13 +184,6 @@ function applyDate(date) {
     // *center* actually ends up half the box's height BELOW the ring line, so the
     // planet reads as merely touching the ring instead of riding on it.
     r.counter.style.transform = `translate(-50%, -50%) rotate(${-angle}deg)`;
-    // .sphere-shade sits inside the counter-rotated (upright) body-btn, so on its
-    // own it would never turn — rotating it by the SAME angle as .orbit-spin cancels
-    // that upright-ness back out, which is exactly what's needed: the shaded/lit
-    // sides are defined in local "toward the ring center" terms, and re-applying
-    // the orbital angle is what makes "toward center" point at the Sun correctly
-    // for wherever the planet currently sits on its ring.
-    if (r.shade) r.shade.style.transform = `rotate(${angle}deg)`;
   }
 }
 
@@ -247,46 +234,15 @@ function stopMoonSpin() {
   moonSpinRaf = null;
 }
 
-// Two overlay layers make a flat textured circle read as a lit 3D sphere:
-//  - .sphere-vignette: a fixed all-around edge darkening (roundness cue that
-//    doesn't depend on where the Sun is).
-//  - .sphere-shade: the actual day/night terminator + a soft sunward highlight.
-//    Defined in LOCAL space with "toward the Sun" = local +y (down); orbits.js
-//    rotates this element by the planet's own orbital angle each frame so that
-//    local direction ends up pointing at the real Sun on screen (see applyDate).
-// Both are appended into `frame` (the clipped .planet-frame, not body-btn itself)
-// so they get cut to the circle along with the spinning texture beneath them.
-// Saturn's ring is split into two layers so it reads as actually wrapping
-// AROUND the sphere instead of sitting flat on top of it like a bar: ring-back
-// is inserted BEFORE the (opaque) .planet-frame, so the frame naturally occludes
-// whichever half of the ellipse passes behind the planet; ring-front is appended
-// after everything else, on top, for the half that passes in front.
-function addRing(btn, frame) {
-  const back = document.createElement('div');
-  back.className = 'ring-layer ring-back';
-  btn.insertBefore(back, frame);
-
-  const front = document.createElement('div');
-  front.className = 'ring-layer ring-front';
-  btn.appendChild(front);
-}
-
-function addSphereShading(frame) {
-  const vignette = document.createElement('div');
-  vignette.className = 'sphere-vignette';
-  frame.appendChild(vignette);
-
-  const shade = document.createElement('div');
-  shade.className = 'sphere-shade';
-  frame.appendChild(shade);
-  return shade;
-}
-
-// Builds a clipped .planet-frame containing a continuously-scrolling
-// .planet-texture (same seamless-loop trick as the card's #spin-texture) so
-// every orrery body — including the Sun now — visibly turns on its own axis,
-// not just orbits.
-function makeBodyButton(body, sizePx, { spinSec = 6, reverse = false } = {}) {
+// The orrery's own body is a flat two-tone gradient sphere (the exact Nocturne
+// design recipe: radial-gradient highlight at 33%/28% into a light tone then a
+// dark tone, plus a soft glow) — NOT the photo texture. At 14-46px, a small JPG
+// texture reads as a blurry smudge; the flat gradient reads as a crisp glowing
+// "candy" sphere, which is what the design actually specifies and what looks
+// right at this size. The bigger detail card (renderCard(), ~100px) keeps the
+// real photo texture/self-rotation/sphere-shading — that's a different scale
+// and context where the real rendering already looks good.
+function makeBodyButton(body, sizePx) {
   const btn = document.createElement('button');
   btn.className = 'body-btn';
   btn.dataset.id = body.id;
@@ -294,15 +250,25 @@ function makeBodyButton(body, sizePx, { spinSec = 6, reverse = false } = {}) {
   btn.style.setProperty('--size-px', `${sizePx}px`);
   btn.setAttribute('aria-label', body.name);
 
-  const frame = document.createElement('div');
-  frame.className = 'planet-frame';
-  const tex = document.createElement('div');
-  tex.className = 'planet-texture';
-  tex.style.backgroundImage = `url(${body.texture})`;
-  tex.style.animationDuration = `${spinSec}s`;
-  tex.style.animationDirection = reverse ? 'reverse' : 'normal';
-  frame.appendChild(tex);
-  btn.appendChild(frame);
+  const dot = document.createElement('span');
+  dot.className = body.id === 'sun' ? 'body-dot sun-dot' : 'body-dot';
+  if (body.id !== 'sun') {
+    dot.style.setProperty('--dot-light', body.light);
+    dot.style.setProperty('--dot-dark', body.dark);
+    dot.style.setProperty('--dot-glow', `${Math.round(sizePx * 0.9)}px`);
+  }
+  btn.appendChild(dot);
+
+  if (body.ring) {
+    const ring = document.createElement('span');
+    ring.className = 'body-ring';
+    const w = sizePx * 2.3, h = sizePx * 0.7;
+    ring.style.width = `${w}px`;
+    ring.style.height = `${h}px`;
+    ring.style.marginLeft = `${-w / 2}px`;
+    ring.style.marginTop = `${-h / 2}px`;
+    btn.appendChild(ring);
+  }
   return btn;
 }
 
