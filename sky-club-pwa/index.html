@@ -16,14 +16,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=9">
+  <link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 
   <header class="topbar">
-    <span class="brand">🚀 Sky Club</span>
+    <div class="topbar-status">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span class="status-label">Mission control</span>
+    </div>
     <div class="topbar-actions">
-      <span id="badge-chip" class="badge-chip"><i class="ph-fill ph-medal"></i><span id="badge-chip-count">0/8</span></span>
+      <span id="badge-chip" class="badge-chip"><i class="ph-fill ph-star"></i><span id="badge-chip-count">0/8</span></span>
       <button id="mute-btn" class="icon-btn mute-btn" aria-label="Mute" aria-pressed="false"><i class="ph-fill ph-speaker-high"></i></button>
     </div>
   </header>
@@ -35,15 +38,20 @@
       <div class="galaxy galaxy-b" aria-hidden="true"></div>
       <div class="galaxy galaxy-c" aria-hidden="true"></div>
       <div class="home-hero">
-        <div class="home-rocket" aria-hidden="true">
-          <span class="rocket-emoji">🚀</span>
-          <span class="rocket-flame">🔥</span>
+        <div class="home-rocket-stage">
+          <span class="home-ring" aria-hidden="true"></span>
+          <span class="home-glow" aria-hidden="true"></span>
+          <div class="home-rocket" aria-hidden="true">
+            <span class="rocket-emoji">🚀</span>
+            <span class="rocket-flame">🔥</span>
+          </div>
         </div>
         <p class="home-kicker">Crew ready</p>
         <h1 class="home-title">Hi there, let's find the sky!</h1>
         <div class="home-actions">
           <button id="home-blastoff" class="home-btn home-btn-primary">
             <i class="ph-fill ph-rocket-launch"></i> Blast off
+            <span class="btn-sheen" aria-hidden="true"></span>
           </button>
           <button id="home-lookoutside" class="home-btn home-btn-secondary">
             <i class="ph-fill ph-binoculars"></i> Look outside
@@ -57,6 +65,10 @@
       <div class="galaxy galaxy-a" aria-hidden="true"></div>
       <div class="galaxy galaxy-b" aria-hidden="true"></div>
       <div class="galaxy galaxy-c" aria-hidden="true"></div>
+      <div class="screen-header">
+        <h1 class="screen-title">Our star's family</h1>
+        <p class="screen-subtitle">Tap a world to visit it.</p>
+      </div>
       <div id="orrery" class="orrery"></div>
       <div class="explore-controls">
         <button id="play-btn" class="ctrl-btn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
@@ -71,10 +83,17 @@
 
     <section id="sky-screen" class="screen" aria-label="Look at the real sky">
       <div id="sky-gate" class="sky-gate">
-        <button id="sky-start" class="wide-btn"><i class="ph-fill ph-binoculars"></i> Look at the Sky</button>
+        <button id="sky-start" class="wide-btn">
+          <i class="ph-fill ph-binoculars"></i> Look at the Sky
+          <span class="btn-sheen" aria-hidden="true"></span>
+        </button>
         <p id="sky-gate-note" class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
       </div>
       <div id="sky-view" class="sky-view hidden">
+        <div class="screen-header sky-header">
+          <h1 class="screen-title">Point up</h1>
+          <p class="screen-subtitle">Move your phone to find what's glowing.</p>
+        </div>
         <svg id="const-lines" class="const-lines"></svg>
         <div id="const-labels" class="const-labels"></div>
         <div id="sky-markers" class="sky-markers"></div>
@@ -88,6 +107,7 @@
     <section id="badges-screen" class="screen" aria-label="Your badges">
       <div class="badges-header">
         <h1 class="badges-title"><i class="ph-fill ph-medal"></i> Badges</h1>
+        <p class="badges-subtitle">Spot a world to light up its badge.</p>
         <div class="badges-progress">
           <div class="badges-progress-bar"><div id="badges-progress-fill" class="badges-progress-fill"></div></div>
           <span id="badges-progress-label" class="badges-progress-label">0/8</span>
@@ -133,13 +153,13 @@
       <div class="card-actions">
         <button id="card-prev" class="nav-btn" aria-label="Previous"><i class="ph-fill ph-caret-left"></i></button>
         <button id="card-spot" class="spot-btn hidden">
-          <i class="ph-fill ph-medal"></i><span id="card-spot-label">Spot it!</span>
+          <i id="card-spot-icon" class="ph-fill ph-star"></i><span id="card-spot-label">I spotted it</span>
         </button>
         <button id="card-next" class="nav-btn" aria-label="Next"><i class="ph-fill ph-caret-right"></i></button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
   --color-text-dim: #9397ab;
   --accent-300: #d2cefd;
   --accent-400: #b5abfc;
-  --accent-500: #968ae0;
+  --accent-500: #9184d9;
   --accent-600: #796cbf;
   --accent-800: #423a6a;
   --accent-900: #2b2741;
@@ -57,7 +57,25 @@ button {
   pointer-events: none;
 }
 .topbar > * { pointer-events: auto; }
-.brand { font-size: 17px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+.topbar-status { display: flex; align-items: center; gap: 9px; }
+.status-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--accent-400);
+  box-shadow: 0 0 12px var(--accent-500);
+  animation: status-twinkle 2.4s ease-in-out infinite;
+}
+@keyframes status-twinkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+.status-label {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  font-weight: 600;
+}
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .badge-chip {
   display: flex; align-items: center; gap: 5px;
@@ -101,14 +119,23 @@ button {
 }
 .nav-tab {
   flex: 1;
+  margin: 6px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 10px 0 8px;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-radius: 16px;
+  border: 1px solid transparent;
   color: var(--color-text-dim);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
-.nav-tab.active { color: var(--accent-400); }
+.nav-tab.active {
+  color: var(--accent-300);
+  border-color: var(--accent-500);
+  background: rgba(66, 58, 106, 0.45);
+}
 .nav-icon { font-size: 24px; }
 .nav-label { font-size: 12px; font-weight: 600; }
 
@@ -125,12 +152,34 @@ button {
   text-align: center;
   padding: 24px;
 }
-.home-rocket { position: relative; font-size: 64px; animation: sky-bob 3s ease-in-out infinite; }
+.home-rocket-stage {
+  position: relative;
+  width: 220px; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+}
+.home-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent-800);
+  animation: home-pulse 3.6s ease-in-out infinite;
+}
+.home-glow {
+  position: absolute;
+  width: 145px; height: 145px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-800) 0%, rgba(66, 58, 106, 0) 70%);
+}
+@keyframes home-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.14); opacity: 0.12; }
+}
+.home-rocket { position: relative; font-size: 84px; animation: sky-bob 3s ease-in-out infinite; }
 .rocket-flame {
   position: absolute;
   left: 50%; bottom: -12px;
   transform: translateX(-50%);
-  font-size: 24px;
+  font-size: 28px;
   filter: blur(0.5px);
   animation: sky-flame 0.4s ease-in-out infinite alternate;
 }
@@ -150,7 +199,7 @@ button {
   text-transform: uppercase;
   color: var(--accent-400);
 }
-.home-title { margin: 4px 0 0; font-size: 24px; font-weight: 800; max-width: 300px; }
+.home-title { margin: 4px 0 0; font-size: 32px; line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; max-width: 300px; }
 .home-actions {
   display: flex;
   flex-direction: column;
@@ -160,21 +209,37 @@ button {
   margin-top: 22px;
 }
 .home-btn {
+  position: relative;
+  overflow: hidden;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 16px 20px;
-  border-radius: 999px;
+  border-radius: 20px;
   font-size: 17px;
   font-weight: 700;
+  border: 1px solid transparent;
 }
 .home-btn-primary {
-  background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
-  color: #161826;
-  box-shadow: 0 10px 26px rgba(150, 138, 224, 0.4);
+  border-color: var(--accent-500);
+  background: rgba(66, 58, 106, 0.35);
+  color: var(--color-text);
 }
+.home-btn-primary:active { background: rgba(89, 79, 138, 0.5); }
 .home-btn-secondary {
   background: var(--glass);
-  border: 1px solid var(--glass-border);
+  border-color: var(--glass-border);
   color: var(--color-text);
+}
+.btn-sheen {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 70px;
+  background: linear-gradient(90deg, rgba(245, 244, 255, 0), rgba(245, 244, 255, 0.14), rgba(245, 244, 255, 0));
+  animation: btn-sheen 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes btn-sheen {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(220%); }
 }
 
 /* ---------- Explore screen: orrery ---------- */
@@ -182,6 +247,15 @@ button {
   background: radial-gradient(ellipse at center, var(--color-surface) 0%, var(--color-bg) 70%);
   touch-action: none; /* pinch-to-zoom is handled ourselves in orbits.js */
 }
+.screen-header {
+  position: absolute;
+  top: calc(var(--safe-top) + 62px);
+  left: 20px; right: 20px;
+  z-index: 2;
+  pointer-events: none;
+}
+.screen-title { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-text); }
+.screen-subtitle { margin: 4px 0 0; font-size: 14px; color: var(--color-text-dim); }
 .orrery {
   position: relative;
   width: 1px; height: 1px; /* the rings size themselves; this is just the rotation origin */
@@ -536,29 +610,31 @@ button {
   filter: blur(0.6px);
 }
 .card-text { flex: 1 1 auto; min-width: 0; }
-.card-name { font-size: 20px; margin: 0 0 4px; font-weight: 800; }
-.card-fact { font-size: 14px; line-height: 1.4; margin: 0; opacity: 0.85; }
+.card-name { font-size: 26px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.02em; }
+.card-fact { font-size: 15px; line-height: 1.4; margin: 0; opacity: 0.85; }
 .card-safety { font-size: 13px; color: #ffb0a0; margin: 6px 0 0; }
-.card-actions { display: flex; align-items: center; justify-content: center; gap: 20px; }
+.card-actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .nav-btn {
-  width: 52px; height: 52px;
+  width: 56px; height: 56px;
+  flex: 0 0 auto;
   font-size: 20px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
-  border-radius: 50%;
+  border-radius: 18px;
 }
 .spot-btn {
-  display: flex; align-items: center; gap: 7px;
-  padding: 12px 20px;
-  font-size: 14px;
+  flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 16px;
+  font-size: 15px;
   font-weight: 700;
-  border-radius: 999px;
-  background: var(--accent-500);
-  color: #161826;
+  border-radius: 18px;
+  border: 1px solid var(--accent-500);
+  background: rgba(66, 58, 106, 0.3);
+  color: var(--color-text);
 }
 .spot-btn.spotted {
-  background: var(--accent-800);
-  color: var(--accent-300);
+  background: rgba(89, 79, 138, 0.6);
 }
 
 /* ---------- Sky screen ---------- */
@@ -574,15 +650,18 @@ button {
   text-align: center;
 }
 .wide-btn {
+  position: relative;
+  overflow: hidden;
   display: flex; align-items: center; gap: 10px;
   padding: 18px 30px;
   font-size: 20px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
-  color: #161826;
-  border-radius: 999px;
-  box-shadow: 0 10px 26px rgba(150, 138, 224, 0.4);
+  background: rgba(66, 58, 106, 0.35);
+  border: 1px solid var(--accent-500);
+  color: var(--color-text);
+  border-radius: 22px;
 }
+.wide-btn:active { background: rgba(89, 79, 138, 0.5); }
 .sky-gate-note { font-size: 14px; opacity: 0.7; max-width: 260px; }
 
 .sky-view { position: absolute; inset: 0; touch-action: none; }
@@ -724,7 +803,7 @@ button {
 .sky-toast {
   position: absolute;
   left: 16px; right: 16px;
-  top: calc(var(--safe-top) + 70px);
+  top: calc(var(--safe-top) + 128px);
   background: var(--accent-800);
   border: 1px solid var(--accent-500);
   border-radius: 14px;
@@ -755,8 +834,9 @@ button {
   padding: calc(var(--safe-top) + 70px) 20px calc(var(--safe-bottom) + 90px);
   overflow-y: auto;
 }
-.badges-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.badges-title { font-size: 22px; margin: 0; display: flex; align-items: center; gap: 8px; }
+.badges-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.badges-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0; display: flex; align-items: center; gap: 8px; }
+.badges-subtitle { margin: 0 0 8px; font-size: 14px; color: var(--color-text-dim); }
 .badges-progress { display: flex; align-items: center; gap: 10px; }
 .badges-progress-bar {
   flex: 1;

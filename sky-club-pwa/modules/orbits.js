@@ -380,5 +380,6 @@ function updateSpotButton(body) {
   if (!isPlanet) return;
   const spotted = isSpotted(body.id);
   btn.classList.toggle('spotted', spotted);
-  document.getElementById('card-spot-label').textContent = spotted ? 'Got it!' : 'Spot it!';
+  document.getElementById('card-spot-label').textContent = spotted ? 'Got it!' : 'I spotted it';
+  document.getElementById('card-spot-icon').className = spotted ? 'ph-fill ph-seal-check' : 'ph-fill ph-star';
 }
