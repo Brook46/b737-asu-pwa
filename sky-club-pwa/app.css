@@ -111,13 +111,17 @@ button {
 }
 .screen.active { display: flex; }
 
+/* No backdrop-filter here on purpose. This bar is on screen on every tab,
+   including over Sky mode's constantly-repainting starfield — and a
+   backdrop blur has to re-blur whatever moves underneath it every frame,
+   which on an iPad is a permanent tax for something almost invisible at
+   0.8 alpha. Nudged to 0.92 instead: reads the same, costs nothing. */
 .bottom-nav {
   position: fixed;
   left: 0; right: 0; bottom: 0;
   padding-bottom: var(--safe-bottom);
   display: flex;
-  background: rgba(22, 24, 38, 0.8);
-  backdrop-filter: blur(10px);
+  background: rgba(22, 24, 38, 0.92);
   border-top: 1px solid var(--border);
   z-index: 20;
 }
@@ -192,21 +196,9 @@ button {
   50% { transform: scale(1.14); opacity: 0.12; }
 }
 .home-rocket { position: relative; font-size: 84px; animation: sky-bob 3s ease-in-out infinite; }
-.rocket-flame {
-  position: absolute;
-  left: 50%; bottom: -12px;
-  transform: translateX(-50%);
-  font-size: 28px;
-  filter: blur(0.5px);
-  animation: sky-flame 0.4s ease-in-out infinite alternate;
-}
 @keyframes sky-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-14px); }
-}
-@keyframes sky-flame {
-  from { transform: translateX(-50%) scale(0.82); opacity: 0.7; }
-  to { transform: translateX(-50%) scale(1.15); opacity: 1; }
 }
 .home-kicker {
   margin: 14px 0 0;
@@ -686,7 +678,10 @@ button {
   inset: 0;
   width: 100%; height: 100%;
   pointer-events: none;
-  mix-blend-mode: screen;
+  /* Deliberately NO mix-blend-mode here. `screen` looked marginally nicer but
+     forces the compositor to blend this full-screen layer against everything
+     beneath it every single frame — costly on iOS. The band is light dots on a
+     dark sky, where plain alpha compositing looks all but identical. */
 }
 .const-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
 .const-line {
@@ -717,22 +712,40 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  /* justify-content matters: these boxes have a min-height (44px bodies /
+     28px stars) for tap targets that's often taller than the dot inside.
+     Without centering, the dot pinned to the top of that box while the box
+     itself is centered on the real sky position — leaving the visible dot a
+     few px above where the object actually is. */
+  justify-content: center;
   transition: none;
 }
 .marker-glyph { display: block; filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
+/* Taken OUT of flow deliberately. While the label was a flex child, the
+   marker box was [dot + gap + label] tall, so centering that box on the
+   body's computed sky position (project()'s translate(-50%,-50%)) actually
+   put the DOT above the real position by half the label's height. Absolute
+   below the dot keeps the same look while letting the box — and therefore
+   the dot — center exactly on where the object really is. */
 .marker-label {
+  position: absolute;
+  top: 100%; left: 50%;
+  transform: translateX(-50%);
   font-size: 11px;
   font-weight: 600;
   background: rgba(0,0,0,0.4);
   padding: 1px 6px;
   border-radius: 8px;
   white-space: nowrap;
+  pointer-events: none;
 }
+/* No negative margin. Margin applies to absolutely-positioned boxes too, so
+   the old `margin:-6px` (and -9px on stars) shifted every marker up-left by
+   that much off its true position — measured at exactly 6px/9px. The padding
+   alone gives the enlarged tap target it was there for. */
 .sky-marker-body {
   min-width: 44px; min-height: 44px;
   padding: 6px;
-  margin: -6px;
 }
 /* Same flat glowing sphere as the orrery (.body-dot in app.css, shared by
    makeBodyButton in orbits.js) — sized per body via --marker-size (skySize in
@@ -775,9 +788,8 @@ button {
    twinkle so a whole sky of them doesn't pulse in lockstep. Padding gives a
    44px-ish tap target without inflating the tiny visible dot. */
 .sky-marker-star {
-  width: 28px;
+  min-width: 28px; min-height: 28px;
   padding: 9px;
-  margin: -9px;
 }
 .sky-marker-star .marker-glyph {
   display: block;
@@ -933,31 +945,23 @@ button {
   text-align: center;
 }
 /* Decorative "ground" dome at the bottom of the sky view, from the design
-   spec — never built in the first pass. Purely atmospheric (a real horizon
-   line would need real terrain data this app doesn't have); sits below
-   everything else so it never blocks a marker or the reticle. */
+   spec. Purely atmospheric (a real horizon line would need terrain data this
+   app doesn't have); sits below everything else so it never blocks a marker
+   or the reticle. The spec also put a rotating conic-gradient "radar sweep"
+   inside this — removed on request, and no loss performance-wise: a
+   continuously rotating full-width conic-gradient forces a repaint of this
+   whole region every frame, which is exactly the kind of work an iPad can
+   least afford while the sky loop is already running. */
 .sky-horizon {
   position: absolute;
   left: -40px; right: -40px;
   bottom: -150px;
   height: 300px;
   border-radius: 50%;
-  overflow: hidden;
   background: linear-gradient(#2b2741, #161826 65%);
   box-shadow: 0 -1px 0 rgba(181, 171, 252, 0.35), 0 -18px 60px rgba(66, 58, 106, 0.6);
   pointer-events: none;
   z-index: 0;
-}
-.sky-horizon-sweep {
-  position: absolute;
-  left: 50%; top: 0;
-  width: 520px; height: 520px;
-  margin-left: -260px;
-  background: conic-gradient(from 0deg, rgba(181, 171, 252, 0.2), rgba(181, 171, 252, 0) 26%);
-  animation: horizon-sweep 6s linear infinite;
-}
-@keyframes horizon-sweep {
-  to { transform: rotate(360deg); }
 }
 
 /* ---------- Badges screen ---------- */

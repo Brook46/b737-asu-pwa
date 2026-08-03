@@ -17,6 +17,10 @@ import { nextEventHeadline } from './events.js';
 
 const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
+// Stars and the galactic plane drift at the sidereal rate (~0.0042°/s), which at
+// this screen scale is well under a pixel even after 15s — no reason to redo
+// ~460 Horizon() calls every 2s alongside the (much cheaper, 9-body) planet pass.
+const SLOW_RECOMPUTE_MS = 15000;
 const DARK_ALT_THRESHOLD = -4; // sun below this altitude ⇒ dark enough for stars
 const NAMED_STAR_MAG = 1.5;    // stars this bright or brighter show their name always
 const FLARE_STAR_MAG = 0.2;    // the handful of hero-bright stars get a lens-flare sparkle
@@ -34,6 +38,7 @@ let stars = [];
 let constellations = [];
 let started = false;
 let lastCalc = 0;
+let lastSlowCalc = 0;
 let currentBodies = [];
 let currentStars = [];
 let currentMilkyWay = [];
@@ -41,6 +46,8 @@ let isDark = false;
 let milkyWayCtx = null;
 let lockId = null;
 let lockStart = 0;
+// Cached once instead of re-queried inside the every-frame loop below.
+let viewEl = null, reticleEl = null, reticleDotEl = null;
 const lastAutoCatch = new Map(); // id -> timestamp of last dwell-triggered catch
 const markerEls = new Map();     // id -> marker button
 const entityById = new Map();    // id -> the body/star object (for facts, emoji, badge id)
@@ -284,13 +291,19 @@ function catchBody(entity, el) {
   }
 }
 
-function recompute(now) {
+function recompute(now, includeSlow) {
   if (!sensorState.hasLocation) return;
   const alt = sunAltitude(now, sensorState.lat, sensorState.lon);
+  const wasDark = isDark;
   isDark = alt < DARK_ALT_THRESHOLD;
   currentBodies = bodyPositions(now, sensorState.lat, sensorState.lon);
-  currentStars = isDark ? starPositions(now, sensorState.lat, sensorState.lon, stars) : [];
-  currentMilkyWay = isDark ? milkyWayPositions(now, sensorState.lat, sensorState.lon) : [];
+
+  // The ~460 star + galactic-plane Horizon() calls only need refreshing on the
+  // slow cadence (or immediately if we just crossed into/out of darkness).
+  if (includeSlow || isDark !== wasDark) {
+    currentStars = isDark ? starPositions(now, sensorState.lat, sensorState.lon, stars) : [];
+    currentMilkyWay = isDark ? milkyWayPositions(now, sensorState.lat, sensorState.lon) : [];
+  }
 
   const note = document.getElementById('sky-daynote');
   if (!isDark) {
@@ -308,13 +321,18 @@ function angDiff(a, b) {
 function loop() {
   if (!started) return;
   const now = new Date();
-  if (now - lastCalc > RECOMPUTE_MS) { recompute(now); lastCalc = now; }
+  if (now - lastCalc > RECOMPUTE_MS) {
+    const slow = now - lastSlowCalc > SLOW_RECOMPUTE_MS;
+    recompute(now, slow);
+    lastCalc = now;
+    if (slow) lastSlowCalc = now;
+  }
   project();
   requestAnimationFrame(loop);
 }
 
 function project() {
-  const view = document.getElementById('sky-view');
+  const view = viewEl || (viewEl = document.getElementById('sky-view'));
   const w = view.clientWidth || window.innerWidth;
   const h = view.clientHeight || window.innerHeight;
   const cx = w / 2, cy = h / 2;
@@ -338,7 +356,16 @@ function project() {
     const onScreen = x > margin && x < w - margin && y > margin && y < h - margin;
     if (onScreen) {
       el.classList.remove('hidden');
-      el.style.transform = `translate(${x - el.offsetWidth / 2}px, ${y - el.offsetHeight / 2}px)`;
+      // The trailing translate(-50%,-50%) centers the marker on (x,y) using its
+      // OWN box — percentages in translate() resolve against the element itself.
+      // This replaced `x - el.offsetWidth/2`: reading offsetWidth right after
+      // writing a transform forces a synchronous layout, so the old version did
+      // one forced reflow per marker per frame (~110 of them at 60fps). Measured
+      // at ~13x the cost of the write-only version even on a fast desktop — this
+      // was the main reason Sky mode crawled on an iPad. Never reintroduce a
+      // layout read (offsetWidth/Height, getBoundingClientRect, clientWidth on a
+      // per-element basis) inside this loop.
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
       if (arrowEl) arrowEl.classList.add('hidden');
       positions[id] = { x, y };
     } else {
@@ -357,7 +384,9 @@ function project() {
         const ax = cx + Math.cos(ang) * r;
         const ay = cy - Math.sin(ang) * r;
         arrowEl.classList.remove('hidden');
-        arrowEl.style.transform = `translate(${ax - 20}px, ${ay - 20}px) rotate(${-ang * 180 / Math.PI}deg)`;
+        // Same self-centering trick, so this no longer depends on .sky-arrow
+        // happening to be exactly 40px wide (the old hardcoded -20 offset).
+        arrowEl.style.transform = `translate(${ax}px, ${ay}px) translate(-50%, -50%) rotate(${-ang * 180 / Math.PI}deg)`;
       }
     }
   };
@@ -400,7 +429,8 @@ function project() {
     if (pts.length >= Math.ceil(ids.length / 2)) {
       const lx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
       const ly = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
-      label.style.transform = `translate(${lx - label.offsetWidth / 2}px, ${ly - label.offsetHeight / 2}px)`;
+      // Self-centering, no layout read — see the note in place() above.
+      label.style.transform = `translate(${lx}px, ${ly}px) translate(-50%, -50%)`;
       label.classList.remove('hidden');
     } else {
       label.classList.add('hidden');
@@ -416,9 +446,9 @@ function project() {
 // real target, not just decoration. Growing the center dot each frame is the
 // only visual feedback needed; a full progress ring wasn't worth the ceremony.
 function updateLock(positions, w, h) {
-  const dotEl = document.querySelector('.reticle-dot');
-  const reticleEl = document.querySelector('.reticle');
-  if (!dotEl || !reticleEl) return;
+  const dotEl = reticleDotEl || (reticleDotEl = document.querySelector('.reticle-dot'));
+  const ret = reticleEl || (reticleEl = document.querySelector('.reticle'));
+  if (!dotEl || !ret) return;
   const rx = w * RETICLE_X_FRAC, ry = h * RETICLE_Y_FRAC;
 
   let nearestId = null, nearestDist = LOCK_RADIUS_PX;
@@ -434,7 +464,7 @@ function updateLock(positions, w, h) {
     if (nearestId !== lockId) { lockId = nearestId; lockStart = now; }
     const progress = Math.min(1, (now - lockStart) / LOCK_MS);
     dotEl.style.transform = `scale(${(1 + progress * 1.6).toFixed(2)})`;
-    reticleEl.classList.add('locking');
+    ret.classList.add('locking');
     if (progress >= 1) {
       const lastCatch = lastAutoCatch.get(nearestId) || 0;
       if (now - lastCatch > LOCK_COOLDOWN_MS) {

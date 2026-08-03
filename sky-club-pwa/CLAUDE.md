@@ -38,6 +38,55 @@ The Design project later added a literal, mechanical build spec (`Sky Club - bui
 - **Sun/Moon are now badges too**: badges expanded from 8 planets to `[SUN, ...PLANETS, MOON]` (10 total) — see the Badges section above for the `isBadgeBody()` API this introduced.
 - **Horizon/radar-sweep graphic** (`.sky-horizon`/`.sky-horizon-sweep`): the build-prompt spec's decorative bottom-of-screen "ground dome" with a rotating conic-gradient sweep was skipped in the first pass (no real horizon data to back it) but was a concrete, specified visual element never built — added as pure atmosphere, sits behind everything (`z-index:0`) so it never blocks a marker or the reticle.
 
+## Sky-mode performance (it was crawling on an iPad)
+
+Measured, not guessed — the numbers below came from timing the real DOM in the
+preview before changing anything. Desktop FPS hid the problem entirely (120fps
+with headroom), so per-frame *work* is the thing to measure, never frame rate.
+
+- **Layout thrashing was the dominant cost.** `project()` placed each marker
+  with `translate(${x - el.offsetWidth/2}px, ...)`. Reading `offsetWidth`
+  immediately after writing a `transform` forces a *synchronous layout*, so the
+  loop did one forced reflow per marker per frame — ~110 of them, 60×/second.
+  A/B on the real 112 markers: **0.81ms vs 0.06ms per pass (13.5×)** on a fast
+  desktop; an iPad is several times slower again, so this alone was eating a
+  large slice of the frame budget. Fixed by centering with a trailing
+  `translate(-50%, -50%)` (percentages resolve against the element's own box),
+  which needs no measurement at all. **Never reintroduce a layout read
+  (`offsetWidth/Height`, `getBoundingClientRect`) inside `project()`.**
+- **Things that turned out NOT to be the problem** (measured, then left alone —
+  worth recording so nobody "optimizes" them later): the Milky Way canvas is
+  already cheap at **0.13ms/frame**, and batching its 360 arcs into 4 alpha
+  buckets measured **1.0× — no gain at all**, so that complexity was dropped.
+  The astronomy recompute is **~0.9ms** total (bodies 0.21 / 102 stars 0.18 /
+  360 Milky Way points 0.53).
+- **Recompute cadence split**: the ~460 star + galactic-plane `Horizon()` calls
+  now run on `SLOW_RECOMPUTE_MS` (15s) instead of every 2s, while the 9 planets
+  stay on the 2s beat. Stars drift at the sidereal rate (~0.0042°/s) — under a
+  pixel in 15s at this screen scale — so nothing visibly changes. Crossing the
+  dark/light threshold forces an immediate slow pass so stars don't pop in late.
+- **Compositing costs removed**: the full-screen Milky Way canvas no longer uses
+  `mix-blend-mode: screen` (a full-screen blend pass every frame, for a barely
+  visible difference on a dark background), and `.bottom-nav` no longer uses
+  `backdrop-filter: blur(10px)` — it's on screen on every tab including over the
+  constantly-repainting sky, so it had to re-blur moving content every frame;
+  at 0.8 alpha it was nearly invisible anyway (now 0.92, no blur). The spec's
+  rotating conic-gradient "radar sweep" is also gone (removed on request), which
+  spares a continuous repaint of that whole region.
+- Per-frame `getElementById`/`querySelector` calls in `project()`/`updateLock()`
+  are cached in module-level vars.
+
+**Marker positions were also 6–9px off** (pre-existing, found while verifying
+the above): `.sky-marker-body`/`-star` had `margin: -6px`/`-9px`, and margin
+applies to absolutely-positioned boxes, shifting every marker up-left by exactly
+that much; and the name label was an in-flow flex child, so centering the box
+put the *dot* half a label above the true position. Fixed by dropping the
+negative margins (the padding alone provides the enlarged tap target), taking
+`.marker-label` out of flow (`position:absolute; top:100%`), and adding
+`justify-content:center` to `.sky-marker` so the dot centers inside its
+min-height tap box. Verified: every marker's dot centre now lands **exactly**
+(0.00px error, all 10 bodies + on-screen stars) on its computed sky position.
+
 ## Original two-mode structure (Explore / Sky)
 
 - **Explore** (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.
