@@ -2,12 +2,12 @@
 // including the vendored astronomy engine, star data and planet textures — is
 // cache-first and works fully offline once loaded.
 
-const CACHE_VERSION = 'skyclub-v8';
+const CACHE_VERSION = 'skyclub-v9';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=8',
-  './app.js?v=8',
+  './app.css?v=9',
+  './app.js?v=9',
   './manifest.json',
   './icon.svg',
   './modules/astro.js',
@@ -18,6 +18,7 @@ const APP_SHELL = [
   './modules/speech.js',
   './modules/starfield.js',
   './modules/moonphase.js',
+  './modules/badges.js',
   './modules/resume.js',
   './vendor/astronomy-engine.js',
   './data/stars.json',
@@ -63,6 +64,26 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // Google Fonts + Phosphor Icons CDN: cache-first after first fetch (same
+  // pattern as xcsky-pwa's Leaflet caching — the actual .woff2 URLs are
+  // content-negotiated per browser, so they can't be precached ahead of time,
+  // but this still gives full offline reuse after the first successful load).
+  if (/fonts\.googleapis\.com|fonts\.gstatic\.com|unpkg\.com/i.test(url.href)) {
+    event.respondWith(
+      caches.open(CACHE_VERSION).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        try {
+          const res = await fetch(req);
+          if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) cache.put(req, res.clone());
+          return res;
+        } catch { return new Response('', { status: 503 }); }
+      })
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(

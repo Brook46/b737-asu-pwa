@@ -24,6 +24,7 @@ import { SUN, MOON, PLANETS } from './catalog.js';
 import { planetLongitudes, moonPhase } from './astro.js';
 import { drawMoonPhase } from './moonphase.js';
 import { say } from './speech.js';
+import { spot, isSpotted } from './badges.js';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
@@ -91,6 +92,11 @@ export function initExplore() {
   document.getElementById('card-close').addEventListener('click', closeCard);
   document.getElementById('card-prev').addEventListener('click', () => stepCard(-1));
   document.getElementById('card-next').addEventListener('click', () => stepCard(1));
+  document.getElementById('card-spot').addEventListener('click', () => {
+    const body = NAV_ORDER[cardIndex];
+    spot(body.id);
+    updateSpotButton(body);
+  });
   document.getElementById('planet-card').addEventListener('click', (e) => {
     if (e.target.id === 'planet-card') closeCard();
   });
@@ -198,7 +204,7 @@ function play() {
   if (playing) return;
   playing = true;
   document.getElementById('orrery').classList.add('playing');
-  document.getElementById('play-btn').textContent = '⏸️';
+  document.getElementById('play-btn').innerHTML = '<i class="ph-fill ph-pause"></i>';
   document.getElementById('play-btn').setAttribute('aria-label', 'Pause');
   lastFrameTime = performance.now();
   rafId = requestAnimationFrame(tick);
@@ -207,7 +213,7 @@ function play() {
 function pause() {
   playing = false;
   document.getElementById('orrery').classList.remove('playing');
-  document.getElementById('play-btn').textContent = '▶️';
+  document.getElementById('play-btn').innerHTML = '<i class="ph-fill ph-play"></i>';
   document.getElementById('play-btn').setAttribute('aria-label', 'Play');
   if (rafId) cancelAnimationFrame(rafId);
 }
@@ -361,5 +367,18 @@ function renderCard() {
   }
   document.getElementById('card-ring-back').classList.toggle('hidden', !body.ring);
   document.getElementById('card-ring-front').classList.toggle('hidden', !body.ring);
+  updateSpotButton(body);
   say(body.name, body.fact, body.safety);
+}
+
+// Sun/Moon stay tappable and informative but have no badge payoff (see
+// badges.js) — the button only ever appears for the 8 planets.
+function updateSpotButton(body) {
+  const btn = document.getElementById('card-spot');
+  const isPlanet = PLANETS.some((p) => p.id === body.id);
+  btn.classList.toggle('hidden', !isPlanet);
+  if (!isPlanet) return;
+  const spotted = isSpotted(body.id);
+  btn.classList.toggle('spotted', spotted);
+  document.getElementById('card-spot-label').textContent = spotted ? 'Got it!' : 'Spot it!';
 }

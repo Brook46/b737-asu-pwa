@@ -9,9 +9,10 @@
 // any text.
 
 import { bodyPositions, starPositions, sunAltitude } from './astro.js';
-import { SKY_BODIES } from './catalog.js';
+import { SKY_BODIES, PLANETS } from './catalog.js';
 import { sensorState, geolocate, requestOrientationPermission, nudge } from './sensors.js';
 import { say } from './speech.js';
+import { spot, showToast } from './badges.js';
 
 const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
@@ -64,7 +65,7 @@ async function startSky() {
     await geolocate();
   } catch (err) {
     startBtn.disabled = false;
-    startBtn.textContent = '🔭 Try Again';
+    startBtn.innerHTML = '<i class="ph-fill ph-binoculars"></i> Try Again';
     gateNote.textContent = err.denied
       ? 'Location is turned off for Sky Club. Turn it on in Settings, then try again.'
       : "Couldn't find your location. Check you're connected, then try again.";
@@ -74,7 +75,7 @@ async function startSky() {
   await orientPromise;
 
   startBtn.disabled = false;
-  startBtn.textContent = '🔭 Look at the Sky';
+  startBtn.innerHTML = '<i class="ph-fill ph-binoculars"></i> Look at the Sky';
   gateNote.textContent = "We'll use where you are, and where you point your phone.";
   document.getElementById('sky-gate').classList.add('hidden');
   document.getElementById('sky-view').classList.remove('hidden');
@@ -103,7 +104,7 @@ function buildMarkers() {
 
   for (const id of Object.keys(SKY_BODIES)) {
     const body = SKY_BODIES[id];
-    markerEls.set(id, makeMarker(markers, body.emoji, body.name, true));
+    markerEls.set(id, makeMarker(markers, id, body.emoji, body.name, true));
     arrowEls.set(id, makeArrow(arrows, body.emoji));
   }
   for (const s of stars) {
@@ -124,11 +125,11 @@ function buildMarkers() {
   }
 }
 
-function makeMarker(container, emoji, name, big) {
+function makeMarker(container, id, emoji, name, big) {
   const btn = document.createElement('button');
   btn.className = (big ? 'sky-marker sky-marker-body' : 'sky-marker sky-marker-star') + ' hidden';
   btn.innerHTML = `<span class="marker-glyph">${emoji}</span><span class="marker-label">${name}</span>`;
-  btn.addEventListener('click', () => catchBody(name, btn));
+  btn.addEventListener('click', () => catchBody(id, name, btn));
   container.appendChild(btn);
   return btn;
 }
@@ -148,7 +149,7 @@ function makeStarMarker(container, star) {
   btn.style.setProperty('--twinkle-delay', `${(Math.random() * 2.6).toFixed(2)}s`);
   btn.innerHTML = `<span class="marker-glyph"></span><span class="marker-label">${star.name}</span>`;
   btn.setAttribute('aria-label', star.name);
-  btn.addEventListener('click', () => catchBody(star.name, btn));
+  btn.addEventListener('click', () => catchBody(star.id, star.name, btn));
   container.appendChild(btn);
   return btn;
 }
@@ -170,7 +171,7 @@ function makeArrow(container, emoji) {
   return div;
 }
 
-function catchBody(name, el) {
+function catchBody(id, name, el) {
   el.classList.add('found');
   setTimeout(() => el.classList.remove('found'), 900);
   const meta = Object.values(SKY_BODIES).find((b) => b.name === name);
@@ -178,6 +179,15 @@ function catchBody(name, el) {
     say(meta.name, meta.fact, meta.safety);
   } else {
     say(`That's ${name}!`);
+  }
+  // Only the 8 planets have a badge payoff (see badges.js) — Sun/Moon/stars/
+  // constellations stay speech-only, matching the redesign's 8-item badge grid.
+  if (PLANETS.some((p) => p.id === id)) {
+    const newlySpotted = spot(id);
+    if (newlySpotted) {
+      const emoji = meta ? meta.emoji : '';
+      showToast(document.getElementById('sky-toast'), `${emoji} ${name} spotted!`);
+    }
   }
 }
 

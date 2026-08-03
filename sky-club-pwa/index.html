@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Sky Club</title>
-  <meta name="theme-color" content="#0e122e">
+  <meta name="theme-color" content="#161826">
   <meta name="description" content="A tap-and-look solar system and real-sky explorer for little astronauts — point your phone at the sky to find the Sun, Moon, planets and stars.">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -12,36 +12,66 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Sky Club">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="stylesheet" href="app.css?v=8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+  <link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 
   <header class="topbar">
     <span class="brand">🚀 Sky Club</span>
-    <button id="mute-btn" class="icon-btn mute-btn" aria-label="Mute" aria-pressed="false">🔊</button>
+    <div class="topbar-actions">
+      <span id="badge-chip" class="badge-chip"><i class="ph-fill ph-medal"></i><span id="badge-chip-count">0/8</span></span>
+      <button id="mute-btn" class="icon-btn mute-btn" aria-label="Mute" aria-pressed="false"><i class="ph-fill ph-speaker-high"></i></button>
+    </div>
   </header>
 
   <main id="screens">
-    <section id="explore-screen" class="screen active" aria-label="Explore the solar system">
+    <section id="home-screen" class="screen active" aria-label="Home">
+      <canvas id="home-starfield" class="starfield" aria-hidden="true"></canvas>
+      <div class="galaxy galaxy-a" aria-hidden="true"></div>
+      <div class="galaxy galaxy-b" aria-hidden="true"></div>
+      <div class="galaxy galaxy-c" aria-hidden="true"></div>
+      <div class="home-hero">
+        <div class="home-rocket" aria-hidden="true">
+          <span class="rocket-emoji">🚀</span>
+          <span class="rocket-flame">🔥</span>
+        </div>
+        <p class="home-kicker">Crew ready</p>
+        <h1 class="home-title">Hi there, let's find the sky!</h1>
+        <div class="home-actions">
+          <button id="home-blastoff" class="home-btn home-btn-primary">
+            <i class="ph-fill ph-rocket-launch"></i> Blast off
+          </button>
+          <button id="home-lookoutside" class="home-btn home-btn-secondary">
+            <i class="ph-fill ph-binoculars"></i> Look outside
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="explore-screen" class="screen" aria-label="Explore the solar system">
       <canvas id="starfield" class="starfield" aria-hidden="true"></canvas>
       <div class="galaxy galaxy-a" aria-hidden="true"></div>
       <div class="galaxy galaxy-b" aria-hidden="true"></div>
       <div class="galaxy galaxy-c" aria-hidden="true"></div>
       <div id="orrery" class="orrery"></div>
       <div class="explore-controls">
-        <button id="play-btn" class="ctrl-btn" aria-label="Pause">⏸️</button>
+        <button id="play-btn" class="ctrl-btn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
         <input id="date-input" type="date" class="date-input" aria-label="Date">
         <button id="today-btn" class="ctrl-btn text-btn">Today</button>
         <div class="zoom-group">
-          <button id="zoom-out-btn" class="ctrl-btn" aria-label="Zoom out">−</button>
-          <button id="zoom-in-btn" class="ctrl-btn" aria-label="Zoom in">+</button>
+          <button id="zoom-out-btn" class="ctrl-btn" aria-label="Zoom out"><i class="ph-fill ph-minus"></i></button>
+          <button id="zoom-in-btn" class="ctrl-btn" aria-label="Zoom in"><i class="ph-fill ph-plus"></i></button>
         </div>
       </div>
     </section>
 
     <section id="sky-screen" class="screen" aria-label="Look at the real sky">
       <div id="sky-gate" class="sky-gate">
-        <button id="sky-start" class="wide-btn">🔭 Look at the Sky</button>
+        <button id="sky-start" class="wide-btn"><i class="ph-fill ph-binoculars"></i> Look at the Sky</button>
         <p id="sky-gate-note" class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
       </div>
       <div id="sky-view" class="sky-view hidden">
@@ -50,41 +80,66 @@
         <div id="sky-markers" class="sky-markers"></div>
         <div id="sky-arrows" class="sky-arrows"></div>
         <div class="reticle" aria-hidden="true"></div>
+        <div id="sky-toast" class="sky-toast hidden"></div>
         <div id="sky-daynote" class="sky-daynote hidden"></div>
       </div>
+    </section>
+
+    <section id="badges-screen" class="screen" aria-label="Your badges">
+      <div class="badges-header">
+        <h1 class="badges-title"><i class="ph-fill ph-medal"></i> Badges</h1>
+        <div class="badges-progress">
+          <div class="badges-progress-bar"><div id="badges-progress-fill" class="badges-progress-fill"></div></div>
+          <span id="badges-progress-label" class="badges-progress-label">0/8</span>
+        </div>
+      </div>
+      <div id="badges-grid" class="badges-grid"></div>
     </section>
   </main>
 
   <nav class="bottom-nav" aria-label="Screens">
-    <button id="nav-explore" class="nav-tab active" aria-pressed="true">
-      <span class="nav-icon">🪐</span><span class="nav-label">Explore</span>
+    <button id="nav-explore" class="nav-tab" aria-pressed="false">
+      <i class="ph-fill ph-planet nav-icon"></i><span class="nav-label">Explore</span>
     </button>
     <button id="nav-sky" class="nav-tab" aria-pressed="false">
-      <span class="nav-icon">🔭</span><span class="nav-label">Sky</span>
+      <i class="ph-fill ph-binoculars nav-icon"></i><span class="nav-label">Sky</span>
+    </button>
+    <button id="nav-badges" class="nav-tab" aria-pressed="false">
+      <i class="ph-fill ph-medal nav-icon"></i><span class="nav-label">Badges</span>
     </button>
   </nav>
 
   <div id="planet-card" class="planet-card hidden">
-    <button id="card-close" class="icon-btn card-close" aria-label="Close">✕</button>
-    <div class="spin-wrap">
-      <div id="card-ring-back" class="ring-layer ring-back hidden"></div>
-      <div class="spin-frame">
-        <div id="spin-texture" class="spin-texture"></div>
-        <div class="sphere-vignette"></div>
-        <div id="card-shade" class="sphere-shade card-shade hidden"></div>
+    <div class="sheet">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <button id="card-close" class="icon-btn card-close" aria-label="Close"><i class="ph-fill ph-x"></i></button>
+      <div class="card-top">
+        <div class="spin-wrap">
+          <div id="card-ring-back" class="ring-layer ring-back hidden"></div>
+          <div class="spin-frame">
+            <div id="spin-texture" class="spin-texture"></div>
+            <div class="sphere-vignette"></div>
+            <div id="card-shade" class="sphere-shade card-shade hidden"></div>
+          </div>
+          <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
+          <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
+        </div>
+        <div class="card-text">
+          <h2 id="card-name" class="card-name"></h2>
+          <p id="card-fact" class="card-fact"></p>
+          <p id="card-safety" class="card-safety hidden"></p>
+        </div>
       </div>
-      <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
-      <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
-    </div>
-    <h2 id="card-name" class="card-name"></h2>
-    <p id="card-fact" class="card-fact"></p>
-    <p id="card-safety" class="card-safety hidden"></p>
-    <div class="card-nav">
-      <button id="card-prev" class="nav-btn" aria-label="Previous">◀</button>
-      <button id="card-next" class="nav-btn" aria-label="Next">▶</button>
+      <div class="card-actions">
+        <button id="card-prev" class="nav-btn" aria-label="Previous"><i class="ph-fill ph-caret-left"></i></button>
+        <button id="card-spot" class="spot-btn hidden">
+          <i class="ph-fill ph-medal"></i><span id="card-spot-label">Spot it!</span>
+        </button>
+        <button id="card-next" class="nav-btn" aria-label="Next"><i class="ph-fill ph-caret-right"></i></button>
+      </div>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=9"></script>
 </body>
 </html>
