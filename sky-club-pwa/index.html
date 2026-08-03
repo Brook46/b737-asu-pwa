@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=13">
+  <link rel="stylesheet" href="app.css?v=14">
 </head>
 <body>
 
@@ -26,7 +26,7 @@
       <span class="status-label">Mission control</span>
     </div>
     <div class="topbar-actions">
-      <span id="badge-chip" class="badge-chip"><i class="ph-fill ph-star"></i><span id="badge-chip-count">0/8</span></span>
+      <span id="badge-chip" class="badge-chip"><i class="ph-fill ph-star"></i><span id="badge-chip-count">0/10</span></span>
       <button id="mute-btn" class="icon-btn mute-btn" aria-label="Mute" aria-pressed="false"><i class="ph-fill ph-speaker-high"></i></button>
     </div>
   </header>
@@ -93,6 +93,7 @@
         <div class="screen-header sky-header">
           <h1 class="screen-title">Point up</h1>
           <p class="screen-subtitle">Move your phone to find what's glowing.</p>
+          <p id="sky-event-note" class="sky-event-note hidden"></p>
         </div>
         <canvas id="milky-way" class="milky-way" aria-hidden="true"></canvas>
         <svg id="const-lines" class="const-lines"></svg>
@@ -107,6 +108,7 @@
         <div class="sky-arrow-hint" aria-hidden="true"><i class="ph-fill ph-arrow-up"></i></div>
         <div id="sky-toast" class="sky-toast hidden"></div>
         <div id="sky-daynote" class="sky-daynote hidden"></div>
+        <div class="sky-horizon" aria-hidden="true"><div class="sky-horizon-sweep"></div></div>
       </div>
     </section>
 
@@ -116,7 +118,7 @@
         <p class="badges-subtitle">Spot a world to light up its badge.</p>
         <div class="badges-progress">
           <div class="badges-progress-bar"><div id="badges-progress-fill" class="badges-progress-fill"></div></div>
-          <span id="badges-progress-label" class="badges-progress-label">0/8</span>
+          <span id="badges-progress-label" class="badges-progress-label">0/10</span>
         </div>
       </div>
       <div id="badges-grid" class="badges-grid"></div>
@@ -166,6 +168,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module" src="app.js?v=14"></script>
 </body>
 </html>

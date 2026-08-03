@@ -9,10 +9,11 @@
 // any text.
 
 import { bodyPositions, starPositions, sunAltitude, milkyWayPositions } from './astro.js';
-import { SKY_BODIES, PLANETS } from './catalog.js';
+import { SKY_BODIES } from './catalog.js';
 import { sensorState, geolocate, requestOrientationPermission, nudge } from './sensors.js';
 import { say } from './speech.js';
-import { spot, isSpotted, onChange, showToast } from './badges.js';
+import { spot, isSpotted, isBadgeBody, onChange, showToast } from './badges.js';
+import { nextEventHeadline } from './events.js';
 
 const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
@@ -20,6 +21,14 @@ const DARK_ALT_THRESHOLD = -4; // sun below this altitude ⇒ dark enough for st
 const NAMED_STAR_MAG = 1.5;    // stars this bright or brighter show their name always
 const FLARE_STAR_MAG = 0.2;    // the handful of hero-bright stars get a lens-flare sparkle
 const DEFAULT_STAR_COLOR = '#eef4ff';
+// "Point and hold" catching: the reticle sits at a fixed screen fraction (not
+// dead center — see .reticle in app.css), and if a real body/star stays under
+// it for LOCK_MS it's caught automatically, same as a tap — friendlier than
+// tapping a tiny moving target one-handed while aiming a phone.
+const RETICLE_X_FRAC = 0.5, RETICLE_Y_FRAC = 0.44;
+const LOCK_RADIUS_PX = 42;
+const LOCK_MS = 1600;
+const LOCK_COOLDOWN_MS = 4000; // don't re-trigger the same catch every frame while still held
 
 let stars = [];
 let constellations = [];
@@ -30,7 +39,11 @@ let currentStars = [];
 let currentMilkyWay = [];
 let isDark = false;
 let milkyWayCtx = null;
+let lockId = null;
+let lockStart = 0;
+const lastAutoCatch = new Map(); // id -> timestamp of last dwell-triggered catch
 const markerEls = new Map();     // id -> marker button
+const entityById = new Map();    // id -> the body/star object (for facts, emoji, badge id)
 const arrowEls = new Map();      // id -> arrow div
 const lineEls = [];              // { el, aId, bId }
 const conLabelEls = new Map();   // constellation id -> label button
@@ -52,13 +65,13 @@ export async function initSky() {
   }
 }
 
-// Keeps the accent outline on already-spotted planet markers in sync with
-// badges.js — both on first build and whenever a spot happens elsewhere (e.g.
-// the Explore card) while this screen's markers already exist.
+// Keeps the accent outline on already-spotted markers (Sun/Moon/planets) in
+// sync with badges.js — both on first build and whenever a spot happens
+// elsewhere (e.g. the Explore card) while this screen's markers already exist.
 function refreshSpottedOutlines() {
-  for (const p of PLANETS) {
-    const el = markerEls.get(p.id);
-    if (el) el.classList.toggle('spotted', isSpotted(p.id));
+  for (const id of Object.keys(SKY_BODIES)) {
+    const el = markerEls.get(id);
+    if (el) el.classList.toggle('spotted', isSpotted(id));
   }
 }
 
@@ -93,7 +106,28 @@ async function startSky() {
     if (sensorState.usingDefaultLocation) {
       showToast(document.getElementById('sky-toast'), "Not sure exactly where you are — the sky might be a little off!");
     }
+    showNextEvent();
   }
+}
+
+// A real "what's coming up" line (next full moon / visible eclipse / close
+// pairing — see events.js) under the screen title. The searches involved
+// (especially the day-by-day conjunction scan) are cheap but non-zero, and
+// nothing here needs to block the transition into the sky view.
+function showNextEvent() {
+  setTimeout(() => {
+    const el = document.getElementById('sky-event-note');
+    if (!el) return;
+    try {
+      const headline = nextEventHeadline(new Date(), sensorState.lat, sensorState.lon);
+      if (headline) {
+        el.textContent = headline;
+        el.classList.remove('hidden');
+      }
+    } catch {
+      // a search failing shouldn't be visible — this note is a nice-to-have, not core functionality
+    }
+  }, 0);
 }
 
 function sizeMilkyWayCanvas() {
@@ -117,6 +151,7 @@ function buildMarkers() {
   svg.innerHTML = '';
   labels.innerHTML = '';
   markerEls.clear();
+  entityById.clear();
   arrowEls.clear();
   lineEls.length = 0;
   conLabelEls.clear();
@@ -125,10 +160,12 @@ function buildMarkers() {
   for (const id of Object.keys(SKY_BODIES)) {
     const body = SKY_BODIES[id];
     markerEls.set(id, makeMarker(markers, body));
+    entityById.set(id, body);
     arrowEls.set(id, makeArrow(arrows, body));
   }
   for (const s of stars) {
     markerEls.set(s.id, makeStarMarker(markers, s));
+    entityById.set(s.id, s);
   }
   for (const con of constellations) {
     const ids = new Set();
@@ -170,7 +207,7 @@ function makeMarker(container, body) {
   label.textContent = body.name;
   btn.appendChild(dot);
   btn.appendChild(label);
-  btn.addEventListener('click', () => catchBody(body.id, body.name, btn));
+  btn.addEventListener('click', () => catchBody(body, btn));
   container.appendChild(btn);
   return btn;
 }
@@ -190,7 +227,7 @@ function makeStarMarker(container, star) {
   btn.style.setProperty('--twinkle-delay', `${(Math.random() * 2.6).toFixed(2)}s`);
   btn.innerHTML = `<span class="marker-glyph"></span><span class="marker-label">${star.name}</span>`;
   btn.setAttribute('aria-label', star.name);
-  btn.addEventListener('click', () => catchBody(star.id, star.name, btn));
+  btn.addEventListener('click', () => catchBody(star, btn));
   container.appendChild(btn);
   return btn;
 }
@@ -226,22 +263,23 @@ function makeArrow(container, body) {
   return div;
 }
 
-function catchBody(id, name, el) {
+// entity is either a SKY_BODIES value (Sun/Moon/planet, has .fact/.safety/.emoji)
+// or a star from data/stars.json (has .fact only for the ~20 brightest/named
+// ones — see the "fact" fields there; fainter stars fall back to a plain name).
+function catchBody(entity, el) {
   el.classList.add('found');
   setTimeout(() => el.classList.remove('found'), 900);
-  const meta = Object.values(SKY_BODIES).find((b) => b.name === name);
-  if (meta) {
-    say(meta.name, meta.fact, meta.safety);
+  if (entity.fact) {
+    say(entity.name, entity.fact, entity.safety);
   } else {
-    say(`That's ${name}!`);
+    say(`That's ${entity.name}!`);
   }
-  // Only the 8 planets have a badge payoff (see badges.js) — Sun/Moon/stars/
-  // constellations stay speech-only, matching the redesign's 8-item badge grid.
-  if (PLANETS.some((p) => p.id === id)) {
-    const newlySpotted = spot(id);
+  // Sun, Moon and the 8 planets have a badge payoff (see badges.js) —
+  // stars/constellations stay speech-only.
+  if (isBadgeBody(entity.id)) {
+    const newlySpotted = spot(entity.id);
     if (newlySpotted) {
-      const emoji = meta ? meta.emoji : '';
-      showToast(document.getElementById('sky-toast'), `${emoji} ${name} spotted!`);
+      showToast(document.getElementById('sky-toast'), `${entity.emoji || ''} ${entity.name} spotted!`);
     }
   }
 }
@@ -307,7 +345,14 @@ function project() {
       el.classList.add('hidden');
       positions[id] = null;
       if (arrowEl) {
-        const ang = Math.atan2(-dAlt, dAz || 0.0001);
+        // (ax,ay) below is the standard "math angle → screen point" conversion
+        // (x=cx+cos·r, y=cy-sin·r — the minus is what turns a math-convention
+        // up-positive angle into a screen-down-positive point), so ang itself
+        // must ALSO be up-positive to match — i.e. atan2(dAlt, dAz), not
+        // atan2(-dAlt, dAz). The negated version placed (and pointed) every
+        // arrow with an up/down component on the wrong side of the screen —
+        // pointing away from the target instead of toward it.
+        const ang = Math.atan2(dAlt, dAz || 0.0001);
         const r = Math.min(cx, cy) - margin;
         const ax = cx + Math.cos(ang) * r;
         const ay = cy - Math.sin(ang) * r;
@@ -360,6 +405,50 @@ function project() {
     } else {
       label.classList.add('hidden');
     }
+  }
+
+  updateLock(positions, w, h);
+}
+
+// "Point and hold": finds whichever visible body/star is currently nearest
+// the reticle (see RETICLE_X_FRAC/Y_FRAC — the reticle isn't dead-center) and,
+// if it stays there for LOCK_MS, catches it automatically — the reticle is a
+// real target, not just decoration. Growing the center dot each frame is the
+// only visual feedback needed; a full progress ring wasn't worth the ceremony.
+function updateLock(positions, w, h) {
+  const dotEl = document.querySelector('.reticle-dot');
+  const reticleEl = document.querySelector('.reticle');
+  if (!dotEl || !reticleEl) return;
+  const rx = w * RETICLE_X_FRAC, ry = h * RETICLE_Y_FRAC;
+
+  let nearestId = null, nearestDist = LOCK_RADIUS_PX;
+  for (const id in positions) {
+    const p = positions[id];
+    if (!p) continue;
+    const d = Math.hypot(p.x - rx, p.y - ry);
+    if (d < nearestDist) { nearestDist = d; nearestId = id; }
+  }
+
+  const now = performance.now();
+  if (nearestId) {
+    if (nearestId !== lockId) { lockId = nearestId; lockStart = now; }
+    const progress = Math.min(1, (now - lockStart) / LOCK_MS);
+    dotEl.style.transform = `scale(${(1 + progress * 1.6).toFixed(2)})`;
+    reticleEl.classList.add('locking');
+    if (progress >= 1) {
+      const lastCatch = lastAutoCatch.get(nearestId) || 0;
+      if (now - lastCatch > LOCK_COOLDOWN_MS) {
+        lastAutoCatch.set(nearestId, now);
+        const entity = entityById.get(nearestId);
+        const el = markerEls.get(nearestId);
+        if (entity && el) catchBody(entity, el);
+      }
+      lockStart = now; // restart the dwell so it doesn't refire every frame while still held
+    }
+  } else {
+    lockId = null;
+    dotEl.style.transform = '';
+    reticleEl.classList.remove('locking');
   }
 }
 

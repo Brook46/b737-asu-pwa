@@ -2,7 +2,10 @@
 // Everything here returns azimuth (0-360°, clockwise from true north) and altitude
 // (-90..+90°, degrees above the horizon) so sky.js only ever deals in compass bearings.
 
-import { Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase } from '../vendor/astronomy-engine.js';
+import {
+  Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase,
+  SearchMoonQuarter, NextMoonQuarter, SearchLunarEclipse, SearchLocalSolarEclipse,
+} from '../vendor/astronomy-engine.js';
 
 const PLANET_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
 const ORBIT_BODIES = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
@@ -106,4 +109,63 @@ export function milkyWayPositions(date, lat, lon) {
     const hor = Horizon(date, observer, p.ra, p.dec, 'normal');
     return { ...p, az: hor.azimuth, alt: hor.altitude };
   });
+}
+
+// ---- Special-date events (real searches via the vendored engine, not fabricated) ----
+
+/** The next real Full Moon after `fromDate`. SearchMoonQuarter finds whichever
+ * quarter is next (new/first/full/third); loop forward to the one that's full. */
+export function nextFullMoon(fromDate) {
+  let mq = SearchMoonQuarter(fromDate);
+  for (let i = 0; mq.quarter !== 2 && i < 4; i++) mq = NextMoonQuarter(mq);
+  return mq.time.date;
+}
+
+/** The next lunar eclipse of any kind, with whether the Moon is actually above
+ * this observer's horizon at its peak (lunar eclipses are visible from the
+ * whole night side of Earth, not everywhere). */
+export function nextLunarEclipse(fromDate, lat, lon) {
+  const info = SearchLunarEclipse(fromDate);
+  const observer = new Observer(lat, lon, 0);
+  const eq = Equator(Body.Moon, info.peak, observer, true, true);
+  const alt = Horizon(info.peak, observer, eq.ra, eq.dec, 'normal').altitude;
+  return { date: info.peak.date, kind: info.kind, visible: alt > 0 };
+}
+
+/** The next solar eclipse local to this observer (the search itself is
+ * location-aware, unlike the lunar one above). */
+export function nextSolarEclipse(fromDate, lat, lon) {
+  const observer = new Observer(lat, lon, 0);
+  const info = SearchLocalSolarEclipse(fromDate, observer);
+  return { date: info.peak.time.date, kind: info.kind, visible: info.peak.altitude > 0 };
+}
+
+const CONJUNCTION_BODIES = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+const NOTABLE_SEP_DEG = 5; // "close together" — real astronomers call ~5° or less a conjunction worth noting
+
+function angularSepDeg(raHoursA, decA, raHoursB, decB) {
+  const ra1 = raHoursA * 15 * DEG, ra2 = raHoursB * 15 * DEG;
+  const d1 = decA * DEG, d2 = decB * DEG;
+  const cosSep = Math.sin(d1) * Math.sin(d2) + Math.cos(d1) * Math.cos(d2) * Math.cos(ra1 - ra2);
+  return Math.acos(Math.max(-1, Math.min(1, cosSep))) / DEG;
+}
+
+/** Scans real positions day-by-day over the next `days` for the closest two
+ * naked-eye bodies get to each other — an actual conjunction, computed from
+ * real RA/Dec, not a fabricated "fun fact". Returns null if nothing in that
+ * window gets closer than NOTABLE_SEP_DEG. */
+export function nextConjunction(fromDate, lat, lon, days = 45) {
+  const observer = new Observer(lat, lon, 0);
+  let best = null;
+  for (let d = 0; d <= days; d++) {
+    const date = new Date(fromDate.getTime() + d * 86400000);
+    const positions = CONJUNCTION_BODIES.map((name) => ({ name, ...Equator(Body[name], date, observer, true, true) }));
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        const sepDeg = angularSepDeg(positions[i].ra, positions[i].dec, positions[j].ra, positions[j].dec);
+        if (!best || sepDeg < best.sepDeg) best = { a: positions[i].name, b: positions[j].name, sepDeg, date };
+      }
+    }
+  }
+  return best && best.sepDeg <= NOTABLE_SEP_DEG ? best : null;
 }

@@ -1,11 +1,12 @@
-// badges.js — a small "spot the planet" collection game: tap a planet in
-// Explore's card, or find it for real in Sky mode, to unlock its badge.
-// Sun/Moon/stars/constellations stay tappable and informative everywhere but
-// don't have a badge card here — there's no payoff to wire up for them, matching
-// the redesign mockup's 8-planet badge grid.
+// badges.js — a small "spot the sky" collection game: tap a body in Explore's
+// card, or find it for real in Sky mode, to unlock its badge. Covers the Sun,
+// Moon, and 8 planets (10 total) — stars/constellations stay tappable and
+// informative everywhere but don't have a badge card; a 100+ star catalog
+// isn't a "collect them all" checklist the way ten solar-system bodies are.
 
-import { PLANETS } from './catalog.js';
+import { SUN, MOON, PLANETS } from './catalog.js';
 
+const BADGE_BODIES = [SUN, ...PLANETS, MOON];
 const STORAGE_KEY = 'skyclub.spotted';
 const listeners = new Set();
 
@@ -41,8 +42,12 @@ export function isSpotted(id) {
   return spotted.has(id);
 }
 
+export function isBadgeBody(id) {
+  return BADGE_BODIES.some((b) => b.id === id);
+}
+
 export function getSpottedCount() {
-  return PLANETS.filter((p) => spotted.has(p.id)).length;
+  return BADGE_BODIES.filter((b) => spotted.has(b.id)).length;
 }
 
 export function onChange(cb) {
@@ -70,29 +75,29 @@ export function initBadges() {
 
   function render() {
     const count = getSpottedCount();
-    const total = PLANETS.length;
+    const total = BADGE_BODIES.length;
     const text = `${count}/${total}`;
     fill.style.width = `${(count / total) * 100}%`;
     label.textContent = text;
     if (chipCount) chipCount.textContent = text;
 
     grid.innerHTML = '';
-    for (const p of PLANETS) {
-      const unlocked = spotted.has(p.id);
+    for (const b of BADGE_BODIES) {
+      const unlocked = spotted.has(b.id);
       const card = document.createElement('div');
       card.className = `badge-card ${unlocked ? 'unlocked' : 'locked'}`;
 
       const dot = document.createElement('div');
       dot.className = 'badge-dot';
       if (unlocked) {
-        dot.style.backgroundImage = `url(${p.texture})`;
+        dot.style.backgroundImage = `url(${b.texture})`;
       } else {
         dot.textContent = '?';
       }
 
       const name = document.createElement('span');
       name.className = 'badge-name';
-      name.textContent = unlocked ? p.name : '???';
+      name.textContent = unlocked ? b.name : '???';
 
       card.appendChild(dot);
       card.appendChild(name);

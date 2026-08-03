@@ -1,5 +1,5 @@
 {
-  "_comment": "Bright naked-eye stars (J2000 RA in decimal hours, Dec in decimal degrees, mag = apparent magnitude). Curated for a kids' sky \u2014 not a full catalog, but a real one: coordinates good to roughly a degree, not for astrometry.",
+  "_comment": "Bright naked-eye stars (J2000 RA in decimal hours, Dec in decimal degrees, mag = apparent magnitude). Curated for a kids' sky — not a full catalog, but a real one: coordinates good to roughly a degree, not for astrometry.",
   "stars": [
     {
       "id": "sirius",
@@ -7,7 +7,8 @@
       "ra": 6.752,
       "dec": -16.716,
       "mag": -1.46,
-      "con": "canismajor"
+      "con": "canismajor",
+      "fact": "The brightest star in the whole night sky, in the Big Dog."
     },
     {
       "id": "canopus",
@@ -15,7 +16,8 @@
       "ra": 6.399,
       "dec": -52.696,
       "mag": -0.74,
-      "con": "carina"
+      "con": "carina",
+      "fact": "The second-brightest star we see — a giant, glowing far away."
     },
     {
       "id": "rigilkent",
@@ -23,7 +25,8 @@
       "ra": 14.66,
       "dec": -60.834,
       "mag": -0.27,
-      "con": "centaurus"
+      "con": "centaurus",
+      "fact": "Our closest star neighbor after the Sun — it's really three stars together!"
     },
     {
       "id": "arcturus",
@@ -32,7 +35,8 @@
       "dec": 19.182,
       "mag": -0.05,
       "con": "bootes",
-      "color": "#ffcf8a"
+      "color": "#ffcf8a",
+      "fact": "A giant orange star, one of the brightest in the whole sky."
     },
     {
       "id": "vega",
@@ -40,7 +44,8 @@
       "ra": 18.615,
       "dec": 38.784,
       "mag": 0.03,
-      "con": "lyra"
+      "con": "lyra",
+      "fact": "A bright blue-white star — long ago it was even the North Star!"
     },
     {
       "id": "capella",
@@ -49,7 +54,8 @@
       "dec": 45.998,
       "mag": 0.08,
       "con": "auriga",
-      "color": "#fff3c9"
+      "color": "#fff3c9",
+      "fact": "Looks like one star, but it's really four stars close together."
     },
     {
       "id": "rigel",
@@ -57,7 +63,8 @@
       "ra": 5.242,
       "dec": -8.202,
       "mag": 0.13,
-      "con": "orion"
+      "con": "orion",
+      "fact": "A huge blue star lighting up the bottom of Orion the Hunter."
     },
     {
       "id": "procyon",
@@ -65,7 +72,8 @@
       "ra": 7.655,
       "dec": 5.225,
       "mag": 0.34,
-      "con": "canisminor"
+      "con": "canisminor",
+      "fact": "A bright nearby star that leads the Little Dog across the sky."
     },
     {
       "id": "betelgeuse",
@@ -74,7 +82,8 @@
       "dec": 7.407,
       "mag": 0.5,
       "con": "orion",
-      "color": "#ff8f6b"
+      "color": "#ff8f6b",
+      "fact": "A giant red star so big it could swallow Mars' whole orbit."
     },
     {
       "id": "achernar",
@@ -82,7 +91,8 @@
       "ra": 1.629,
       "dec": -57.237,
       "mag": 0.46,
-      "con": null
+      "con": null,
+      "fact": "Spins so fast it's squashed flat, like a beach ball."
     },
     {
       "id": "hadar",
@@ -90,7 +100,8 @@
       "ra": 14.064,
       "dec": -60.373,
       "mag": 0.61,
-      "con": "centaurus"
+      "con": "centaurus",
+      "fact": "A hot, blazing blue giant star."
     },
     {
       "id": "altair",
@@ -98,7 +109,8 @@
       "ra": 19.846,
       "dec": 8.868,
       "mag": 0.76,
-      "con": "aquila"
+      "con": "aquila",
+      "fact": "Spins around super fast — once every few hours!"
     },
     {
       "id": "acrux",
@@ -106,7 +118,8 @@
       "ra": 12.443,
       "dec": -63.099,
       "mag": 0.77,
-      "con": "southerncross"
+      "con": "southerncross",
+      "fact": "The top star of the tiny Southern Cross."
     },
     {
       "id": "aldebaran",
@@ -115,7 +128,8 @@
       "dec": 16.509,
       "mag": 0.85,
       "con": "taurus",
-      "color": "#ffb37a"
+      "color": "#ffb37a",
+      "fact": "A giant orange star that looks like the Bull's fiery eye."
     },
     {
       "id": "antares",
@@ -124,7 +138,8 @@
       "dec": -26.432,
       "mag": 0.96,
       "con": "scorpius",
-      "color": "#ff6b5b"
+      "color": "#ff6b5b",
+      "fact": "A huge red star — the fiery heart of the Scorpion."
     },
     {
       "id": "spica",
@@ -132,7 +147,8 @@
       "ra": 13.42,
       "dec": -11.161,
       "mag": 0.98,
-      "con": "virgo"
+      "con": "virgo",
+      "fact": "Not one star but two, circling so close they almost touch."
     },
     {
       "id": "pollux",
@@ -140,7 +156,8 @@
       "ra": 7.755,
       "dec": 28.026,
       "mag": 1.14,
-      "con": "gemini"
+      "con": "gemini",
+      "fact": "The brighter of the two twin stars in Gemini."
     },
     {
       "id": "fomalhaut",
@@ -148,7 +165,8 @@
       "ra": 22.961,
       "dec": -29.622,
       "mag": 1.16,
-      "con": null
+      "con": null,
+      "fact": "Has real rings of dust and baby planets circling around it."
     },
     {
       "id": "deneb",
@@ -156,7 +174,8 @@
       "ra": 20.69,
       "dec": 45.28,
       "mag": 1.25,
-      "con": "cygnus"
+      "con": "cygnus",
+      "fact": "One of the farthest bright stars we can see — and incredibly powerful."
     },
     {
       "id": "mimosa",
@@ -164,7 +183,8 @@
       "ra": 12.795,
       "dec": -59.689,
       "mag": 1.25,
-      "con": "southerncross"
+      "con": "southerncross",
+      "fact": "A hot blue giant star marking the Southern Cross."
     },
     {
       "id": "regulus",
@@ -172,7 +192,8 @@
       "ra": 10.139,
       "dec": 11.967,
       "mag": 1.36,
-      "con": "leo"
+      "con": "leo",
+      "fact": "The bright heart of Leo the Lion, spinning so fast it's squished."
     },
     {
       "id": "adhara",
@@ -180,7 +201,8 @@
       "ra": 6.977,
       "dec": -28.972,
       "mag": 1.5,
-      "con": "canismajor"
+      "con": "canismajor",
+      "fact": "A super hot blue star trotting along with the Big Dog."
     },
     {
       "id": "castor",
@@ -357,7 +379,8 @@
       "ra": 2.53,
       "dec": 89.264,
       "mag": 1.98,
-      "con": "ursaminor"
+      "con": "ursaminor",
+      "fact": "The North Star — it barely moves all night, so sailors use it to find their way."
     },
     {
       "id": "mirzam",
@@ -829,7 +852,7 @@
     {
       "id": "bigdipper",
       "name": "The Big Dipper",
-      "emoji": "\ud83e\udd44",
+      "emoji": "🥄",
       "kind": "asterism",
       "fact": "It looks like a big spoon in the sky! People use it to find the North Star.",
       "lines": [
@@ -866,9 +889,9 @@
     {
       "id": "orion",
       "name": "Orion the Hunter",
-      "emoji": "\ud83c\udff9",
+      "emoji": "🏹",
       "kind": "constellation",
-      "fact": "Orion has three stars in a row \u2014 that's his belt!",
+      "fact": "Orion has three stars in a row — that's his belt!",
       "lines": [
         [
           "bellatrix",
@@ -907,9 +930,9 @@
     {
       "id": "cassiopeia",
       "name": "Cassiopeia",
-      "emoji": "\ud83d\udc51",
+      "emoji": "👑",
       "kind": "constellation",
-      "fact": "It's shaped like a big letter W \u2014 a queen's crown in the sky.",
+      "fact": "It's shaped like a big letter W — a queen's crown in the sky.",
       "lines": [
         [
           "caph",
@@ -932,7 +955,7 @@
     {
       "id": "southerncross",
       "name": "The Southern Cross",
-      "emoji": "\u271d\ufe0f",
+      "emoji": "✝️",
       "kind": "asterism",
       "fact": "Sailors and pilots use this tiny cross to find south!",
       "lines": [
@@ -949,7 +972,7 @@
     {
       "id": "scorpius",
       "name": "Scorpius the Scorpion",
-      "emoji": "\ud83e\udd82",
+      "emoji": "🦂",
       "kind": "constellation",
       "fact": "Its curly tail has a bright red star called Antares.",
       "lines": [
@@ -970,7 +993,7 @@
     {
       "id": "leo",
       "name": "Leo the Lion",
-      "emoji": "\ud83e\udd81",
+      "emoji": "🦁",
       "kind": "constellation",
       "fact": "Leo the Lion has a bright heart-star called Regulus.",
       "lines": [
@@ -987,7 +1010,7 @@
     {
       "id": "cygnus",
       "name": "Cygnus the Swan",
-      "emoji": "\ud83e\udda2",
+      "emoji": "🦢",
       "kind": "constellation",
       "fact": "A swan flying along the Milky Way, with its tail star Deneb.",
       "lines": [
@@ -1004,7 +1027,7 @@
     {
       "id": "taurus",
       "name": "Taurus the Bull",
-      "emoji": "\ud83d\udc02",
+      "emoji": "🐂",
       "kind": "constellation",
       "fact": "Its bright orange eye is a star called Aldebaran.",
       "lines": [
@@ -1017,9 +1040,9 @@
     {
       "id": "gemini",
       "name": "Gemini the Twins",
-      "emoji": "\ud83d\udc6c",
+      "emoji": "👬",
       "kind": "constellation",
-      "fact": "Two bright stars side by side \u2014 Castor and Pollux, the twins.",
+      "fact": "Two bright stars side by side — Castor and Pollux, the twins.",
       "lines": [
         [
           "castor",
@@ -1034,7 +1057,7 @@
     {
       "id": "summertriangle",
       "name": "The Summer Triangle",
-      "emoji": "\ud83d\udd3a",
+      "emoji": "🔺",
       "kind": "asterism",
       "fact": "Three super-bright stars from three different constellations, making one big triangle.",
       "lines": [
@@ -1055,7 +1078,7 @@
     {
       "id": "ursaminor",
       "name": "The Little Dipper",
-      "emoji": "\ud83e\udd44",
+      "emoji": "🥄",
       "kind": "asterism",
       "fact": "A tiny spoon with the North Star, Polaris, right at the end of its handle!",
       "lines": [
@@ -1072,9 +1095,9 @@
     {
       "id": "pegasus",
       "name": "Pegasus the Flying Horse",
-      "emoji": "\ud83d\udc34",
+      "emoji": "🐴",
       "kind": "constellation",
-      "fact": "A giant square in the sky \u2014 the body of a flying horse!",
+      "fact": "A giant square in the sky — the body of a flying horse!",
       "lines": [
         [
           "markab",
@@ -1097,7 +1120,7 @@
     {
       "id": "andromeda",
       "name": "Andromeda the Princess",
-      "emoji": "\ud83d\udc78",
+      "emoji": "👸",
       "kind": "constellation",
       "fact": "A princess in the stars, connected to the flying horse Pegasus.",
       "lines": [
@@ -1114,9 +1137,9 @@
     {
       "id": "perseus",
       "name": "Perseus the Hero",
-      "emoji": "\ud83e\uddb8",
+      "emoji": "🦸",
       "kind": "constellation",
-      "fact": "A hero holding a special star that blinks \u2014 that's Algol, the Demon Star!",
+      "fact": "A hero holding a special star that blinks — that's Algol, the Demon Star!",
       "lines": [
         [
           "mirfak",
@@ -1127,7 +1150,7 @@
     {
       "id": "auriga",
       "name": "Auriga the Charioteer",
-      "emoji": "\ud83c\udfce\ufe0f",
+      "emoji": "🏎️",
       "kind": "constellation",
       "fact": "The Charioteer, holding his bright goat-star, Capella.",
       "lines": [
@@ -1139,8 +1162,8 @@
     },
     {
       "id": "bootes",
-      "name": "Bo\u00f6tes the Herdsman",
-      "emoji": "\ud83e\uddd1\u200d\ud83c\udf3e",
+      "name": "Boötes the Herdsman",
+      "emoji": "🧑‍🌾",
       "kind": "constellation",
       "fact": "The Herdsman, with the bright orange giant star Arcturus glowing below.",
       "lines": [
@@ -1161,7 +1184,7 @@
     {
       "id": "lyra",
       "name": "Lyra the Harp",
-      "emoji": "\ud83c\udfb5",
+      "emoji": "🎵",
       "kind": "constellation",
       "fact": "A tiny harp with the bright blue star Vega.",
       "lines": [
@@ -1178,7 +1201,7 @@
     {
       "id": "aquila",
       "name": "Aquila the Eagle",
-      "emoji": "\ud83e\udd85",
+      "emoji": "🦅",
       "kind": "constellation",
       "fact": "An eagle soaring along the Milky Way, with the bright star Altair.",
       "lines": [
@@ -1195,7 +1218,7 @@
     {
       "id": "canisminor",
       "name": "The Little Dog",
-      "emoji": "\ud83d\udc15",
+      "emoji": "🐕",
       "kind": "constellation",
       "fact": "The Little Dog, trotting along with just two bright stars.",
       "lines": [
@@ -1208,7 +1231,7 @@
     {
       "id": "centaurus",
       "name": "Centaurus",
-      "emoji": "\ud83d\udc0e",
+      "emoji": "🐎",
       "kind": "constellation",
       "fact": "A half-horse, half-person with two of the brightest stars in the whole sky.",
       "lines": [
@@ -1221,7 +1244,7 @@
     {
       "id": "draco",
       "name": "Draco the Dragon",
-      "emoji": "\ud83d\udc09",
+      "emoji": "🐉",
       "kind": "constellation",
       "fact": "A long dragon that winds all the way around the North Star.",
       "lines": [
@@ -1238,7 +1261,7 @@
     {
       "id": "corvus",
       "name": "Corvus the Crow",
-      "emoji": "\ud83d\udc26",
+      "emoji": "🐦",
       "kind": "constellation",
       "fact": "A crow, shaped like a little kite in the sky.",
       "lines": [
@@ -1263,9 +1286,9 @@
     {
       "id": "sagittarius",
       "name": "Sagittarius the Archer",
-      "emoji": "\ud83c\udff9",
+      "emoji": "🏹",
       "kind": "constellation",
-      "fact": "An archer \u2014 its brightest stars make the shape of a teapot!",
+      "fact": "An archer — its brightest stars make the shape of a teapot!",
       "lines": [
         [
           "kausaustralis",
@@ -1288,9 +1311,9 @@
     {
       "id": "canismajor",
       "name": "The Big Dog",
-      "emoji": "\ud83d\udc15\u200d\ud83e\uddba",
+      "emoji": "🐕‍🦺",
       "kind": "constellation",
-      "fact": "The Big Dog, led by Sirius \u2014 the very brightest star in the whole night sky!",
+      "fact": "The Big Dog, led by Sirius — the very brightest star in the whole night sky!",
       "lines": [
         [
           "sirius",
@@ -1309,9 +1332,9 @@
     {
       "id": "aries",
       "name": "Aries the Ram",
-      "emoji": "\ud83d\udc0f",
+      "emoji": "🐏",
       "kind": "constellation",
-      "fact": "The Ram \u2014 just a simple curved line of stars.",
+      "fact": "The Ram — just a simple curved line of stars.",
       "lines": [
         [
           "hamal",
@@ -1322,7 +1345,7 @@
     {
       "id": "cetus",
       "name": "Cetus the Sea Monster",
-      "emoji": "\ud83d\udc33",
+      "emoji": "🐳",
       "kind": "constellation",
       "fact": "A big sea monster from an old story about a princess and a hero.",
       "lines": [

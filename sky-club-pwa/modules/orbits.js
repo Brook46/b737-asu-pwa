@@ -24,7 +24,7 @@ import { SUN, MOON, PLANETS } from './catalog.js';
 import { planetLongitudes, moonPhase } from './astro.js';
 import { drawMoonPhase } from './moonphase.js';
 import { say } from './speech.js';
-import { spot, isSpotted, onChange } from './badges.js';
+import { spot, isSpotted, isBadgeBody, onChange } from './badges.js';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
@@ -339,24 +339,25 @@ function renderCard() {
   say(body.name, body.fact, body.safety);
 }
 
-// Sun/Moon stay tappable and informative but have no badge payoff (see
-// badges.js) — the button only ever appears for the 8 planets.
+// Sun, Moon and all 8 planets have a badge payoff (see badges.js).
 function updateSpotButton(body) {
   const btn = document.getElementById('card-spot');
-  const isPlanet = PLANETS.some((p) => p.id === body.id);
-  btn.classList.toggle('hidden', !isPlanet);
-  if (!isPlanet) return;
+  const eligible = isBadgeBody(body.id);
+  btn.classList.toggle('hidden', !eligible);
+  if (!eligible) return;
   const spotted = isSpotted(body.id);
   btn.classList.toggle('spotted', spotted);
   document.getElementById('card-spot-label').textContent = spotted ? 'Got it!' : 'I spotted it';
   document.getElementById('card-spot-icon').className = spotted ? 'ph-fill ph-seal-check' : 'ph-fill ph-star';
 }
 
-// A subtle accent outline directly on the orrery's already-spotted planets —
+// A subtle accent outline directly on the orrery's already-spotted bodies —
 // so a kid can see their progress at a glance without opening every card.
+// The Moon has no orrery button of its own (only the mini-moon dot on Earth,
+// not a real target), so it's skipped here — Sky mode's own marker covers it.
 function refreshSpottedOutlines() {
-  for (const planet of PLANETS) {
-    const btn = document.querySelector(`.body-btn[data-id="${planet.id}"]`);
-    if (btn) btn.classList.toggle('spotted', isSpotted(planet.id));
+  for (const body of [SUN, ...PLANETS]) {
+    const btn = document.querySelector(`.body-btn[data-id="${body.id}"]`);
+    if (btn) btn.classList.toggle('spotted', isSpotted(body.id));
   }
 }
