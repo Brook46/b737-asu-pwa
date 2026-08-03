@@ -24,7 +24,7 @@ import { SUN, MOON, PLANETS } from './catalog.js';
 import { planetLongitudes, moonPhase } from './astro.js';
 import { drawMoonPhase } from './moonphase.js';
 import { say } from './speech.js';
-import { spot, isSpotted } from './badges.js';
+import { spot, isSpotted, onChange } from './badges.js';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
@@ -82,6 +82,8 @@ export function initExplore() {
   document.querySelectorAll('.body-btn').forEach((btn) => {
     btn.addEventListener('click', () => openCard(btn.dataset.id));
   });
+  refreshSpottedOutlines();
+  onChange(refreshSpottedOutlines);
 
   document.getElementById('card-close').addEventListener('click', closeCard);
   document.getElementById('card-prev').addEventListener('click', () => stepCard(-1));
@@ -348,4 +350,13 @@ function updateSpotButton(body) {
   btn.classList.toggle('spotted', spotted);
   document.getElementById('card-spot-label').textContent = spotted ? 'Got it!' : 'I spotted it';
   document.getElementById('card-spot-icon').className = spotted ? 'ph-fill ph-seal-check' : 'ph-fill ph-star';
+}
+
+// A subtle accent outline directly on the orrery's already-spotted planets —
+// so a kid can see their progress at a glance without opening every card.
+function refreshSpottedOutlines() {
+  for (const planet of PLANETS) {
+    const btn = document.querySelector(`.body-btn[data-id="${planet.id}"]`);
+    if (btn) btn.classList.toggle('spotted', isSpotted(planet.id));
+  }
 }

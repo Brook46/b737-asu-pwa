@@ -3,12 +3,16 @@
    accents, star colors, Saturn ring, sphere-shading) live in catalog.js/stars.json
    and are untouched by this palette. */
 :root {
+  --color-deep: #0d0f1c;
   --color-bg: #161826;
   --color-surface: #232532;
   --color-text: #e9e9ed;
   --color-text-dim: #9397ab;
+  --color-dim: #75798c;
+  --color-body: #cfd3e5;
   --accent-300: #d2cefd;
   --accent-400: #b5abfc;
+  --accent-pale: #e7e5fe;
   --accent-500: #9184d9;
   --accent-600: #796cbf;
   --accent-800: #423a6a;
@@ -128,11 +132,11 @@ button {
   padding: 8px 0;
   border-radius: 16px;
   border: 1px solid transparent;
-  color: var(--color-text-dim);
+  color: var(--color-dim);
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 .nav-tab.active {
-  color: var(--accent-300);
+  color: var(--accent-pale);
   border-color: var(--accent-500);
   background: rgba(66, 58, 106, 0.45);
 }
@@ -142,6 +146,19 @@ button {
 /* ---------- Home screen (rocket hero) ---------- */
 #home-screen {
   background: radial-gradient(ellipse at center, var(--color-surface) 0%, var(--color-bg) 70%);
+}
+/* A screen's content re-enters layout (and so replays this) every time its
+   ancestor .screen toggles from display:none back to :flex — free entrance
+   animation, no JS needed. */
+@keyframes rise {
+  from { transform: translateY(26px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.home-hero,
+.screen-header,
+.badges-header,
+#badges-grid {
+  animation: rise 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
 .home-hero {
   position: relative;
@@ -255,7 +272,7 @@ button {
   pointer-events: none;
 }
 .screen-title { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-text); }
-.screen-subtitle { margin: 4px 0 0; font-size: 14px; color: var(--color-text-dim); }
+.screen-subtitle { margin: 4px 0 0; font-size: 14px; color: var(--color-body); }
 .orrery {
   position: relative;
   width: 1px; height: 1px; /* the rings size themselves; this is just the rotation origin */
@@ -498,8 +515,8 @@ button {
 .planet-card {
   position: fixed; inset: 0;
   z-index: 40;
-  background: rgba(10, 10, 22, 0.6);
-  backdrop-filter: blur(6px);
+  background: rgba(13, 15, 28, 0.65);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -598,7 +615,7 @@ button {
 }
 .card-text { flex: 1 1 auto; min-width: 0; }
 .card-name { font-size: 26px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.02em; }
-.card-fact { font-size: 15px; line-height: 1.4; margin: 0; opacity: 0.85; }
+.card-fact { font-size: 15px; line-height: 1.4; margin: 0; color: var(--color-body); }
 .card-safety { font-size: 13px; color: #ffb0a0; margin: 6px 0 0; }
 .card-actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .nav-btn {
@@ -622,6 +639,7 @@ button {
 }
 .spot-btn.spotted {
   background: rgba(89, 79, 138, 0.6);
+  color: var(--accent-pale);
 }
 
 /* ---------- Sky screen ---------- */
@@ -649,9 +667,19 @@ button {
   border-radius: 22px;
 }
 .wide-btn:active { background: rgba(89, 79, 138, 0.5); }
-.sky-gate-note { font-size: 14px; opacity: 0.7; max-width: 260px; }
+.sky-gate-note { font-size: 14px; color: var(--color-body); max-width: 260px; }
 
 .sky-view { position: absolute; inset: 0; touch-action: none; }
+/* Real galactic-plane points (astro.js::milkyWayPositions), projected and
+   drawn every frame in sky.js::drawMilkyWay() — sits behind the stars/markers
+   in DOM order, screen blend so it reads as a soft glow rather than flat dots. */
+.milky-way {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
 .const-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
 .const-line {
   stroke: rgba(255, 255, 255, 0.35);
@@ -701,12 +729,28 @@ button {
 /* Same flat glowing sphere as the orrery (.body-dot in app.css, shared by
    makeBodyButton in orbits.js) — sized per body via --marker-size (skySize in
    catalog.js), overriding .body-dot's absolute/inset-0 positioning since here
-   the dot sizes itself rather than filling an already-sized parent. */
+   the dot sizes itself rather than filling an already-sized parent. The gentle
+   float lives on this inner span, NOT the .sky-marker-body button itself —
+   that button's own `transform` is set every frame in sky.js::project() for
+   real screen placement, and a CSS animation on the same property would fight
+   (and win over) that inline transform.
+   .body-btn.spotted/.sky-marker-body.spotted (this same rule, shared with the
+   orrery) draws a soft accent ring around an already-collected planet. */
 .marker-dot {
   position: relative;
   width: var(--marker-size, 24px);
   height: var(--marker-size, 24px);
   display: block;
+  animation: marker-float 6s ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+}
+@keyframes marker-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -5px, 0); }
+}
+.spotted .body-dot {
+  outline: 2px solid rgba(181, 171, 252, 0.85);
+  outline-offset: 3px;
 }
 .sky-marker-body .marker-label {
   font-size: 11px;
@@ -801,14 +845,52 @@ button {
 .arrow-dot { position: relative; width: 16px; height: 16px; flex: none; }
 .arrow-chevron { position: absolute; right: -4px; font-size: 20px; opacity: 0.85; color: var(--accent-300); }
 
+/* "Aim here" target: a pulsing outer ring, a static dashed inner ring, and a
+   small bright center dot — where a found body's marker settles once it's
+   actually centered. Purely a visual aid, not tied to any real position. */
 .reticle {
   position: absolute;
-  top: 50%; left: 50%;
-  width: 26px; height: 26px;
-  margin: -13px 0 0 -13px;
-  border: 2px solid rgba(255,255,255,0.35);
-  border-radius: 50%;
+  top: 44%; left: 50%;
+  width: 150px; height: 150px;
+  margin: -75px 0 0 -75px;
   pointer-events: none;
+}
+.reticle-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(181, 171, 252, 0.45);
+  animation: reticle-pulse 2.8s ease-in-out infinite;
+}
+.reticle-dash {
+  position: absolute; inset: 34px;
+  border-radius: 50%;
+  border: 1px dashed rgba(181, 171, 252, 0.3);
+}
+.reticle-dot {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--accent-pale);
+  box-shadow: 0 0 10px var(--accent-400);
+}
+@keyframes reticle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.14); opacity: 0.12; }
+}
+.sky-arrow-hint {
+  position: absolute;
+  left: 50%; top: calc(44% - 100px);
+  transform: translateX(-50%);
+  font-size: 26px;
+  color: var(--accent-400);
+  pointer-events: none;
+  animation: hint-arrow 1.8s ease-in-out infinite;
+}
+@keyframes hint-arrow {
+  0%, 100% { transform: translate(-50%, 4px); opacity: 0.55; }
+  50% { transform: translate(-50%, -6px); opacity: 1; }
 }
 .sky-toast {
   position: absolute;
@@ -846,7 +928,7 @@ button {
 }
 .badges-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .badges-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0; display: flex; align-items: center; gap: 8px; }
-.badges-subtitle { margin: 0 0 8px; font-size: 14px; color: var(--color-text-dim); }
+.badges-subtitle { margin: 0 0 8px; font-size: 14px; color: var(--color-body); }
 .badges-progress { display: flex; align-items: center; gap: 10px; }
 .badges-progress-bar {
   flex: 1;
@@ -890,7 +972,8 @@ button {
   box-shadow: 0 0 16px 2px rgba(150, 138, 224, 0.4);
   animation: badge-pop 0.4s ease-out;
 }
-.badge-name { font-size: 13px; font-weight: 600; text-align: center; }
+.badge-name { font-size: 13px; font-weight: 600; text-align: center; color: var(--color-text-dim); }
+.badge-card.unlocked .badge-name { color: var(--accent-pale); }
 @keyframes badge-pop {
   from { transform: scale(0.6); opacity: 0; }
   to { transform: scale(1); opacity: 1; }

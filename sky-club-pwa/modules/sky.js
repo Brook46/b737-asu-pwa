@@ -8,11 +8,11 @@
 // — a built-in "turn this way" treasure-hunt mechanic a pre-reader can follow without
 // any text.
 
-import { bodyPositions, starPositions, sunAltitude } from './astro.js';
+import { bodyPositions, starPositions, sunAltitude, milkyWayPositions } from './astro.js';
 import { SKY_BODIES, PLANETS } from './catalog.js';
 import { sensorState, geolocate, requestOrientationPermission, nudge } from './sensors.js';
 import { say } from './speech.js';
-import { spot, showToast } from './badges.js';
+import { spot, isSpotted, onChange, showToast } from './badges.js';
 
 const FOV_DEG = 68; // horizontal degrees visible at once
 const RECOMPUTE_MS = 2000;
@@ -27,7 +27,9 @@ let started = false;
 let lastCalc = 0;
 let currentBodies = [];
 let currentStars = [];
+let currentMilkyWay = [];
 let isDark = false;
+let milkyWayCtx = null;
 const markerEls = new Map();     // id -> marker button
 const arrowEls = new Map();      // id -> arrow div
 const lineEls = [];              // { el, aId, bId }
@@ -37,6 +39,7 @@ const conStarIds = new Map();    // constellation id -> unique star ids in its l
 export async function initSky() {
   document.getElementById('sky-start').addEventListener('click', startSky);
   wireDrag();
+  onChange(refreshSpottedOutlines);
 
   try {
     const res = await fetch('data/stars.json');
@@ -46,6 +49,16 @@ export async function initSky() {
   } catch {
     stars = [];
     constellations = [];
+  }
+}
+
+// Keeps the accent outline on already-spotted planet markers in sync with
+// badges.js — both on first build and whenever a spot happens elsewhere (e.g.
+// the Explore card) while this screen's markers already exist.
+function refreshSpottedOutlines() {
+  for (const p of PLANETS) {
+    const el = markerEls.get(p.id);
+    if (el) el.classList.toggle('spotted', isSpotted(p.id));
   }
 }
 
@@ -73,12 +86,25 @@ async function startSky() {
 
   if (!started) {
     buildMarkers();
+    sizeMilkyWayCanvas();
+    window.addEventListener('resize', sizeMilkyWayCanvas);
     started = true;
     requestAnimationFrame(loop);
     if (sensorState.usingDefaultLocation) {
       showToast(document.getElementById('sky-toast'), "Not sure exactly where you are — the sky might be a little off!");
     }
   }
+}
+
+function sizeMilkyWayCanvas() {
+  const canvas = document.getElementById('milky-way');
+  if (!canvas) return;
+  milkyWayCtx = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = Math.max(1, Math.round(w * dpr));
+  canvas.height = Math.max(1, Math.round(h * dpr));
+  milkyWayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 function buildMarkers() {
@@ -117,6 +143,7 @@ function buildMarkers() {
     conStarIds.set(con.id, [...ids]);
     conLabelEls.set(con.id, makeConstellationLabel(labels, con));
   }
+  refreshSpottedOutlines();
 }
 
 // Sun/Moon/planets render as the same flat glowing "candy" sphere as the
@@ -132,6 +159,7 @@ function makeMarker(container, body) {
   btn.style.setProperty('--marker-size', `${size}px`);
   const dot = document.createElement('span');
   dot.className = body.id === 'sun' ? 'body-dot sun-dot marker-dot' : 'body-dot marker-dot';
+  dot.style.setProperty('--float-delay', `${(Math.random() * 3).toFixed(2)}s`);
   if (body.id !== 'sun') {
     dot.style.setProperty('--dot-light', body.light);
     dot.style.setProperty('--dot-dark', body.dark);
@@ -224,6 +252,7 @@ function recompute(now) {
   isDark = alt < DARK_ALT_THRESHOLD;
   currentBodies = bodyPositions(now, sensorState.lat, sensorState.lon);
   currentStars = isDark ? starPositions(now, sensorState.lat, sensorState.lon, stars) : [];
+  currentMilkyWay = isDark ? milkyWayPositions(now, sensorState.lat, sensorState.lon) : [];
 
   const note = document.getElementById('sky-daynote');
   if (!isDark) {
@@ -254,6 +283,8 @@ function project() {
   const pxPerDeg = w / FOV_DEG;
   const margin = 28;
   const positions = {}; // id -> {x,y,visible}
+
+  drawMilkyWay(cx, cy, pxPerDeg, w, h);
 
   const place = (id, az, alt, el, arrowEl) => {
     if (alt < -1) { // below horizon: not visible, no arrow
@@ -330,6 +361,30 @@ function project() {
       label.classList.add('hidden');
     }
   }
+}
+
+// A soft glowing band, drawn from real galactic-plane points (see
+// astro.js::milkyWayPositions) projected through the exact same az/alt→screen
+// math as everything else here — real, not a fixed decorative graphic, so it
+// sits at its actual position in the sky and moves correctly as you pan.
+function drawMilkyWay(cx, cy, pxPerDeg, w, h) {
+  if (!milkyWayCtx) return;
+  milkyWayCtx.clearRect(0, 0, w, h);
+  if (!isDark) return;
+  milkyWayCtx.fillStyle = '#cfd3e5';
+  for (const p of currentMilkyWay) {
+    if (p.alt < -2) continue;
+    const dAz = angDiff(p.az, sensorState.heading);
+    const dAlt = p.alt - sensorState.pitch;
+    const x = cx + dAz * pxPerDeg;
+    const y = cy - dAlt * pxPerDeg;
+    if (x < -20 || x > w + 20 || y < -20 || y > h + 20) continue;
+    milkyWayCtx.globalAlpha = p.opacity;
+    milkyWayCtx.beginPath();
+    milkyWayCtx.arc(x, y, p.size, 0, Math.PI * 2);
+    milkyWayCtx.fill();
+  }
+  milkyWayCtx.globalAlpha = 1;
 }
 
 function wireDrag() {

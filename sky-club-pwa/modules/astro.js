@@ -50,3 +50,60 @@ export function sunAltitude(date, lat, lon) {
   const eq = Equator(Body.Sun, date, observer, true, true);
   return Horizon(date, observer, eq.ra, eq.dec, 'normal').altitude;
 }
+
+// Standard IAU 1958 equatorial(J2000)→galactic rotation matrix, transposed here
+// so we go the other way: given a point on the galactic plane, find its real
+// RA/Dec. Same "real, not decorative" rule as everything else in this app — the
+// Milky Way band in Sky mode is the actual galactic plane at its actual sky
+// position, not a fixed decorative graphic.
+const GAL_TO_EQ = [
+  [-0.0548755604, 0.4941094279, -0.8676661490],
+  [-0.8734370902, -0.4448296300, -0.1980763734],
+  [-0.4838350155, 0.7469822445, 0.4559837762],
+];
+const DEG = Math.PI / 180;
+
+function galacticToRaDec(lDeg, bDeg) {
+  const l = lDeg * DEG, b = bDeg * DEG;
+  const xg = Math.cos(b) * Math.cos(l);
+  const yg = Math.cos(b) * Math.sin(l);
+  const zg = Math.sin(b);
+  const xe = GAL_TO_EQ[0][0] * xg + GAL_TO_EQ[0][1] * yg + GAL_TO_EQ[0][2] * zg;
+  const ye = GAL_TO_EQ[1][0] * xg + GAL_TO_EQ[1][1] * yg + GAL_TO_EQ[1][2] * zg;
+  const ze = GAL_TO_EQ[2][0] * xg + GAL_TO_EQ[2][1] * yg + GAL_TO_EQ[2][2] * zg;
+  const dec = Math.asin(Math.max(-1, Math.min(1, ze))) / DEG;
+  const ra = (Math.atan2(ye, xe) / DEG + 360) % 360;
+  return { ra, dec };
+}
+
+// A scatter of fixed points tracing the real galactic plane, with a few degrees
+// of scatter either side so it reads as a soft band rather than a thin line —
+// generated once at module load (galactic coordinates don't depend on the date,
+// only on where you're looking, which recomputes every frame in sky.js).
+const MILKY_WAY = (() => {
+  const points = [];
+  for (let l = 0; l < 360; l += 3) {
+    for (let k = 0; k < 3; k++) {
+      // sum of two uniforms ≈ a soft (triangular) falloff away from the plane —
+      // denser and brighter near b=0 without needing a real Gaussian.
+      const b = ((Math.random() + Math.random() - 1) * 11);
+      const fade = 1 - Math.min(1, Math.abs(b) / 11);
+      points.push({
+        id: `mw${points.length}`,
+        ...galacticToRaDec(l + Math.random() * 3, b),
+        size: 1 + fade * 2.2,
+        opacity: 0.08 + fade * 0.22,
+      });
+    }
+  }
+  return points;
+})();
+
+/** Alt/az for the Milky Way's scatter of fixed galactic-plane points, for this observer. */
+export function milkyWayPositions(date, lat, lon) {
+  const observer = new Observer(lat, lon, 0);
+  return MILKY_WAY.map((p) => {
+    const hor = Horizon(date, observer, p.ra, p.dec, 'normal');
+    return { ...p, az: hor.azimuth, alt: hor.altitude };
+  });
+}

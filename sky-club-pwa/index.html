@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=12">
+  <link rel="stylesheet" href="app.css?v=13">
 </head>
 <body>
 
@@ -94,11 +94,17 @@
           <h1 class="screen-title">Point up</h1>
           <p class="screen-subtitle">Move your phone to find what's glowing.</p>
         </div>
+        <canvas id="milky-way" class="milky-way" aria-hidden="true"></canvas>
         <svg id="const-lines" class="const-lines"></svg>
         <div id="const-labels" class="const-labels"></div>
         <div id="sky-markers" class="sky-markers"></div>
         <div id="sky-arrows" class="sky-arrows"></div>
-        <div class="reticle" aria-hidden="true"></div>
+        <div class="reticle" aria-hidden="true">
+          <span class="reticle-ring"></span>
+          <span class="reticle-dash"></span>
+          <span class="reticle-dot"></span>
+        </div>
+        <div class="sky-arrow-hint" aria-hidden="true"><i class="ph-fill ph-arrow-up"></i></div>
         <div id="sky-toast" class="sky-toast hidden"></div>
         <div id="sky-daynote" class="sky-daynote hidden"></div>
       </div>
@@ -160,6 +166,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=12"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>
