@@ -10,7 +10,7 @@
 
 import { bodyPositions, starPositions, sunAltitude, milkyWayPositions } from './astro.js';
 import { SKY_BODIES } from './catalog.js';
-import { sensorState, geolocate, requestOrientationPermission, nudge } from './sensors.js';
+import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge } from './sensors.js';
 import { say } from './speech.js';
 import { spot, isSpotted, isBadgeBody, onChange, showToast } from './badges.js';
 import { nextEventHeadline } from './events.js';
@@ -44,7 +44,10 @@ let currentStars = [];
 let currentMilkyWay = [];
 let isDark = false;
 let milkyWayCtx = null;
+let milkyWayDirty = true;          // redraw needed (positions/size changed)
+let lastDrawHeading = null, lastDrawPitch = null;
 let lockId = null;
+let lockNamedEl = null;            // marker currently having its name revealed by the reticle
 let lockStart = 0;
 // Cached once instead of re-queried inside the every-frame loop below.
 let viewEl = null, reticleEl = null, reticleDotEl = null;
@@ -87,20 +90,20 @@ function refreshSpottedOutlines() {
 // default location so a denied/unavailable permission is never a dead end with
 // no in-app way forward. requestOrientationPermission() has to be the first
 // thing called, synchronously, so it's still inside the tap.
-async function startSky() {
-  const gateNote = document.getElementById('sky-gate-note');
+function startSky() {
   const startBtn = document.getElementById('sky-start');
 
+  // Must be the first thing called, synchronously, or iOS drops the user-gesture
+  // context and silently refuses the orientation permission.
   const orientPromise = requestOrientationPermission();
-  startBtn.disabled = true;
-  gateNote.textContent = 'Finding you… hold on a moment.';
 
-  await geolocate();
-  await orientPromise;
-
-  startBtn.disabled = false;
-  startBtn.innerHTML = '<i class="ph-fill ph-binoculars"></i> Look at the Sky';
-  gateNote.textContent = "We'll use where you are, and where you point your phone.";
+  // Show the sky NOW. This used to `await geolocate()` first, which meant a slow
+  // indoor GPS fix (8s timeout, one retry, another 8s — previously 15s each)
+  // left the user staring at "Finding you… hold on a moment" for up to half a
+  // minute before a single star appeared. primeLocation() synchronously supplies
+  // the last real fix (or the default), so stars render on the very next frame
+  // and geolocate() just refines them below.
+  primeLocation();
   document.getElementById('sky-gate').classList.add('hidden');
   document.getElementById('sky-view').classList.remove('hidden');
 
@@ -110,11 +113,28 @@ async function startSky() {
     window.addEventListener('resize', sizeMilkyWayCanvas);
     started = true;
     requestAnimationFrame(loop);
-    if (sensorState.usingDefaultLocation) {
-      showToast(document.getElementById('sky-toast'), "Not sure exactly where you are — the sky might be a little off!");
-    }
     showNextEvent();
   }
+
+  orientPromise.catch(() => {});
+  refineLocation(startBtn);
+}
+
+// Real fix in the background; when it lands, force an immediate recompute so
+// the sky snaps to the true positions instead of waiting out the normal beat.
+async function refineLocation(startBtn) {
+  const before = { lat: sensorState.lat, lon: sensorState.lon };
+  await geolocate();
+  const moved = Math.abs(sensorState.lat - before.lat) > 0.01 || Math.abs(sensorState.lon - before.lon) > 0.01;
+  if (moved) {
+    const now = new Date();
+    recompute(now, true);
+    lastCalc = now;
+    lastSlowCalc = now;
+    milkyWayDirty = true;
+    showNextEvent();
+  }
+  if (startBtn) startBtn.disabled = false;
 }
 
 // A real "what's coming up" line (next full moon / visible eclipse / close
@@ -141,11 +161,16 @@ function sizeMilkyWayCanvas() {
   const canvas = document.getElementById('milky-way');
   if (!canvas) return;
   milkyWayCtx = canvas.getContext('2d');
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // Deliberately DPR 1, not the usual min(devicePixelRatio, 2). This canvas is
+  // full-screen and redrawn as you pan, so at DPR 2 every frame re-uploads a
+  // ~1.2-megapixel texture to the GPU — expensive on an iPad, and completely
+  // wasted on what is a field of soft, blurry, low-contrast dots with no fine
+  // detail to preserve.
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = Math.max(1, Math.round(w * dpr));
-  canvas.height = Math.max(1, Math.round(h * dpr));
-  milkyWayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  milkyWayCtx.setTransform(1, 0, 0, 1, 0, 0);
+  milkyWayDirty = true;
 }
 
 function buildMarkers() {
@@ -227,7 +252,13 @@ function makeStarMarker(container, star) {
   const btn = document.createElement('button');
   const named = star.mag <= NAMED_STAR_MAG;
   const flare = star.mag <= FLARE_STAR_MAG;
-  btn.className = 'sky-marker sky-marker-star hidden' + (named ? ' named' : '') + (flare ? ' flare' : '');
+  // Only the bright/named stars twinkle. Animating all ~102 meant ~100
+  // separately-animating elements on screen at once, each a compositing layer
+  // for iOS to juggle; the faint majority read perfectly well as static points
+  // of light, and the eye follows the bright ones anyway.
+  btn.className = 'sky-marker sky-marker-star hidden'
+    + (named ? ' named twinkle' : '')
+    + (flare ? ' flare' : '');
   const size = Math.max(3, Math.min(11, 9 - star.mag * 1.6));
   btn.style.setProperty('--star-size', `${size.toFixed(1)}px`);
   btn.style.setProperty('--star-color', star.color || DEFAULT_STAR_COLOR);
@@ -303,6 +334,7 @@ function recompute(now, includeSlow) {
   if (includeSlow || isDark !== wasDark) {
     currentStars = isDark ? starPositions(now, sensorState.lat, sensorState.lon, stars) : [];
     currentMilkyWay = isDark ? milkyWayPositions(now, sensorState.lat, sensorState.lon) : [];
+    milkyWayDirty = true; // its points moved, so the cached canvas is stale
   }
 
   const note = document.getElementById('sky-daynote');
@@ -465,6 +497,11 @@ function updateLock(positions, w, h) {
     const progress = Math.min(1, (now - lockStart) / LOCK_MS);
     dotEl.style.transform = `scale(${(1 + progress * 1.6).toFixed(2)})`;
     ret.classList.add('locking');
+    // Reveal whatever you're resting on. Most stars are too faint to carry a
+    // permanent label (only mag <= NAMED_STAR_MAG do, or the sky turns into a
+    // wall of text), so without this, holding the reticle on an ordinary star
+    // highlighted it while leaving you with no idea what it was.
+    setLockName(markerEls.get(nearestId) || null);
     if (progress >= 1) {
       const lastCatch = lastAutoCatch.get(nearestId) || 0;
       if (now - lastCatch > LOCK_COOLDOWN_MS) {
@@ -478,8 +515,16 @@ function updateLock(positions, w, h) {
   } else {
     lockId = null;
     dotEl.style.transform = '';
-    reticleEl.classList.remove('locking');
+    ret.classList.remove('locking');
+    setLockName(null);
   }
+}
+
+function setLockName(el) {
+  if (lockNamedEl === el) return;
+  if (lockNamedEl) lockNamedEl.classList.remove('show-name');
+  if (el) el.classList.add('show-name');
+  lockNamedEl = el;
 }
 
 // A soft glowing band, drawn from real galactic-plane points (see
@@ -488,6 +533,19 @@ function updateLock(positions, w, h) {
 // sits at its actual position in the sky and moves correctly as you pan.
 function drawMilkyWay(cx, cy, pxPerDeg, w, h) {
   if (!milkyWayCtx) return;
+  // Redraw only when the view actually moved enough to shift the band by ~half a
+  // pixel (or when the data/size changed). Holding the phone still — which is
+  // most of the time, and exactly when you're trying to identify something — now
+  // costs nothing here instead of re-rendering and re-uploading a full-screen
+  // canvas 60 times a second.
+  const moved = lastDrawHeading === null ||
+    Math.abs(angDiff(sensorState.heading, lastDrawHeading)) * pxPerDeg > 0.5 ||
+    Math.abs(sensorState.pitch - lastDrawPitch) * pxPerDeg > 0.5;
+  if (!moved && !milkyWayDirty) return;
+  lastDrawHeading = sensorState.heading;
+  lastDrawPitch = sensorState.pitch;
+  milkyWayDirty = false;
+
   milkyWayCtx.clearRect(0, 0, w, h);
   if (!isDark) return;
   milkyWayCtx.fillStyle = '#cfd3e5';

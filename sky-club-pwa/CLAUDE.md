@@ -87,6 +87,61 @@ negative margins (the padding alone provides the enlarged tap target), taking
 min-height tap box. Verified: every marker's dot centre now lands **exactly**
 (0.00px error, all 10 bodies + on-screen stars) on its computed sky position.
 
+## Sky mode: instant start, and the second performance pass
+
+**"It takes ages to show the stars" was not a rendering problem at all** —
+`startSky()` did `await geolocate()` *before* revealing the sky. With a slow
+indoor fix that's an 8s timeout, a 1.5s pause, then another 8s (and it was 15s
+each before), so the user could sit on "Finding you… hold on a moment" for up to
+half a minute before one star appeared. Reproduced here: the sky view failed to
+appear within a 30s probe. Now:
+
+- `sensors.js::primeLocation()` synchronously supplies the **last real fix**
+  (persisted to `localStorage` under `skyclub.lastFix`) or the default, so the
+  sky renders on the next frame — **measured 5.3ms from tap to visible**.
+- `geolocate()` still runs, but in the background via `sky.js::refineLocation()`,
+  which forces an immediate recompute only if the true position turns out to be
+  meaningfully different (>0.01°).
+- `useDefaultLocation()` now **refuses to downgrade a location we already
+  trust**. It used to overwrite a good remembered fix with the generic default
+  whenever a background refresh timed out — which would silently move the user's
+  sky to another country. (Caught in testing: a seeded location kept getting
+  replaced by the default.)
+
+Further per-frame reductions, on top of the layout-thrash fix above:
+- **Milky Way canvas is DPR 1, not 2.** It's full-screen and redrawn while
+  panning, so at DPR 2 every frame re-uploads a ~1.2-megapixel texture to the
+  GPU. It's a field of soft blurry dots — there is no detail to lose.
+- **The canvas only redraws when the view actually moved** (>~0.5px of band
+  shift) or the data changed (`milkyWayDirty`). Holding the phone still — most
+  of the time, and exactly when you're trying to identify something — now costs
+  nothing here.
+- **Only the ~22 named/bright stars twinkle** (`.twinkle`, set in
+  `makeStarMarker`). Animating all 102 meant ~100 independently animating
+  elements for iOS to composite; faint stars read fine as steady points.
+
+**Resting on a star now names it.** Only stars at `mag <= NAMED_STAR_MAG` carry
+a permanent label (otherwise the sky becomes a wall of text), so dwelling on an
+ordinary star used to highlight it while leaving you with no idea what it was.
+`updateLock()` calls `setLockName()` on whatever the reticle is nearest, adding
+`.show-name` to reveal that one label (accent-coloured, slightly larger) and
+removing it when you move away. Verified against **Rasalhague** (mag 2.08, no
+permanent label) — its name appeared at the reticle.
+
+**Removed the pulsing up-arrow above the reticle** (was `.sky-arrow-hint`, from
+the build-prompt spec). It always pointed straight up regardless of where
+anything actually was, so it read as an instruction with no meaning. The
+per-body edge arrows (`.sky-arrow`) are the real "turn this way" cue and do
+point at something.
+
+Note for future testing: `javascript_tool`'s `import()` resolves in a **separate
+realm**, so writing to `sensorState` from injected JS does *not* affect the
+running app — aiming the sky that way silently does nothing. Drive it with
+dispatched `PointerEvent`s on `#sky-view` instead (that hits the app's real
+`wireDrag`). Also, `requestAnimationFrame` is paused whenever the preview pane
+is hidden, so the sky loop only advances during a screenshot — take one to step
+frames before reading positions back.
+
 ## Original two-mode structure (Explore / Sky)
 
 - **Explore** (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.

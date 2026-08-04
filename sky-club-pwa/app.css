@@ -798,9 +798,15 @@ button {
   border-radius: 50%;
   background: var(--star-color, #eef4ff);
   box-shadow: 0 0 3px 1px var(--star-color, #eef4ff), 0 0 7px 2px rgba(180, 200, 255, 0.35);
+  filter: none;
+}
+/* Twinkle is opt-in (.twinkle, applied only to the ~22 named/bright stars in
+   sky.js::makeStarMarker) rather than applying to every star. Animating all
+   ~102 put ~100 independently-animating elements on screen for iOS to
+   composite; the faint ones look right as steady points of light. */
+.sky-marker-star.twinkle .marker-glyph {
   animation: star-twinkle 2.6s ease-in-out infinite;
   animation-delay: var(--twinkle-delay, 0s);
-  filter: none;
 }
 /* The handful of hero-bright stars (Sirius, Canopus...) get a lens-flare cross,
    like real astrophotography — a plain dot reads as "faint" no matter how big
@@ -828,7 +834,12 @@ button {
   transform: translate(-50%, -50%);
 }
 .sky-marker-star .marker-label { display: none; }
-.sky-marker-star.named .marker-label {
+/* .show-name is set by sky.js::setLockName() on whatever the reticle is
+   currently resting on, so an ordinary (unnamed) star still tells you what it
+   is while you're pointed at it — without every faint star carrying a
+   permanent label and turning the sky into a wall of text. */
+.sky-marker-star.named .marker-label,
+.sky-marker-star.show-name .marker-label {
   display: block;
   font-size: 10px;
   font-weight: 500;
@@ -836,6 +847,12 @@ button {
   padding: 0;
   opacity: 0.85;
   text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+.sky-marker-star.show-name .marker-label {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 1;
+  color: var(--accent-pale);
 }
 @keyframes star-twinkle {
   0%, 100% { opacity: 0.55; transform: scale(0.82); }
@@ -907,19 +924,10 @@ button {
   animation-duration: 1s;
 }
 .reticle-dot { transition: transform 0.1s linear; }
-.sky-arrow-hint {
-  position: absolute;
-  left: 50%; top: calc(44% - 100px);
-  transform: translateX(-50%);
-  font-size: 26px;
-  color: var(--accent-400);
-  pointer-events: none;
-  animation: hint-arrow 1.8s ease-in-out infinite;
-}
-@keyframes hint-arrow {
-  0%, 100% { transform: translate(-50%, 4px); opacity: 0.55; }
-  50% { transform: translate(-50%, -6px); opacity: 1; }
-}
+/* The design spec put a permanently pulsing up-arrow above the reticle here.
+   Removed: it always pointed straight up regardless of where anything actually
+   was, so it read as an instruction without meaning. The per-body edge arrows
+   (.sky-arrow) are the real "turn this way" cue and do point at something. */
 .sky-toast {
   position: absolute;
   left: 16px; right: 16px;
@@ -943,6 +951,7 @@ button {
   padding: 12px 16px;
   font-size: 15px;
   text-align: center;
+  z-index: 3; /* above .sky-horizon, which overlaps this area at the bottom */
 }
 /* Decorative "ground" dome at the bottom of the sky view, from the design
    spec. Purely atmospheric (a real horizon line would need terrain data this

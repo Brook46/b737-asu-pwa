@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=15">
+  <link rel="stylesheet" href="app.css?v=16">
 </head>
 <body>
 
@@ -89,6 +89,9 @@
         <p id="sky-gate-note" class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
       </div>
       <div id="sky-view" class="sky-view hidden">
+        <!-- First child on purpose: it's the backdrop, so it must paint before
+             the canvas, markers, labels and notices that sit in front of it. -->
+        <div class="sky-horizon" aria-hidden="true"></div>
         <div class="screen-header sky-header">
           <h1 class="screen-title">Point up</h1>
           <p class="screen-subtitle">Move your phone to find what's glowing.</p>
@@ -104,10 +107,8 @@
           <span class="reticle-dash"></span>
           <span class="reticle-dot"></span>
         </div>
-        <div class="sky-arrow-hint" aria-hidden="true"><i class="ph-fill ph-arrow-up"></i></div>
         <div id="sky-toast" class="sky-toast hidden"></div>
         <div id="sky-daynote" class="sky-daynote hidden"></div>
-        <div class="sky-horizon" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -167,6 +168,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=15"></script>
+  <script type="module" src="app.js?v=16"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@
 // and iOS remembers "granted" per-origin so later launches need no dialog at all.
 
 const ORIENT_PERM_KEY = 'skyclub.orientPerm';
+const LAST_FIX_KEY = 'skyclub.lastFix';
 
 // Used only when real location isn't available (denied, unsupported, or just
 // slow/flaky) — Sky mode must never dead-end waiting on a permission a toddler
@@ -25,9 +26,48 @@ function getPositionOnce() {
     navigator.geolocation.getCurrentPosition(
       resolve,
       (err) => reject(Object.assign(new Error(err.code === 1 ? 'Location permission denied' : 'Could not get location'), { denied: err.code === 1 })),
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+      // 8s, not 15s: this used to run *before* the sky was allowed to render, so
+      // a slow indoor fix (15s, retry, 15s again) meant up to ~31s of staring at
+      // "Finding you…". The sky now renders immediately from a primed location
+      // (see primeLocation) and this only refines it in the background, so a
+      // shorter budget costs nothing and keeps the refine snappy.
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
     );
   });
+}
+
+function saveFix(lat, lon) {
+  try { localStorage.setItem(LAST_FIX_KEY, JSON.stringify({ lat, lon })); } catch {}
+}
+
+function loadFix() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAST_FIX_KEY) || 'null');
+    if (raw && typeof raw.lat === 'number' && typeof raw.lon === 'number') return raw;
+  } catch {}
+  return null;
+}
+
+/**
+ * Synchronously give sensorState *some* usable location so the sky can render
+ * on the very next frame: the last real fix we saw (accurate for anyone who
+ * isn't travelling), else the approximate default. geolocate() then refines
+ * this in the background. Stars are only about a pixel out of place per 15s of
+ * sidereal drift, and being a city off is far better than an empty screen.
+ */
+export function primeLocation() {
+  const saved = loadFix();
+  if (saved) {
+    sensorState.lat = saved.lat;
+    sensorState.lon = saved.lon;
+    sensorState.usingDefaultLocation = false;
+  } else {
+    sensorState.lat = DEFAULT_LAT;
+    sensorState.lon = DEFAULT_LON;
+    sensorState.usingDefaultLocation = true;
+  }
+  sensorState.hasLocation = true;
+  return sensorState;
 }
 
 /**
@@ -64,10 +104,18 @@ export async function geolocate() {
   sensorState.lon = pos.coords.longitude;
   sensorState.hasLocation = true;
   sensorState.usingDefaultLocation = false;
+  // Remembered so the next launch can render an accurate sky instantly instead
+  // of falling back to the generic default while it waits on GPS.
+  saveFix(sensorState.lat, sensorState.lon);
   return sensorState;
 }
 
 function useDefaultLocation() {
+  // Never downgrade a location we already trust. primeLocation() may have
+  // already restored a real remembered fix; clobbering that with the generic
+  // default just because this refresh timed out would move the user's sky to
+  // another country for no reason. Only fill in when we have nothing at all.
+  if (sensorState.hasLocation && !sensorState.usingDefaultLocation) return;
   sensorState.lat = DEFAULT_LAT;
   sensorState.lon = DEFAULT_LON;
   sensorState.hasLocation = true;
