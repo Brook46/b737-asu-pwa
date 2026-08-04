@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=16">
+  <link rel="stylesheet" href="app.css?v=17">
 </head>
 <body>
 
@@ -69,6 +69,11 @@
         <p class="screen-subtitle">Tap a world to visit it.</p>
       </div>
       <div id="orrery" class="orrery"></div>
+      <div class="explore-scrub">
+        <button id="clean-btn" class="ctrl-btn" aria-label="Clean view" aria-pressed="false"><i class="ph-fill ph-sparkle"></i></button>
+        <input id="year-slider" type="range" class="year-slider" aria-label="Scrub through years">
+        <span id="year-label" class="year-label">—</span>
+      </div>
       <div class="explore-controls">
         <button id="play-btn" class="ctrl-btn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
         <input id="date-input" type="date" class="date-input" aria-label="Date">
@@ -168,6 +173,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=16"></script>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>

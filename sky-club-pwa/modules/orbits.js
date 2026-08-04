@@ -30,8 +30,20 @@ const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // S
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
 const ZOOM_MIN = 0.6, ZOOM_MAX = 2.8, ZOOM_STEP = 0.25;
 
+// Year scrubber: the slider's value is an offset in years from whenever the app
+// was opened, which keeps the mapping to a date trivially invertible (no
+// calendar-month arithmetic) and smooth to drag. step 0.01yr ≈ 3.7 days, fine
+// enough that even Mercury glides rather than jumping.
+const YEAR_MS = 365.25 * 86400000;
+const YEAR_SPAN = 50; // scrubbable range, ± this many years around today
+const BASE_MS = Date.now();
+const dateFromYearOffset = (off) => new Date(BASE_MS + off * YEAR_MS);
+const yearOffsetFromDate = (d) => (d.getTime() - BASE_MS) / YEAR_MS;
+
 const rings = new Map(); // id -> { spin, counter }
 let currentDate = new Date();
+let lastShownYear = null;
+let scrubbing = false;
 let playing = false;
 let rafId = null;
 let lastFrameTime = 0;
@@ -112,6 +124,8 @@ function wireControls() {
   const todayBtn = document.getElementById('today-btn');
   const zoomInBtn = document.getElementById('zoom-in-btn');
   const zoomOutBtn = document.getElementById('zoom-out-btn');
+  const yearSlider = document.getElementById('year-slider');
+  const cleanBtn = document.getElementById('clean-btn');
 
   playBtn.addEventListener('click', () => (playing ? pause() : play()));
 
@@ -125,6 +139,35 @@ function wireControls() {
 
   zoomInBtn.addEventListener('click', () => setZoom(zoom + ZOOM_STEP));
   zoomOutBtn.addEventListener('click', () => setZoom(zoom - ZOOM_STEP));
+
+  yearSlider.min = String(-YEAR_SPAN);
+  yearSlider.max = String(YEAR_SPAN);
+  yearSlider.step = '0.01';
+  yearSlider.value = '0';
+  // `input` (not `change`) so the planets track the thumb live as it's dragged.
+  // Playback pauses on grab: otherwise the rAF tick would keep rewriting the
+  // date underneath the drag and the thumb would fight the user.
+  yearSlider.addEventListener('pointerdown', () => { scrubbing = true; pause(); });
+  yearSlider.addEventListener('input', () => {
+    scrubbing = true;
+    pause();
+    applyDate(dateFromYearOffset(parseFloat(yearSlider.value)));
+  });
+  const endScrub = () => { scrubbing = false; };
+  yearSlider.addEventListener('pointerup', endScrub);
+  yearSlider.addEventListener('pointercancel', endScrub);
+  yearSlider.addEventListener('blur', endScrub);
+
+  // "Clean view": strip the decoration (starfield, nebulae, orbit lines, the
+  // screen title) so it's just the Sun and its planets moving. Starts playback
+  // too — the point of the mode is watching them go round, and landing on a
+  // frozen orrery with the scenery removed would just look broken.
+  cleanBtn.addEventListener('click', () => {
+    const screen = document.getElementById('explore-screen');
+    const clean = screen.classList.toggle('clean');
+    cleanBtn.setAttribute('aria-pressed', String(clean)); // drives the lit style in app.css
+    if (clean && !playing) play();
+  });
 }
 
 function wirePinchZoom() {
@@ -174,6 +217,7 @@ function computeFit() {
 function applyDate(date) {
   currentDate = date;
   document.getElementById('date-input').value = currentDate.toISOString().slice(0, 10);
+  syncYearScrubber();
   const longitudes = planetLongitudes(currentDate);
   for (const { id, lon } of longitudes) {
     const r = rings.get(id);
@@ -186,6 +230,26 @@ function applyDate(date) {
     // *center* actually ends up half the box's height BELOW the ring line, so the
     // planet reads as merely touching the ring instead of riding on it.
     r.counter.style.transform = `translate(-50%, -50%) rotate(${-angle}deg)`;
+  }
+}
+
+// Keeps the scrubber showing the date that's actually being displayed, whether
+// that came from Play advancing time, the Today button, or the date picker.
+// Skipped while the user is dragging the thumb — writing .value mid-drag makes
+// it stutter and can fight the gesture. applyDate() runs every frame during
+// playback, so the year text is only touched when the year genuinely changes.
+function syncYearScrubber() {
+  const slider = document.getElementById('year-slider');
+  const label = document.getElementById('year-label');
+  if (!slider || !label) return;
+  // Only the thumb POSITION is off-limits mid-drag (writing .value while the
+  // user is dragging makes it stutter and fight the gesture). The year readout
+  // must keep updating — that's the whole point of dragging it.
+  if (!scrubbing) slider.value = String(yearOffsetFromDate(currentDate));
+  const year = currentDate.getFullYear();
+  if (year !== lastShownYear) {
+    label.textContent = String(year);
+    lastShownYear = year;
   }
 }
 

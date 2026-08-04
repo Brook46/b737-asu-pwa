@@ -511,6 +511,105 @@ button {
   gap: 6px;
 }
 
+/* ---------- year scrubber + clean view ---------- */
+/* Sits directly above .explore-controls, sharing its insets so the two read as
+   one stack of controls. */
+.explore-scrub {
+  position: absolute;
+  left: 12px; right: 12px;
+  /* clears .explore-controls, which occupies 82px..136px from the bottom */
+  bottom: calc(var(--safe-bottom) + 144px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+}
+.year-label {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-300);
+  font-variant-numeric: tabular-nums; /* stops the row twitching as digits change */
+}
+.year-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  /* #explore-screen sets touch-action:none for its own pinch-zoom handling;
+     the slider needs the same so the browser hands the whole touch to the
+     input's thumb-drag instead of treating it as a pan gesture. */
+  touch-action: none;
+}
+.year-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-900);
+}
+.year-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-900);
+}
+/* Generous 22px thumb: this is a control a small child drags with a whole
+   fingertip, not a mouse. */
+.year-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px; height: 22px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: var(--accent-400);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 10px rgba(150, 138, 224, 0.7);
+}
+.year-slider::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent-400);
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 10px rgba(150, 138, 224, 0.7);
+}
+.ctrl-btn[aria-pressed="true"] {
+  background: rgba(66, 58, 106, 0.75);
+  border-color: var(--accent-500);
+  color: var(--accent-pale);
+}
+
+/* Clean view: everything that isn't the Sun and its planets gets out of the
+   way. .orbit-ring must keep its box (it's what positions each planet — see
+   orbits.js) so only its border is hidden, never `display:none`. */
+#explore-screen.clean .starfield,
+#explore-screen.clean .galaxy,
+#explore-screen.clean .screen-header {
+  opacity: 0;
+  pointer-events: none;
+}
+/* !important is load-bearing here, not a shortcut. .screen-header runs the
+   `rise` entry animation with `animation-fill-mode: both`, and an animation's
+   values outrank normal declarations in the cascade — so a plain `opacity: 0`
+   silently loses to the animation's final `opacity: 1` and the title stays put.
+   An important declaration is the one thing that does beat an animation.
+   (.galaxy is fine without it: galaxy-drift only animates transform.) */
+#explore-screen.clean .screen-header { opacity: 0 !important; }
+#explore-screen.clean .orbit-ring { border-color: transparent; }
+#explore-screen.clean .starfield,
+#explore-screen.clean .galaxy,
+#explore-screen.clean .screen-header,
+#explore-screen.clean .orbit-ring {
+  transition: opacity 0.35s ease, border-color 0.35s ease;
+}
+
 /* ---------- planet card (bottom sheet) ---------- */
 .planet-card {
   position: fixed; inset: 0;

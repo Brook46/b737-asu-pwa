@@ -142,6 +142,40 @@ dispatched `PointerEvent`s on `#sky-view` instead (that hits the app's real
 is hidden, so the sky loop only advances during a screenshot — take one to step
 frames before reading positions back.
 
+## Explore: clean view + year scrubber
+
+- **Clean view** (`#clean-btn` → `.clean` on `#explore-screen`): fades out the
+  starfield, nebulae, orbit lines and screen title so it's just the Sun and its
+  planets moving. Starts playback if paused — landing on a frozen orrery with
+  the scenery stripped away just looks broken. Two traps here:
+  - `.orbit-ring` must keep its box (it is what positions each planet — see
+    `initExplore`), so clean mode only makes its **border** transparent. Never
+    `display:none` it.
+  - `.screen-header` needs `opacity: 0 !important`. It runs the `rise` entry
+    animation with `animation-fill-mode: both`, and **animation values outrank
+    normal declarations in the cascade**, so a plain `opacity: 0` silently loses
+    to the animation's final `opacity: 1` and the title stays on screen. An
+    important declaration is the one thing that beats an animation. (`.galaxy`
+    doesn't need it — `galaxy-drift` only animates `transform`.)
+- **Year scrubber** (`#year-slider`, ±50 years): the slider's value is an offset
+  in *years from app launch* (`BASE_MS`), which keeps date↔slider trivially
+  invertible with no calendar-month arithmetic. `step 0.01yr` ≈ 3.7 days, fine
+  enough that even Mercury glides instead of jumping. Dragging pauses playback,
+  otherwise the rAF tick rewrites the date underneath the gesture and the thumb
+  fights the user.
+  - `syncYearScrubber()` keeps it in step with Play / Today / the date picker.
+    The `scrubbing` guard suppresses **only the thumb position** (writing
+    `.value` mid-drag makes it stutter) — the year readout must keep updating,
+    since that's the entire point of dragging it. Getting this guard too broad
+    was a real bug: the planets moved but the year stayed frozen at 2026.
+  - Sanity check that this is driven by real ephemeris, not a fake sweep: at
+    whole-year offsets Earth sits at essentially the same angle (it has returned
+    to the same ecliptic longitude), while Neptune swept ~66° over 30 years —
+    which is 30/165 of its real orbit.
+  - Scoped to Explore only. The Sky tab deliberately still tracks live "now";
+    letting the scrubber drive it would mean re-deriving star/Milky Way
+    positions per frame against a scrubbed clock.
+
 ## Original two-mode structure (Explore / Sky)
 
 - **Explore** (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.
