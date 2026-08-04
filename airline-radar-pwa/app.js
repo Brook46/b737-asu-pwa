@@ -13,7 +13,9 @@ import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airline
 import * as radar from './modules/map.js';
 import * as sky from './modules/map3d.js';
 import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js';
-import { renderList, renderDetail, renderAirlines } from './modules/panel.js';
+import {
+  renderList, renderDetail, renderAirlines, renderView, CELL_KEYS, DEFAULT_PINNED,
+} from './modules/panel.js';
 import { LEGEND, altColor as altColorOf, sizeClass, classLine } from './modules/aircraft.js';
 import { installResumeHardening } from './modules/resume.js';
 import * as history from './modules/history.js';
@@ -31,6 +33,16 @@ const VIEW_KEY = 'airadar.view';
 const PREFS_KEY = 'airadar.prefs';
 const AIRLINES_KEY = 'airadar.airlines';
 const KINDS_KEY = 'airadar.kinds';
+const PINNED_KEY = 'airadar.pinnedCells';
+
+// Three tiers of detail on the map: full symbol+label near you (and always for
+// your own fleet or anything selected/searched), a muted symbol further out,
+// and just a dot beyond that — so forty aircraft on screen don't all compete
+// for attention equally. The rule is stated in the Show sheet, from these same
+// two numbers, so it's never a silent, undocumented cutoff.
+const TIER_NEAR_NM = 40;
+const TIER_FAR_NM = 120;
+const HOME_FLEET_PREFIX = '4X-';   // Israeli registrations; see modules/search.js
 const DEFAULT_VIEW = { lat: 32.01, lon: 34.89, zoom: 8 };   // Ben Gurion TMA
 
 const state = {
@@ -53,6 +65,9 @@ const state = {
   autoSelected: false,   // the deep-linked aircraft has been opened once
   detailCollapsed: false,// the aircraft card is folded down to its header
   view3d: false,         // the 3D canvas is the active view
+  pinnedCells: loadPinned(),   // which detail-card values show without folding
+  pinEditMode: false,    // tapping a value pins/unpins it while this is true
+  valuesFoldOpen: false, // "everything else" disclosure on the detail card
   prefs: loadPrefs(),
 };
 
@@ -129,6 +144,18 @@ function saveKinds() {
   try { localStorage.setItem(KINDS_KEY, JSON.stringify([...state.kinds])); } catch { /* ignore */ }
 }
 
+function loadPinned() {
+  try {
+    const a = JSON.parse(localStorage.getItem(PINNED_KEY) || 'null');
+    if (Array.isArray(a) && a.length) return new Set(a.filter((k) => CELL_KEYS.includes(k)));
+  } catch { /* ignore */ }
+  return new Set(DEFAULT_PINNED);
+}
+
+function savePinned() {
+  try { localStorage.setItem(PINNED_KEY, JSON.stringify([...state.pinnedCells])); } catch { /* ignore */ }
+}
+
 function loadView() {
   try {
     const v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null');
@@ -201,11 +228,9 @@ async function refresh(force = false) {
     draw();
   } catch (err) {
     state.error = String(err && err.message ? err.message : err);
-    // Not necessarily broken — one dropped refresh just means the picture is
-    // being dead-reckoned for a few seconds. Only say so if it persists.
-    if (Date.now() - state.lastAt > radar.DR_MAX_MS) {
-      showStatus(`Feed unavailable — ${state.error}`, true);
-    }
+    // No separate banner for this: the Live pill already turns amber (DR) or
+    // red (No feed) with the reason in its title, so a floating status pill
+    // saying the same thing a second time would just be a seventh overlay.
   } finally {
     busy = false;
     updateLiveBadge(false);
@@ -495,6 +520,23 @@ function kindOk(ac) {
 }
 
 /**
+ * Which of the three map tiers this aircraft earns: full symbol, label and
+ * altitude nearby — or for your own fleet, or anything selected or named by a
+ * search — a muted symbol further out, and just a dot beyond that. `ac.dst` is
+ * the distance from the map centre the feed already returns with every
+ * record, so this needs no extra data and no extra request.
+ */
+function tierFor(ac, named) {
+  if (ac.ghost || named || ac.hex === state.selectedHex) return 1;
+  if (ac.reg && ac.reg.toUpperCase().startsWith(HOME_FLEET_PREFIX)) return 1;
+  const d = ac.dst;
+  if (!Number.isFinite(d)) return 1;   // unknown distance — never hide by default
+  if (d <= TIER_NEAR_NM) return 1;
+  if (d <= TIER_FAR_NM) return 2;
+  return 3;
+}
+
+/**
  * What should be on screen right now, in layers:
  *
  *   live traffic in view  → airline filter → search filter
@@ -545,6 +587,7 @@ function visible() {
   }
 
   const out = [...byHex.values()];
+  for (const ac of out) ac.tier = tierFor(ac, named(ac));
   out.sort((a, b) => {
     if (!!a.ghost !== !!b.ghost) return a.ghost ? 1 : -1;   // live traffic first
     return (a.dst ?? 9999) - (b.dst ?? 9999);
@@ -563,7 +606,8 @@ function draw() {
     + (ghosts ? ` · ${ghosts} last seen` : '');
   $('#stamp').textContent = state.lastAt ? fmt.clock(state.lastAt) : '';
   if (!busy) updateLiveBadge(false);
-  drawFilterChips();
+  drawFilterBar(live);
+  drawTokenChips();
 
   renderList($('#list-body'), list, {
     selectedHex: state.selectedHex,
@@ -599,7 +643,10 @@ function draw() {
   renderDetail(body, sel, route, state.selectedInfo, {
     following: radar.getFollow(),
     arrival: arrivalFor(sel, route),
-    onAction: (act) => onDetailAction(act, sel, route),
+    pinned: state.pinnedCells,
+    editing: state.pinEditMode,
+    foldOpen: state.valuesFoldOpen,
+    onAction: (act, extra) => onDetailAction(act, sel, route, extra),
   });
   body.scrollTop = keep;
   sheet.classList.add('open');
@@ -663,7 +710,7 @@ function emptyMessage() {
   };
 }
 
-function onDetailAction(act, ac, route) {
+function onDetailAction(act, ac, route, extra) {
   if (act === 'close') {
     select(null);
   } else if (act === 'follow') {
@@ -673,6 +720,17 @@ function onDetailAction(act, ac, route) {
     radar.fitRoute(ac, route);
   } else if (act === 'center') {
     radar.panTo(ac.lat, ac.lon, Math.max(8, radar.getMap().getZoom()));
+  } else if (act === 'toggle-edit') {
+    state.pinEditMode = !state.pinEditMode;
+    draw();
+  } else if (act === 'toggle-fold') {
+    state.valuesFoldOpen = !state.valuesFoldOpen;
+    draw();
+  } else if (act === 'pin' && extra) {
+    if (state.pinnedCells.has(extra)) state.pinnedCells.delete(extra);
+    else state.pinnedCells.add(extra);
+    savePinned();
+    draw();
   }
 }
 
@@ -682,6 +740,8 @@ function select(hex) {
   if (hex === state.selectedHex) hex = null;      // tapping again deselects
   state.selectedHex = hex;
   state.selectedInfo = null;
+  state.pinEditMode = false;
+  state.valuesFoldOpen = false;
   radar.setFollow(false);
 
   if (hex) {
@@ -778,6 +838,7 @@ function drawPicker() {
   renderAirlines($('#picker-body'), airlineOptions(), state.airlines, {
     query: state.pickerQuery,
     kinds,
+    tierInfo: { near: TIER_NEAR_NM, far: TIER_FAR_NM },
     onToggleKind: (k) => {
       if (state.kinds.has(k)) state.kinds.delete(k);
       else state.kinds.add(k);
@@ -817,18 +878,34 @@ function togglePicker(open) {
   const show = open === undefined ? !el.classList.contains('open') : open;
   el.classList.toggle('open', show);
   $('#airline-btn').setAttribute('aria-pressed', String(show));
-  if (show) { drawPicker(); collapseList(); }
+  if (show) { drawPicker(); collapseList(); toggleViewSheet(false); }
 }
 
-/** The "El Al ✕" style chips that show what is being filtered out. */
-function drawFilterChips() {
+/**
+ * What used to be a chip per chosen airline is now one line: what's showing,
+ * and how many of it. It doubles as the door back into the Show sheet, so the
+ * scope is always visible without six overlays competing for the same strip
+ * of screen.
+ */
+function filterScopeText() {
+  if (state.airlines.size) {
+    const names = [...state.airlines].map((c) => (lookupAirline(c) || {}).name || c);
+    return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` : names.join(', ');
+  }
+  const labels = [...state.kinds].map((k) => (KIND_LABEL[k] || k).toLowerCase());
+  return labels.join(', ') || 'nothing';
+}
+
+function drawFilterBar(liveCount) {
+  const n = liveCount === undefined ? visible().filter((a) => !a.ghost).length : liveCount;
+  $('#filter-bar').innerHTML =
+    `<span>Showing ${escAttr(filterScopeText())} · ${n} in view</span><b>Change</b>`;
+}
+
+/** Search terms only now — what's tracked, removable one at a time. */
+function drawTokenChips() {
   const el = $('#chips');
   const chips = [];
-  for (const code of state.airlines) {
-    const a = lookupAirline(code);
-    chips.push(`<button class="chip" data-drop-airline="${code}">${a ? a.name : code}<i>✕</i></button>`);
-  }
-  // One chip per committed search term, plus the text still being typed.
   for (const t of state.tokens) {
     chips.push(`<button class="chip term" data-drop-token="${escAttr(t)}">${escAttr(t)}<i>✕</i></button>`);
   }
@@ -837,12 +914,6 @@ function drawFilterChips() {
   }
   el.innerHTML = chips.join('');
   el.hidden = !chips.length;
-  el.querySelectorAll('[data-drop-airline]').forEach((b) => b.addEventListener('click', () => {
-    state.airlines.delete(b.dataset.dropAirline);
-    saveAirlines();
-    drawPicker();
-    draw();
-  }));
   el.querySelectorAll('[data-drop-token]').forEach((b) => b.addEventListener('click', () => {
     removeToken(b.dataset.dropToken);
   }));
@@ -875,7 +946,6 @@ function collapseList() { $('#list').classList.remove('open'); }
  */
 async function toggle3D(on) {
   const want = on === undefined ? !state.view3d : on;
-  const btn = $('#view3d-btn');
 
   if (!want) {
     state.view3d = false;
@@ -884,7 +954,6 @@ async function toggle3D(on) {
     const v = sky.getView();
     $('#map3d').hidden = true;
     $('#map').hidden = false;
-    btn.setAttribute('aria-pressed', 'false');
     if (v) radar.panTo(v.lat, v.lon, Math.round(v.zoom));
     radar.getMap().invalidateSize({ animate: false });
     return;
@@ -895,7 +964,6 @@ async function toggle3D(on) {
     return;
   }
 
-  btn.setAttribute('aria-pressed', 'true');
   $('#map3d').hidden = false;
   $('#map').hidden = true;
   state.view3d = true;
@@ -922,7 +990,6 @@ async function toggle3D(on) {
       state.view3d = false;
       $('#map3d').hidden = true;
       $('#map').hidden = false;
-      btn.setAttribute('aria-pressed', 'false');
       showStatus(String(err && err.message ? err.message : err), true);
       return;
     }
@@ -998,21 +1065,48 @@ function installDragToFold(sheet, isOpen, setOpen) {
   sheet.addEventListener('pointercancel', finish);
 }
 
-function toggleChip(id, key, apply) {
-  const btn = $(id);
-  const set = (v) => {
-    state.prefs[key] = v;
-    btn.setAttribute('aria-pressed', String(v));
-    apply(v);
-    savePrefs();
-  };
-  btn.addEventListener('click', () => set(!state.prefs[key]));
-  set(state.prefs[key]);
+// The seven buttons a display preference used to cost are down to one: View.
+// Labels/Trails/Last seen/Ground are things you set once, not live actions —
+// they don't need permanent screen space beside Show and Me.
+const VIEW_ROWS = [
+  ['labels', 'Labels', 'Callsign and altitude tags on the map'],
+  ['trails', 'Trails', 'Where each aircraft has been'],
+  ['ghosts', 'Last seen', 'Keep the last known position of aircraft that stop transmitting'],
+  ['ground', 'Ground', 'Include aircraft still on the ground'],
+];
+
+function applyPref(key) {
+  if (key === 'labels') { radar.setLabels(state.prefs.labels); radar.render(visible(), state.selectedHex); }
+  else if (key === 'trails') { radar.setTrails(state.prefs.trails); }
+  else if (key === 'ground') { if (state.lastAt) refresh(true); }
+  // 'ghosts' needs nothing beyond the draw() every caller already does.
 }
 
-function buildLegend() {
-  $('#legend').innerHTML = LEGEND.map(([label, color]) =>
-    `<span><i style="background:${color}"></i>${label}</span>`).join('');
+function drawViewSheet() {
+  const rows = VIEW_ROWS.map(([key, label, desc]) => ({ key, label, desc, on: !!state.prefs[key] }));
+  rows.push({
+    key: '3d', label: '3D view', on: state.view3d,
+    desc: 'Tilted terrain with aircraft at their real altitude. Loads about 1 MB the first time.',
+  });
+
+  renderView($('#viewsheet-body'), rows, LEGEND, {
+    onToggle: async (key) => {
+      if (key === '3d') { await toggle3D(); drawViewSheet(); return; }
+      state.prefs[key] = !state.prefs[key];
+      savePrefs();
+      applyPref(key);
+      drawViewSheet();
+      draw();
+    },
+  });
+}
+
+function toggleViewSheet(open) {
+  const el = $('#viewsheet');
+  const show = open === undefined ? !el.classList.contains('open') : open;
+  el.classList.toggle('open', show);
+  $('#view-btn').setAttribute('aria-pressed', String(show));
+  if (show) { drawViewSheet(); collapseList(); togglePicker(false); }
 }
 
 // ── boot ────────────────────────────────────────────────────────────────────
@@ -1034,18 +1128,18 @@ function boot() {
     onStackTapped: (hexes) => showStack(hexes),
   });
 
-  buildLegend();
   state.airlines = loadAirlines();
   state.kinds = loadKinds();
-
-  toggleChip('#labels-btn', 'labels', (v) => { radar.setLabels(v); radar.render(visible(), state.selectedHex); });
-  toggleChip('#trails-btn', 'trails', (v) => radar.setTrails(v));
-  toggleChip('#ground-btn', 'ground', () => { if (state.lastAt) refresh(true); });
-  toggleChip('#ghosts-btn', 'ghosts', () => draw());
+  // The display preferences (Labels/Trails/Last seen/Ground) take effect
+  // immediately on load, same as before — only where you change them moved.
+  radar.setLabels(state.prefs.labels);
+  radar.setTrails(state.prefs.trails);
 
   $('#airline-btn').addEventListener('click', () => togglePicker());
-  $('#view3d-btn').addEventListener('click', () => toggle3D());
   $('#picker-close').addEventListener('click', () => togglePicker(false));
+  $('#filter-bar').addEventListener('click', () => togglePicker(true));
+  $('#view-btn').addEventListener('click', () => toggleViewSheet());
+  $('#viewsheet-close').addEventListener('click', () => toggleViewSheet(false));
 
   // The header is the fold handle: tap it, or drag it up and down.
   $('#list-head').addEventListener('click', () => $('#list').classList.toggle('open'));

@@ -14,20 +14,33 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
 - Each symbol is labelled with its **tail number**, altitude underneath — the
   registration names the aeroplane itself, which is what a crew recognises. The
   callsign stays in the list and on the detail card.
-- A trail of where each aircraft has been since the app opened.
+- **Three tiers of detail, by distance.** Full symbol and label within 40 NM —
+  and always for your own fleet or whatever's selected or searched-for — a
+  smaller, dimmer symbol out to 120 NM, and beyond that just a dot. Forty
+  aircraft on screen don't all compete for attention equally, and the rule
+  (both numbers) is spelled out in the Show sheet, never a silent cutoff.
+- A trail of where each aircraft has been since the app opened (tier-3 dots
+  don't get one — there's nothing to show at that scale).
 - **Runways**, once you're zoomed in past z12: drawn to scale with centreline
   markings, threshold numbers at the correct ends, and length in metres and
   feet. Tap one for width, surface and lighting.
 - A live list of the flights in view, nearest first, with airline, route and
   aircraft type.
-- Tap any flight for the detail sheet — headed by the **tail number**, with
-  flight level and vertical speed beneath it: airline and flight number, origin →
-  destination with progress and minutes to run, altitude, ground speed, IAS and
-  Mach, track, selected altitude, QNH, wind aloft, OAT, squawk, registration,
-  Mode-S address and an airframe photo where one exists.
-- **Airline filter** (the funnel button): every operator in view, busiest first,
-  with counts. Pick one or several; the choice persists and shows as a chip you
-  can tap to clear.
+- Tap any flight for the detail sheet, headed by the **tail number** with a
+  one-line subtitle (model · airline · callsign) underneath, and one sentence
+  above the fold answering the only question that matters — "Lands 09:17Z ·
+  1h04 to run · 12 min late." **Follow** is the one full-width action; Show-route
+  and Centre sit beside it as icon buttons.
+- **Three source badges**, not four paragraphs of caveats: *COMPUTED HERE* for
+  anything this app worked out, *STA FROM ROSTER* for a time handed in from
+  elsewhere, and *ROUTE DISPUTED* — tap it — when the aircraft's own telemetry
+  contradicts the claimed destination. Data straight from the aircraft's own
+  broadcast gets no badge at all; that's the trustworthy default.
+- **Pin your own values.** Four are pinned by default (ground speed, selected
+  altitude, track, squawk); tap Edit to see and choose from all thirteen, tap
+  any cell to pin or unpin it, tap Done. Everything unpinned folds behind
+  "Everything else — N values" so the card stays short until you ask it not to.
+  The choice is remembered.
 - Emergency squawks (7500 / 7600 / 7700) are called out in red, in the list and
   at the top of the detail sheet.
 - **Follow** keeps the map on the selected aircraft; **Show route** frames the
@@ -37,6 +50,18 @@ Part of the b737-asu-pwa suite. Vanilla ES modules, no build step, no API key.
 - Both panels **fold by dragging their top edge** up or down (or tapping it).
   There's no fold button: the gesture is the affordance.
 
+## Three buttons, not seven
+
+**Show**, **View**, **Me** — that's the whole tool column. Show is which
+traffic and which airlines; View is everything about how the map *looks*
+(labels, trails, last-seen ghosts, ground traffic, the 3D toggle and the
+altitude-colour legend), each switch with the one-line explanation a bare icon
+can't give. Labels, Trails, Last seen, Ground and 3D used to each cost a
+permanent button; they're display preferences you set once, not live actions,
+so they moved off the map into View. What's currently showing is one line
+above the map — "Showing airlines · 24 in view · Change" — that doubles as the
+door back into Show, standing in for what used to be a chip per active filter.
+
 ## A card that doesn't move under your finger
 
 The aircraft card refreshes every five seconds, and the first version rebuilt
@@ -45,7 +70,7 @@ arrived late, and the whole thing reflowed — text moved while you were reading
 it and a tap could land on a button that had just shifted.
 
 Now the card's structure is built once per aircraft and only its values are
-patched in. The grid always carries the same fourteen rows in the same order,
+patched in. The grid always carries the same thirteen rows in the same order,
 showing "—" for anything unknown, so nothing can change height. A photo that
 fails to load stays gone instead of returning on every refresh.
 
@@ -121,7 +146,7 @@ beside it, so nothing disappears without saying why.
 ## Other traffic
 
 The default layer is still airlines only — that's what the app is for — but the
-other traffic is in the same feed, so the **Filter** button switches on
+other traffic is in the same feed, so the **Show** sheet switches on
 **Military & state**, **Helicopters**, **Business jets** and **Light & private**
 with live counts per layer. Each kind gets its own silhouette (delta for
 military, slim jet for bizjets, straight-wing prop for light, rotor disc for
@@ -138,7 +163,7 @@ makes the whole display untrustworthy.
 
 ## 3D view
 
-The **3D** button swaps the flat map for a tilted terrain view with the traffic
+The **3D view** switch, in the View sheet, swaps the flat map for a tilted terrain view with the traffic
 flying above it. Same stack as Thermal Debrief and for the same reasons:
 MapLibre GL JS is the keyless fork of Mapbox GL JS and does real 3D terrain from
 any raster-DEM source, AWS's open Terrain Tiles give global 90 m elevation with

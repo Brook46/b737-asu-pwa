@@ -52,15 +52,6 @@ html, body {
   position: fixed; z-index: 1200; left: 8px; right: 8px; top: calc(8px + var(--safe-t));
   display: flex; align-items: center; gap: 8px;
 }
-.brand {
-  display: flex; align-items: center; gap: 7px; flex: none;
-  padding: 8px 11px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--line);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  font-weight: 700; font-size: .84rem; letter-spacing: .01em; color: var(--ink);
-}
-.brand svg { color: var(--accent); flex: none; }
-.brand span { white-space: nowrap; }
 
 .search { flex: 1 1 auto; min-width: 0; position: relative; }
 .search input {
@@ -136,9 +127,26 @@ html, body {
 .tool-btn[aria-pressed="true"] b { color: var(--accent); }
 .tool-btn:active { transform: scale(.94); }
 
-/* ── active filter chips ──────────────────────────────────────────────────── */
-.chips {
+/* ── filter summary bar ───────────────────────────────────────────────────── */
+/* One line standing in for what used to be a chip per active filter: what's
+   showing, how much of it, and the door back into Show. */
+.filter-bar {
   position: fixed; z-index: 1180; left: 68px; right: 8px; top: calc(50px + var(--safe-t));
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: auto; padding: 8px 12px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--line); color: var(--ink);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font: inherit; font-size: .76rem; cursor: pointer; text-align: left;
+}
+.filter-bar span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); font-weight: 600;
+}
+.filter-bar b { flex: none; color: var(--accent); font-weight: 700; }
+
+/* ── active filter chips (search terms only) ──────────────────────────────── */
+.chips {
+  position: fixed; z-index: 1180; left: 68px; right: 8px; top: calc(94px + var(--safe-t));
   display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; justify-content: flex-end;
 }
 .chip {
@@ -211,17 +219,43 @@ html, body {
 .pick-count { flex: none; color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .pick-empty { padding: 18px; text-align: center; color: var(--muted); font-size: .78rem; }
 
-/* ── legend ───────────────────────────────────────────────────────────────── */
-.legend {
-  position: fixed; z-index: 1140; left: 8px; bottom: calc(72px + var(--safe-b));
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 7px 9px; border-radius: 11px;
-  background: var(--glass); border: 1px solid var(--line);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  font-size: .64rem; color: var(--muted); letter-spacing: .02em;
+/* The rule that decides full detail / dimmed / dot, spelled out once in the
+   Show sheet so nothing on the map is quietly hidden without an explanation
+   the reader can find. */
+.pick-info {
+  margin: 0 0 10px; padding: 8px 10px; border-radius: 9px;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line);
+  color: var(--muted); font-size: .7rem; line-height: 1.45;
 }
-.legend span { display: flex; align-items: center; gap: 6px; }
-.legend i { width: 12px; height: 5px; border-radius: 2px; display: block; }
+
+/* ── View sheet: display switches + altitude legend ───────────────────────── */
+.view-list { display: flex; flex-direction: column; gap: 3px; margin-bottom: 14px; }
+.view-row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 9px 9px; border-radius: 10px;
+  background: rgba(255, 255, 255, .03); border: 1px solid transparent;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.view-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.view-row-text b { font-size: .8rem; font-weight: 700; }
+.view-row-text i { font-style: normal; color: var(--muted); font-size: .68rem; line-height: 1.35; }
+.switch {
+  flex: none; width: 38px; height: 22px; border-radius: 999px; position: relative;
+  background: rgba(255, 255, 255, .14); border: 1px solid var(--line);
+  transition: background .15s ease, border-color .15s ease;
+}
+.switch-knob {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px;
+  background: var(--muted); transition: transform .15s ease, background .15s ease;
+}
+.view-row[aria-pressed="true"] .switch { background: rgba(94, 194, 255, .35); border-color: rgba(94, 194, 255, .6); }
+.view-row[aria-pressed="true"] .switch-knob { background: var(--accent); transform: translateX(16px); }
+
+/* Altitude colour key, moved off the map into the sheet that explains
+   everything else about how the map draws — colour only needs saying once. */
+.legend-inline { display: flex; flex-direction: column; gap: 4px; padding-bottom: 2px; }
+.legend-inline span { display: flex; align-items: center; gap: 7px; font-size: .74rem; color: var(--muted); }
+.legend-inline i { width: 14px; height: 6px; border-radius: 2px; display: block; flex: none; }
 
 /* ── status banner ────────────────────────────────────────────────────────── */
 .status {
@@ -250,6 +284,13 @@ html, body {
 .plane-tag.ghost { color: #9aa6bd; font-style: italic; }
 .plane-tag.ghost b { color: #7f8ba3; font-style: normal; }
 .plane-wrap.ghost { filter: none; opacity: .92; }
+/* Tier 2: same shape, smaller and dimmer, never labelled. */
+.plane-wrap.muted { filter: none; opacity: .58; }
+/* Tier 3: a dot standing in for everything the shape would otherwise say —
+   distance from you (or your own fleet, or the selection) already told the
+   reader this one doesn't need the detail. */
+.dot-wrap { display: grid; place-items: center; width: 100%; height: 100%; }
+.plane-dot { display: block; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); }
 
 /* ── runways ──────────────────────────────────────────────────────────────── */
 .rwy-icon { background: none; border: 0; }
@@ -390,11 +431,14 @@ html, body {
 .detail-sheet.collapsed .sheet-ghost,
 .detail-sheet.collapsed .sheet-alert,
 .detail-sheet.collapsed .route-strip,
-.detail-sheet.collapsed .arrival,
+.detail-sheet.collapsed .answer-line,
 .detail-sheet.collapsed .sheet-actions,
+.detail-sheet.collapsed .values-head,
 .detail-sheet.collapsed .sheet-grid,
+.detail-sheet.collapsed .fold-row,
 .detail-sheet.collapsed .sheet-photo,
-.detail-sheet.collapsed .sheet-note { display: none; }
+.detail-sheet.collapsed .sheet-note,
+.detail-sheet.collapsed .sheet-footer { display: none; }
 .detail-sheet.collapsed .sheet-head { padding-bottom: 4px; }
 .detail-sheet.collapsed .detail-body { padding-bottom: 8px; }
 
@@ -424,52 +468,75 @@ html, body {
 .rs-plane svg { display: block; }
 .rs-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .66rem; }
 
-/* a route the aircraft's own telemetry contradicts */
-.route-doubt {
-  margin-bottom: 6px; padding: 8px 11px; border-radius: 10px;
-  background: rgba(246, 195, 67, .12); border: 1px solid rgba(246, 195, 67, .45);
-  color: #f0d79a; font-size: .72rem; line-height: 1.4;
-}
+/* the bar tints when the aircraft's own telemetry contradicts the claimed
+   route — the ROUTE DISPUTED badge below the fold carries the actual reason */
 .route-strip.doubted { border-color: rgba(246, 195, 67, .45); }
 .route-strip.doubted .rs-end b { color: #f0d79a; }
 
-/* arrival: scheduled vs estimated */
-.arrival {
-  display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap;
+/* answer line: one sentence, plus badges saying where each part came from */
+.answer-line { margin: 10px 0 2px; }
+.answer-headline {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px;
+  margin: 0; font-size: 1.06rem; font-weight: 800;
 }
-.arr-cell {
-  flex: 1 1 130px; min-width: 0; padding: 9px 11px; border-radius: 11px;
-  background: rgba(255, 255, 255, .04); border: 1px solid var(--line);
-  display: flex; flex-direction: column; gap: 1px;
-}
-.arr-cell span { color: var(--muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; }
-.arr-cell b { font-size: 1.02rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.arr-cell i { font-style: normal; color: var(--muted); font-size: .68rem; }
-.arr-cell.delta { flex: 0 0 auto; align-items: center; justify-content: center; }
-.arr-delta { font-size: .78rem; font-weight: 800; text-transform: none; letter-spacing: 0; }
-.arr-delta.on { color: var(--ok); }
-.arr-delta.late { color: var(--warn); }
-.arr-delta.early { color: var(--accent); }
-.arr-delta.off { color: var(--muted); font-weight: 600; font-size: .68rem; text-align: center; }
+.answer-headline span { color: var(--muted); font-size: .78rem; font-weight: 600; }
+.answer-headline.on span { color: var(--ok); }
+.answer-headline.late span { color: var(--warn); }
+.answer-headline.early span { color: var(--accent); }
+.answer-headline.off span { color: var(--muted); }
 
-/* actions */
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--line); color: var(--muted);
+  font: inherit; font-size: .6rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  cursor: default;
+}
+.badge.computed { background: rgba(94, 194, 255, .14); border-color: rgba(94, 194, 255, .4); color: #cfeaff; }
+.badge.neutral { background: rgba(255, 255, 255, .06); border-color: var(--line); color: var(--muted); }
+.badge.disputed {
+  background: rgba(246, 195, 67, .14); border-color: rgba(246, 195, 67, .45); color: #f0d79a; cursor: pointer;
+}
+.badge-i { font-style: normal; font-weight: 800; }
+.badge-explain {
+  margin: 6px 0 0; padding: 8px 10px; border-radius: 9px;
+  background: rgba(246, 195, 67, .1); border: 1px solid rgba(246, 195, 67, .35);
+  color: #f0d79a; font-size: .72rem; line-height: 1.4;
+}
+
+/* actions: Follow is the one people actually want, so it's the wide button;
+   Show-route / Centre are equal-weight icon buttons beside it. */
 .sheet-actions { display: flex; gap: 7px; margin: 12px 0; }
 .act {
-  flex: 1 1 0; padding: 9px 8px; border-radius: 10px;
+  padding: 9px 8px; border-radius: 10px;
   background: rgba(255, 255, 255, .05); border: 1px solid var(--line);
   color: var(--ink); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer;
 }
 .act.on { background: rgba(94, 194, 255, .18); border-color: rgba(94, 194, 255, .6); color: #cfeaff; }
 .act:active { transform: scale(.97); }
+.act-primary { flex: 1 1 auto; }
+.act-icon { flex: none; width: 44px; display: flex; align-items: center; justify-content: center; padding: 0; }
+
+/* pinned values: a small head with an Edit toggle, then the grid, then
+   whatever wasn't pinned folded behind a disclosure row */
+.values-head { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.values-head span:first-child { color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+.values-rule { flex: 1 1 auto; height: 1px; background: var(--line); }
+.values-edit {
+  flex: none; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--line);
+  color: var(--ink); font: inherit; font-size: .7rem; font-weight: 700; cursor: pointer;
+}
 
 /* data grid */
 .sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 @media (min-width: 560px) { .sheet-grid { grid-template-columns: repeat(3, 1fr); } }
 .cellv {
-  padding: 8px 10px; border-radius: 10px;
+  position: relative; padding: 8px 10px; border-radius: 10px;
   background: rgba(255, 255, 255, .035); border: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }
+.cellv[hidden] { display: none; }
 .cellv span { color: var(--muted); font-size: .64rem; text-transform: uppercase; letter-spacing: .05em; }
 .cellv b {
   font-size: .84rem; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -477,6 +544,22 @@ html, body {
      than truncating to "BOEING 77…", which tells the reader nothing. */
   overflow-wrap: anywhere; line-height: 1.25;
 }
+/* Only while editing does a cell announce it's tappable — an ordinary tap on
+   a value should never look like a control. */
+.sheet-grid.editing .cellv { border-style: dashed; border-color: rgba(255, 255, 255, .28); cursor: pointer; }
+.sheet-grid.editing .cellv.pinned { border-style: solid; border-color: rgba(94, 194, 255, .6); background: rgba(94, 194, 255, .1); }
+.sheet-grid.editing .cellv.pinned::after {
+  content: '★'; position: absolute; top: 5px; right: 7px; color: var(--accent); font-size: .6rem;
+}
+
+.fold-row {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  margin-top: 7px; padding: 9px 11px; border-radius: 10px;
+  background: rgba(255, 255, 255, .03); border: 1px dashed var(--line);
+  color: var(--muted); font: inherit; font-size: .74rem; font-weight: 600; cursor: pointer;
+}
+.fold-row[hidden] { display: none; }
+.fold-arrow { color: var(--accent); font-weight: 700; }
 
 .sheet-photo { margin: 12px 0 0; }
 .sheet-photo img {
@@ -486,6 +569,12 @@ html, body {
 .sheet-photo figcaption { color: var(--muted); font-size: .62rem; margin-top: 4px; text-align: right; }
 
 .sheet-note { color: var(--muted); font-size: .72rem; margin: 12px 0 0; line-height: 1.45; }
+
+/* footer: one line of trust — how fresh the position is, and (only while
+   watching) how much of the track behind it is real */
+.sheet-footer { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--muted); font-size: .68rem; }
+.sheet-footer[hidden] { display: none; }
+.footer-dot { flex: none; width: 5px; height: 5px; border-radius: 999px; background: var(--muted); }
 
 /* ── wide screens: sheets become a side rail ──────────────────────────────── */
 @media (min-width: 820px) {
@@ -502,7 +591,6 @@ html, body {
   /* One rail, one panel: the detail view replaces the list rather than
      stacking on it (body class, because the list precedes it in the DOM). */
   body.has-detail .list-sheet { display: none; }
-  .legend { bottom: 12px; }
 }
 
 /* header of the "which of these did you mean?" list */

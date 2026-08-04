@@ -47,6 +47,7 @@ let map = null;
 let planeLayer = null, trailLayer = null, routeLayer = null, runwayLayer = null;
 let markers = new Map();        // hex → {marker, state, fix}
 let trails = new Map();         // hex → [[lat,lon], …]
+let tierByHex = new Map();      // hex → 1|2|3, from the last render()
 let drTimer = null;
 let onSelect = null;
 let onStack = null;
@@ -150,11 +151,35 @@ function ghostAge(ac) {
   return fmtAgo(ac.lastSeenAt);
 }
 
+// Tier 3 is drawn as a bare dot: no shape, no rotation, no tag, whatever the
+// Labels preference says. That's the whole point of the tier — a distant
+// aircraft that isn't near you, isn't your own fleet, and isn't selected earns
+// no more attention than a coloured mark. The hit target is padded to 16px so
+// it's still tappable at that size.
+function dotIcon(ac) {
+  const color = altColor(ac.alt);
+  return L.divIcon({
+    html: `<div class="plane-wrap dot-wrap"><span class="plane-dot" style="background:${color}"></span></div>`,
+    className: 'plane-icon',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
 /** Icon HTML: the rotated silhouette plus an upright tag beside it. */
 function iconFor(ac, selected) {
+  const tier = selected || ac.ghost ? 1 : (ac.tier || 1);
+  if (tier === 3) return dotIcon(ac);
+  // Tier 2 — near, but not near enough to earn a label — is the same shape at
+  // reduced size and opacity. Its tag is suppressed regardless of the Labels
+  // preference: forty muted tags would recreate the exact clutter tiering
+  // exists to remove.
+  const muted = tier === 2;
   const color = ac.ghost ? '#9aa6bd' : altColor(ac.alt);
+  const baseScale = sizeFor(ac.type, ac.category);
+  const scale = muted ? baseScale * 0.72 : baseScale;
   const svg = planeSvg({
-    color, track: ac.track, scale: sizeFor(ac.type, ac.category),
+    color, track: ac.track, scale,
     selected, ground: ac.onGround, ghost: ac.ghost, kind: ac.kind || 'airline',
     cls: sizeClass(ac.type, ac.category),
   });
@@ -163,12 +188,12 @@ function iconFor(ac, selected) {
   // and on the detail card.
   const primary = ac.reg || ac.callsign || '';
   const second = ac.ghost ? `last seen ${ghostAge(ac)}` : fmtAlt(ac.alt, ac.onGround);
-  const tag = showLabels
+  const tag = showLabels && !muted
     ? `<span class="plane-tag${selected ? ' sel' : ''}${ac.ghost ? ' ghost' : ''}">${primary}<b>${second}</b></span>`
     : '';
-  const size = Math.round(30 * sizeFor(ac.type, ac.category));
+  const size = Math.round(30 * scale);
   return L.divIcon({
-    html: `<div class="plane-wrap${selected ? ' selected' : ''}${ac.ghost ? ' ghost' : ''}">${svg}${tag}</div>`,
+    html: `<div class="plane-wrap${selected ? ' selected' : ''}${ac.ghost ? ' ghost' : ''}${muted ? ' muted' : ''}">${svg}${tag}</div>`,
     className: 'plane-icon',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -178,7 +203,8 @@ function iconFor(ac, selected) {
 /** Cheap signature of everything that affects the drawn icon. */
 function sigOf(ac, selected) {
   const ghostBit = ac.ghost ? `g${ghostAge(ac)}` : '';
-  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.reg || ac.callsign}|${ac.type}|${ghostBit}`;
+  const tier = selected || ac.ghost ? 1 : (ac.tier || 1);
+  return `${Math.round(ac.track || 0)}|${Math.round((ac.alt || 0) / 200)}|${ac.onGround ? 1 : 0}|${selected ? 1 : 0}|${showLabels ? 1 : 0}|${ac.reg || ac.callsign}|${ac.type}|${ghostBit}|t${tier}`;
 }
 
 /**
@@ -195,6 +221,8 @@ export function render(list, selHex) {
     if (!Number.isFinite(ac.lat) || !Number.isFinite(ac.lon)) continue;
     seen.add(ac.hex);
     const selected = ac.hex === selectedHex;
+    const tier = selected || ac.ghost ? 1 : (ac.tier || 1);
+    tierByHex.set(ac.hex, tier);
     const sig = sigOf(ac, selected);
     let rec = markers.get(ac.hex);
 
@@ -257,6 +285,7 @@ export function render(list, selHex) {
     if (!seen.has(hex)) {
       planeLayer.removeLayer(rec.marker);
       markers.delete(hex);
+      tierByHex.delete(hex);
       if (hex !== selectedHex) trails.delete(hex);
     }
   }
@@ -302,6 +331,9 @@ function drawTrails() {
     // The selected aircraft's track is drawn by drawRoute, in altitude colours
     // and alongside the rest of its route; here we only draw the others.
     if (hex === selectedHex) continue;
+    // A trail behind a tier-3 dot is the exact clutter tiering exists to
+    // remove — a faint line pointing at something too far away to matter.
+    if (tierByHex.get(hex) === 3) continue;
     L.polyline(latlngs(pts), {
       color: '#5ec2ff',
       weight: 1.2,
