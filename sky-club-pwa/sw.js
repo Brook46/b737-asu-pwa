@@ -2,12 +2,12 @@
 // including the vendored astronomy engine, star data and planet textures — is
 // cache-first and works fully offline once loaded.
 
-const CACHE_VERSION = 'skyclub-v17';
+const CACHE_VERSION = 'skyclub-v18';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=17',
-  './app.js?v=17',
+  './app.css?v=18',
+  './app.js?v=18',
   './manifest.json',
   './icon.svg',
   './modules/astro.js',

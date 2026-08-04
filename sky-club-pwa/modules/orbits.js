@@ -158,16 +158,40 @@ function wireControls() {
   yearSlider.addEventListener('pointercancel', endScrub);
   yearSlider.addEventListener('blur', endScrub);
 
-  // "Clean view": strip the decoration (starfield, nebulae, orbit lines, the
-  // screen title) so it's just the Sun and its planets moving. Starts playback
-  // too — the point of the mode is watching them go round, and landing on a
-  // frozen orrery with the scenery removed would just look broken.
-  cleanBtn.addEventListener('click', () => {
-    const screen = document.getElementById('explore-screen');
-    const clean = screen.classList.toggle('clean');
-    cleanBtn.setAttribute('aria-pressed', String(clean)); // drives the lit style in app.css
-    if (clean && !playing) play();
-  });
+  cleanBtn.addEventListener('click', enterCleanView);
+}
+
+// "Clean view": hide every control — topbar, nav, scrubber, buttons, numbers —
+// and leave the scene (starfield, nebulae, orbit lines, Sun, planets) exactly
+// as it is. Starts playback too: the point is watching the planets go round.
+let cleanExitHandler = null;
+
+function enterCleanView() {
+  document.body.classList.add('clean-view');
+  document.getElementById('clean-btn').setAttribute('aria-pressed', 'true');
+  if (!playing) play();
+
+  const hint = document.getElementById('clean-hint');
+  hint.classList.add('show');
+  setTimeout(() => hint.classList.remove('show'), 2600);
+
+  // Attached on the NEXT tick, otherwise the very click that turned clean view
+  // on would immediately bubble up to this listener and turn it straight back
+  // off. Any tap exits — .body-btn is pointer-events:none while clean (see
+  // app.css), so tapping a planet exits rather than opening a card whose close
+  // button is itself hidden.
+  cleanExitHandler = () => exitCleanView();
+  setTimeout(() => document.addEventListener('pointerdown', cleanExitHandler, { once: true }), 0);
+}
+
+function exitCleanView() {
+  document.body.classList.remove('clean-view');
+  document.getElementById('clean-btn').setAttribute('aria-pressed', 'false');
+  document.getElementById('clean-hint').classList.remove('show');
+  if (cleanExitHandler) {
+    document.removeEventListener('pointerdown', cleanExitHandler);
+    cleanExitHandler = null;
+  }
 }
 
 function wirePinchZoom() {

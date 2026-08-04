@@ -144,19 +144,30 @@ frames before reading positions back.
 
 ## Explore: clean view + year scrubber
 
-- **Clean view** (`#clean-btn` → `.clean` on `#explore-screen`): fades out the
-  starfield, nebulae, orbit lines and screen title so it's just the Sun and its
-  planets moving. Starts playback if paused — landing on a frozen orrery with
-  the scenery stripped away just looks broken. Two traps here:
-  - `.orbit-ring` must keep its box (it is what positions each planet — see
-    `initExplore`), so clean mode only makes its **border** transparent. Never
-    `display:none` it.
+- **Clean view** (`#clean-btn` → `.clean-view` on `<body>`): hides **all UI** —
+  topbar, bottom nav, scrubber, controls, screen title — and leaves the scene
+  (starfield, nebulae, orbit lines, Sun, planets) completely untouched. Starts
+  playback if paused; the point of the mode is watching the planets go round.
+  - The class goes on `<body>`, not `#explore-screen`, because `.topbar` and
+    `.bottom-nav` are siblings of `#screens`, not children of the screen.
+  - **This was built backwards first time round**: the initial version hid the
+    *scenery* and kept the controls. The ask was the opposite — "don't wanna see
+    any buttons, numbers, sliders", background is fine. Worth remembering that
+    "clean" here means chrome-free, not decoration-free.
+  - Exit is **tap anywhere**, since by definition there's no visible button
+    left. `.body-btn` gets `pointer-events: none` while clean so tapping a
+    planet exits instead of opening a card whose close button is also hidden.
+    The exit listener is attached on the *next tick* — attach it synchronously
+    and the very click that enabled clean view bubbles straight into it and
+    turns it back off.
+  - `#clean-hint` shows "Tap anywhere to bring the buttons back" for ~2.6s on
+    entry, then fades itself. Without it there is no affordance at all and the
+    mode is a trap.
   - `.screen-header` needs `opacity: 0 !important`. It runs the `rise` entry
     animation with `animation-fill-mode: both`, and **animation values outrank
     normal declarations in the cascade**, so a plain `opacity: 0` silently loses
     to the animation's final `opacity: 1` and the title stays on screen. An
-    important declaration is the one thing that beats an animation. (`.galaxy`
-    doesn't need it — `galaxy-drift` only animates `transform`.)
+    important declaration is the one thing that beats an animation.
 - **Year scrubber** (`#year-slider`, ±50 years): the slider's value is an offset
   in *years from app launch* (`BASE_MS`), which keeps date↔slider trivially
   invertible with no calendar-month arithmetic. `step 0.01yr` ≈ 3.7 days, fine

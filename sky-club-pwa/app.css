@@ -586,29 +586,50 @@ button {
   color: var(--accent-pale);
 }
 
-/* Clean view: everything that isn't the Sun and its planets gets out of the
-   way. .orbit-ring must keep its box (it's what positions each planet — see
-   orbits.js) so only its border is hidden, never `display:none`. */
-#explore-screen.clean .starfield,
-#explore-screen.clean .galaxy,
-#explore-screen.clean .screen-header {
+/* Clean view = every piece of UI gets out of the way, leaving the scene itself
+   (starfield, nebulae, orbit lines, Sun and planets) completely untouched. The
+   class goes on <body>, not #explore-screen, because the topbar and the bottom
+   nav live outside the screen element. */
+body.clean-view .topbar,
+body.clean-view .bottom-nav,
+body.clean-view .explore-scrub,
+body.clean-view .explore-controls,
+body.clean-view .screen-header {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 /* !important is load-bearing here, not a shortcut. .screen-header runs the
    `rise` entry animation with `animation-fill-mode: both`, and an animation's
    values outrank normal declarations in the cascade — so a plain `opacity: 0`
    silently loses to the animation's final `opacity: 1` and the title stays put.
-   An important declaration is the one thing that does beat an animation.
-   (.galaxy is fine without it: galaxy-drift only animates transform.) */
-#explore-screen.clean .screen-header { opacity: 0 !important; }
-#explore-screen.clean .orbit-ring { border-color: transparent; }
-#explore-screen.clean .starfield,
-#explore-screen.clean .galaxy,
-#explore-screen.clean .screen-header,
-#explore-screen.clean .orbit-ring {
-  transition: opacity 0.35s ease, border-color 0.35s ease;
+   An important declaration is the one thing that does beat an animation. */
+body.clean-view .screen-header { opacity: 0 !important; }
+/* Planets stop taking taps so that a tap anywhere — including on a planet —
+   is what brings the UI back, rather than opening a card the user can't see
+   the controls to dismiss. */
+body.clean-view .body-btn { pointer-events: none; }
+
+/* Shown briefly on entry, then fades itself out: without it there is no visible
+   affordance at all for getting back, which would be a trap. */
+.clean-hint {
+  position: absolute;
+  left: 50%; bottom: calc(var(--safe-bottom) + 40px);
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(22, 24, 38, 0.8);
+  border: 1px solid var(--glass-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 15;
 }
+.clean-hint.show { opacity: 1; }
 
 /* ---------- planet card (bottom sheet) ---------- */
 .planet-card {
