@@ -19,17 +19,20 @@
 // in Jan.
 
 import * as storage from './storage.js';
-import { rollingTs } from './dates.js';
+import { dateTs } from './dates.js';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
 
 function pad2(n) { return String(n | 0).padStart(2, '0'); }
 
-// dd.mm + HH:MM (UTC) → Date object, or null when either part is missing
-// or malformed. Rolling-year rule lives in modules/dates.js.
-function toUtcDate(ddmm, hhmm) {
-  const ts = rollingTs(ddmm, hhmm);
+// dd.mm + HH:MM (UTC) [+ the leg's real year when known] → Date, or null when
+// a part is missing/malformed. Passing the year matters here more than
+// anywhere: the logbook keeps flown legs forever, and the rolling-year guess
+// in modules/dates.js is only correct within ~6 months — without it, every
+// older flight got exported into the wrong calendar year.
+function toUtcDate(ddmm, hhmm, year) {
+  const ts = dateTs(ddmm, hhmm, year);
   return Number.isFinite(ts) ? new Date(ts) : null;
 }
 
@@ -63,10 +66,15 @@ function fold(line) {
 
 function uidFor(leg) {
   // Stable per-leg UID so re-imports update the existing event rather than
-  // duplicating. Hashing: ELY###-dep-arr-dep_date.
+  // duplicating. Hashing: ELY###-dep-arr-dep_date-year.
+  //
+  // The YEAR is essential: without it the same flight on the same day/month in
+  // two different years produced ONE uid, so a calendar subscribed to this feed
+  // showed a single event and every earlier year silently vanished.
   const f = leg.flight || 'na';
   const d = (leg.dep_date || '').replace(/\./g, '');
-  return `flightcard-${f}-${leg.dep || 'XXX'}-${leg.arr || 'XXX'}-${d}@brook46.github.io`;
+  const y = leg.dep_year ? `-${leg.dep_year}` : '';
+  return `flightcard-${f}-${leg.dep || 'XXX'}-${leg.arr || 'XXX'}-${d}${y}@brook46.github.io`;
 }
 
 function rolesTag(toRole, ldgRole) {
@@ -114,8 +122,9 @@ export function buildIcs(legs, opts = {}) {
     `X-WR-CALDESC:${escIcs('Flight Card — every leg, with block / actual / crew.')}`,
   ];
   for (const leg of legs) {
-    const dep = toUtcDate(leg.dep_date, leg.dep_time);
-    const arr = toUtcDate(leg.arr_date, leg.arr_time);
+    const dep = toUtcDate(leg.dep_date, leg.dep_time, leg.dep_year);
+    // arr_year, not dep_year — an overnight leg can land in the next year.
+    const arr = toUtcDate(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year);
     if (!dep || !arr) continue;  // can't render an event without a window
     const flight = leg.flight ? `ELY${leg.flight}` : 'Flight';
     const route  = (leg.dep && leg.arr) ? ` ${leg.dep}→${leg.arr}` : '';
@@ -150,12 +159,12 @@ export function allStoredLegs() {
   // upcoming duty. Undated legs (no dep_date) are kept: they can't be a
   // future event, and buildIcs skips them anyway for lack of a window.
   const flown = all.filter(leg => {
-    const dep = toUtcDate(leg.dep_date, leg.dep_time)?.getTime();
+    const dep = toUtcDate(leg.dep_date, leg.dep_time, leg.dep_year)?.getTime();
     return dep == null || dep <= now;
   });
   flown.sort((a, b) => {
-    const da = toUtcDate(a.dep_date, a.dep_time)?.getTime() || 0;
-    const db = toUtcDate(b.dep_date, b.dep_time)?.getTime() || 0;
+    const da = toUtcDate(a.dep_date, a.dep_time, a.dep_year)?.getTime() || 0;
+    const db = toUtcDate(b.dep_date, b.dep_time, b.dep_year)?.getTime() || 0;
     return da - db;
   });
   return flown;

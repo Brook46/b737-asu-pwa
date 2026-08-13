@@ -49,6 +49,17 @@ export function isConfigured() {
  * messages + calling appendLegs. Throws on fetch / parse failure with a
  * user-readable message.
  */
+// RFC 5545 DTSTART → ms. Handles the three shapes Google emits:
+// "20260813T060000Z" (UTC), "20260813T090000" (floating/TZID) and
+// "20260813" (all-day). We only need the DATE part to be right — it is just
+// an anchor for picking the year of a "dd.mm", so a few hours of timezone
+// slop is harmless.
+function icalTs(dtstart) {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/.exec(String(dtstart || ''));
+  if (!m) return NaN;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 12), +(m[5] || 0), +(m[6] || 0));
+}
+
 export async function syncFromCalendar() {
   if (!WORKER_BASE) {
     throw new Error('Calendar proxy not configured — see cloudflare-worker/');
@@ -82,7 +93,12 @@ export async function syncFromCalendar() {
   for (const ev of events) {
     const body = ev.description || ev.summary || '';
     if (!body) continue;
-    const parsed = parseRoster(body);
+    // The slip text inside a VEVENT dates its legs "dd.mm" with no year, but
+    // the VEVENT itself has a DTSTART that does. Pass it down so legs get
+    // stamped with the real year instead of a rolling-window guess that goes
+    // wrong for anything more than ~6 months old — which is how flights from
+    // different years ended up merged.
+    const parsed = parseRoster(body, { anchorMs: icalTs(ev.dtstart) });
     if (parsed && parsed.flights?.length) allFlights.push(...parsed.flights);
     if (parsed && parsed.phones) Object.assign(allPhones, parsed.phones);
   }

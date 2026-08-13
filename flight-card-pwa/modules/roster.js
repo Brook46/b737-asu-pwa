@@ -19,6 +19,8 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
+import { yearNear } from './dates.js';
+
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
   /\bCockpit\s*:/i,
@@ -87,8 +89,14 @@ function normaliseTail(raw) {
   return r;
 }
 
-export function parseRoster(text) {
+export function parseRoster(text, opts = {}) {
   if (!text) return null;
+  // anchorMs: the calendar event's DTSTART. Slip-text dates are bare "dd.mm",
+  // so without an anchor the year has to be guessed by a rolling window that
+  // is only right within ~6 months — which silently merges flights a year
+  // apart. calendar.js passes the event's own year so the legs get stamped
+  // with the real one. Undated pastes still fall back to the guess.
+  const anchorMs = Number(opts.anchorMs);
   // JSON path — accept the lighter "crew portal" export shape too, an
   // array of leg objects like:
   //   { edd: "10.06.2026", flt: "2365 EKK", dep: "TLV 02:35",
@@ -153,6 +161,8 @@ export function parseRoster(text) {
         // roster carries to a slot time.
         dep_date: '', dep_time: '',
         arr_date: '', arr_time: '',
+        // Real calendar years when known — see the anchorMs note in parseRoster.
+        dep_year: '', arr_year: '',
         ctot: '',
         cpt, fo,
         cabin: [], // ordered list of cabin crew names (PUR first, then ST/JU)
@@ -167,6 +177,14 @@ export function parseRoster(text) {
         cur.arr_date = `${tm[4]}.${tm[5]}`;
         cur.arr_time = tm[6].length === 4 ? '0' + tm[6] : tm[6];
         cur.flight_time = tm[7];
+        // Anchor the bare dd.mm to the event's real year when we have one.
+        if (Number.isFinite(anchorMs)) {
+          cur.dep_year = yearNear(cur.dep_date, anchorMs) || '';
+          // An arrival earlier in the calendar than its departure means the
+          // leg crossed into the next year (31.12 → 01.01).
+          cur.arr_year = cur.dep_year;
+          if (cur.dep_year && cur.arr_date < cur.dep_date) cur.arr_year = cur.dep_year + 1;
+        }
         // ctot intentionally left empty — the roster's dep_time is the
         // scheduled out-time, not a Eurocontrol slot, and the user prefers
         // to read the real CTOT from ops (or look it up via the ↗ Flightaware
@@ -252,15 +270,15 @@ function parseJsonRoster(arr) {
     const depM = /^([A-Z]{3,4})\s+(\d{1,2}:\d{2})/.exec(String(e.dep));
     const arrM = /^([A-Z]{3,4})\s+(\d{1,2}:\d{2})(?:\s*\+(\d+))?/.exec(String(e.arr || ''));
 
-    // edd is "dd.mm.yyyy"; the internal dep_date schema is just "dd.mm"
-    // (the year gets inferred by storage.depTs's rolling-window heuristic).
-    // We do hold onto the year locally to roll arr_date forward correctly
-    // for "+1"-style overnight arrivals.
+    // edd is "dd.mm.yyyy". dep_date stays "dd.mm" for display, but the year
+    // is now KEPT alongside it (dep_year) instead of being discarded and
+    // re-guessed later — guessing merges flights that are a year apart.
     const eddM = /^(\d{2})\.(\d{2})\.(\d{4})/.exec(String(e.edd || ''));
     const depDate = eddM ? `${eddM[1]}.${eddM[2]}` : '';
     const year    = eddM ? parseInt(eddM[3], 10) : new Date().getUTCFullYear();
 
     let arrDate = depDate;
+    let arrYear = eddM ? year : '';
     if (depDate && arrM && arrM[3] && eddM) {
       const addDays = parseInt(arrM[3], 10) || 0;
       const d = new Date(Date.UTC(
@@ -269,6 +287,7 @@ function parseJsonRoster(arr) {
         parseInt(eddM[1], 10) + addDays
       ));
       arrDate = `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+      arrYear = d.getUTCFullYear();   // +1 day can also mean +1 year
     }
 
     const padT = (t) => t && t.length === 4 ? '0' + t : t;
@@ -281,8 +300,10 @@ function parseJsonRoster(arr) {
       flight_time: String(e.flightTime || ''),
       dep_date:    depDate,
       dep_time:    depM ? padT(depM[2]) : '',
+      dep_year:    eddM ? year : '',
       arr_date:    arrDate,
       arr_time:    arrM ? padT(arrM[2]) : '',
+      arr_year:    arrYear,
       ctot:        '',
       // Per-leg crew (the JSON shape carries crew on every leg, so
       // captain/FO can change between legs of the same duty period).

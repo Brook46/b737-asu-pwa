@@ -12,7 +12,7 @@
 //     elsewhere (current year unless > 6 months stale).
 
 import * as storage from './storage.js';
-import { rollingTs } from './dates.js';
+import { dateTs } from './dates.js';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -21,7 +21,9 @@ const HOME = new Set(['TLV', 'LLBG']);
 // Combine dd.mm + HH:MM into a UTC ms timestamp. Shared rolling-year
 // heuristic — see modules/dates.js.
 function depTs(leg) {
-  return rollingTs(leg?.dep_date, leg?.dep_time);
+  // Real year when the leg carries one — otherwise year buckets and the
+  // "last time I flew here" lookups put old flights in the wrong year.
+  return dateTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
 }
 
 function legYear(leg) {

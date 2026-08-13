@@ -10,7 +10,7 @@
 // }
 
 import { flipName } from './roster.js';
-import { rollingTs } from './dates.js';
+import { dateTs } from './dates.js';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -985,6 +985,8 @@ function findDuplicateLegIdx(incoming, existing) {
     const e = existing[i];
     if (digitsOf(e.flight) !== fl) continue;
     if (incoming.dep_date && e.dep_date && incoming.dep_date !== e.dep_date) continue;
+    // Same flight number, same dd.mm, DIFFERENT year = a different flight.
+    if (incoming.dep_year && e.dep_year && incoming.dep_year !== e.dep_year) continue;
     return i;
   }
   return -1;
@@ -1004,7 +1006,7 @@ function digitsOf(s) {
 // trade-off, and it's correct for this pilot's workflow.
 function mergeLeg(target, source) {
   // Top-level identity + schedule fields — incoming wins for non-empty.
-  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time']) {
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time','dep_year','arr_year']) {
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
   // dataCard merge — incoming wins per key for non-empty values, EXCEPT
@@ -1102,12 +1104,15 @@ function fingerprintLeg(leg) {
   const flight = String(leg?.flight || '').replace(/\D/g, '').replace(/^0+/, '');
   const date   = String(leg?.dep_date || '');
   if (!flight || !date) return '';
-  return `${flight}@${date}`;
+  // The year belongs in the fingerprint: without it ELY337 on 14.07.2025 and
+  // ELY337 on 14.07.2026 hash to the same key, so the sync treats one as a
+  // duplicate of the other and the prune step can delete the wrong leg.
+  const year = String(leg?.dep_year || '');
+  return year ? `${flight}@${date}.${year}` : `${flight}@${date}`;
 }
 
 function arrTs(leg) {
-  // Shared rolling-year heuristic — see modules/dates.js.
-  return rollingTs(leg?.arr_date, leg?.arr_time);
+  return dateTs(leg?.arr_date, leg?.arr_time, leg?.arr_year);
 }
 
 // Delete a single leg by index. Adjusts legIndex if the deleted leg was
@@ -1125,7 +1130,9 @@ export function deleteLeg(idx) {
 // timestamp. Used by appendLegs to keep the list time-sorted. Unsortable
 // legs go to the END of the list (MAX_SAFE_INTEGER, not NaN).
 function depTs(leg) {
-  const ts = rollingTs(leg?.dep_date, leg?.dep_time);
+  // dep_year is the real year when the calendar/roster gave us one; without
+  // it dateTs falls back to the rolling-window guess (see modules/dates.js).
+  const ts = dateTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
   if (Number.isFinite(ts)) return ts;
   // A hand-made blank leg has no dep_date yet — sort it by when it was
   // created so it lands among "now" flights (after everything already
@@ -1166,6 +1173,7 @@ export function addBlankLeg() {
   const leg = {
     flight: '', tail: '', dep: '', arr: '', flight_time: '', ctot: '',
     dep_date: '', dep_time: '', arr_date: '', arr_time: '',
+    dep_year: '', arr_year: '',
     cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '', dh: '',
     // Creation time — used to position the undated blank leg chronologically
     // in the switcher (see depTs) so it sits among "now" flights.
@@ -1272,6 +1280,7 @@ const K_SHORT = {
   flight: 'f',  tail: 't',  dep: 'd',  arr: 'a',
   flight_time: 'ft', ctot: 'c',
   dep_date:'dd', dep_time:'dt', arr_date:'ad', arr_time:'at',
+  dep_year:'dy', arr_year:'ay',
   // Takeoff perf
   v1: 'v1', vr: 'vr', v2: 'v2', n1: 'n1', flaps: 'fl',
   // Fuel
