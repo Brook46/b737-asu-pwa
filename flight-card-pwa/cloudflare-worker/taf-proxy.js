@@ -76,6 +76,11 @@ const SHARE_MAX_BYTES = 6 * 1024 * 1024;    // four big IGC files, with headroom
 // relay a `?url=` proxy would be.
 const ADSB_POINT_RE = /^\/adsb\/point\/(-?\d{1,3}(?:\.\d{1,6})?)\/(-?\d{1,3}(?:\.\d{1,6})?)\/(\d{1,3})$/;
 const ADSB_FIND_RE  = /^\/adsb\/(reg|callsign|hex)\/([A-Za-z0-9-]{1,12})$/;
+// Who's asking. These feeds are run by volunteers and fronted by bot
+// protection that treats an unidentified datacentre request as exactly what it
+// looks like; a name and a link are what turn this into a request they can
+// judge on its merits — and complain about to a real address if need be.
+const ADSB_UA = 'AirlineRadar/1.0 (+https://github.com/Brook46/b737-asu-pwa; hobby PWA, ~1 req/5s)';
 
 export default {
   async fetch(request, env) {
@@ -379,6 +384,7 @@ async function handleAdsb(url) {
     tries = [
       `https://api.adsb.lol/v2/point/${lat}/${lon}/${r}`,
       `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`,
+      `https://api.airplanes.live/v2/point/${lat}/${lon}/${r}`,
     ];
   } else if (fd) {
     const kind = fd[1].toLowerCase();
@@ -388,31 +394,41 @@ async function handleAdsb(url) {
     tries = [
       `https://api.adsb.lol/v2/${kind}/${v}`,
       `https://opendata.adsb.fi/api/v2/${fiKind}/${v}`,
+      `https://api.airplanes.live/v2/${kind}/${v}`,
     ];
   } else {
     return text('Bad ADS-B path', 400);
   }
 
-  let lastErr = 'no upstream tried';
+  const errs = [];
   for (const target of tries) {
+    const host = new URL(target).hostname;
     try {
-      // Three seconds of shared cache: shorter than the app's own refresh, so
-      // nobody is shown a stale position, but enough that a hundred readers
-      // asking about the same patch of sky don't become a hundred requests.
+      // These are volunteer-run APIs behind bot protection, and an anonymous
+      // request from a datacentre is exactly what that protection exists to
+      // refuse. Saying who we are — and where to complain — is both the polite
+      // thing and the thing that gets us served.
       const res = await fetch(target, {
-        headers: { accept: 'application/json' },
-        cf: { cacheTtl: 3, cacheEverything: true },
+        headers: {
+          accept: 'application/json',
+          'user-agent': ADSB_UA,
+        },
+        // Three seconds of shared cache: shorter than the app's own refresh, so
+        // nobody is shown a stale position, but enough that a hundred readers
+        // asking about the same patch of sky don't become a hundred requests.
+        // Errors are never cached — a cached 403 would outlive the block.
+        cf: { cacheTtlByStatus: { '200-299': 3, '400-599': 0 } },
       });
-      if (!res.ok) { lastErr = `${new URL(target).hostname} ${res.status}`; continue; }
+      if (!res.ok) { errs.push(`${host} ${res.status}`); continue; }
       const data = await res.json();
       const ac = Array.isArray(data.ac) ? data.ac
         : (Array.isArray(data.aircraft) ? data.aircraft : []);
-      return json({ ac, source: new URL(target).hostname });
+      return json({ ac, source: host });
     } catch (err) {
-      lastErr = `${new URL(target).hostname} ${err.message}`;
+      errs.push(`${host} ${err.message}`);
     }
   }
-  return text('No ADS-B upstream answered: ' + lastErr, 502);
+  return text('No ADS-B upstream answered: ' + errs.join('; '), 502);
 }
 
 // ---------- /ical -----------------------------------------------------------
