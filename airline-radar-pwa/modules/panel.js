@@ -5,10 +5,10 @@
 // through esc() before it reaches innerHTML — an aircraft's "registration" is
 // whatever the transponder and the database say it is, not something we trust.
 
-import * as fmt from './fmt.js';
-import { altColor, familyOf, planeSvg, classLine } from './aircraft.js';
-import { routeLabel, progress, haversine, eta, routeSanity } from './routes.js';
-import { squawkAlert } from './adsb.js';
+import * as fmt from './fmt.js?v=13';
+import { altColor, familyOf, planeSvg, classLine } from './aircraft.js?v=13';
+import { routeLabel, progress, haversine, eta, routeSanity } from './routes.js?v=13';
+import { squawkAlert } from './adsb.js?v=13';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
