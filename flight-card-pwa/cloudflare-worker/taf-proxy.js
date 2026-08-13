@@ -413,11 +413,19 @@ async function handleAdsb(url) {
           accept: 'application/json',
           'user-agent': ADSB_UA,
         },
-        // Three seconds of shared cache: shorter than the app's own refresh, so
-        // nobody is shown a stale position, but enough that a hundred readers
-        // asking about the same patch of sky don't become a hundred requests.
-        // Errors are never cached — a cached 403 would outlive the block.
-        cf: { cacheTtlByStatus: { '200-299': 3, '400-599': 0 } },
+        // Four seconds of shared cache, just under the app's own refresh: no
+        // reader is shown a stale position, and a hundred readers watching the
+        // same patch of sky cost one upstream request instead of a hundred.
+        //
+        // cacheEverything is what makes that true. Without it Cloudflare obeys
+        // the upstream's own `no-cache`, nothing is ever stored, and every poll
+        // reaches adsb.lol — which is how a rate limit was being hit while the
+        // cache appeared to be configured. Errors stay uncached regardless: a
+        // cached 403 would outlive the block that caused it.
+        cf: {
+          cacheEverything: true,
+          cacheTtlByStatus: { '200-299': 4, '400-599': 0 },
+        },
       });
       if (!res.ok) { errs.push(`${host} ${res.status}`); continue; }
       const data = await res.json();
