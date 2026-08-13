@@ -8,7 +8,9 @@
 // Everything else in here is state plumbing: selection, filters, view
 // persistence and the two bottom sheets.
 
-import { fetchArea, fetchOne, radiusForMap, radiusForZoom, normalise, MAX_RADIUS_NM } from './modules/adsb.js';
+import {
+  fetchArea, fetchOne, radiusForMap, radiusForZoom, normalise, feedSource, MAX_RADIUS_NM,
+} from './modules/adsb.js';
 import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airlines.js';
 import * as radar from './modules/map.js';
 import * as sky from './modules/map3d.js';
@@ -773,7 +775,13 @@ function setLive(mode) {
   const el = $('#live');
   el.dataset.mode = mode;
   el.querySelector('span').textContent = LIVE_TEXT[mode] || 'Live';
-  el.title = LIVE_TITLE[mode] || '';
+  // Say which feed the positions came from whenever it isn't the usual one.
+  // Substituting a source silently would make the pill a small lie: the data
+  // is just as live, but it's a different network's copy of it.
+  const standby = feedSource() === 'standby';
+  el.title = (LIVE_TITLE[mode] || '')
+    + (standby ? ' — airplanes.live is refusing requests, so this is the standby feed (adsb.lol / adsb.fi) via the proxy.' : '');
+  el.classList.toggle('standby', standby);
 }
 
 /**

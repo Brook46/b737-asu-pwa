@@ -105,6 +105,12 @@ html, body {
 .live[data-mode="dr"] i { background: var(--warn); animation: pulse 1.8s ease-in-out infinite; }
 .live[data-mode="polling"] i { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
 .live[data-mode="error"] i { background: #ff5a5a; }
+/* Positions from the standby mirrors rather than the usual feed: just as live,
+   but a different network's copy, so the pill admits it instead of pretending. */
+.live.standby { border-color: rgba(246, 195, 67, .5); }
+.live.standby::after {
+  content: 'alt'; color: var(--warn); font-size: .6rem; font-weight: 800; letter-spacing: .04em;
+}
 @keyframes pulse { 50% { opacity: .25; } }
 
 /* ── tool column ──────────────────────────────────────────────────────────── */

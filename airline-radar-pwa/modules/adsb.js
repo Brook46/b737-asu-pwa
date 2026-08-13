@@ -1,24 +1,44 @@
-// adsb.js — live positions from airplanes.live.
+// adsb.js — live positions, from airplanes.live where possible.
 //
-// Why this feed: it's the one free, community-run ADS-B aggregator that sends
+// Why that feed: it's the one free, community-run ADS-B aggregator that sends
 // `Access-Control-Allow-Origin: *`, so a static page can fetch it directly with
 // no key and no proxy — the same rule that picked OGN for Sky Monkeys. The
 // other two candidates (adsb.lol, opendata.adsb.fi) serve identical JSON but no
-// CORS header, so the browser can't read them; if this one ever dies, they are
-// drop-in replacements *behind a proxy*, not from the page.
+// CORS header, so the browser can't read them at all.
+//
+// Which is why there is a standby path. Being the *only* readable source meant
+// that the day airplanes.live answered 403 — a block, a rate limit, an outage;
+// from the page they're indistinguishable, all three surface as a CORS error —
+// the app had nowhere to go and simply said "No feed". The other two mirrors
+// carry the same network's data, and the Worker can read them because CORS is
+// a browser rule, not a server one. So: direct while direct works, through the
+// Worker when it doesn't, and back to direct once it recovers.
 //
 // House rules we honour: one request per refresh, never faster than 1 Hz, and a
 // radius capped at the API's 250 NM limit.
 
 const API = 'https://api.airplanes.live/v2';
+// Same Worker the flight card uses; see flight-card-pwa/modules/proxy.js.
+const PROXY = 'https://b737-asu-pwa.alonbrookstein.workers.dev/adsb';
 
 export const MAX_RADIUS_NM = 250;
 export const MIN_INTERVAL_MS = 1000;
 const FALLBACK_RADIUS_NM = 120;
+// How long to stay on the standby feed before trying the direct one again. A
+// block usually outlasts a single refresh, so retrying every five seconds just
+// spends a request to be refused; five minutes is often enough for a rate
+// limit to lapse, and cheap enough if it hasn't.
+const RETRY_DIRECT_MS = 5 * 60 * 1000;
 
 let lastFetchAt = 0;
 let inFlight = null;
 let chain = Promise.resolve();
+let viaProxyUntil = 0;   // 0 = using the direct feed
+
+/** Which feed answered last — the UI says so rather than quietly substituting. */
+export function feedSource() {
+  return Date.now() < viaProxyUntil ? 'standby' : 'direct';
+}
 
 /**
  * Serialise every call to the feed and keep them at least MIN_INTERVAL_MS
@@ -36,11 +56,41 @@ function paced(run) {
   return p;
 }
 
-async function getJson(path) {
-  const res = await fetch(`${API}${path}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`airplanes.live ${res.status}`);
+async function readAc(base, path) {
+  const res = await fetch(`${base}${path}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${res.status}`);
   const json = await res.json();
   return Array.isArray(json.ac) ? json.ac : [];
+}
+
+/**
+ * Ask the feed, and fall back to the Worker-side mirrors rather than failing.
+ *
+ * A blocked request and a dead network look the same from here — fetch simply
+ * rejects — so anything that stops the direct call moves us to the standby
+ * path. If the standby fails too, that error is the one worth showing: it means
+ * neither route works, which is a real outage rather than one host's mood.
+ */
+async function getJson(path) {
+  if (Date.now() < viaProxyUntil) {
+    try {
+      return await readAc(PROXY, path);
+    } catch (err) {
+      // The standby is failing as well — worth trying direct again right now
+      // rather than waiting out the retry window on a route that's also down.
+      viaProxyUntil = 0;
+      return readAc(API, path).catch(() => { throw err; });
+    }
+  }
+
+  try {
+    return await readAc(API, path);
+  } catch (directErr) {
+    const acs = await readAc(PROXY, path).catch(() => null);
+    if (acs === null) throw new Error(`airplanes.live ${directErr.message}`);
+    viaProxyUntil = Date.now() + RETRY_DIRECT_MS;
+    return acs;
+  }
 }
 
 /**

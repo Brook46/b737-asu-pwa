@@ -4,12 +4,12 @@
 // cell. Live data is deliberately never cached: an ADS-B position or a map tile
 // served from cache would be a lie about where an aircraft is.
 
-const CACHE_VERSION = 'airadar-v10';
+const CACHE_VERSION = 'airadar-v11';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=10',
-  './app.js?v=10',
+  './app.css?v=11',
+  './app.js?v=11',
   './manifest.json',
   './icon.svg',
   './modules/adsb.js',
@@ -54,7 +54,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // Live feeds, aircraft photos and map tiles: always straight to the network.
-  if (/airplanes\.live|adsbdb\.com|basemaps\.cartocdn\.com|arcgisonline\.com|airport-data\.com|tile/i.test(url.href)) return;
+  // workers.dev is in the list because the standby ADS-B path runs through it —
+  // a cached position is a lie about where an aircraft is, whichever host it
+  // came from.
+  if (/airplanes\.live|adsbdb\.com|workers\.dev|basemaps\.cartocdn\.com|arcgisonline\.com|airport-data\.com|tile/i.test(url.href)) return;
 
   // Leaflet from the CDN: cache-first after the first load.
   if (/unpkg\.com\/(leaflet|maplibre-gl|deck\.gl)/i.test(url.href)) {

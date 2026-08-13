@@ -64,6 +64,19 @@ const SHARE_RE   = /^\/share\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
 const SHARE_TTL_S = 90 * 24 * 60 * 60;      // 90 days
 const SHARE_MAX_BYTES = 6 * 1024 * 1024;    // four big IGC files, with headroom
 
+// Airline Radar's standby ADS-B feed. airplanes.live is the only free
+// aggregator that sends `Access-Control-Allow-Origin: *`, so the app reads it
+// straight from the page — and has nowhere to go the day it answers 403,
+// because adsb.lol and adsb.fi serve the same JSON with no CORS header at all.
+// These routes are that somewhere: same question, same answer shape, asked
+// server-side where CORS doesn't apply.
+//
+// The path is parsed into numbers and identifiers and the upstream URL rebuilt
+// from them — never passed through — so this can't be turned into the open
+// relay a `?url=` proxy would be.
+const ADSB_POINT_RE = /^\/adsb\/point\/(-?\d{1,3}(?:\.\d{1,6})?)\/(-?\d{1,3}(?:\.\d{1,6})?)\/(\d{1,3})$/;
+const ADSB_FIND_RE  = /^\/adsb\/(reg|callsign|hex)\/([A-Za-z0-9-]{1,12})$/;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -105,6 +118,11 @@ export default {
 
     if (url.pathname === '/xcigc') {
       return handleXcIgc(url);
+    }
+
+    // Airline Radar: the standby feed, used only when airplanes.live refuses.
+    if (url.pathname.startsWith('/adsb/')) {
+      return handleAdsb(url);
     }
 
     const lb = url.pathname.match(LOGBOOK_RE);
@@ -332,6 +350,69 @@ async function handleTaf(url) {
   } catch (err) {
     return text('Upstream unreachable: ' + err.message, 502);
   }
+}
+
+// ---------- /adsb  (Airline Radar's standby feed) ---------------------------
+
+/**
+ * One snapshot of the sky, or one aircraft by name, from whichever mirror is
+ * answering. Both upstreams carry the same network's data in the same record
+ * shape as airplanes.live, so the app can swap to this mid-flight and every
+ * field it reads still means what it meant.
+ *
+ * adsb.lol goes first: its paths and its `ac` key match airplanes.live exactly,
+ * so nothing has to be translated. adsb.fi is the second string to the bow —
+ * same records, but the area endpoint spells its path differently and returns
+ * them under `aircraft`.
+ */
+async function handleAdsb(url) {
+  const pt = url.pathname.match(ADSB_POINT_RE);
+  const fd = url.pathname.match(ADSB_FIND_RE);
+
+  let tries;
+  if (pt) {
+    const lat = Number(pt[1]);
+    const lon = Number(pt[2]);
+    const r = Math.min(250, Math.max(1, parseInt(pt[3], 10)));
+    if (!Number.isFinite(lat) || Math.abs(lat) > 90) return text('Bad latitude', 400);
+    if (!Number.isFinite(lon) || Math.abs(lon) > 180) return text('Bad longitude', 400);
+    tries = [
+      `https://api.adsb.lol/v2/point/${lat}/${lon}/${r}`,
+      `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`,
+    ];
+  } else if (fd) {
+    const kind = fd[1].toLowerCase();
+    const v = encodeURIComponent(fd[2].toUpperCase());
+    // adsb.fi calls the registration lookup by its full name.
+    const fiKind = kind === 'reg' ? 'registration' : kind;
+    tries = [
+      `https://api.adsb.lol/v2/${kind}/${v}`,
+      `https://opendata.adsb.fi/api/v2/${fiKind}/${v}`,
+    ];
+  } else {
+    return text('Bad ADS-B path', 400);
+  }
+
+  let lastErr = 'no upstream tried';
+  for (const target of tries) {
+    try {
+      // Three seconds of shared cache: shorter than the app's own refresh, so
+      // nobody is shown a stale position, but enough that a hundred readers
+      // asking about the same patch of sky don't become a hundred requests.
+      const res = await fetch(target, {
+        headers: { accept: 'application/json' },
+        cf: { cacheTtl: 3, cacheEverything: true },
+      });
+      if (!res.ok) { lastErr = `${new URL(target).hostname} ${res.status}`; continue; }
+      const data = await res.json();
+      const ac = Array.isArray(data.ac) ? data.ac
+        : (Array.isArray(data.aircraft) ? data.aircraft : []);
+      return json({ ac, source: new URL(target).hostname });
+    } catch (err) {
+      lastErr = `${new URL(target).hostname} ${err.message}`;
+    }
+  }
+  return text('No ADS-B upstream answered: ' + lastErr, 502);
 }
 
 // ---------- /ical -----------------------------------------------------------
