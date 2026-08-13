@@ -28,11 +28,20 @@ Work on `sky-club`, merge to `main`. GitHub Pages serves `main`. The root `wrang
 
 ### Ship checklist (every app change)
 
-1. Bump `CACHE_VERSION` in that app's `sw.js`.
-2. Bump the `?v=` query on `app.js` (and `app.css` if changed) in that app's `index.html`.
-3. New JS modules must be added to the service worker's precache list.
-4. `node --check` any edited JS (a PostToolUse hook does this automatically).
-5. After merge to main: `scripts/check-deploy.sh`.
+1. **`node scripts/stamp-version.mjs <app-dir> <N>`** — one command for steps 1–2
+   below. It stamps `?v=N` onto every relative `.js` import, `index.html`'s
+   `app.js`/`app.css`, and `sw.js`'s `CACHE_VERSION` and precache list.
+2. New JS modules must be added to the service worker's precache list.
+3. `node --check` any edited JS (a PostToolUse hook does this automatically).
+4. After merge to main: `scripts/check-deploy.sh`.
+
+**Version the whole module graph, never just `app.js`.** Pages serves every file
+with `cache-control: max-age=600`, so bumping only the entry point buys a fresh
+`app.js` paired with ten-minute-old `modules/*.js`. A module missing an export
+its importer names is a `SyntaxError` thrown before any line runs — the entire
+graph fails to evaluate, HTML and CSS paint, and nothing else in the app exists.
+The symptom is "the new design is there but nothing works", it self-heals after
+ten minutes, and it shipped twice before the stamping script existed.
 
 ## Running locally
 
