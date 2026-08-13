@@ -81,6 +81,11 @@ const ADSB_FIND_RE  = /^\/adsb\/(reg|callsign|hex)\/([A-Za-z0-9-]{1,12})$/;
 // looks like; a name and a link are what turn this into a request they can
 // judge on its merits — and complain about to a real address if need be.
 const ADSB_UA = 'AirlineRadar/1.0 (+https://github.com/Brook46/b737-asu-pwa; hobby PWA, ~1 req/5s)';
+// Serve a stored snapshot outright below this age; keep serving it, labelled
+// with its age, up to the second — the app dead-reckons from a known-old fix
+// perfectly well, and stops trusting one older than 90 s on its own.
+const ADSB_FRESH_MS = 4 * 1000;
+const ADSB_STALE_MS = 90 * 1000;
 
 export default {
   async fetch(request, env) {
@@ -400,6 +405,23 @@ async function handleAdsb(url) {
     return text('Bad ADS-B path', 400);
   }
 
+  // The mirrors rate-limit the shared address every Worker fetches from, so a
+  // refusal is routine rather than exceptional. Keeping the last good snapshot
+  // turns most of them into slightly-old positions instead of an empty map —
+  // and `ageMs` travels with it so the app can say DR instead of pretending
+  // the fix is current. Aircraft are dead-reckoned between updates anyway;
+  // this is the same bargain, made one layer further out.
+  const cache = caches.default;
+  const cacheKey = new Request(`https://adsb-cache.invalid${url.pathname}`);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const age = Date.now() - Number(cached.headers.get('x-fetched-at') || 0);
+    if (age >= 0 && age < ADSB_FRESH_MS) {
+      const body = await cached.clone().json();
+      return json({ ...body, ageMs: age });
+    }
+  }
+
   const errs = [];
   for (const target of tries) {
     const host = new URL(target).hostname;
@@ -431,9 +453,29 @@ async function handleAdsb(url) {
       const data = await res.json();
       const ac = Array.isArray(data.ac) ? data.ac
         : (Array.isArray(data.aircraft) ? data.aircraft : []);
-      return json({ ac, source: host });
+      const fresh = json({ ac, source: host, ageMs: 0 });
+      // Keep a copy for the next caller, and for the next refusal.
+      const keep = new Response(JSON.stringify({ ac, source: host }), {
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': `public, max-age=${Math.round(ADSB_STALE_MS / 1000)}`,
+          'x-fetched-at': String(Date.now()),
+        },
+      });
+      await cache.put(cacheKey, keep);
+      return fresh;
     } catch (err) {
       errs.push(`${host} ${err.message}`);
+    }
+  }
+
+  // Nothing answered. A recent snapshot beats an empty map, as long as its age
+  // travels with it.
+  if (cached) {
+    const age = Date.now() - Number(cached.headers.get('x-fetched-at') || 0);
+    if (age >= 0 && age < ADSB_STALE_MS) {
+      const body = await cached.json();
+      return json({ ...body, ageMs: age, stale: errs.join('; ') });
     }
   }
   return text('No ADS-B upstream answered: ' + errs.join('; '), 502);

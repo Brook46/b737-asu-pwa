@@ -56,11 +56,23 @@ function paced(run) {
   return p;
 }
 
+/**
+ * One reply from either route.
+ *
+ * `ageMs` is how long ago the positions were actually read. Direct from the
+ * feed that is always zero; through the Worker it can be seconds, because the
+ * mirrors rate-limit and a stored snapshot beats an empty map. Carrying the age
+ * rather than swallowing it is what keeps the Live pill honest — the app
+ * already knows how to fly on from a fix it knows the age of.
+ */
 async function readAc(base, path) {
   const res = await fetch(`${base}${path}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${res.status}`);
   const json = await res.json();
-  return Array.isArray(json.ac) ? json.ac : [];
+  return {
+    ac: Array.isArray(json.ac) ? json.ac : [],
+    ageMs: Number.isFinite(Number(json.ageMs)) ? Number(json.ageMs) : 0,
+  };
 }
 
 /**
@@ -134,8 +146,12 @@ export async function fetchArea(lat, lon, radiusNm) {
   if (inFlight) return inFlight;
 
   inFlight = paced(async () => {
-    const aircraft = await getJson(`/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${r}`);
-    return { aircraft, at: Date.now(), clipped };
+    const { ac, ageMs } = await getJson(`/point/${lat.toFixed(4)}/${lon.toFixed(4)}/${r}`);
+    // `at` is when these positions were read, not when we asked. A snapshot the
+    // standby route had already stored is genuinely that much older, and the
+    // Live pill turns to DR off this number — dating it "now" would be the one
+    // lie the whole fallback was built to avoid.
+    return { aircraft: ac, at: Date.now() - ageMs, clipped };
   }).finally(() => { inFlight = null; });
 
   return inFlight;
@@ -154,7 +170,7 @@ export async function fetchArea(lat, lon, radiusNm) {
 export function fetchOne(kind, value) {
   const v = encodeURIComponent(String(value || '').trim().toUpperCase());
   if (!v) return Promise.resolve([]);
-  return paced(() => getJson(`/${kind}/${v}`)).catch(() => []);
+  return paced(() => getJson(`/${kind}/${v}`)).then((r) => r.ac).catch(() => []);
 }
 
 /**
