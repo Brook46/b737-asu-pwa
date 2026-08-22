@@ -85,7 +85,13 @@ const ADSB_UA = 'AirlineRadar/1.0 (+https://github.com/Brook46/b737-asu-pwa; hob
 // with its age, up to the second — the app dead-reckons from a known-old fix
 // perfectly well, and stops trusting one older than 90 s on its own.
 const ADSB_FRESH_MS = 4 * 1000;
-const ADSB_STALE_MS = 90 * 1000;
+// Five minutes, not ninety seconds. adsb.lol is the only mirror that will
+// answer a Worker at all and it rate-limits the address every Worker shares,
+// so refusals come in stretches rather than singly. A five-minute-old picture
+// with its age attached is worth having: the app draws those positions without
+// dead-reckoning them and says so, which beats opening to an empty map — the
+// one failure that makes it look broken rather than degraded.
+const ADSB_STALE_MS = 5 * 60 * 1000;
 
 export default {
   async fetch(request, env) {
@@ -420,12 +426,25 @@ async function handleAdsb(url) {
   const fd = url.pathname.match(ADSB_FIND_RE);
 
   let tries;
+  let cachePath = url.pathname;
   if (pt) {
-    const lat = Number(pt[1]);
-    const lon = Number(pt[2]);
-    const r = Math.min(250, Math.max(1, parseInt(pt[3], 10)));
-    if (!Number.isFinite(lat) || Math.abs(lat) > 90) return text('Bad latitude', 400);
-    if (!Number.isFinite(lon) || Math.abs(lon) > 180) return text('Bad longitude', 400);
+    const rawLat = Number(pt[1]);
+    const rawLon = Number(pt[2]);
+    const rawR = Math.min(250, Math.max(1, parseInt(pt[3], 10)));
+    if (!Number.isFinite(rawLat) || Math.abs(rawLat) > 90) return text('Bad latitude', 400);
+    if (!Number.isFinite(rawLon) || Math.abs(rawLon) > 180) return text('Bad longitude', 400);
+
+    // Snap the query to a coarse grid before it becomes a cache key. Asked
+    // literally, every device size and every nudge of the map is a brand-new
+    // key and therefore a brand-new upstream request — which is how one user
+    // on two devices manages to look like constant traffic to a rate limiter.
+    // Rounded to a tenth of a degree and rounded *up* to the next 25 NM, they
+    // all land on the same entry, and the answer is a superset of what each
+    // asked for: a few extra aircraft off-screen, never a missing one.
+    const lat = Math.round(rawLat * 10) / 10;
+    const lon = Math.round(rawLon * 10) / 10;
+    const r = Math.min(250, Math.ceil(rawR / 25) * 25);
+    cachePath = `/adsb/point/${lat}/${lon}/${r}`;
     tries = [
       `https://api.adsb.lol/v2/point/${lat}/${lon}/${r}`,
       `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${r}`,
@@ -452,7 +471,7 @@ async function handleAdsb(url) {
   // the fix is current. Aircraft are dead-reckoned between updates anyway;
   // this is the same bargain, made one layer further out.
   const cache = caches.default;
-  const cacheKey = new Request(`https://adsb-cache.invalid${url.pathname}`);
+  const cacheKey = new Request(`https://adsb-cache.invalid${cachePath}`);
   const cached = await cache.match(cacheKey);
   if (cached) {
     const age = Date.now() - Number(cached.headers.get('x-fetched-at') || 0);
