@@ -10,16 +10,29 @@
 // that the day airplanes.live answered 403 — a block, a rate limit, an outage;
 // from the page they're indistinguishable, all three surface as a CORS error —
 // the app had nowhere to go and simply said "No feed". The other two mirrors
-// carry the same network's data, and the Worker can read them because CORS is
-// a browser rule, not a server one. So: direct while direct works, through the
-// Worker when it doesn't, and back to direct once it recovers.
+// carry the same network's data, and a server can read them because CORS is a
+// browser rule, not a server one. So: direct while direct works, through a
+// proxy when it doesn't, and back to direct once it recovers.
 //
 // House rules we honour: one request per refresh, never faster than 1 Hz, and a
 // radius capped at the API's 250 NM limit.
 
 const API = 'https://api.airplanes.live/v2';
-// Same Worker the flight card uses; see flight-card-pwa/modules/proxy.js.
-const PROXY = 'https://b737-asu-pwa.alonbrookstein.workers.dev/adsb';
+
+// Standby routes, tried in order.
+//
+// The first is a small Deno service (airline-radar-pwa/adsb-proxy/main.ts) that
+// exists for one reason: from Cloudflare, adsb.fi and adsb.one refuse the
+// subrequest outright and adsb.lol rate-limits the address every Worker shares,
+// while from an ordinary host both adsb.lol and adsb.fi answer 200. Same code,
+// different doorstep.
+//
+// The second is the original route on the flight card's Worker. It still
+// answers often enough — with its stored snapshot behind it — to be worth
+// keeping as a backstop rather than deleting.
+const DENO_PROXY = '';   // set once deployed; empty is filtered out below
+const WORKER_PROXY = 'https://b737-asu-pwa.alonbrookstein.workers.dev/adsb';
+const PROXIES = [DENO_PROXY, WORKER_PROXY].filter(Boolean);
 
 export const MAX_RADIUS_NM = 250;
 export const MIN_INTERVAL_MS = 1000;
@@ -75,18 +88,31 @@ async function readAc(base, path) {
   };
 }
 
+/** The first standby route that answers. */
+async function fromStandby(path) {
+  let lastErr = null;
+  for (const base of PROXIES) {
+    try {
+      return await readAc(base, path);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('no standby route configured');
+}
+
 /**
- * Ask the feed, and fall back to the Worker-side mirrors rather than failing.
+ * Ask the feed, and fall back to the proxied mirrors rather than failing.
  *
  * A blocked request and a dead network look the same from here — fetch simply
  * rejects — so anything that stops the direct call moves us to the standby
- * path. If the standby fails too, that error is the one worth showing: it means
- * neither route works, which is a real outage rather than one host's mood.
+ * path. If every standby fails too, that error is the one worth showing: it
+ * means no route works, which is a real outage rather than one host's mood.
  */
 async function getJson(path) {
   if (Date.now() < viaProxyUntil) {
     try {
-      return await readAc(PROXY, path);
+      return await fromStandby(path);
     } catch (err) {
       // The standby is failing as well — worth trying direct again right now
       // rather than waiting out the retry window on a route that's also down.
@@ -98,7 +124,7 @@ async function getJson(path) {
   try {
     return await readAc(API, path);
   } catch (directErr) {
-    const acs = await readAc(PROXY, path).catch(() => null);
+    const acs = await fromStandby(path).catch(() => null);
     if (acs === null) throw new Error(`airplanes.live ${directErr.message}`);
     viaProxyUntil = Date.now() + RETRY_DIRECT_MS;
     return acs;
