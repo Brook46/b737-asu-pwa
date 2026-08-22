@@ -375,7 +375,47 @@ async function handleTaf(url) {
  * same records, but the area endpoint spells its path differently and returns
  * them under `aircraft`.
  */
+/**
+ * Which upstreams will actually talk to a Cloudflare Worker.
+ *
+ * Every address available for testing from a laptop is a datacentre address,
+ * and these feeds judge those differently from a phone on a home connection —
+ * so "works from my machine" proves nothing about what the Worker can reach.
+ * This asks from inside the Worker and reports each answer verbatim.
+ */
+async function handleAdsbProbe() {
+  const candidates = [
+    ['adsb.lol', 'https://api.adsb.lol/v2/point/32.01/34.89/50'],
+    ['adsb.fi', 'https://opendata.adsb.fi/api/v2/lat/32.01/lon/34.89/dist/50'],
+    ['airplanes.live', 'https://api.airplanes.live/v2/point/32.01/34.89/50'],
+    ['adsb.one', 'https://api.adsb.one/v2/point/32.01/34.89/50'],
+    ['opensky', 'https://opensky-network.org/api/states/all?lamin=31.2&lomin=33.9&lamax=32.8&lomax=35.9'],
+  ];
+  const out = {};
+  await Promise.all(candidates.map(async ([name, target]) => {
+    const t0 = Date.now();
+    try {
+      const res = await fetch(target, {
+        headers: { accept: 'application/json', 'user-agent': ADSB_UA },
+        cf: { cacheTtlByStatus: { '200-299': 0, '400-599': 0 } },
+      });
+      const body = await res.text();
+      out[name] = {
+        status: res.status,
+        ms: Date.now() - t0,
+        bytes: body.length,
+        sample: body.slice(0, 90),
+      };
+    } catch (err) {
+      out[name] = { status: 'throw', ms: Date.now() - t0, sample: String(err.message) };
+    }
+  }));
+  return json(out);
+}
+
 async function handleAdsb(url) {
+  if (url.pathname === '/adsb/probe') return handleAdsbProbe();
+
   const pt = url.pathname.match(ADSB_POINT_RE);
   const fd = url.pathname.match(ADSB_FIND_RE);
 
