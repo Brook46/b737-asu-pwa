@@ -1,6 +1,10 @@
 # Airline Radar — app notes
 
-"Airline Radar": live airline traffic on a map, Flightradar24-shaped but **airliners only**. Keyless like xcsky: positions from `api.airplanes.live` (the one free ADS-B aggregator that sends `Access-Control-Allow-Origin: *`), routes/airlines/airframe photos from `api.adsbdb.com`, runways from OpenStreetMap via `overpass-api.de`.
+"Airline Radar": live airline traffic on a map, Flightradar24-shaped but **airliners only**. Routes/airlines/airframe photos from `api.adsbdb.com`, runways from OpenStreetMap via `overpass-api.de`.
+
+**Positions are the hard part now.** `api.airplanes.live` was the one free aggregator sending `Access-Control-Allow-Origin: *`, which is what made the app keyless — and in August 2026 they **withdrew the free API entirely** (two billion requests/week, a month's egress in four days, hosting up ~300% in eighteen months; scrapers and AI agents named as the cause). It is not a block on us and no proxy brings it back. Two legitimate ways back: **feed the network** (API access is then granted to the feeder's own IP — so the proxy would have to run on that same connection for a phone on cellular to benefit) or **sponsor** ($25/mo). Until then `adsb.lol` + `opendata.adsb.fi` via the proxy are the feed, and direct is probed once an hour in case access returns.
+
+Those two mirrors are volunteer projects on the same cost curve that just closed airplanes.live. One reader at 1 req/5 s is within what they tolerate; anything that quietly multiplies it is how free feeds die.
 
 **The feed has a standby path** (`adsb.js`). Being the only *readable* source meant that the day airplanes.live started answering 403 the app had nowhere to go and just said "No feed" — from the page a block, a rate limit and an outage are indistinguishable, all three arriving as a CORS error. `adsb.lol` and `adsb.fi` carry the same network's data in the same record shape but send no CORS header, so they're reachable only server-side. The app goes direct while direct works, falls to the first standby that answers, and retries direct after `RETRY_DIRECT_MS` (5 min). The Live pill grows an amber `alt` on standby — substituting a source silently would make the pill a small lie.
 

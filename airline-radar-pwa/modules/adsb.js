@@ -1,18 +1,29 @@
-// adsb.js — live positions, from airplanes.live where possible.
+// adsb.js — live positions.
 //
-// Why that feed: it's the one free, community-run ADS-B aggregator that sends
-// `Access-Control-Allow-Origin: *`, so a static page can fetch it directly with
-// no key and no proxy — the same rule that picked OGN for Sky Monkeys. The
-// other two candidates (adsb.lol, opendata.adsb.fi) serve identical JSON but no
-// CORS header, so the browser can't read them at all.
+// airplanes.live was the whole reason this app could be keyless: the one
+// community ADS-B aggregator that sent `Access-Control-Allow-Origin: *`, so a
+// static page could read it with no key and no proxy — the same rule that
+// picked OGN for Sky Monkeys.
 //
-// Which is why there is a standby path. Being the *only* readable source meant
-// that the day airplanes.live answered 403 — a block, a rate limit, an outage;
-// from the page they're indistinguishable, all three surface as a CORS error —
-// the app had nowhere to go and simply said "No feed". The other two mirrors
-// carry the same network's data, and a server can read them because CORS is a
-// browser rule, not a server one. So: direct while direct works, through a
-// proxy when it doesn't, and back to direct once it recovers.
+// **That free API is gone.** Not blocked for us; withdrawn for everyone, in
+// August 2026. Their own note gives the arithmetic: over two billion requests a
+// week, a month's egress budget spent in four days, hosting up ~300% in
+// eighteen months, and scrapers and AI agents named as the cause. Two ways back
+// to it, both fair: run a receiver that feeds the network (access is then
+// granted to the feeder's own IP), or sponsor the usage. Until one of those
+// happens, every direct call returns 403 — which reaches the page as a CORS
+// error, because a 403 carries no CORS header.
+//
+// So the standby path is the path. adsb.lol and opendata.adsb.fi carry the same
+// network's data in the same record shape and send no CORS header at all, so a
+// browser can't read them and a server can — CORS being a browser rule, not a
+// server one. Hence a small proxy, and PROXIES below.
+//
+// Worth remembering while working here: those two are volunteer-run projects
+// with exactly the same cost curve that just closed airplanes.live. One reader
+// at one request per five seconds is modest and within what they tolerate.
+// Anything that quietly multiplies that — a shorter refresh, a retry loop, a
+// cache that doesn't cache — is the behaviour that ends free feeds.
 //
 // House rules we honour: one request per refresh, never faster than 1 Hz, and a
 // radius capped at the API's 250 NM limit.
@@ -37,11 +48,14 @@ const PROXIES = [DENO_PROXY, WORKER_PROXY].filter(Boolean);
 export const MAX_RADIUS_NM = 250;
 export const MIN_INTERVAL_MS = 1000;
 const FALLBACK_RADIUS_NM = 120;
-// How long to stay on the standby feed before trying the direct one again. A
-// block usually outlasts a single refresh, so retrying every five seconds just
-// spends a request to be refused; five minutes is often enough for a rate
-// limit to lapse, and cheap enough if it hasn't.
-const RETRY_DIRECT_MS = 5 * 60 * 1000;
+// How long to stay on the standby feed before trying the direct one again.
+//
+// Five minutes was the right number for a rate limit, which lapses. It is the
+// wrong number for a withdrawn API, which does not: it spends a request every
+// five minutes, forever, to be told 403 again. An hour still notices the day a
+// feeder or a sponsorship turns the direct feed back on — the first load of any
+// session probes it regardless — without pestering a service that has said no.
+const RETRY_DIRECT_MS = 60 * 60 * 1000;
 
 let lastFetchAt = 0;
 let inFlight = null;

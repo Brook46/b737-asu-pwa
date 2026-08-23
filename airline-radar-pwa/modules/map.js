@@ -12,9 +12,9 @@
 // from the last fix using ground speed and track, so the picture moves the way
 // a radar picture moves instead of stepping every five seconds.
 
-import { altColor, planeSvg, sizeFor, sizeClass } from './aircraft.js?v=14';
-import { alt as fmtAlt, ago as fmtAgo } from './fmt.js?v=14';
-import * as runways from './runways.js?v=14';
+import { altColor, planeSvg, sizeFor, sizeClass } from './aircraft.js?v=15';
+import { alt as fmtAlt, ago as fmtAgo } from './fmt.js?v=15';
+import * as runways from './runways.js?v=15';
 
 const BASES = {
   Dark: () => L.tileLayer(

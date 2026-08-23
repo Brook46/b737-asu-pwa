@@ -4,26 +4,26 @@
 // cell. Live data is deliberately never cached: an ADS-B position or a map tile
 // served from cache would be a lie about where an aircraft is.
 
-const CACHE_VERSION = 'airadar-v14';
+const CACHE_VERSION = 'airadar-v15';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=14',
-  './app.js?v=14',
+  './app.css?v=15',
+  './app.js?v=15',
   './manifest.json',
   './icon.svg',
-  './modules/adsb.js?v=14',
-  './modules/airlines.js?v=14',
-  './modules/aircraft.js?v=14',
-  './modules/routes.js?v=14',
-  './modules/map.js?v=14',
-  './modules/panel.js?v=14',
-  './modules/fmt.js?v=14',
-  './modules/search.js?v=14',
-  './modules/runways.js?v=14',
-  './modules/map3d.js?v=14',
-  './modules/history.js?v=14',
-  './modules/resume.js?v=14',
+  './modules/adsb.js?v=15',
+  './modules/airlines.js?v=15',
+  './modules/aircraft.js?v=15',
+  './modules/routes.js?v=15',
+  './modules/map.js?v=15',
+  './modules/panel.js?v=15',
+  './modules/fmt.js?v=15',
+  './modules/search.js?v=15',
+  './modules/runways.js?v=15',
+  './modules/map3d.js?v=15',
+  './modules/history.js?v=15',
+  './modules/resume.js?v=15',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
