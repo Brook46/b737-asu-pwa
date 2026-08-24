@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js';
-import * as dataCard from './modules/data-card.js';
-import * as checklist from './modules/checklist.js';
-import * as speeches from './modules/speeches.js';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js';
+import * as storage from './modules/storage.js?v=102';
+import * as dataCard from './modules/data-card.js?v=102';
+import * as checklist from './modules/checklist.js?v=102';
+import * as speeches from './modules/speeches.js?v=102';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=102';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=102';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=102';
 
 const $ = (id) => document.getElementById(id);
 

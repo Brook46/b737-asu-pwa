@@ -5,8 +5,8 @@
 // Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js';
-import { cityName } from './airports.js';
+import * as storage from './storage.js?v=102';
+import { cityName } from './airports.js?v=102';
 
 let activeId = null;
 let editing = false;
@@ -53,14 +53,16 @@ const VAR_RE = /@([a-zA-Z]{2,10})\b/g;
 // @tod — "time of day" bucket from local clock. Speech is generally read
 // over the PA close to the time it's prepared, so local clock is the
 // honest source. Buckets:
-//   05–11 → morning, 12–13 → noon, 14–17 → afternoon, 18–21 → evening,
+//   05–11 → morning, 12–13 → day, 14–17 → afternoon, 18–21 → evening,
 //   22–04 → night.
+// The midday bucket says "day" / "יום" (not "noon" / "צהריים") so the PA
+// reads "Good day" and "יום טוב" — what the pilot actually says over the PA.
 const TOD_BUCKETS_EN = {
-  morning: 'morning', noon: 'noon', afternoon: 'afternoon',
+  morning: 'morning', noon: 'day', afternoon: 'afternoon',
   evening: 'evening', night: 'night',
 };
 const TOD_BUCKETS_HE = {
-  morning: 'בוקר', noon: 'צהריים', afternoon: 'אחר הצהריים',
+  morning: 'בוקר', noon: 'יום', afternoon: 'אחר הצהריים',
   evening: 'ערב',  night:  'לילה',
 };
 function todBucket(date = new Date()) {
