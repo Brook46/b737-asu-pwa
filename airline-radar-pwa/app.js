@@ -10,19 +10,19 @@
 
 import {
   fetchArea, fetchOne, radiusForMap, radiusForZoom, normalise, feedSource, MAX_RADIUS_NM,
-} from './modules/adsb.js?v=15';
-import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airlines.js?v=15';
-import * as radar from './modules/map.js?v=15';
-import * as sky from './modules/map3d.js?v=15';
-import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js?v=15';
+} from './modules/adsb.js?v=16';
+import { classify, lookup as lookupAirline, KIND_LABEL } from './modules/airlines.js?v=16';
+import * as radar from './modules/map.js?v=16';
+import * as sky from './modules/map3d.js?v=16';
+import { lookupRoute, lookupAircraft, cachedRoute, eta, routeLabel as routeLabelOf } from './modules/routes.js?v=16';
 import {
   renderList, renderDetail, renderAirlines, renderView, CELL_KEYS, DEFAULT_PINNED,
-} from './modules/panel.js?v=15';
-import { LEGEND, altColor as altColorOf, sizeClass, classLine } from './modules/aircraft.js?v=15';
-import { installResumeHardening } from './modules/resume.js?v=15';
-import * as history from './modules/history.js?v=15';
-import * as search from './modules/search.js?v=15';
-import * as fmt from './modules/fmt.js?v=15';
+} from './modules/panel.js?v=16';
+import { LEGEND, altColor as altColorOf, sizeClass, classLine } from './modules/aircraft.js?v=16';
+import { installResumeHardening } from './modules/resume.js?v=16';
+import * as history from './modules/history.js?v=16';
+import * as search from './modules/search.js?v=16';
+import * as fmt from './modules/fmt.js?v=16';
 
 const REFRESH_MS = 5000;
 const MOVE_DEBOUNCE_MS = 700;

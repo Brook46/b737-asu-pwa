@@ -41,9 +41,26 @@ const API = 'https://api.airplanes.live/v2';
 // The second is the original route on the flight card's Worker. It still
 // answers often enough — with its stored snapshot behind it — to be worth
 // keeping as a backstop rather than deleting.
-const DENO_PROXY = '';   // set once deployed; empty is filtered out below
+// 1. The same service run on a machine at home, published through a Cloudflare
+//    quick tunnel (adsb-proxy/tunnel.sh). Note what is and isn't Cloudflare
+//    here: the tunnel only carries traffic *inbound* to the laptop, while the
+//    call out to the mirrors still leaves from a domestic address — which is
+//    the whole reason this works where the Worker doesn't.
+//
+//    Temporary by nature: it answers only while that machine is awake, and the
+//    hostname changes every time the tunnel restarts. First in the list because
+//    while it is up it is the fastest and least-shared route; when it is down
+//    the relay refuses quickly and the list moves on.
+const TUNNEL_PROXY = 'https://delhi-fired-neighbor-thinks.trycloudflare.com/adsb';
+// 2. The same service on Deno Deploy — permanent, always on. Fill this in and
+//    it takes over; the tunnel above then becomes redundant and can go.
+const DENO_PROXY = '';
+// 3. The original route on the flight card's Worker. Cloudflare's shared egress
+//    is rate-limited by adsb.lol and refused outright by adsb.fi, so this is a
+//    backstop that half works rather than a real answer — kept because half is
+//    better than nothing when the two above are gone.
 const WORKER_PROXY = 'https://b737-asu-pwa.alonbrookstein.workers.dev/adsb';
-const PROXIES = [DENO_PROXY, WORKER_PROXY].filter(Boolean);
+const PROXIES = [TUNNEL_PROXY, DENO_PROXY, WORKER_PROXY].filter(Boolean);
 
 export const MAX_RADIUS_NM = 250;
 export const MIN_INTERVAL_MS = 1000;
