@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=105';
-import * as dataCard from './modules/data-card.js?v=105';
-import * as checklist from './modules/checklist.js?v=105';
-import * as speeches from './modules/speeches.js?v=105';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=105';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=105';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=105';
+import * as storage from './modules/storage.js?v=106';
+import * as dataCard from './modules/data-card.js?v=106';
+import * as checklist from './modules/checklist.js?v=106';
+import * as speeches from './modules/speeches.js?v=106';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=106';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=106';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=106';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1050,12 +1050,17 @@ function paintPrintSheet() {
     if (!byId.has(id)) return '';
     const off = cfg.off.includes(id);
     const label = printMod.labelFor(id, cfg);
+    const row = printMod.rowFor(id, cfg);
+    const rowOpts = Array.from({ length: printMod.MAX_ROW }, (_, n) =>
+      `<option value="${n + 1}"${row === n + 1 ? ' selected' : ''}>${n + 1}</option>`).join('');
     return `<div class="print-frow${off ? ' is-off' : ''}" data-fid="${id}">
       <span class="print-grip" data-print-grip="${id}" aria-hidden="true">⠿</span>
       <input class="print-fname" type="text" value="${escapeHtmlSimple(label)}"
              data-print-label="${id}" maxlength="24" autocomplete="off"
              autocapitalize="characters" spellcheck="false"
              aria-label="Label for this box" />
+      <select class="print-frowsel" data-print-row="${id}"
+              aria-label="Which line this box prints on">${rowOpts}</select>
       <button type="button" class="print-fbtn" data-print-toggle="${id}"
               aria-pressed="${off ? 'false' : 'true'}"
               title="${off ? 'Leave off the card' : 'On the card'}"
@@ -1103,6 +1108,13 @@ $('print-fields').addEventListener('input', (e) => {
   if (!inp) return;
   printMod.setLabel(inp.dataset.printLabel, inp.value);
   paintPrintPreview(printMod.getConfig());
+});
+// Which printed line a box sits on. Fields sharing a line split it evenly.
+$('print-fields').addEventListener('change', (e) => {
+  const sel = e.target.closest('[data-print-row]');
+  if (!sel) return;
+  printMod.setRow(sel.dataset.printRow, sel.value);
+  paintPrintSheet();
 });
 
 // ---- Drag a row to reorder ----

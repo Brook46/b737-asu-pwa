@@ -2259,36 +2259,40 @@ body { background: transparent; }
   display: flex; flex-direction: column; gap: 2.5mm;
   overflow: hidden;
 }
-/* Flex, not grid: with a fixed 12-column grid a field left alone on a row
-   occupied a quarter of it and the rest of the paper went to waste. Here the
-   --w basis sets the intended proportion but flex-grow lets whatever lands on
-   a row share it out, so every row runs the full width of the card. */
-.pr-fields {
-  display: flex; flex-wrap: wrap;
-  gap: 1.8mm 2.5mm;
-  flex: 0 0 auto;
-}
+/* One .pr-row per printed line. Everything on a row shares it evenly, so a
+   field's width is just a consequence of how many sit beside it — put four on
+   a line and each is a quarter. min-width keeps the label legible; past that
+   the row wraps rather than crushing the text. */
+.pr-fields { display: flex; flex-direction: column; gap: 1.8mm; flex: 0 0 auto; }
+.pr-row { display: flex; flex-wrap: wrap; gap: 1.8mm 2.5mm; }
+/* The rule IS the field's bottom border, and the label rests on it — the
+   caption sits on the line rather than floating above its own separate one,
+   which also buys back a couple of mm per row. */
 .pr-f {
-  flex: 1 1 calc(var(--w, 4) * 8.33% - 3mm);
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 16mm;
+  min-height: 6mm;
+  display: flex; align-items: flex-end;
+  border-bottom: 0.3mm solid #000;
 }
 .pr-lbl {
-  display: block;
-  font-size: 2.4mm; font-weight: 700; letter-spacing: .06em;
+  font-size: 2.3mm; font-weight: 700; letter-spacing: .06em;
   color: #000;
+  padding: 0 1.5mm 0.3mm 0;
+  white-space: nowrap;
 }
-/* The line you actually write on. */
-.pr-rule { display: block; height: 5mm; border-bottom: 0.3mm solid #000; }
 
 .pr-body { flex: 1 1 auto; display: flex; gap: 3mm; min-height: 0; }
-.pr-body[data-cols="1"] > * { flex: 1 1 100%; }
+/* Only the notes block expands to fill a solo column — the checklist stays as
+   narrow as its text whether or not the notes block is there. */
+.pr-body[data-cols="1"] > .pr-blank { flex: 1 1 100%; }
 /* As narrow as the longest checklist line, so the notes block gets the rest.
    max-content sizes to the text; the cap stops a long item from swallowing
    the card. */
 .pr-cl {
   flex: 0 1 auto;
   width: max-content;
-  max-width: 58%;
+  max-width: 100%;
   min-width: 0;
   border: 0.3mm solid #000; border-radius: 1mm;
   padding: 1.5mm 2mm;
@@ -2308,6 +2312,7 @@ body { background: transparent; }
   border: 0.25mm solid #000;
 }
 .pr-cl-empty { font-style: italic; }
+.pr-body[data-cols="2"] > .pr-cl { max-width: 58%; }
 .pr-blank {
   flex: 1 1 auto; min-width: 0;
   border: 0.3mm solid #000; border-radius: 1mm;
@@ -2341,4 +2346,14 @@ body { background: transparent; }
      but these are borders, so they survive. Force colour anyway for the
      dashed cut guides. */
   .pr-card, .pr-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Row picker in the print field list. */
+.print-frowsel {
+  -webkit-appearance: none; appearance: none;
+  flex: 0 0 40px; width: 40px; height: 26px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--fg); font: inherit; font-size: 12px; font-weight: 700;
+  text-align: center; text-align-last: center;
+  padding: 0 2px;
 }

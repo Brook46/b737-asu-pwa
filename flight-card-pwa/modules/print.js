@@ -13,29 +13,34 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=105';
+import * as storage from './storage.js?v=106';
 
 const CFG_KEY = 'fc.print.cfg';
 
 // The writing band. `id` is stable (it's what gets persisted), `label` is what
 // prints. Widths are in grid columns out of 12 so a row can hold 2–4 fields.
+// `row` is the printed line a field lands on; everything sharing a row splits
+// that line evenly, so a field's width is simply a consequence of how many you
+// put beside it. No fixed weights — the pilot decides by moving things around.
 export const FIELDS = [
-  { id: 'flight', label: 'FLIGHT',     w: 4 },
-  { id: 'date',   label: 'DATE',       w: 4 },
-  { id: 'reg',    label: 'REG',        w: 4 },
-  { id: 'std',    label: 'STD',        w: 3 },
-  { id: 'eta',    label: 'ETA',        w: 3 },
-  { id: 'sob',    label: 'SOB',        w: 3 },
-  { id: 'mel',    label: 'MEL',        w: 3 },
-  { id: 'block',  label: 'BLOCK FUEL', w: 6 },
-  { id: 'trip',   label: 'TRIP FUEL',  w: 6 },
-  { id: 'crew',   label: 'CREW',       w: 12 },
+  { id: 'flight', label: 'FLIGHT',     row: 1 },
+  { id: 'date',   label: 'DATE',       row: 1 },
+  { id: 'reg',    label: 'REG',        row: 1 },
+  { id: 'std',    label: 'STD',        row: 2 },
+  { id: 'eta',    label: 'ETA',        row: 2 },
+  { id: 'sob',    label: 'SOB',        row: 2 },
+  { id: 'mel',    label: 'MEL',        row: 2 },
+  { id: 'block',  label: 'BLOCK FUEL', row: 3 },
+  { id: 'trip',   label: 'TRIP FUEL',  row: 3 },
+  { id: 'crew',   label: 'CREW',       row: 4 },
 ];
+export const MAX_ROW = 8;
 
 const DEFAULT_CFG = {
   order: FIELDS.map(f => f.id),
   off: [],              // ids switched off
   labels: {},           // id → the pilot's own wording, overriding FIELDS
+  rows: {},             // id → which printed line it sits on
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -56,10 +61,18 @@ export function getConfig() {
         if (known.has(id) && typeof v === 'string' && v.trim()) labels[id] = v.slice(0, 24);
       }
     }
+    const rows = {};
+    if (raw.rows && typeof raw.rows === 'object') {
+      for (const [id, v] of Object.entries(raw.rows)) {
+        const n = Number(v);
+        if (known.has(id) && Number.isInteger(n) && n >= 1 && n <= MAX_ROW) rows[id] = n;
+      }
+    }
     return {
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
+      rows,
       checklist: raw.checklist !== false,
       blank:     raw.blank !== false,
       bothSides: !!raw.bothSides,
@@ -111,6 +124,24 @@ export function setLabel(id, text) {
 }
 
 // Commit a whole order at once — what a drag-to-reorder gesture produces.
+export function rowFor(id, cfg = getConfig()) {
+  const custom = cfg.rows && cfg.rows[id];
+  if (custom) return custom;
+  const f = FIELDS.find(x => x.id === id);
+  return f ? f.row : 1;
+}
+
+export function setRow(id, n) {
+  const cfg = getConfig();
+  cfg.rows = cfg.rows || {};
+  const v = Math.max(1, Math.min(MAX_ROW, Number(n) || 1));
+  const def = FIELDS.find(f => f.id === id);
+  if (def && v === def.row) delete cfg.rows[id];
+  else cfg.rows[id] = v;
+  setConfig(cfg);
+  return cfg;
+}
+
 export function setOrder(ids) {
   const cfg = getConfig();
   const known = new Set(FIELDS.map(f => f.id));
@@ -138,16 +169,23 @@ function escape(s) {
 // ---------- Card ----------
 
 function fieldsHtml(cfg) {
-  const byId = new Map(FIELDS.map(f => [f.id, f]));
   const on = cfg.order.filter(id => !cfg.off.includes(id));
   if (!on.length) return '';
-  return `<div class="pr-fields">` + on.map(id => {
-    const f = byId.get(id);
-    return `<div class="pr-f" style="--w:${f.w}">
-      <span class="pr-lbl">${escape(labelFor(id, cfg))}</span>
-      <span class="pr-rule"></span>
-    </div>`;
-  }).join('') + `</div>`;
+  // Group by row, keeping the drag order within each one.
+  const byRow = new Map();
+  for (const id of on) {
+    const r = rowFor(id, cfg);
+    if (!byRow.has(r)) byRow.set(r, []);
+    byRow.get(r).push(id);
+  }
+  const rows = [...byRow.keys()].sort((a, b) => a - b);
+  return `<div class="pr-fields">` + rows.map(r =>
+    `<div class="pr-row">` + byRow.get(r).map(id =>
+      // The label sits ON the rule (the box's own bottom border), not floating
+      // above a separate line — see .pr-f in app.css.
+      `<div class="pr-f"><span class="pr-lbl">${escape(labelFor(id, cfg))}</span></div>`
+    ).join('') + `</div>`
+  ).join('') + `</div>`;
 }
 
 function checklistHtml() {
