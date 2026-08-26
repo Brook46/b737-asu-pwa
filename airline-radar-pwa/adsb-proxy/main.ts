@@ -47,7 +47,16 @@ const ADSB_UA =
 // Serve a stored snapshot outright below this age; keep serving it, labelled
 // with its age, up to the second. The app dead-reckons from a fix whose age it
 // knows perfectly well, and stops trusting one older than 90 s on its own.
-const ADSB_FRESH_MS = 4 * 1000;
+// Eight seconds, not four. At four this asked adsb.lol roughly once per app
+// refresh; at eight it asks about half as often, and still hands back a fix
+// younger than the twelve seconds the app calls stale — so nothing visible
+// changes and the mirror is leaned on less. (gods-eye-view, solving the same
+// problem, caches for twelve; the honest reason not to go that far is that at
+// twelve every reply would sit exactly on the app's DR threshold.)
+//
+// This number is a courtesy, not a tuning knob. The feed that closed this week
+// closed because a lot of clients each thought their own share was negligible.
+const ADSB_FRESH_MS = 8 * 1000;
 const ADSB_STALE_MS = 5 * 60 * 1000;
 
 // A mirror that refuses is easy; a mirror that simply never answers is what

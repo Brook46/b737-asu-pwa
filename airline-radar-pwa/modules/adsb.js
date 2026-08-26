@@ -34,17 +34,15 @@ const API = 'https://api.airplanes.live/v2';
 // (adsb-proxy/main.ts); what differs is the address it asks the mirrors from,
 // which turns out to be the only thing the mirrors care about.
 //
-// 1. The same service run on a machine at home, published through a Cloudflare
-//    quick tunnel (adsb-proxy/tunnel.sh). Note what is and isn't Cloudflare
-//    here: the tunnel only carries traffic *inbound* to the laptop, while the
-//    call out to the mirrors still leaves from a domestic address — which is
-//    the whole reason this works where the Worker doesn't.
-//
-//    Temporary by nature: it answers only while that machine is awake, and the
-//    hostname changes every time the tunnel restarts. First in the list because
-//    while it is up it is the fastest and least-shared route; when it is down
-//    the relay refuses quickly and the list moves on.
-const TUNNEL_PROXY = 'https://walker-note-somewhere-trees.trycloudflare.com/adsb';
+// 1. The same service on a machine at home, published through a tunnel
+//    (adsb-proxy/tunnel.sh). Empty because this was tried and doesn't hold:
+//    free quick tunnels are torn down and renamed within the hour — twice in
+//    one afternoon, each rotation costing a code change and a deploy — and
+//    even while up it answers only when that machine is awake, which is
+//    exactly not the case for an iPad away from home. The script still works
+//    if a URL is ever wanted for a few minutes of testing; it is not a place
+//    to keep this.
+const TUNNEL_PROXY = '';
 // 2. The same service on Deno Deploy — permanent, always on. Fill this in and
 //    it takes over; the tunnel above then becomes redundant and can go.
 const DENO_PROXY = '';
