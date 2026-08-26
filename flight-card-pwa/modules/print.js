@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=106';
+import * as storage from './storage.js?v=107';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -34,13 +34,26 @@ export const FIELDS = [
   { id: 'trip',   label: 'TRIP FUEL',  row: 3 },
   { id: 'crew',   label: 'CREW',       row: 4 },
 ];
-export const MAX_ROW = 8;
+// A marker inside `order`. Fields between two markers share a printed line —
+// drag a divider and every field above it moves to the row above. This
+// replaced per-field row numbers, which were fiddly to reason about.
+export const DIVIDER = '|';
+
+function defaultOrder() {
+  const out = [];
+  let lastRow = null;
+  for (const f of FIELDS) {
+    if (lastRow !== null && f.row !== lastRow) out.push(DIVIDER);
+    out.push(f.id);
+    lastRow = f.row;
+  }
+  return out;
+}
 
 const DEFAULT_CFG = {
-  order: FIELDS.map(f => f.id),
+  order: defaultOrder(),
   off: [],              // ids switched off
   labels: {},           // id → the pilot's own wording, overriding FIELDS
-  rows: {},             // id → which printed line it sits on
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -53,26 +66,40 @@ export function getConfig() {
     // Merge against defaults so a config saved before a field existed still
     // renders that field instead of silently dropping it.
     const known = new Set(FIELDS.map(f => f.id));
-    const order = (Array.isArray(raw.order) ? raw.order : []).filter(id => known.has(id));
+    let order = [];
+    for (const e of (Array.isArray(raw.order) ? raw.order : [])) {
+      if (e === DIVIDER) order.push(DIVIDER);
+      else if (known.has(e) && !order.includes(e)) order.push(e);
+    }
     for (const f of FIELDS) if (!order.includes(f.id)) order.push(f.id);
+    // A config saved before dividers existed (possibly with row numbers) has
+    // none — rebuild the splits from whatever grouping it had.
+    if (!order.includes(DIVIDER)) {
+      const rowOf = (id) => {
+        const n = Number(raw.rows && raw.rows[id]);
+        if (Number.isInteger(n) && n > 0) return n;
+        const f = FIELDS.find(x => x.id === id);
+        return f ? f.row : 1;
+      };
+      const rebuilt = [];
+      let last = null;
+      for (const id of order.slice().sort((a, b) => rowOf(a) - rowOf(b))) {
+        if (last !== null && rowOf(id) !== last) rebuilt.push(DIVIDER);
+        rebuilt.push(id);
+        last = rowOf(id);
+      }
+      order = rebuilt;
+    }
     const labels = {};
     if (raw.labels && typeof raw.labels === 'object') {
       for (const [id, v] of Object.entries(raw.labels)) {
         if (known.has(id) && typeof v === 'string' && v.trim()) labels[id] = v.slice(0, 24);
       }
     }
-    const rows = {};
-    if (raw.rows && typeof raw.rows === 'object') {
-      for (const [id, v] of Object.entries(raw.rows)) {
-        const n = Number(v);
-        if (known.has(id) && Number.isInteger(n) && n >= 1 && n <= MAX_ROW) rows[id] = n;
-      }
-    }
     return {
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
-      rows,
       checklist: raw.checklist !== false,
       blank:     raw.blank !== false,
       bothSides: !!raw.bothSides,
@@ -124,29 +151,32 @@ export function setLabel(id, text) {
 }
 
 // Commit a whole order at once — what a drag-to-reorder gesture produces.
-export function rowFor(id, cfg = getConfig()) {
-  const custom = cfg.rows && cfg.rows[id];
-  if (custom) return custom;
-  const f = FIELDS.find(x => x.id === id);
-  return f ? f.row : 1;
-}
-
-export function setRow(id, n) {
+export function addDivider() {
   const cfg = getConfig();
-  cfg.rows = cfg.rows || {};
-  const v = Math.max(1, Math.min(MAX_ROW, Number(n) || 1));
-  const def = FIELDS.find(f => f.id === id);
-  if (def && v === def.row) delete cfg.rows[id];
-  else cfg.rows[id] = v;
+  cfg.order = [...cfg.order, DIVIDER];
   setConfig(cfg);
   return cfg;
 }
 
-export function setOrder(ids) {
+// Remove the divider at a position in `order` (dividers are interchangeable,
+// so position is the only way to say which one).
+export function removeDividerAt(index) {
+  const cfg = getConfig();
+  if (cfg.order[index] === DIVIDER) {
+    cfg.order = cfg.order.filter((_, i) => i !== index);
+    setConfig(cfg);
+  }
+  return cfg;
+}
+
+export function setOrder(entries) {
   const cfg = getConfig();
   const known = new Set(FIELDS.map(f => f.id));
   const next = [];
-  for (const id of ids) if (known.has(id) && !next.includes(id)) next.push(id);
+  for (const e of entries) {
+    if (e === DIVIDER) next.push(DIVIDER);
+    else if (known.has(e) && !next.includes(e)) next.push(e);
+  }
   for (const f of FIELDS) if (!next.includes(f.id)) next.push(f.id);
   cfg.order = next;
   setConfig(cfg);
@@ -169,18 +199,17 @@ function escape(s) {
 // ---------- Card ----------
 
 function fieldsHtml(cfg) {
-  const on = cfg.order.filter(id => !cfg.off.includes(id));
-  if (!on.length) return '';
-  // Group by row, keeping the drag order within each one.
-  const byRow = new Map();
-  for (const id of on) {
-    const r = rowFor(id, cfg);
-    if (!byRow.has(r)) byRow.set(r, []);
-    byRow.get(r).push(id);
+  // Split on dividers; each run is one printed line. Empty runs (two dividers
+  // together, or a row whose fields are all switched off) just vanish.
+  const rows = [[]];
+  for (const e of cfg.order) {
+    if (e === DIVIDER) { rows.push([]); continue; }
+    if (!cfg.off.includes(e)) rows[rows.length - 1].push(e);
   }
-  const rows = [...byRow.keys()].sort((a, b) => a - b);
-  return `<div class="pr-fields">` + rows.map(r =>
-    `<div class="pr-row">` + byRow.get(r).map(id =>
+  const filled = rows.filter(r => r.length);
+  if (!filled.length) return '';
+  return `<div class="pr-fields">` + filled.map(ids =>
+    `<div class="pr-row">` + ids.map(id =>
       // The label sits ON the rule (the box's own bottom border), not floating
       // above a separate line — see .pr-f in app.css.
       `<div class="pr-f"><span class="pr-lbl">${escape(labelFor(id, cfg))}</span></div>`

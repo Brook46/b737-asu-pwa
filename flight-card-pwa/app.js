@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=106';
-import * as dataCard from './modules/data-card.js?v=106';
-import * as checklist from './modules/checklist.js?v=106';
-import * as speeches from './modules/speeches.js?v=106';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=106';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=106';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=106';
+import * as storage from './modules/storage.js?v=107';
+import * as dataCard from './modules/data-card.js?v=107';
+import * as checklist from './modules/checklist.js?v=107';
+import * as speeches from './modules/speeches.js?v=107';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=107';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=107';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=107';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1046,27 +1046,36 @@ function paintPrintSheet() {
   // Field list: drag the grip to reorder, type in the name to retitle the box,
   // eye button to leave it off the card.
   const list = $('print-fields');
-  list.innerHTML = cfg.order.map((id) => {
-    if (!byId.has(id)) return '';
-    const off = cfg.off.includes(id);
-    const label = printMod.labelFor(id, cfg);
-    const row = printMod.rowFor(id, cfg);
-    const rowOpts = Array.from({ length: printMod.MAX_ROW }, (_, n) =>
-      `<option value="${n + 1}"${row === n + 1 ? ' selected' : ''}>${n + 1}</option>`).join('');
-    return `<div class="print-frow${off ? ' is-off' : ''}" data-fid="${id}">
-      <span class="print-grip" data-print-grip="${id}" aria-hidden="true">⠿</span>
+  const DIV = printMod.DIVIDER;
+  list.innerHTML = cfg.order.map((entry, i) => {
+    // A divider is itself draggable: everything above it prints on the row
+    // above, everything below on the next one.
+    if (entry === DIV) {
+      return `<div class="print-div" data-key="${DIV}" data-idx="${i}">
+        <span class="print-grip" data-print-grip="div" aria-hidden="true">⠿</span>
+        <span class="print-div-line" aria-hidden="true"></span>
+        <span class="print-div-tag">new line</span>
+        <span class="print-div-line" aria-hidden="true"></span>
+        <button type="button" class="print-fbtn" data-print-deldiv="${i}"
+                title="Remove this line break" aria-label="Remove this line break">✕</button>
+      </div>`;
+    }
+    if (!byId.has(entry)) return '';
+    const off = cfg.off.includes(entry);
+    const label = printMod.labelFor(entry, cfg);
+    return `<div class="print-frow${off ? ' is-off' : ''}" data-key="${entry}">
+      <span class="print-grip" data-print-grip="${entry}" aria-hidden="true">⠿</span>
       <input class="print-fname" type="text" value="${escapeHtmlSimple(label)}"
-             data-print-label="${id}" maxlength="24" autocomplete="off"
+             data-print-label="${entry}" maxlength="24" autocomplete="off"
              autocapitalize="characters" spellcheck="false"
              aria-label="Label for this box" />
-      <select class="print-frowsel" data-print-row="${id}"
-              aria-label="Which line this box prints on">${rowOpts}</select>
-      <button type="button" class="print-fbtn" data-print-toggle="${id}"
+      <button type="button" class="print-fbtn" data-print-toggle="${entry}"
               aria-pressed="${off ? 'false' : 'true'}"
               title="${off ? 'Leave off the card' : 'On the card'}"
               aria-label="${off ? 'Add to card' : 'Remove from card'}">${off ? '◻︎' : '◉'}</button>
     </div>`;
-  }).join('');
+  }).join('') +
+  `<button type="button" id="print-adddiv" class="print-adddiv">+ line break</button>`;
 
   $('print-checklist').checked = cfg.checklist;
   $('print-blank').checked     = cfg.blank;
@@ -1099,7 +1108,10 @@ $('print-overlay').addEventListener('click', (e) => {
 });
 $('print-fields').addEventListener('click', (e) => {
   const tg = e.target.closest('[data-print-toggle]');
-  if (tg) { printMod.toggleField(tg.dataset.printToggle); paintPrintSheet(); }
+  if (tg) { printMod.toggleField(tg.dataset.printToggle); paintPrintSheet(); return; }
+  const rm = e.target.closest('[data-print-deldiv]');
+  if (rm) { printMod.removeDividerAt(Number(rm.dataset.printDeldiv)); paintPrintSheet(); return; }
+  if (e.target.closest('#print-adddiv')) { printMod.addDivider(); paintPrintSheet(); }
 });
 // Retitle a box. Repaint only the PREVIEW on each keystroke — a full
 // paintPrintSheet would rebuild the list and blow away the focused input.
@@ -1108,13 +1120,6 @@ $('print-fields').addEventListener('input', (e) => {
   if (!inp) return;
   printMod.setLabel(inp.dataset.printLabel, inp.value);
   paintPrintPreview(printMod.getConfig());
-});
-// Which printed line a box sits on. Fields sharing a line split it evenly.
-$('print-fields').addEventListener('change', (e) => {
-  const sel = e.target.closest('[data-print-row]');
-  if (!sel) return;
-  printMod.setRow(sel.dataset.printRow, sel.value);
-  paintPrintSheet();
 });
 
 // ---- Drag a row to reorder ----
@@ -1125,12 +1130,11 @@ let dragState = null;
 $('print-fields').addEventListener('pointerdown', (e) => {
   const grip = e.target.closest('[data-print-grip]');
   if (!grip) return;
-  const row = grip.closest('.print-frow');
-  const list = $('print-fields');
+  const row = grip.closest('.print-frow, .print-div');
   if (!row) return;
   e.preventDefault();
   try { grip.setPointerCapture(e.pointerId); } catch {}
-  dragState = { row, grip, id: row.dataset.fid, startY: e.clientY, dy: 0 };
+  dragState = { row, grip, startY: e.clientY, dy: 0 };
   row.classList.add('is-dragging');
   // Lift it out of flow visually but keep its slot, so the list doesn't jump.
   row.style.position = 'relative';
@@ -1143,7 +1147,7 @@ $('print-fields').addEventListener('pointermove', (e) => {
   dragState.dy = e.clientY - dragState.startY;
   row.style.transform = `translateY(${dragState.dy}px)`;
   // Swap with whichever sibling's midpoint the pointer has crossed.
-  const rows = [...$('print-fields').querySelectorAll('.print-frow')];
+  const rows = [...$('print-fields').querySelectorAll('.print-frow, .print-div')];
   for (const other of rows) {
     if (other === row) continue;
     const r = other.getBoundingClientRect();
@@ -1169,8 +1173,9 @@ function endFieldDrag() {
   row.classList.remove('is-dragging');
   row.style.transform = ''; row.style.position = ''; row.style.zIndex = '';
   dragState = null;
-  const ids = [...$('print-fields').querySelectorAll('.print-frow')].map(r => r.dataset.fid);
-  printMod.setOrder(ids);
+  const entries = [...$('print-fields').querySelectorAll('.print-frow, .print-div')]
+    .map(r => r.dataset.key);
+  printMod.setOrder(entries);
   paintPrintSheet();
 }
 $('print-fields').addEventListener('pointerup', endFieldDrag);

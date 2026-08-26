@@ -2253,7 +2253,7 @@ body { background: transparent; }
      the physical paper edge, so the two outer columns/rows can clip a hair —
      that is the trade for using the whole sheet, and it only ever eats blank
      margin, never a rule or a box border. */
-  padding: 3mm 3mm 2.5mm;
+  padding: 2mm 2mm 1.5mm;
   background: #fff; color: #000;
   font-family: "Barlow Semi Condensed", system-ui, sans-serif;
   display: flex; flex-direction: column; gap: 2.5mm;
@@ -2348,12 +2348,30 @@ body { background: transparent; }
   .pr-card, .pr-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
-/* Row picker in the print field list. */
-.print-frowsel {
+/* Divider row in the print field list — drag it to move the line break. */
+.print-div {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 4px 2px 0;
+}
+.print-div-line {
+  flex: 1 1 auto;
+  height: 0; border-top: 1px dashed var(--accent);
+  opacity: .7;
+}
+.print-div-tag {
+  flex: 0 0 auto;
+  font-size: 10px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.print-div.is-dragging { opacity: .9; }
+.print-adddiv {
   -webkit-appearance: none; appearance: none;
-  flex: 0 0 40px; width: 40px; height: 26px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-  color: var(--fg); font: inherit; font-size: 12px; font-weight: 700;
-  text-align: center; text-align-last: center;
-  padding: 0 2px;
+  width: 100%; margin-top: 6px;
+  background: var(--bg-sunk);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--fg-mute); cursor: pointer;
 }

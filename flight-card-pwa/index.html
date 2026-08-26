@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=106" />
+  <link rel="stylesheet" href="./app.css?v=107" />
 </head>
 <body>
   <header class="app-header">
@@ -601,7 +601,7 @@
       <div class="print-cols">
         <!-- Left: what goes on the card, and in what order -->
         <div class="print-ctrls">
-          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder, type to retitle, and pick the line number each box prints on — boxes sharing a line split it evenly. <span aria-hidden="true">◉</span> leaves one off the card.</p>
+          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder, type to retitle. Boxes between two line breaks print on the same line and split it evenly — drag a break to move the split. <span aria-hidden="true">◉</span> leaves a box off the card.</p>
           <div id="print-fields" class="print-fieldlist"></div>
           <div class="print-flags">
             <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
@@ -628,6 +628,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=106"></script>
+  <script type="module" src="./app.js?v=107"></script>
 </body>
 </html>
