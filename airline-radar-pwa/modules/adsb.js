@@ -30,17 +30,10 @@
 
 const API = 'https://api.airplanes.live/v2';
 
-// Standby routes, tried in order.
+// Standby routes, tried in order. All three run the same handler
+// (adsb-proxy/main.ts); what differs is the address it asks the mirrors from,
+// which turns out to be the only thing the mirrors care about.
 //
-// The first is a small Deno service (airline-radar-pwa/adsb-proxy/main.ts) that
-// exists for one reason: from Cloudflare, adsb.fi and adsb.one refuse the
-// subrequest outright and adsb.lol rate-limits the address every Worker shares,
-// while from an ordinary host both adsb.lol and adsb.fi answer 200. Same code,
-// different doorstep.
-//
-// The second is the original route on the flight card's Worker. It still
-// answers often enough — with its stored snapshot behind it — to be worth
-// keeping as a backstop rather than deleting.
 // 1. The same service run on a machine at home, published through a Cloudflare
 //    quick tunnel (adsb-proxy/tunnel.sh). Note what is and isn't Cloudflare
 //    here: the tunnel only carries traffic *inbound* to the laptop, while the
