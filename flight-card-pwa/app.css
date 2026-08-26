@@ -2248,12 +2248,12 @@ body { background: transparent; }
 .pr-f {
   flex: 1 1 0;
   min-width: 16mm;
-  min-height: 6mm;
+  min-height: calc(6mm * var(--prs, 1));
   display: flex; align-items: flex-end;
   border-bottom: 0.3mm solid #000;
 }
 .pr-lbl {
-  font-size: 2.3mm; font-weight: 700; letter-spacing: .06em;
+  font-size: calc(2.3mm * var(--prs, 1)); font-weight: 700; letter-spacing: .06em;
   color: #000;
   padding: 0 1.5mm 0.3mm 0;
   white-space: nowrap;
@@ -2274,18 +2274,18 @@ body { background: transparent; }
   border: 0.3mm solid #000; border-radius: 1mm;
   padding: 1.5mm 2mm;
   overflow: hidden;
-  font-size: 2.5mm; line-height: 1.35;
+  font-size: calc(2.5mm * var(--prs, 1)); line-height: 1.35;
 }
 .pr-cl-sec { break-inside: avoid; margin-bottom: 1.2mm; }
 .pr-cl-name {
-  font-weight: 700; font-size: 2.5mm; letter-spacing: .05em;
+  font-weight: 700; font-size: calc(2.5mm * var(--prs, 1)); letter-spacing: .05em;
   border-bottom: 0.2mm solid #000;
   margin-bottom: 0.8mm;
 }
 .pr-cl-item { display: flex; align-items: flex-start; gap: 1.2mm; }
 .pr-box {
   flex: 0 0 auto;
-  width: 2mm; height: 2mm; margin-top: 0.6mm;
+  width: calc(2mm * var(--prs, 1)); height: calc(2mm * var(--prs, 1)); margin-top: 0.6mm;
   border: 0.25mm solid #000;
 }
 .pr-cl-empty { font-style: italic; }
@@ -2364,3 +2364,13 @@ body { background: transparent; }
 .print-clitem { margin-left: 14px; }
 .print-clitem .print-fname { font-weight: 600; }
 #print-pane-top .print-adddiv, #print-pane-cl .print-adddiv { margin-top: 6px; }
+
+/* Printed text size control. */
+.print-size { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.print-size label { font-size: 13px; color: var(--fg-mute); flex: 0 0 auto; }
+.print-size input[type="range"] { flex: 1 1 auto; min-width: 0; }
+.print-size output {
+  flex: 0 0 42px; text-align: right;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}

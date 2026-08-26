@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=111';
+import * as storage from './storage.js?v=112';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -55,6 +55,7 @@ const DEFAULT_CFG = {
   off: [],              // ids switched off
   labels: {},           // id → the pilot's own wording, overriding FIELDS
   deleted: [],          // built-in boxes the pilot removed, so they stay gone
+  textScale: 1,         // printed text size, 1 = the design size
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -103,7 +104,9 @@ export function getConfig() {
         if (known.has(id) && typeof v === 'string' && v.trim()) labels[id] = v.slice(0, 24);
       }
     }
+    const ts = Number(raw.textScale);
     return {
+      textScale: Number.isFinite(ts) ? Math.min(1.6, Math.max(0.75, ts)) : 1,
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
@@ -164,6 +167,17 @@ export function setLabel(id, text) {
 // Commit a whole order at once — what a drag-to-reorder gesture produces.
 // A box the pilot invents. Its label IS its definition — there is no built-in
 // entry — so the id is generated and the label saved immediately.
+// Printed text size. One knob for the whole card — the labels, the checklist
+// and the tick boxes all scale together, and the writing lines grow with them
+// so bigger text doesn't crowd the space you write in.
+export function setTextScale(v) {
+  const cfg = getConfig();
+  const n = Number(v);
+  cfg.textScale = Number.isFinite(n) ? Math.min(1.6, Math.max(0.75, n)) : 1;
+  setConfig(cfg);
+  return cfg;
+}
+
 export function addBox(label = 'NEW BOX') {
   const cfg = getConfig();
   const id = 'c' + Date.now().toString(36);
@@ -272,7 +286,8 @@ export function cardHtml(cfg = getConfig()) {
   if (cfg.checklist) cols.push(checklistHtml());
   if (cfg.blank) cols.push(`<div class="pr-blank"><span class="pr-lbl">NOTES</span></div>`);
   const body = cols.length ? `<div class="pr-body" data-cols="${cols.length}">${cols.join('')}</div>` : '';
-  return `<div class="pr-card">${fieldsHtml(cfg)}${body}</div>`;
+  const scale = Number(cfg.textScale) || 1;
+  return `<div class="pr-card" style="--prs:${scale}">${fieldsHtml(cfg)}${body}</div>`;
 }
 
 // ---------- Sheets ----------

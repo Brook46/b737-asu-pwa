@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=111" />
+  <link rel="stylesheet" href="./app.css?v=112" />
 </head>
 <body>
   <header class="app-header">
@@ -622,6 +622,12 @@
             <button type="button" id="print-additem" class="print-adddiv">+ item</button>
           </div>
           </div>
+          <div class="print-size">
+            <label for="print-textsize">Text size</label>
+            <input type="range" id="print-textsize" min="75" max="160" step="5" value="100"
+                   aria-label="Printed text size" />
+            <output id="print-textsize-out">100%</output>
+          </div>
           <div class="print-flags">
             <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
             <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
@@ -647,6 +653,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=111"></script>
+  <script type="module" src="./app.js?v=112"></script>
 </body>
 </html>

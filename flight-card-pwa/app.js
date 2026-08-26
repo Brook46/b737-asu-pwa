@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=111';
-import * as dataCard from './modules/data-card.js?v=111';
-import * as checklist from './modules/checklist.js?v=111';
-import * as speeches from './modules/speeches.js?v=111';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=111';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=111';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=111';
+import * as storage from './modules/storage.js?v=112';
+import * as dataCard from './modules/data-card.js?v=112';
+import * as checklist from './modules/checklist.js?v=112';
+import * as speeches from './modules/speeches.js?v=112';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=112';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=112';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=112';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1082,6 +1082,9 @@ function paintPrintSheet() {
   }).join('') +
   `<button type="button" id="print-adddiv" class="print-adddiv">+ line break</button>`;
 
+  const sizePct = Math.round((Number(cfg.textScale) || 1) * 100);
+  $('print-textsize').value = String(sizePct);
+  $('print-textsize-out').textContent = sizePct + '%';
   $('print-checklist').checked = cfg.checklist;
   $('print-blank').checked     = cfg.blank;
   $('print-both').checked      = cfg.bothSides;
@@ -1322,6 +1325,15 @@ $(listId).addEventListener('pointercancel', endFieldDrag);
   const key = k === 'both' ? 'bothSides' : k;
   $('print-' + k).addEventListener('change', () => { printMod.toggleFlag(key); paintPrintSheet(); });
 });
+// Text size — repaint only the preview while dragging, so the slider keeps
+// the thumb under the finger instead of being rebuilt mid-gesture.
+$('print-textsize').addEventListener('input', () => {
+  const pct = Number($('print-textsize').value) || 100;
+  $('print-textsize-out').textContent = pct + '%';
+  printMod.setTextScale(pct / 100);
+  paintPrintPreview(printMod.getConfig());
+});
+
 $('print-go').addEventListener('click', () => {
   if (!printMod) return;
   // Close first: the overlay is display:none in print CSS anyway, but leaving
