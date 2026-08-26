@@ -21,8 +21,8 @@
 // Everything degrades rather than dies: no WebGL, a CDN that won't load, a DEM
 // tile 404 — the caller is told and the 2D map carries on.
 
-import { altColor, sizeFor, silhouetteSvg, silhouetteKey, SILHOUETTE_KEYS } from './aircraft.js?v=16';
-import { alt as fmtAlt } from './fmt.js?v=16';
+import { altColor, sizeFor, silhouetteSvg, silhouetteKey, SILHOUETTE_KEYS } from './aircraft.js?v=17';
+import { alt as fmtAlt } from './fmt.js?v=17';
 
 const LIBS = [
   { url: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css', css: true },

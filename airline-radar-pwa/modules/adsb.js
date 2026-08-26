@@ -51,7 +51,7 @@ const API = 'https://api.airplanes.live/v2';
 //    hostname changes every time the tunnel restarts. First in the list because
 //    while it is up it is the fastest and least-shared route; when it is down
 //    the relay refuses quickly and the list moves on.
-const TUNNEL_PROXY = 'https://delhi-fired-neighbor-thinks.trycloudflare.com/adsb';
+const TUNNEL_PROXY = 'https://walker-note-somewhere-trees.trycloudflare.com/adsb';
 // 2. The same service on Deno Deploy — permanent, always on. Fill this in and
 //    it takes over; the tunnel above then becomes redundant and can go.
 const DENO_PROXY = '';
