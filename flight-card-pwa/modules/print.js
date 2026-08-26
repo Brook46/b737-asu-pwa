@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=103';
+import * as storage from './storage.js?v=105';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -35,6 +35,7 @@ export const FIELDS = [
 const DEFAULT_CFG = {
   order: FIELDS.map(f => f.id),
   off: [],              // ids switched off
+  labels: {},           // id → the pilot's own wording, overriding FIELDS
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -49,9 +50,16 @@ export function getConfig() {
     const known = new Set(FIELDS.map(f => f.id));
     const order = (Array.isArray(raw.order) ? raw.order : []).filter(id => known.has(id));
     for (const f of FIELDS) if (!order.includes(f.id)) order.push(f.id);
+    const labels = {};
+    if (raw.labels && typeof raw.labels === 'object') {
+      for (const [id, v] of Object.entries(raw.labels)) {
+        if (known.has(id) && typeof v === 'string' && v.trim()) labels[id] = v.slice(0, 24);
+      }
+    }
     return {
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
+      labels,
       checklist: raw.checklist !== false,
       blank:     raw.blank !== false,
       bothSides: !!raw.bothSides,
@@ -81,6 +89,39 @@ export function toggleField(id) {
   return cfg;
 }
 
+// The printed wording for a field: the pilot's own if they've retyped it.
+export function labelFor(id, cfg = getConfig()) {
+  const custom = cfg.labels && cfg.labels[id];
+  if (custom) return custom;
+  const f = FIELDS.find(x => x.id === id);
+  return f ? f.label : id;
+}
+
+export function setLabel(id, text) {
+  const cfg = getConfig();
+  cfg.labels = cfg.labels || {};
+  const t = String(text || '').trim().slice(0, 24);
+  const def = FIELDS.find(f => f.id === id);
+  // Storing a label identical to the default just bloats the config, and it
+  // would also freeze the wording if the default ever changes.
+  if (!t || (def && t === def.label)) delete cfg.labels[id];
+  else cfg.labels[id] = t;
+  setConfig(cfg);
+  return cfg;
+}
+
+// Commit a whole order at once — what a drag-to-reorder gesture produces.
+export function setOrder(ids) {
+  const cfg = getConfig();
+  const known = new Set(FIELDS.map(f => f.id));
+  const next = [];
+  for (const id of ids) if (known.has(id) && !next.includes(id)) next.push(id);
+  for (const f of FIELDS) if (!next.includes(f.id)) next.push(f.id);
+  cfg.order = next;
+  setConfig(cfg);
+  return cfg;
+}
+
 export function toggleFlag(key) {
   const cfg = getConfig();
   cfg[key] = !cfg[key];
@@ -103,7 +144,7 @@ function fieldsHtml(cfg) {
   return `<div class="pr-fields">` + on.map(id => {
     const f = byId.get(id);
     return `<div class="pr-f" style="--w:${f.w}">
-      <span class="pr-lbl">${escape(f.label)}</span>
+      <span class="pr-lbl">${escape(labelFor(id, cfg))}</span>
       <span class="pr-rule"></span>
     </div>`;
   }).join('') + `</div>`;
