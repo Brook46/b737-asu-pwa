@@ -2375,3 +2375,16 @@ body { background: transparent; }
   font: inherit; font-size: 12px; font-weight: 700;
   color: var(--fg-mute); cursor: pointer;
 }
+
+/* Print sheet: checklist tab rows + the delete / pin buttons. */
+.print-cl-adds { display: flex; gap: 6px; }
+.print-cl-adds .print-adddiv { flex: 1 1 0; }
+.print-fbtn.is-del { color: var(--danger); }
+.print-fbtn.is-pin { border-color: var(--accent); background: var(--accent-soft); }
+/* Section headings read as headings; items sit indented under them, which is
+   also the visual cue for what the drag does. */
+.print-clsec { background: var(--bg); border-color: var(--line-strong, var(--line)); }
+.print-clsec .print-fname { font-weight: 800; letter-spacing: .04em; }
+.print-clitem { margin-left: 14px; }
+.print-clitem .print-fname { font-weight: 600; }
+#print-pane-top .print-adddiv, #print-pane-cl .print-adddiv { margin-top: 6px; }

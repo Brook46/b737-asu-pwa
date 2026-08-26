@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=107" />
+  <link rel="stylesheet" href="./app.css?v=110" />
 </head>
 <body>
   <header class="app-header">
@@ -601,8 +601,27 @@
       <div class="print-cols">
         <!-- Left: what goes on the card, and in what order -->
         <div class="print-ctrls">
-          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder, type to retitle. Boxes between two line breaks print on the same line and split it evenly — drag a break to move the split. <span aria-hidden="true">◉</span> leaves a box off the card.</p>
+          <div class="airport-tabs" role="tablist">
+            <button id="print-tab-top" class="airport-tab is-active" data-print-tab="top" role="tab" type="button">Top boxes</button>
+            <button id="print-tab-cl"  class="airport-tab" data-print-tab="checklist" role="tab" type="button">Checklist</button>
+          </div>
+          <!-- Tab 1: the hand-written band across the top of the card -->
+          <div id="print-pane-top">
+          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder, type to retitle. Boxes between two line breaks print on the same line and split it evenly — drag a break to move the split. <span aria-hidden="true">◉</span> leaves a box off the card, <span aria-hidden="true">✕</span> deletes it.</p>
           <div id="print-fields" class="print-fieldlist"></div>
+          <button type="button" id="print-addbox" class="print-adddiv">+ box</button>
+          </div>
+          <!-- Tab 2: the checklist itself. Edits here are the real checklist,
+               shared with the card on the main screen. 📌 pins an entry so an
+               app update can't reseed it away. -->
+          <div id="print-pane-cl" class="hidden">
+          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder — an item follows whichever section heading sits above it. Type to rename. <span aria-hidden="true">📌</span> keeps your edit through app updates, <span aria-hidden="true">✕</span> deletes.</p>
+          <div id="print-cl-list" class="print-fieldlist"></div>
+          <div class="print-cl-adds">
+            <button type="button" id="print-addsec"  class="print-adddiv">+ section</button>
+            <button type="button" id="print-additem" class="print-adddiv">+ item</button>
+          </div>
+          </div>
           <div class="print-flags">
             <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
             <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
@@ -628,6 +647,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=107"></script>
+  <script type="module" src="./app.js?v=110"></script>
 </body>
 </html>

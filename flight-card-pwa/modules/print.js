@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=107';
+import * as storage from './storage.js?v=110';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -54,6 +54,7 @@ const DEFAULT_CFG = {
   order: defaultOrder(),
   off: [],              // ids switched off
   labels: {},           // id → the pilot's own wording, overriding FIELDS
+  deleted: [],          // built-in boxes the pilot removed, so they stay gone
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -65,13 +66,19 @@ export function getConfig() {
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_CFG };
     // Merge against defaults so a config saved before a field existed still
     // renders that field instead of silently dropping it.
+    // A saved label is what makes a custom box real, so read those first and
+    // treat their ids as known alongside the built-ins.
     const known = new Set(FIELDS.map(f => f.id));
+    if (raw.labels && typeof raw.labels === 'object') {
+      for (const id of Object.keys(raw.labels)) if (/^c[0-9a-z]+$/i.test(id)) known.add(id);
+    }
     let order = [];
     for (const e of (Array.isArray(raw.order) ? raw.order : [])) {
       if (e === DIVIDER) order.push(DIVIDER);
       else if (known.has(e) && !order.includes(e)) order.push(e);
     }
-    for (const f of FIELDS) if (!order.includes(f.id)) order.push(f.id);
+    const gone = new Set(Array.isArray(raw.deleted) ? raw.deleted : []);
+    for (const f of FIELDS) if (!order.includes(f.id) && !gone.has(f.id)) order.push(f.id);
     // A config saved before dividers existed (possibly with row numbers) has
     // none — rebuild the splits from whatever grouping it had.
     if (!order.includes(DIVIDER)) {
@@ -100,6 +107,7 @@ export function getConfig() {
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
+      deleted:   [...gone],
       checklist: raw.checklist !== false,
       blank:     raw.blank !== false,
       bothSides: !!raw.bothSides,
@@ -142,6 +150,9 @@ export function setLabel(id, text) {
   cfg.labels = cfg.labels || {};
   const t = String(text || '').trim().slice(0, 24);
   const def = FIELDS.find(f => f.id === id);
+  // A custom box has no default to fall back on — its label must be kept even
+  // if it matches nothing, or the box would evaporate on the next read.
+  if (!def) { cfg.labels[id] = t || 'BOX'; setConfig(cfg); return cfg; }
   // Storing a label identical to the default just bloats the config, and it
   // would also freeze the wording if the default ever changes.
   if (!t || (def && t === def.label)) delete cfg.labels[id];
@@ -151,6 +162,29 @@ export function setLabel(id, text) {
 }
 
 // Commit a whole order at once — what a drag-to-reorder gesture produces.
+// A box the pilot invents. Its label IS its definition — there is no built-in
+// entry — so the id is generated and the label saved immediately.
+export function addBox(label = 'NEW BOX') {
+  const cfg = getConfig();
+  const id = 'c' + Date.now().toString(36);
+  cfg.labels = cfg.labels || {};
+  cfg.labels[id] = String(label).slice(0, 24);
+  cfg.order = [...cfg.order, id];
+  setConfig(cfg);
+  return cfg;
+}
+
+export function removeBox(id) {
+  const cfg = getConfig();
+  cfg.order = cfg.order.filter(e => e !== id);
+  cfg.off = (cfg.off || []).filter(e => e !== id);
+  if (cfg.labels) delete cfg.labels[id];
+  // A built-in would just be re-appended on the next read, so remember it.
+  if (FIELDS.some(f => f.id === id)) cfg.deleted = [...new Set([...(cfg.deleted || []), id])];
+  setConfig(cfg);
+  return cfg;
+}
+
 export function addDivider() {
   const cfg = getConfig();
   cfg.order = [...cfg.order, DIVIDER];
@@ -171,13 +205,14 @@ export function removeDividerAt(index) {
 
 export function setOrder(entries) {
   const cfg = getConfig();
-  const known = new Set(FIELDS.map(f => f.id));
+  const known = new Set([...FIELDS.map(f => f.id), ...Object.keys(cfg.labels || {})]);
   const next = [];
   for (const e of entries) {
     if (e === DIVIDER) next.push(DIVIDER);
     else if (known.has(e) && !next.includes(e)) next.push(e);
   }
-  for (const f of FIELDS) if (!next.includes(f.id)) next.push(f.id);
+  const gone = new Set(cfg.deleted || []);
+  for (const f of FIELDS) if (!next.includes(f.id) && !gone.has(f.id)) next.push(f.id);
   cfg.order = next;
   setConfig(cfg);
   return cfg;

@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=107';
-import * as dataCard from './modules/data-card.js?v=107';
-import * as checklist from './modules/checklist.js?v=107';
-import * as speeches from './modules/speeches.js?v=107';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=107';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=107';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=107';
+import * as storage from './modules/storage.js?v=110';
+import * as dataCard from './modules/data-card.js?v=110';
+import * as checklist from './modules/checklist.js?v=110';
+import * as speeches from './modules/speeches.js?v=110';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=110';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=110';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=110';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1060,7 +1060,10 @@ function paintPrintSheet() {
                 title="Remove this line break" aria-label="Remove this line break">✕</button>
       </div>`;
     }
-    if (!byId.has(entry)) return '';
+    // A custom box has no entry in FIELDS — its saved label is what makes it
+    // real. Gating on byId alone hid custom boxes from this list entirely,
+    // even though they printed on the card.
+    if (!byId.has(entry) && !(cfg.labels && cfg.labels[entry])) return '';
     const off = cfg.off.includes(entry);
     const label = printMod.labelFor(entry, cfg);
     return `<div class="print-frow${off ? ' is-off' : ''}" data-key="${entry}">
@@ -1073,6 +1076,8 @@ function paintPrintSheet() {
               aria-pressed="${off ? 'false' : 'true'}"
               title="${off ? 'Leave off the card' : 'On the card'}"
               aria-label="${off ? 'Add to card' : 'Remove from card'}">${off ? '◻︎' : '◉'}</button>
+      <button type="button" class="print-fbtn is-del" data-print-delbox="${entry}"
+              title="Delete this box" aria-label="Delete this box">✕</button>
     </div>`;
   }).join('') +
   `<button type="button" id="print-adddiv" class="print-adddiv">+ line break</button>`;
@@ -1111,8 +1116,145 @@ $('print-fields').addEventListener('click', (e) => {
   if (tg) { printMod.toggleField(tg.dataset.printToggle); paintPrintSheet(); return; }
   const rm = e.target.closest('[data-print-deldiv]');
   if (rm) { printMod.removeDividerAt(Number(rm.dataset.printDeldiv)); paintPrintSheet(); return; }
-  if (e.target.closest('#print-adddiv')) { printMod.addDivider(); paintPrintSheet(); }
+  if (e.target.closest('#print-adddiv')) { printMod.addDivider(); paintPrintSheet(); return; }
+  const del = e.target.closest('[data-print-delbox]');
+  if (del) { printMod.removeBox(del.dataset.printDelbox); paintPrintSheet(); }
 });
+$('print-addbox').addEventListener('click', () => { printMod.addBox('NEW BOX'); paintPrintSheet(); });
+
+// ---- Tabs: the top band vs the checklist itself ----
+let printTab = 'top';
+function showPrintTab(tab) {
+  printTab = tab === 'checklist' ? 'checklist' : 'top';
+  const isCl = printTab === 'checklist';
+  $('print-tab-top').classList.toggle('is-active', !isCl);
+  $('print-tab-cl').classList.toggle('is-active', isCl);
+  $('print-pane-top').classList.toggle('hidden', isCl);
+  $('print-pane-cl').classList.toggle('hidden', !isCl);
+  if (isCl) paintPrintChecklist();
+}
+$('print-tab-top').addEventListener('click', () => showPrintTab('top'));
+$('print-tab-cl').addEventListener('click',  () => showPrintTab('checklist'));
+
+// ---- Checklist editor (second tab) ----
+// A FLAT list of section headings and items. That shape is what makes the drag
+// meaningful: an item belongs to whichever heading sits above it, so dragging
+// it past a heading moves it into that section. Rebuilt into the template on
+// release by rebuildTemplateFromDom.
+function paintPrintChecklist() {
+  const tpl = storage.getTemplate();
+  const secs = (tpl && Array.isArray(tpl.sections)) ? tpl.sections : [];
+  const rows = [];
+  for (const sec of secs) {
+    rows.push(`<div class="print-frow print-clsec" data-key="s:${sec.id}">
+      <span class="print-grip" data-print-grip="s" aria-hidden="true">⠿</span>
+      <input class="print-fname" type="text" value="${escapeHtmlSimple(sec.name)}"
+             data-cl-sec="${sec.id}" maxlength="40" autocomplete="off" spellcheck="false"
+             aria-label="Section name" />
+      <button type="button" class="print-fbtn${sec.pinned ? ' is-pin' : ''}" data-cl-pinsec="${sec.id}"
+              aria-pressed="${sec.pinned ? 'true' : 'false'}"
+              title="${sec.pinned ? 'Pinned — app updates leave it alone' : 'Pin so app updates leave it alone'}">📌</button>
+      <button type="button" class="print-fbtn is-del" data-cl-delsec="${sec.id}"
+              title="Delete section" aria-label="Delete section">✕</button>
+    </div>`);
+    for (const it of (sec.items || [])) {
+      rows.push(`<div class="print-frow print-clitem" data-key="i:${it.id}">
+        <span class="print-grip" data-print-grip="i" aria-hidden="true">⠿</span>
+        <input class="print-fname" type="text" value="${escapeHtmlSimple(it.label)}"
+               data-cl-item="${it.id}" maxlength="60" autocomplete="off" spellcheck="false"
+               aria-label="Item text" />
+        <button type="button" class="print-fbtn${it.pinned ? ' is-pin' : ''}" data-cl-pinitem="${it.id}"
+                aria-pressed="${it.pinned ? 'true' : 'false'}"
+                title="${it.pinned ? 'Pinned — app updates leave it alone' : 'Pin so app updates leave it alone'}">📌</button>
+        <button type="button" class="print-fbtn is-del" data-cl-delitem="${it.id}"
+                title="Delete item" aria-label="Delete item">✕</button>
+      </div>`);
+    }
+  }
+  $('print-cl-list').innerHTML = rows.join('') ||
+    `<p class="muted small">No checklist yet — add a section to start.</p>`;
+  paintPrintPreview(printMod.getConfig());
+}
+
+// Walk the flat DOM order and rewrite the template from it.
+function rebuildTemplateFromDom() {
+  const tpl = storage.getTemplate();
+  const secs = (tpl && Array.isArray(tpl.sections)) ? tpl.sections : [];
+  const secById  = new Map(secs.map(s => [s.id, s]));
+  const itemById = new Map();
+  for (const s of secs) for (const it of (s.items || [])) itemById.set(it.id, it);
+
+  const next = [];
+  let current = null;
+  for (const el of $('print-cl-list').querySelectorAll('.print-frow')) {
+    const [kind, id] = String(el.dataset.key || '').split(':');
+    if (kind === 's') {
+      const sec = secById.get(id);
+      if (!sec) continue;
+      current = { ...sec, items: [] };
+      next.push(current);
+    } else if (kind === 'i') {
+      const it = itemById.get(id);
+      if (!it) continue;
+      // An item dragged above every heading has nowhere to live; keep it in
+      // the first section rather than dropping it on the floor.
+      if (!current) { current = { ...(secs[0] || { id: 's0', name: 'Checklist' }), items: [] }; next.push(current); }
+      current.items.push(it);
+    }
+  }
+  if (next.length) storage.setTemplate({ ...tpl, sections: next });
+}
+
+$('print-cl-list').addEventListener('input', (e) => {
+  const sec = e.target.closest('[data-cl-sec]');
+  const it  = e.target.closest('[data-cl-item]');
+  if (!sec && !it) return;
+  if (sec) storage.renameSection(sec.dataset.clSec, sec.value);
+  else     storage.renameItem(it.dataset.clItem, it.value);
+  paintPrintPreview(printMod.getConfig());
+  // The card on the main screen is the same checklist — repaint it too, or it
+  // keeps showing the old wording until something else forces a render. Safe
+  // on every keystroke: the focused input lives in the overlay, not the card.
+  refreshChecklistCard();
+});
+$('print-cl-list').addEventListener('click', (e) => {
+  const ps = e.target.closest('[data-cl-pinsec]');
+  if (ps) {
+    const cur = ps.getAttribute('aria-pressed') === 'true';
+    storage.setSectionPinned(ps.dataset.clPinsec, !cur); paintPrintChecklist(); return;
+  }
+  const pi = e.target.closest('[data-cl-pinitem]');
+  if (pi) {
+    const cur = pi.getAttribute('aria-pressed') === 'true';
+    storage.setItemPinned(pi.dataset.clPinitem, !cur); paintPrintChecklist(); return;
+  }
+  const ds = e.target.closest('[data-cl-delsec]');
+  if (ds) {
+    if (!confirm('Delete this section and every item in it?')) return;
+    storage.deleteSection(ds.dataset.clDelsec); paintPrintChecklist(); refreshChecklistCard(); return;
+  }
+  const di = e.target.closest('[data-cl-delitem]');
+  if (di) { storage.deleteItem(di.dataset.clDelitem); paintPrintChecklist(); refreshChecklistCard(); }
+});
+$('print-addsec').addEventListener('click', () => {
+  const name = prompt('Section name', 'New section');
+  if (!name || !name.trim()) return;
+  storage.addSection(name.trim());
+  paintPrintChecklist(); refreshChecklistCard();
+});
+$('print-additem').addEventListener('click', () => {
+  const secs = storage.getTemplate()?.sections || [];
+  if (!secs.length) { toast('Add a section first'); return; }
+  const label = prompt('Item text', 'New item');
+  if (!label || !label.trim()) return;
+  // Goes into the last section — the one being worked on at the bottom.
+  storage.addItem(secs[secs.length - 1].id, label.trim());
+  paintPrintChecklist(); refreshChecklistCard();
+});
+// The card on the main screen shows the same checklist, so keep it in step.
+function refreshChecklistCard() {
+  try { checklist.render(checklistBody); } catch (err) { console.warn('checklist repaint failed', err); }
+}
 // Retitle a box. Repaint only the PREVIEW on each keystroke — a full
 // paintPrintSheet would rebuild the list and blow away the focused input.
 $('print-fields').addEventListener('input', (e) => {
@@ -1127,11 +1269,14 @@ $('print-fields').addEventListener('input', (e) => {
 // touch, and this is an iPad-first app. The dragged row follows the finger
 // while its neighbours shuffle underneath; the order is committed on release.
 let dragState = null;
-$('print-fields').addEventListener('pointerdown', (e) => {
+let dragList = null;
+['print-fields', 'print-cl-list'].forEach(listId => {
+$(listId).addEventListener('pointerdown', (e) => {
   const grip = e.target.closest('[data-print-grip]');
   if (!grip) return;
   const row = grip.closest('.print-frow, .print-div');
   if (!row) return;
+  dragList = $(listId);
   e.preventDefault();
   try { grip.setPointerCapture(e.pointerId); } catch {}
   dragState = { row, grip, startY: e.clientY, dy: 0 };
@@ -1140,14 +1285,14 @@ $('print-fields').addEventListener('pointerdown', (e) => {
   row.style.position = 'relative';
   row.style.zIndex = '5';
 });
-$('print-fields').addEventListener('pointermove', (e) => {
+$(listId).addEventListener('pointermove', (e) => {
   if (!dragState) return;
   e.preventDefault();
   const { row } = dragState;
   dragState.dy = e.clientY - dragState.startY;
   row.style.transform = `translateY(${dragState.dy}px)`;
   // Swap with whichever sibling's midpoint the pointer has crossed.
-  const rows = [...$('print-fields').querySelectorAll('.print-frow, .print-div')];
+  const rows = [...dragList.querySelectorAll('.print-frow, .print-div')];
   for (const other of rows) {
     if (other === row) continue;
     const r = other.getBoundingClientRect();
@@ -1173,13 +1318,22 @@ function endFieldDrag() {
   row.classList.remove('is-dragging');
   row.style.transform = ''; row.style.position = ''; row.style.zIndex = '';
   dragState = null;
+  if (dragList && dragList.id === 'print-cl-list') {
+    rebuildTemplateFromDom();
+    dragList = null;
+    paintPrintChecklist();
+    refreshChecklistCard();
+    return;
+  }
   const entries = [...$('print-fields').querySelectorAll('.print-frow, .print-div')]
     .map(r => r.dataset.key);
+  dragList = null;
   printMod.setOrder(entries);
   paintPrintSheet();
 }
-$('print-fields').addEventListener('pointerup', endFieldDrag);
-$('print-fields').addEventListener('pointercancel', endFieldDrag);
+$(listId).addEventListener('pointerup', endFieldDrag);
+$(listId).addEventListener('pointercancel', endFieldDrag);
+});
 ['checklist', 'blank', 'both'].forEach(k => {
   const key = k === 'both' ? 'bothSides' : k;
   $('print-' + k).addEventListener('change', () => { printMod.toggleFlag(key); paintPrintSheet(); });
