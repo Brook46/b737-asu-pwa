@@ -1935,30 +1935,7 @@ div.airport-notes.is-empty::before {
 }
 .pa-title-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* Inline pin toggle — sits next to the PA title. Outline state by default,
-   filled accent when pinned. Same chip shows in edit mode too. */
-.pa-pin, .cl-pin {
-  -webkit-appearance: none; appearance: none;
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px 8px;
-  margin-left: 6px;
-  font: inherit; font-size: 13px;
-  cursor: pointer;
-  opacity: .55;
-  vertical-align: middle;
-}
-.pa-pin.is-on, .cl-pin.is-on {
-  opacity: 1;
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .pa-title-name { vertical-align: middle; }
-/* Checklist edit row: section + item pin sits right of the rename input. */
-.cl-pin { padding: 2px 6px; }
-
 /* ---------- PA: reorder buttons + @-token insert chips ---------- */
 .pa-move {
   -webkit-appearance: none; appearance: none;
@@ -2380,7 +2357,6 @@ body { background: transparent; }
 .print-cl-adds { display: flex; gap: 6px; }
 .print-cl-adds .print-adddiv { flex: 1 1 0; }
 .print-fbtn.is-del { color: var(--danger); }
-.print-fbtn.is-pin { border-color: var(--accent); background: var(--accent-soft); }
 /* Section headings read as headings; items sit indented under them, which is
    also the visual cue for what the drag does. */
 .print-clsec { background: var(--bg); border-color: var(--line-strong, var(--line)); }

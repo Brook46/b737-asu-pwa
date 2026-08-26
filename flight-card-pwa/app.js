@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=110';
-import * as dataCard from './modules/data-card.js?v=110';
-import * as checklist from './modules/checklist.js?v=110';
-import * as speeches from './modules/speeches.js?v=110';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=110';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=110';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=110';
+import * as storage from './modules/storage.js?v=111';
+import * as dataCard from './modules/data-card.js?v=111';
+import * as checklist from './modules/checklist.js?v=111';
+import * as speeches from './modules/speeches.js?v=111';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=111';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=111';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=111';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1151,9 +1151,6 @@ function paintPrintChecklist() {
       <input class="print-fname" type="text" value="${escapeHtmlSimple(sec.name)}"
              data-cl-sec="${sec.id}" maxlength="40" autocomplete="off" spellcheck="false"
              aria-label="Section name" />
-      <button type="button" class="print-fbtn${sec.pinned ? ' is-pin' : ''}" data-cl-pinsec="${sec.id}"
-              aria-pressed="${sec.pinned ? 'true' : 'false'}"
-              title="${sec.pinned ? 'Pinned — app updates leave it alone' : 'Pin so app updates leave it alone'}">📌</button>
       <button type="button" class="print-fbtn is-del" data-cl-delsec="${sec.id}"
               title="Delete section" aria-label="Delete section">✕</button>
     </div>`);
@@ -1163,9 +1160,6 @@ function paintPrintChecklist() {
         <input class="print-fname" type="text" value="${escapeHtmlSimple(it.label)}"
                data-cl-item="${it.id}" maxlength="60" autocomplete="off" spellcheck="false"
                aria-label="Item text" />
-        <button type="button" class="print-fbtn${it.pinned ? ' is-pin' : ''}" data-cl-pinitem="${it.id}"
-                aria-pressed="${it.pinned ? 'true' : 'false'}"
-                title="${it.pinned ? 'Pinned — app updates leave it alone' : 'Pin so app updates leave it alone'}">📌</button>
         <button type="button" class="print-fbtn is-del" data-cl-delitem="${it.id}"
                 title="Delete item" aria-label="Delete item">✕</button>
       </div>`);
@@ -1218,16 +1212,6 @@ $('print-cl-list').addEventListener('input', (e) => {
   refreshChecklistCard();
 });
 $('print-cl-list').addEventListener('click', (e) => {
-  const ps = e.target.closest('[data-cl-pinsec]');
-  if (ps) {
-    const cur = ps.getAttribute('aria-pressed') === 'true';
-    storage.setSectionPinned(ps.dataset.clPinsec, !cur); paintPrintChecklist(); return;
-  }
-  const pi = e.target.closest('[data-cl-pinitem]');
-  if (pi) {
-    const cur = pi.getAttribute('aria-pressed') === 'true';
-    storage.setItemPinned(pi.dataset.clPinitem, !cur); paintPrintChecklist(); return;
-  }
   const ds = e.target.closest('[data-cl-delsec]');
   if (ds) {
     if (!confirm('Delete this section and every item in it?')) return;

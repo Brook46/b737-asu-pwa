@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=110" />
+  <link rel="stylesheet" href="./app.css?v=111" />
 </head>
 <body>
   <header class="app-header">
@@ -612,10 +612,10 @@
           <button type="button" id="print-addbox" class="print-adddiv">+ box</button>
           </div>
           <!-- Tab 2: the checklist itself. Edits here are the real checklist,
-               shared with the card on the main screen. 📌 pins an entry so an
-               app update can't reseed it away. -->
+               shared with the card on the main screen, and they are permanent —
+               nothing in the app reseeds a checklist the user has touched. -->
           <div id="print-pane-cl" class="hidden">
-          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder — an item follows whichever section heading sits above it. Type to rename. <span aria-hidden="true">📌</span> keeps your edit through app updates, <span aria-hidden="true">✕</span> deletes.</p>
+          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder — an item follows whichever section heading sits above it. Type to rename. <span aria-hidden="true">✕</span> deletes. Your edits are kept — app updates never reset the checklist.</p>
           <div id="print-cl-list" class="print-fieldlist"></div>
           <div class="print-cl-adds">
             <button type="button" id="print-addsec"  class="print-adddiv">+ section</button>
@@ -647,6 +647,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=110"></script>
+  <script type="module" src="./app.js?v=111"></script>
 </body>
 </html>

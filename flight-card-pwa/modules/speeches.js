@@ -5,8 +5,8 @@
 // Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=110';
-import { cityName } from './airports.js?v=110';
+import * as storage from './storage.js?v=111';
+import { cityName } from './airports.js?v=111';
 
 let activeId = null;
 let editing = false;
@@ -229,16 +229,9 @@ function render() {
   //   - ◀ ▶ appear next to the title so the user can move the active PA
   //     left/right in the tab strip.
   const titleEl = document.getElementById('pa-title');
-  // 📌 — pin this PA so future app updates skip it during schema reseeds.
-  // Available in both modes (read-only and edit) because pinning is a
-  // persistence decision, not an edit. Filled pin = pinned; outline = not.
-  const pinBtn = `<button type="button" id="pa-pin" class="pa-pin${sp.pinned ? ' is-on' : ''}"
-                    title="${sp.pinned ? 'Pinned — app updates won\'t touch this PA. Tap to unpin.' : 'Pin this PA so app updates leave it alone'}"
-                    aria-label="${sp.pinned ? 'Unpin' : 'Pin'} ${escape(sp.name)}"
-                    aria-pressed="${sp.pinned ? 'true' : 'false'}">📌</button>`;
   if (editing) {
     titleEl.innerHTML =
-      `<input type="text" id="pa-title-edit" class="pa-title-input" value="${escape(sp.name)}" aria-label="PA name" />${pinBtn}`;
+      `<input type="text" id="pa-title-edit" class="pa-title-input" value="${escape(sp.name)}" aria-label="PA name" />`;
     const titleInput = document.getElementById('pa-title-edit');
     titleInput.addEventListener('input', () => {
       const v = titleInput.value;
@@ -249,13 +242,8 @@ function render() {
       if (tabBtn) tabBtn.textContent = v || 'PA';
     });
   } else {
-    titleEl.innerHTML = `<span class="pa-title-name">${escape(sp.name)}</span>${pinBtn}`;
+    titleEl.innerHTML = `<span class="pa-title-name">${escape(sp.name)}</span>`;
   }
-  document.getElementById('pa-pin').onclick = (e) => {
-    e.stopPropagation();
-    storage.setSpeechPinned(activeId, !sp.pinned);
-    render();
-  };
   const langWrap = document.getElementById('pa-lang');
   if (langWrap) {
     if (editing) {
