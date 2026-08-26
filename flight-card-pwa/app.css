@@ -2168,3 +2168,140 @@ body { background: transparent; }
 :root[data-theme="dark"] .lb-date .lb-day { text-shadow: 0 0 18px rgba(127,184,179,0.3); }
 :root[data-theme="light"] .data-cell input,
 :root[data-theme="light"] .lb-date .lb-day { text-shadow: none; }
+
+/* ---------- Print: quarter-A4 kneeboard cards ---------- */
+/* Geometry is in mm so the preview on screen and the sheet on paper are the
+   same object at different scales. A4 = 210 × 297; a card is exactly a
+   quarter of it. Colours are forced to black-on-white here — the app's dark
+   theme must never reach the printer. */
+
+.print-sheet { max-width: 980px; width: 94vw; }
+.print-cols { display: flex; gap: 16px; align-items: flex-start; }
+.print-ctrls { flex: 0 0 clamp(230px, 34%, 320px); min-width: 0; }
+.print-preview-wrap { flex: 1 1 auto; min-width: 0; }
+.print-preview-label { margin: 0 0 6px 2px; }
+
+.print-fieldlist { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 12px; }
+.print-frow {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 4px 4px 10px;
+}
+.print-fname {
+  flex: 1 1 auto; min-width: 0;
+  -webkit-appearance: none; appearance: none;
+  background: none; border: 0; padding: 0;
+  font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--fg); text-align: left; cursor: pointer;
+}
+.print-frow.is-off .print-fname { color: var(--fg-dim); text-decoration: line-through; }
+.print-fbtn {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; flex: 0 0 26px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--fg); font-size: 11px; line-height: 1; cursor: pointer;
+}
+.print-fbtn:disabled { opacity: .35; }
+.print-flags { display: flex; flex-direction: column; gap: 7px; margin: 0 0 10px; }
+.print-flag { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.print-note { line-height: 1.35; margin: 0 0 12px; }
+.print-go { width: 100%; }
+
+/* Preview: the real card, scaled down to fit its column. */
+.print-preview {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex; justify-content: center;
+  padding: 10px;
+}
+.print-preview .pr-card { transform-origin: top center; }
+
+@media (max-width: 640px) {
+  .print-cols { flex-direction: column; }
+  .print-ctrls { flex: 0 0 auto; width: 100%; }
+}
+
+/* ---- The card itself ---- */
+.pr-card {
+  width: 105mm; height: 148.5mm;
+  box-sizing: border-box;
+  padding: 5mm 5mm 4mm;
+  background: #fff; color: #000;
+  font-family: "Barlow Semi Condensed", system-ui, sans-serif;
+  display: flex; flex-direction: column; gap: 2.5mm;
+  overflow: hidden;
+}
+.pr-fields {
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  gap: 2mm 2.5mm;
+  flex: 0 0 auto;
+}
+.pr-f { grid-column: span var(--w, 4); min-width: 0; }
+.pr-lbl {
+  display: block;
+  font-size: 2.4mm; font-weight: 700; letter-spacing: .06em;
+  color: #000;
+}
+/* The line you actually write on. */
+.pr-rule { display: block; height: 5mm; border-bottom: 0.3mm solid #000; }
+
+.pr-body { flex: 1 1 auto; display: flex; gap: 3mm; min-height: 0; }
+.pr-body[data-cols="1"] > * { flex: 1 1 100%; }
+.pr-cl {
+  flex: 1 1 55%; min-width: 0;
+  border: 0.3mm solid #000; border-radius: 1mm;
+  padding: 1.5mm 2mm;
+  overflow: hidden;
+  font-size: 2.5mm; line-height: 1.35;
+}
+.pr-cl-sec { break-inside: avoid; margin-bottom: 1.2mm; }
+.pr-cl-name {
+  font-weight: 700; font-size: 2.5mm; letter-spacing: .05em;
+  border-bottom: 0.2mm solid #000;
+  margin-bottom: 0.8mm;
+}
+.pr-cl-item { display: flex; align-items: flex-start; gap: 1.2mm; }
+.pr-box {
+  flex: 0 0 auto;
+  width: 2mm; height: 2mm; margin-top: 0.6mm;
+  border: 0.25mm solid #000;
+}
+.pr-cl-empty { font-style: italic; }
+.pr-blank {
+  flex: 1 1 45%; min-width: 0;
+  border: 0.3mm solid #000; border-radius: 1mm;
+  padding: 1.5mm 2mm;
+}
+
+/* ---- Sheet: the same card four times on one A4 ---- */
+#print-root { display: none; }
+.pr-sheet {
+  width: 210mm; height: 297mm;
+  display: grid;
+  grid-template-columns: 105mm 105mm;
+  grid-template-rows: 148.5mm 148.5mm;
+  background: #fff;
+}
+/* Cut guides — hairlines on the inner edges only, so scissors have a target. */
+.pr-sheet > .pr-card:nth-child(1) { border-right: 0.2mm dashed #999; border-bottom: 0.2mm dashed #999; }
+.pr-sheet > .pr-card:nth-child(2) { border-bottom: 0.2mm dashed #999; }
+.pr-sheet > .pr-card:nth-child(3) { border-right: 0.2mm dashed #999; }
+
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  /* Everything the app draws on screen is irrelevant to the printer. */
+  body > * { display: none !important; }
+  body { background: #fff !important; margin: 0; padding: 0; }
+  body::before { display: none !important; }
+  #print-root { display: block !important; }
+  .pr-sheet { break-after: page; page-break-after: always; }
+  .pr-sheet:last-child { break-after: auto; page-break-after: auto; }
+  /* Keep the rules and boxes solid — browsers drop backgrounds by default,
+     but these are borders, so they survive. Force colour anyway for the
+     dashed cut guides. */
+  .pr-card, .pr-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

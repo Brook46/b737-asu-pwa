@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=102';
-import * as dataCard from './modules/data-card.js?v=102';
-import * as checklist from './modules/checklist.js?v=102';
-import * as speeches from './modules/speeches.js?v=102';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=102';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=102';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=102';
+import * as storage from './modules/storage.js?v=103';
+import * as dataCard from './modules/data-card.js?v=103';
+import * as checklist from './modules/checklist.js?v=103';
+import * as speeches from './modules/speeches.js?v=103';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=103';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=103';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=103';
 
 const $ = (id) => document.getElementById(id);
 
@@ -984,6 +984,7 @@ const TOP_ACTIONS = {
   'data-reset-all':  () => doDataResetAll(),
   'checklist-reset': () => doChecklistReset(),
   'checklist-edit':  () => doChecklistEditToggle(),
+  'checklist-print': () => openPrintSheet(),
   'radar':           () => doRadar(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
@@ -1020,6 +1021,91 @@ function doChecklistReset() {
   checklist.render(checklistBody);
   toast('Checklist reset');
 }
+// ---------- Print: kneeboard cards ----------
+// The whole feature lives in modules/print.js (card markup + config); this is
+// just the sheet's wiring. Loaded on demand — printing is a once-a-trip
+// action, no reason to carry it through every boot.
+let printMod = null;
+async function openPrintSheet() {
+  try {
+    printMod = printMod || await import('./modules/print.js');
+  } catch (err) {
+    console.warn('print module failed to load', err);
+    toast('Print unavailable — check connection');
+    return;
+  }
+  showOverlay('print-overlay');
+  paintPrintSheet();
+}
+
+function paintPrintSheet() {
+  if (!printMod) return;
+  const cfg = printMod.getConfig();
+  const byId = new Map(printMod.FIELDS.map(f => [f.id, f]));
+
+  // Field list: tap the name to include/exclude, ▲▼ to move it.
+  const list = $('print-fields');
+  list.innerHTML = cfg.order.map((id, i) => {
+    const f = byId.get(id);
+    if (!f) return '';
+    const off = cfg.off.includes(id);
+    return `<div class="print-frow${off ? ' is-off' : ''}">
+      <button type="button" class="print-fname" data-print-toggle="${id}"
+              aria-pressed="${off ? 'false' : 'true'}">${escapeHtmlSimple(f.label)}</button>
+      <button type="button" class="print-fbtn" data-print-move="${id}" data-delta="-1"
+              ${i === 0 ? 'disabled' : ''} aria-label="Move ${escapeHtmlSimple(f.label)} up">▲</button>
+      <button type="button" class="print-fbtn" data-print-move="${id}" data-delta="1"
+              ${i === cfg.order.length - 1 ? 'disabled' : ''} aria-label="Move ${escapeHtmlSimple(f.label)} down">▼</button>
+    </div>`;
+  }).join('');
+
+  $('print-checklist').checked = cfg.checklist;
+  $('print-blank').checked     = cfg.blank;
+  $('print-both').checked      = cfg.bothSides;
+
+  paintPrintPreview(cfg);
+}
+
+// Render the real card, then scale it to fit the preview column. Scaling (not
+// a separate small layout) is what keeps preview and paper identical.
+function paintPrintPreview(cfg) {
+  const host = $('print-preview');
+  host.innerHTML = printMod.cardHtml(cfg);
+  const card = host.firstElementChild;
+  if (!card) return;
+  requestAnimationFrame(() => {
+    const avail = host.clientWidth - 20;          // minus .print-preview padding
+    const natural = card.offsetWidth || 1;
+    const scale = Math.min(1, avail / natural);
+    card.style.transform = `scale(${scale})`;
+    // A scaled element still reserves its unscaled box, so pull the host's
+    // height back in or the sheet grows a large empty gap underneath.
+    host.style.height = (card.offsetHeight * scale + 20) + 'px';
+  });
+}
+
+$('print-close').addEventListener('click', () => hideOverlay('print-overlay'));
+$('print-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'print-overlay') hideOverlay('print-overlay');
+});
+$('print-fields').addEventListener('click', (e) => {
+  const mv = e.target.closest('[data-print-move]');
+  if (mv) { printMod.moveField(mv.dataset.printMove, Number(mv.dataset.delta)); paintPrintSheet(); return; }
+  const tg = e.target.closest('[data-print-toggle]');
+  if (tg) { printMod.toggleField(tg.dataset.printToggle); paintPrintSheet(); }
+});
+['checklist', 'blank', 'both'].forEach(k => {
+  const key = k === 'both' ? 'bothSides' : k;
+  $('print-' + k).addEventListener('change', () => { printMod.toggleFlag(key); paintPrintSheet(); });
+});
+$('print-go').addEventListener('click', () => {
+  if (!printMod) return;
+  // Close first: the overlay is display:none in print CSS anyway, but leaving
+  // it up over the print dialog is confusing on iPad.
+  hideOverlay('print-overlay');
+  printMod.print();
+});
+
 function doChecklistEditToggle() {
   const on = !checklist.isEditMode();
   checklist.setEditMode(on);
