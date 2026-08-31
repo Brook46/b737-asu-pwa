@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=118';
-import { dateTs } from './dates.js?v=118';
+import * as storage from './storage.js?v=121';
+import { dateTs, yearPast } from './dates.js?v=121';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -21,9 +21,12 @@ const HOME = new Set(['TLV', 'LLBG']);
 // Combine dd.mm + HH:MM into a UTC ms timestamp. Shared rolling-year
 // heuristic — see modules/dates.js.
 function depTs(leg) {
-  // Real year when the leg carries one — otherwise year buckets and the
-  // "last time I flew here" lookups put old flights in the wrong year.
-  return dateTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
+  // Real year when the leg carries one. Without one, resolve PAST-biased, the
+  // same as the logbook: the forward-rolling guess pushed anything older than
+  // ~6 months into next year, where allLegs()' future filter then dropped it —
+  // so old flights silently vanished from the stats and the map too.
+  const year = leg?.dep_year || yearPast(leg?.dep_date);
+  return dateTs(leg?.dep_date, leg?.dep_time, year);
 }
 
 function legYear(leg) {
@@ -288,4 +291,31 @@ export function routeHeat(legs = allLegs()) {
     }
   }
   return [...byPair.values()].sort((x, y) => x.count - y.count);  // hottest last = drawn on top
+}
+
+// Raw material for the map's date filter: one entry per flown leg, with the
+// timestamp, so the UI can re-aggregate for any window without re-reading
+// storage on every slider move.
+export function flownRoutes(legs = allLegs()) {
+  const out = [];
+  for (const leg of legs) {
+    const a = String(leg.dep || '').toUpperCase().trim();
+    const b = String(leg.arr || '').toUpperCase().trim();
+    if (!a || !b || a === b) continue;
+    const ts = depTs(leg);
+    out.push({ dep: a, arr: b, ts: Number.isFinite(ts) ? ts : 0 });
+  }
+  return out;
+}
+
+// Aggregate a (possibly date-filtered) list into per-route counts + recency.
+export function heatFrom(routeLegs) {
+  const byPair = new Map();
+  for (const r of routeLegs) {
+    const key = r.dep < r.arr ? `${r.dep}|${r.arr}` : `${r.arr}|${r.dep}`;
+    const hit = byPair.get(key);
+    if (hit) { hit.count++; if (r.ts > hit.lastTs) hit.lastTs = r.ts; }
+    else byPair.set(key, { dep: r.dep, arr: r.arr, count: 1, lastTs: r.ts });
+  }
+  return [...byPair.values()].sort((x, y) => x.count - y.count);
 }

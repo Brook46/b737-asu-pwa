@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=118';
-import * as dataCard from './modules/data-card.js?v=118';
-import * as checklist from './modules/checklist.js?v=118';
-import * as speeches from './modules/speeches.js?v=118';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=118';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=118';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=118';
+import * as storage from './modules/storage.js?v=121';
+import * as dataCard from './modules/data-card.js?v=121';
+import * as checklist from './modules/checklist.js?v=121';
+import * as speeches from './modules/speeches.js?v=121';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=121';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=121';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=121';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1817,6 +1817,7 @@ $('analytics-open').addEventListener('click', async () => {
     const world = await import('./modules/worldmap.js');
     const data = an.snapshot();
     data.heat = an.routeHeat();
+    data.routeLegs = an.flownRoutes();
     body.innerHTML = renderAnalytics(data, {
       cityName: airports.cityName, displayCrew: storage.displayCrew, airports, world,
     });
@@ -2189,17 +2190,17 @@ function relDate(ts) {
 // things at once: how OFTEN a route is flown, and how RECENTLY — a line you
 // flew last week glows, one from two years ago is a faint trace. Same idea as
 // a training heat map, and it reads at a glance without a legend to decode.
-function renderRouteHeatMap(heat, airports, world) {
-  if (!heat.length || !airports || !world) return '';
-  const W = 720, H = 360;
+// Held between renders so the date sliders can rebuild the map cheaply.
+let anMapCtx = null;
+
+function heatSvgInner(heat, airports, world, W, H) {
   const view = { cLon: 10, cLat: 25, spanLon: 360, spanLat: 180 };
   const proj = world.projector({ x0: 0, y0: 0, w: W, h: H, ...view });
   const land = world.landPaths(proj).map(d => `<path d="${d}" class="an-land"/>`).join('');
-
   const now = Date.now();
   const maxCount = Math.max(...heat.map(h => h.count), 1);
   const YEAR = 365 * 24 * 3600 * 1000;
-  const seen = new Map();          // airport code → [x, y], for the dots
+  const seen = new Map();
   const lines = [];
   for (const h of heat) {
     const A = airports.lookup(h.dep), B = airports.lookup(h.arr);
@@ -2207,8 +2208,6 @@ function renderRouteHeatMap(heat, airports, world) {
     const ax = proj.x(A.lon), ay = proj.y(A.lat);
     const bx = proj.x(B.lon), by = proj.y(B.lat);
     seen.set(h.dep, [ax, ay]); seen.set(h.arr, [bx, by]);
-    // Frequency drives weight, recency drives glow. Both are normalised and
-    // floored so a rare old route is faint but never invisible.
     const freq = h.count / maxCount;
     const age  = h.lastTs ? Math.min(1, (now - h.lastTs) / (2 * YEAR)) : 1;
     const heatv = Math.max(0.12, 0.45 * freq + 0.55 * (1 - age));
@@ -2217,22 +2216,88 @@ function renderRouteHeatMap(heat, airports, world) {
     lines.push(`<path d="M${ax.toFixed(1)},${ay.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}"
       class="an-route" style="stroke-width:${wdt};opacity:${heatv.toFixed(2)}"/>`);
   }
-  if (!lines.length) return '';
   const dots = [...seen.values()]
     .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" class="an-dot"/>`).join('');
+  return `<rect x="0" y="0" width="${W}" height="${H}" class="an-sea"/>${land}${lines.join('')}${dots}`;
+}
+
+const AN_DAY = 24 * 3600 * 1000;
+const anDayLabel = (ts) => {
+  const d = new Date(ts);
+  return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCFullYear()).slice(2)}`;
+};
+
+function renderRouteHeatMap(heat, airports, world, routeLegs) {
+  if (!heat.length || !airports || !world) return '';
+  const W = 720, H = 360;
+  const legs = (routeLegs || []).filter(r => r.ts > 0);
+  // The scale runs from the first flight on record to today, in whole days.
+  const first = legs.length ? Math.min(...legs.map(r => r.ts)) : Date.now();
+  const now = Date.now();
+  const days = Math.max(1, Math.ceil((now - first) / AN_DAY));
+  anMapCtx = { airports, world, W, H, first, days, legs };
   return `
     <section class="an-card an-map-card">
       <h4>Where I fly</h4>
-      <svg class="an-map" viewBox="0 0 ${W} ${H}" role="img"
-           aria-label="World map of every route flown, brighter where flown more often and more recently">
-        <rect x="0" y="0" width="${W}" height="${H}" class="an-sea"/>
-        ${land}${lines.join('')}${dots}
+      <svg id="an-map" class="an-map" viewBox="0 0 ${W} ${H}" role="img"
+           aria-label="World map of routes flown, brighter where flown more often and more recently">
+        ${heatSvgInner(heat, airports, world, W, H)}
       </svg>
-      <p class="an-map-key muted small">
+      <div class="an-range">
+        <div class="an-range-row">
+          <label for="an-from">From</label>
+          <input type="range" id="an-from" min="0" max="${days}" step="1" value="0" aria-label="Show flights from" />
+          <output id="an-from-out">${anDayLabel(first)}</output>
+        </div>
+        <div class="an-range-row">
+          <label for="an-to">To</label>
+          <input type="range" id="an-to" min="0" max="${days}" step="1" value="${days}" aria-label="Show flights until" />
+          <output id="an-to-out">${anDayLabel(now)}</output>
+        </div>
+        <button type="button" id="an-range-all" class="an-range-all">All time</button>
+      </div>
+      <p id="an-map-key" class="an-map-key muted small">
         ${heat.length} route${heat.length === 1 ? '' : 's'} · brighter and thicker = flown more often and more recently
       </p>
     </section>`;
 }
+
+// Redraw the map for whatever window the two sliders describe. Only the SVG's
+// contents and the key line change — the sliders themselves are left alone so
+// dragging stays smooth.
+async function repaintAnMap() {
+  if (!anMapCtx) return;
+  const { airports, world, W, H, first, days, legs } = anMapCtx;
+  const fromEl = $('an-from'), toEl = $('an-to');
+  let a = Number(fromEl.value), b = Number(toEl.value);
+  if (a > b) { [a, b] = [b, a]; }        // crossed handles read as a range, not an empty one
+  const fromTs = first + a * AN_DAY;
+  const toTs   = first + b * AN_DAY + AN_DAY - 1;
+  $('an-from-out').textContent = anDayLabel(fromTs);
+  $('an-to-out').textContent   = anDayLabel(Math.min(toTs, Date.now()));
+  const inRange = legs.filter(r => r.ts >= fromTs && r.ts <= toTs);
+  try {
+    const an = await import('./modules/analytics.js');
+    const heat = an.heatFrom(inRange);
+    $('an-map').innerHTML = heatSvgInner(heat, airports, world, W, H);
+    $('an-map-key').textContent = heat.length
+      ? `${heat.length} route${heat.length === 1 ? '' : 's'} · ${inRange.length} flight${inRange.length === 1 ? '' : 's'} in this window`
+      : 'No flights in this window';
+  } catch (err) { console.warn('map repaint failed', err); }
+}
+
+// Delegated: the analytics body is re-rendered wholesale each time it opens,
+// so binding to the inputs directly would go stale.
+$('analytics-body').addEventListener('input', (e) => {
+  if (e.target.id === 'an-from' || e.target.id === 'an-to') repaintAnMap();
+});
+$('analytics-body').addEventListener('click', (e) => {
+  if (!e.target.closest('#an-range-all')) return;
+  const f = $('an-from'), t = $('an-to');
+  if (!f || !t) return;
+  f.value = f.min; t.value = t.max;
+  repaintAnMap();
+});
 
 function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
   if (!data.legCount) {
@@ -2242,7 +2307,7 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
         analytics appear here.
       </p>`;
   }
-  const heatMap = renderRouteHeatMap(data.heat || [], airports, world);
+  const heatMap = renderRouteHeatMap(data.heat || [], airports, world, data.routeLegs || []);
   // Top destinations — sub-label carries the city + when I last flew there.
   const lastDest = data.lastDest || {};
   const topRows = data.top.map(d => {

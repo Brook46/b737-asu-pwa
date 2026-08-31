@@ -2312,6 +2312,11 @@ body { background: transparent; }
   background: #fff;
 }
 .pr-sheet > .pr-card { height: 100%; }
+/* Bottom row rotated 180°: fold the sheet across the middle and both halves
+   read the right way up from their own side. Rotation is visual only — the
+   grid cell, the cut guides and the page geometry are untouched. */
+.pr-sheet > .pr-card:nth-child(3),
+.pr-sheet > .pr-card:nth-child(4) { transform: rotate(180deg); }
 /* Cut guides on every edge, so each card is outlined all the way round —
    the bottom row included, which previously had no line under it. */
 .pr-sheet > .pr-card { border: 0.2mm dashed #999; }
@@ -2445,9 +2450,12 @@ body { background: transparent; }
 }
 .lb-grid { stroke: var(--line); stroke-width: 0.5; }
 .lb-track {
-  fill: none; stroke: var(--accent); stroke-width: 1.6;
+  fill: none; stroke: var(--accent); stroke-width: 2;
   stroke-linecap: round;
 }
+.lb-pin { stroke: var(--bg-sunk); stroke-width: 1.2; }
+.lb-pin-lbl { paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5; }
+.lb-proc-lbl { paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5; }
 .lb-pin { fill: var(--accent); }
 .lb-pin-arr { fill: var(--good, var(--accent)); }
 .lb-pin-lbl {
@@ -2462,11 +2470,17 @@ body { background: transparent; }
 }
 
 /* ---------- Maps: logbook route + analytics route heat ---------- */
-.lb-sea, .an-sea { fill: var(--bg); }
+/* Sea sits darker than the sheet, land lifts off it, and a hairline coast
+   separates the two — the previous single flat grey read as a smudge. */
+.lb-sea, .an-sea { fill: var(--bg-sunk); }
 .lb-land, .an-land {
   fill: var(--line);
-  stroke: var(--line-soft, var(--line));
-  stroke-width: 0.4;
+  fill-opacity: .85;
+  stroke: var(--fg-dim);
+  stroke-opacity: .65;
+  stroke-width: 0.35;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 .lb-proc-lbl {
   fill: var(--fg-mute); font-size: 7px; font-weight: 800;
@@ -2484,3 +2498,26 @@ body { background: transparent; }
 .an-route { fill: none; stroke: var(--accent); stroke-linecap: round; }
 .an-dot { fill: var(--fg-mute); opacity: .7; }
 .an-map-key { margin: 8px 2px 0; }
+
+/* Analytics map: date window sliders. */
+.an-range { margin: 10px 2px 0; display: flex; flex-direction: column; gap: 6px; }
+.an-range-row { display: flex; align-items: center; gap: 10px; }
+.an-range-row label {
+  flex: 0 0 34px;
+  font-size: 11px; font-weight: 800; letter-spacing: .08em;
+  color: var(--fg-mute); text-transform: uppercase;
+}
+.an-range-row input[type="range"] { flex: 1 1 auto; min-width: 0; }
+.an-range-row output {
+  flex: 0 0 64px; text-align: right;
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.an-range-all {
+  -webkit-appearance: none; appearance: none;
+  align-self: flex-start;
+  background: var(--bg-sunk); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 12px;
+  font: inherit; font-size: 11px; font-weight: 700;
+  color: var(--fg-mute); cursor: pointer;
+}
