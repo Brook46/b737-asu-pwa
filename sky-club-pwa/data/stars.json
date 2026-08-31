@@ -8,7 +8,8 @@
       "dec": -16.716,
       "mag": -1.46,
       "con": "canismajor",
-      "fact": "The brightest star in the whole night sky, in the Big Dog."
+      "fact": "The brightest star in the whole night sky, in the Big Dog.",
+      "distanceLy": 8.6
     },
     {
       "id": "canopus",
@@ -17,7 +18,8 @@
       "dec": -52.696,
       "mag": -0.74,
       "con": "carina",
-      "fact": "The second-brightest star we see — a giant, glowing far away."
+      "fact": "The second-brightest star we see — a giant, glowing far away.",
+      "distanceLy": 310
     },
     {
       "id": "rigilkent",
@@ -26,7 +28,8 @@
       "dec": -60.834,
       "mag": -0.27,
       "con": "centaurus",
-      "fact": "Our closest star neighbor after the Sun — it's really three stars together!"
+      "fact": "Our closest star neighbor after the Sun — it's really three stars together!",
+      "distanceLy": 4.4
     },
     {
       "id": "arcturus",
@@ -36,7 +39,8 @@
       "mag": -0.05,
       "con": "bootes",
       "color": "#ffcf8a",
-      "fact": "A giant orange star, one of the brightest in the whole sky."
+      "fact": "A giant orange star, one of the brightest in the whole sky.",
+      "distanceLy": 37
     },
     {
       "id": "vega",
@@ -45,7 +49,8 @@
       "dec": 38.784,
       "mag": 0.03,
       "con": "lyra",
-      "fact": "A bright blue-white star — long ago it was even the North Star!"
+      "fact": "A bright blue-white star — long ago it was even the North Star!",
+      "distanceLy": 25
     },
     {
       "id": "capella",
@@ -55,7 +60,8 @@
       "mag": 0.08,
       "con": "auriga",
       "color": "#fff3c9",
-      "fact": "Looks like one star, but it's really four stars close together."
+      "fact": "Looks like one star, but it's really four stars close together.",
+      "distanceLy": 43
     },
     {
       "id": "rigel",
@@ -64,7 +70,8 @@
       "dec": -8.202,
       "mag": 0.13,
       "con": "orion",
-      "fact": "A huge blue star lighting up the bottom of Orion the Hunter."
+      "fact": "A huge blue star lighting up the bottom of Orion the Hunter.",
+      "distanceLy": 860
     },
     {
       "id": "procyon",
@@ -73,7 +80,8 @@
       "dec": 5.225,
       "mag": 0.34,
       "con": "canisminor",
-      "fact": "A bright nearby star that leads the Little Dog across the sky."
+      "fact": "A bright nearby star that leads the Little Dog across the sky.",
+      "distanceLy": 11.5
     },
     {
       "id": "betelgeuse",
@@ -83,7 +91,8 @@
       "mag": 0.5,
       "con": "orion",
       "color": "#ff8f6b",
-      "fact": "A giant red star so big it could swallow Mars' whole orbit."
+      "fact": "A giant red star so big it could swallow Mars' whole orbit.",
+      "distanceLy": 548
     },
     {
       "id": "achernar",
@@ -92,7 +101,8 @@
       "dec": -57.237,
       "mag": 0.46,
       "con": null,
-      "fact": "Spins so fast it's squashed flat, like a beach ball."
+      "fact": "Spins so fast it's squashed flat, like a beach ball.",
+      "distanceLy": 139
     },
     {
       "id": "hadar",
@@ -101,7 +111,8 @@
       "dec": -60.373,
       "mag": 0.61,
       "con": "centaurus",
-      "fact": "A hot, blazing blue giant star."
+      "fact": "A hot, blazing blue giant star.",
+      "distanceLy": 390
     },
     {
       "id": "altair",
@@ -110,7 +121,8 @@
       "dec": 8.868,
       "mag": 0.76,
       "con": "aquila",
-      "fact": "Spins around super fast — once every few hours!"
+      "fact": "Spins around super fast — once every few hours!",
+      "distanceLy": 16.7
     },
     {
       "id": "acrux",
@@ -119,7 +131,8 @@
       "dec": -63.099,
       "mag": 0.77,
       "con": "southerncross",
-      "fact": "The top star of the tiny Southern Cross."
+      "fact": "The top star of the tiny Southern Cross.",
+      "distanceLy": 320
     },
     {
       "id": "aldebaran",
@@ -129,7 +142,8 @@
       "mag": 0.85,
       "con": "taurus",
       "color": "#ffb37a",
-      "fact": "A giant orange star that looks like the Bull's fiery eye."
+      "fact": "A giant orange star that looks like the Bull's fiery eye.",
+      "distanceLy": 65
     },
     {
       "id": "antares",
@@ -139,7 +153,8 @@
       "mag": 0.96,
       "con": "scorpius",
       "color": "#ff6b5b",
-      "fact": "A huge red star — the fiery heart of the Scorpion."
+      "fact": "A huge red star — the fiery heart of the Scorpion.",
+      "distanceLy": 550
     },
     {
       "id": "spica",
@@ -148,7 +163,8 @@
       "dec": -11.161,
       "mag": 0.98,
       "con": "virgo",
-      "fact": "Not one star but two, circling so close they almost touch."
+      "fact": "Not one star but two, circling so close they almost touch.",
+      "distanceLy": 250
     },
     {
       "id": "pollux",
@@ -157,7 +173,8 @@
       "dec": 28.026,
       "mag": 1.14,
       "con": "gemini",
-      "fact": "The brighter of the two twin stars in Gemini."
+      "fact": "The brighter of the two twin stars in Gemini.",
+      "distanceLy": 34
     },
     {
       "id": "fomalhaut",
@@ -166,7 +183,8 @@
       "dec": -29.622,
       "mag": 1.16,
       "con": null,
-      "fact": "Has real rings of dust and baby planets circling around it."
+      "fact": "Has real rings of dust and baby planets circling around it.",
+      "distanceLy": 25
     },
     {
       "id": "deneb",
@@ -175,7 +193,8 @@
       "dec": 45.28,
       "mag": 1.25,
       "con": "cygnus",
-      "fact": "One of the farthest bright stars we can see — and incredibly powerful."
+      "fact": "One of the farthest bright stars we can see — and incredibly powerful.",
+      "distanceLy": 2600
     },
     {
       "id": "mimosa",
@@ -184,7 +203,8 @@
       "dec": -59.689,
       "mag": 1.25,
       "con": "southerncross",
-      "fact": "A hot blue giant star marking the Southern Cross."
+      "fact": "A hot blue giant star marking the Southern Cross.",
+      "distanceLy": 280
     },
     {
       "id": "regulus",
@@ -193,7 +213,8 @@
       "dec": 11.967,
       "mag": 1.36,
       "con": "leo",
-      "fact": "The bright heart of Leo the Lion, spinning so fast it's squished."
+      "fact": "The bright heart of Leo the Lion, spinning so fast it's squished.",
+      "distanceLy": 79
     },
     {
       "id": "adhara",
@@ -202,7 +223,8 @@
       "dec": -28.972,
       "mag": 1.5,
       "con": "canismajor",
-      "fact": "A super hot blue star trotting along with the Big Dog."
+      "fact": "A super hot blue star trotting along with the Big Dog.",
+      "distanceLy": 430
     },
     {
       "id": "castor",
@@ -380,7 +402,8 @@
       "dec": 89.264,
       "mag": 1.98,
       "con": "ursaminor",
-      "fact": "The North Star — it barely moves all night, so sailors use it to find their way."
+      "fact": "The North Star — it barely moves all night, so sailors use it to find their way.",
+      "distanceLy": 448
     },
     {
       "id": "mirzam",

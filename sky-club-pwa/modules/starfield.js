@@ -9,7 +9,7 @@ export function initStarfield(canvas) {
   const ctx = canvas.getContext('2d');
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   let w = 0, h = 0, stars = [];
-  let shootAt = performance.now() + 4000 + Math.random() * 8000;
+  let shootAt = performance.now() + 2500 + Math.random() * 9000;
   let shoot = null;
 
   function resize() {
@@ -60,34 +60,62 @@ export function initStarfield(canvas) {
     ctx.globalAlpha = 1;
   }
 
+  // Every meteor is re-rolled from scratch: which edge it enters from, where along
+  // that edge, its angle, speed, length and brightness — and the wait until the
+  // next one is re-rolled too. The old version always started in the top-left
+  // quadrant and always travelled down-right, which after a minute or two read as
+  // the same streak on a loop rather than something you happened to catch.
+  function spawnShootingStar() {
+    const fromLeft = Math.random() < 0.62; // most come in from the left, not all
+    const speed = 6 + Math.random() * 6;
+    // Steep enough to look like it is falling, never so steep it drops straight down.
+    const angle = (14 + Math.random() * 34) * (Math.PI / 180);
+    const dirX = fromLeft ? 1 : -1;
+    return {
+      x: fromLeft ? -30 + Math.random() * w * 0.45 : w + 30 - Math.random() * w * 0.45,
+      y: -20 + Math.random() * h * 0.55,
+      vx: Math.cos(angle) * speed * dirX,
+      vy: Math.sin(angle) * speed,
+      len: 7 + Math.random() * 7,      // trail length, in frames of travel
+      width: 1.3 + Math.random() * 1.2,
+      alpha: 0.65 + Math.random() * 0.35,
+      life: 0,
+      ttl: 620 + Math.random() * 520,
+    };
+  }
+
   function drawShootingStar(t) {
-    if (!shoot && t > shootAt && w > 0) {
-      shoot = {
-        x: Math.random() * w * 0.5,
-        y: Math.random() * h * 0.35,
-        vx: 7 + Math.random() * 4,
-        vy: 3 + Math.random() * 2,
-        life: 0,
-      };
-    }
+    if (!shoot && t > shootAt && w > 0) shoot = spawnShootingStar();
     if (!shoot) return;
+
     shoot.life += 16;
     shoot.x += shoot.vx;
     shoot.y += shoot.vy;
-    const tailX = shoot.x - shoot.vx * 9;
-    const tailY = shoot.y - shoot.vy * 9;
+
+    // Fade in over the first fifth and out over the last third, so it never
+    // pops into or out of existence mid-screen.
+    const p = shoot.life / shoot.ttl;
+    const fade = Math.min(1, p / 0.2) * Math.min(1, (1 - p) / 0.33);
+    const tailX = shoot.x - shoot.vx * shoot.len;
+    const tailY = shoot.y - shoot.vy * shoot.len;
     const grad = ctx.createLinearGradient(shoot.x, shoot.y, tailX, tailY);
-    grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grad.addColorStop(0, `rgba(255,255,255,${(shoot.alpha * fade).toFixed(3)})`);
+    grad.addColorStop(0.45, `rgba(214,210,255,${(shoot.alpha * fade * 0.45).toFixed(3)})`);
     grad.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = shoot.width;
+    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(shoot.x, shoot.y);
     ctx.lineTo(tailX, tailY);
     ctx.stroke();
-    if (shoot.life > 700 || shoot.x - w > 40 || shoot.y - h > 40) {
+
+    const gone = shoot.x < -80 || shoot.x > w + 80 || shoot.y > h + 80;
+    if (shoot.life > shoot.ttl || gone) {
       shoot = null;
-      shootAt = t + 7000 + Math.random() * 12000;
+      // A wide, uneven gap. Short enough that you do see them, long and variable
+      // enough that they never settle into a beat you can predict.
+      shootAt = t + 5000 + Math.random() * 16000;
     }
   }
 

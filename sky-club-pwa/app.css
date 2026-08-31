@@ -94,7 +94,7 @@ button {
 .icon-btn {
   width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 19px;
+  font-size: 18px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: 50%;
@@ -229,10 +229,26 @@ button {
 }
 .home-btn-primary {
   border-color: var(--accent-500);
-  background: rgba(66, 58, 106, 0.35);
+  background: linear-gradient(180deg, rgba(89, 79, 138, 0.5), rgba(66, 58, 106, 0.32));
   color: var(--color-text);
+  box-shadow: 0 6px 18px rgba(66, 58, 106, 0.45), inset 0 1px 0 rgba(233, 233, 237, 0.1);
 }
-.home-btn-primary:active { background: rgba(89, 79, 138, 0.5); }
+/* Every control gets a real pressed state — on a touch screen the press IS the
+   feedback, and a button that does not move under a finger reads as broken. */
+.home-btn-primary:active {
+  background: linear-gradient(180deg, rgba(66, 58, 106, 0.3), rgba(89, 79, 138, 0.52));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+  transform: scale(0.975);
+}
+.home-btn-secondary:active,
+.wide-btn:active,
+.spot-btn:active,
+.nav-btn:active,
+.ctrl-btn:active,
+.icon-btn:active { transform: scale(0.94); }
+.home-btn, .wide-btn, .spot-btn, .nav-btn, .ctrl-btn, .icon-btn {
+  transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
 .home-btn-secondary {
   background: var(--glass);
   border-color: var(--glass-border);
@@ -461,25 +477,32 @@ button {
   to { transform: translate(18px, -14px) scale(1.08); }
 }
 
-.explore-controls {
+/* One positioned container holding both control rows, instead of two floating
+   pills that collided once the buttons reached a 52px touch target. */
+.explore-dock {
   position: absolute;
   left: 12px; right: 12px;
   bottom: calc(var(--safe-bottom) + 82px);
   z-index: 10;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border-radius: 28px;
   backdrop-filter: blur(10px);
+}
+.dock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .ctrl-btn {
   flex: 0 0 auto;
-  width: 38px; height: 38px;
+  width: 52px; height: 52px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+  font-size: 17px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--glass-border);
   border-radius: 50%;
@@ -495,8 +518,8 @@ button {
 .date-input {
   flex: 1 1 auto;
   min-width: 0;
-  height: 38px;
-  padding: 0 8px;
+  height: 52px;
+  padding: 0 10px;
   font: inherit;
   font-size: 14px;
   color: var(--color-text);
@@ -512,23 +535,6 @@ button {
 }
 
 /* ---------- year scrubber + clean view ---------- */
-/* Sits directly above .explore-controls, sharing its insets so the two read as
-   one stack of controls. */
-.explore-scrub {
-  position: absolute;
-  left: 12px; right: 12px;
-  /* clears .explore-controls, which occupies 82px..136px from the bottom */
-  bottom: calc(var(--safe-bottom) + 144px);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px 6px 6px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
-  backdrop-filter: blur(10px);
-}
 .year-label {
   flex: 0 0 auto;
   min-width: 42px;
@@ -592,8 +598,7 @@ button {
    nav live outside the screen element. */
 body.clean-view .topbar,
 body.clean-view .bottom-nav,
-body.clean-view .explore-scrub,
-body.clean-view .explore-controls,
+body.clean-view .explore-dock,
 body.clean-view .screen-header {
   opacity: 0;
   pointer-events: none;
@@ -635,11 +640,12 @@ body.clean-view .body-btn { pointer-events: none; }
 .planet-card {
   position: fixed; inset: 0;
   z-index: 40;
-  background: rgba(13, 15, 28, 0.65);
+  background: rgba(13, 15, 28, 0.72);
   backdrop-filter: blur(3px);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
 }
 .sheet {
   position: relative;
@@ -670,17 +676,112 @@ body.clean-view .body-btn { pointer-events: none; }
   position: absolute;
   top: 10px; right: 14px;
 }
-.card-top {
+/* The body floats in the sky above the sheet rather than sitting inside it as a
+   thumbnail. At ~200px the real texture, the phase terminator and Saturn's ring
+   all have room to actually read — at 100px they were detail nobody could see. */
+.card-hero {
+  flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  text-align: left;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 0 24px 26px;
+  min-height: 0;
+  animation: hero-in 0.34s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+@keyframes hero-in {
+  from { transform: translateY(14px) scale(0.94); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 .spin-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: 100px;
-  height: 100px;
+  width: min(56vw, 208px);
+  height: min(56vw, 208px);
+}
+/* ---------- star hero ---------- */
+/* Shown instead of .spin-wrap when the card is opened for a star. --star-tint is
+   set inline from the catalogue's real colour for that star. */
+.card-star { display: none; }
+.planet-card.is-star .card-star { display: block; }
+.planet-card.is-star .spin-wrap { display: none; }
+/* Stars aren't in the planet walk-through and have no badge, so the row would be
+   empty — the close button and tapping outside both dismiss. */
+.planet-card.is-star .card-actions { display: none; }
+.card-star {
+  position: relative;
+  width: min(56vw, 208px);
+  height: min(56vw, 208px);
+  --star-tint: #eef4ff;
+}
+.card-star > span { position: absolute; display: block; }
+.star-halo {
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.92) 0%,
+    var(--star-tint) 11%,
+    color-mix(in srgb, var(--star-tint) 55%, transparent) 26%,
+    color-mix(in srgb, var(--star-tint) 18%, transparent) 52%,
+    transparent 100%);
+  animation: star-breathe 5s ease-in-out infinite;
+}
+.star-core {
+  left: 50%; top: 50%;
+  width: 15%; height: 15%;
+  margin: -7.5% 0 0 -7.5%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #fff 40%, color-mix(in srgb, var(--star-tint) 80%, #fff) 100%);
+  box-shadow: 0 0 22px 6px color-mix(in srgb, var(--star-tint) 70%, transparent);
+}
+.star-spike {
+  left: 50%; top: 50%;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--star-tint) 60%, transparent) 34%,
+    rgba(255, 255, 255, 0.95) 50%,
+    color-mix(in srgb, var(--star-tint) 60%, transparent) 66%, transparent);
+  animation: star-breathe 4.2s ease-in-out infinite;
+}
+.star-spike-h { width: 108%; height: 2.5px; transform: translate(-50%, -50%); }
+.star-spike-v { width: 2.5px; height: 108%;  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, transparent,
+    color-mix(in srgb, var(--star-tint) 60%, transparent) 34%,
+    rgba(255, 255, 255, 0.95) 50%,
+    color-mix(in srgb, var(--star-tint) 60%, transparent) 66%, transparent); }
+.star-spike-d { width: 74%; height: 1.4px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0.45; }
+@keyframes star-breathe {
+  0%, 100% { opacity: 0.86; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+}
+/* .star-halo isn't centre-translated (it uses inset:0), so it needs its own
+   keyframes or the shared one would yank it off-centre. */
+.star-halo { animation-name: star-halo-breathe; }
+@keyframes star-halo-breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+.star-spike-d { animation-name: star-spike-d-breathe; }
+@keyframes star-spike-d-breathe {
+  0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+  50% { opacity: 0.55; transform: translate(-50%, -50%) rotate(45deg) scale(1.05); }
+}
+
+/* Phase / status caption, tied to the body rather than buried in the sheet —
+   it describes what you are looking at. */
+.card-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--accent-300);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 .spin-frame {
   position: relative;
@@ -733,7 +834,40 @@ body.clean-view .body-btn { pointer-events: none; }
      they read as a real photographed sphere instead of a vector cutout. */
   filter: blur(0.6px);
 }
-.card-text { flex: 1 1 auto; min-width: 0; }
+.card-text { min-width: 0; }
+/* Real, computed values only — the Moon's are live (phase, illuminated fraction
+   and its actual centre-to-centre distance, which swings ~50,000 km a month);
+   the planets' are stable physical facts from catalog.js. */
+.card-stats {
+  display: grid;
+  gap: 10px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.card-stats:empty { display: none; }
+.card-stat {
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: rgba(13, 15, 28, 0.5);
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+.card-stat-key {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+/* Wraps rather than truncating: "548 light-years" and "400,904 km" both overrun
+   a third of a 375px screen on one line, and an ellipsised number is useless. */
+.card-stat-val {
+  font-size: 14.5px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--color-text);
+}
 .card-name { font-size: 26px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.02em; }
 .card-fact { font-size: 15px; line-height: 1.4; margin: 0; color: var(--color-body); }
 .card-safety { font-size: 13px; color: #ffb0a0; margin: 6px 0 0; }
@@ -754,8 +888,10 @@ body.clean-view .body-btn { pointer-events: none; }
   font-weight: 700;
   border-radius: 18px;
   border: 1px solid var(--accent-500);
-  background: rgba(66, 58, 106, 0.3);
+  background: linear-gradient(180deg, rgba(89, 79, 138, 0.5), rgba(66, 58, 106, 0.32));
   color: var(--color-text);
+  box-shadow: 0 6px 18px rgba(66, 58, 106, 0.4), inset 0 1px 0 rgba(233, 233, 237, 0.09);
+  min-height: 56px;
 }
 .spot-btn.spotted {
   background: rgba(89, 79, 138, 0.6);
@@ -781,12 +917,12 @@ body.clean-view .body-btn { pointer-events: none; }
   padding: 18px 30px;
   font-size: 20px;
   font-weight: 700;
-  background: rgba(66, 58, 106, 0.35);
+  background: linear-gradient(180deg, rgba(89, 79, 138, 0.5), rgba(66, 58, 106, 0.32));
   border: 1px solid var(--accent-500);
   color: var(--color-text);
   border-radius: 22px;
+  box-shadow: 0 8px 22px rgba(66, 58, 106, 0.45), inset 0 1px 0 rgba(233, 233, 237, 0.1);
 }
-.wide-btn:active { background: rgba(89, 79, 138, 0.5); }
 .sky-gate-note { font-size: 14px; color: var(--color-body); max-width: 260px; }
 
 .sky-view { position: absolute; inset: 0; touch-action: none; }

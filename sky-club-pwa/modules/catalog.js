@@ -3,6 +3,7 @@
 
 export const SUN = {
   id: 'sun', name: 'Sun', emoji: '☀️', texture: 'icons/textures/sun.jpg',
+  diameter: '1,392,700 km', dayLength: '25 days',
   color: '#ffcf5c', sizePx: 84, skySize: 40,
   fact: 'The Sun is a giant ball of glowing fire that gives us light and warmth.',
   safety: 'Never look right at the real sun — it can hurt your eyes!',
@@ -10,6 +11,7 @@ export const SUN = {
 
 export const MOON = {
   id: 'moon', name: 'Moon', emoji: '🌙', texture: 'icons/textures/moon.jpg',
+  diameter: '3,475 km', dayLength: '27.3 days',
   color: '#dfe3ea', light: '#f3f5fe', dark: '#9397ab', sizePx: 14, skySize: 46,
   fact: 'The Moon circles our Earth and lights up our night sky.',
 };
@@ -36,21 +38,21 @@ export const MOON = {
 // independent of sizePx (which is scaled for the orrery's real-diameter ordering
 // and would make the Sun comically huge as a sky marker).
 export const PLANETS = [
-  { id: 'mercury', name: 'Mercury', emoji: '🪨', texture: 'icons/textures/mercury.jpg', color: '#b9a89a', light: '#d8cdc2', dark: '#6f6157', sizePx: 14, skySize: 16,
+  { id: 'mercury', diameter: '4,879 km', dayLength: '59 days', name: 'Mercury', emoji: '🪨', texture: 'icons/textures/mercury.jpg', color: '#b9a89a', light: '#d8cdc2', dark: '#6f6157', sizePx: 14, skySize: 16,
     fact: 'Mercury is the closest planet to the Sun and gets super hot in the day.' },
-  { id: 'venus', name: 'Venus', emoji: '🌕', texture: 'icons/textures/venus.jpg', color: '#e8c48c', light: '#f7e3b4', dark: '#b8863c', sizePx: 18, skySize: 20,
+  { id: 'venus', diameter: '12,104 km', dayLength: '243 days', name: 'Venus', emoji: '🌕', texture: 'icons/textures/venus.jpg', color: '#e8c48c', light: '#f7e3b4', dark: '#b8863c', sizePx: 18, skySize: 20,
     fact: 'Venus is wrapped in thick clouds and is the hottest planet of all!' },
-  { id: 'earth', name: 'Earth', emoji: '🌍', texture: 'icons/textures/earth.jpg', color: '#5aa4e8', light: '#8fd0ee', dark: '#255f92', sizePx: 19, skySize: 20,
+  { id: 'earth', diameter: '12,756 km', dayLength: '24 hours', name: 'Earth', emoji: '🌍', texture: 'icons/textures/earth.jpg', color: '#5aa4e8', light: '#8fd0ee', dark: '#255f92', sizePx: 19, skySize: 20,
     fact: 'Earth is our home — the only planet with oceans, air, and you!' },
-  { id: 'mars', name: 'Mars', emoji: '🔴', texture: 'icons/textures/mars.jpg', color: '#e07a5f', light: '#f09468', dark: '#93381f', sizePx: 15, skySize: 17,
+  { id: 'mars', diameter: '6,792 km', dayLength: '24.6 hours', name: 'Mars', emoji: '🔴', texture: 'icons/textures/mars.jpg', color: '#e07a5f', light: '#f09468', dark: '#93381f', sizePx: 15, skySize: 17,
     fact: 'Mars is called the Red Planet because its dusty ground is rusty orange.' },
-  { id: 'jupiter', name: 'Jupiter', emoji: '🟠', texture: 'icons/textures/jupiter.jpg', color: '#d9a066', light: '#f2d3ac', dark: '#94643c', sizePx: 46, skySize: 22,
+  { id: 'jupiter', diameter: '142,984 km', dayLength: '9.9 hours', name: 'Jupiter', emoji: '🟠', texture: 'icons/textures/jupiter.jpg', color: '#d9a066', light: '#f2d3ac', dark: '#94643c', sizePx: 46, skySize: 22,
     fact: 'Jupiter is the biggest planet — over a thousand Earths could fit inside!' },
-  { id: 'saturn', name: 'Saturn', emoji: '🪐', texture: 'icons/textures/saturn.jpg', color: '#e8cf9a', light: '#f6e5b8', dark: '#a8874a', sizePx: 43, skySize: 19, ring: true,
+  { id: 'saturn', diameter: '120,536 km', dayLength: '10.7 hours', name: 'Saturn', emoji: '🪐', texture: 'icons/textures/saturn.jpg', color: '#e8cf9a', light: '#f6e5b8', dark: '#a8874a', sizePx: 43, skySize: 19, ring: true,
     fact: 'Saturn wears beautiful rings made of ice and rock, like a hat!' },
-  { id: 'uranus', name: 'Uranus', emoji: '🔵', texture: 'icons/textures/uranus.jpg', color: '#9fd8d8', light: '#bdeef2', dark: '#4b8c9c', sizePx: 30, skySize: 16,
+  { id: 'uranus', diameter: '50,724 km', dayLength: '17.2 hours', name: 'Uranus', emoji: '🔵', texture: 'icons/textures/uranus.jpg', color: '#9fd8d8', light: '#bdeef2', dark: '#4b8c9c', sizePx: 30, skySize: 16,
     fact: 'Uranus spins on its side, rolling around the Sun like a ball.' },
-  { id: 'neptune', name: 'Neptune', emoji: '🔷', texture: 'icons/textures/neptune.jpg', color: '#5b7fe0', light: '#9db4f7', dark: '#2f4794', sizePx: 29, skySize: 16,
+  { id: 'neptune', diameter: '49,244 km', dayLength: '16.1 hours', name: 'Neptune', emoji: '🔷', texture: 'icons/textures/neptune.jpg', color: '#5b7fe0', light: '#9db4f7', dark: '#2f4794', sizePx: 29, skySize: 16,
     fact: 'Neptune is a deep blue planet, way out at the edge of our solar family.' },
 ];
 

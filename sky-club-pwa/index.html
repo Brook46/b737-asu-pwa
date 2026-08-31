@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=18">
+  <link rel="stylesheet" href="app.css?v=19">
 </head>
 <body>
 
@@ -70,18 +70,23 @@
       </div>
       <div id="orrery" class="orrery"></div>
       <div id="clean-hint" class="clean-hint" aria-hidden="true">Tap anywhere to bring the buttons back</div>
-      <div class="explore-scrub">
-        <button id="clean-btn" class="ctrl-btn" aria-label="Clean view" aria-pressed="false"><i class="ph-fill ph-sparkle"></i></button>
-        <input id="year-slider" type="range" class="year-slider" aria-label="Scrub through years">
-        <span id="year-label" class="year-label">—</span>
-      </div>
-      <div class="explore-controls">
-        <button id="play-btn" class="ctrl-btn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
-        <input id="date-input" type="date" class="date-input" aria-label="Date">
-        <button id="today-btn" class="ctrl-btn text-btn">Today</button>
-        <div class="zoom-group">
-          <button id="zoom-out-btn" class="ctrl-btn" aria-label="Zoom out"><i class="ph-fill ph-minus"></i></button>
-          <button id="zoom-in-btn" class="ctrl-btn" aria-label="Zoom in"><i class="ph-fill ph-plus"></i></button>
+      <!-- One dock, two rows. These used to be two separately-positioned floating
+           bars; once the controls grew to a 52px touch target they collided, and
+           two stacked pills were eating a lot of sky for one cluster of controls. -->
+      <div class="explore-dock">
+        <div class="dock-row">
+          <button id="clean-btn" class="ctrl-btn" aria-label="Clean view" aria-pressed="false"><i class="ph-fill ph-sparkle"></i></button>
+          <input id="year-slider" type="range" class="year-slider" aria-label="Scrub through years">
+          <span id="year-label" class="year-label">—</span>
+        </div>
+        <div class="dock-row">
+          <button id="play-btn" class="ctrl-btn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
+          <input id="date-input" type="date" class="date-input" aria-label="Date">
+          <button id="today-btn" class="ctrl-btn" aria-label="Jump to today" title="Today"><i class="ph-fill ph-clock-counter-clockwise"></i></button>
+          <div class="zoom-group">
+            <button id="zoom-out-btn" class="ctrl-btn" aria-label="Zoom out"><i class="ph-fill ph-minus"></i></button>
+            <button id="zoom-in-btn" class="ctrl-btn" aria-label="Zoom in"><i class="ph-fill ph-plus"></i></button>
+          </div>
         </div>
       </div>
     </section>
@@ -144,26 +149,40 @@
   </nav>
 
   <div id="planet-card" class="planet-card hidden">
+    <!-- The body is a hero above the sheet, not a thumbnail beside the text: it is
+         the thing you opened the card to look at. -->
+    <div class="card-hero">
+      <div class="spin-wrap">
+        <div id="card-ring-back" class="ring-layer ring-back hidden"></div>
+        <div class="spin-frame">
+          <div id="spin-texture" class="spin-texture"></div>
+          <div class="sphere-vignette"></div>
+          <div id="card-shade" class="sphere-shade card-shade hidden"></div>
+        </div>
+        <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
+        <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
+      </div>
+      <!-- Stars get their own hero: a bright star is a point source, so it is
+           drawn as one (core, chromatic halo, diffraction spikes) rather than as
+           a little ball, which is what it actually looks like through the air. -->
+      <div id="card-star" class="card-star" aria-hidden="true">
+        <span class="star-halo"></span>
+        <span class="star-spike star-spike-h"></span>
+        <span class="star-spike star-spike-v"></span>
+        <span class="star-spike star-spike-d"></span>
+        <span class="star-core"></span>
+      </div>
+      <span id="card-phase" class="card-phase hidden"></span>
+    </div>
     <div class="sheet">
       <div class="sheet-handle" aria-hidden="true"></div>
       <button id="card-close" class="icon-btn card-close" aria-label="Close"><i class="ph-fill ph-x"></i></button>
-      <div class="card-top">
-        <div class="spin-wrap">
-          <div id="card-ring-back" class="ring-layer ring-back hidden"></div>
-          <div class="spin-frame">
-            <div id="spin-texture" class="spin-texture"></div>
-            <div class="sphere-vignette"></div>
-            <div id="card-shade" class="sphere-shade card-shade hidden"></div>
-          </div>
-          <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
-          <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
-        </div>
-        <div class="card-text">
-          <h2 id="card-name" class="card-name"></h2>
-          <p id="card-fact" class="card-fact"></p>
-          <p id="card-safety" class="card-safety hidden"></p>
-        </div>
+      <div class="card-text">
+        <h2 id="card-name" class="card-name"></h2>
+        <p id="card-fact" class="card-fact"></p>
+        <p id="card-safety" class="card-safety hidden"></p>
       </div>
+      <div id="card-stats" class="card-stats"></div>
       <div class="card-actions">
         <button id="card-prev" class="nav-btn" aria-label="Previous"><i class="ph-fill ph-caret-left"></i></button>
         <button id="card-spot" class="spot-btn hidden">
@@ -174,6 +193,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=18"></script>
+  <script type="module" src="app.js?v=19"></script>
 </body>
 </html>

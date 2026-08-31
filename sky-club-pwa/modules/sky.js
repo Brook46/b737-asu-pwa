@@ -13,6 +13,7 @@ import { SKY_BODIES } from './catalog.js';
 import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge } from './sensors.js';
 import { say } from './speech.js';
 import { spot, isSpotted, isBadgeBody, onChange, showToast } from './badges.js';
+import { openCard, openStarCard } from './orbits.js';
 import { nextEventHeadline } from './events.js';
 
 const FOV_DEG = 68; // horizontal degrees visible at once
@@ -239,7 +240,7 @@ function makeMarker(container, body) {
   label.textContent = body.name;
   btn.appendChild(dot);
   btn.appendChild(label);
-  btn.addEventListener('click', () => catchBody(body, btn));
+  btn.addEventListener('click', () => catchBody(body, btn, true));
   container.appendChild(btn);
   return btn;
 }
@@ -265,7 +266,7 @@ function makeStarMarker(container, star) {
   btn.style.setProperty('--twinkle-delay', `${(Math.random() * 2.6).toFixed(2)}s`);
   btn.innerHTML = `<span class="marker-glyph"></span><span class="marker-label">${star.name}</span>`;
   btn.setAttribute('aria-label', star.name);
-  btn.addEventListener('click', () => catchBody(star, btn));
+  btn.addEventListener('click', () => catchBody(star, btn, true));
   container.appendChild(btn);
   return btn;
 }
@@ -304,10 +305,20 @@ function makeArrow(container, body) {
 // entity is either a SKY_BODIES value (Sun/Moon/planet, has .fact/.safety/.emoji)
 // or a star from data/stars.json (has .fact only for the ~20 brightest/named
 // ones — see the "fact" fields there; fainter stars fall back to a plain name).
-function catchBody(entity, el) {
+// openSheet is true for a deliberate TAP and false for the reticle dwell. Dwelling
+// while you pan should tell you what you are looking at, not keep throwing a
+// full-screen sheet over the sky.
+function catchBody(entity, el, openSheet = false) {
   el.classList.add('found');
   setTimeout(() => el.classList.remove('found'), 900);
-  if (entity.fact) {
+  if (openSheet) {
+    if (entity.kind === 'star') {
+      const con = constellations.find((c) => c.id === entity.con);
+      openStarCard(entity, con ? con.name : null);
+    } else {
+      openCard(entity.id);
+    }
+  } else if (entity.fact) {
     say(entity.name, entity.fact, entity.safety);
   } else {
     say(`That's ${entity.name}!`);

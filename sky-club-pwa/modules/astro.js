@@ -3,7 +3,7 @@
 // (-90..+90°, degrees above the horizon) so sky.js only ever deals in compass bearings.
 
 import {
-  Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase,
+  Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase, Libration,
   SearchMoonQuarter, NextMoonQuarter, SearchLunarEclipse, SearchLocalSolarEclipse,
 } from '../vendor/astronomy-engine.js';
 
@@ -45,6 +45,15 @@ export function planetLongitudes(date) {
  */
 export function moonPhase(date) {
   return MoonPhase(date);
+}
+
+/**
+ * The Moon's REAL centre-to-centre distance right now, in km. It swings between
+ * roughly 356,500 and 406,700 km over a month, so this is a genuinely changing
+ * number rather than the textbook 384,400 average.
+ */
+export function moonDistanceKm(date) {
+  return Libration(date).dist_km;
 }
 
 /** Sun altitude only — cheap check for "is it dark enough to see stars?" */

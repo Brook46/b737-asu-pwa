@@ -187,6 +187,62 @@ frames before reading positions back.
     letting the scrubber drive it would mean re-deriving star/Milky Way
     positions per frame against a scrubbed clock.
 
+## Design-polish pass (realistic Moon/stars, detail sheets, one control dock)
+
+Built from a design canvas ("Sky Club Polish"), matched to the tokens already in
+`app.css` rather than a new look.
+
+- **The Moon is the headline.** `moonphase.js` keeps the real terminator geometry
+  exactly as it was and adds the three things that separate a photographed moon
+  from a disc with a bite out of it: a **soft terminator** (a blurred alpha mask
+  — a hard cut is the single biggest tell), **limb darkening**, and **earthshine**
+  on a blue-tinted base, because the night side is lit by light bounced off Earth
+  and Earth is blue. The mask is cached per `(size, phase)` — it only changes when
+  the phase does, not on every frame of the cosmetic surface spin, which matters
+  because that spin runs in a rAF loop.
+- **`describePhase()`** names the phase for the chip. The four "exact" phases get
+  narrow windows and crescent/gibbous cover the long stretches — nearest-of-eight
+  bucketing produced *"First quarter · 62% lit"*, which is a contradiction (a
+  quarter moon is 50% lit by definition).
+- **Detail card is now hero-above-sheet.** The body floats in the sky at ~208px
+  instead of sitting in the sheet as a 100px thumbnail; at that size the texture,
+  terminator and Saturn's ring are actually legible. `.card-hero` + `.card-phase`
+  chip + `.card-stats`.
+- **Stat strip is real data only.** The Moon's distance is live from
+  `astro.js::moonDistanceKm()` (`Libration().dist_km` — it genuinely swings
+  ~50,000 km a month); planets carry `diameter`/`dayLength` in `catalog.js`.
+  Deliberately **no moon counts** — those figures keep being revised. A body with
+  no facts shows no strip (`.card-stats:empty`).
+- **Stars got a sheet at all.** Tapping a star used to only speak. `openStarCard()`
+  (exported from `orbits.js`, which owns the card DOM) shows a point-source render
+  — core, chromatic halo, diffraction spikes in the star's real catalogue tint —
+  plus constellation, brightness as a *word* (the magnitude scale is backwards to
+  everyone and meaningless to a pre-reader), colour, and distance. Real
+  light-year distances added to `data/stars.json` for the 23 named stars; stars
+  without one omit the row rather than guess.
+  - Tapping a body in **Sky** mode now opens the same sheet too. Dwelling still
+    only speaks — throwing a full-screen sheet up every time the reticle rests on
+    something while you pan would be unusable.
+  - `.card-stat-val` must **wrap, not `nowrap`**: "548 light-years" and
+    "400,904 km" both overrun a third of a 375px screen, and an ellipsised number
+    is worthless. Watch for U+2011 NON-BREAKING hyphens in these strings — one in
+    "Orange‑red" silently defeated the wrap.
+- **Shooting stars are properly random.** `starfield.js` re-rolls entry edge,
+  position, angle, speed, trail length, width, brightness and lifetime for every
+  meteor, and the gap between them (5–21s). The old one always started top-left
+  and always travelled down-right, so after a minute it read as one looping streak.
+- **Controls.** `.ctrl-btn` went 38px → **52px**: 38 is under the 44px floor, on an
+  app a three-year-old drives with a whole fingertip. Everything gained a real
+  pressed state (a touch control that doesn't move under a finger reads as
+  broken), and primaries are raised (gradient + lift shadow + inner highlight)
+  rather than flat outlines.
+- **`.explore-dock` replaced `.explore-scrub` + `.explore-controls`.** Those were
+  two separately-positioned floating pills, and growing the buttons to 52px made
+  them **collide** — the scrubber sat at `bottom: 144px` while the controls now
+  reached 150. One container with two `.dock-row`s fixes it structurally instead
+  of by re-tuning two magic offsets against each other. "Today" became an icon
+  button to give the date field back some width.
+
 ## Original two-mode structure (Explore / Sky)
 
 - **Explore** (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.

@@ -21,8 +21,8 @@
 // baked-in image width needed.
 
 import { SUN, MOON, PLANETS } from './catalog.js';
-import { planetLongitudes, moonPhase } from './astro.js';
-import { drawMoonPhase } from './moonphase.js';
+import { planetLongitudes, moonPhase, moonDistanceKm } from './astro.js';
+import { drawMoonPhase, describePhase } from './moonphase.js';
 import { say } from './speech.js';
 import { spot, isSpotted, isBadgeBody, onChange } from './badges.js';
 
@@ -364,11 +364,69 @@ function makeBodyButton(body, sizePx) {
 
 let cardIndex = 0;
 
-function openCard(id) {
+// Exported so the Sky screen can open the same sheet when you tap a body up
+// there — the card DOM lives here, and one detail sheet beats two.
+export function openCard(id) {
   const idx = NAV_ORDER.findIndex((b) => b.id === id);
   cardIndex = idx >= 0 ? idx : 0;
+  document.getElementById('planet-card').classList.remove('is-star');
   renderCard();
   document.getElementById('planet-card').classList.remove('hidden');
+}
+
+const STAR_COLOR_NAMES = {
+  '#ffcf8a': 'Golden', '#fff3c9': 'Warm white', '#ff8f6b': 'Orange-red',
+  '#ffb37a': 'Orange', '#ff6b5b': 'Deep red', '#ffab8a': 'Soft orange',
+  '#ffb98a': 'Peach',
+};
+
+// Brightness as a word rather than a magnitude: the number is meaningless to a
+// pre-reader, and it is backwards (smaller = brighter) to everyone else.
+function brightnessWord(mag) {
+  if (mag <= 0.5) return 'Very bright';
+  if (mag <= 1.5) return 'Bright';
+  if (mag <= 2.5) return 'Medium';
+  return 'Faint';
+}
+
+/** Opens the detail sheet for a star. `constellationName` may be null. */
+export function openStarCard(star, constellationName) {
+  const card = document.getElementById('planet-card');
+  card.classList.add('is-star');
+  card.classList.remove('is-earth', 'is-sun');
+  stopMoonSpin();
+
+  const tint = star.color || '#eef4ff';
+  document.getElementById('card-star').style.setProperty('--star-tint', tint);
+  document.getElementById('moon-phase-canvas').classList.add('hidden');
+  document.getElementById('card-ring-back').classList.add('hidden');
+  document.getElementById('card-ring-front').classList.add('hidden');
+
+  const chip = document.getElementById('card-phase');
+  if (constellationName) {
+    chip.textContent = `in ${constellationName}`;
+    chip.classList.remove('hidden');
+  } else {
+    chip.classList.add('hidden');
+  }
+
+  document.getElementById('card-name').textContent = star.name;
+  document.getElementById('card-fact').textContent =
+    star.fact || 'A star in our night sky, shining from far, far away.';
+  document.getElementById('card-safety').classList.add('hidden');
+
+  const stats = [
+    ['Brightness', brightnessWord(star.mag)],
+    ['Colour', STAR_COLOR_NAMES[tint.toLowerCase()] || 'Blue-white'],
+  ];
+  // Only the stars with a real catalogued distance get the row.
+  if (typeof star.distanceLy === 'number') {
+    stats.push(['Distance', `${star.distanceLy.toLocaleString('en-US')} light-years`]);
+  }
+  fillStats(stats);
+
+  card.classList.remove('hidden');
+  say(star.name, star.fact);
 }
 
 function closeCard() {
@@ -423,8 +481,56 @@ function renderCard() {
   }
   document.getElementById('card-ring-back').classList.toggle('hidden', !body.ring);
   document.getElementById('card-ring-front').classList.toggle('hidden', !body.ring);
+  renderPhaseChip(body, isMoon);
+  renderStats(body, isMoon);
   updateSpotButton(body);
   say(body.name, body.fact, body.safety);
+}
+
+// Only the Moon carries a caption, because only the Moon visibly changes shape.
+function renderPhaseChip(body, isMoon) {
+  const chip = document.getElementById('card-phase');
+  if (!isMoon) { chip.classList.add('hidden'); return; }
+  const { name, lit } = describePhase(moonPhase(currentDate));
+  chip.textContent = `${name} · ${lit}% lit`;
+  chip.classList.remove('hidden');
+}
+
+// Every value here is real: the Moon's are computed live from the ephemeris for
+// the selected date, the rest are stable physical facts from catalog.js. Nothing
+// is invented to fill the row — a body with no facts simply shows none.
+function fillStats(stats) {
+  const el = document.getElementById('card-stats');
+  el.innerHTML = '';
+  for (const [key, val] of stats) {
+    const cell = document.createElement('div');
+    cell.className = 'card-stat';
+    const k = document.createElement('div');
+    k.className = 'card-stat-key';
+    k.textContent = key;
+    const v = document.createElement('div');
+    v.className = 'card-stat-val';
+    v.textContent = val;
+    cell.appendChild(k);
+    cell.appendChild(v);
+    el.appendChild(cell);
+  }
+}
+
+function renderStats(body, isMoon) {
+  const stats = [];
+  if (isMoon) {
+    // No "lit" cell — the phase chip above the sheet already says it, and this
+    // is a real distance that genuinely changes night to night.
+    // Two cells, not three: the distance is a seven-digit number and a third
+    // column truncates it at phone width.
+    stats.push(['Distance', `${Math.round(moonDistanceKm(currentDate)).toLocaleString('en-US')} km`]);
+    if (body.diameter) stats.push(['Across', body.diameter]);
+  } else {
+    if (body.diameter) stats.push(['Across', body.diameter]);
+    if (body.dayLength) stats.push(['One spin', body.dayLength]);
+  }
+  fillStats(stats);
 }
 
 // Sun, Moon and all 8 planets have a badge payoff (see badges.js).
