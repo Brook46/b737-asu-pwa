@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=121';
-import * as dataCard from './modules/data-card.js?v=121';
-import * as checklist from './modules/checklist.js?v=121';
-import * as speeches from './modules/speeches.js?v=121';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=121';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=121';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=121';
+import * as storage from './modules/storage.js?v=122';
+import * as dataCard from './modules/data-card.js?v=122';
+import * as checklist from './modules/checklist.js?v=122';
+import * as speeches from './modules/speeches.js?v=122';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=122';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=122';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=122';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1845,7 +1845,7 @@ $('logbook-view').addEventListener('click', async () => {
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
     await ensureLbAirports();
     body.innerHTML = renderLogbookList(legs);
-    wireLogbookRows(body);
+    wireLogbookRows(body);   // guarded — see the `wired` flag inside
   } catch (err) {
     console.warn('logbook view failed', err);
     body.innerHTML = '<p class="lb-empty">Couldn\'t load the logbook.</p>';
@@ -1872,6 +1872,7 @@ function lbMonthKey(leg) {
 }
 
 function renderLogbookList(legs) {
+  buildLbProcMemory(legs);
   lbLegIndex.clear();
   for (const leg of legs) lbLegIndex.set(lbKeyOf(leg), leg);
   if (!legs.length) {
@@ -1935,21 +1936,29 @@ function renderLogbookList(legs) {
         ${lbRouteMap(leg)}
         <div class="lb-detail-times">
           <span class="lb-time"><b>BLOCK</b> ${esc(d.block_time || leg.flight_time || '—')}</span>
-          <span class="lb-time"><b>ACTUAL</b> ${esc(d.actual_flight_time || '—')}</span>
+          <label class="lb-time lb-time-edit"><b>ACTUAL</b>
+            <input type="text" value="${esc(d.actual_flight_time || '')}" data-lb-actual="1" ${ident}
+                   inputmode="numeric" maxlength="5" placeholder="—"
+                   autocomplete="off" spellcheck="false" aria-label="Actual flight time" />
+          </label>
         </div>
         <div class="lb-detail-crew">${lbCrewHtml(leg)}</div>
         <div class="lb-detail-proc">
           <label class="lb-field">
             <span>SID</span>
             <input type="text" value="${esc(d.sid || '')}" data-lb-proc="sid" ${ident}
+                   list="lb-sid-${esc(leg.dep || 'x')}"
                    autocomplete="off" autocapitalize="characters" spellcheck="false"
                    maxlength="16" placeholder="—" aria-label="SID flown" />
+            ${lbProcDatalist('sid', leg.dep)}
           </label>
           <label class="lb-field">
             <span>STAR</span>
             <input type="text" value="${esc(d.star || '')}" data-lb-proc="star" ${ident}
+                   list="lb-star-${esc(leg.arr || 'x')}"
                    autocomplete="off" autocapitalize="characters" spellcheck="false"
                    maxlength="16" placeholder="—" aria-label="STAR flown" />
+            ${lbProcDatalist('star', leg.arr)}
           </label>
         </div>
         <button type="button" class="btn lb-open" ${ident}>Open this leg</button>
@@ -2036,6 +2045,36 @@ function lbRouteMap(leg) {
   </svg>`;
 }
 
+// Procedures you have already recorded at this airport. The app cannot know
+// which SID you were cleared for — that geometry is proprietary and there is no
+// free source — but it does know every one you have logged here before, and
+// after a few trips that list is usually where the answer already is.
+let lbProcMemory = null;
+function buildLbProcMemory(legs) {
+  const mem = { sid: new Map(), star: new Map() };
+  for (const leg of legs) {
+    const d = leg.dataCard || {};
+    if (d.sid && leg.dep) {
+      const k = String(leg.dep).toUpperCase();
+      if (!mem.sid.has(k)) mem.sid.set(k, new Set());
+      mem.sid.get(k).add(String(d.sid).toUpperCase());
+    }
+    if (d.star && leg.arr) {
+      const k = String(leg.arr).toUpperCase();
+      if (!mem.star.has(k)) mem.star.set(k, new Set());
+      mem.star.get(k).add(String(d.star).toUpperCase());
+    }
+  }
+  lbProcMemory = mem;
+}
+function lbProcDatalist(kind, code) {
+  const key = String(code || '').toUpperCase();
+  const set = lbProcMemory && lbProcMemory[kind] && lbProcMemory[kind].get(key);
+  if (!set || !set.size) return '';
+  const opts = [...set].sort().map(v => `<option value="${esc(v)}"></option>`).join('');
+  return `<datalist id="lb-${kind}-${esc(code || 'x')}">${opts}</datalist>`;
+}
+
 // Crew as flown, with role labels. Same slots the data card carries; blanks
 // are skipped and a name repeated across slots is only listed once.
 const LB_CREW = [
@@ -2063,7 +2102,15 @@ function lbCrewHtml(leg) {
     : `<span class="lb-crew muted">No crew recorded for this flight.</span>`;
 }
 
+// #logbook-body survives between openings (only its innerHTML is replaced), so
+// binding here on every open stacked another set of listeners on the same
+// element. Two listeners toggled a row open and straight shut again, three
+// opened it, four shut it — which is why tapping a flight worked on some
+// openings and appeared dead on others. Bind once.
+let lbWired = false;
 function wireLogbookRows(body) {
+  if (lbWired) return;
+  lbWired = true;
   const identOf = (el) => ({
     flight:   el.dataset.flight   || '',
     dep_date: el.dataset.depDate  || '',
@@ -2098,6 +2145,25 @@ function wireLogbookRows(body) {
     detail.classList.toggle('hidden', !nowOpen);
     row.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
   }, { once: false });
+
+  // Actual flight time, typed straight into the row — the value is measured by
+  // GPS when the app is running through the landing, but a leg flown with the
+  // app closed has nothing to measure, so it has to be typeable.
+  body.addEventListener('input', (e) => {
+    const act = e.target.closest('[data-lb-actual]');
+    if (!act) return;
+    const v = dataCard.formatHHMM(act.value);
+    if (act.value !== v) {
+      act.value = v;
+      try { act.setSelectionRange(v.length, v.length); } catch {}
+    }
+    storage.setStoredLegField(identOf(act), 'actual_flight_time', v);
+    const leg = lbLegIndex.get(lbKeyOf(identOf(act)));
+    if (leg) {
+      leg.dataCard = leg.dataCard || {};
+      if (v) leg.dataCard.actual_flight_time = v; else delete leg.dataCard.actual_flight_time;
+    }
+  });
 
   // SID / STAR typed straight into the row. Writes to that leg wherever it
   // lives — the active duty or history — not just the currently open one.
@@ -2244,17 +2310,23 @@ function renderRouteHeatMap(heat, airports, world, routeLegs) {
         ${heatSvgInner(heat, airports, world, W, H)}
       </svg>
       <div class="an-range">
-        <div class="an-range-row">
-          <label for="an-from">From</label>
-          <input type="range" id="an-from" min="0" max="${days}" step="1" value="0" aria-label="Show flights from" />
-          <output id="an-from-out">${anDayLabel(first)}</output>
+        <!-- ONE scale, two handles: both inputs share a single track, so the
+             span between them reads as the window rather than as two unrelated
+             sliders. The inputs themselves are pointer-transparent; only their
+             thumbs take touches, which is what lets the two overlap. -->
+        <div class="an-scale">
+          <div class="an-scale-track"></div>
+          <div class="an-scale-fill" id="an-scale-fill"></div>
+          <input type="range" id="an-from" min="0" max="${days}" step="1" value="0"
+                 aria-label="Window start" />
+          <input type="range" id="an-to" min="0" max="${days}" step="1" value="${days}"
+                 aria-label="Window end" />
         </div>
-        <div class="an-range-row">
-          <label for="an-to">To</label>
-          <input type="range" id="an-to" min="0" max="${days}" step="1" value="${days}" aria-label="Show flights until" />
+        <div class="an-scale-ends">
+          <output id="an-from-out">${anDayLabel(first)}</output>
+          <button type="button" id="an-range-all" class="an-range-all">All time</button>
           <output id="an-to-out">${anDayLabel(now)}</output>
         </div>
-        <button type="button" id="an-range-all" class="an-range-all">All time</button>
       </div>
       <p id="an-map-key" class="an-map-key muted small">
         ${heat.length} route${heat.length === 1 ? '' : 's'} · brighter and thicker = flown more often and more recently
@@ -2275,6 +2347,11 @@ async function repaintAnMap() {
   const toTs   = first + b * AN_DAY + AN_DAY - 1;
   $('an-from-out').textContent = anDayLabel(fromTs);
   $('an-to-out').textContent   = anDayLabel(Math.min(toTs, Date.now()));
+  const fill = $('an-scale-fill');
+  if (fill) {
+    fill.style.left  = (a / days * 100).toFixed(2) + '%';
+    fill.style.right = (100 - b / days * 100).toFixed(2) + '%';
+  }
   const inRange = legs.filter(r => r.ts >= fromTs && r.ts <= toTs);
   try {
     const an = await import('./modules/analytics.js');

@@ -5,8 +5,8 @@
 // Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=121';
-import { cityName } from './airports.js?v=121';
+import * as storage from './storage.js?v=122';
+import { cityName } from './airports.js?v=122';
 
 let activeId = null;
 let editing = false;

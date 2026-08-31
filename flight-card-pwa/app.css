@@ -2499,25 +2499,61 @@ body { background: transparent; }
 .an-dot { fill: var(--fg-mute); opacity: .7; }
 .an-map-key { margin: 8px 2px 0; }
 
-/* Analytics map: date window sliders. */
-.an-range { margin: 10px 2px 0; display: flex; flex-direction: column; gap: 6px; }
-.an-range-row { display: flex; align-items: center; gap: 10px; }
-.an-range-row label {
-  flex: 0 0 34px;
-  font-size: 11px; font-weight: 800; letter-spacing: .08em;
-  color: var(--fg-mute); text-transform: uppercase;
+/* Analytics map: ONE date scale carrying both handles. Each input covers the
+   whole track but is pointer-transparent; only the thumbs take touches, so the
+   two can overlap without either becoming ungrabbable. */
+.an-range { margin: 12px 2px 0; display: flex; flex-direction: column; gap: 8px; }
+.an-scale { position: relative; height: 28px; }
+.an-scale-track, .an-scale-fill {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  height: 4px; border-radius: 999px; pointer-events: none;
 }
-.an-range-row input[type="range"] { flex: 1 1 auto; min-width: 0; }
-.an-range-row output {
-  flex: 0 0 64px; text-align: right;
+.an-scale-track { left: 0; right: 0; background: var(--line); }
+.an-scale-fill  { left: 0; right: 0; background: var(--accent); }
+.an-scale input[type="range"] {
+  position: absolute; left: 0; right: 0; top: 0;
+  width: 100%; height: 28px; margin: 0;
+  -webkit-appearance: none; appearance: none;
+  background: none;
+  pointer-events: none;          /* the track belongs to the divs above */
+}
+.an-scale input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  pointer-events: auto;          /* …but the handles are grabbable */
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  cursor: grab;
+}
+.an-scale input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg);
+}
+.an-scale input[type="range"]::-webkit-slider-runnable-track { background: none; }
+.an-scale-ends { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.an-scale-ends output {
   font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
   color: var(--fg);
 }
 .an-range-all {
   -webkit-appearance: none; appearance: none;
-  align-self: flex-start;
   background: var(--bg-sunk); border: 1px solid var(--line);
   border-radius: 999px; padding: 4px 12px;
   font: inherit; font-size: 11px; font-weight: 700;
   color: var(--fg-mute); cursor: pointer;
 }
+
+/* Logbook: actual flight time is typed in the row like SID / STAR. */
+.lb-time-edit { display: flex; align-items: center; gap: 6px; }
+.lb-time-edit input {
+  -webkit-appearance: none; appearance: none;
+  width: 62px;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 7px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.lb-time-edit input:focus { outline: none; border-color: var(--accent); }
