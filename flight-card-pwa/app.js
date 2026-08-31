@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=112';
-import * as dataCard from './modules/data-card.js?v=112';
-import * as checklist from './modules/checklist.js?v=112';
-import * as speeches from './modules/speeches.js?v=112';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=112';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=112';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=112';
+import * as storage from './modules/storage.js?v=113';
+import * as dataCard from './modules/data-card.js?v=113';
+import * as checklist from './modules/checklist.js?v=113';
+import * as speeches from './modules/speeches.js?v=113';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=113';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=113';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=113';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1085,6 +1085,9 @@ function paintPrintSheet() {
   const sizePct = Math.round((Number(cfg.textScale) || 1) * 100);
   $('print-textsize').value = String(sizePct);
   $('print-textsize-out').textContent = sizePct + '%';
+  const clipMm = Math.round(Number(cfg.clipMm) || 0);
+  $('print-clip').value = String(clipMm);
+  $('print-clip-out').textContent = clipMm + 'mm';
   $('print-checklist').checked = cfg.checklist;
   $('print-blank').checked     = cfg.blank;
   $('print-both').checked      = cfg.bothSides;
@@ -1332,6 +1335,14 @@ $('print-textsize').addEventListener('input', () => {
   $('print-textsize-out').textContent = pct + '%';
   printMod.setTextScale(pct / 100);
   paintPrintPreview(printMod.getConfig());
+});
+
+// Clip margin. Only the readout changes live — the strip lives on the SHEET,
+// not the card, so the single-card preview can't show it.
+$('print-clip').addEventListener('input', () => {
+  const mm = Number($('print-clip').value) || 0;
+  $('print-clip-out').textContent = mm + 'mm';
+  printMod.setClipMm(mm);
 });
 
 $('print-go').addEventListener('click', () => {

@@ -1,8 +1,8 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=112';
-import * as wx from './wx.js?v=112';
+import * as storage from './storage.js?v=113';
+import * as wx from './wx.js?v=113';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the

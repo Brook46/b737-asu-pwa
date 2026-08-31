@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=112" />
+  <link rel="stylesheet" href="./app.css?v=113" />
 </head>
 <body>
   <header class="app-header">
@@ -628,6 +628,12 @@
                    aria-label="Printed text size" />
             <output id="print-textsize-out">100%</output>
           </div>
+          <div class="print-size">
+            <label for="print-clip">Clip margin</label>
+            <input type="range" id="print-clip" min="0" max="30" step="1" value="12"
+                   aria-label="Blank strip at the top of the sheet for a clip" />
+            <output id="print-clip-out">12mm</output>
+          </div>
           <div class="print-flags">
             <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
             <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
@@ -653,6 +659,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=112"></script>
+  <script type="module" src="./app.js?v=113"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=112';
+import * as storage from './storage.js?v=113';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -56,6 +56,7 @@ const DEFAULT_CFG = {
   labels: {},           // id → the pilot's own wording, overriding FIELDS
   deleted: [],          // built-in boxes the pilot removed, so they stay gone
   textScale: 1,         // printed text size, 1 = the design size
+  clipMm: 12,           // blank strip at the TOP of the sheet, for a clip
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -105,8 +106,10 @@ export function getConfig() {
       }
     }
     const ts = Number(raw.textScale);
+    const cm = Number(raw.clipMm);
     return {
       textScale: Number.isFinite(ts) ? Math.min(1.6, Math.max(0.75, ts)) : 1,
+      clipMm:    Number.isFinite(cm) ? Math.min(30, Math.max(0, cm)) : 12,
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
@@ -174,6 +177,17 @@ export function setTextScale(v) {
   const cfg = getConfig();
   const n = Number(v);
   cfg.textScale = Number.isFinite(n) ? Math.min(1.6, Math.max(0.75, n)) : 1;
+  setConfig(cfg);
+  return cfg;
+}
+
+// A blank strip along the top edge so a kneeboard/clipboard clip has somewhere
+// to bite without covering a card. The bottom edge keeps only a hairline
+// margin, so the space is spent where the clip actually goes.
+export function setClipMm(v) {
+  const cfg = getConfig();
+  const n = Number(v);
+  cfg.clipMm = Number.isFinite(n) ? Math.min(30, Math.max(0, n)) : 12;
   setConfig(cfg);
   return cfg;
 }
@@ -295,7 +309,8 @@ export function cardHtml(cfg = getConfig()) {
 // An A4 page holding the same card 4×. `pages` = 1 or 2 (2 = both sides).
 export function sheetsHtml(cfg = getConfig()) {
   const card = cardHtml(cfg);
-  const sheet = `<div class="pr-sheet">${card}${card}${card}${card}</div>`;
+  const clip = Math.max(0, Number(cfg.clipMm) || 0);
+  const sheet = `<div class="pr-sheet" style="--clip:${clip}mm">${card}${card}${card}${card}</div>`;
   return cfg.bothSides ? sheet + sheet : sheet;
 }
 
