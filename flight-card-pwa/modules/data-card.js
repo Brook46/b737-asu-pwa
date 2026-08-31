@@ -1,8 +1,8 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=114';
-import * as wx from './wx.js?v=114';
+import * as storage from './storage.js?v=116';
+import * as wx from './wx.js?v=116';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -62,6 +62,12 @@ export const FIELDS = [
     { key: 'cc3',  label: 'CC3',         kind: 'text', wide: true },
     { key: 'cc4',  label: 'CC4',         kind: 'text', wide: true },
     { key: 'cc5',  label: 'CC5',         kind: 'text', wide: true },
+    // A 737 can carry more than five cabin crew; the roster used to drop
+    // anyone past CC5 on the floor, so the slots go to eight. Empty ones stay
+    // hidden until the crew group's "+ add" is tapped.
+    { key: 'cc6',  label: 'CC6',         kind: 'text', wide: true },
+    { key: 'cc7',  label: 'CC7',         kind: 'text', wide: true },
+    { key: 'cc8',  label: 'CC8',         kind: 'text', wide: true },
     // Deadhead crew — positioning crew riding on this leg. Comma-separated
     // string. Only shown when filled or when the rest of the crew row is
     // empty (in which case all crew slots show so the user can fill them in).
@@ -154,7 +160,7 @@ export function render(root) {
   wire(root);
 }
 
-const CREW_CELL_KEYS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
+const CREW_CELL_KEYS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']);
 
 // The official WhatsApp glyph (chat bubble with handset). Sized via the
 // .crew-chip-wa CSS rule. fill="currentColor" so the colour follows the

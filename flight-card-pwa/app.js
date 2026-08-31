@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=114';
-import * as dataCard from './modules/data-card.js?v=114';
-import * as checklist from './modules/checklist.js?v=114';
-import * as speeches from './modules/speeches.js?v=114';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=114';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=114';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=114';
+import * as storage from './modules/storage.js?v=116';
+import * as dataCard from './modules/data-card.js?v=116';
+import * as checklist from './modules/checklist.js?v=116';
+import * as speeches from './modules/speeches.js?v=116';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=116';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=116';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=116';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1838,6 +1838,7 @@ $('logbook-view').addEventListener('click', async () => {
   try {
     const lb = await import('./modules/logbook.js');
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
+    await ensureLbAirports();
     body.innerHTML = renderLogbookList(legs);
     wireLogbookRows(body);
   } catch (err) {
@@ -1851,14 +1852,16 @@ $('logbook-overlay').addEventListener('click', (e) => {
 });
 
 function lbMonthKey(leg) {
-  // dd.mm → "Mon YYYY" bucket via the shared rolling-year heuristic
-  // (dates.js), so groupings match the logbook .ics exporter.
   const dm = String(leg.dep_date || '').split('.');
   if (dm.length !== 2) return 'Unknown date';
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthIdx = parseInt(dm[1], 10) - 1;
   if (!(monthIdx >= 0 && monthIdx < 12)) return 'Unknown date';
-  const year = yearOf(leg.dep_date, leg.dep_year);
+  // Same past-biased resolution the logbook filters and sorts with: a leg
+  // stored without dep_year is one already flown, so a 7-month-old flight
+  // belongs under LAST February, not next February. Using the forward-rolling
+  // guess here filed those rows a year ahead of where they sorted.
+  const year = leg.dep_year || yearPast(leg.dep_date);
   if (year == null) return 'Unknown date';
   return `${monthNames[monthIdx]} ${year}`;
 }
@@ -1916,11 +1919,17 @@ function renderLogbookList(legs) {
         <span class="lb-mid">
           <div class="lb-flight">${esc(flight)}</div>
           <div class="lb-route">${esc(route)}${time ? '  ·  ' + esc(time) : ''}</div>
+          ${(() => { const c = lbCities(leg); return c ? `<div class="lb-cities">${c}</div>` : ''; })()}
           ${proc ? `<div class="lb-procs">${proc}</div>` : ''}
         </span>
         <span class="lb-tags">${tags}</span>
       </button>
       <div class="lb-detail hidden" ${ident}>
+        ${lbRouteMap(leg)}
+        <div class="lb-detail-times">
+          <span class="lb-time"><b>BLOCK</b> ${esc(d.block_time || leg.flight_time || '—')}</span>
+          <span class="lb-time"><b>ACTUAL</b> ${esc(d.actual_flight_time || '—')}</span>
+        </div>
         <div class="lb-detail-crew">${lbCrewHtml(leg)}</div>
         <div class="lb-detail-proc">
           <label class="lb-field">
@@ -1944,11 +1953,78 @@ function renderLogbookList(legs) {
   return parts.join('');
 }
 
+// Airport table for the logbook: city names and coordinates for the route map.
+// Loaded once when the logbook opens; until it resolves the rows simply show
+// codes, which is what they showed before.
+let lbAirports = null;
+async function ensureLbAirports() {
+  if (lbAirports) return lbAirports;
+  try { lbAirports = await import('./modules/airports.js'); }
+  catch (err) { console.warn('airport table unavailable', err); }
+  return lbAirports;
+}
+
+// "TLV → AMS" is what a pilot reads; the cities are what makes a logbook
+// readable months later. Shown under the codes, never instead of them.
+function lbCities(leg) {
+  if (!lbAirports) return '';
+  const a = lbAirports.cityName(leg.dep) || '';
+  const b = lbAirports.cityName(leg.arr) || '';
+  if (!a && !b) return '';
+  if (a === b) return esc(a);
+  const up = (x) => String(x).toUpperCase();
+  // cityName falls back to the code itself when it doesn't know the airport;
+  // showing "TLV → TLV" under "TLV → AMS" would just be noise.
+  if (up(a) === up(leg.dep || '') && up(b) === up(leg.arr || '')) return '';
+  return `${esc(a)} → ${esc(b)}`;
+}
+
+// A small equirectangular map of the leg: the two airports and the line
+// between them, framed to the route. No tiles, no network, no library — the
+// airport table already carries lat/lon, and a PWA that flies must not depend
+// on fetching map imagery.
+function lbRouteMap(leg) {
+  if (!lbAirports) return '';
+  const A = lbAirports.lookup(leg.dep), B = lbAirports.lookup(leg.arr);
+  if (!A || !B || !Number.isFinite(A.lat) || !Number.isFinite(B.lat)) return '';
+  const W = 260, H = 120, PAD = 16;
+  // Frame the pair with a margin, keeping a floor so a short hop isn't
+  // magnified into a meaningless zoom.
+  const minLon = Math.min(A.lon, B.lon), maxLon = Math.max(A.lon, B.lon);
+  const minLat = Math.min(A.lat, B.lat), maxLat = Math.max(A.lat, B.lat);
+  const spanLon = Math.max(maxLon - minLon, 8) * 1.35;
+  const spanLat = Math.max(maxLat - minLat, 6) * 1.35;
+  const cLon = (minLon + maxLon) / 2, cLat = (minLat + maxLat) / 2;
+  const x = (lon) => PAD + ((lon - (cLon - spanLon / 2)) / spanLon) * (W - PAD * 2);
+  const y = (lat) => PAD + (((cLat + spanLat / 2) - lat) / spanLat) * (H - PAD * 2);
+  const ax = x(A.lon), ay = y(A.lat), bx = x(B.lon), by = y(B.lat);
+  // Bow the line slightly so it reads as a route rather than a ruler.
+  const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.12;
+  // Graticule every 10° for a sense of scale.
+  const lines = [];
+  for (let lon = Math.ceil((cLon - spanLon / 2) / 10) * 10; lon <= cLon + spanLon / 2; lon += 10) {
+    lines.push(`<line x1="${x(lon).toFixed(1)}" y1="0" x2="${x(lon).toFixed(1)}" y2="${H}" class="lb-grid"/>`);
+  }
+  for (let lat = Math.ceil((cLat - spanLat / 2) / 10) * 10; lat <= cLat + spanLat / 2; lat += 10) {
+    lines.push(`<line x1="0" y1="${y(lat).toFixed(1)}" x2="${W}" y2="${y(lat).toFixed(1)}" class="lb-grid"/>`);
+  }
+  return `<svg class="lb-map" viewBox="0 0 ${W} ${H}" role="img"
+       aria-label="Route ${esc(leg.dep || '')} to ${esc(leg.arr || '')}">
+    ${lines.join('')}
+    <path d="M${ax.toFixed(1)},${ay.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}" class="lb-track"/>
+    <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="3.5" class="lb-pin"/>
+    <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5" class="lb-pin lb-pin-arr"/>
+    <text x="${ax.toFixed(1)}" y="${(ay - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.dep || '')}</text>
+    <text x="${bx.toFixed(1)}" y="${(by - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.arr || '')}</text>
+  </svg>`;
+}
+
 // Crew as flown, with role labels. Same slots the data card carries; blanks
 // are skipped and a name repeated across slots is only listed once.
 const LB_CREW = [
   ['cpt', 'CPT'], ['fo', 'FO'], ['cc1', 'PU'],
   ['cc2', 'CC2'], ['cc3', 'CC3'], ['cc4', 'CC4'], ['cc5', 'CC5'],
+  ['cc6', 'CC6'], ['cc7', 'CC7'], ['cc8', 'CC8'],
 ];
 function lbCrewHtml(leg) {
   const d = leg.dataCard || {};
@@ -2824,7 +2900,7 @@ async function showAirportInfo(icao) {
   if (!legs.length) {
     body.innerHTML = `<p class="muted small crewlog-empty">No past flights to ${escapeHtmlSimple(k)} yet.</p>`;
   } else {
-    const CREW = ['cpt','fo','cc1','cc2','cc3','cc4','cc5'];
+    const CREW = ['cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8'];
     const rows = legs.map(leg => {
       const d = leg.dataCard || {};
       const ely   = leg.flight ? `ELY${escapeHtmlSimple(leg.flight)}` : '—';

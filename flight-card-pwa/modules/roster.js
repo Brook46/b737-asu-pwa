@@ -19,7 +19,7 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=114';
+import { yearNear } from './dates.js?v=116';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
@@ -217,11 +217,13 @@ export function parseRoster(text, opts = {}) {
 
   if (!flights.length) return null;
 
-  // Map cabin crew to cc1..cc5 — first cabin entry (the PUR) → cc1, others fill in order.
+  // Map cabin crew to cc1..cc8 — first cabin entry (the PUR) → cc1, others in
+  // order. This used to stop at five and silently discard the rest, which is
+  // why some flights showed an incomplete crew.
   // DH is collapsed to a comma-separated string so the existing data card
   // text-input plumbing can render it without a new cell kind.
   for (const f of flights) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 8; i++) {
       f['cc' + (i + 1)] = f.cabin[i] || '';
     }
     delete f.cabin;
@@ -316,6 +318,9 @@ function parseJsonRoster(arr) {
       cc3: flipName(crew.CC3 || ''),
       cc4: flipName(crew.CC4 || ''),
       cc5: flipName(crew.CC5 || ''),
+      cc6: flipName(crew.CC6 || ''),
+      cc7: flipName(crew.CC7 || ''),
+      cc8: flipName(crew.CC8 || ''),
       // Deadhead positioning crew — the JSON shape carries them either as
       // crew.DH (array or string) or as a comma-separated DHC field. Be
       // tolerant of both so we don't drop names on a schema tweak.
@@ -347,7 +352,7 @@ function normaliseDhField(raw) {
 export function legToFields(leg) {
   if (!leg) return {};
   const out = {};
-  const keys = ['flight','tail','dep','arr','flight_time','ctot','cpt','fo','cc1','cc2','cc3','cc4','cc5','dh'];
+  const keys = ['flight','tail','dep','arr','flight_time','ctot','cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8','dh'];
   for (const k of keys) {
     if (leg[k] !== undefined && leg[k] !== '') out[k] = leg[k];
   }

@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=114';
-import { dateTs } from './dates.js?v=114';
+import * as storage from './storage.js?v=116';
+import { dateTs } from './dates.js?v=116';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -187,7 +187,7 @@ function detectPilotName(legs) {
 // isn't always "you". Returns canonical names — the UI flows them through
 // displayCrew for nickname-awareness.
 export function mostFlownCrew(legs, n = 5, year = null) {
-  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
   const inYear = year == null
     ? legs
     : legs.filter(l => legYear(l) === year);
@@ -231,7 +231,7 @@ export function lastToDestination(legs) {
 // Most recent UTC dep timestamp per crew member (any role), across ALL time
 // — "when did I last fly with them?". Keyed by canonical UPPERCASE name.
 export function lastWithCrew(legs) {
-  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
   const out = {};
   for (const leg of legs) {
     const d = leg.dataCard || {};

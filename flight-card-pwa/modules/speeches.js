@@ -5,8 +5,8 @@
 // Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=114';
-import { cityName } from './airports.js?v=114';
+import * as storage from './storage.js?v=116';
+import { cityName } from './airports.js?v=116';
 
 let activeId = null;
 let editing = false;
@@ -24,7 +24,7 @@ let lastFocusedTa = null;
 // keeps naming everyone correctly on every leg without re-editing.
 const INSERT_TOKENS = [
   '@crew', '@cockpit', '@cabin',
-  '@cpt', '@fo', '@PU', '@cc2', '@cc3', '@cc4', '@cc5',
+  '@cpt', '@fo', '@PU', '@cc2', '@cc3', '@cc4', '@cc5', '@cc6', '@cc7', '@cc8',
   '@flight', '@tail', '@dep', '@arr', '@flighttime',
   '@time', '@utc', '@date', '@tod',
 ];
@@ -39,6 +39,9 @@ const VAR_MAP = {
   cc3:    'cc3',
   cc4:    'cc4',
   cc5:    'cc5',
+  cc6:    'cc6',
+  cc7:    'cc7',
+  cc8:    'cc8',
   tail:   'tail',
   flight: 'flight',
   flt:    'flight',
@@ -82,7 +85,7 @@ function todBucket(date = new Date()) {
 // nicknames win, same as the single-crew tokens.
 const CREW_ROLES_EN = { cpt: 'Captain', fo: 'First Officer', cc1: 'Purser' };
 const CREW_ROLES_HE = { cpt: 'קברניט',  fo: 'קצין ראשון',   cc1: 'ממונה'  };
-const CABIN_KEYS   = ['cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+const CABIN_KEYS   = ['cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
 const COCKPIT_KEYS = ['cpt', 'fo'];
 
 function crewList(data, lang, keys) {
@@ -127,7 +130,7 @@ function dynamicValue(token, data, lang = 'en') {
 
 // Crew-bearing field keys — substituted through storage.displayCrew so a
 // saved nickname (e.g. "Yuvi" for "YUVAL KOLAN") appears in the rendered PA.
-const CREW_FIELDS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5']);
+const CREW_FIELDS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']);
 
 export function substitute(body, data, lang = 'en') {
   if (!body) return '';

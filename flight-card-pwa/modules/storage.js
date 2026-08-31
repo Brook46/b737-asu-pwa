@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=114';
-import { dateTs } from './dates.js?v=114';
+import { flipName } from './roster.js?v=116';
+import { dateTs } from './dates.js?v=116';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -345,7 +345,7 @@ function migrate(s) {
   // current.dataCard if there are no legs, and apply the parser's flipName.
   // Idempotency on later runs is guaranteed by the s.v < 12 gate.
   if (s.v && s.v < 12) {
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     const flipBag = (bag) => {
       if (!bag || typeof bag !== 'object') return;
       for (const k of CREW_KEYS) {
@@ -385,7 +385,7 @@ function migrate(s) {
   // happened earlier.
   const crew = (s.crew && typeof s.crew === 'object') ? s.crew : {};
   if (s.v && s.v < 13) {
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     const allLegBags = [];
     if (current.legs.length) {
       for (const leg of current.legs) {
@@ -765,7 +765,7 @@ export function setAirportSocialAll(map) {
 export function allLegsWith(name) {
   const k = canon(name);
   if (!k) return [];
-  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
   const namesInLeg = (leg) => {
     const set = new Set();
     for (const f of CREW_KEYS) {
@@ -875,16 +875,17 @@ export function appendLegs(newLegs) {
   const existing = Array.isArray(c.legs) ? c.legs : [];
   // Seed bags on each incoming leg up front so the merge has something
   // to copy from on the dataCard side.
-  const SEED_KEYS = LEG_IDENTITY_KEYS.concat(['cpt','fo','cc1','cc2','cc3','cc4','cc5']);
+  // 'dh' belongs here too — without it deadhead crew never reached the
+  // dataCard, so it was lost the moment a leg was merged by a later sync.
+  const SEED_KEYS = LEG_IDENTITY_KEYS.concat(
+    ['cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8','dh']);
   for (const leg of newLegs) {
     if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
     if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
     if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
-    // Logbook fields: block_time is the *scheduled* block snapshot —
-    // captured once when the leg is first seen and never updated by
-    // subsequent calendar syncs. mergeLeg's dataCard-wins rule explicitly
-    // skips it (see mergeLeg). actual_flight_time / to_role / ldg_role /
-    // max_g start empty; Phase 4's GPS detector fills them.
+    // block_time is the SCHEDULED block from the roster, refreshed on every
+    // sync so a dispatch correction reaches the logbook. actual_flight_time /
+    // to_role / ldg_role / max_g start empty; the GPS detector fills them.
     if (!leg.dataCard.block_time) {
       leg.dataCard.block_time = leg.flight_time || leg.dataCard.flight_time || '';
     }
@@ -934,7 +935,7 @@ export function appendLegs(newLegs) {
   // doesn't count twice.
   if (toAdd.length) {
     const s = read();
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5'];
+    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     for (const leg of toAdd) {
       const seen = new Set();
       for (const k of CREW_KEYS) {
@@ -984,15 +985,22 @@ function digitsOf(s) {
 // trade-off, and it's correct for this pilot's workflow.
 function mergeLeg(target, source) {
   // Top-level identity + schedule fields — incoming wins for non-empty.
-  for (const k of ['flight','tail','dep','arr','flight_time','ctot','dep_date','dep_time','arr_date','arr_time','dep_year','arr_year']) {
+  // Crew belongs here too: it lives at the top level of a leg AND in the
+  // dataCard, and leaving the top-level copy behind meant a re-sync showed the
+  // OLD crew (the logbook reads top-level first).
+  for (const k of ['flight','tail','dep','arr','flight_time','ctot',
+                   'dep_date','dep_time','arr_date','arr_time','dep_year','arr_year',
+                   'cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8','dh']) {
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
-  // dataCard merge — incoming wins per key for non-empty values, EXCEPT
-  // block_time: it's the scheduled-block snapshot taken when the leg first
-  // appeared, and shouldn't shift if dispatch later edits flight_time.
+  // dataCard merge — incoming wins per key for non-empty values. block_time
+  // used to be frozen at whatever the leg first showed, which left the logbook
+  // stuck on a stale block even after dispatch corrected it; the calendar is
+  // the authority, so it now refreshes like everything else. actual_flight_time
+  // is NOT touched here — it's measured (GPS) or typed, and the calendar has
+  // no opinion on what actually happened.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
-    if (k === 'block_time' && target.dataCard.block_time) continue;
     if (v != null && v !== '') target.dataCard[k] = v;
   }
   // Ticks: union — a tick on either side stays. Otherwise an incoming
@@ -1152,7 +1160,8 @@ export function addBlankLeg() {
     flight: '', tail: '', dep: '', arr: '', flight_time: '', ctot: '',
     dep_date: '', dep_time: '', arr_date: '', arr_time: '',
     dep_year: '', arr_year: '',
-    cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '', dh: '',
+    cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '',
+    cc6: '', cc7: '', cc8: '', dh: '',
     // Creation time — used to position the undated blank leg chronologically
     // in the switcher (see depTs) so it sits among "now" flights.
     created_at: Date.now(),
@@ -1261,6 +1270,7 @@ const K_SHORT = {
   // Crew
   cpt: 'cp', fo: 'fo',
   cc1: 'c1', cc2: 'c2', cc3: 'c3', cc4: 'c4', cc5: 'c5',
+  cc6: 'c6', cc7: 'c7', cc8: 'c8',
 };
 const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]));
 

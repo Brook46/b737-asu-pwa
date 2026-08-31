@@ -2430,3 +2430,33 @@ body { background: transparent; }
 }
 .lb-field input:focus { outline: none; border-color: var(--accent); }
 .lb-open { width: 100%; }
+
+/* Logbook: city names, route map, block/actual times. */
+.lb-cities {
+  margin-top: 2px;
+  font-size: 11px; color: var(--fg-mute);
+}
+.lb-map {
+  display: block; width: 100%; height: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.lb-grid { stroke: var(--line); stroke-width: 0.5; }
+.lb-track {
+  fill: none; stroke: var(--accent); stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.lb-pin { fill: var(--accent); }
+.lb-pin-arr { fill: var(--good, var(--accent)); }
+.lb-pin-lbl {
+  fill: var(--fg); font-size: 8px; font-weight: 800;
+  text-anchor: middle; letter-spacing: .06em;
+}
+.lb-detail-times { display: flex; gap: 14px; margin-bottom: 10px; }
+.lb-time { font-size: 12px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.lb-time b {
+  color: var(--fg-mute); font-weight: 800;
+  font-size: 10px; letter-spacing: .08em; margin-right: 4px;
+}

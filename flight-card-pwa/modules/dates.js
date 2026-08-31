@@ -84,3 +84,19 @@ export function yearNear(ddmm, anchorMs) {
   }
   return best;
 }
+
+// The rolling window above rolls FORWARD when a date is more than ~6 months
+// old, which is right for a roster ("December read in January means next
+// December") and exactly wrong for a logbook: a flight flown 7 months ago
+// resolved to NEXT year, looked like a future event, and was dropped from the
+// logbook entirely. For already-flown legs, resolve to the most recent year
+// that puts the date at or before now.
+export function yearPast(ddmm, nowMs = Date.now()) {
+  if (!ddmm) return null;
+  const dm = String(ddmm).split('.');
+  if (dm.length !== 2) return null;
+  const y = new Date(nowMs).getUTCFullYear();
+  const ts = Date.parse(`${y}-${pad2(dm[1])}-${pad2(dm[0])}T00:00:00Z`);
+  if (!Number.isFinite(ts)) return null;
+  return ts <= nowMs ? y : y - 1;
+}

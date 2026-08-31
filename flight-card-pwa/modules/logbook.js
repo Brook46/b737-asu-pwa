@@ -18,8 +18,8 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=114';
-import { dateTs } from './dates.js?v=114';
+import * as storage from './storage.js?v=116';
+import { dateTs, yearPast } from './dates.js?v=116';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -93,7 +93,8 @@ function describeLeg(leg, { displayCrew = (n) => n } = {}) {
   const atis   = d.atis || '';
   const crewLines = [];
   for (const [role, key] of [['CPT','cpt'], ['FO','fo'], ['PU','cc1'],
-                             ['CC2','cc2'], ['CC3','cc3'], ['CC4','cc4'], ['CC5','cc5']]) {
+                             ['CC2','cc2'], ['CC3','cc3'], ['CC4','cc4'], ['CC5','cc5'],
+                             ['CC6','cc6'], ['CC7','cc7'], ['CC8','cc8']]) {
     const name = leg[key] || d[key] || '';
     if (name) crewLines.push(`${role}: ${displayCrew(name)}`);
   }
@@ -158,14 +159,19 @@ export function allStoredLegs() {
   // departure is still in the future so the calendar never publishes
   // upcoming duty. Undated legs (no dep_date) are kept: they can't be a
   // future event, and buildIcs skips them anyway for lack of a window.
+  // Legs synced before dep_year existed carry only "dd.mm". Resolving those
+  // with the forward-rolling guess pushed anything older than ~6 months into
+  // next year, so it read as a future event and vanished from the logbook.
+  // Fall back to the past-biased year instead; legs that really are upcoming
+  // come from the calendar and now always carry a real dep_year.
+  const depOf = (leg) => toUtcDate(
+    leg.dep_date, leg.dep_time,
+    leg.dep_year || yearPast(leg.dep_date, now)
+  )?.getTime();
   const flown = all.filter(leg => {
-    const dep = toUtcDate(leg.dep_date, leg.dep_time, leg.dep_year)?.getTime();
+    const dep = depOf(leg);
     return dep == null || dep <= now;
   });
-  flown.sort((a, b) => {
-    const da = toUtcDate(a.dep_date, a.dep_time, a.dep_year)?.getTime() || 0;
-    const db = toUtcDate(b.dep_date, b.dep_time, b.dep_year)?.getTime() || 0;
-    return da - db;
-  });
+  flown.sort((a, b) => (depOf(a) || 0) - (depOf(b) || 0));
   return flown;
 }
