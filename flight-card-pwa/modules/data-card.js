@@ -1,8 +1,8 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=113';
-import * as wx from './wx.js?v=113';
+import * as storage from './storage.js?v=114';
+import * as wx from './wx.js?v=114';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -40,6 +40,10 @@ export const FIELDS = [
     // 'hhmm' formats as HH:MM as the user types, same digit-rule as the
     // CTOT input. Up to 4 digits → last two are minutes.
     { key: 'flight_time', label: 'Flight time', kind: 'hhmm' },
+    // What was actually flown. Nothing can derive these — no free source knows
+    // the cleared procedure — so they're typed, here or in the logbook row.
+    { key: 'sid',         label: 'SID',         kind: 'text' },
+    { key: 'star',        label: 'STAR',        kind: 'text' },
     // Logbook fields — block_time is the scheduled snapshot at first sync
     // (read-only), actual_flight_time fills automatically from GPS in
     // Phase 4 but is also manually editable.

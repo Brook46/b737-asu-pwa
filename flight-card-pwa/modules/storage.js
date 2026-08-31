@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=113';
-import { dateTs } from './dates.js?v=113';
+import { flipName } from './roster.js?v=114';
+import { dateTs } from './dates.js?v=114';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -792,6 +792,28 @@ export function lastLegWith(name) {
 
 // ---------- Legs (multi-flight roster) ----------
 export function getLegs() { return read().current.legs || []; }
+
+// Set a dataCard field on ANY stored leg — the active duty's legs or one in
+// history — matched by the same identity the logbook rows use. The logbook is
+// where a pilot naturally records what was actually flown (SID / STAR) after
+// the fact, and that leg is usually not the active one.
+export function setStoredLegField(match, key, value) {
+  const s = read();
+  const same = (l) =>
+    String(l.flight   || '') === String(match.flight   || '') &&
+    String(l.dep_date || '') === String(match.dep_date || '') &&
+    String(l.dep      || '') === String(match.dep      || '') &&
+    String(l.arr      || '') === String(match.arr      || '');
+  const pool = [...(s.current.legs || [])];
+  for (const f of (s.history || [])) pool.push(...(f.legs || []));
+  const leg = pool.find(same);
+  if (!leg) return false;
+  if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+  if (value === '' || value == null) delete leg.dataCard[key];
+  else leg.dataCard[key] = value;
+  scheduleWrite();
+  return true;
+}
 export function getLegIndex() { return read().current.legIndex || 0; }
 
 // Used by app.js's maybeAutoJumpToCurrentLeg cooldown. Persisted so a quick

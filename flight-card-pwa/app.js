@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=113';
-import * as dataCard from './modules/data-card.js?v=113';
-import * as checklist from './modules/checklist.js?v=113';
-import * as speeches from './modules/speeches.js?v=113';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=113';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=113';
-import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=113';
+import * as storage from './modules/storage.js?v=114';
+import * as dataCard from './modules/data-card.js?v=114';
+import * as checklist from './modules/checklist.js?v=114';
+import * as speeches from './modules/speeches.js?v=114';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=114';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=114';
+import { rollingTs, dateTs, yearOf } from './modules/dates.js?v=114';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1898,47 +1898,123 @@ function renderLogbookList(legs) {
     ].filter(Boolean).join('');
     const key = `${leg.flight}|${leg.dep_date}|${leg.dep}|${leg.arr}`;
     const isActive = key === activeKey;
-    parts.push(`
-      <button type="button" class="lb-row${isActive ? ' is-active' : ''}"
-              data-flight="${esc(leg.flight || '')}"
+    const ident = `data-flight="${esc(leg.flight || '')}"
               data-dep-date="${esc(leg.dep_date || '')}"
               data-dep="${esc(leg.dep || '')}"
-              data-arr="${esc(leg.arr || '')}">
+              data-arr="${esc(leg.arr || '')}"`;
+    // SID / STAR shown on the collapsed row too — the point of logging them is
+    // being able to scan the column, not to open every flight.
+    const proc = [
+      d.sid  ? `<span class="lb-proc">SID ${esc(d.sid)}</span>`   : '',
+      d.star ? `<span class="lb-proc">STAR ${esc(d.star)}</span>` : '',
+    ].filter(Boolean).join('');
+    parts.push(`
+      <div class="lb-item">
+      <button type="button" class="lb-row${isActive ? ' is-active' : ''}" ${ident}
+              aria-expanded="false">
         <span class="lb-date"><span class="lb-day">${esc(day)}</span>${esc(mon)}</span>
         <span class="lb-mid">
           <div class="lb-flight">${esc(flight)}</div>
           <div class="lb-route">${esc(route)}${time ? '  ·  ' + esc(time) : ''}</div>
+          ${proc ? `<div class="lb-procs">${proc}</div>` : ''}
         </span>
         <span class="lb-tags">${tags}</span>
       </button>
+      <div class="lb-detail hidden" ${ident}>
+        <div class="lb-detail-crew">${lbCrewHtml(leg)}</div>
+        <div class="lb-detail-proc">
+          <label class="lb-field">
+            <span>SID</span>
+            <input type="text" value="${esc(d.sid || '')}" data-lb-proc="sid" ${ident}
+                   autocomplete="off" autocapitalize="characters" spellcheck="false"
+                   maxlength="16" placeholder="—" aria-label="SID flown" />
+          </label>
+          <label class="lb-field">
+            <span>STAR</span>
+            <input type="text" value="${esc(d.star || '')}" data-lb-proc="star" ${ident}
+                   autocomplete="off" autocapitalize="characters" spellcheck="false"
+                   maxlength="16" placeholder="—" aria-label="STAR flown" />
+          </label>
+        </div>
+        <button type="button" class="btn lb-open" ${ident}>Open this leg</button>
+      </div>
+      </div>
     `);
   }
   return parts.join('');
 }
 
+// Crew as flown, with role labels. Same slots the data card carries; blanks
+// are skipped and a name repeated across slots is only listed once.
+const LB_CREW = [
+  ['cpt', 'CPT'], ['fo', 'FO'], ['cc1', 'PU'],
+  ['cc2', 'CC2'], ['cc3', 'CC3'], ['cc4', 'CC4'], ['cc5', 'CC5'],
+];
+function lbCrewHtml(leg) {
+  const d = leg.dataCard || {};
+  const seen = new Set();
+  const cells = [];
+  for (const [k, role] of LB_CREW) {
+    const raw = String(leg[k] || d[k] || '').trim();
+    if (!raw) continue;
+    const name = storage.displayCrew(raw) || raw;
+    const dedupe = name.toUpperCase();
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    cells.push(`<span class="lb-crew"><b>${esc(role)}</b> ${esc(name)}</span>`);
+  }
+  const dh = String(leg.dh || d.dh || '').trim();
+  if (dh) cells.push(`<span class="lb-crew lb-crew-dh"><b>DH</b> ${esc(dh)}</span>`);
+  return cells.length
+    ? cells.join('')
+    : `<span class="lb-crew muted">No crew recorded for this flight.</span>`;
+}
+
 function wireLogbookRows(body) {
+  const identOf = (el) => ({
+    flight:   el.dataset.flight   || '',
+    dep_date: el.dataset.depDate  || '',
+    dep:      el.dataset.dep      || '',
+    arr:      el.dataset.arr      || '',
+  });
+
   body.addEventListener('click', (e) => {
+    // "Open this leg" — the old tap behaviour, now explicit so a plain tap can
+    // expand the flight instead of navigating away from the logbook.
+    const open = e.target.closest('.lb-open');
+    if (open) {
+      e.preventDefault();
+      const id = identOf(open);
+      const legs = storage.getLegs() || [];
+      const idx = legs.findIndex(l =>
+        String(l.flight || '') === id.flight &&
+        String(l.dep_date || '') === id.dep_date &&
+        String(l.dep || '') === id.dep &&
+        String(l.arr || '') === id.arr);
+      if (idx >= 0) { hideOverlay('logbook-overlay'); applyLeg(idx); }
+      // Historical flights live in fc.state.history and can't be made active.
+      else toast('From a previous duty — view only');
+      return;
+    }
     const row = e.target.closest('.lb-row');
     if (!row) return;
     e.preventDefault();
-    // Find the matching leg in the active duty's legs[] — only those can
-    // be made the active leg via the leg switcher. Historical flights live
-    // in fc.state.history and aren't directly addressable; tapping one of
-    // those rows is a read-only ack.
-    const legs = storage.getLegs() || [];
-    const idx = legs.findIndex(l =>
-      String(l.flight || '') === row.dataset.flight &&
-      String(l.dep_date || '') === row.dataset.depDate &&
-      String(l.dep || '') === row.dataset.dep &&
-      String(l.arr || '') === row.dataset.arr
-    );
-    if (idx >= 0) {
-      hideOverlay('logbook-overlay');
-      applyLeg(idx);
-    } else {
-      toast('From a previous duty — view only');
-    }
+    const detail = row.parentElement?.querySelector('.lb-detail');
+    if (!detail) return;
+    const nowOpen = detail.classList.contains('hidden');
+    detail.classList.toggle('hidden', !nowOpen);
+    row.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
   }, { once: false });
+
+  // SID / STAR typed straight into the row. Writes to that leg wherever it
+  // lives — the active duty or history — not just the currently open one.
+  body.addEventListener('input', (e) => {
+    const inp = e.target.closest('[data-lb-proc]');
+    if (!inp) return;
+    const value = inp.value.toUpperCase();
+    if (inp.value !== value) inp.value = value;
+    storage.setStoredLegField(identOf(inp), inp.dataset.lbProc, value);
+  });
 }
 
 function esc(s) {
