@@ -18,7 +18,7 @@
 //   pushNow()         → force a push; resolves { ok, skipped?, error?, bytes? }
 //   lastPushedAt()    → ms epoch of the last successful push (0 = never)
 
-import { WORKER_BASE } from './proxy.js?v=116';
+import { WORKER_BASE } from './proxy.js?v=118';
 
 const TOKEN_KEY  = 'fc.logbook.token';
 const HASH_KEY   = 'fc.logbook.lastPushedHash';

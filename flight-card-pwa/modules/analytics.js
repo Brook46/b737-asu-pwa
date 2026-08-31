@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=116';
-import { dateTs } from './dates.js?v=116';
+import * as storage from './storage.js?v=118';
+import { dateTs } from './dates.js?v=118';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -265,4 +265,27 @@ export function snapshot() {
     lastDest:  lastToDestination(legs),
     lastCrew:  lastWithCrew(legs),
   };
+}
+
+// ---------- Route heat ----------
+// Every distinct route the pilot has flown, with how often and how recently.
+// Direction is collapsed (TLV→JFK and JFK→TLV are one line on the map) because
+// the map draws one segment between two airports either way.
+export function routeHeat(legs = allLegs()) {
+  const byPair = new Map();
+  for (const leg of legs) {
+    const a = String(leg.dep || '').toUpperCase().trim();
+    const b = String(leg.arr || '').toUpperCase().trim();
+    if (!a || !b || a === b) continue;
+    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+    const ts = depTs(leg);
+    const hit = byPair.get(key);
+    if (hit) {
+      hit.count++;
+      if (Number.isFinite(ts) && ts > hit.lastTs) hit.lastTs = ts;
+    } else {
+      byPair.set(key, { dep: a, arr: b, count: 1, lastTs: Number.isFinite(ts) ? ts : 0 });
+    }
+  }
+  return [...byPair.values()].sort((x, y) => x.count - y.count);  // hottest last = drawn on top
 }

@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=116';
-import * as dataCard from './modules/data-card.js?v=116';
-import * as checklist from './modules/checklist.js?v=116';
-import * as speeches from './modules/speeches.js?v=116';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=116';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=116';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=116';
+import * as storage from './modules/storage.js?v=118';
+import * as dataCard from './modules/data-card.js?v=118';
+import * as checklist from './modules/checklist.js?v=118';
+import * as speeches from './modules/speeches.js?v=118';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=118';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=118';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=118';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1813,9 +1813,13 @@ $('analytics-open').addEventListener('click', async () => {
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
     const an = await import('./modules/analytics.js');
-    const { cityName } = await import('./modules/airports.js');
+    const airports = await import('./modules/airports.js');
+    const world = await import('./modules/worldmap.js');
     const data = an.snapshot();
-    body.innerHTML = renderAnalytics(data, { cityName, displayCrew: storage.displayCrew });
+    data.heat = an.routeHeat();
+    body.innerHTML = renderAnalytics(data, {
+      cityName: airports.cityName, displayCrew: storage.displayCrew, airports, world,
+    });
   } catch (err) {
     console.warn('analytics render failed', err);
     body.innerHTML = `<p class="muted small">Couldn't compute analytics: ${err?.message || err}</p>`;
@@ -1867,6 +1871,8 @@ function lbMonthKey(leg) {
 }
 
 function renderLogbookList(legs) {
+  lbLegIndex.clear();
+  for (const leg of legs) lbLegIndex.set(lbKeyOf(leg), leg);
   if (!legs.length) {
     return '<p class="lb-empty">No legs stored yet. Sync your duty calendar or paste a roster from Settings.</p>';
   }
@@ -1957,10 +1963,18 @@ function renderLogbookList(legs) {
 // Loaded once when the logbook opens; until it resolves the rows simply show
 // codes, which is what they showed before.
 let lbAirports = null;
+let lbWorld = null;
+// identity string → leg, populated as the list renders. Lets the SID / STAR
+// inputs repaint their own row's map live; without it the labels only appeared
+// the next time the logbook was opened.
+const lbLegIndex = new Map();
+const lbKeyOf = (o) => [o.flight, o.dep_date, o.dep, o.arr]
+  .map(v => String(v == null ? '' : v)).join('|');
 async function ensureLbAirports() {
-  if (lbAirports) return lbAirports;
-  try { lbAirports = await import('./modules/airports.js'); }
-  catch (err) { console.warn('airport table unavailable', err); }
+  try {
+    if (!lbAirports) lbAirports = await import('./modules/airports.js');
+    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js');
+  } catch (err) { console.warn('map data unavailable', err); }
   return lbAirports;
 }
 
@@ -1979,43 +1993,45 @@ function lbCities(leg) {
   return `${esc(a)} → ${esc(b)}`;
 }
 
-// A small equirectangular map of the leg: the two airports and the line
-// between them, framed to the route. No tiles, no network, no library — the
-// airport table already carries lat/lon, and a PWA that flies must not depend
-// on fetching map imagery.
+// A small map of the leg — the coastline behind it, the two airports, and the
+// track between them. Land comes from modules/worldmap.js (embedded Natural
+// Earth), so this works with no network, which is the point.
+//
+// The SID / STAR are LABELLED at their airport, not drawn. Procedure geometry
+// is proprietary (Jeppesen / LIDO / state AIP) and there is no free, keyless
+// source for it — and an invented track on a flight deck is worse than none.
 function lbRouteMap(leg) {
-  if (!lbAirports) return '';
+  if (!lbAirports || !lbWorld) return '';
   const A = lbAirports.lookup(leg.dep), B = lbAirports.lookup(leg.arr);
   if (!A || !B || !Number.isFinite(A.lat) || !Number.isFinite(B.lat)) return '';
-  const W = 260, H = 120, PAD = 16;
-  // Frame the pair with a margin, keeping a floor so a short hop isn't
-  // magnified into a meaningless zoom.
+  const d = leg.dataCard || {};
+  const W = 280, H = 150, PAD = 18;
   const minLon = Math.min(A.lon, B.lon), maxLon = Math.max(A.lon, B.lon);
   const minLat = Math.min(A.lat, B.lat), maxLat = Math.max(A.lat, B.lat);
-  const spanLon = Math.max(maxLon - minLon, 8) * 1.35;
-  const spanLat = Math.max(maxLat - minLat, 6) * 1.35;
-  const cLon = (minLon + maxLon) / 2, cLat = (minLat + maxLat) / 2;
-  const x = (lon) => PAD + ((lon - (cLon - spanLon / 2)) / spanLon) * (W - PAD * 2);
-  const y = (lat) => PAD + (((cLat + spanLat / 2) - lat) / spanLat) * (H - PAD * 2);
-  const ax = x(A.lon), ay = y(A.lat), bx = x(B.lon), by = y(B.lat);
-  // Bow the line slightly so it reads as a route rather than a ruler.
-  const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.12;
-  // Graticule every 10° for a sense of scale.
-  const lines = [];
-  for (let lon = Math.ceil((cLon - spanLon / 2) / 10) * 10; lon <= cLon + spanLon / 2; lon += 10) {
-    lines.push(`<line x1="${x(lon).toFixed(1)}" y1="0" x2="${x(lon).toFixed(1)}" y2="${H}" class="lb-grid"/>`);
-  }
-  for (let lat = Math.ceil((cLat - spanLat / 2) / 10) * 10; lat <= cLat + spanLat / 2; lat += 10) {
-    lines.push(`<line x1="0" y1="${y(lat).toFixed(1)}" x2="${W}" y2="${y(lat).toFixed(1)}" class="lb-grid"/>`);
-  }
+  // Frame the pair with margin, with a floor so a short hop isn't magnified
+  // into a meaningless zoom.
+  const spanLon = Math.max(maxLon - minLon, 10) * 1.5;
+  const spanLat = Math.max(maxLat - minLat, 8)  * 1.5;
+  const view = { cLon: (minLon + maxLon) / 2, cLat: (minLat + maxLat) / 2, spanLon, spanLat };
+  const proj = lbWorld.projector({ x0: 0, y0: 0, w: W, h: H, ...view });
+  const land = lbWorld.landPaths(proj, view)
+    .map(dd => `<path d="${dd}" class="lb-land"/>`).join('');
+  const ax = proj.x(A.lon), ay = proj.y(A.lat), bx = proj.x(B.lon), by = proj.y(B.lat);
+  const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.14;
+  // Procedure labels sit just below their airport so they don't collide with
+  // the airport code above it.
+  const proc = (txt, x, y) => txt
+    ? `<text x="${x.toFixed(1)}" y="${(y + 13).toFixed(1)}" class="lb-proc-lbl">${esc(txt)}</text>` : '';
   return `<svg class="lb-map" viewBox="0 0 ${W} ${H}" role="img"
        aria-label="Route ${esc(leg.dep || '')} to ${esc(leg.arr || '')}">
-    ${lines.join('')}
+    <rect x="0" y="0" width="${W}" height="${H}" class="lb-sea"/>
+    ${land}
     <path d="M${ax.toFixed(1)},${ay.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}" class="lb-track"/>
     <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="3.5" class="lb-pin"/>
     <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5" class="lb-pin lb-pin-arr"/>
     <text x="${ax.toFixed(1)}" y="${(ay - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.dep || '')}</text>
     <text x="${bx.toFixed(1)}" y="${(by - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.arr || '')}</text>
+    ${proc(d.sid, ax, ay)}${proc(d.star, bx, by)}
   </svg>`;
 }
 
@@ -2089,7 +2105,37 @@ function wireLogbookRows(body) {
     if (!inp) return;
     const value = inp.value.toUpperCase();
     if (inp.value !== value) inp.value = value;
-    storage.setStoredLegField(identOf(inp), inp.dataset.lbProc, value);
+    const id = identOf(inp);
+    storage.setStoredLegField(id, inp.dataset.lbProc, value);
+    // Repaint just this row: the map's procedure labels and the codes on the
+    // collapsed row both read from the leg we've only now changed.
+    const leg = lbLegIndex.get(lbKeyOf(id));
+    if (!leg) return;
+    leg.dataCard = leg.dataCard || {};
+    if (value) leg.dataCard[inp.dataset.lbProc] = value;
+    else delete leg.dataCard[inp.dataset.lbProc];
+    const item = inp.closest('.lb-item');
+    const svg = item?.querySelector('.lb-map');
+    if (svg) {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = lbRouteMap(leg);
+      if (tpl.content.firstElementChild) svg.replaceWith(tpl.content.firstElementChild);
+    }
+    const mid = item?.querySelector('.lb-mid');
+    if (mid) {
+      const d = leg.dataCard;
+      const html = [
+        d.sid  ? `<span class="lb-proc">SID ${esc(d.sid)}</span>`   : '',
+        d.star ? `<span class="lb-proc">STAR ${esc(d.star)}</span>` : '',
+      ].filter(Boolean).join('');
+      let procs = mid.querySelector('.lb-procs');
+      if (html && !procs) {
+        procs = document.createElement('div');
+        procs.className = 'lb-procs';
+        mid.appendChild(procs);
+      }
+      if (procs) { procs.innerHTML = html; procs.classList.toggle('hidden', !html); }
+    }
   });
 }
 
@@ -2139,7 +2185,56 @@ function relDate(ts) {
   return `${mon} ${d.getUTCFullYear()}`;
 }
 
-function renderAnalytics(data, { cityName, displayCrew }) {
+// Every route ever flown, on one world map. Brightness and thickness carry two
+// things at once: how OFTEN a route is flown, and how RECENTLY — a line you
+// flew last week glows, one from two years ago is a faint trace. Same idea as
+// a training heat map, and it reads at a glance without a legend to decode.
+function renderRouteHeatMap(heat, airports, world) {
+  if (!heat.length || !airports || !world) return '';
+  const W = 720, H = 360;
+  const view = { cLon: 10, cLat: 25, spanLon: 360, spanLat: 180 };
+  const proj = world.projector({ x0: 0, y0: 0, w: W, h: H, ...view });
+  const land = world.landPaths(proj).map(d => `<path d="${d}" class="an-land"/>`).join('');
+
+  const now = Date.now();
+  const maxCount = Math.max(...heat.map(h => h.count), 1);
+  const YEAR = 365 * 24 * 3600 * 1000;
+  const seen = new Map();          // airport code → [x, y], for the dots
+  const lines = [];
+  for (const h of heat) {
+    const A = airports.lookup(h.dep), B = airports.lookup(h.arr);
+    if (!A || !B || !Number.isFinite(A.lat) || !Number.isFinite(B.lat)) continue;
+    const ax = proj.x(A.lon), ay = proj.y(A.lat);
+    const bx = proj.x(B.lon), by = proj.y(B.lat);
+    seen.set(h.dep, [ax, ay]); seen.set(h.arr, [bx, by]);
+    // Frequency drives weight, recency drives glow. Both are normalised and
+    // floored so a rare old route is faint but never invisible.
+    const freq = h.count / maxCount;
+    const age  = h.lastTs ? Math.min(1, (now - h.lastTs) / (2 * YEAR)) : 1;
+    const heatv = Math.max(0.12, 0.45 * freq + 0.55 * (1 - age));
+    const wdt = (0.7 + 2.6 * freq).toFixed(2);
+    const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.13;
+    lines.push(`<path d="M${ax.toFixed(1)},${ay.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}"
+      class="an-route" style="stroke-width:${wdt};opacity:${heatv.toFixed(2)}"/>`);
+  }
+  if (!lines.length) return '';
+  const dots = [...seen.values()]
+    .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" class="an-dot"/>`).join('');
+  return `
+    <section class="an-card an-map-card">
+      <h4>Where I fly</h4>
+      <svg class="an-map" viewBox="0 0 ${W} ${H}" role="img"
+           aria-label="World map of every route flown, brighter where flown more often and more recently">
+        <rect x="0" y="0" width="${W}" height="${H}" class="an-sea"/>
+        ${land}${lines.join('')}${dots}
+      </svg>
+      <p class="an-map-key muted small">
+        ${heat.length} route${heat.length === 1 ? '' : 's'} · brighter and thicker = flown more often and more recently
+      </p>
+    </section>`;
+}
+
+function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
   if (!data.legCount) {
     return `
       <p class="muted small" style="padding:18px 4px;">
@@ -2147,6 +2242,7 @@ function renderAnalytics(data, { cityName, displayCrew }) {
         analytics appear here.
       </p>`;
   }
+  const heatMap = renderRouteHeatMap(data.heat || [], airports, world);
   // Top destinations — sub-label carries the city + when I last flew there.
   const lastDest = data.lastDest || {};
   const topRows = data.top.map(d => {
@@ -2196,6 +2292,7 @@ function renderAnalytics(data, { cityName, displayCrew }) {
   });
 
   return `
+    ${heatMap}
     <div class="an-card">
       <h4>Top destinations (${data.year})</h4>
       ${renderBars(topRows, { emptyMsg: 'No non-home arrivals yet this year.' })}
