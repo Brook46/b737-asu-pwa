@@ -1,0 +1,260 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    a { color: #b5abfc; } a:hover { color: #d2cefd; }
+    @keyframes mn-drift { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(0,-6px,0); } }
+    @keyframes mn-tw { 0%,100% { opacity:.25; transform:scale(.7); } 50% { opacity:1; transform:scale(1.2); } }
+  </style>
+</helmet>
+
+<!-- 390x844 phone artboard: the Moon detail sheet, the piece the brief called out
+     first ("way more realistic, especially at the moon"). -->
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #161826; color: #e9e9ed;">
+
+  <!-- ============ SKY BEHIND THE SHEET ============ -->
+  <div style="position: absolute; inset: 0; background:
+      radial-gradient(120% 70% at 50% 4%, #262a60 0%, rgba(38,42,96,0) 58%),
+      radial-gradient(90% 55% at 14% 96%, #2b2741 0%, rgba(43,39,65,0) 70%),
+      linear-gradient(#0d0f1c 0%, #161826 60%, #1b1d33 100%);"></div>
+
+  <!-- soft nebula wash -->
+  <div style="position: absolute; left: -14%; top: 4%; width: 300px; height: 230px; border-radius: 50%; filter: blur(38px); mix-blend-mode: screen; opacity: .5;
+      background: radial-gradient(circle at 42% 40%, rgba(196,150,235,.5), rgba(120,60,200,.2) 55%, transparent 74%);"></div>
+  <div style="position: absolute; right: -16%; top: 22%; width: 260px; height: 260px; border-radius: 50%; filter: blur(42px); mix-blend-mode: screen; opacity: .45;
+      background: radial-gradient(circle at 58% 42%, rgba(120,190,255,.45), rgba(60,80,200,.18) 55%, transparent 74%);"></div>
+
+  <!-- background stars: varied size + brightness so it reads as depth, not a dot grid -->
+  <div style="position: absolute; inset: 0;">
+    <span style="position:absolute; left:8%;  top:6%;   width:2px;   height:2px;   border-radius:50%; background:#f3f5fe; opacity:.75; animation: mn-tw 4.2s ease-in-out infinite;"></span>
+    <span style="position:absolute; left:23%; top:11%;  width:1.4px; height:1.4px; border-radius:50%; background:#cfd3e5; opacity:.55;"></span>
+    <span style="position:absolute; left:41%; top:5%;   width:2.6px; height:2.6px; border-radius:50%; background:#fff; opacity:.9; box-shadow:0 0 6px rgba(210,206,253,.9); animation: mn-tw 5.6s ease-in-out .8s infinite;"></span>
+    <span style="position:absolute; left:57%; top:14%;  width:1.6px; height:1.6px; border-radius:50%; background:#d2cefd; opacity:.6;"></span>
+    <span style="position:absolute; left:73%; top:8%;   width:2px;   height:2px;   border-radius:50%; background:#f3f5fe; opacity:.7; animation: mn-tw 3.8s ease-in-out 1.6s infinite;"></span>
+    <span style="position:absolute; left:88%; top:17%;  width:1.5px; height:1.5px; border-radius:50%; background:#cfd3e5; opacity:.5;"></span>
+    <span style="position:absolute; left:15%; top:24%;  width:1.8px; height:1.8px; border-radius:50%; background:#f3f5fe; opacity:.65;"></span>
+    <span style="position:absolute; left:34%; top:30%;  width:1.3px; height:1.3px; border-radius:50%; background:#9397ab; opacity:.55;"></span>
+    <span style="position:absolute; left:66%; top:27%;  width:2.2px; height:2.2px; border-radius:50%; background:#fff; opacity:.85; box-shadow:0 0 5px rgba(210,206,253,.8);"></span>
+    <span style="position:absolute; left:80%; top:34%;  width:1.4px; height:1.4px; border-radius:50%; background:#cfd3e5; opacity:.5;"></span>
+    <span style="position:absolute; left:5%;  top:37%;  width:1.6px; height:1.6px; border-radius:50%; background:#d2cefd; opacity:.6;"></span>
+    <span style="position:absolute; left:49%; top:38%;  width:1.2px; height:1.2px; border-radius:50%; background:#9397ab; opacity:.45;"></span>
+  </div>
+
+  <!-- ============ STATUS BAR (app chrome, matches .topbar) ============ -->
+  <div style="position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 52px 18px 0;">
+    <div style="display: flex; align-items: center; gap: 9px;">
+      <span style="width: 9px; height: 9px; border-radius: 50%; background: #b5abfc; box-shadow: 0 0 12px #9184d9;"></span>
+      <span style="font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #9397ab; font-weight: 600;">Mission control</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: flex; align-items: center; gap: 5px; padding: 7px 11px; border-radius: 999px; background: rgba(35,37,50,.55); border: 1px solid rgba(150,138,224,.28); color: #d2cefd; font-size: 12px; font-weight: 700;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#b5abfc"><path d="M12 2.6l2.7 5.9 6.4.7-4.8 4.3 1.3 6.3L12 16.6 6.4 19.8l1.3-6.3L2.9 9.2l6.4-.7z"/></svg>
+        4/10
+      </span>
+      <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(35,37,50,.55); border: 1px solid rgba(150,138,224,.28);">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="#e9e9ed"><path d="M13 3.5v17a1 1 0 0 1-1.6.8L6.6 17.5H3.5A1.5 1.5 0 0 1 2 16V8a1.5 1.5 0 0 1 1.5-1.5h3.1l4.8-3.8a1 1 0 0 1 1.6.8z"/><path d="M16.4 8.3a1 1 0 0 1 1.4.1 5.6 5.6 0 0 1 0 7.2 1 1 0 1 1-1.5-1.3 3.6 3.6 0 0 0 0-4.6 1 1 0 0 1 .1-1.4z"/><path d="M19.1 5.2a1 1 0 0 1 1.4 0 9.7 9.7 0 0 1 0 13.6 1 1 0 0 1-1.4-1.4 7.7 7.7 0 0 0 0-10.8 1 1 0 0 1 0-1.4z"/></svg>
+      </span>
+    </div>
+  </div>
+
+  <!-- ============ THE MOON ============ -->
+  <!-- Built from the real near-side: Imbrium / Serenitatis / Tranquillitatis /
+       Crisium / Procellarum maria in their true relative positions, Tycho's ray
+       system to the south, limb darkening, a soft terminator and earthshine on the
+       unlit limb. Regolith grain comes from feTurbulence, so it stays crisp at any
+       zoom and needs no bitmap. -->
+  <div style="position: absolute; left: 50%; top: 224px; transform: translateX(-50%); animation: mn-drift 7s ease-in-out infinite;">
+    <svg width="248" height="248" viewBox="0 0 248 248" aria-label="Waxing gibbous Moon">
+      <defs>
+        <clipPath id="mnDisc"><circle cx="124" cy="124" r="96"/></clipPath>
+
+        <!-- highland base: warm pale grey, slightly brighter toward the sunlit limb -->
+        <radialGradient id="mnBase" cx="38%" cy="32%" r="78%">
+          <stop offset="0%"  stop-color="#e9e6de"/>
+          <stop offset="45%" stop-color="#d9d5cc"/>
+          <stop offset="80%" stop-color="#c2beb5"/>
+          <stop offset="100%" stop-color="#a9a59d"/>
+        </radialGradient>
+
+        <!-- limb darkening: the disc edge falls off, which is what stops a flat circle
+             from reading as a sticker -->
+        <radialGradient id="mnLimb" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stop-color="rgba(0,0,0,0)"/>
+          <stop offset="72%"  stop-color="rgba(0,0,0,0)"/>
+          <stop offset="92%"  stop-color="rgba(18,16,26,.34)"/>
+          <stop offset="100%" stop-color="rgba(12,10,20,.62)"/>
+        </radialGradient>
+
+        <!-- terminator: soft, wide penumbra — a hard edge is the giveaway of a fake moon -->
+        <linearGradient id="mnTerm" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stop-color="#06070e" stop-opacity=".97"/>
+          <stop offset="14%"  stop-color="#06070e" stop-opacity=".93"/>
+          <stop offset="26%"  stop-color="#0a0b14" stop-opacity=".72"/>
+          <stop offset="34%"  stop-color="#0d0f1c" stop-opacity=".38"/>
+          <stop offset="41%"  stop-color="#0d0f1c" stop-opacity=".12"/>
+          <stop offset="47%"  stop-color="#0d0f1c" stop-opacity="0"/>
+        </linearGradient>
+
+        <!-- earthshine: the dark limb is never truly black, it is lit by Earth -->
+        <radialGradient id="mnEarthshine" cx="18%" cy="46%" r="52%">
+          <stop offset="0%"   stop-color="rgba(150,170,220,.22)"/>
+          <stop offset="70%"  stop-color="rgba(120,140,200,.06)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+
+        <radialGradient id="mnRay" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stop-color="rgba(255,255,255,.5)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+        </radialGradient>
+
+        <filter id="mnMaria" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="5.5"/>
+        </filter>
+        <filter id="mnSoft" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.4"/>
+        </filter>
+        <filter id="mnGrain">
+          <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="4" seed="11" result="n"/>
+          <feColorMatrix in="n" type="saturate" values="0"/>
+        </filter>
+        <filter id="mnGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="13"/>
+        </filter>
+      </defs>
+
+      <!-- outer glow / atmosphere bloom -->
+      <circle cx="124" cy="124" r="97" fill="rgba(226,230,248,.30)" filter="url(#mnGlow)"/>
+
+      <g clip-path="url(#mnDisc)">
+        <circle cx="124" cy="124" r="96" fill="url(#mnBase)"/>
+
+        <!-- MARIA, in their real near-side arrangement -->
+        <g filter="url(#mnMaria)" opacity=".82">
+          <!-- Oceanus Procellarum (large, west/left) -->
+          <ellipse cx="66"  cy="118" rx="30" ry="46" fill="#767a88" opacity=".78" transform="rotate(-12 66 118)"/>
+          <ellipse cx="76"  cy="76"  rx="20" ry="20" fill="#7a7e8c" opacity=".62"/>
+          <!-- Mare Imbrium -->
+          <ellipse cx="98"  cy="76"  rx="29" ry="24" fill="#6e7280" opacity=".85" transform="rotate(-18 98 76)"/>
+          <!-- Mare Serenitatis -->
+          <ellipse cx="141" cy="80"  rx="20" ry="18" fill="#6a6e7c" opacity=".85"/>
+          <!-- Mare Tranquillitatis -->
+          <ellipse cx="163" cy="104" rx="21" ry="18" fill="#6f7381" opacity=".82" transform="rotate(20 163 104)"/>
+          <!-- Mare Crisium (isolated oval near the eastern limb) -->
+          <ellipse cx="196" cy="84"  rx="13" ry="11" fill="#666a78" opacity=".9"  transform="rotate(-10 196 84)"/>
+          <!-- Mare Fecunditatis -->
+          <ellipse cx="180" cy="132" rx="14" ry="17" fill="#71757f" opacity=".7"/>
+          <!-- Mare Nectaris -->
+          <ellipse cx="158" cy="150" rx="11" ry="11" fill="#70747e" opacity=".66"/>
+          <!-- Mare Vaporum -->
+          <ellipse cx="128" cy="108" rx="10" ry="8"  fill="#74788400" opacity=".55" fill-opacity=".55"/>
+          <!-- Mare Nubium / Humorum (south-west) -->
+          <ellipse cx="100" cy="160" rx="19" ry="14" fill="#73777f" opacity=".62" transform="rotate(-8 100 160)"/>
+          <ellipse cx="72"  cy="158" rx="13" ry="11" fill="#767a82" opacity=".55"/>
+        </g>
+
+        <!-- Tycho's ray system: bright streaks fanning north from the southern highlands -->
+        <g opacity=".5" filter="url(#mnSoft)">
+          <g transform="translate(110 186)">
+            <rect x="-1.2" y="-96" width="2.4" height="96" fill="url(#mnRay)" transform="rotate(8)"/>
+            <rect x="-1.1" y="-88" width="2.2" height="88" fill="url(#mnRay)" transform="rotate(-16)"/>
+            <rect x="-1"   y="-80" width="2"   height="80" fill="url(#mnRay)" transform="rotate(30)"/>
+            <rect x="-1"   y="-74" width="2"   height="74" fill="url(#mnRay)" transform="rotate(-38)"/>
+            <rect x="-.9"  y="-64" width="1.8" height="64" fill="url(#mnRay)" transform="rotate(54)"/>
+            <rect x="-.9"  y="-58" width="1.8" height="58" fill="url(#mnRay)" transform="rotate(-58)"/>
+          </g>
+        </g>
+
+        <!-- craters: bright rim + shadowed floor, lit consistently from the right -->
+        <g>
+          <circle cx="110" cy="186" r="7"   fill="#efece4" opacity=".85"/>
+          <circle cx="110" cy="186" r="4.6" fill="#b9b5ac" opacity=".8"/>
+          <circle cx="103" cy="112" r="6"   fill="#e6e2da" opacity=".7"/>
+          <circle cx="103" cy="112" r="3.8" fill="#b3afa6" opacity=".7"/>
+          <circle cx="150" cy="176" r="5"   fill="#e2ded6" opacity=".6"/>
+          <circle cx="86"  cy="196" r="4.4" fill="#e2ded6" opacity=".55"/>
+          <circle cx="176" cy="60"  r="3.6" fill="#e6e2da" opacity=".5"/>
+          <circle cx="60"  cy="88"  r="3.2" fill="#ded9d1" opacity=".45"/>
+          <circle cx="132" cy="200" r="3.4" fill="#ded9d1" opacity=".45"/>
+          <circle cx="196" cy="150" r="3"   fill="#d9d4cc" opacity=".4"/>
+          <circle cx="88"  cy="52"  r="2.6" fill="#d9d4cc" opacity=".4"/>
+          <circle cx="158" cy="42"  r="2.4" fill="#d9d4cc" opacity=".35"/>
+          <circle cx="46"  cy="140" r="2.6" fill="#d4cfc7" opacity=".35"/>
+          <circle cx="120" cy="146" r="2.2" fill="#d4cfc7" opacity=".3"/>
+        </g>
+
+        <!-- regolith grain -->
+        <rect x="0" y="0" width="248" height="248" filter="url(#mnGrain)" opacity=".16" style="mix-blend-mode: overlay;"/>
+
+        <!-- limb darkening, then the terminator, then earthshine on the unlit side -->
+        <circle cx="124" cy="124" r="96" fill="url(#mnLimb)"/>
+        <rect x="28" y="28" width="192" height="192" fill="url(#mnTerm)"/>
+        <rect x="28" y="28" width="192" height="192" fill="url(#mnEarthshine)"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- phase caption sits with the Moon, not in the sheet: it describes what you are looking at -->
+  <div style="position: absolute; left: 0; right: 0; top: 486px; display: flex; justify-content: center;">
+    <span style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; background: rgba(35,37,50,.55); border: 1px solid rgba(150,138,224,.28); color: #d2cefd; font-size: 12px; font-weight: 600; letter-spacing: .04em;">
+      <svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#3f424d"/><path d="M12 2a10 10 0 0 1 0 20 7 10 0 0 0 0-20z" fill="#e7e5fe"/></svg>
+      Waxing gibbous · 78% lit
+    </span>
+  </div>
+
+  <!-- ============ DETAIL SHEET ============ -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #232532; border: 1px solid #3f424d; border-bottom: none; border-radius: 24px 24px 0 0; padding: 12px 20px 26px; box-shadow: 0 -12px 40px rgba(0,0,0,.5);">
+
+    <div style="width: 36px; height: 4px; border-radius: 2px; background: #3f424d; margin: 0 auto 14px;"></div>
+
+    <!-- close: 44px target, up from the old 38 -->
+    <div style="position: absolute; top: 14px; right: 16px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.06); border: 1px solid rgba(150,138,224,.28);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="#e9e9ed"><path d="M18.3 5.7a1 1 0 0 0-1.4 0L12 10.6 7.1 5.7a1 1 0 1 0-1.4 1.4l4.9 4.9-4.9 4.9a1 1 0 1 0 1.4 1.4l4.9-4.9 4.9 4.9a1 1 0 0 0 1.4-1.4L13.4 12l4.9-4.9a1 1 0 0 0 0-1.4z"/></svg>
+    </div>
+
+    <h2 style="font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 6px; color: #e9e9ed;">Moon</h2>
+    <p style="font-size: 15.5px; line-height: 1.45; margin: 0 0 16px; color: #cfd3e5; max-width: 300px; text-wrap: pretty;">The Moon circles our Earth and lights up our night sky.</p>
+
+    <!-- a small, honest data strip: every value here is something the app already
+         computes from the real ephemeris -->
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px;">
+      <div style="padding: 10px 12px; border-radius: 14px; background: rgba(13,15,28,.5); border: 1px solid #3f424d;">
+        <div style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #75798c; font-weight: 700; margin-bottom: 3px;">Rises</div>
+        <div style="font-size: 15px; font-weight: 700; color: #e9e9ed;">18:42</div>
+      </div>
+      <div style="padding: 10px 12px; border-radius: 14px; background: rgba(13,15,28,.5); border: 1px solid #3f424d;">
+        <div style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #75798c; font-weight: 700; margin-bottom: 3px;">Full moon</div>
+        <div style="font-size: 15px; font-weight: 700; color: #e9e9ed;">in 4 days</div>
+      </div>
+      <div style="padding: 10px 12px; border-radius: 14px; background: rgba(13,15,28,.5); border: 1px solid #3f424d;">
+        <div style="font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #75798c; font-weight: 700; margin-bottom: 3px;">Distance</div>
+        <div style="font-size: 15px; font-weight: 700; color: #e9e9ed;">384,400<span style="font-size:11px; color:#9397ab; font-weight:600;"> km</span></div>
+      </div>
+    </div>
+
+    <!-- actions: 56px targets, gap-based layout -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="width: 56px; height: 56px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 18px; background: rgba(35,37,50,.55); border: 1px solid rgba(150,138,224,.28);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#cfd3e5"><path d="M15.3 4.3a1 1 0 0 1 0 1.4L9 12l6.3 6.3a1 1 0 0 1-1.4 1.4l-7-7a1 1 0 0 1 0-1.4l7-7a1 1 0 0 1 1.4 0z"/></svg>
+      </div>
+      <div style="flex: 1 1 auto; height: 56px; display: flex; align-items: center; justify-content: center; gap: 9px; border-radius: 18px; border: 1px solid #9184d9; background: linear-gradient(180deg, rgba(89,79,138,.5), rgba(66,58,106,.32)); color: #e9e9ed; font-size: 15.5px; font-weight: 700; box-shadow: 0 6px 18px rgba(66,58,106,.4), inset 0 1px 0 rgba(233,233,237,.09);">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="#b5abfc"><path d="M12 2.6l2.7 5.9 6.4.7-4.8 4.3 1.3 6.3L12 16.6 6.4 19.8l1.3-6.3L2.9 9.2l6.4-.7z"/></svg>
+        I spotted it
+      </div>
+      <div style="width: 56px; height: 56px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 18px; background: rgba(35,37,50,.55); border: 1px solid rgba(150,138,224,.28);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#cfd3e5"><path d="M8.7 4.3a1 1 0 0 0 0 1.4L15 12l-6.3 6.3a1 1 0 1 0 1.4 1.4l7-7a1 1 0 0 0 0-1.4l-7-7a1 1 0 0 0-1.4 0z"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

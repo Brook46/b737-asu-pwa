@@ -37,3 +37,7 @@ ios-flightcard/build/
 ios-flightcard/DerivedData/
 *.xcuserstate
 xcuserdata/
+
+# Seeded design-canvas output (~2.5MB editor payload) — the design lives in the
+# published Artifact; only the source artboards are worth versioning.
+design/**/sky-club-polish.html

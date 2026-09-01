@@ -1,0 +1,40 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",          "x": 0,    "y": 0,   "w": 390,  "h": 844, "title": "Moon sheet" },
+    { "file": "StarSheet.dc.html",     "x": 490,  "y": 0,   "w": 390,  "h": 844, "title": "Star info" },
+    { "file": "SkyScreen.dc.html",     "x": 980,  "y": 0,   "w": 390,  "h": 844, "title": "Sky · background" },
+    { "file": "ExploreScreen.dc.html", "x": 1470, "y": 0,   "w": 390,  "h": 844, "title": "Explore" },
+    { "file": "Controls.dc.html",      "x": 0,    "y": 964, "w": 1040, "h": 880, "title": "Buttons & controls" }
+  ],
+  "annotations": [
+    {
+      "id": "moon-note",
+      "x": 0,
+      "y": -168,
+      "w": 390,
+      "text": "The Moon, rebuilt.\nReal near-side maria (Imbrium, Serenitatis, Tranquillitatis, Crisium, Procellarum) in their true relative positions, Tycho's ray system, limb darkening, a soft terminator and earthshine on the unlit edge. Grain is an SVG turbulence filter, so it stays sharp at any size and needs no image file."
+    },
+    {
+      "id": "star-note",
+      "x": 490,
+      "y": -168,
+      "w": 390,
+      "text": "Star info.\nA bright star is a point source, so it is drawn as one: core, chromatic halo, diffraction spikes — in Betelgeuse's real catalogue tint. The panel now answers where it is (its place in Orion), how bright, what colour and how far, instead of name + one line."
+    },
+    {
+      "id": "sky-note",
+      "x": 980,
+      "y": -168,
+      "w": 390,
+      "text": "Background.\nA textured Milky Way with a galactic bulge and dark dust lanes, airglow above the horizon, and stars in three depth tiers. The three shooting stars run on unequal 17s / 23s / 31s cycles and are visible for only a sliver of each, so they never fall into a rhythm."
+    },
+    {
+      "id": "controls-note",
+      "x": 1100,
+      "y": 964,
+      "w": 360,
+      "text": "Controls.\nEvery target goes to 44-52px (play and zoom are 38px today, under the floor, on an app a three-year-old drives with a fingertip). One clear primary per surface, a real pressed state on everything, and Explore's two stacked bars folded into one."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
