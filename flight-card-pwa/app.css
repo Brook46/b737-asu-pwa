@@ -2587,3 +2587,51 @@ body { background: transparent; }
 }
 .pa-fmt:active { border-color: var(--accent); }
 .pa-fmt-h { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ---------- PA editor: live colours ---------- */
+.pa-editor {
+  min-height: 22vh;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--fg);
+  line-height: 1.5;
+  overflow-y: auto;
+  max-height: 34vh;
+  -webkit-user-select: text; user-select: text;
+  /* Per-line direction, so a Hebrew line and an English one can share a block. */
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.pa-editor:focus { outline: none; border-color: var(--accent); }
+.pa-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--fg-dim);
+  pointer-events: none;
+}
+
+/* Swatches: the colour itself is the button — no colour names to read. */
+.pa-swatch {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--sw, var(--fg));
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.pa-swatch:active { border-color: var(--fg); transform: scale(0.94); }
+/* Highlight reads as a highlighter nib rather than a flat colour. */
+.pa-swatch-h {
+  background: linear-gradient(180deg, transparent 0 38%, rgba(45,212,191,.55) 38% 100%);
+  border-color: var(--accent);
+}
+.pa-swatch-x {
+  background: var(--bg-sunk);
+  color: var(--fg-mute);
+  font-size: 12px; font-weight: 800; line-height: 1;
+}

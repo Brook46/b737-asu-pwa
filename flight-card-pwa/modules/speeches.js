@@ -2,17 +2,18 @@
 //
 // Each speech: { id, name, bodyEn, bodyHe }
 // Both languages share one window: Hebrew block on top (RTL), English below.
-// Edit mode swaps each block for a textarea; both autosave independently.
+// Edit mode swaps each block for a contenteditable that shows the real
+// colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=123';
-import { cityName } from './airports.js?v=123';
+import * as storage from './storage.js?v=124';
+import { cityName } from './airports.js?v=124';
 
 let activeId = null;
 let editing = false;
 let liveTick = null;
-// Track the last-focused textarea so a tap on an @-token chip knows
-// which language block to insert into.
+// Track the last-focused editor so a tap on an @-token chip or a colour swatch
+// knows which language block it applies to.
 let lastFocusedTa = null;
 
 // @-token chips shown above the editor in edit mode. The text appears
@@ -84,6 +85,82 @@ function applyMarkup(html) {
 // Plain-text output (copying, sharing) carries no markers.
 export function stripMarkup(text) {
   return String(text || '').replace(MARK_RE, '');
+}
+
+// ---- WYSIWYG editing ----
+// The editor is contenteditable and shows the real colours; the stored body is
+// still the plain marker text. These two functions are the bridge. The literal
+// colours below are what the editor writes (via execCommand) and what the
+// serializer reads back, so they must match MARK_CLASS's palette exactly.
+const EDIT_COLOURS = { r: '#e5484d', a: '#f5a524', g: '#30a46c', b: '#3b82f6' };
+const EDIT_HL = 'rgba(45, 212, 191, 0.28)';   // a teal wash — legible on both themes
+const RGB = { 'rgb(229, 72, 77)': 'r', 'rgb(245, 165, 36)': 'a',
+              'rgb(48, 164, 108)': 'g', 'rgb(59, 130, 246)': 'b' };
+
+// marker text → HTML for the contenteditable box.
+export function markupToEditHtml(text) {
+  const esc = escape(String(text || ''));
+  let depth = 0;
+  let out = esc.replace(MARK_RE, (whole, k) => {
+    if (k === '/') { if (!depth) return ''; depth--; return '</span>'; }
+    depth++;
+    return k === 'h'
+      ? `<span style="background-color:${EDIT_HL}">`
+      : `<span style="color:${EDIT_COLOURS[k]}">`;
+  });
+  while (depth-- > 0) out += '</span>';
+  return out.replace(/\n/g, '<br>');
+}
+
+// The editor's DOM → marker text. Each text node's effective style is read
+// from its ancestors, so however the browser nests its spans, what comes out
+// is the same simple marker string the rest of the app already understands.
+export function editHtmlToMarkup(root) {
+  const runs = [];
+  const walk = (node, hl, colour) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const t = child.nodeValue.replace(/\u200B/g, '');
+        if (t) runs.push({ t, hl, colour });
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) continue;
+      const tag = child.tagName;
+      if (tag === 'BR') { runs.push({ t: '\n', hl, colour }); continue; }
+      let nextHl = hl, nextColour = colour;
+      const bg = (child.style && child.style.backgroundColor) || '';
+      if (bg && bg !== 'transparent') nextHl = true;
+      const col = normaliseRgb((child.style && child.style.color) || '');
+      if (RGB[col]) nextColour = RGB[col];
+      // A block child starts a new line, except the very first one.
+      const isBlock = tag === 'DIV' || tag === 'P';
+      if (isBlock && runs.length) runs.push({ t: '\n', hl: false, colour: null });
+      walk(child, nextHl, nextColour);
+    }
+  };
+  walk(root, false, null);
+
+  let out = '';
+  let curHl = false, curColour = null;
+  const close = () => {
+    if (curColour) { out += '{/}'; curColour = null; }
+    if (curHl)     { out += '{/}'; curHl = false; }
+  };
+  for (const run of runs) {
+    if (run.t === '\n') { close(); out += '\n'; continue; }
+    if (run.hl !== curHl || run.colour !== curColour) {
+      close();
+      if (run.hl)     { out += '{h}'; curHl = true; }
+      if (run.colour) { out += `{${run.colour}}`; curColour = run.colour; }
+    }
+    out += run.t;
+  }
+  close();
+  return out;
+}
+
+function normaliseRgb(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 // @tod — "time of day" bucket from local clock. Speech is generally read
@@ -323,28 +400,42 @@ function render() {
         ${chipsHtml}
       </div>
       <div class="pa-fmt-bar" role="toolbar" aria-label="Highlight and colour">
-        <span class="pa-token-hint">Select text, then →</span>
-        <button type="button" class="pa-fmt pa-fmt-h" data-mark="h" title="Highlight">Highlight</button>
-        <button type="button" class="pa-fmt pa-c-r" data-mark="r" title="Red">Red</button>
-        <button type="button" class="pa-fmt pa-c-a" data-mark="a" title="Amber">Amber</button>
-        <button type="button" class="pa-fmt pa-c-g" data-mark="g" title="Green">Green</button>
-        <button type="button" class="pa-fmt pa-c-b" data-mark="b" title="Blue">Blue</button>
-        <button type="button" class="pa-fmt" data-mark="clear" title="Remove highlight and colour">Clear</button>
+        <span class="pa-token-hint">Select text, or pick then type →</span>
+        <button type="button" class="pa-swatch pa-swatch-h" data-mark="h"
+                title="Highlight" aria-label="Highlight"></button>
+        <button type="button" class="pa-swatch" data-mark="r" style="--sw:${EDIT_COLOURS.r}" title="Red"   aria-label="Red text"></button>
+        <button type="button" class="pa-swatch" data-mark="a" style="--sw:${EDIT_COLOURS.a}" title="Amber" aria-label="Amber text"></button>
+        <button type="button" class="pa-swatch" data-mark="g" style="--sw:${EDIT_COLOURS.g}" title="Green" aria-label="Green text"></button>
+        <button type="button" class="pa-swatch" data-mark="b" style="--sw:${EDIT_COLOURS.b}" title="Blue"  aria-label="Blue text"></button>
+        <button type="button" class="pa-swatch pa-swatch-x" data-mark="clear"
+                title="Remove highlight and colour" aria-label="Clear formatting">✕</button>
       </div>
       <div class="pa-block pa-block-he" dir="rtl">
         <div class="pa-block-label">עברית</div>
-        <textarea data-lang="he" dir="rtl"
-          placeholder="כתוב כאן את ההודעה בעברית. הקישו על שבב למעלה כדי להוסיף משתנה במקום להקליד @.">${escape(heText)}</textarea>
+        <div class="pa-editor" contenteditable="true" data-lang="he" dir="rtl"
+             role="textbox" aria-multiline="true" aria-label="Hebrew PA text"
+             data-placeholder="כתוב כאן את ההודעה בעברית.">${markupToEditHtml(heText)}</div>
       </div>
       <div class="pa-block pa-block-en" dir="ltr">
         <div class="pa-block-label">English</div>
-        <textarea data-lang="en" dir="ltr"
-          placeholder="Write the PA here. Tap a chip above to insert a variable instead of typing the @ key.">${escape(enText)}</textarea>
+        <div class="pa-editor" contenteditable="true" data-lang="en" dir="ltr"
+             role="textbox" aria-multiline="true" aria-label="English PA text"
+             data-placeholder="Write the PA here.">${markupToEditHtml(enText)}</div>
       </div>
     `;
-    const textareas = body.querySelectorAll('textarea[data-lang]');
+    const textareas = body.querySelectorAll('.pa-editor[data-lang]');
     textareas.forEach(ta => {
-      ta.addEventListener('input', () => storage.setSpeechBody(sp.id, ta.dataset.lang, ta.value));
+      ta.addEventListener('input', () => {
+        storage.setSpeechBody(sp.id, ta.dataset.lang, editHtmlToMarkup(ta));
+      });
+      // Paste as plain text: pasted styling would serialise into colours the
+      // palette doesn't have, and would then be lost on the next open.
+      ta.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
+        if (text) document.execCommand('insertText', false, text);
+        storage.setSpeechBody(sp.id, ta.dataset.lang, editHtmlToMarkup(ta));
+      });
       // Remember the last-focused textarea so chip taps know where to
       // insert. blur on the chip itself doesn't fire because mousedown is
       // preventDefault'd; the lastFocusedTa just stays on whichever
@@ -356,12 +447,12 @@ function render() {
     // would no-op because no textarea has been focused yet.
     if (!lastFocusedTa) lastFocusedTa = textareas[0] || null;
 
-    body.querySelectorAll('.pa-fmt').forEach(btn => {
+    body.querySelectorAll('.pa-swatch').forEach(btn => {
       // pointerdown + preventDefault so the textarea keeps its selection — a
       // click would blur it first and there would be nothing left to wrap.
       btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        markSelection(lastFocusedTa, btn.dataset.mark, sp.id);
+        applyStyle(lastFocusedTa, btn.dataset.mark, sp.id);
       });
     });
 
@@ -394,44 +485,39 @@ function render() {
 // Insert `text` at the textarea's caret. If the textarea has a selection,
 // the selection is replaced. Autosaves the new body and keeps focus +
 // caret position so the user can keep typing.
-// Wrap the selection in a marker pair (or strip markers from it, for 'clear').
-// With no selection, drop an empty pair and park the caret inside so typing
-// lands already styled.
-function markSelection(ta, kind, speechId) {
-  if (!ta || !kind) return;
-  const start = ta.selectionStart ?? 0;
-  const end   = ta.selectionEnd ?? 0;
-  const before = ta.value.slice(0, start);
-  const sel    = ta.value.slice(start, end);
-  const after  = ta.value.slice(end);
-  let mid, caretFrom, caretTo;
-  if (kind === 'clear') {
-    mid = stripMarkup(sel);
-    caretFrom = start; caretTo = start + mid.length;
-  } else {
-    const open = `{${kind}}`;
-    mid = open + stripMarkup(sel) + '{/}';
-    caretFrom = start + open.length;
-    caretTo   = caretFrom + stripMarkup(sel).length;
-  }
-  ta.value = before + mid + after;
-  ta.focus();
-  try { ta.setSelectionRange(caretFrom, caretTo); } catch {}
-  storage.setSpeechBody(speechId, ta.dataset.lang, ta.value);
-  lastFocusedTa = ta;
+// Apply a colour or highlight to the live editor. execCommand is deprecated on
+// paper but is the only thing that gets the important half of this right on
+// iOS Safari: with NOTHING selected it sets a pending format, so picking a
+// colour and then typing produces coloured text — which is exactly what was
+// asked for and is fiddly to reproduce by hand with Ranges.
+function applyStyle(el, kind, speechId) {
+  if (!el || !kind) return;
+  el.focus();
+  try {
+    document.execCommand('styleWithCSS', false, true);
+    if (kind === 'clear') {
+      document.execCommand('removeFormat', false, null);
+    } else if (kind === 'h') {
+      // Safari names it hiliteColor; other engines accept backColor.
+      if (!document.execCommand('hiliteColor', false, EDIT_HL)) {
+        document.execCommand('backColor', false, EDIT_HL);
+      }
+    } else {
+      document.execCommand('foreColor', false, EDIT_COLOURS[kind]);
+    }
+  } catch (err) { console.warn('PA style failed', err); }
+  storage.setSpeechBody(speechId, el.dataset.lang, editHtmlToMarkup(el));
+  lastFocusedTa = el;
 }
 
 function insertAtCursor(ta, text, speechId) {
   if (!ta || !text) return;
-  const start = ta.selectionStart ?? ta.value.length;
-  const end   = ta.selectionEnd   ?? ta.value.length;
-  const before = ta.value.slice(0, start);
-  const after  = ta.value.slice(end);
-  ta.value = before + text + after;
-  const caret = start + text.length;
   ta.focus();
-  try { ta.setSelectionRange(caret, caret); } catch {}
-  storage.setSpeechBody(speechId, ta.dataset.lang, ta.value);
+  // insertText respects the caret and whatever pending colour is active, so an
+  // @token dropped into coloured text picks up that colour like any other word.
+  try { document.execCommand('insertText', false, text); }
+  catch (err) { console.warn('token insert failed', err); }
+  storage.setSpeechBody(speechId, ta.dataset.lang, editHtmlToMarkup(ta));
   lastFocusedTa = ta;
 }
 

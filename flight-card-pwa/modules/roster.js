@@ -19,7 +19,7 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=123';
+import { yearNear } from './dates.js?v=124';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
