@@ -5,8 +5,8 @@
 // Edit mode swaps each block for a textarea; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=122';
-import { cityName } from './airports.js?v=122';
+import * as storage from './storage.js?v=123';
+import { cityName } from './airports.js?v=123';
 
 let activeId = null;
 let editing = false;
@@ -52,6 +52,39 @@ const VAR_MAP = {
 };
 
 const VAR_RE = /@([a-zA-Z]{2,10})\b/g;
+
+// ---- Highlight + colour ----
+// The PA body stays PLAIN TEXT and carries inline markers, rather than becoming
+// rich HTML. That matters: @tokens are substituted by scanning this string, the
+// same body is shared between the Hebrew and English blocks, and every stored
+// PA is plain text today. Markers keep all of that working — and the toolbar
+// writes them, so nothing has to be typed by hand.
+//   {h}…{/}  highlight      {r} red   {a} amber   {g} green   {b} blue
+const MARK_RE = /\{(h|r|a|g|b|\/)\}/g;
+const MARK_CLASS = { h: 'pa-hl', r: 'pa-c-r', a: 'pa-c-a', g: 'pa-c-g', b: 'pa-c-b' };
+
+// Convert markers to spans, keeping the tags balanced: an unmatched {/} is
+// dropped and anything left open is closed at the end, so a half-typed marker
+// can never close the surrounding block and break the layout.
+function applyMarkup(html) {
+  let depth = 0;
+  let out = html.replace(MARK_RE, (whole, k) => {
+    if (k === '/') {
+      if (depth === 0) return '';
+      depth--;
+      return '</span>';
+    }
+    depth++;
+    return `<span class="${MARK_CLASS[k]}">`;
+  });
+  while (depth-- > 0) out += '</span>';
+  return out;
+}
+
+// Plain-text output (copying, sharing) carries no markers.
+export function stripMarkup(text) {
+  return String(text || '').replace(MARK_RE, '');
+}
 
 // @tod — "time of day" bucket from local clock. Speech is generally read
 // over the PA close to the time it's prepared, so local clock is the
@@ -134,7 +167,7 @@ const CREW_FIELDS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc
 
 export function substitute(body, data, lang = 'en') {
   if (!body) return '';
-  return body.replace(VAR_RE, (whole, token) => {
+  return stripMarkup(body).replace(VAR_RE, (whole, token) => {
     const dyn = dynamicValue(token, data, lang);
     if (dyn != null) return dyn;
     const key = VAR_MAP[token.toLowerCase()];
@@ -179,7 +212,10 @@ function renderHtml(body, data, lang = 'en') {
     return whole;
   });
   html += escape(body.slice(lastIdx));
-  return html.replace(/\n/g, '<br/>');
+  // After escaping, so user text can never inject markup of its own; the spans
+  // inserted above contain no braces, so a whole-string pass is safe and lets a
+  // highlight span a token ("{r}Captain @cpt{/}").
+  return applyMarkup(html).replace(/\n/g, '<br/>');
 }
 
 export function open() {
@@ -286,6 +322,15 @@ function render() {
         <span class="pa-token-hint">Tap to insert →</span>
         ${chipsHtml}
       </div>
+      <div class="pa-fmt-bar" role="toolbar" aria-label="Highlight and colour">
+        <span class="pa-token-hint">Select text, then →</span>
+        <button type="button" class="pa-fmt pa-fmt-h" data-mark="h" title="Highlight">Highlight</button>
+        <button type="button" class="pa-fmt pa-c-r" data-mark="r" title="Red">Red</button>
+        <button type="button" class="pa-fmt pa-c-a" data-mark="a" title="Amber">Amber</button>
+        <button type="button" class="pa-fmt pa-c-g" data-mark="g" title="Green">Green</button>
+        <button type="button" class="pa-fmt pa-c-b" data-mark="b" title="Blue">Blue</button>
+        <button type="button" class="pa-fmt" data-mark="clear" title="Remove highlight and colour">Clear</button>
+      </div>
       <div class="pa-block pa-block-he" dir="rtl">
         <div class="pa-block-label">עברית</div>
         <textarea data-lang="he" dir="rtl"
@@ -310,6 +355,15 @@ function render() {
     // language the user writes most in). Without this the first chip tap
     // would no-op because no textarea has been focused yet.
     if (!lastFocusedTa) lastFocusedTa = textareas[0] || null;
+
+    body.querySelectorAll('.pa-fmt').forEach(btn => {
+      // pointerdown + preventDefault so the textarea keeps its selection — a
+      // click would blur it first and there would be nothing left to wrap.
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        markSelection(lastFocusedTa, btn.dataset.mark, sp.id);
+      });
+    });
 
     body.querySelectorAll('.pa-token-chip').forEach(chip => {
       // pointerdown handles both touch and mouse with a single event and
@@ -340,6 +394,33 @@ function render() {
 // Insert `text` at the textarea's caret. If the textarea has a selection,
 // the selection is replaced. Autosaves the new body and keeps focus +
 // caret position so the user can keep typing.
+// Wrap the selection in a marker pair (or strip markers from it, for 'clear').
+// With no selection, drop an empty pair and park the caret inside so typing
+// lands already styled.
+function markSelection(ta, kind, speechId) {
+  if (!ta || !kind) return;
+  const start = ta.selectionStart ?? 0;
+  const end   = ta.selectionEnd ?? 0;
+  const before = ta.value.slice(0, start);
+  const sel    = ta.value.slice(start, end);
+  const after  = ta.value.slice(end);
+  let mid, caretFrom, caretTo;
+  if (kind === 'clear') {
+    mid = stripMarkup(sel);
+    caretFrom = start; caretTo = start + mid.length;
+  } else {
+    const open = `{${kind}}`;
+    mid = open + stripMarkup(sel) + '{/}';
+    caretFrom = start + open.length;
+    caretTo   = caretFrom + stripMarkup(sel).length;
+  }
+  ta.value = before + mid + after;
+  ta.focus();
+  try { ta.setSelectionRange(caretFrom, caretTo); } catch {}
+  storage.setSpeechBody(speechId, ta.dataset.lang, ta.value);
+  lastFocusedTa = ta;
+}
+
 function insertAtCursor(ta, text, speechId) {
   if (!ta || !text) return;
   const start = ta.selectionStart ?? ta.value.length;

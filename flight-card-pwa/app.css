@@ -2557,3 +2557,33 @@ body { background: transparent; }
   color: var(--fg);
 }
 .lb-time-edit input:focus { outline: none; border-color: var(--accent); }
+
+/* ---------- PA: highlight + colour ---------- */
+/* Fixed hues rather than theme tokens: a PA marked red must read as red in
+   both themes, and these four sit legibly on light and dark alike. */
+.pa-hl {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-radius: 3px;
+}
+.pa-c-r { color: #e5484d; }
+.pa-c-a { color: #f5a524; }
+.pa-c-g { color: #30a46c; }
+.pa-c-b { color: #3b82f6; }
+
+.pa-fmt-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin: 0 0 10px;
+}
+.pa-fmt {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--fg);
+  cursor: pointer;
+}
+.pa-fmt:active { border-color: var(--accent); }
+.pa-fmt-h { background: var(--accent-soft); border-color: var(--accent); }
