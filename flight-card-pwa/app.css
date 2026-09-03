@@ -2635,3 +2635,22 @@ body { background: transparent; }
   color: var(--fg-mute);
   font-size: 12px; font-weight: 800; line-height: 1;
 }
+
+/* Analytics period picker. */
+.an-years { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 2px 12px; }
+.an-year {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg-sunk);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit; font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-mute);
+  cursor: pointer;
+}
+.an-year.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=125';
-import { dateTs, yearPast } from './dates.js?v=125';
+import * as storage from './storage.js?v=126';
+import { dateTs, yearPast } from './dates.js?v=126';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -253,12 +253,27 @@ export function lastWithCrew(legs) {
 }
 
 // Convenience: one shot at every metric for the current YTD.
-export function snapshot() {
+// Every year the pilot has flown in, newest first — the choices for the year
+// picker. Legs stored before dep_year existed resolve past-biased, so they can
+// only land in the last 12 months; see the note on yearPast in dates.js.
+export function availableYears(legs = allLegs()) {
+  const years = new Set();
+  for (const leg of legs) {
+    const y = legYear(leg);
+    if (y != null) years.add(y);
+  }
+  return [...years].sort((a, b) => b - a);
+}
+
+// year === null means ALL TIME. It used to be hardwired to the current year,
+// so the panel silently showed year-to-date only and there was no way to ask
+// for anything else.
+export function snapshot(year = new Date().getUTCFullYear()) {
   const legs = allLegs();
-  const year = new Date().getUTCFullYear();
   return {
     year,
     legCount:  legs.length,
+    years:     availableYears(legs),
     top:       topDestinations(legs, 5, year),
     nights:    nightsAwayFromHome(legs, year),
     hours:     hoursFlown(legs, year),

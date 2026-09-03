@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=125';
-import * as dataCard from './modules/data-card.js?v=125';
-import * as checklist from './modules/checklist.js?v=125';
-import * as speeches from './modules/speeches.js?v=125';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=125';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=125';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=125';
+import * as storage from './modules/storage.js?v=126';
+import * as dataCard from './modules/data-card.js?v=126';
+import * as checklist from './modules/checklist.js?v=126';
+import * as speeches from './modules/speeches.js?v=126';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=126';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=126';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=126';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1808,16 +1808,18 @@ $('logbook-export').addEventListener('click', async () => {
 });
 
 // ---------- Analytics overlay (read-only, computed from stored legs) ----------
-$('analytics-open').addEventListener('click', async () => {
-  hideOverlay('settings-overlay');
-  showOverlay('analytics-overlay');
+// null = all time. Defaults to this year, which is what the panel always
+// showed — the difference is that it is now a choice rather than a hard-wire.
+let anYear = new Date().getUTCFullYear();
+
+async function paintAnalytics() {
   const body = $('analytics-body');
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
     const an = await import('./modules/analytics.js');
     const airports = await import('./modules/airports.js');
     const world = await import('./modules/worldmap.js');
-    const data = an.snapshot();
+    const data = an.snapshot(anYear);
     data.heat = an.routeHeat();
     data.routeLegs = an.flownRoutes();
     body.innerHTML = renderAnalytics(data, {
@@ -1827,6 +1829,21 @@ $('analytics-open').addEventListener('click', async () => {
     console.warn('analytics render failed', err);
     body.innerHTML = `<p class="muted small">Couldn't compute analytics: ${err?.message || err}</p>`;
   }
+}
+
+$('analytics-open').addEventListener('click', async () => {
+  hideOverlay('settings-overlay');
+  showOverlay('analytics-overlay');
+  await paintAnalytics();
+});
+
+// Year picker — delegated, because the panel is rebuilt on every change.
+$('analytics-body').addEventListener('click', (e) => {
+  const pick = e.target.closest('[data-an-year]');
+  if (!pick) return;
+  const v = pick.dataset.anYear;
+  anYear = v === 'all' ? null : Number(v);
+  paintAnalytics();
 });
 $('analytics-close').addEventListener('click', () => hideOverlay('analytics-overlay'));
 $('analytics-overlay').addEventListener('click', (e) => {
@@ -2387,6 +2404,17 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
       </p>`;
   }
   const heatMap = renderRouteHeatMap(data.heat || [], airports, world, data.routeLegs || []);
+  // Scope label used by every card heading, so it is never ambiguous whether a
+  // number is year-to-date or a career total.
+  const scope = data.year == null ? 'all time' : String(data.year);
+  const years = Array.isArray(data.years) ? data.years : [];
+  const yearPicker = `
+    <div class="an-years" role="group" aria-label="Period">
+      <button type="button" class="an-year${data.year == null ? ' is-on' : ''}" data-an-year="all">All time</button>
+      ${years.map(y =>
+        `<button type="button" class="an-year${data.year === y ? ' is-on' : ''}" data-an-year="${y}">${y}</button>`
+      ).join('')}
+    </div>`;
   // Top destinations — sub-label carries the city + when I last flew there.
   const lastDest = data.lastDest || {};
   const topRows = data.top.map(d => {
@@ -2436,28 +2464,29 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
   });
 
   return `
+    ${yearPicker}
     ${heatMap}
     <div class="an-card">
-      <h4>Top destinations (${data.year})</h4>
+      <h4>Top destinations (${scope})</h4>
       ${renderBars(topRows, { emptyMsg: 'No non-home arrivals yet this year.' })}
     </div>
     <div class="an-card">
-      <h4>Nights away from home (${data.year})</h4>
+      <h4>Nights away from home (${scope})</h4>
       <div class="an-big">${data.nights}</div>
       <div class="an-big-sub">distinct calendar days with at least one non-TLV leg</div>
     </div>
     <div class="an-card">
-      <h4>Hours flown YTD (${data.year})</h4>
+      <h4>Hours flown (${scope})</h4>
       <div class="an-big">${esc(data.hours.totalLabel)}</div>
       <div class="an-big-sub">prefers actual flight time when set, then block, then scheduled</div>
       ${tailChips ? `<div class="an-tails">${tailChips}</div>` : ''}
     </div>
     <div class="an-card">
-      <h4>Landing G — PF vs PM (${data.year})</h4>
+      <h4>Landing G — PF vs PM (${scope})</h4>
       ${gContent}
     </div>
     <div class="an-card">
-      <h4>Most flown with (${data.year})</h4>
+      <h4>Most flown with (${scope})</h4>
       ${renderBars(crewRows, { emptyMsg: 'No crew on file yet for this year.' })}
     </div>
   `;
