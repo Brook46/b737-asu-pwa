@@ -14,7 +14,7 @@ A suite of vanilla-JS Progressive Web Apps for a 737 pilot, all served from one 
 - **pdf-knowledge-pwa/** — PDF study/annotation companion
 - **thermals-pwa/** — live in-flight thermals map (has its own separate Cloudflare worker; `config.js` holds its API base)
 - **debrief-pwa/** — "Thermal Debrief": post-flight IGC analysis, 3D replay over real terrain, insights and scorecard. See `debrief-pwa/CLAUDE.md`.
-- **airline-radar-pwa/** — "Airline Radar": live airline traffic on a map, airliners only, keyless ADS-B; deep-linked from flight-card's tail button. See `airline-radar-pwa/CLAUDE.md`.
+- **airline-radar-pwa/** — "Airline Radar": live airline traffic on a map, airliners only, keyless ADS-B. See `airline-radar-pwa/CLAUDE.md`. **Not currently linked from Flight Card** — its radar button points at Flightradar24 while the keyless feeds are unreliable; see `doRadar()` in `flight-card-pwa/app.js` to point it back.
 - **xcsky-pwa/** — "Sky Monkeys": free soaring/XC weather, map-first, entirely keyless. See `xcsky-pwa/CLAUDE.md`.
 - **sky-club-pwa/** — "Sky Club": toddler-friendly solar system orrery + real-time AR-style sky (point-the-phone star/planet finder), entirely keyless. See `sky-club-pwa/CLAUDE.md`.
 

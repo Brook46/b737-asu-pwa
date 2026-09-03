@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=124';
-import * as dataCard from './modules/data-card.js?v=124';
-import * as checklist from './modules/checklist.js?v=124';
-import * as speeches from './modules/speeches.js?v=124';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=124';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=124';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=124';
+import * as storage from './modules/storage.js?v=125';
+import * as dataCard from './modules/data-card.js?v=125';
+import * as checklist from './modules/checklist.js?v=125';
+import * as speeches from './modules/speeches.js?v=125';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=125';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=125';
+import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=125';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1364,22 +1364,24 @@ function doChecklistEditToggle() {
   }
   checklist.render(checklistBody);
 }
+// Track this tail on Flightradar24.
+//
+// This used to open the in-house Airline Radar PWA. It points at FR24 while
+// that app's keyless ADS-B feeds are unreliable — a tracker that sometimes has
+// no aircraft is worse than one that always works, even if the latter is
+// someone else's site. Switching back is a one-line change: rebuild the
+// ../airline-radar-pwa/ URL with ?reg= (and the roster's ?sta=, which FR24
+// doesn't need because it carries its own schedules).
 function doRadar() {
   const tail = storage.getCurrent().dataCard.tail || $('hdr-tail').value;
   const reg = normaliseRegistration(tail);
   if (!reg) { toast('Set tail # first'); return; }
-
-  // Airline Radar opens straight onto this tail. We also hand over the roster's
-  // scheduled arrival: its feeds are keyless ADS-B, which carries no schedule,
-  // so the STA we know from the duty plan is the only one it can show.
-  const params = new URLSearchParams({ reg });
-  const leg = (storage.getLegs() || [])[storage.getLegIndex()] || null;
-  const sta = leg && leg.arr_time ? String(leg.arr_time).trim() : '';
-  if (sta) { params.set('sta', sta); params.set('from', 'roster'); }
-
-  const url = new URL('../airline-radar-pwa/', location.href);
-  url.search = params.toString();
-  window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  // FR24's per-aircraft page is /data/aircraft/<reg>, lower-case and keeping
+  // the dash: 4X-EHE → 4x-ehe. It shows the live position when airborne and
+  // that airframe's recent flights when it isn't.
+  const url = 'https://www.flightradar24.com/data/aircraft/'
+    + encodeURIComponent(reg.toLowerCase());
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 function openSettingsSheet() {
   showOverlay('settings-overlay');
@@ -2480,7 +2482,7 @@ $('sync-import').addEventListener('change', async (e) => {
   }
 });
 
-// ---------- Airline Radar quick-track ----------
+// ---------- Tail quick-track ----------
 // Three-letter input (e.g. "EHE") is treated as an Israeli-fleet registration
 // suffix and prefixed with "4X-". Anything else passes through untouched.
 function normaliseRegistration(raw) {

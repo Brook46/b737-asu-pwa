@@ -268,7 +268,7 @@ export function parseFmcText(rawText) {
 }
 
 // ---------- Field labels for review ----------
-import { fieldDef } from './data-card.js?v=124';
+import { fieldDef } from './data-card.js?v=125';
 
 export function buildReviewFields(parsed, knownKeys) {
   // Always show every known field; parsed values pre-fill.
