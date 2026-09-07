@@ -100,3 +100,19 @@ export function yearPast(ddmm, nowMs = Date.now()) {
   if (!Number.isFinite(ts)) return null;
   return ts <= nowMs ? y : y - 1;
 }
+
+// The single way to turn a LEG's stored date into a timestamp.
+//
+// A leg that carries dep_year/arr_year uses it, full stop. A leg without one
+// can only be legacy data — every parse path has stamped a year since v127 —
+// and legacy data is by definition already flown, so it resolves past-biased.
+//
+// This exists because the fallback used to differ by module: storage's sort and
+// app's "which leg is now" used the FORWARD-rolling guess, which threw a flight
+// from seven months ago into next February. It sorted after next week's flight
+// and looked like the next departure, so the app auto-selected a leg the pilot
+// flew months ago. The logbook and analytics had already been moved to the
+// past-biased rule, which is exactly how the two halves disagreed.
+export function legTs(ddmm, hhmm, year, nowMs = Date.now()) {
+  return dateTs(ddmm, hhmm, year || yearPast(ddmm, nowMs), nowMs);
+}

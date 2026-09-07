@@ -18,8 +18,8 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=126';
-import { dateTs, yearPast } from './dates.js?v=126';
+import * as storage from './storage.js?v=127';
+import { dateTs, legTs } from './dates.js?v=127';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -164,10 +164,10 @@ export function allStoredLegs() {
   // next year, so it read as a future event and vanished from the logbook.
   // Fall back to the past-biased year instead; legs that really are upcoming
   // come from the calendar and now always carry a real dep_year.
-  const depOf = (leg) => toUtcDate(
-    leg.dep_date, leg.dep_time,
-    leg.dep_year || yearPast(leg.dep_date, now)
-  )?.getTime();
+  const depOf = (leg) => {
+    const ts = legTs(leg.dep_date, leg.dep_time, leg.dep_year, now);
+    return Number.isFinite(ts) ? ts : undefined;
+  };
   const flown = all.filter(leg => {
     const dep = depOf(leg);
     return dep == null || dep <= now;

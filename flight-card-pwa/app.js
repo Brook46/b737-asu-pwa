@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=126';
-import * as dataCard from './modules/data-card.js?v=126';
-import * as checklist from './modules/checklist.js?v=126';
-import * as speeches from './modules/speeches.js?v=126';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=126';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=126';
-import { rollingTs, dateTs, yearOf, yearPast } from './modules/dates.js?v=126';
+import * as storage from './modules/storage.js?v=127';
+import * as dataCard from './modules/data-card.js?v=127';
+import * as checklist from './modules/checklist.js?v=127';
+import * as speeches from './modules/speeches.js?v=127';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=127';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=127';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=127';
 
 const $ = (id) => document.getElementById(id);
 
@@ -482,8 +482,10 @@ function pickLegForNow() {
   const legs = storage.getLegs();
   if (!legs.length) return 0;
   const now = Date.now();
-  // dd.mm + HH:MM (+ the leg's stored year when it has one) → ms. See dates.js.
-  const toTs = (d, t, y) => dateTs(d, t, y, now);
+  // legTs: a leg with no stored year is legacy history, so it resolves into
+  // the past rather than being guessed a year forward and mistaken for the
+  // next departure. See dates.js.
+  const toTs = (d, t, y) => legTs(d, t, y, now);
   // Extend the "active" window 20 min past scheduled arrival so the leg
   // stays selected during taxi-in / chock time and any modest late-arrival
   // slop. Phase 4 swaps the +20 min buffer for the actual GPS-detected
@@ -738,7 +740,7 @@ function isLegPast(leg, now = new Date()) {
   const d = useArr ? leg.arr_date : leg.dep_date;
   const t = useArr ? leg.arr_time : leg.dep_time;
   const y = useArr ? leg.arr_year : leg.dep_year;
-  const ts = dateTs(d, t, y, now.getTime());
+  const ts = legTs(d, t, y, now.getTime());
   return Number.isFinite(ts) && ts < now.getTime();
 }
 // Find the index of the next upcoming leg — earliest leg whose dep_ts is
@@ -1727,7 +1729,7 @@ async function maybeAutoSyncCalendar() {
   }
 }
 function legDepTs(leg) {
-  return dateTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
+  return legTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
 }
 // Boot probe (after a short delay so the rest of the UI is set up first),
 // then every 10 minutes, and whenever the tab becomes visible again. Each

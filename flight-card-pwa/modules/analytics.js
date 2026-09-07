@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=126';
-import { dateTs, yearPast } from './dates.js?v=126';
+import * as storage from './storage.js?v=127';
+import { dateTs, legTs, yearPast } from './dates.js?v=127';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -25,8 +25,7 @@ function depTs(leg) {
   // same as the logbook: the forward-rolling guess pushed anything older than
   // ~6 months into next year, where allLegs()' future filter then dropped it —
   // so old flights silently vanished from the stats and the map too.
-  const year = leg?.dep_year || yearPast(leg?.dep_date);
-  return dateTs(leg?.dep_date, leg?.dep_time, year);
+  return legTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
 }
 
 function legYear(leg) {

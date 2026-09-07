@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=126';
-import { dateTs } from './dates.js?v=126';
+import { flipName } from './roster.js?v=127';
+import { dateTs, legTs } from './dates.js?v=127';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -1098,7 +1098,7 @@ function fingerprintLeg(leg) {
 }
 
 function arrTs(leg) {
-  return dateTs(leg?.arr_date, leg?.arr_time, leg?.arr_year);
+  return legTs(leg?.arr_date, leg?.arr_time, leg?.arr_year || leg?.dep_year);
 }
 
 // Delete a single leg by index. Adjusts legIndex if the deleted leg was
@@ -1116,9 +1116,10 @@ export function deleteLeg(idx) {
 // timestamp. Used by appendLegs to keep the list time-sorted. Unsortable
 // legs go to the END of the list (MAX_SAFE_INTEGER, not NaN).
 function depTs(leg) {
-  // dep_year is the real year when the calendar/roster gave us one; without
-  // it dateTs falls back to the rolling-window guess (see modules/dates.js).
-  const ts = dateTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
+  // legTs, not dateTs: a leg with no stored year is legacy history and must
+  // resolve into the PAST. Using the forward-rolling guess here is what put
+  // old flights at the end of the list — see the note in dates.js.
+  const ts = legTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
   if (Number.isFinite(ts)) return ts;
   // A hand-made blank leg has no dep_date yet — sort it by when it was
   // created so it lands among "now" flights (after everything already

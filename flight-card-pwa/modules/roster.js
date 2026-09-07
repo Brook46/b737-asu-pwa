@@ -19,7 +19,7 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=126';
+import { yearNear } from './dates.js?v=127';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
@@ -92,11 +92,17 @@ function normaliseTail(raw) {
 export function parseRoster(text, opts = {}) {
   if (!text) return null;
   // anchorMs: the calendar event's DTSTART. Slip-text dates are bare "dd.mm",
-  // so without an anchor the year has to be guessed by a rolling window that
-  // is only right within ~6 months — which silently merges flights a year
-  // apart. calendar.js passes the event's own year so the legs get stamped
-  // with the real one. Undated pastes still fall back to the guess.
-  const anchorMs = Number(opts.anchorMs);
+  // so the year has to come from somewhere; calendar.js passes the event's own.
+  //
+  // A hand-pasted roster has no event, so it anchors to NOW — a roster is
+  // always about the days around today, and yearNear resolves that correctly
+  // in both directions including across New Year. The point is that EVERY
+  // parse path now stamps a year: a leg without one can then only be legacy
+  // data, which is what lets everything downstream treat a missing year as
+  // "already flown" instead of guessing (see legTs in dates.js).
+  const anchorMs = Number.isFinite(Number(opts.anchorMs))
+    ? Number(opts.anchorMs)
+    : Date.now();
   // JSON path — accept the lighter "crew portal" export shape too, an
   // array of leg objects like:
   //   { edd: "10.06.2026", flt: "2365 EKK", dep: "TLV 02:35",
