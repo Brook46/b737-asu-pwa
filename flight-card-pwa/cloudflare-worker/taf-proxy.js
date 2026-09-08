@@ -120,7 +120,7 @@ export default {
     }
 
     if (url.pathname === '/ical') {
-      return handleIcal(url);
+      return handleIcal(url, env);
     }
 
     if (url.pathname === '/pge') {
@@ -542,7 +542,43 @@ async function handleAdsb(url) {
 
 // ---------- /ical -----------------------------------------------------------
 
-async function handleIcal(url) {
+// Google rate-limits the secret iCal address, and it answers a 429 with an
+// HTML error page. Passing that straight through turned a transient limit into
+// a hard failure that dumped raw markup into the app's status line — even
+// though a perfectly good copy of the roster had been fetched minutes earlier.
+//
+// So this route keeps the last good calendar in KV and leans on it twice:
+//   * within ICAL_MIN_INTERVAL it answers from the copy without asking Google
+//     at all, which is what stops the hammering in the first place;
+//   * when Google refuses or errors, it serves the copy rather than failing.
+// A duty roster that is a few minutes stale is worth far more than an error.
+const ICAL_MIN_INTERVAL_MS = 90_000;
+const ICAL_CACHE_TTL_S     = 30 * 24 * 3600;   // keep a fallback for a month
+
+// The feed URL is a secret, so it is hashed rather than used as a key.
+async function icalKey(target) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(target));
+  return 'icalc:' + [...new Uint8Array(digest)].slice(0, 16)
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function icalResponse(body, ageMs, source) {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/calendar; charset=utf-8',
+      'access-control-allow-origin': '*',
+      // The app reads these to say whether it is looking at a live pull or a
+      // stored copy, instead of silently implying everything is current.
+      'access-control-expose-headers': 'x-fc-source, x-fc-age',
+      'x-fc-source': source,
+      'x-fc-age': String(Math.max(0, Math.round(ageMs / 1000))),
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+async function handleIcal(url, env) {
   const target = url.searchParams.get('url') || '';
   if (!target) return text('Missing url parameter', 400);
 
@@ -560,63 +596,57 @@ async function handleIcal(url) {
     return text('Host not allowed: ' + parsed.hostname, 403);
   }
 
+  const kv = env && env.LOGBOOK ? env.LOGBOOK : null;
+  let key = null, cached = null, age = Infinity;
+  if (kv) {
+    try {
+      key = await icalKey(parsed.toString());
+      const hit = await kv.getWithMetadata(key);
+      if (hit && hit.value) {
+        cached = hit.value;
+        const at = hit.metadata && hit.metadata.at;
+        if (at) age = Date.now() - at;
+      }
+    } catch { /* KV unavailable → behave as before, just without the safety net */ }
+  }
+
+  // Fresh enough that asking Google again would only risk the rate limit.
+  if (cached && age < ICAL_MIN_INTERVAL_MS) return icalResponse(cached, age, 'cached');
+
+  let res, body = '';
   try {
-    // 5 min cache — Google Calendar's secret feed updates within minutes
-    // of a change. Worker shares the cache across all readers, so the
-    // PWA can poll cheaply.
-    const res = await fetch(parsed.toString(), {
+    res = await fetch(parsed.toString(), {
       cf: { cacheTtl: 300, cacheEverything: true },
       headers: { 'accept': 'text/calendar, text/plain, */*' },
     });
-    const body = await res.text();
-    return new Response(body, {
-      status: res.status,
-      headers: {
-        'content-type': 'text/calendar; charset=utf-8',
-        'access-control-allow-origin': '*',
-        'cache-control': 'public, max-age=300',
-      },
-    });
+    body = await res.text();
   } catch (err) {
+    if (cached) return icalResponse(cached, age, 'stale');
     return text('Upstream unreachable: ' + err.message, 502);
   }
-}
 
-// ---------- /pge ------------------------------------------------------------
-// CORS shim for ParaglidingEarth's launch-site database, used by the Sky
-// Monkeys (xcsky) PWA to rank takeoffs. PGE serves no Access-Control header,
-// so the browser can't read it directly. We only proxy the read-only
-// bounding-box endpoint, clamp the box so it can't be abused to pull the whole
-// planet, and cache hard (launch data changes on the order of days).
-//
-//   GET /pge?n=<lat>&s=<lat>&e=<lon>&w=<lon>[&limit=<n>]
-async function handlePge(url) {
-  const n = parseFloat(url.searchParams.get('n'));
-  const s = parseFloat(url.searchParams.get('s'));
-  const e = parseFloat(url.searchParams.get('e'));
-  const w = parseFloat(url.searchParams.get('w'));
-  if (![n, s, e, w].every(Number.isFinite)) return text('Missing/invalid bbox', 400);
-  // Reject absurdly large boxes (keep the upstream query cheap).
-  if (n - s > 8 || e - w > 8 || n < s || e < w) return text('Bounding box too large', 400);
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 200);
-
-  const upstream = 'https://www.paraglidingearth.com/api/geojson/getBoundingBoxSites.php'
-    + `?north=${n.toFixed(4)}&south=${s.toFixed(4)}&east=${e.toFixed(4)}&west=${w.toFixed(4)}`
-    + `&style=detailled&limit=${limit}`;
-  try {
-    const res = await fetch(upstream, { cf: { cacheTtl: 86400, cacheEverything: true } });
-    const body = await res.text();
-    return new Response(body, {
-      status: res.status,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'access-control-allow-origin': '*',
-        'cache-control': 'public, max-age=86400',
-      },
-    });
-  } catch (err) {
-    return text('Upstream unreachable: ' + err.message, 502);
+  // Only a real calendar counts as success — Google answers rate limits and
+  // sign-in walls with 200-plus-HTML often enough that status alone lies.
+  const looksLikeCalendar = body.trimStart().startsWith('BEGIN:VCALENDAR');
+  if (res.ok && looksLikeCalendar) {
+    if (kv && key) {
+      try {
+        await kv.put(key, body, {
+          metadata: { at: Date.now(), bytes: body.length },
+          expirationTtl: ICAL_CACHE_TTL_S,
+        });
+      } catch { /* storing the fallback is best-effort */ }
+    }
+    return icalResponse(body, 0, 'live');
   }
+
+  if (cached) return icalResponse(cached, age, 'stale');
+  // Nothing stored yet, so the caller does need to hear about it — but as a
+  // sentence, not as Google's HTML error page.
+  const why = res.status === 429
+    ? 'Google is rate-limiting the calendar feed. It clears on its own in a few minutes.'
+    : `Calendar upstream returned HTTP ${res.status}.`;
+  return text(why, res.status === 429 ? 429 : 502);
 }
 
 // ---------- /logbook --------------------------------------------------------

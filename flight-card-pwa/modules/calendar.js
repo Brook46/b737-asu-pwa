@@ -13,9 +13,9 @@
 // PWA side — the description's "Slip details (UTC)" line is the source
 // of truth for each leg's dep/arr times.
 
-import { parseIcal } from './ical.js?v=128';
-import { parseRoster } from './roster.js?v=128';
-import { WORKER_BASE } from './proxy.js?v=128';
+import { parseIcal } from './ical.js?v=129';
+import { parseRoster } from './roster.js?v=129';
+import { WORKER_BASE } from './proxy.js?v=129';
 
 const URL_STORAGE_KEY        = 'fc.gcal.url';
 const LAST_SYNC_STORAGE_KEY  = 'fc.gcal.lastSyncAt';
@@ -78,12 +78,25 @@ export async function syncFromCalendar() {
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Calendar fetch returned HTTP ${res.status}: ${body.slice(0, 80)}`);
+    // Upstream errors sometimes come back as an HTML page (Google answers a
+    // rate limit that way). Dumping markup into the app's status line is
+    // useless, so keep only readable text.
+    const plain = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const why = res.status === 429
+      ? 'Google is rate-limiting the calendar feed — it clears on its own in a few minutes. Your stored flights are untouched.'
+      : `Calendar fetch returned HTTP ${res.status}${plain ? ': ' + plain.slice(0, 90) : ''}`;
+    throw new Error(why);
   }
+
+  // The proxy keeps the last good calendar and serves it when Google refuses,
+  // so a sync can succeed on a stored copy. Say which, rather than implying
+  // everything is current.
+  const source = res.headers.get('x-fc-source') || 'live';
+  const ageSec = parseInt(res.headers.get('x-fc-age') || '0', 10) || 0;
 
   const icsText = await res.text();
   const events = parseIcal(icsText);
-  if (!events.length) return { events: 0, flights: [] };
+  if (!events.length) return { events: 0, flights: [], source, ageSec };
 
   // Each VEVENT description is run through parseRoster. ELALOrganizer
   // includes the entire slip block per duty period, so one VEVENT usually
@@ -106,5 +119,5 @@ export async function syncFromCalendar() {
   try { localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(Date.now())); }
   catch {}
 
-  return { events: events.length, flights: allFlights, phones: allPhones };
+  return { events: events.length, flights: allFlights, phones: allPhones, source, ageSec };
 }

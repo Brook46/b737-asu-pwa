@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=128';
-import * as dataCard from './modules/data-card.js?v=128';
-import * as checklist from './modules/checklist.js?v=128';
-import * as speeches from './modules/speeches.js?v=128';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=128';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=128';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=128';
+import * as storage from './modules/storage.js?v=129';
+import * as dataCard from './modules/data-card.js?v=129';
+import * as checklist from './modules/checklist.js?v=129';
+import * as speeches from './modules/speeches.js?v=129';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=129';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=129';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=129';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1607,7 +1607,11 @@ async function runCalendarSync(source) {
     const cal = await import('./modules/calendar.js');
     // Save current input first in case the user just edited but didn't blur.
     if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
-    const { events, flights, phones } = await cal.syncFromCalendar();
+    const { events, flights, phones, source, ageSec } = await cal.syncFromCalendar();
+    // 'stale' means Google refused and the proxy served its stored copy.
+    const fromCopy = source === 'stale'
+      ? ` · from a stored copy${ageSec > 60 ? ' ' + Math.round(ageSec / 60) + ' min old' : ''}`
+      : '';
     if (!flights.length) {
       if (source === 'manual') {
         throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
@@ -1632,7 +1636,7 @@ async function runCalendarSync(source) {
     if (source === 'manual') {
       if (status) {
         status.classList.add('is-ok');
-        status.textContent = `${summary} · ${events} event${events === 1 ? '' : 's'}`;
+        status.textContent = `${summary} · ${events} event${events === 1 ? '' : 's'}${fromCopy}`;
       }
       toast(summary);
     } else if (added || replaced || pruned) {
