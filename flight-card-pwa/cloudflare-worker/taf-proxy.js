@@ -552,7 +552,11 @@ async function handleAdsb(url) {
 //     at all, which is what stops the hammering in the first place;
 //   * when Google refuses or errors, it serves the copy rather than failing.
 // A duty roster that is a few minutes stale is worth far more than an error.
-const ICAL_MIN_INTERVAL_MS = 90_000;
+// Five minutes, not ninety seconds, for two reasons: a duty roster does not
+// change more often than that in any way that matters, and every live fetch
+// costs a KV write. At 90 s a continuously-polled feed could approach the free
+// tier's 1000 writes/day on its own; at five minutes the ceiling is ~288.
+const ICAL_MIN_INTERVAL_MS = 5 * 60_000;
 const ICAL_CACHE_TTL_S     = 30 * 24 * 3600;   // keep a fallback for a month
 
 // The feed URL is a secret, so it is hashed rather than used as a key.
@@ -631,6 +635,9 @@ async function handleIcal(url, env) {
   if (res.ok && looksLikeCalendar) {
     if (kv && key) {
       try {
+        // Refresh the copy even when the bytes are identical: `at` is what the
+        // min-interval check reads, so letting it go stale would mean asking
+        // Google again on every single sync — the thing that got us limited.
         await kv.put(key, body, {
           metadata: { at: Date.now(), bytes: body.length },
           expirationTtl: ICAL_CACHE_TTL_S,
