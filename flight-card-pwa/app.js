@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=130';
-import * as dataCard from './modules/data-card.js?v=130';
-import * as checklist from './modules/checklist.js?v=130';
-import * as speeches from './modules/speeches.js?v=130';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=130';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=130';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=130';
+import * as storage from './modules/storage.js?v=131';
+import * as dataCard from './modules/data-card.js?v=131';
+import * as checklist from './modules/checklist.js?v=131';
+import * as speeches from './modules/speeches.js?v=131';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=131';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=131';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=131';
 
 const $ = (id) => document.getElementById(id);
 
@@ -352,12 +352,24 @@ function renderLegSwitcher() {
   const hasMany = legs.length >= 2;
   const idx = storage.getLegIndex();
   const leg = legs[idx] || storage.getCurrent();
-  // "Leg N/M" only makes sense with more than one leg; the route (with its
-  // tappable airport buttons) stays visible for a single-leg duty too.
+  // Date + scheduled UTC off-blocks, not "Leg 86 / 86" — the position in a
+  // long list says nothing about the flight, whereas the date and STD are what
+  // identify it. The year is appended only when the leg is NOT in the current
+  // year, so the common case stays short and an old leg is still unambiguous.
+  // Falls back to the leg count when a leg has no schedule at all, rather than
+  // leaving the slot blank.
   const legPos = $('leg-pos');
   if (legPos) {
-    legPos.textContent = hasMany ? `Leg ${idx + 1} / ${legs.length}` : '';
-    legPos.style.display = hasMany ? '' : 'none';
+    let label = '';
+    if (leg.dep_date) {
+      const y = leg.dep_year && Number(leg.dep_year) !== new Date().getUTCFullYear()
+        ? `.${String(leg.dep_year).slice(2)}` : '';
+      label = `${leg.dep_date}${y}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
+    } else if (hasMany) {
+      label = `Leg ${idx + 1} / ${legs.length}`;
+    }
+    legPos.textContent = label;
+    legPos.style.display = label ? '' : 'none';
   }
   const ctrls = document.querySelector('.leg-ctrls');
   if (ctrls) ctrls.style.display = hasMany ? '' : 'none';
