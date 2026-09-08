@@ -2654,3 +2654,11 @@ body { background: transparent; }
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* History: a leg with no schedule at all. It sorts to the end of the list, so
+   say why rather than leaving the date blank. */
+.hi-date.is-dateless {
+  color: var(--warn, var(--fg-dim));
+  font-style: italic;
+  opacity: .85;
+}

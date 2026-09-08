@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=127';
-import { dateTs, legTs } from './dates.js?v=127';
+import { flipName } from './roster.js?v=128';
+import { dateTs, legTs } from './dates.js?v=128';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -908,10 +908,24 @@ export function appendLegs(newLegs) {
       mergeLeg(existing[dupIdx], fresh);
       mostRecentlyTouched = existing[dupIdx];
       replaced++;
-    } else {
-      toAdd.push(fresh);
-      mostRecentlyTouched = fresh;
+      continue;
     }
+    // ...and against the legs queued by THIS call. One sync can hand us the
+    // same flight twice — the roster commonly carries a provisional entry with
+    // no times and a later one with the schedule (often a different tail after
+    // an aircraft change). Comparing only against `existing` let both through,
+    // so the list ended up with the flight twice: the dated copy in its right
+    // place and the dateless copy dumped at the very end, which is exactly the
+    // out-of-sequence mess this looked like.
+    const queuedIdx = findDuplicateLegIdx(fresh, toAdd);
+    if (queuedIdx >= 0) {
+      mergeLeg(toAdd[queuedIdx], fresh);
+      mostRecentlyTouched = toAdd[queuedIdx];
+      replaced++;
+      continue;
+    }
+    toAdd.push(fresh);
+    mostRecentlyTouched = fresh;
   }
 
   // Sort the combined list by UTC dep time so the switcher stays ordered.

@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=127';
-import * as dataCard from './modules/data-card.js?v=127';
-import * as checklist from './modules/checklist.js?v=127';
-import * as speeches from './modules/speeches.js?v=127';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=127';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=127';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=127';
+import * as storage from './modules/storage.js?v=128';
+import * as dataCard from './modules/data-card.js?v=128';
+import * as checklist from './modules/checklist.js?v=128';
+import * as speeches from './modules/speeches.js?v=128';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=128';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=128';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=128';
 
 const $ = (id) => document.getElementById(id);
 
@@ -3613,12 +3613,24 @@ function renderHistory() {
   historyBody.innerHTML = legs.map((leg, i) => {
     const id = [leg.tail, leg.flight ? 'LY' + leg.flight : ''].filter(Boolean).join(' · ') || 'Flight';
     const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-    const when  = (leg.dep_date && leg.dep_time) ? `${leg.dep_date}  ${leg.dep_time}Z` : '';
+    // Every row carries a date, and it shows the YEAR — the list is sorted by
+    // it, so when the order looks wrong the date is the thing you need to see.
+    // A leg with no date at all says so instead of rendering blank: those sort
+    // to the end, and a silent gap makes that look like a bug rather than
+    // missing data.
+    let when = '', dateless = false;
+    if (leg.dep_date) {
+      const yr = leg.dep_year ? `.${String(leg.dep_year).slice(2)}` : '';
+      when = `${leg.dep_date}${yr}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
+    } else {
+      when = 'no date';
+      dateless = true;
+    }
     const isActive = i === activeIdx;
     return `<div class="history-item${isActive ? ' active' : ''}" data-leg-idx="${i}">
       <div class="hi-top">
         <span class="hi-id">${escapeHtml(id)}</span>
-        <span class="hi-date">${escapeHtml(when)}</span>
+        <span class="hi-date${dateless ? ' is-dateless' : ''}">${escapeHtml(when)}</span>
         <button type="button" class="hi-del" data-leg-del="${i}" title="Delete this flight" aria-label="Delete this flight">🗑</button>
       </div>
       <div class="hi-line">${escapeHtml(route)}${leg.flight_time ? ' · ' + leg.flight_time : ''}</div>
