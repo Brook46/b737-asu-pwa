@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=132';
-import * as dataCard from './modules/data-card.js?v=132';
-import * as checklist from './modules/checklist.js?v=132';
-import * as speeches from './modules/speeches.js?v=132';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=132';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=132';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=132';
+import * as storage from './modules/storage.js?v=133';
+import * as dataCard from './modules/data-card.js?v=133';
+import * as checklist from './modules/checklist.js?v=133';
+import * as speeches from './modules/speeches.js?v=133';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=133';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=133';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=133';
 
 const $ = (id) => document.getElementById(id);
 
@@ -272,6 +272,13 @@ if ('serviceWorker' in navigator) {
 const dataBody = $('data-body');
 const checklistBody = $('checklist-body');
 const historyBody = $('history-body');
+
+// How many past flights the card shows before the "show all" tap. A backfilled
+// logbook is hundreds of sectors; rendering them all every repaint makes the
+// card the slowest thing on the screen for no benefit.
+const HIST_PAST_PAGE = 25;
+let histShowAllPast = false;
+
 
 // CTOT pill state classes. Declared HERE, above startClocks(), because the
 // first synchronous tick reads it — leaving it next to updateCtotColor()
@@ -1878,7 +1885,10 @@ $('analytics-overlay').addEventListener('click', (e) => {
 // Read-only list of every stored leg, newest first. Reuses logbook.js's
 // allStoredLegs() so the source-of-truth stays consistent with the .ics
 // export. Tap a row → switch active leg via applyLeg + close the overlay.
-$('logbook-view').addEventListener('click', async () => {
+// focusKey (an lbKeyOf string) opens the logbook with that flight already
+// expanded and scrolled to — how the History card hands a past flight over
+// for editing.
+async function openLogbook(focusKey = '') {
   hideOverlay('settings-overlay');
   showOverlay('logbook-overlay');
   const body = $('logbook-body');
@@ -1889,11 +1899,23 @@ $('logbook-view').addEventListener('click', async () => {
     await ensureLbAirports();
     body.innerHTML = renderLogbookList(legs);
     wireLogbookRows(body);   // guarded — see the `wired` flag inside
+    if (focusKey) {
+      const row = [...body.querySelectorAll('.lb-row')]
+        .find(r => lbKeyOf({ flight: r.dataset.flight, dep_date: r.dataset.depDate,
+                             dep: r.dataset.dep, arr: r.dataset.arr,
+                             dep_year: r.dataset.depYear }) === focusKey);
+      if (row) {
+        row.parentElement.querySelector('.lb-detail')?.classList.remove('hidden');
+        row.setAttribute('aria-expanded', 'true');
+        row.scrollIntoView({ block: 'center' });
+      }
+    }
   } catch (err) {
     console.warn('logbook view failed', err);
     body.innerHTML = '<p class="lb-empty">Couldn\'t load the logbook.</p>';
   }
-});
+}
+$('logbook-view').addEventListener('click', () => openLogbook());
 $('logbook-close').addEventListener('click', () => hideOverlay('logbook-overlay'));
 $('logbook-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'logbook-overlay') hideOverlay('logbook-overlay');
@@ -1925,7 +1947,7 @@ function renderLogbookList(legs) {
   // currently has open in the data card.
   const activeIdx = storage.getLegIndex();
   const activeLeg = (storage.getLegs() || [])[activeIdx];
-  const activeKey = activeLeg ? `${activeLeg.flight}|${activeLeg.dep_date}|${activeLeg.dep}|${activeLeg.arr}` : '';
+  const activeKey = activeLeg ? lbKeyOf(activeLeg) : '';
   let lastMonth = '';
   const parts = [];
   for (const leg of legs) {
@@ -1950,12 +1972,13 @@ function renderLogbookList(legs) {
       ldgR ? `<span class="lb-tag ${ldgR === 'PF' ? 'is-pf' : ldgR === 'PM' ? 'is-pm' : ''}">LDG ${ldgR}</span>` : '',
       actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
     ].filter(Boolean).join('');
-    const key = `${leg.flight}|${leg.dep_date}|${leg.dep}|${leg.arr}`;
+    const key = lbKeyOf(leg);
     const isActive = key === activeKey;
     const ident = `data-flight="${esc(leg.flight || '')}"
               data-dep-date="${esc(leg.dep_date || '')}"
               data-dep="${esc(leg.dep || '')}"
-              data-arr="${esc(leg.arr || '')}"`;
+              data-arr="${esc(leg.arr || '')}"
+              data-dep-year="${esc(leg.dep_year || '')}"`;
     // SID / STAR shown on the collapsed row too — the point of logging them is
     // being able to scan the column, not to open every flight.
     const proc = [
@@ -1986,7 +2009,8 @@ function renderLogbookList(legs) {
                    autocomplete="off" spellcheck="false" aria-label="Actual flight time" />
           </label>
         </div>
-        <div class="lb-detail-crew">${lbCrewHtml(leg)}</div>
+        ${lbRoleHtml(leg, ident)}
+        <div class="lb-detail-crew">${lbCrewHtml(leg, ident)}</div>
         <div class="lb-detail-proc">
           <label class="lb-field">
             <span>SID</span>
@@ -2022,8 +2046,14 @@ let lbWorld = null;
 // inputs repaint their own row's map live; without it the labels only appeared
 // the next time the logbook was opened.
 const lbLegIndex = new Map();
-const lbKeyOf = (o) => [o.flight, o.dep_date, o.dep, o.arr]
-  .map(v => String(v == null ? '' : v)).join('|');
+// A function declaration, not a const arrow: renderHistory() runs during boot,
+// a thousand lines before this point in the module body, and a const binding
+// would still be in its temporal dead zone — which throws a ReferenceError
+// that halts evaluation of everything after it.
+function lbKeyOf(o) {
+  return [o.flight, o.dep_date, o.dep, o.arr, o.dep_year]
+    .map(v => String(v == null ? '' : v)).join('|');
+}
 async function ensureLbAirports() {
   try {
     if (!lbAirports) lbAirports = await import('./modules/airports.js');
@@ -2126,28 +2156,52 @@ const LB_CREW = [
   ['cc2', 'CC2'], ['cc3', 'CC3'], ['cc4', 'CC4'], ['cc5', 'CC5'],
   ['cc6', 'CC6'], ['cc7', 'CC7'], ['cc8', 'CC8'],
 ];
-function lbCrewHtml(leg) {
+// Crew, editable in place. A backfilled sector carries whoever the export
+// named, but exports are wrong sometimes and the roster only ever knew the
+// two seats — so every slot is a field, not a label.
+//
+// The two pilot seats and relief are always offered even when empty (that's
+// what you'd be adding to an old flight); cabin slots appear only once they
+// hold a name, so a 737 pair doesn't render eight blank boxes.
+function lbCrewHtml(leg, ident) {
   const d = leg.dataCard || {};
-  const seen = new Set();
-  const cells = [];
-  for (const [k, role] of LB_CREW) {
-    const raw = String(leg[k] || d[k] || '').trim();
-    if (!raw) continue;
-    const name = storage.displayCrew(raw) || raw;
-    const dedupe = name.toUpperCase();
-    if (seen.has(dedupe)) continue;
-    seen.add(dedupe);
-    cells.push(`<span class="lb-crew"><b>${esc(role)}</b> ${esc(name)}</span>`);
-  }
+  const val = (k) => String(leg[k] || d[k] || '').trim();
+  const rows = [];
+  const field = (key, role, value) => `
+    <label class="lb-crew-edit">
+      <b>${esc(role)}</b>
+      <input type="text" value="${esc(value)}" data-lb-crew="${esc(key)}" ${ident}
+             placeholder="—" autocomplete="off" spellcheck="false"
+             aria-label="${esc(role)} for this flight" />
+    </label>`;
+  rows.push(field('cpt', 'CPT', val('cpt')));
+  rows.push(field('fo',  'FO',  val('fo')));
   // Augmenting / cruise-relief pilots. They have no seat slot (cc* is cabin
-  // crew), so they ride in their own field rather than being dropped.
-  const relief = String(d.relief || '').trim();
-  if (relief) cells.push(`<span class="lb-crew"><b>RLF</b> ${esc(relief)}</span>`);
+  // crew everywhere in the app), so they ride in their own field.
+  rows.push(field('relief', 'RLF', String(d.relief || '').trim()));
+  for (const [k, role] of LB_CREW) {
+    if (k === 'cpt' || k === 'fo') continue;
+    const v = val(k);
+    if (v) rows.push(field(k, role, v));
+  }
   const dh = String(leg.dh || d.dh || '').trim();
-  if (dh) cells.push(`<span class="lb-crew lb-crew-dh"><b>DH</b> ${esc(dh)}</span>`);
-  return cells.length
-    ? cells.join('')
-    : `<span class="lb-crew muted">No crew recorded for this flight.</span>`;
+  if (dh) rows.push(`<span class="lb-crew lb-crew-dh"><b>DH</b> ${esc(dh)}</span>`);
+  return rows.join('');
+}
+
+// PF / PM for this flight's take-off and landing. Tapping the selected one
+// clears it back to unknown — an empty role is honest, a guessed one is not.
+function lbRoleHtml(leg, ident) {
+  const d = leg.dataCard || {};
+  const pair = (key, label) => {
+    const cur = String(d[key] || '').toUpperCase();
+    const btn = (role) => `
+      <button type="button" class="lb-role-btn${cur === role ? ' is-on' : ''}"
+              data-lb-role="${esc(key)}" data-role-val="${role}" ${ident}
+              aria-pressed="${cur === role}">${role}</button>`;
+    return `<span class="lb-role-set"><b>${esc(label)}</b>${btn('PF')}${btn('PM')}</span>`;
+  };
+  return `<div class="lb-detail-roles">${pair('to_role', 'T/O')}${pair('ldg_role', 'LDG')}</div>`;
 }
 
 // #logbook-body survives between openings (only its innerHTML is replaced), so
@@ -2164,6 +2218,7 @@ function wireLogbookRows(body) {
     dep_date: el.dataset.depDate  || '',
     dep:      el.dataset.dep      || '',
     arr:      el.dataset.arr      || '',
+    dep_year: el.dataset.depYear  || '',
   });
 
   body.addEventListener('click', (e) => {
@@ -2178,7 +2233,8 @@ function wireLogbookRows(body) {
         String(l.flight || '') === id.flight &&
         String(l.dep_date || '') === id.dep_date &&
         String(l.dep || '') === id.dep &&
-        String(l.arr || '') === id.arr);
+        String(l.arr || '') === id.arr &&
+        (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
       if (idx >= 0) { hideOverlay('logbook-overlay'); applyLeg(idx); }
       // Historical flights live in fc.state.history and can't be made active.
       else toast('From a previous duty — view only');
@@ -2210,6 +2266,64 @@ function wireLogbookRows(body) {
     if (leg) {
       leg.dataCard = leg.dataCard || {};
       if (v) leg.dataCard.actual_flight_time = v; else delete leg.dataCard.actual_flight_time;
+    }
+  });
+
+  // Crew typed straight into the row. Same write path as the actual time, so
+  // it reaches a backfilled sector or an archived duty, not just the open leg.
+  body.addEventListener('input', (e) => {
+    const inp = e.target.closest('[data-lb-crew]');
+    if (!inp) return;
+    const key = inp.dataset.lbCrew;
+    const value = inp.value.trim();
+    const id = identOf(inp);
+    storage.setStoredLegField(id, key, value);
+    const leg = lbLegIndex.get(lbKeyOf(id));
+    if (!leg) return;
+    leg.dataCard = leg.dataCard || {};
+    if (value) { leg.dataCard[key] = value; leg[key] = value; }
+    else { delete leg.dataCard[key]; delete leg[key]; }
+  });
+
+  // PF / PM. Tapping the role that's already set clears it — the field is
+  // meaningfully empty for a sector whose export never recorded who flew.
+  body.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-lb-role]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();          // don't collapse the row we're editing
+    const key = btn.dataset.lbRole;
+    const want = btn.dataset.roleVal;
+    const id = identOf(btn);
+    const on = btn.classList.contains('is-on');
+    const value = on ? '' : want;
+    storage.setStoredLegField(id, key, value);
+    const leg = lbLegIndex.get(lbKeyOf(id));
+    if (leg) {
+      leg.dataCard = leg.dataCard || {};
+      if (value) leg.dataCard[key] = value; else delete leg.dataCard[key];
+    }
+    // Repaint this pair, then the collapsed row's tags so the change shows
+    // without reopening the logbook.
+    const set = btn.closest('.lb-role-set');
+    set?.querySelectorAll('[data-lb-role]').forEach((b) => {
+      const isOn = !!value && b.dataset.roleVal === value;
+      b.classList.toggle('is-on', isOn);
+      b.setAttribute('aria-pressed', String(isOn));
+    });
+    const item = btn.closest('.lb-item');
+    const tags = item?.querySelector('.lb-tags');
+    if (tags && leg) {
+      const d = leg.dataCard || {};
+      const pill = (v, label) => {
+        const r = String(v || '').toUpperCase();
+        return r ? `<span class="lb-tag ${r === 'PF' ? 'is-pf' : 'is-pm'}">${label} ${r}</span>` : '';
+      };
+      const actual = d.actual_flight_time || d.block_time || leg.flight_time || '';
+      tags.innerHTML = [
+        pill(d.to_role, 'T/O'), pill(d.ldg_role, 'LDG'),
+        actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
+      ].filter(Boolean).join('');
     }
   });
 
@@ -3708,46 +3822,92 @@ function resetOcrOverlay() {
 // The History card is the single source of truth for which flights are
 // remembered. Each row corresponds to one entry in legs[]; tapping the row
 // switches to it (same as the leg-switcher's ◀/▶), the trash icon deletes it.
-function renderHistory() {
-  const legs = storage.getLegs();
-  const activeIdx = storage.getLegIndex();
-  if (!legs.length) {
-    historyBody.innerHTML = `<div class="history-empty">No flights yet. Tap the new-flight button → Paste roster.</div>`;
-    return;
+// Every flown leg that ISN'T in the current duty — the CSV backfill plus any
+// archived duty record — newest first. This is the pilot's actual history;
+// current.legs is just the trip they're on.
+function pastLegsForHistory() {
+  const now = Date.now();
+  const inDuty = new Set(storage.getLegs());
+  return storage.everyLeg()
+    .filter(leg => !inDuty.has(leg))
+    .filter(leg => {
+      const ts = legTs(leg.dep_date, leg.dep_time, leg.dep_year, now);
+      return !Number.isFinite(ts) || ts <= now;
+    })
+    .sort((a, b) => (legTs(b.dep_date, b.dep_time, b.dep_year, now) || 0)
+                  - (legTs(a.dep_date, a.dep_time, a.dep_year, now) || 0));
+}
+
+function histRowHtml(leg, { idx = null, active = false } = {}) {
+  const id = [leg.tail, leg.flight ? 'LY' + leg.flight : ''].filter(Boolean).join(' · ') || 'Flight';
+  const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
+  // Every row carries a date, and it shows the YEAR — the list is sorted by
+  // it, so when the order looks wrong the date is the thing you need to see.
+  // A leg with no date at all says so instead of rendering blank: those sort
+  // to the end, and a silent gap makes that look like a bug rather than
+  // missing data.
+  let when = 'no date', dateless = true;
+  if (leg.dep_date) {
+    const yr = leg.dep_year ? `.${String(leg.dep_year).slice(2)}` : '';
+    when = `${leg.dep_date}${yr}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
+    dateless = false;
   }
-  historyBody.innerHTML = legs.map((leg, i) => {
-    const id = [leg.tail, leg.flight ? 'LY' + leg.flight : ''].filter(Boolean).join(' · ') || 'Flight';
-    const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '';
-    // Every row carries a date, and it shows the YEAR — the list is sorted by
-    // it, so when the order looks wrong the date is the thing you need to see.
-    // A leg with no date at all says so instead of rendering blank: those sort
-    // to the end, and a silent gap makes that look like a bug rather than
-    // missing data.
-    let when = '', dateless = false;
-    if (leg.dep_date) {
-      const yr = leg.dep_year ? `.${String(leg.dep_year).slice(2)}` : '';
-      when = `${leg.dep_date}${yr}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
-    } else {
-      when = 'no date';
-      dateless = true;
-    }
-    const isActive = i === activeIdx;
-    return `<div class="history-item${isActive ? ' active' : ''}" data-leg-idx="${i}">
+  const d = leg.dataCard || {};
+  const roles = [
+    d.to_role  ? `T/O ${esc(String(d.to_role).toUpperCase())}`  : '',
+    d.ldg_role ? `LDG ${esc(String(d.ldg_role).toUpperCase())}` : '',
+  ].filter(Boolean).join(' · ');
+  const time = d.actual_flight_time || leg.flight_time || d.block_time || '';
+  const where = idx == null
+    ? `data-past-key="${escapeAttr(lbKeyOf(leg))}"`
+    : `data-leg-idx="${idx}"`;
+  const del = idx == null ? '' :
+    `<button type="button" class="hi-del" data-leg-del="${idx}" title="Delete this flight" aria-label="Delete this flight">🗑</button>`;
+  return `<div class="history-item${active ? ' active' : ''}${idx == null ? ' is-past' : ''}" ${where}>
       <div class="hi-top">
         <span class="hi-id">${escapeHtml(id)}</span>
         <span class="hi-date${dateless ? ' is-dateless' : ''}">${escapeHtml(when)}</span>
-        <button type="button" class="hi-del" data-leg-del="${i}" title="Delete this flight" aria-label="Delete this flight">🗑</button>
+        ${del}
       </div>
-      <div class="hi-line">${escapeHtml(route)}${leg.flight_time ? ' · ' + leg.flight_time : ''}</div>
+      <div class="hi-line">${escapeHtml(route)}${time ? ' · ' + escapeHtml(time) : ''}${roles ? ' · ' + roles : ''}</div>
     </div>`;
-  }).join('');
+}
+
+function renderHistory() {
+  const legs = storage.getLegs();
+  const activeIdx = storage.getLegIndex();
+  const past = pastLegsForHistory();
+  if (!legs.length && !past.length) {
+    historyBody.innerHTML = `<div class="history-empty">No flights yet. Tap the new-flight button → Paste roster.</div>`;
+    return;
+  }
+  const shown = histShowAllPast ? past : past.slice(0, HIST_PAST_PAGE);
+  const pastHtml = past.length ? `
+    <div class="hi-sep">Past flights · ${past.length}</div>
+    ${shown.map(leg => histRowHtml(leg)).join('')}
+    ${past.length > shown.length
+        ? `<button type="button" class="hi-more" data-hist-more="1">Show all ${past.length}</button>`
+        : ''}` : '';
+  historyBody.innerHTML =
+    legs.map((leg, i) => histRowHtml(leg, { idx: i, active: i === activeIdx })).join('')
+    + pastHtml;
+
   historyBody.querySelectorAll('.history-item').forEach(el => {
     el.addEventListener('click', async (e) => {
       if (e.target.closest('[data-leg-del]')) return;
+      // A past flight isn't part of the current duty, so it can't become the
+      // active leg without dragging seven years into the leg switcher. Open
+      // the logbook on it instead — that's where crew, actual time and PF/PM
+      // are editable.
+      if (el.dataset.pastKey) { await openLogbook(el.dataset.pastKey); return; }
       const i = parseInt(el.dataset.legIdx, 10);
       await applyLeg(i);
       renderHistory();
     });
+  });
+  historyBody.querySelector('[data-hist-more]')?.addEventListener('click', () => {
+    histShowAllPast = true;
+    renderHistory();
   });
   historyBody.querySelectorAll('[data-leg-del]').forEach(b => {
     b.addEventListener('click', (e) => {

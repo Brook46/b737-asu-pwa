@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=132';
-import { dateTs, legTs } from './dates.js?v=132';
+import { flipName } from './roster.js?v=133';
+import { dateTs, legTs } from './dates.js?v=133';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -935,19 +935,35 @@ export function getLegs() { return read().current.legs || []; }
 // history — matched by the same identity the logbook rows use. The logbook is
 // where a pilot naturally records what was actually flown (SID / STAR) after
 // the fact, and that leg is usually not the active one.
+// Crew lives on the leg AND on its dataCard, and every reader checks the
+// top-level slot first — so writing only the dataCard leaves the edit
+// invisible. These keys get mirrored to both.
+const MIRROR_TO_LEG = new Set(
+  ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8', 'dh']);
+
 export function setStoredLegField(match, key, value) {
-  const s = read();
   const same = (l) =>
     String(l.flight   || '') === String(match.flight   || '') &&
     String(l.dep_date || '') === String(match.dep_date || '') &&
     String(l.dep      || '') === String(match.dep      || '') &&
-    String(l.arr      || '') === String(match.arr      || '');
-  const pool = everyLeg();
-  const leg = pool.find(same);
+    String(l.arr      || '') === String(match.arr      || '') &&
+    // Year, or a backfilled logbook edits the wrong flight: LY5 TLV-LAX
+    // flew on 10.06 in BOTH 2024 and 2025, and without this the two are
+    // one record and whichever sorts first swallows the other's edits.
+    // Only compared when both sides carry one, so legacy undated legs
+    // still match.
+    (!match.dep_year || !l.dep_year
+      || Number(match.dep_year) === Number(l.dep_year));
+  const leg = everyLeg().find(same);
   if (!leg) return false;
   if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
-  if (value === '' || value == null) delete leg.dataCard[key];
+  const blank = (value === '' || value == null);
+  if (blank) delete leg.dataCard[key];
   else leg.dataCard[key] = value;
+  if (MIRROR_TO_LEG.has(key)) {
+    if (blank) delete leg[key];
+    else leg[key] = value;
+  }
   scheduleWrite();
   return true;
 }

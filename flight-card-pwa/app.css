@@ -1175,6 +1175,26 @@ div.airport-notes.is-empty::before {
 .history-item .hi-line { font-size: 12px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
 .history-empty { color: var(--fg-mute); padding: 12px; text-align: center; font-size: 13px; }
 
+/* Past flights inside the History card. A backfilled logbook is hundreds of
+   sectors, so the list scrolls inside the card instead of pushing the rest of
+   the page down, and past rows sit visually below the current duty. */
+.hi-sep {
+  margin: 10px 0 2px; padding: 6px 8px 4px;
+  border-top: 1px solid var(--line);
+  font-size: 10px; font-weight: 800; letter-spacing: .1em;
+  color: var(--fg-mute); text-transform: uppercase;
+}
+.history-item.is-past .hi-id { font-weight: 600; color: var(--fg-mute); }
+.hi-more {
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%;
+  background: transparent; border: 0;
+  padding: 10px 8px; margin-top: 2px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--accent); cursor: pointer;
+}
+#history-body { max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
@@ -2416,6 +2436,53 @@ body { background: transparent; }
   font-size: 10px; letter-spacing: .08em; margin-right: 3px;
 }
 .lb-crew-dh b { color: var(--fg-mute); }
+/* Editable crew: the label keeps the chip look, the value becomes a field.
+   Boxes size to the name so a 737 pair and a 4-pilot 787 both read as one
+   tidy row rather than a column of half-empty inputs. */
+.lb-crew-edit {
+  display: flex; align-items: center; gap: 5px;
+  flex: 1 1 auto; min-width: 128px; max-width: 100%;
+}
+.lb-crew-edit b {
+  color: var(--accent); font-weight: 800;
+  font-size: 10px; letter-spacing: .08em; flex: 0 0 auto;
+}
+.lb-crew-edit input {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font: inherit; font-size: 12px;
+  color: var(--fg);
+}
+.lb-crew-edit input:focus { outline: none; border-color: var(--accent); }
+
+/* PF / PM per take-off and landing. Two tiny segmented pairs, coloured the
+   same way the collapsed row's tags are so the two read as one idea. */
+.lb-detail-roles { display: flex; gap: 14px; margin-bottom: 10px; }
+.lb-role-set { display: flex; align-items: center; gap: 4px; }
+.lb-role-set b {
+  color: var(--fg-mute); font-weight: 800;
+  font-size: 10px; letter-spacing: .08em; margin-right: 2px;
+}
+.lb-role-btn {
+  -webkit-appearance: none; appearance: none;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px;
+  font: inherit; font-size: 11px; font-weight: 700;
+  color: var(--fg-mute); cursor: pointer;
+}
+.lb-role-btn.is-on[data-role-val="PF"] {
+  background: var(--green-soft, rgba(46,168,138,0.18));
+  border-color: var(--good, #2ea88a); color: var(--good, #2ea88a);
+}
+.lb-role-btn.is-on[data-role-val="PM"] {
+  background: var(--warm-soft, rgba(255,169,77,0.18));
+  border-color: var(--warm, #ffa94d); color: var(--warm, #ffa94d);
+}
+
 .lb-detail-proc { display: flex; gap: 10px; margin-bottom: 10px; }
 .lb-field { flex: 1 1 0; min-width: 0; display: block; }
 .lb-field > span {
