@@ -11,8 +11,8 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=131';
-import { dateTs, legTs, yearPast } from './dates.js?v=131';
+import * as storage from './storage.js?v=132';
+import { dateTs, legTs, yearPast } from './dates.js?v=132';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -53,11 +53,7 @@ function fmtMin(total) {
 // "first ever flight" → "most recent" reads naturally.
 export function allLegs() {
   const now = Date.now();
-  const out = [];
-  for (const leg of storage.getLegs() || []) out.push(leg);
-  for (const flight of storage.getState().history || []) {
-    for (const leg of flight.legs || []) out.push(leg);
-  }
+  const out = storage.everyLeg();
   // Statistics count FLOWN flights only — exclude legs whose departure is
   // still in the future so upcoming roster doesn't inflate hours, nights,
   // destinations or crew tallies. Undated legs (NaN dep) pass through; they

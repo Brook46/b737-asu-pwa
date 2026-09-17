@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=131';
-import { dateTs, legTs } from './dates.js?v=131';
+import { flipName } from './roster.js?v=132';
+import { dateTs, legTs } from './dates.js?v=132';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -239,6 +239,13 @@ function freshState() {
     speeches: clone(DEFAULT_SPEECHES),
     current: newFlightRecord(),
     history: [],
+    // Legs backfilled from a crew-portal sector CSV. They live OUTSIDE
+    // current.legs (which is the active duty period, and drives the leg
+    // switcher) and outside history[] (which is capped to HISTORY_MAX whole
+    // duty records). Hundreds of one-off flown sectors are neither, so they
+    // get their own flat bucket that every "walk all my legs" reader picks
+    // up via everyLeg().
+    imported: [],
     // Crew registry: { [CANONICAL_NAME]: { nickname, phone, flights } }.
     // Keyed by the uppercased canonical name the calendar produces (e.g.
     // "YUVAL KOLAN"). Populated by appendLegs() as new legs land + by the
@@ -270,6 +277,7 @@ function read() {
   cache.current.legs     = Array.isArray(cache.current.legs) ? cache.current.legs : [];
   cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
+  cache.imported = Array.isArray(cache.imported) ? cache.imported : [];
   if (!cache.crew || typeof cache.crew !== 'object') cache.crew = {};
   return cache;
 }
@@ -448,6 +456,7 @@ function migrate(s) {
     speeches: upgradedSpeeches,
     current,
     history: Array.isArray(s.history) ? s.history : [],
+    imported: Array.isArray(s.imported) ? s.imported : [],
     crew,
     // Per-airport free-text notes, keyed by ICAO. Preserved across migrations.
     // airportNotes  = the pilot's own "Personal" note (hand-edited).
@@ -697,11 +706,7 @@ export function allLegsToAirport(icao) {
   const k = String(icao || '').trim().toUpperCase();
   if (!k) return [];
   const now = Date.now();
-  const all = [];
-  for (const leg of read().current.legs || []) all.push(leg);
-  for (const flight of read().history || []) {
-    for (const leg of flight.legs || []) all.push(leg);
-  }
+  const all = everyLeg();
   const hits = all.filter(leg => {
     if (String(leg.arr || '').trim().toUpperCase() !== k) return false;
     const ts = depTs(leg);
@@ -762,6 +767,143 @@ export function setAirportSocialAll(map) {
   scheduleWrite();
 }
 
+// Every leg this pilot owns, wherever it lives: the active duty period,
+// the archived duty records, and the CSV backfill. Returns the LIVE objects
+// (not copies) so callers that write through a leg still persist.
+//
+// Five readers used to open-code this walk and each one would have needed
+// teaching about a new bucket. They all come through here now.
+export function everyLeg() {
+  const s = read();
+  const out = [];
+  for (const leg of s.current.legs || []) out.push(leg);
+  for (const flight of s.history || []) {
+    for (const leg of flight.legs || []) out.push(leg);
+  }
+  for (const leg of s.imported || []) out.push(leg);
+  return out;
+}
+
+export function getImportedLegs() { return read().imported || []; }
+
+// Drop the whole CSV backfill. Legs that were merged INTO an existing leg
+// are not undone — those edits are indistinguishable from the pilot's own
+// by the time they land — so the toast tells the truth about that.
+export function clearImportedLegs() {
+  const s = read();
+  const n = (s.imported || []).length;
+  s.imported = [];
+  scheduleWrite();
+  return n;
+}
+
+// Backfill flown history from a sector CSV.
+//
+// Deliberately NOT appendLegs(): that function exists to land the next duty
+// period, so it moves legIndex onto what it added and treats incoming data as
+// authoritative. A backfill wants the opposite of both. Here the CSV only ever
+// FILLS GAPS on a leg the app already knows — a SID typed in after the flight,
+// or a crew correction, outranks a bulk import every time — and the active leg
+// is left exactly where it was.
+export function addImportedLegs(legs) {
+  if (!Array.isArray(legs) || !legs.length) return { added: 0, updated: 0 };
+  const s = read();
+  if (!Array.isArray(s.imported)) s.imported = [];
+  const pool = everyLeg();
+  const SEED = ['cpt', 'fo'];
+  let added = 0, updated = 0;
+  const fresh = [];
+
+  for (const leg of legs) {
+    if (!leg || typeof leg !== 'object') continue;
+    if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+    if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
+    if (!leg.notes    || typeof leg.notes    !== 'object') leg.notes    = {};
+    // The data-card editor reads crew off dataCard, the logbook off either.
+    for (const k of SEED) {
+      if (!leg.dataCard[k] && leg[k]) leg.dataCard[k] = leg[k];
+    }
+    // Checked against the batch as well as the store: a sector genuinely can
+    // appear twice in one export (an augmented crew files one record each).
+    const dupIdx = pool.findIndex(l => sameSector(l, leg));
+    if (dupIdx >= 0) { if (fillEmptyFrom(pool[dupIdx], leg)) updated++; continue; }
+    fresh.push(leg);
+    pool.push(leg);
+    added++;
+  }
+
+  s.imported = s.imported.concat(fresh);
+  s.imported.sort((a, b) => (depTs(a) || 0) - (depTs(b) || 0));
+  // Crew registry: same bump appendLegs does, so "most flown with" and the
+  // nickname/phone book see everyone from the backfill too.
+  for (const leg of fresh) {
+    const seen = new Set();
+    for (const k of ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']) {
+      const v = ((leg[k] || (leg.dataCard && leg.dataCard[k]) || '')).trim().toUpperCase();
+      if (v) seen.add(v);
+    }
+    for (const name of seen) {
+      const entry = ensureCrewEntry(s, name);
+      entry.flights = (entry.flights | 0) + 1;
+    }
+  }
+  scheduleWrite();
+  return { added, updated };
+}
+
+// Same flight number, same DAY, same ROUTE.
+//
+// Stricter than findDuplicateLegIdx (what the roster sync uses) in two ways,
+// both learned from real data:
+//
+//  • It never matches on flight number alone. findDuplicateLegIdx falls back
+//    to that when either side is undated — right for a roster re-paste, badly
+//    wrong for a backfill, where an undated leg sitting in the app swallowed
+//    the oldest sector in the CSV carrying that number and was retro-dated to
+//    it (a TLV-BCN with no date became a 2020 flight on the first test run).
+//
+//  • It compares the route. One flight number really can fly two different
+//    sectors in a day: LY322 on 20.03.2023 operated MRS-TLV *and* FCO-TLV,
+//    and LY343 on 01.12.2022 has a TLV-ZRH plus a TLV-TLV air-turnback.
+//    Matching on number and date alone threw the second one away.
+//
+// Same number, same day, SAME route is still treated as one flight even when
+// the times differ — that is a schedule revision filed twice (LY1002 JFK-TLV
+// appears at 19:40 and 21:40 on the same tail), not two flights, because
+// nobody flies the same aircraft over the same route twice in two hours.
+function sameSector(a, b) {
+  const fa = digitsOf(a.flight);
+  if (!fa || fa !== digitsOf(b.flight)) return false;
+  if (!a.dep_date || !b.dep_date || a.dep_date !== b.dep_date) return false;
+  // Years are stored as numbers by the roster and as strings by older
+  // migrations, so compare numerically or 2026 !== '2026' splits a match.
+  if (a.dep_year && b.dep_year && Number(a.dep_year) !== Number(b.dep_year)) return false;
+  const code = (v) => String(v || '').trim().toUpperCase();
+  if (code(a.dep) && code(b.dep) && code(a.dep) !== code(b.dep)) return false;
+  if (code(a.arr) && code(b.arr) && code(a.arr) !== code(b.arr)) return false;
+  return true;
+}
+
+// Copy anything `source` carries into slots `target` has left empty. Never
+// overwrites. Returns true when it actually changed something.
+function fillEmptyFrom(target, source) {
+  let touched = false;
+  const isEmpty = (v) => v === '' || v == null;
+  for (const [k, v] of Object.entries(source)) {
+    if (k === 'dataCard' || k === 'ticks' || k === 'notes') continue;
+    if (isEmpty(v)) continue;
+    if (isEmpty(target[k])) { target[k] = v; touched = true; }
+  }
+  if (source.dataCard && typeof source.dataCard === 'object') {
+    if (!target.dataCard || typeof target.dataCard !== 'object') target.dataCard = {};
+    for (const [k, v] of Object.entries(source.dataCard)) {
+      if (isEmpty(v)) continue;
+      if (isEmpty(target.dataCard[k])) { target.dataCard[k] = v; touched = true; }
+    }
+  }
+  return touched;
+}
+
 export function allLegsWith(name) {
   const k = canon(name);
   if (!k) return [];
@@ -774,11 +916,7 @@ export function allLegsWith(name) {
     }
     return set;
   };
-  const allLegs = [];
-  for (const leg of read().current.legs || []) allLegs.push(leg);
-  for (const flight of read().history || []) {
-    for (const leg of flight.legs || []) allLegs.push(leg);
-  }
+  const allLegs = everyLeg();
   // Sort by dep_date+dep_time DESC, fall back to lexical so legs with no
   // schedule still come through stable.
   allLegs.sort((a, b) => (depTs(b) || 0) - (depTs(a) || 0));
@@ -804,8 +942,7 @@ export function setStoredLegField(match, key, value) {
     String(l.dep_date || '') === String(match.dep_date || '') &&
     String(l.dep      || '') === String(match.dep      || '') &&
     String(l.arr      || '') === String(match.arr      || '');
-  const pool = [...(s.current.legs || [])];
-  for (const f of (s.history || [])) pool.push(...(f.legs || []));
+  const pool = everyLeg();
   const leg = pool.find(same);
   if (!leg) return false;
   if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};

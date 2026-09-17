@@ -18,8 +18,8 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=131';
-import { dateTs, legTs } from './dates.js?v=131';
+import * as storage from './storage.js?v=132';
+import { dateTs, legTs } from './dates.js?v=132';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -150,11 +150,7 @@ export function buildIcs(legs, opts = {}) {
 // reads naturally.
 export function allStoredLegs() {
   const now = Date.now();
-  const all = [];
-  for (const leg of storage.getLegs() || []) all.push(leg);
-  for (const flight of storage.getState().history || []) {
-    for (const leg of flight.legs || []) all.push(leg);
-  }
+  const all = storage.everyLeg();
   // A logbook is flights already FLOWN — drop any leg whose scheduled
   // departure is still in the future so the calendar never publishes
   // upcoming duty. Undated legs (no dep_date) are kept: they can't be a

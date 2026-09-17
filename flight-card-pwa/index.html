@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=131" />
+  <link rel="stylesheet" href="./app.css?v=132" />
 </head>
 <body>
   <header class="app-header">
@@ -435,6 +435,27 @@
       </section>
 
       <section class="settings-section">
+        <h3 class="settings-h">Backfill logbook (sector CSV)</h3>
+        <p class="muted small">
+          Load the <code>MySectors.csv</code> your crew portal exports and every
+          sector in it joins the logbook and the insights — route, tail,
+          aircraft type, block and airborne time, who you flew with, and whether
+          you were PF or PM for each take-off and landing. Flights the app
+          already has are <em>filled in</em>, never overwritten, so anything you
+          typed yourself stays. Deadhead sectors are left out — you were a
+          passenger. Safe to load the same file again.
+        </p>
+        <div class="settings-row-btns">
+          <label class="btn primary">
+            <input id="sectors-csv" type="file" accept=".csv,text/csv" hidden />
+            Load sectors .csv…
+          </label>
+          <button id="sectors-clear" class="btn">Remove imported</button>
+        </div>
+        <p id="sectors-status" class="muted small cal-status"></p>
+      </section>
+
+      <section class="settings-section">
         <h3 class="settings-h">Social notes (per-airport)</h3>
         <p class="muted small">
           The <strong>Social</strong> tab in each airport popup can auto-refresh
@@ -659,6 +680,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=131"></script>
+  <script type="module" src="./app.js?v=132"></script>
 </body>
 </html>

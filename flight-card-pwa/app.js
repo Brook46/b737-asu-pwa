@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=131';
-import * as dataCard from './modules/data-card.js?v=131';
-import * as checklist from './modules/checklist.js?v=131';
-import * as speeches from './modules/speeches.js?v=131';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=131';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=131';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=131';
+import * as storage from './modules/storage.js?v=132';
+import * as dataCard from './modules/data-card.js?v=132';
+import * as checklist from './modules/checklist.js?v=132';
+import * as speeches from './modules/speeches.js?v=132';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=132';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=132';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=132';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1402,6 +1402,7 @@ function openSettingsSheet() {
   try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }
   try { paintSensorsPanel(); }   catch (err) { console.warn('sensors paint skipped', err); }
   try { paintSocialSection(); }  catch (err) { console.warn('social paint skipped', err); }
+  try { paintSectorsSection(); } catch (err) { console.warn('sectors paint skipped', err); }
 }
 
 // ---- Social-notes feed settings ----
@@ -1977,6 +1978,7 @@ function renderLogbookList(legs) {
       <div class="lb-detail hidden" ${ident}>
         ${lbRouteMap(leg)}
         <div class="lb-detail-times">
+          ${leg.tail ? `<span class="lb-time"><b>${esc(leg.tail)}</b>${d.ac_type ? ' ' + esc(d.ac_type) : ''}</span>` : ''}
           <span class="lb-time"><b>BLOCK</b> ${esc(d.block_time || leg.flight_time || '—')}</span>
           <label class="lb-time lb-time-edit"><b>ACTUAL</b>
             <input type="text" value="${esc(d.actual_flight_time || '')}" data-lb-actual="1" ${ident}
@@ -2137,6 +2139,10 @@ function lbCrewHtml(leg) {
     seen.add(dedupe);
     cells.push(`<span class="lb-crew"><b>${esc(role)}</b> ${esc(name)}</span>`);
   }
+  // Augmenting / cruise-relief pilots. They have no seat slot (cc* is cabin
+  // crew), so they ride in their own field rather than being dropped.
+  const relief = String(d.relief || '').trim();
+  if (relief) cells.push(`<span class="lb-crew"><b>RLF</b> ${esc(relief)}</span>`);
   const dh = String(leg.dh || d.dh || '').trim();
   if (dh) cells.push(`<span class="lb-crew lb-crew-dh"><b>DH</b> ${esc(dh)}</span>`);
   return cells.length
@@ -2532,6 +2538,84 @@ $('sync-import').addEventListener('change', async (e) => {
   } catch (err) {
     toast('Import failed: ' + (err?.message || err));
   }
+});
+
+// ---------- Backfill logbook from a sector CSV ----------
+// Everything flown before this app existed only exists in the crew portal's
+// sector export. Loading one backfills years of logbook and insights in a
+// single pick. See modules/sectors-csv.js for the column mapping.
+
+function paintSectorsSection() {
+  const status = $('sectors-status');
+  const clear  = $('sectors-clear');
+  if (!status) return;
+  const n = (storage.getImportedLegs() || []).length;
+  if (!n) {
+    status.textContent = '';
+    if (clear) clear.hidden = true;
+    return;
+  }
+  const legs = storage.getImportedLegs();
+  status.textContent = `${n} imported sector${n === 1 ? '' : 's'} in your logbook`
+    + `${legs[0]?.dep_year ? ` — ${legs[0].dep_year} to ${legs.at(-1).dep_year}` : ''}.`;
+  if (clear) clear.hidden = false;
+}
+
+const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined,
+  { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+$('sectors-csv').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = '';   // allow re-picking the same file later
+  if (!f) return;
+  const status = $('sectors-status');
+  if (status) status.textContent = `Reading ${f.name}…`;
+  try {
+    const text = await f.text();
+    const { parseSectors } = await import('./modules/sectors-csv.js?v=132');
+    const res = parseSectors(text);
+    const span = (res.from && res.to) ? `\n${fmtDay(res.from)} → ${fmtDay(res.to)}` : '';
+    const dh = res.skippedDeadhead
+      ? `\n${res.skippedDeadhead} deadhead sector${res.skippedDeadhead === 1 ? '' : 's'} left out — you were a passenger.`
+      : '';
+    const who = res.owner ? `\nRead as ${res.owner}'s logbook.` : '';
+    if (!confirm(`${res.legs.length} sectors found in ${f.name}.${span}${dh}${who}\n\nAdd them to your logbook?`)) {
+      if (status) status.textContent = 'Cancelled.';
+      return;
+    }
+    if (status) status.textContent = 'Importing…';
+    const { added, updated } = storage.addImportedLegs(res.legs);
+    // Force the write now rather than on the next idle flush: this is a lot of
+    // data and the user may well close the app straight after.
+    storage.flush?.();
+    const bits = [];
+    if (added)   bits.push(`${added} added`);
+    if (updated) bits.push(`${updated} filled in`);
+    if (!bits.length) bits.push('nothing new — already in your logbook');
+    if (status) status.textContent = `${f.name}: ${bits.join(', ')}.`;
+    toast(`Logbook backfilled — ${bits.join(', ')}`);
+    paintSectorsSection();
+    // The logbook overlay caches nothing, but analytics + the crew list read
+    // live state, so anything already on screen needs a repaint.
+    try { if (!$('analytics-overlay')?.classList.contains('hidden')) paintAnalytics(); } catch {}
+  } catch (err) {
+    console.warn('sector CSV import failed', err);
+    const msg = err?.message || String(err);
+    if (status) status.textContent = `Couldn't read that file: ${msg}`;
+    toast('Import failed: ' + msg);
+  }
+});
+
+$('sectors-clear').addEventListener('click', () => {
+  const n = (storage.getImportedLegs() || []).length;
+  if (!n) return;
+  if (!confirm(`Remove ${n} imported sector${n === 1 ? '' : 's'} from your logbook?\n\n`
+    + 'Flights that were already in the app keep the details the import filled in — '
+    + 'those are yours now and stay.')) return;
+  storage.clearImportedLegs();
+  storage.flush?.();
+  paintSectorsSection();
+  toast(`Removed ${n} imported sector${n === 1 ? '' : 's'}`);
 });
 
 // ---------- Tail quick-track ----------
