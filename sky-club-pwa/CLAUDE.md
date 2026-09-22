@@ -2,6 +2,190 @@
 
 "Sky Club": a solar-system + real-sky explorer for a toddler (age 2–5) — near-zero reading, big taps, spoken narration. Four screens: a **Home** landing screen (rocket hero, shown once per load) plus **Explore**/**Sky**/**Badges**, switched by a 3-tab bottom nav.
 
+## Explore: a 3-D solar system (current architecture)
+
+Rebuilt on request ("give it 3-D options, really elliptic orbits, real-looking
+planets, fire and solar storms on the Sun"). **Read this before touching
+`orrery3d.js`, `globe.js`, `sunfx.js` or `cardglobe.js`** — the older Explore
+notes further down describe the nested-`<div>` orrery this replaced.
+
+**Why a rebuild, not a restyle:** the old orrery rotated nested divs, which can
+only ever trace circles. Real ellipses and a camera you can tilt need real 3-D
+positions and a projection, so the orrery is now one canvas.
+
+**Orbits are real (`astro.js::helioEcliptic`/`orbitPath`, `orrery3d.js`)**:
+- Each planet is at its real heliocentric 3-D position (`HelioVector`, EQJ
+  rotated to the J2000 ecliptic). Each orbit line is traced from the ephemeris
+  itself over one period — the sampled paths reproduce the textbook elements
+  (Mercury a 0.387 AU, e 0.206, i 7.00°; Mars e 0.093; Neptune a 30.07 AU).
+- Each orbit is scaled **uniformly** (display radius ÷ real semi-major axis),
+  so every ellipse keeps its true shape with the Sun at the focus; only the
+  gaps between orbits are compressed. **Spacing uses real geometry**: each
+  orbit is pushed out only as far as its actual closest approach to the one
+  inside it requires (orbits sampled by direction). Padding for the naive
+  worst case (inner aphelion vs outer perihelion) made the system ~50% bigger
+  and every planet a third smaller on a phone, because the orbits' long axes
+  point in different directions and never line up like that.
+- **Real distances** (ruler button) morphs to true AU spacing — the inner
+  planets collapse into a knot round the Sun; that's the lesson.
+- Planets are drawn `PLANET_BOOST` (1.6×) larger than the room the layout
+  reserves: at a size that can never touch a neighbouring orbit, Earth is 3 px.
+
+**Camera**: perspective, orbiting the Sun. Drag = swing round / tilt (with
+inertia), pinch/wheel/± = zoom, cube button = Tilted (42°) / Top / Side. Clean
+view slowly turns the camera. The fit allows ~12% for perspective widening of
+the near half of the outer orbit. Draw order: orbit lines behind the Sun's
+depth → bodies behind the Sun → the Sun → orbit lines in front → nearer bodies,
+so the Sun correctly hides what's behind it. The loop idles when Explore isn't
+showing or a card is open. Measured: the heaviest frame callback ~1.5 ms on a
+desktop at 120 fps.
+
+**Worlds are real lit spheres (`globe.js`)** — plain 2-D canvas, no WebGL
+(still the app's rule). Per pixel: surface normal → body frame → lat/lon →
+texel from the equirectangular texture, lit by the true Sun direction. So each
+planet shows its real phase from where the camera is (a crescent when it's
+between you and the Sun), spins about its **real pole** (IAU pole RA/Dec →
+ecliptic: Uranus on its side, Venus and Uranus turning backwards), with a soft
+terminator. The asin/atan2 per pixel depend only on orientation, not spin
+(spin is a longitude offset), so they're cached in tables rebuilt only when the
+camera moves. Extras: Earth's procedural clouds (tileable fbm noise), ocean sun
+glint (half-vector specular on blue texels), atmosphere rims and halos; Venus
+washed cream (its texture is too brown for its cloud deck); gas-giant limb
+darkening. **Saturn's rings** are a square texture of the real radial profile
+(sampled from `saturn-ring.png`'s major axis) drawn through the affine
+projection of the ring plane, split into a far half (before the globe) and a
+near half (after), so they wrap round it at the real 27° tilt.
+
+**The Sun (`sunfx.js`)**: the real texture on a sphere, brightness mapped onto
+a solar palette (the raw texture's hues included greens) with strong limb
+darkening that also reddens, and animated granulation. Around it: chromosphere
+rim, flickering spicules (the "fire"), soft corona streamers, prominences as
+wavering filamentary loops in hydrogen-alpha red that grow, sway and fade, and
+flares — a white-hot flash, a shock arc, and a coronal mass ejection of
+streaking plasma that cools from white to red (sometimes carrying a prominence
+away). Real physics, compressed timing. `'full'` detail on the card, `'lite'`
+in the orrery.
+
+**Cards (`cardglobe.js`)**: planets and the Sun get the rendered globe (the
+`is-globe` class hides the old CSS spin texture); the canvas is larger than the
+hero wrap so rings, halos and the corona have room. Real axial tilts, tipped
+16° toward the viewer so a pole shows, studio light from the left. The Moon
+keeps its own phase renderer (`moonphase.js`).
+
+## Sky screen: a real camera over the real sky (current architecture)
+
+Rebuilt after the report that pointing the phone at a star didn't put it on
+screen. **Read this before touching `sky.js`/`sensors.js`** — the sections
+further down describe earlier versions and are kept for their lessons.
+
+**Why pointing didn't work — five stacked bugs, all fixed:**
+1. **The projection was not a camera.** Objects were placed at
+   `Δazimuth × px-per-degree`, which is only right looking at the horizon. Near
+   the zenith, 30° of azimuth is a few degrees of sky, so anything high up was
+   drawn far from where it is (a star 20° off in azimuth at 50° altitude landed
+   ~7° / ~100 px wrong), and constellations were visibly sheared.
+2. **Roll and landscape were ignored.** Pitch was `beta − 90`, which only means
+   pitch in upright portrait. An iPad held landscape — the natural way to hold
+   one — swapped the axes entirely; a tilted phone showed an untilted sky.
+3. **Magnetic north treated as true north.** iOS's `webkitCompassHeading` is
+   magnetic. Declination is ~5.0° in Tel Aviv, 12.8° in San Francisco, −12.5° in
+   New York, −26.8° in Cape Town.
+4. **The compass flips 180° as you look up.** Measured on real iPhones (see the
+   calibration comment in `sensors.js`): the reported heading follows the TOP
+   edge while the screen faces up, then switches to the CAMERA past ~120° of
+   tilt — exactly the pose used to look at the sky. WebKit passes `CLHeading`
+   straight through (`WebCoreMotionManager.mm`), so this is Core Location's
+   behaviour and can't be configured away from JS.
+5. **The Milky Way was computed with RA in degrees where `Horizon()` wants
+   hours** (`astro.js`'s old `milkyWayPositions`), so the band was drawn in an
+   unrelated part of the sky. Plus: two hand-typed catalogue stars were well
+   off (Kaus Borealis 2.5°, Algorab 1.4°), and the reticle sat at 44% height
+   while the projection centred at 50%, a few degrees of built-in aiming error.
+
+**Orientation (`sensors.js::readView()`)** — the SkyView/Star Walk model. The
+device's full orientation is a quaternion from W3C alpha/beta/gamma
+(`Rz(α)·Rx(β)·Ry(γ)`, world = East-North-Up), right-multiplied by
+`Rz(−screen.orientation.angle)` for landscape (same convention as three.js's
+DeviceOrientationControls), then rotated about "up" by the compass correction
+and the WMM declination. The camera looks out of the back (`−z`); `right`/`up`
+are the screen's axes. Light motion-adaptive smoothing (steady when still,
+immediate when swung).
+- **iOS calibration**: alpha is gyro-fused but its yaw reference is arbitrary
+  (WebKit uses CoreMotion's default `XArbitraryZVertical` frame), so an offset
+  to magnetic north is learned from `webkitCompassHeading`. Samples taken
+  **screen-up** are authoritative (then it is unambiguously the top edge, in
+  portrait or landscape). Before one arrives, a provisional estimate uses the
+  top edge below ~110° of tilt, the camera past ~130°, and nothing in the
+  switch band between. Once authoritative, other poses are ignored and the gyro
+  carries the view. A 60° jump gate (adopt only if it persists ~¾ s) rejects
+  flips and magnetic disturbances; `webkitCompassAccuracy < 0` is discarded.
+- **Android**: `deviceorientationabsolute` alpha is already north-referenced
+  (magnetic); only declination is added.
+- **Declination** (`geomag.js` + `wmm2025.js`): World Magnetic Model 2025,
+  degree-12 spherical-harmonic synthesis, no dependencies. Verified against the
+  `geomagnetism` npm package's implementation to 1e-9° across 30 place/date
+  cases. The model is valid to late 2029 — swap in WMM2030 coefficients then.
+- **Tested with physical-pose scenarios** (28 checks): each pose (bearing,
+  altitude, roll, portrait/landscape) is turned into the events iOS would send
+  — arbitrary alpha frame, magnetic compass following top edge or camera by
+  pose — and the recovered view must match within 1°. Covers glancing at the
+  screen then looking up, starting already pointed up, both landscape
+  rotations, rolled phones, and swinging through the switch band.
+
+**Sky model (`astro.js`)** — everything is a unit vector. Stars, figures and the
+Milky Way are fixed in J2000 (EQJ); `eqjToEnu()` is one `Rotation_EQJ_HOR`
+matrix per second (includes precession/nutation; matches `Horizon()` to
+<0.01″). Each frame the camera basis is rotated into EQJ instead, so a star is
+three dot products. Sun/Moon/planets come from `skyBodies()` with refraction and
+real apparent magnitude (`Illumination().mag`).
+
+**Rendering (`sky.js`)** — gnomonic (pinhole) projection, `x = f·(v·right)/(v·fwd)`,
+60° across the screen's short side, pinch/wheel zoom 18–110°. Great circles are
+straight lines, so constellation figures stay straight at any angle. Lines
+crossing behind the viewer are clipped to a near plane before projecting.
+- `#sky-bg`: **per-pixel sky model at low resolution** (≤18k px, browser
+  upscale = free softness): night gradient with horizon airglow, daylight
+  Rayleigh blue, twilight band on the Sun's side, sun glare, moon glow and
+  moonlight brightening, the ground below a gentle procedural skyline, and the
+  Milky Way sampled from `data/milkyway.png`. Redrawn only when the view turns
+  by ~half a backdrop pixel or the sky changes.
+- `#sky-fg` (DPR ≤2, ≤3.2 MP): constellation figures (the one under the
+  reticle highlighted; underground ones faint), ~5,000 stars as point-spread
+  sprites sized/brightened by magnitude and tinted by real B−V colour, with
+  atmospheric extinction near the horizon, scintillation on bright stars, and
+  stars below the skyline shown faintly "through" the ground. Sun, Moon (real
+  phase via `moonphase.js`, rotated so its lit limb faces the Sun's real screen
+  direction) and planets (real textures, small, inside a brightness-scaled
+  glow; Venus washed cream, Saturn ringed). Skyline and N/E/S/W points.
+  Labels are placed in priority order with overlap rejection.
+- **Brightness follows the real sky**: limiting magnitude falls from 5.3 (dark,
+  deliberately suburban so the screen matches what you can actually see) with
+  twilight and moonlight; zooming in reveals fainter stars. In daylight, stars
+  are still drawn faintly to mag 2.3 ("they're still up there").
+- **Performance**: measured with a direct render benchmark. Before the redraw
+  threshold the backdrop cost ~5.6 ms per redraw and redrew on every hand
+  tremor; now a still-ish frame is ~0.3 ms of script and a steady pan ~1.2 ms
+  on a desktop. Label halos are `strokeText`, never `shadowBlur` (slow on iOS).
+  The loop idles when the Sky tab isn't showing.
+
+**Data (`tools/build-sky-data.mjs` → `data/sky.json` + `data/milkyway.png`)**:
+d3-celestial (BSD-3, Olaf Frohn; HYG/Hipparcos stars, Stellarium figures,
+Milky Way contours). 5,044 stars to mag 6.0 (brightest first, so the draw loop
+stops at the limiting magnitude), 378 proper names, 88 constellations with
+Latin labels. `data/stars.json` remains the hand-edited source of facts, kid
+names and distances; the build **joins it to the catalogue by position and
+fails** if a curated star doesn't match a real one (which is how the two bad
+coordinates were found). The Milky Way contours are rasterised to a 720×160
+map in galactic coordinates — they can't be filled as screen polygons because
+the band encircles the viewer and has no well-defined inside once projected.
+
+**Testing aids**: `?at=2026-10-11T18:30Z` runs the Sky screen at that moment
+(day, twilight, moonless night on demand). `sensors.js::_feedOrientation()`
+accepts synthetic events through the real path — import it from an injected
+`<script type="module">` (same module instance as the app; `javascript_tool`'s
+own `import()` is a separate realm). The app's freeze detector reloads to Home
+when the preview pane is hidden (rAF pauses), so enter the sky and act in one step.
+
 ## "Mission Control" visual redesign (Nocturne)
 
 The app's chrome (buttons, nav, cards, backgrounds, text — NOT the real per-body colors in `catalog.js`/`stars.json`, which are untouched) uses a dark-violet "Nocturne" design-system palette, imported from a Design-tool mockup and adapted into this vanilla-JS/no-build app by hand (the mockup's own React/`DCLogic` runtime was never a dependency — visual/UX intent only). Tokens live in `app.css`'s `:root` (`--color-bg`, `--accent-300`..`--accent-900`, etc.).
@@ -25,67 +209,27 @@ The Design project later added a literal, mechanical build spec (`Sky Club - bui
 - **Spotted-planet outline**: tapping "I spotted it" now visibly rings that planet — `2px solid rgba(181,171,252,.85)` — directly on its orrery dot AND its Sky-mode marker (if currently visible), not just inside the card/Badges grid. `orbits.js`/`sky.js` each keep a `refreshSpottedOutlines()` wired to `badges.js::onChange()`, toggling a `.spotted` class whose CSS (`.spotted .body-dot`) is shared by both screens since both markers carry the `.body-dot` class.
 - **Marker float + screen-entry rise**: Sky-mode body markers get a gentle idle float (`.marker-dot`'s own `marker-float` animation, staggered via an inline `--float-delay` — deliberately on the inner dot span, NOT the outer `.sky-marker-body` button, since that button's `transform` is overwritten every frame by `sky.js::project()` for real screen placement, and a CSS animation on the same property would fight the inline one and win). Screen content (`.home-hero`, `.screen-header`, `.badges-header`, `#badges-grid`) replays a `rise` fade/slide-up automatically whenever its ancestor `.screen` goes from `display:none` back to `:flex` — free entrance animation, no JS trigger needed, since `display:none` removes an element from the render tree and re-adding it restarts any `animation` on its subtree.
 
-**Milky Way in Sky mode — real, not decorative**: consistent with this app's whole "positions are real" rule, the Milky Way band is the actual galactic plane at its actual sky position, not a fixed graphic. `astro.js::milkyWayPositions()` generates a fixed scatter of points along the galactic equator (with a few degrees of latitude jitter for width) ONCE at module load — galactic coordinates are epoch-fixed, so this never needs recomputing — using the standard IAU equatorial↔galactic rotation matrix (transposed to go galactic→equatorial), verified against the known real RA/Dec of the galactic center (l=0,b=0 → RA 266.40°, Dec −28.94°, matches the literature exactly). Each point then gets a real Alt/Az via the same `Horizon()` call every other body uses. `sky.js` recomputes these alongside stars (same `isDark` gate — the Milky Way isn't visible against a bright sky either) and draws them each frame on a dedicated `#milky-way` canvas (`mix-blend-mode: screen`, sits behind `#sky-markers`/`#const-lines` in DOM order) via `drawMilkyWay()`, reusing the exact same az/alt→screen-space projection math as `project()`'s body placement.
+**Milky Way in Sky mode** (superseded — see the architecture section): the first version scattered points along the galactic plane and projected them with `Horizon()`, but passed RA in degrees where hours were expected, so the band was in the wrong place. It is now a brightness map sampled per pixel.
 
 **Sky mode never dead-ends on missing location**: `sensors.js::geolocate()` used to throw all the way up to `startSky()` on any geolocation failure (denied, timed out, unsupported), leaving the gate stuck on an error message with no in-app way forward — a toddler (or anyone) can't go fix a Settings permission themselves, so that was a real hard stop, not a recoverable retry. `geolocate()` now never throws: on any failure it falls back to a fixed approximate default location (`DEFAULT_LAT`/`DEFAULT_LON`, `sensorState.usingDefaultLocation = true`) so the sky view always renders — positions are just for that default location instead of the user's real one. `sky.js::startSky()` shows a one-time `#sky-toast` note ("Not sure exactly where you are…") when this fallback kicks in, instead of a dead-end error.
 
 ## Third pass: catching mechanic, star facts, real events, Sun/Moon badges
 
 - **Edge-arrow direction bug (fixed)**: the off-screen "turn this way" arrows were pointing (and positioning themselves) on the wrong side whenever the target had any up/down offset — `sky.js::project()`'s arrow-angle math used `Math.atan2(-dAlt, dAz)`, but the `(ax,ay)` parametric-circle formula right below it (`x=cx+cos·r, y=cy-sin·r`) already expects an up-positive math angle to match how `dAlt` itself is defined (`y=cy-dAlt·pxPerDeg` for the main placement). Negating `dAlt` flipped the vertical axis, so an arrow for a target above you pointed at the BOTTOM of the screen and vice versa. Fixed to `Math.atan2(dAlt, dAz)`; verified with a standalone script confirming "target above" now resolves to the top of the screen.
-- **"Point and hold" catching** (`sky.js::updateLock()`): the reticle is now a real target, not decoration — if a visible body or star stays within `LOCK_RADIUS_PX` (42px) of the reticle's actual screen position (it's at 50%/44%, not dead-center) for `LOCK_MS` (1.6s), it's caught automatically, exactly like a tap. Feedback is just the center dot growing (`--reticle-dot` scaled inline each frame by dwell progress) and the ring brightening (`.reticle.locking`) — no separate progress-ring markup needed. A `LOCK_COOLDOWN_MS` (4s) per-id guard stops it from re-firing every frame while still held. This matters for a toddler holding a phone one-handed: tapping a small moving marker while also aiming is hard; holding still over the glowing target is not.
+- **"Point and hold" catching** (`sky.js::updateLock()`): the reticle is now a real target, not decoration — if a visible body or star stays within `LOCK_RADIUS_PX` (42px) of the reticle (now exactly the projection centre — it used to sit at 44% height) for `LOCK_MS` (1.6s), it's caught automatically, exactly like a tap. Feedback is just the center dot growing (`--reticle-dot` scaled inline each frame by dwell progress) and the ring brightening (`.reticle.locking`) — no separate progress-ring markup needed. A `LOCK_COOLDOWN_MS` (4s) per-id guard stops it from re-firing every frame while still held. This matters for a toddler holding a phone one-handed: tapping a small moving marker while also aiming is hard; holding still over the glowing target is not.
 - **Star facts**: `data/stars.json` now carries a real, single-breath `fact` for the ~20 always-labeled bright stars plus Polaris (23 total) — e.g. Sirius "The brightest star in the whole night sky", Betelgeuse "A giant red star so big it could swallow Mars' whole orbit". `sky.js::catchBody()` was refactored to take the full entity object (body or star) instead of a bare id/name pair, so it can speak `entity.fact` for stars too, not just Sun/Moon/planets — previously stars only ever got the generic "That's Sirius!" fallback regardless of any fact data.
 - **Real "what's coming up" events** (`modules/astro.js` + `modules/events.js`): the next Full Moon (`SearchMoonQuarter`/`NextMoonQuarter`, looped to the quarter===2 event), the next visible lunar/solar eclipse (`SearchLunarEclipse`/`SearchLocalSolarEclipse` from the vendored engine, each checked for real local visibility via `Horizon()` at peak time), and the next real conjunction — a day-by-day scan (45 days) of angular separation between Moon/Mercury/Venus/Mars/Jupiter/Saturn via `Equator()`, reporting the closest pairing under 5°. `events.js::nextEventHeadline()` picks whichever is soonest and turns it into one spoken-friendly line, shown under the Sky screen's title (`#sky-event-note`) computed once when `startSky()` succeeds (deferred via `setTimeout(...,0)` so the day-by-day scan never blocks the transition into the sky view). Every date here is a real search result — nothing is hardcoded or fabricated, consistent with the rest of this app.
 - **Sun/Moon are now badges too**: badges expanded from 8 planets to `[SUN, ...PLANETS, MOON]` (10 total) — see the Badges section above for the `isBadgeBody()` API this introduced.
-- **Horizon/radar-sweep graphic** (`.sky-horizon`/`.sky-horizon-sweep`): the build-prompt spec's decorative bottom-of-screen "ground dome" with a rotating conic-gradient sweep was skipped in the first pass (no real horizon data to back it) but was a concrete, specified visual element never built — added as pure atmosphere, sits behind everything (`z-index:0`) so it never blocks a marker or the reticle.
+- **Horizon/radar-sweep graphic** (removed): a decorative ground dome fixed to the bottom of the screen. It stayed put when you pointed up, which contradicted the sky; replaced by a real projected skyline.
 
-## Sky-mode performance (it was crawling on an iPad)
+## Sky-mode performance, first round (DOM-marker era — superseded)
 
-Measured, not guessed — the numbers below came from timing the real DOM in the
-preview before changing anything. Desktop FPS hid the problem entirely (120fps
-with headroom), so per-frame *work* is the thing to measure, never frame rate.
-
-- **Layout thrashing was the dominant cost.** `project()` placed each marker
-  with `translate(${x - el.offsetWidth/2}px, ...)`. Reading `offsetWidth`
-  immediately after writing a `transform` forces a *synchronous layout*, so the
-  loop did one forced reflow per marker per frame — ~110 of them, 60×/second.
-  A/B on the real 112 markers: **0.81ms vs 0.06ms per pass (13.5×)** on a fast
-  desktop; an iPad is several times slower again, so this alone was eating a
-  large slice of the frame budget. Fixed by centering with a trailing
-  `translate(-50%, -50%)` (percentages resolve against the element's own box),
-  which needs no measurement at all. **Never reintroduce a layout read
-  (`offsetWidth/Height`, `getBoundingClientRect`) inside `project()`.**
-- **Things that turned out NOT to be the problem** (measured, then left alone —
-  worth recording so nobody "optimizes" them later): the Milky Way canvas is
-  already cheap at **0.13ms/frame**, and batching its 360 arcs into 4 alpha
-  buckets measured **1.0× — no gain at all**, so that complexity was dropped.
-  The astronomy recompute is **~0.9ms** total (bodies 0.21 / 102 stars 0.18 /
-  360 Milky Way points 0.53).
-- **Recompute cadence split**: the ~460 star + galactic-plane `Horizon()` calls
-  now run on `SLOW_RECOMPUTE_MS` (15s) instead of every 2s, while the 9 planets
-  stay on the 2s beat. Stars drift at the sidereal rate (~0.0042°/s) — under a
-  pixel in 15s at this screen scale — so nothing visibly changes. Crossing the
-  dark/light threshold forces an immediate slow pass so stars don't pop in late.
-- **Compositing costs removed**: the full-screen Milky Way canvas no longer uses
-  `mix-blend-mode: screen` (a full-screen blend pass every frame, for a barely
-  visible difference on a dark background), and `.bottom-nav` no longer uses
-  `backdrop-filter: blur(10px)` — it's on screen on every tab including over the
-  constantly-repainting sky, so it had to re-blur moving content every frame;
-  at 0.8 alpha it was nearly invisible anyway (now 0.92, no blur). The spec's
-  rotating conic-gradient "radar sweep" is also gone (removed on request), which
-  spares a continuous repaint of that whole region.
-- Per-frame `getElementById`/`querySelector` calls in `project()`/`updateLock()`
-  are cached in module-level vars.
-
-**Marker positions were also 6–9px off** (pre-existing, found while verifying
-the above): `.sky-marker-body`/`-star` had `margin: -6px`/`-9px`, and margin
-applies to absolutely-positioned boxes, shifting every marker up-left by exactly
-that much; and the name label was an in-flow flex child, so centering the box
-put the *dot* half a label above the true position. Fixed by dropping the
-negative margins (the padding alone provides the enlarged tap target), taking
-`.marker-label` out of flow (`position:absolute; top:100%`), and adding
-`justify-content:center` to `.sky-marker` so the dot centers inside its
-min-height tap box. Verified: every marker's dot centre now lands **exactly**
-(0.00px error, all 10 bodies + on-screen stars) on its computed sky position.
+The DOM markers are gone (everything is canvas now), but the method stands:
+**measure per-frame work, never frame rate** — desktop FPS hid the problem
+entirely. The big win then was removing a forced synchronous layout per marker
+per frame (reading `offsetWidth` right after writing a transform: 13.5× the
+cost). Also still true: `.bottom-nav` has no `backdrop-filter` (it would
+re-blur the constantly repainting sky every frame).
 
 ## Sky mode: instant start, and the second performance pass
 
@@ -108,39 +252,18 @@ appear within a 30s probe. Now:
   sky to another country. (Caught in testing: a seeded location kept getting
   replaced by the default.)
 
-Further per-frame reductions, on top of the layout-thrash fix above:
-- **Milky Way canvas is DPR 1, not 2.** It's full-screen and redrawn while
-  panning, so at DPR 2 every frame re-uploads a ~1.2-megapixel texture to the
-  GPU. It's a field of soft blurry dots — there is no detail to lose.
-- **The canvas only redraws when the view actually moved** (>~0.5px of band
-  shift) or the data changed (`milkyWayDirty`). Holding the phone still — most
-  of the time, and exactly when you're trying to identify something — now costs
-  nothing here.
-- **Only the ~22 named/bright stars twinkle** (`.twinkle`, set in
-  `makeStarMarker`). Animating all 102 meant ~100 independently animating
-  elements for iOS to composite; faint stars read fine as steady points.
-
 **Resting on a star now names it.** Only stars at `mag <= NAMED_STAR_MAG` carry
 a permanent label (otherwise the sky becomes a wall of text), so dwelling on an
 ordinary star used to highlight it while leaving you with no idea what it was.
-`updateLock()` calls `setLockName()` on whatever the reticle is nearest, adding
-`.show-name` to reveal that one label (accent-coloured, slightly larger) and
-removing it when you move away. Verified against **Rasalhague** (mag 2.08, no
-permanent label) — its name appeared at the reticle.
+`updateLock()` finds whatever named star or body is nearest the reticle and
+`drawLabels()` writes its name there, highlighted, even for a star with no
+permanent label.
 
 **Removed the pulsing up-arrow above the reticle** (was `.sky-arrow-hint`, from
 the build-prompt spec). It always pointed straight up regardless of where
 anything actually was, so it read as an instruction with no meaning. The
 per-body edge arrows (`.sky-arrow`) are the real "turn this way" cue and do
 point at something.
-
-Note for future testing: `javascript_tool`'s `import()` resolves in a **separate
-realm**, so writing to `sensorState` from injected JS does *not* affect the
-running app — aiming the sky that way silently does nothing. Drive it with
-dispatched `PointerEvent`s on `#sky-view` instead (that hits the app's real
-`wireDrag`). Also, `requestAnimationFrame` is paused whenever the preview pane
-is hidden, so the sky loop only advances during a screenshot — take one to step
-frames before reading positions back.
 
 ## Explore: clean view + year scrubber
 
@@ -197,7 +320,9 @@ Built from a design canvas ("Sky Club Polish"), matched to the tokens already in
   from a disc with a bite out of it: a **soft terminator** (a blurred alpha mask
   — a hard cut is the single biggest tell), **limb darkening**, and **earthshine**
   on a blue-tinted base, because the night side is lit by light bounced off Earth
-  and Earth is blue. The mask is cached per `(size, phase)` — it only changes when
+  and Earth is blue — but FAINT (texture at 8.5%): at the original 20% the dark
+  side showed its maria so clearly that a 6% crescent read as a full grey Moon.
+  The mask is cached per `(size, phase)` — it only changes when
   the phase does, not on every frame of the cosmetic surface spin, which matters
   because that spin runs in a rAF loop.
 - **`describePhase()`** names the phase for the chip. The four "exact" phases get
@@ -245,7 +370,7 @@ Built from a design canvas ("Sky Club Polish"), matched to the tokens already in
 
 ## Original two-mode structure (Explore / Sky)
 
-- **Explore** (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.
+- **Explore** — SUPERSEDED by the 3-D section at the top of this file. Historical notes on the original (`modules/orbits.js`): a 2D/CSS orrery — Sun in the center, planets on rings built from nested divs (outer div rotates the orbit, an inner counter-rotating div keeps the planet upright — see the comment block at the top of the file for why the counter-rotation has to sit on a small edge-positioned element, not a full-ring-sized one, or the translation cancels out along with the orientation). Tapping a body opens a full-screen card with a spinning-globe effect (a 200%-wide texture strip, `background-size: 50% 100%`, animated with `translateX(-50%)` — an exact, seamless loop with no baked-in image width needed) plus a spoken name + one-sentence fact. Deliberately **no WebGL/Three.js** — matches the no-build-step ethos and keeps it light and reliable in a toddler's hands.
   - **Positions are real, not decorative**: each planet's angle is its actual heliocentric ecliptic longitude on the selected date, via `astro.js::planetLongitudes()` (`EclipticLongitude()` from the vendored astronomy-engine). `catalog.js`'s `orbitPx`/`sizePx` are sqrt-scaled from real AU distance / km diameter — compressed to fit a phone screen, but the *relative* spacing and sizing now tracks reality instead of being arbitrary.
   - **Date / Play / Today / Zoom controls** (`.explore-controls`): the date `<input>` jumps straight to a date (pauses play, eases into place over 0.6s via the `.orrery:not(.playing)` CSS transition); Play advances `currentDate` by `DAYS_PER_SEC` simulated days per real second in a plain rAF loop (no easing, since every frame already sets a fresh transform); Today snaps back to `new Date()`. Zoom buttons and two-finger pinch (`wirePinchZoom()`) both multiply into the same `zoom` value, applied on top of `fitScale` — `computeFit()` still exists as the small-screen safety net (iPhone SE), now just the base layer zoom multiplies against.
   - **Background**: `modules/starfield.js` draws twinkling stars + an occasional shooting star on a canvas behind the orrery; the `.galaxy` blobs (blurred, screen-blended radial gradients, slow CSS drift) are pure CSS, no JS, since a blurred gradient div is free to composite. A handful of the background stars (`flareCount` in `resize()`) get a bigger disc plus a drawn cross-sparkle in `drawStars()` — real astrophotography reads as "real" partly *because* a few hero stars have that lens-flare sparkle, not just more/smaller dots.
@@ -258,15 +383,11 @@ Built from a design canvas ("Sky Club Polish"), matched to the tokens already in
   - **Planet card polish**: the card reuses `.sphere-vignette`/`.sphere-shade`, but `.sphere-shade` gets a fixed `rotate(90deg)` (`.card-shade`) instead of a per-frame orbit angle — there's no orbital context in a full-screen close-up, so it's a static "light from the left" like the reference photo's Sun-on-the-left framing. Hidden for the Sun (self-luminous) and the Moon (has its own phase graphic instead).
   - **Moon phase** (`modules/moonphase.js`): the Moon's card shows a real phase — a canvas draws the actual limb (fixed semicircle, waxing=right/waning=left) and terminator (an ellipse with horizontal radius `r·cos(phaseAngle)`, from `astro.js::moonPhase()`/`MoonPhase()`), then clips the real moon texture into that lune instead of using a flat gradient. One sign rule covers all four quarters: the terminator bulges the *same* side as the limb when `cos(phaseAngle) ≥ 0` (crescents), the *opposite* side when negative (gibbous) — verified by rendering the full 0–360° range in 45° steps and eyeballing new/crescent/quarter/gibbous/full in order. `drawMoonPhase(canvas, phaseDeg, rotationDeg)` also takes a cosmetic rotation: `orbits.js::startMoonSpin()` redraws it every frame (rAF, only while the Moon's card is open) with `rotationDeg` slowly advancing, sampling the texture with a manual two-`drawImage` wrap (canvas has no `background-position` to lean on). This is a deliberate accuracy trade — the real Moon is tidally locked and doesn't visibly turn from Earth, but a frozen card read as static/dead on screen, which was a real complaint; the phase OUTLINE stays scientifically correct for the date either way, only the surface drifting under it is decorative. There's also a faint whole-disc "earthshine" pass (texture at ~16% alpha) so the dark side isn't a flat void, and `.moon-phase-canvas` gets a tiny CSS `blur(0.6px)` so the algorithmically-sharp terminator/limb edges don't read as a vector cutout.
 
-- **Sky** (`modules/sky.js`): point-the-phone (or drag, as a fallback) to find the Sun/Moon/planets/stars **where they actually are right now**. Real-time Alt/Az comes from the vendored `astronomy-engine` (`vendor/astronomy-engine.js`, MIT, single-file ESM, no deps — `Horizon()` takes raw RA/Dec so the same call handles both solar-system bodies and fixed stars). Rendering is a small-angle projection (fixed `FOV_DEG`, degrees-per-pixel scale) — not a real camera; `modules/sensors.js` owns compass heading + tilt (device orientation) or touch-drag deltas, feeding the same `sensorState` either way so the projection code doesn't care which source is live. Bodies above the horizon but outside the current view get an edge arrow instead of just vanishing — the "turn this way" mechanic a pre-reader can follow with no text.
-  - **Geolocation never dead-ends** (see the "Mission Control" section above for the full history — this was fixed twice): `sensors.js::geolocate()` silently retries once (1.5s later) on a timeout/unavailable error — never on a permission *denial*, since asking again won't change the answer — and if it still fails for any reason, falls back to a fixed approximate default location rather than throwing, so `startSky()` always reaches the sky view instead of getting stuck on an unrecoverable gate error.
-  - **Star rendering**: stars are a magnitude-sized/colored glowing CSS dot (`--star-size`, `--star-color`, `--twinkle-delay` custom properties set inline per star in `makeStarMarker()`), not the ⭐ emoji glyph used for the Sun/Moon/planets — a real star is a point of light, and the emoji read as "a shape for kids" rather than an actual star. Size comes from `9 - mag*1.6` clamped to 3–11px; color defaults to white (`#eef4ff`) unless `data/stars.json` calls out a real tint (the handful of red/orange giants like Betelgeuse and Antares actually do look that color). Each star's `--twinkle-delay` is randomized so ~100 stars don't pulse in lockstep.
-  - **Named stars vs. background stars**: only stars at `mag <= NAMED_STAR_MAG` (1.5 — roughly the ~20 classic named bright stars) get an always-visible label (`.sky-marker-star.named`); fainter stars stay unlabeled dots so the sky doesn't turn into a wall of text. Any star can still be tapped to hear its name. The 7 hero-bright stars at `mag <= FLARE_STAR_MAG` (0.2 — Sirius, Canopus, Rigil Kentaurus, Arcturus, Vega, Capella, Rigel) additionally get `.sky-marker-star.flare`'s cross-sparkle (`::before`/`::after` on `.marker-glyph`, sized off `--star-size` so it stays proportional).
-  - **Constellation labels** (`.const-label`, positioned in `project()`): a constellation's name appears once **at least half** of its own referenced stars (`conStarIds`, the deduped set of every star id in its `lines`) are actually on screen, centered on their on-screen centroid — "here's what you're actually looking at", not a label chasing one lone dot into view. Occasionally overlaps a nearby star's own name label at certain viewing angles (no collision avoidance) — acceptable, not worth the complexity for a kid-facing sky.
+- **Sky** (`modules/sky.js`): see the architecture section at the top of this file.
 
 **Virtual sky, not camera passthrough** — chosen over real AR camera overlay for reliability, battery, and glare reasons; this is how most kid-facing sky apps (Star Walk Kids, SkyView) actually work despite feeling like AR.
 
-**Star catalog** (`data/stars.json`): ~100 hand-curated bright stars (J2000 RA/Dec from memory, good to roughly a degree — plenty for a phone held in a toddler's hands, not for astrometry) across ~26 constellations/asterisms as line lists. Stars only render in Sky mode when `astro.js::sunAltitude()` is below `DARK_ALT_THRESHOLD` — no point showing stars against a bright daytime projection. When adding more stars, run the same validation used while building this catalog — load the JSON and confirm every constellation `lines` reference resolves to a defined star id and there are no duplicate ids — before trusting the file.
+**Star catalog**: see "Data" in the architecture section. `data/stars.json` is now a build input (facts, kid names, distances), not fetched by the app.
 
 **iOS sensor permission**: `DeviceOrientationEvent.requestPermission()` is called in exactly one place (`sensors.js::requestOrientationPermission()`), triggered by the "🔭 Look at the Sky" tap — same pattern as the root app's G-meter and `flight-card-pwa`. iOS remembers "granted" per-origin, so it only prompts once ever. That same tap is also the only allowed call site for `requestOrientationPermission()` inside `startSky()` — it has to run synchronously before any `await`, or the permission request silently loses the user-gesture context on iOS.
 

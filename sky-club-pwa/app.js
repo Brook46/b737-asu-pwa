@@ -1,9 +1,9 @@
-import { initExplore } from './modules/orbits.js';
-import { initSky } from './modules/sky.js';
-import { initStarfield } from './modules/starfield.js';
-import { initBadges } from './modules/badges.js';
-import { installResumeHardening } from './modules/resume.js';
-import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js';
+import { initExplore } from './modules/orbits.js?v=22';
+import { initSky } from './modules/sky.js?v=22';
+import { initStarfield } from './modules/starfield.js?v=22';
+import { initBadges } from './modules/badges.js?v=22';
+import { installResumeHardening } from './modules/resume.js?v=22';
+import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=22';
 
 const NAV_SCREENS = ['explore', 'sky', 'badges'];
 

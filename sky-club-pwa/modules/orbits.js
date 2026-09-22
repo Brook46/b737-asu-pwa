@@ -1,34 +1,23 @@
-// orbits.js — the Explore screen: a lightweight, no-WebGL orrery (nested rotating
-// divs, no bundler) plus a full-screen "planet card" for each body with a cheap,
-// seamless spinning-globe effect and spoken name + fact.
+// orbits.js — the Explore screen's controls (date, play, year scrubber, zoom,
+// clean view, 3-D view options) and the detail card for each body. The solar
+// system itself is drawn by orrery3d.js; the card's hero by cardglobe.js (or
+// moonphase.js for the Moon).
 //
-// Positions are REAL, not decorative: each planet's angle comes from its actual
-// heliocentric ecliptic longitude on the selected date (astro.js, via the vendored
-// astronomy-engine). A date picker jumps to any date; Play advances that date over
-// time instead of looping a fixed animation, so the whole thing is a real (if
-// distance/size-compressed — see catalog.js) picture of the solar system.
-//
-// Rotation trick (unchanged from the original build): .orbit-spin rotates the whole
-// ring by the planet's angle; .orbit-counter sits at the ring's edge and rotates the
-// OPPOSITE way around its own (small) center — canceling only the inherited
-// orientation, not the translation, so the planet stays upright while still tracing
-// the circle. Rotating a full-ring-sized element the opposite way instead would
-// cancel the translation too (net identity, planet frozen in place) — see CLAUDE.md.
-//
-// Spin trick (planet card): the texture div is drawn at 200% width with
-// background-size 50% 100% (so each tile is exactly one frame-width), then
-// translateX(-50%) loops back to an identical frame — a seamless scroll with no
-// baked-in image width needed.
+// Positions are REAL, not decorative: every planet is where the ephemeris puts
+// it on the selected date. A date picker jumps to any date; Play advances that
+// date over time instead of looping a fixed animation.
 
-import { SUN, MOON, PLANETS } from './catalog.js';
-import { planetLongitudes, moonPhase, moonDistanceKm } from './astro.js';
-import { drawMoonPhase, describePhase } from './moonphase.js';
-import { say } from './speech.js';
-import { spot, isSpotted, isBadgeBody, onChange } from './badges.js';
+import { SUN, MOON, PLANETS } from './catalog.js?v=22';
+import { moonPhase, moonDistanceKm } from './astro.js?v=22';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=22';
+import { say } from './speech.js?v=22';
+import { spot, isSpotted, isBadgeBody } from './badges.js?v=22';
+import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, setAutoRotate } from './orrery3d.js?v=22';
+import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=22';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
-const ZOOM_MIN = 0.6, ZOOM_MAX = 2.8, ZOOM_STEP = 0.25;
+const ZOOM_STEP = 0.25;
 
 // Year scrubber: the slider's value is an offset in years from whenever the app
 // was opened, which keeps the mapping to a date trivially invertible (no
@@ -40,62 +29,19 @@ const BASE_MS = Date.now();
 const dateFromYearOffset = (off) => new Date(BASE_MS + off * YEAR_MS);
 const yearOffsetFromDate = (d) => (d.getTime() - BASE_MS) / YEAR_MS;
 
-const rings = new Map(); // id -> { spin, counter }
 let currentDate = new Date();
 let lastShownYear = null;
 let scrubbing = false;
 let playing = false;
 let rafId = null;
 let lastFrameTime = 0;
-let fitScale = 1;
-let zoom = 1;
 
 const MOON_SPIN_DEG_PER_SEC = 9; // slow cosmetic turn — see moonphase.js
 let moonSpinRaf = null;
 let moonSpinDeg = 0;
 
 export function initExplore() {
-  const orrery = document.getElementById('orrery');
-  orrery.innerHTML = '';
-  rings.clear();
-
-  const sunBtn = makeBodyButton(SUN, SUN.sizePx);
-  sunBtn.classList.add('sun-btn');
-  orrery.appendChild(sunBtn);
-
-  for (const planet of PLANETS) {
-    const ring = document.createElement('div');
-    ring.className = 'orbit-ring';
-    ring.style.width = ring.style.height = `${planet.orbitPx * 2}px`;
-
-    const spin = document.createElement('div');
-    spin.className = 'orbit-spin';
-
-    const counter = document.createElement('div');
-    counter.className = 'orbit-counter';
-
-    const btn = makeBodyButton(planet, planet.sizePx);
-    if (planet.id === 'earth') {
-      const moonDot = document.createElement('span');
-      moonDot.className = 'mini-moon';
-      moonDot.style.setProperty('--dot-light', MOON.light);
-      moonDot.style.setProperty('--dot-dark', MOON.dark);
-      moonDot.setAttribute('aria-hidden', 'true');
-      btn.appendChild(moonDot);
-    }
-
-    counter.appendChild(btn);
-    spin.appendChild(counter);
-    ring.appendChild(spin);
-    orrery.appendChild(ring);
-    rings.set(planet.id, { spin, counter });
-  }
-
-  document.querySelectorAll('.body-btn').forEach((btn) => {
-    btn.addEventListener('click', () => openCard(btn.dataset.id));
-  });
-  refreshSpottedOutlines();
-  onChange(refreshSpottedOutlines);
+  initOrrery(document.getElementById('orrery-canvas'), (id) => openCard(id));
 
   document.getElementById('card-close').addEventListener('click', closeCard);
   document.getElementById('card-prev').addEventListener('click', () => stepCard(-1));
@@ -110,9 +56,6 @@ export function initExplore() {
   });
 
   wireControls();
-  wirePinchZoom();
-  computeFit();
-  window.addEventListener('resize', computeFit);
 
   applyDate(currentDate);
   play();
@@ -137,8 +80,20 @@ function wireControls() {
 
   todayBtn.addEventListener('click', () => applyDate(new Date()));
 
-  zoomInBtn.addEventListener('click', () => setZoom(zoom + ZOOM_STEP));
-  zoomOutBtn.addEventListener('click', () => setZoom(zoom - ZOOM_STEP));
+  zoomInBtn.addEventListener('click', () => zoomOrrery(ZOOM_STEP));
+  zoomOutBtn.addEventListener('click', () => zoomOrrery(-ZOOM_STEP));
+
+  // 3-D options: cycle the camera (Tilted → Top → Side), and switch between the
+  // compressed layout and TRUE distances.
+  const viewBtn = document.getElementById('view-btn');
+  const scaleBtn = document.getElementById('scale-btn');
+  viewBtn.addEventListener('click', () => flashViewLabel(`${cycleView()} view`));
+  scaleBtn.addEventListener('click', () => {
+    const on = toggleTrueScale();
+    scaleBtn.setAttribute('aria-pressed', String(on));
+    flashViewLabel(on ? 'Real distances' : 'Squeezed to fit');
+    say(on ? 'These are the real distances — space is really, really big!' : 'Squeezed together so they all fit.');
+  });
 
   yearSlider.min = String(-YEAR_SPAN);
   yearSlider.max = String(YEAR_SPAN);
@@ -161,6 +116,15 @@ function wireControls() {
   cleanBtn.addEventListener('click', enterCleanView);
 }
 
+let flashTimer = null;
+function flashViewLabel(text) {
+  const el = document.getElementById('view-flash');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
 // "Clean view": hide every control — topbar, nav, scrubber, buttons, numbers —
 // and leave the scene (starfield, nebulae, orbit lines, Sun, planets) exactly
 // as it is. Starts playback too: the point is watching the planets go round.
@@ -170,6 +134,7 @@ function enterCleanView() {
   document.body.classList.add('clean-view');
   document.getElementById('clean-btn').setAttribute('aria-pressed', 'true');
   if (!playing) play();
+  setAutoRotate(true); // a slow turn of the camera — the point is to sit back and watch
 
   const hint = document.getElementById('clean-hint');
   hint.classList.add('show');
@@ -177,9 +142,9 @@ function enterCleanView() {
 
   // Attached on the NEXT tick, otherwise the very click that turned clean view
   // on would immediately bubble up to this listener and turn it straight back
-  // off. Any tap exits — .body-btn is pointer-events:none while clean (see
-  // app.css), so tapping a planet exits rather than opening a card whose close
-  // button is itself hidden.
+  // off. Any tap exits — the orrery ignores taps while clean (orrery3d.js), so
+  // tapping a planet exits rather than opening a card whose close button is
+  // itself hidden.
   cleanExitHandler = () => exitCleanView();
   setTimeout(() => document.addEventListener('pointerdown', cleanExitHandler, { once: true }), 0);
 }
@@ -188,73 +153,18 @@ function exitCleanView() {
   document.body.classList.remove('clean-view');
   document.getElementById('clean-btn').setAttribute('aria-pressed', 'false');
   document.getElementById('clean-hint').classList.remove('show');
+  setAutoRotate(false);
   if (cleanExitHandler) {
     document.removeEventListener('pointerdown', cleanExitHandler);
     cleanExitHandler = null;
   }
 }
 
-function wirePinchZoom() {
-  const screen = document.getElementById('explore-screen');
-  const pointers = new Map();
-  let startDist = 0, startZoom = 1;
-  const dist = () => {
-    const pts = [...pointers.values()];
-    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-  };
-  screen.addEventListener('pointerdown', (e) => {
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) { startDist = dist(); startZoom = zoom; }
-  });
-  screen.addEventListener('pointermove', (e) => {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2 && startDist > 0) setZoom(startZoom * (dist() / startDist));
-  });
-  const release = (e) => { pointers.delete(e.pointerId); if (pointers.size < 2) startDist = 0; };
-  screen.addEventListener('pointerup', release);
-  screen.addEventListener('pointercancel', release);
-}
-
-function setZoom(z) {
-  zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
-  applyScale();
-}
-
-function applyScale() {
-  document.getElementById('orrery').style.transform = `scale(${fitScale * zoom})`;
-}
-
-// Safety net for small phones: the orrery is laid out at a fixed pixel radius
-// (catalog.js) sized for a typical phone; scale the whole thing down further if
-// the screen is smaller than that (e.g. iPhone SE) so nothing clips off-screen.
-// The user's own zoom (applyScale) multiplies on top of this base fit.
-function computeFit() {
-  const screen = document.getElementById('explore-screen');
-  const outer = PLANETS[PLANETS.length - 1];
-  const needed = (outer.orbitPx + outer.sizePx / 2) * 2 + 16;
-  const available = Math.min(screen.clientWidth, screen.clientHeight);
-  fitScale = Math.min(1, available / needed);
-  applyScale();
-}
-
 function applyDate(date) {
   currentDate = date;
   document.getElementById('date-input').value = currentDate.toISOString().slice(0, 10);
   syncYearScrubber();
-  const longitudes = planetLongitudes(currentDate);
-  for (const { id, lon } of longitudes) {
-    const r = rings.get(id);
-    if (!r) continue;
-    const angle = -lon; // CSS rotate() is clockwise; negate so longitude increases prograde (CCW)
-    r.spin.style.transform = `rotate(${angle}deg)`;
-    // translate(-50%, -50%) — not (-50%, 0) — puts the COUNTER'S OWN CENTER at the
-    // ring's top point (its anchor is top:0/left:50%, i.e. its top-left corner is
-    // pinned there before any translate). With only -50% horizontal, the box's
-    // *center* actually ends up half the box's height BELOW the ring line, so the
-    // planet reads as merely touching the ring instead of riding on it.
-    r.counter.style.transform = `translate(-50%, -50%) rotate(${-angle}deg)`;
-  }
+  setOrreryDate(currentDate);
 }
 
 // Keeps the scrubber showing the date that's actually being displayed, whether
@@ -280,7 +190,6 @@ function syncYearScrubber() {
 function play() {
   if (playing) return;
   playing = true;
-  document.getElementById('orrery').classList.add('playing');
   document.getElementById('play-btn').innerHTML = '<i class="ph-fill ph-pause"></i>';
   document.getElementById('play-btn').setAttribute('aria-label', 'Pause');
   lastFrameTime = performance.now();
@@ -289,7 +198,6 @@ function play() {
 
 function pause() {
   playing = false;
-  document.getElementById('orrery').classList.remove('playing');
   document.getElementById('play-btn').innerHTML = '<i class="ph-fill ph-play"></i>';
   document.getElementById('play-btn').setAttribute('aria-label', 'Play');
   if (rafId) cancelAnimationFrame(rafId);
@@ -324,44 +232,6 @@ function stopMoonSpin() {
   moonSpinRaf = null;
 }
 
-// The orrery's own body is a flat two-tone gradient sphere (the exact Nocturne
-// design recipe: radial-gradient highlight at 33%/28% into a light tone then a
-// dark tone, plus a soft glow) — NOT the photo texture. At 14-46px, a small JPG
-// texture reads as a blurry smudge; the flat gradient reads as a crisp glowing
-// "candy" sphere, which is what the design actually specifies and what looks
-// right at this size. The bigger detail card (renderCard(), ~100px) keeps the
-// real photo texture/self-rotation/sphere-shading — that's a different scale
-// and context where the real rendering already looks good.
-function makeBodyButton(body, sizePx) {
-  const btn = document.createElement('button');
-  btn.className = 'body-btn';
-  btn.dataset.id = body.id;
-  btn.style.width = btn.style.height = `${sizePx}px`;
-  btn.style.setProperty('--size-px', `${sizePx}px`);
-  btn.setAttribute('aria-label', body.name);
-
-  const dot = document.createElement('span');
-  dot.className = body.id === 'sun' ? 'body-dot sun-dot' : 'body-dot';
-  if (body.id !== 'sun') {
-    dot.style.setProperty('--dot-light', body.light);
-    dot.style.setProperty('--dot-dark', body.dark);
-    dot.style.setProperty('--dot-glow', `${Math.round(sizePx * 0.9)}px`);
-  }
-  btn.appendChild(dot);
-
-  if (body.ring) {
-    const ring = document.createElement('span');
-    ring.className = 'body-ring';
-    const w = sizePx * 2.3, h = sizePx * 0.7;
-    ring.style.width = `${w}px`;
-    ring.style.height = `${h}px`;
-    ring.style.marginLeft = `${-w / 2}px`;
-    ring.style.marginTop = `${-h / 2}px`;
-    btn.appendChild(ring);
-  }
-  return btn;
-}
-
 let cardIndex = 0;
 
 // Exported so the Sky screen can open the same sheet when you tap a body up
@@ -393,8 +263,9 @@ function brightnessWord(mag) {
 export function openStarCard(star, constellationName) {
   const card = document.getElementById('planet-card');
   card.classList.add('is-star');
-  card.classList.remove('is-earth', 'is-sun');
+  card.classList.remove('is-earth', 'is-sun', 'is-globe');
   stopMoonSpin();
+  stopCardGlobe();
 
   const tint = star.color || '#eef4ff';
   document.getElementById('card-star').style.setProperty('--star-tint', tint);
@@ -417,7 +288,8 @@ export function openStarCard(star, constellationName) {
 
   const stats = [
     ['Brightness', brightnessWord(star.mag)],
-    ['Colour', STAR_COLOR_NAMES[tint.toLowerCase()] || 'Blue-white'],
+    // Sky mode passes a real colour name from the star's B−V index.
+    ['Colour', star.colorName || STAR_COLOR_NAMES[tint.toLowerCase()] || 'Blue-white'],
   ];
   // Only the stars with a real catalogued distance get the row.
   if (typeof star.distanceLy === 'number') {
@@ -432,6 +304,7 @@ export function openStarCard(star, constellationName) {
 function closeCard() {
   document.getElementById('planet-card').classList.add('hidden');
   stopMoonSpin();
+  stopCardGlobe();
 }
 
 function stepCard(dir) {
@@ -446,6 +319,8 @@ function renderCard() {
 
   document.getElementById('planet-card').classList.toggle('is-earth', body.id === 'earth');
   document.getElementById('planet-card').classList.toggle('is-sun', isSun);
+  // Planets and the Sun get the real rendered globe; the Moon keeps its phase canvas.
+  document.getElementById('planet-card').classList.toggle('is-globe', !isMoon);
 
   const texture = document.getElementById('spin-texture');
   texture.style.backgroundImage = `url(${body.texture})`;
@@ -479,8 +354,13 @@ function renderCard() {
   } else {
     safetyEl.classList.add('hidden');
   }
-  document.getElementById('card-ring-back').classList.toggle('hidden', !body.ring);
-  document.getElementById('card-ring-front').classList.toggle('hidden', !body.ring);
+  document.getElementById('card-ring-back').classList.add('hidden');
+  document.getElementById('card-ring-front').classList.add('hidden');
+  stopCardGlobe();
+  if (!isMoon) {
+    // After layout, so the wrap has its real size (the card may have just unhidden).
+    requestAnimationFrame(() => startCardGlobe(body.id, document.querySelector('.spin-wrap')));
+  }
   renderPhaseChip(body, isMoon);
   renderStats(body, isMoon);
   updateSpotButton(body);
@@ -545,13 +425,3 @@ function updateSpotButton(body) {
   document.getElementById('card-spot-icon').className = spotted ? 'ph-fill ph-seal-check' : 'ph-fill ph-star';
 }
 
-// A subtle accent outline directly on the orrery's already-spotted bodies —
-// so a kid can see their progress at a glance without opening every card.
-// The Moon has no orrery button of its own (only the mini-moon dot on Earth,
-// not a real target), so it's skipped here — Sky mode's own marker covers it.
-function refreshSpottedOutlines() {
-  for (const body of [SUN, ...PLANETS]) {
-    const btn = document.querySelector(`.body-btn[data-id="${body.id}"]`);
-    if (btn) btn.classList.toggle('spotted', isSpotted(body.id));
-  }
-}

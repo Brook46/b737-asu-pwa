@@ -5,29 +5,11 @@
 import {
   Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase, Libration,
   SearchMoonQuarter, NextMoonQuarter, SearchLunarEclipse, SearchLocalSolarEclipse,
-} from '../vendor/astronomy-engine.js';
+  Rotation_EQJ_HOR, Illumination, HelioVector, GeoMoon,
+} from '../vendor/astronomy-engine.js?v=22';
 
 const PLANET_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
 const ORBIT_BODIES = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
-
-/** Alt/az for the Sun, Moon and naked-eye planets right now, for this observer. */
-export function bodyPositions(date, lat, lon) {
-  const observer = new Observer(lat, lon, 0);
-  return PLANET_BODIES.map((name) => {
-    const eq = Equator(Body[name], date, observer, true, true);
-    const hor = Horizon(date, observer, eq.ra, eq.dec, 'normal');
-    return { id: name.toLowerCase(), name, az: hor.azimuth, alt: hor.altitude };
-  });
-}
-
-/** Alt/az for a list of fixed stars ({id, name, ra, dec}), for this observer. */
-export function starPositions(date, lat, lon, stars) {
-  const observer = new Observer(lat, lon, 0);
-  return stars.map((s) => {
-    const hor = Horizon(date, observer, s.ra, s.dec, 'normal');
-    return { ...s, az: hor.azimuth, alt: hor.altitude };
-  });
-}
 
 /**
  * Real heliocentric ecliptic longitude (0-360°, prograde) for each orrery planet
@@ -56,68 +38,106 @@ export function moonDistanceKm(date) {
   return Libration(date).dist_km;
 }
 
-/** Sun altitude only — cheap check for "is it dark enough to see stars?" */
-export function sunAltitude(date, lat, lon) {
-  const observer = new Observer(lat, lon, 0);
-  const eq = Equator(Body.Sun, date, observer, true, true);
-  return Horizon(date, observer, eq.ra, eq.dec, 'normal').altitude;
-}
+// ---- The real sky, as vectors ----
+//
+// Sky mode projects everything through a camera (see sensors.js::readView), so
+// what it needs is a direction vector per object, not an azimuth/altitude pair.
+// Stars, constellation figures and the Milky Way are fixed in the J2000
+// equatorial frame (EQJ), so they are turned into unit vectors ONCE; the only
+// thing that changes with time and place is a single EQJ → local-horizon
+// rotation, which also carries precession and nutation. That replaced ~460
+// Horizon() calls per refresh — and a real bug: the old Milky Way passed right
+// ascension in DEGREES to Horizon(), which expects HOURS, so the band was drawn
+// in an entirely different part of the sky from the real one.
 
-// Standard IAU 1958 equatorial(J2000)→galactic rotation matrix, transposed here
-// so we go the other way: given a point on the galactic plane, find its real
-// RA/Dec. Same "real, not decorative" rule as everything else in this app — the
-// Milky Way band in Sky mode is the actual galactic plane at its actual sky
-// position, not a fixed decorative graphic.
-const GAL_TO_EQ = [
-  [-0.0548755604, 0.4941094279, -0.8676661490],
-  [-0.8734370902, -0.4448296300, -0.1980763734],
-  [-0.4838350155, 0.7469822445, 0.4559837762],
-];
 const DEG = Math.PI / 180;
 
-function galacticToRaDec(lDeg, bDeg) {
-  const l = lDeg * DEG, b = bDeg * DEG;
-  const xg = Math.cos(b) * Math.cos(l);
-  const yg = Math.cos(b) * Math.sin(l);
-  const zg = Math.sin(b);
-  const xe = GAL_TO_EQ[0][0] * xg + GAL_TO_EQ[0][1] * yg + GAL_TO_EQ[0][2] * zg;
-  const ye = GAL_TO_EQ[1][0] * xg + GAL_TO_EQ[1][1] * yg + GAL_TO_EQ[1][2] * zg;
-  const ze = GAL_TO_EQ[2][0] * xg + GAL_TO_EQ[2][1] * yg + GAL_TO_EQ[2][2] * zg;
-  const dec = Math.asin(Math.max(-1, Math.min(1, ze))) / DEG;
-  const ra = (Math.atan2(ye, xe) / DEG + 360) % 360;
-  return { ra, dec };
+/** Unit vector in EQJ for an RA/Dec in degrees. */
+export function raDecToVec(raDeg, decDeg) {
+  const ra = raDeg * DEG, dec = decDeg * DEG;
+  return [Math.cos(dec) * Math.cos(ra), Math.cos(dec) * Math.sin(ra), Math.sin(dec)];
 }
 
-// A scatter of fixed points tracing the real galactic plane, with a few degrees
-// of scatter either side so it reads as a soft band rather than a thin line —
-// generated once at module load (galactic coordinates don't depend on the date,
-// only on where you're looking, which recomputes every frame in sky.js).
-const MILKY_WAY = (() => {
-  const points = [];
-  for (let l = 0; l < 360; l += 3) {
-    for (let k = 0; k < 3; k++) {
-      // sum of two uniforms ≈ a soft (triangular) falloff away from the plane —
-      // denser and brighter near b=0 without needing a real Gaussian.
-      const b = ((Math.random() + Math.random() - 1) * 11);
-      const fade = 1 - Math.min(1, Math.abs(b) / 11);
-      points.push({
-        id: `mw${points.length}`,
-        ...galacticToRaDec(l + Math.random() * 3, b),
-        size: 1 + fade * 2.2,
-        opacity: 0.08 + fade * 0.22,
-      });
-    }
-  }
-  return points;
-})();
+/**
+ * 3×3 matrix (rows) taking an EQJ unit vector to local East/North/Up for this
+ * observer at this instant. The engine's HOR frame is (north, west, zenith)
+ * and RotateVector computes HOR = rotᵀ · v, hence the column picks below.
+ */
+export function eqjToEnu(date, lat, lon) {
+  const r = Rotation_EQJ_HOR(date, new Observer(lat, lon, 0)).rot;
+  return [
+    [-r[0][1], -r[1][1], -r[2][1]], // east  = −west
+    [r[0][0], r[1][0], r[2][0]],    // north
+    [r[0][2], r[1][2], r[2][2]],    // up
+  ];
+}
 
-/** Alt/az for the Milky Way's scatter of fixed galactic-plane points, for this observer. */
-export function milkyWayPositions(date, lat, lon) {
+// IAU J2000 equatorial → galactic, for sampling the Milky Way brightness map.
+export const EQJ_TO_GAL = [
+  [-0.0548755604, -0.8734370902, -0.4838350155],
+  [0.4941094279, -0.4448296300, 0.7469822445],
+  [-0.8676661490, -0.1980763734, 0.4559837762],
+];
+
+function enuFromAzAlt(az, alt) {
+  const a = az * DEG, h = alt * DEG;
+  return [Math.sin(a) * Math.cos(h), Math.cos(a) * Math.cos(h), Math.sin(h)];
+}
+
+/**
+ * The Sun, Moon and planets for this observer right now: az/alt WITH
+ * atmospheric refraction (a setting Sun really does sit ~0.5° higher than
+ * geometry says), the same as an ENU vector, and real apparent magnitude —
+ * Venus at −4.5 and Neptune at +7.8 should not be drawn the same.
+ */
+export function skyBodies(date, lat, lon) {
   const observer = new Observer(lat, lon, 0);
-  return MILKY_WAY.map((p) => {
-    const hor = Horizon(date, observer, p.ra, p.dec, 'normal');
-    return { ...p, az: hor.azimuth, alt: hor.altitude };
+  return PLANET_BODIES.map((name) => {
+    const eq = Equator(Body[name], date, observer, true, true);
+    const hor = Horizon(date, observer, eq.ra, eq.dec, 'normal');
+    let mag = null;
+    try { mag = Illumination(Body[name], date).mag; } catch {}
+    return {
+      id: name.toLowerCase(), name, az: hor.azimuth, alt: hor.altitude,
+      enu: enuFromAzAlt(hor.azimuth, hor.altitude), mag,
+    };
   });
+}
+
+
+// ---- The solar system in 3-D, for the Explore orrery ----
+//
+// Heliocentric positions in the J2000 ECLIPTIC frame (x toward the March
+// equinox, z toward ecliptic north), in AU. These are the real positions —
+// real eccentric ellipses with the Sun at a focus, real orbital tilts — so the
+// orrery can draw true orbit shapes rather than circles.
+
+const OBLIQUITY = 23.4392911 * DEG;
+const COS_OBL = Math.cos(OBLIQUITY), SIN_OBL = Math.sin(OBLIQUITY);
+function eqjToEcl(v) {
+  return [v.x, v.y * COS_OBL + v.z * SIN_OBL, -v.y * SIN_OBL + v.z * COS_OBL];
+}
+/** Converts an EQJ unit vector ([x,y,z]) to the ecliptic frame. */
+export function eqjVecToEcl(v) {
+  return eqjToEcl({ x: v[0], y: v[1], z: v[2] });
+}
+
+/** Heliocentric ecliptic position of a planet, in AU. `name` is e.g. 'Mars'. */
+export function helioEcliptic(name, date) {
+  return eqjToEcl(HelioVector(Body[name], date));
+}
+
+/** The Moon's geocentric ecliptic position, in AU. */
+export function moonEcliptic(date) {
+  return eqjToEcl(GeoMoon(date));
+}
+
+/** One full real orbit, sampled from the ephemeris itself (n points). */
+export function orbitPath(name, periodDays, date, n = 180) {
+  const pts = [];
+  const t0 = date.getTime();
+  for (let k = 0; k < n; k++) pts.push(helioEcliptic(name, new Date(t0 + (k / n) * periodDays * 86400000)));
+  return pts;
 }
 
 // ---- Special-date events (real searches via the vendored engine, not fabricated) ----

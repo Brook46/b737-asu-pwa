@@ -62,7 +62,14 @@ function supportsFilter(ctx) {
 export function drawMoonPhase(canvas, phaseDeg, rotationDeg = 0) {
   const img = getMoonImage();
   if (img.complete) paint(canvas, phaseDeg, rotationDeg, img);
-  else img.onload = () => paint(canvas, phaseDeg, rotationDeg, img);
+  // addEventListener, not onload =: the detail card and the Sky screen both
+  // draw moons, and an assignment would let only the last caller ever paint.
+  else img.addEventListener('load', () => paint(canvas, phaseDeg, rotationDeg, img), { once: true });
+}
+
+/** True once the Moon texture has loaded (so a cached render is the real thing). */
+export function moonTextureReady() {
+  return getMoonImage().complete;
 }
 
 // The lit shape, as a soft-edged white mask. Depends only on phase + size, so it
@@ -113,9 +120,12 @@ function paint(canvas, phaseDeg, rotationDeg, img) {
 
   // EARTHSHINE — the night side, faintly lit by light bounced off Earth. Sits on
   // a blue-tinted base rather than neutral black for the same reason.
-  ctx.fillStyle = '#141726';
+  // Kept FAINT: at 0.2 the unlit side showed its maria so clearly that a 6%
+  // crescent read as a full grey Moon. Real earthshine is a ghost beside the
+  // lit limb — visible, never competing with it.
+  ctx.fillStyle = '#0c0e19';
   ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 0.2;
+  ctx.globalAlpha = 0.085;
   drawWrapped(ctx, img, shift, W, H);
   ctx.globalAlpha = 1;
 

@@ -4,7 +4,7 @@
 // informative everywhere but don't have a badge card; a 100+ star catalog
 // isn't a "collect them all" checklist the way ten solar-system bodies are.
 
-import { SUN, MOON, PLANETS } from './catalog.js';
+import { SUN, MOON, PLANETS } from './catalog.js?v=22';
 
 const BADGE_BODIES = [SUN, ...PLANETS, MOON];
 const STORAGE_KEY = 'skyclub.spotted';

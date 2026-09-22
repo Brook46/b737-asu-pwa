@@ -713,7 +713,7 @@
     {
       "id": "kausborealis",
       "name": "Kaus Borealis",
-      "ra": 18.278,
+      "ra": 18.466,
       "dec": -25.422,
       "mag": 2.82,
       "con": "sagittarius"
@@ -737,7 +737,7 @@
     {
       "id": "algorab",
       "name": "Algorab",
-      "ra": 12.596,
+      "ra": 12.498,
       "dec": -16.515,
       "mag": 2.94,
       "con": "corvus"

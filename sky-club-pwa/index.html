@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=19">
+  <link rel="stylesheet" href="app.css?v=22">
 </head>
 <body>
 
@@ -64,11 +64,18 @@
       <div class="galaxy galaxy-a" aria-hidden="true"></div>
       <div class="galaxy galaxy-b" aria-hidden="true"></div>
       <div class="galaxy galaxy-c" aria-hidden="true"></div>
+      <!-- The solar system in 3-D (orrery3d.js): drag to swing round it, pinch to
+           zoom, tap a world to open it. -->
+      <canvas id="orrery-canvas" class="orrery-canvas" aria-label="The solar system. Drag to turn it, tap a world to visit it."></canvas>
       <div class="screen-header">
         <h1 class="screen-title">Our star's family</h1>
         <p class="screen-subtitle">Tap a world to visit it.</p>
       </div>
-      <div id="orrery" class="orrery"></div>
+      <div class="view-controls">
+        <button id="view-btn" class="ctrl-btn view-btn" aria-label="Change 3-D view" title="3-D view"><i class="ph-fill ph-cube"></i></button>
+        <button id="scale-btn" class="ctrl-btn view-btn" aria-label="Real distances" aria-pressed="false" title="Real distances"><i class="ph-fill ph-ruler"></i></button>
+      </div>
+      <div id="view-flash" class="view-flash" aria-live="polite"></div>
       <div id="clean-hint" class="clean-hint" aria-hidden="true">Tap anywhere to bring the buttons back</div>
       <!-- One dock, two rows. These used to be two separately-positioned floating
            bars; once the controls grew to a 52px touch target they collided, and
@@ -100,18 +107,16 @@
         <p id="sky-gate-note" class="sky-gate-note">We'll use where you are, and where you point your phone.</p>
       </div>
       <div id="sky-view" class="sky-view hidden">
-        <!-- First child on purpose: it's the backdrop, so it must paint before
-             the canvas, markers, labels and notices that sit in front of it. -->
-        <div class="sky-horizon" aria-hidden="true"></div>
+        <!-- The whole sky is drawn on these two (see sky.js): a low-res backdrop
+             (sky colour, Milky Way, ground) and a full-res layer on top of it
+             (stars, figures, Sun/Moon/planets, skyline, labels). -->
+        <canvas id="sky-bg" class="sky-canvas sky-bg" aria-hidden="true"></canvas>
+        <canvas id="sky-fg" class="sky-canvas" aria-label="The sky where you are pointing"></canvas>
         <div class="screen-header sky-header">
           <h1 class="screen-title">Point up</h1>
           <p class="screen-subtitle">Move your phone to find what's glowing.</p>
           <p id="sky-event-note" class="sky-event-note hidden"></p>
         </div>
-        <canvas id="milky-way" class="milky-way" aria-hidden="true"></canvas>
-        <svg id="const-lines" class="const-lines"></svg>
-        <div id="const-labels" class="const-labels"></div>
-        <div id="sky-markers" class="sky-markers"></div>
         <div id="sky-arrows" class="sky-arrows"></div>
         <div class="reticle" aria-hidden="true">
           <span class="reticle-ring"></span>
@@ -160,6 +165,9 @@
           <div id="card-shade" class="sphere-shade card-shade hidden"></div>
         </div>
         <canvas id="moon-phase-canvas" class="moon-phase-canvas hidden"></canvas>
+        <!-- Planets and the Sun: a real rendered globe (cardglobe.js), bigger
+             than the wrap so rings, atmosphere and corona have room. -->
+        <canvas id="card-globe" class="card-globe hidden" aria-hidden="true"></canvas>
         <div id="card-ring-front" class="ring-layer ring-front hidden"></div>
       </div>
       <!-- Stars get their own hero: a bright star is a point source, so it is
@@ -193,6 +201,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>

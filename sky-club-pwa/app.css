@@ -289,69 +289,53 @@ button {
   font-weight: 600;
   color: var(--accent-pale);
 }
-.orrery {
-  position: relative;
-  width: 1px; height: 1px; /* the rings size themselves; this is just the rotation origin */
-  transform-origin: center center;
-}
-.body-btn.sun-btn {
+/* The 3-D solar system (orrery3d.js). Above the starfield and nebulae, below
+   the title (z 2) and the control dock (z 10). */
+.orrery-canvas {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  z-index: 5;
+  inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  z-index: 1;
+  touch-action: none;
 }
-.orbit-ring {
+/* 3-D options: change view (Tilted / Top / Side) and real distances. */
+.view-controls {
   position: absolute;
-  top: 50%; left: 50%;
-  border: 1px solid rgba(233, 233, 237, 0.1);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+  right: 12px;
+  top: calc(var(--safe-top) + 64px);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.orbit-spin {
-  position: absolute; inset: 0;
-  /* transform (rotate) is set per-frame in orbits.js from the planet's real
-     ecliptic longitude on the selected date — not a CSS animation. */
+.view-btn { width: 48px; height: 48px; border-radius: 50%; font-size: 22px; }
+.view-btn[aria-pressed="true"] {
+  background: linear-gradient(180deg, rgba(128, 116, 214, 0.55), rgba(89, 79, 138, 0.45));
+  border-color: var(--accent-400);
+  color: var(--accent-pale);
 }
-/* orbit-counter sits at the ring's edge (top:0 of the already-full-size orbit-spin)
-   and spins the opposite way around ITS OWN small center. That's the trick: rotating
-   a full-ring-sized box the opposite way would cancel the orbit-spin's translation
-   too (net identity, planet frozen in place) — rotating this small edge-positioned
-   box only cancels the *orientation* it inherited, leaving the translation intact. */
-.orbit-counter {
+/* What the view just changed to — shown briefly beside the buttons. */
+.view-flash {
   position: absolute;
-  top: 0; left: 50%;
-  min-width: 44px; min-height: 44px;
-  display: flex; align-items: center; justify-content: center;
+  right: 12px;
+  /* Below the two buttons — beside them it ran over the screen title. */
+  top: calc(var(--safe-top) + 186px);
+  z-index: 3;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(22, 24, 38, 0.82);
+  border: 1px solid var(--glass-border);
+  color: var(--accent-pale);
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  white-space: nowrap;
 }
-/* While paused, a manual date jump eases smoothly into place. While playing, every
-   frame already sets a fresh transform, so a transition would just add lag. */
-.orrery:not(.playing) .orbit-spin,
-.orrery:not(.playing) .orbit-counter {
-  transition: transform 0.6s ease;
-}
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-.body-btn {
-  position: relative;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-}
-/* Visual size stays true to catalog.js (small planets must look small, or the
-   spacing math in catalog.js's computeOrbitRadii() no longer holds and circles
-   overlap) — but the actual tap target still expands invisibly to 44px so small
-   planets stay easy to hit. --size-px is set inline per body in orbits.js. */
-.body-btn::after {
-  content: '';
-  position: absolute;
-  inset: calc(-1 * max(0px, (44px - var(--size-px, 44px)) / 2));
-}
-/* Earth's atmosphere: a soft blue rim glow that marks it out as the one planet
-   with air and oceans. On the outer .body-btn (not .body-dot), so it isn't cut
-   off by the dot's own rounded edge. */
-.body-btn[data-id="earth"] {
-  box-shadow: 0 0 6px 1px rgba(110, 190, 255, 0.55);
-}
+.view-flash.show { opacity: 1; transform: translateY(0); }
 /* The orrery's flat "glowing candy" sphere — the exact Nocturne design recipe:
    a highlight near the top-left fading through a light tone into a dark tone,
    plus a soft glow sized off the body's own diameter (--dot-glow, set inline
@@ -368,17 +352,6 @@ button {
 .body-dot.sun-dot {
   background: radial-gradient(circle at 36% 30%, #fff3c4, #ffc45c 42%, #f08a2c 78%, #c25a15);
   box-shadow: 0 0 34px rgba(255, 177, 74, 0.65), 0 0 90px rgba(255, 140, 40, 0.35);
-}
-/* Saturn's orrery ring: a single rotated ellipse border (the design's own
-   simple treatment for this small scale) — not the front/back-split PNG the
-   card uses, which only pays for itself at the card's much bigger size. */
-.body-ring {
-  position: absolute;
-  left: 50%; top: 50%;
-  border-radius: 50%;
-  border: 2px solid rgba(246, 229, 184, 0.75);
-  transform: rotate(-18deg);
-  pointer-events: none;
 }
 /* Roundness cue that holds regardless of Sun direction: a soft all-around rim. */
 .sphere-vignette {
@@ -421,21 +394,6 @@ button {
 }
 .ring-layer.ring-back { clip-path: inset(0 0 50% 0); }
 .ring-layer.ring-front { clip-path: inset(50% 0 0 0); }
-/* Same flat two-tone gradient recipe as .body-dot, just inlined at this tiny
-   size rather than a nested button+dot pair. */
-.mini-moon {
-  position: absolute;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 33% 28%, #fff, var(--dot-light, #f3f5fe) 42%, var(--dot-dark, #9397ab) 88%);
-  box-shadow: 0 0 4px rgba(233, 233, 237, 0.4);
-  top: -11px; left: 50%;
-  margin-left: -4px;
-  animation: spin 3.2s linear infinite;
-  transform-origin: 4px 21px;
-}
-.orrery:not(.playing) .mini-moon { animation-play-state: paused; }
-
 .starfield {
   position: absolute;
   inset: 0;
@@ -599,6 +557,8 @@ button {
 body.clean-view .topbar,
 body.clean-view .bottom-nav,
 body.clean-view .explore-dock,
+body.clean-view .view-controls,
+body.clean-view .view-flash,
 body.clean-view .screen-header {
   opacity: 0;
   pointer-events: none;
@@ -613,7 +573,6 @@ body.clean-view .screen-header { opacity: 0 !important; }
 /* Planets stop taking taps so that a tap anywhere — including on a planet —
    is what brings the UI back, rather than opening a card the user can't see
    the controls to dismiss. */
-body.clean-view .body-btn { pointer-events: none; }
 
 /* Shown briefly on entry, then fades itself out: without it there is no visible
    affordance at all for getting back, which would be a trap. */
@@ -824,6 +783,16 @@ body.clean-view .body-btn { pointer-events: none; }
    convention is "lit toward +y (down)"; rotating 90deg turns that into "lit
    toward -x (left)", matching the reference photo's Sun-on-the-left lighting. */
 .card-shade { transform: rotate(90deg); }
+/* The card's rendered globe (cardglobe.js): centred on the wrap and larger
+   than it, so Saturn's rings, an atmosphere or the Sun's corona have room. */
+.card-globe {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.planet-card.is-globe .spin-frame { display: none; }
+.planet-card.is-globe .spin-wrap::before { display: none; }
 .moon-phase-canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
@@ -926,208 +895,18 @@ body.clean-view .body-btn { pointer-events: none; }
 .sky-gate-note { font-size: 14px; color: var(--color-body); max-width: 260px; }
 
 .sky-view { position: absolute; inset: 0; touch-action: none; }
-/* Real galactic-plane points (astro.js::milkyWayPositions), projected and
-   drawn every frame in sky.js::drawMilkyWay() — sits behind the stars/markers
-   in DOM order, screen blend so it reads as a soft glow rather than flat dots. */
-.milky-way {
+/* The sky itself is two canvases (sky.js). #sky-bg is deliberately LOW
+   resolution — the per-pixel sky model (colour, Milky Way, ground) runs on
+   ~36k pixels and the browser's smooth upscale provides the softness a sky
+   gradient and a glowing band want anyway. #sky-fg is full resolution. */
+.sky-canvas {
   position: absolute;
   inset: 0;
   width: 100%; height: 100%;
-  pointer-events: none;
-  /* Deliberately NO mix-blend-mode here. `screen` looked marginally nicer but
-     forces the compositor to blend this full-screen layer against everything
-     beneath it every single frame — costly on iOS. The band is light dots on a
-     dark sky, where plain alpha compositing looks all but identical. */
-}
-.const-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
-.const-line {
-  stroke: rgba(255, 255, 255, 0.35);
-  stroke-width: 1.4;
-  stroke-dasharray: 3 4;
-}
-.const-labels { position: absolute; inset: 0; pointer-events: none; }
-/* "What am I looking at?" — a soft floating name over a constellation once
-   enough of its own stars are on screen (see project()'s centroid math). */
-.const-label {
-  position: absolute;
-  top: 0; left: 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.8);
-  text-shadow: 0 1px 4px rgba(0,0,0,0.9);
-  white-space: nowrap;
-  padding: 6px 10px;
-  pointer-events: auto;
-}
-
-.sky-markers, .sky-arrows { position: absolute; inset: 0; }
-.sky-marker {
-  position: absolute;
-  top: 0; left: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* justify-content matters: these boxes have a min-height (44px bodies /
-     28px stars) for tap targets that's often taller than the dot inside.
-     Without centering, the dot pinned to the top of that box while the box
-     itself is centered on the real sky position — leaving the visible dot a
-     few px above where the object actually is. */
-  justify-content: center;
-  transition: none;
-}
-.marker-glyph { display: block; filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
-/* Taken OUT of flow deliberately. While the label was a flex child, the
-   marker box was [dot + gap + label] tall, so centering that box on the
-   body's computed sky position (project()'s translate(-50%,-50%)) actually
-   put the DOT above the real position by half the label's height. Absolute
-   below the dot keeps the same look while letting the box — and therefore
-   the dot — center exactly on where the object really is. */
-.marker-label {
-  position: absolute;
-  top: 100%; left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0,0,0,0.4);
-  padding: 1px 6px;
-  border-radius: 8px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-/* No negative margin. Margin applies to absolutely-positioned boxes too, so
-   the old `margin:-6px` (and -9px on stars) shifted every marker up-left by
-   that much off its true position — measured at exactly 6px/9px. The padding
-   alone gives the enlarged tap target it was there for. */
-.sky-marker-body {
-  min-width: 44px; min-height: 44px;
-  padding: 6px;
-}
-/* Same flat glowing sphere as the orrery (.body-dot in app.css, shared by
-   makeBodyButton in orbits.js) — sized per body via --marker-size (skySize in
-   catalog.js), overriding .body-dot's absolute/inset-0 positioning since here
-   the dot sizes itself rather than filling an already-sized parent. The gentle
-   float lives on this inner span, NOT the .sky-marker-body button itself —
-   that button's own `transform` is set every frame in sky.js::project() for
-   real screen placement, and a CSS animation on the same property would fight
-   (and win over) that inline transform.
-   .body-btn.spotted/.sky-marker-body.spotted (this same rule, shared with the
-   orrery) draws a soft accent ring around an already-collected planet. */
-.marker-dot {
-  position: relative;
-  width: var(--marker-size, 24px);
-  height: var(--marker-size, 24px);
   display: block;
-  animation: marker-float 6s ease-in-out infinite;
-  animation-delay: var(--float-delay, 0s);
 }
-@keyframes marker-float {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -5px, 0); }
-}
-.spotted .body-dot {
-  outline: 2px solid rgba(181, 171, 252, 0.85);
-  outline-offset: 3px;
-}
-.sky-marker-body .marker-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  background: none;
-  padding: 0;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-}
-/* Real stars are a point of light, not a cartoon shape — a small glowing dot
-   sized/colored per star (--star-size/--star-color, set inline from magnitude
-   and, for a few well-known giants, real star color) with an independent
-   twinkle so a whole sky of them doesn't pulse in lockstep. Padding gives a
-   44px-ish tap target without inflating the tiny visible dot. */
-.sky-marker-star {
-  min-width: 28px; min-height: 28px;
-  padding: 9px;
-}
-.sky-marker-star .marker-glyph {
-  display: block;
-  width: var(--star-size, 4px);
-  height: var(--star-size, 4px);
-  border-radius: 50%;
-  background: var(--star-color, #eef4ff);
-  box-shadow: 0 0 3px 1px var(--star-color, #eef4ff), 0 0 7px 2px rgba(180, 200, 255, 0.35);
-  filter: none;
-}
-/* Twinkle is opt-in (.twinkle, applied only to the ~22 named/bright stars in
-   sky.js::makeStarMarker) rather than applying to every star. Animating all
-   ~102 put ~100 independently-animating elements on screen for iOS to
-   composite; the faint ones look right as steady points of light. */
-.sky-marker-star.twinkle .marker-glyph {
-  animation: star-twinkle 2.6s ease-in-out infinite;
-  animation-delay: var(--twinkle-delay, 0s);
-}
-/* The handful of hero-bright stars (Sirius, Canopus...) get a lens-flare cross,
-   like real astrophotography — a plain dot reads as "faint" no matter how big
-   you make it. Pseudo-elements so no extra DOM per star; sized off --star-size
-   so brighter (bigger) stars get a proportionally longer spike. */
-.sky-marker-star.flare .marker-glyph { position: relative; }
-.sky-marker-star.flare .marker-glyph::before,
-.sky-marker-star.flare .marker-glyph::after {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  background: linear-gradient(90deg, transparent, var(--star-color, #eef4ff) 46%, var(--star-color, #eef4ff) 54%, transparent);
-  opacity: 0.65;
-  animation: star-twinkle 2.6s ease-in-out infinite;
-  animation-delay: var(--twinkle-delay, 0s);
-}
-.sky-marker-star.flare .marker-glyph::before {
-  width: calc(var(--star-size, 4px) * 4.5);
-  height: 1px;
-  transform: translate(-50%, -50%);
-}
-.sky-marker-star.flare .marker-glyph::after {
-  width: 1px;
-  height: calc(var(--star-size, 4px) * 4.5);
-  transform: translate(-50%, -50%);
-}
-.sky-marker-star .marker-label { display: none; }
-/* .show-name is set by sky.js::setLockName() on whatever the reticle is
-   currently resting on, so an ordinary (unnamed) star still tells you what it
-   is while you're pointed at it — without every faint star carrying a
-   permanent label and turning the sky into a wall of text. */
-.sky-marker-star.named .marker-label,
-.sky-marker-star.show-name .marker-label {
-  display: block;
-  font-size: 10px;
-  font-weight: 500;
-  background: none;
-  padding: 0;
-  opacity: 0.85;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-}
-.sky-marker-star.show-name .marker-label {
-  font-size: 11px;
-  font-weight: 700;
-  opacity: 1;
-  color: var(--accent-pale);
-}
-@keyframes star-twinkle {
-  0%, 100% { opacity: 0.55; transform: scale(0.82); }
-  50% { opacity: 1; transform: scale(1); }
-}
-.sky-marker.found .marker-glyph,
-.sky-marker.found .marker-dot { animation: found-pop 0.9s ease-out; }
-.sky-marker-star.found .marker-glyph { animation: star-found-pop 0.9s ease-out; }
-@keyframes star-found-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(2.4); box-shadow: 0 0 10px 4px var(--star-color, #eef4ff), 0 0 18px 6px rgba(180, 200, 255, 0.5); }
-  100% { transform: scale(1); }
-}
-@keyframes found-pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.6) rotate(-8deg); }
-  60% { transform: scale(1.3) rotate(8deg); }
-  100% { transform: scale(1); }
-}
+.sky-bg { pointer-events: none; image-rendering: auto; }
+.sky-arrows { position: absolute; inset: 0; pointer-events: none; }
 
 .sky-arrow {
   position: absolute;
@@ -1139,11 +918,13 @@ body.clean-view .body-btn { pointer-events: none; }
 .arrow-chevron { position: absolute; right: -4px; font-size: 20px; opacity: 0.85; color: var(--accent-300); }
 
 /* "Aim here" target: a pulsing outer ring, a static dashed inner ring, and a
-   small bright center dot — where a found body's marker settles once it's
-   actually centered. Purely a visual aid, not tied to any real position. */
+   small bright center dot. It sits at the exact centre of the projection, so
+   whatever is under it is precisely where the back of the phone points. (It
+   used to sit at 44% height while the projection centred at 50% — a few
+   degrees of built-in aiming error.) */
 .reticle {
   position: absolute;
-  top: 44%; left: 50%;
+  top: 50%; left: 50%;
   width: 150px; height: 150px;
   margin: -75px 0 0 -75px;
   pointer-events: none;
@@ -1207,28 +988,8 @@ body.clean-view .body-btn { pointer-events: none; }
   padding: 12px 16px;
   font-size: 15px;
   text-align: center;
-  z-index: 3; /* above .sky-horizon, which overlaps this area at the bottom */
+  z-index: 3;
 }
-/* Decorative "ground" dome at the bottom of the sky view, from the design
-   spec. Purely atmospheric (a real horizon line would need terrain data this
-   app doesn't have); sits below everything else so it never blocks a marker
-   or the reticle. The spec also put a rotating conic-gradient "radar sweep"
-   inside this — removed on request, and no loss performance-wise: a
-   continuously rotating full-width conic-gradient forces a repaint of this
-   whole region every frame, which is exactly the kind of work an iPad can
-   least afford while the sky loop is already running. */
-.sky-horizon {
-  position: absolute;
-  left: -40px; right: -40px;
-  bottom: -150px;
-  height: 300px;
-  border-radius: 50%;
-  background: linear-gradient(#2b2741, #161826 65%);
-  box-shadow: 0 -1px 0 rgba(181, 171, 252, 0.35), 0 -18px 60px rgba(66, 58, 106, 0.6);
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* ---------- Badges screen ---------- */
 #badges-screen {
   background: radial-gradient(ellipse at center, var(--color-surface) 0%, var(--color-bg) 70%);
