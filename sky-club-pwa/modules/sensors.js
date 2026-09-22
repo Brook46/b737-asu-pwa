@@ -3,7 +3,7 @@
 // DeviceOrientationEvent.requestPermission() is only ever called inside a real tap,
 // and iOS remembers "granted" per-origin so later launches need no dialog at all.
 
-import { declination } from './geomag.js?v=22';
+import { declination } from './geomag.js?v=23';
 
 const ORIENT_PERM_KEY = 'skyclub.orientPerm';
 const LAST_FIX_KEY = 'skyclub.lastFix';
@@ -274,11 +274,37 @@ function handleOrientation(e) {
   sensorState.usingDevice = true;
 }
 
-function screenAngle() {
-  const o = screen.orientation;
-  if (o && typeof o.angle === 'number') return o.angle;
-  if (typeof window.orientation === 'number') return window.orientation;
-  return 0;
+// How far the displayed page is rotated from the device's own portrait frame
+// (0, 90, 180 or 270; 90 = turned counter-clockwise, top edge to the left —
+// window.orientation's convention). The browser APIs for this can't be
+// trusted on Apple devices:
+//   • iPad Safari (desktop-class, the default) reports screen.orientation.angle
+//     as 0 however the iPad is held, and has no window.orientation at all. That
+//     made a sideways iPad look upright to us — the view slid sideways when
+//     tilting up/down, a 90° error. (Reported from a real iPad.)
+//   • iPhone Safari's screen.orientation.angle has the opposite sign to
+//     window.orientation (WebKit bug 254863) — a 180° error in landscape.
+// So it's derived the way the OS itself decides to rotate the screen: the
+// viewport's shape says portrait or landscape (always right, and it respects
+// rotation lock, since it IS the layout), and gravity — which edge of the
+// device is up — says which way round. When the device is nearly flat or
+// pointed straight up, gravity can't tell, so the last answer is kept.
+let landscapeAngle = null, portraitAngle = 0;
+function screenAngle(q) {
+  const landscape = window.innerWidth > window.innerHeight;
+  const up = qRotate([q[0], -q[1], -q[2], -q[3]], [0, 0, 1]); // world up, in device axes
+  if (landscape) {
+    if (Math.abs(up[0]) > 0.35 && Math.abs(up[0]) > Math.abs(up[1])) landscapeAngle = up[0] > 0 ? 90 : 270;
+    if (landscapeAngle === null) {
+      // No clear reading yet: window.orientation where it exists (iPhone), else
+      // assume the commonest way an iPad is held.
+      const wo = window.orientation;
+      landscapeAngle = wo === 90 ? 90 : wo === -90 ? 270 : 90;
+    }
+    return landscapeAngle;
+  }
+  if (Math.abs(up[1]) > 0.35 && Math.abs(up[1]) > Math.abs(up[0])) portraitAngle = up[1] > 0 ? 0 : 180;
+  return portraitAngle;
 }
 
 function declinationDeg() {
@@ -314,7 +340,7 @@ export function readView(now = performance.now()) {
     let turn = declinationDeg() * DEG;                 // magnetic → true
     if (headingRef === 'ios') turn += Math.atan2(offS, offC); // raw alpha → magnetic
     let target = qMul(qAxis(0, 0, 1, -turn), rawQ);     // a bearing +θ is a turn of −θ about up
-    target = qMul(target, qAxis(0, 0, 1, -screenAngle() * DEG));
+    target = qMul(target, qAxis(0, 0, 1, -screenAngle(rawQ) * DEG));
     const dt = Math.min(0.1, Math.max(0.001, (now - lastViewT) / 1000));
     lastViewT = now;
     if (!smoothQ) smoothQ = target;

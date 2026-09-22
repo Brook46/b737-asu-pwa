@@ -105,8 +105,7 @@ further down describe earlier versions and are kept for their lessons.
 **Orientation (`sensors.js::readView()`)** — the SkyView/Star Walk model. The
 device's full orientation is a quaternion from W3C alpha/beta/gamma
 (`Rz(α)·Rx(β)·Ry(γ)`, world = East-North-Up), right-multiplied by
-`Rz(−screen.orientation.angle)` for landscape (same convention as three.js's
-DeviceOrientationControls), then rotated about "up" by the compass correction
+the screen's rotation for landscape (`sensors.js::screenAngle()`), then rotated about "up" by the compass correction
 and the WMM declination. The camera looks out of the back (`−z`); `right`/`up`
 are the screen's axes. Light motion-adaptive smoothing (steady when still,
 immediate when swung).
@@ -119,6 +118,17 @@ immediate when swung).
   switch band between. Once authoritative, other poses are ignored and the gyro
   carries the view. A 60° jump gate (adopt only if it persists ~¾ s) rejects
   flips and magnetic disturbances; `webkitCompassAccuracy < 0` is discarded.
+- **Screen rotation is derived, never read from the browser.** A real iPad
+  showed the view rolling sideways when tilted up/down: iPad Safari (desktop-
+  class by default) reports `screen.orientation.angle` as 0 however it's held
+  and has no `window.orientation`, so a sideways iPad looked upright — a 90°
+  error. iPhone Safari's angle also has the opposite sign to
+  `window.orientation` (WebKit bug 254863). So the viewport's shape decides
+  portrait vs landscape, and gravity (which device edge is up) decides which
+  way round, keeping the last answer when the device is flat or pointed
+  straight up. The pose tests now make the browser lie the way iPad Safari
+  does; against the previously shipped code they reproduce the bug exactly
+  (every landscape pose rolled 90°).
 - **Android**: `deviceorientationabsolute` alpha is already north-referenced
   (magnetic); only declination is added.
 - **Declination** (`geomag.js` + `wmm2025.js`): World Magnetic Model 2025,

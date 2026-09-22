@@ -8,10 +8,10 @@
 // Saturn gets its rings, properly projected and wrapping round the globe. The
 // Sun gets the full sunfx.js treatment — fire, prominences and flares.
 
-import { Globe, loadTexture, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER, v3 } from './globe.js?v=22';
-import { SunFX } from './sunfx.js?v=22';
-import { WORLDS, LOOKS, earthClouds } from './orrery3d.js?v=22';
-import { SKY_BODIES } from './catalog.js?v=22';
+import { Globe, loadTexture, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER, v3 } from './globe.js?v=23';
+import { SunFX } from './sunfx.js?v=23';
+import { WORLDS, LOOKS, earthClouds } from './orrery3d.js?v=23';
+import { SKY_BODIES } from './catalog.js?v=23';
 
 // Real axial tilts (obliquity to the orbit), in degrees.
 const TILT = { mercury: 0.03, venus: 177.4, earth: 23.44, mars: 25.19, jupiter: 3.13, saturn: 26.73, uranus: 97.77, neptune: 28.32 };

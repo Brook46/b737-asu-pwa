@@ -23,14 +23,14 @@
 // reticle on something to have it named and caught, edge arrows point the way
 // to Sun/Moon/planets that are up but off screen.
 
-import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=22';
-import { SKY_BODIES } from './catalog.js?v=22';
-import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=22';
-import { say } from './speech.js?v=22';
-import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=22';
-import { openCard, openStarCard } from './orbits.js?v=22';
-import { nextEventHeadline } from './events.js?v=22';
-import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=22';
+import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=23';
+import { SKY_BODIES } from './catalog.js?v=23';
+import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=23';
+import { say } from './speech.js?v=23';
+import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=23';
+import { openCard, openStarCard } from './orbits.js?v=23';
+import { nextEventHeadline } from './events.js?v=23';
+import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=23';
 
 const DEG = Math.PI / 180;
 

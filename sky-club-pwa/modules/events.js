@@ -3,7 +3,7 @@
 // worlds pass close together. Every date comes from a real search in the
 // vendored astronomy-engine (astro.js) — nothing here is fabricated.
 
-import { nextFullMoon, nextLunarEclipse, nextSolarEclipse, nextConjunction } from './astro.js?v=22';
+import { nextFullMoon, nextLunarEclipse, nextSolarEclipse, nextConjunction } from './astro.js?v=23';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const BODY_LABEL = { Moon: 'the Moon', Mercury: 'Mercury', Venus: 'Venus', Mars: 'Mars', Jupiter: 'Jupiter', Saturn: 'Saturn' };

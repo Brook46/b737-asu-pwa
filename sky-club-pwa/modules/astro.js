@@ -6,7 +6,7 @@ import {
   Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase, Libration,
   SearchMoonQuarter, NextMoonQuarter, SearchLunarEclipse, SearchLocalSolarEclipse,
   Rotation_EQJ_HOR, Illumination, HelioVector, GeoMoon,
-} from '../vendor/astronomy-engine.js?v=22';
+} from '../vendor/astronomy-engine.js?v=23';
 
 const PLANET_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
 const ORBIT_BODIES = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];

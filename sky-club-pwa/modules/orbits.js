@@ -7,13 +7,13 @@
 // it on the selected date. A date picker jumps to any date; Play advances that
 // date over time instead of looping a fixed animation.
 
-import { SUN, MOON, PLANETS } from './catalog.js?v=22';
-import { moonPhase, moonDistanceKm } from './astro.js?v=22';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=22';
-import { say } from './speech.js?v=22';
-import { spot, isSpotted, isBadgeBody } from './badges.js?v=22';
-import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, setAutoRotate } from './orrery3d.js?v=22';
-import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=22';
+import { SUN, MOON, PLANETS } from './catalog.js?v=23';
+import { moonPhase, moonDistanceKm } from './astro.js?v=23';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=23';
+import { say } from './speech.js?v=23';
+import { spot, isSpotted, isBadgeBody } from './badges.js?v=23';
+import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, setAutoRotate } from './orrery3d.js?v=23';
+import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=23';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing

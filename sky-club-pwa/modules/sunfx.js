@@ -11,7 +11,7 @@
 // Used twice: full detail on the Sun's info card, and a lighter version (fewer
 // spicules and prominences, smaller eruptions) in the orrery.
 
-import { Globe, loadTexture, makeNoiseMap } from './globe.js?v=22';
+import { Globe, loadTexture, makeNoiseMap } from './globe.js?v=23';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const TAU = Math.PI * 2;

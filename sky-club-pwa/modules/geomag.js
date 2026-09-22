@@ -7,7 +7,7 @@
 // GeomagneticField is this same model). Plain spherical-harmonic synthesis,
 // degree 12, no dependencies; coefficients live in wmm2025.js.
 
-import { WMM_EPOCH, G, H, GDOT, HDOT } from './wmm2025.js?v=22';
+import { WMM_EPOCH, G, H, GDOT, HDOT } from './wmm2025.js?v=23';
 
 const N_MAX = 12;
 const A_REF = 6371.2;          // geomagnetic reference radius, km
