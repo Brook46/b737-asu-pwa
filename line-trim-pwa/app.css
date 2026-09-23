@@ -458,7 +458,8 @@ table.data thead th { font-size: 11px; color: var(--ink-3); text-transform: uppe
 .prov { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--ink-3); }
 .prov.laser { background: var(--brand); }
 
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.actions .btn { min-width: 0; white-space: normal; text-align: center; line-height: 1.2; }
 
 /* ------------------------------------------------------------- misc */
 .toast {
@@ -484,3 +485,58 @@ table.data thead th { font-size: 11px; color: var(--ink-3); text-transform: uppe
   .line-id { font-size: 34px; }
   .reading-box input { font-size: 38px; }
 }
+
+/* the last saved value, one tap from being redone */
+.last-chip {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin: -4px 0 12px; padding: 8px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--good-soft); color: var(--good-ink);
+  font-size: 14px; cursor: pointer; text-align: left;
+}
+.last-chip svg { width: 16px; height: 16px; flex: none; }
+.last-chip .redo { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--ink-2); }
+
+/* ---- trim plan */
+.plan-step { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; font-weight: 750; font-size: 15px; }
+.plan-step span {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--ink); color: var(--bg); font-size: 13px;
+}
+.todo a.how { color: var(--brand); font-weight: 700; text-decoration: none; white-space: nowrap; }
+
+/* ---- guide */
+.method { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+.method + .method { margin-top: 10px; }
+.knot-svg { width: 96px; height: auto; background: var(--surface-2); border-radius: 12px; }
+.method.flash { outline: 3px solid var(--brand); outline-offset: 2px; }
+ul.plain { margin: 0; padding-left: 18px; }
+ul.plain li { margin-bottom: 8px; font-size: 15px; color: var(--ink-2); }
+ul.plain li b { color: var(--ink); }
+ol.steps-list { margin: 0; padding-left: 22px; }
+ol.steps-list li { margin-bottom: 8px; color: var(--ink-2); }
+ol.steps-list li b { color: var(--ink); }
+
+/* ---- history & compare */
+.hist-item { display: flex; gap: 12px; align-items: flex-start; }
+.hist-item + .hist-item { margin-top: 8px; }
+.hist-item .open { cursor: pointer; }
+.hist-acts { display: flex; flex-direction: column; gap: 2px; }
+.pick { position: relative; padding-top: 2px; }
+.pick input { width: 22px; height: 22px; accent-color: var(--brand); }
+.compare-bar {
+  /* fixed, so showing it never shifts the list under the user's finger */
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom));
+  width: min(640px, calc(100% - 32px)); z-index: 20;
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  background: var(--ink); color: var(--bg); border-radius: 14px; box-shadow: var(--shadow); font-weight: 600;
+}
+.compare-bar .btn { margin-left: auto; }
+.compare-heads { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin-top: 10px; }
+.compare-heads .arrow { align-self: center; }
+.compare-heads .card { display: flex; flex-direction: column; gap: 2px; padding: 12px; }
+.compare-heads .arrow { display: flex; flex-direction: column; align-items: center; color: var(--ink-3); }
+.compare-heads .arrow svg { width: 22px; height: 22px; }
+.mover { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.prov.imported { background: var(--row-D); }
+/* room under the list so the fixed compare bar never covers the last card */
+#screen:has(.compare-bar:not([hidden])) { padding-bottom: 72px; }

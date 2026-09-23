@@ -1,32 +1,39 @@
 // ui/measure.js — screen 3: walk both sides, one line at a time.
+//
+// Auto-next: a laser reading (single shot or steady stream) or a typed 4-digit
+// value close to the target is saved and the next line comes up by itself. The
+// "Saved … · Redo" chip jumps straight back to re-enter the last value.
 
-import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=7';
-import { icon, statusIcon } from './icons.js?v=7';
-import * as laser from '../ble/laser.js?v=7';
+import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=8';
+import { icon, statusIcon } from './icons.js?v=8';
+import * as laser from '../ble/laser.js?v=8';
 import {
   currentKey, walkKeys, record, clearLine, calibrate, rawToLength,
-  progress, move, goto, nominalOf, endRecheck,
-} from '../session.js?v=7';
-import { renderPlanform } from './planform.js?v=7';
-import { gauge } from './charts.js?v=7';
-import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=7';
-import { targetFor } from '../trim.js?v=7';
-import { createStabilizer } from '../capture.js?v=7';
-import { prefs, draft } from '../store.js?v=7';
+  progress, move, goto, endRecheck,
+} from '../session.js?v=8';
+import { renderPlanform } from './planform.js?v=8';
+import { gauge } from './charts.js?v=8';
+import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=8';
+import { targetFor } from '../trim.js?v=8';
+import { createCapture } from '../capture.js?v=8';
+import { prefs, draft } from '../store.js?v=8';
 
 let unsub = null;
+const TYPED_PLAUSIBLE_MM = 600;   // a typed value this close to target may auto-advance
+const TYPED_PAUSE_MS = 900;
+const LASER_SHOW_MS = 650;        // show the captured number briefly before moving on
 
 export function renderMeasure(root, ctx) {
   unsub?.(); unsub = null;
   const s = ctx.session;
   if (!s) { ctx.goto('wings'); return; }
   clear(root);
-  const p = prefs.get();
-  let autoCapture = p.autoCapture !== false;
-  const stab = createStabilizer();
-  let liveRaw = null;           // latest stable (or last) raw reading
-  let armed = true;             // may the next stable reading be captured?
-  let lastCapturedRaw = null;
+  let autoNext = prefs.get().autoNext ?? prefs.get().autoCapture ?? true;
+  const cap = createCapture();
+  let liveRaw = null;           // newest raw laser reading not yet used
+  let usedRaw = null;           // raw value behind the number in the box, if it came from the laser
+  let lastEntry = null;         // { key, value } for the Redo chip
+  let typeTimer = null, laserTimer = null;
 
   const mainOf = new Map();
   for (const m of s.mains) for (const id of m.lineIds) mainOf.set(id, m.id);
@@ -37,6 +44,7 @@ export function renderMeasure(root, ctx) {
       <div class="measure-top"><div class="seg" id="sides" role="tablist" aria-label="Side"></div></div>
       <div class="planform-wrap" id="plan"></div>
       <div class="capture" id="card">
+        <div id="last"></div>
         <div class="capture-head">
           <div>
             <div class="line-id" id="lid"></div>
@@ -45,14 +53,14 @@ export function renderMeasure(root, ctx) {
           <div class="target"><span>Target</span><b id="target" class="num"></b></div>
         </div>
         <div class="reading-box">
-          <input id="len" type="number" inputmode="decimal" enterkeyhint="next" placeholder="–––– " aria-label="Measured length in millimetres">
+          <input id="len" type="number" inputmode="numeric" enterkeyhint="next" placeholder="–––– " aria-label="Measured length in millimetres">
           <span class="unit">mm</span>
         </div>
         <div class="gauge" id="gauge"></div>
         <div class="gauge-read" id="gread"></div>
         <div class="laser-row" id="laser">
-          <span class="led" id="led"></span><span id="lstate">Type the reading, or connect a laser on the setup screen</span>
-          <button class="btn sm soft" id="use" hidden>Use</button>
+          <span class="led" id="led"></span><span id="lstate" class="grow">Type the reading, or connect a laser on the setup screen</span>
+          <button class="btn sm primary" id="use" hidden>Use</button>
         </div>
         <div class="navrow">
           <button class="btn" id="prev" aria-label="Previous line">${icon.back}</button>
@@ -62,13 +70,14 @@ export function renderMeasure(root, ctx) {
         <div class="progress"><i id="bar"></i></div>
         <div class="progress-label"><span id="plabel"></span>
           <span><button class="btn ghost sm" id="calib">${icon.ruler} Calibrate</button>
-          <button class="btn ghost sm" id="auto"></button></span></div>
+          <button class="btn ghost sm" id="auto" aria-pressed="false"></button></span></div>
       </div>
       <button class="btn block soft" id="finish" style="margin-top:12px">See results ${icon.chevron}</button>
     </div>`);
   root.appendChild(wrap);
 
   const input = $('#len', wrap);
+  const laserOn = () => laser.getState().status === 'connected';
 
   function statusFor(key, value) {
     if (value == null) return null;
@@ -86,10 +95,26 @@ export function renderMeasure(root, ctx) {
     clear(rc);
     if (s.queue?.length) {
       const pr = progress(s, s.queue);
-      const b = el(`<div class="recheck-bar">${icon.redo} Re-check: ${pr.done ? `${pr.done}/` : ''}${pr.total} lines
+      const b = el(`<div class="recheck-bar">${icon.redo} Re-check: ${pr.total} lines
         <button class="btn sm">Done</button></div>`);
       b.querySelector('button').addEventListener('click', () => { commit(); endRecheck(s); save(); ctx.goto('result'); });
       rc.appendChild(b);
+    }
+
+    // the last saved value, one tap from being redone
+    const last = $('#last', wrap);
+    clear(last);
+    if (lastEntry) {
+      const chip = el(`<button class="last-chip">${icon.check}
+        <span>Saved <b>${esc(sideLabel(sideOf(lastEntry.key))[0])} ${esc(lineOf(lastEntry.key))}</b> = <b class="num">${fmtMm(lastEntry.value)}</b></span>
+        <span class="redo">${icon.redo} Redo</span></button>`);
+      chip.addEventListener('click', () => {
+        clearTimers(); commit();
+        goto(s, lastEntry.key);
+        lastEntry = null; reset(); draw();
+        input.focus(); input.select();
+      });
+      last.appendChild(chip);
     }
 
     // sides
@@ -101,7 +126,7 @@ export function renderMeasure(root, ctx) {
       const pr = progress(s, keys);
       const b = el(`<button role="tab" aria-pressed="${sd.id === side}">${sd.label} <small>${pr.done}/${pr.total}</small></button>`);
       b.addEventListener('click', () => {
-        commit();
+        clearTimers(); commit();
         goto(s, keys.find(k => s.measured[k] == null) || keys[0]);
         reset(); draw();
       });
@@ -113,7 +138,7 @@ export function renderMeasure(root, ctx) {
     for (const k of s.order) statusByKey[k] = statusFor(k, s.measured[k]) || 'todo';
     renderPlanform($('#plan', wrap), {
       lineIds: Object.keys(s.nominal), ribs: s.ribs, activeKey: key, statusByKey,
-      onPick: k => { commit(); goto(s, k); reset(); draw(); },
+      onPick: k => { clearTimers(); commit(); goto(s, k); reset(); draw(); },
     });
 
     // card
@@ -124,6 +149,7 @@ export function renderMeasure(root, ctx) {
       .filter(Boolean).join(' · ');
     $('#target', wrap).textContent = fmtMm(targetFor(s, id));
     input.value = s.measured[key] ?? '';
+    usedRaw = s.rawByLine[key] ?? null;
     updateGauge();
 
     const all = walkKeys(s);
@@ -132,14 +158,17 @@ export function renderMeasure(root, ctx) {
     $('#plabel', wrap).textContent = s.queue?.length
       ? `Re-check ${s.cursor + 1} of ${all.length}`
       : `${s.cursor + 1} of ${all.length} · ${pr.done} measured`;
-    $('#auto', wrap).innerHTML = `${autoCapture ? icon.check : ''} Auto-capture ${autoCapture ? 'on' : 'off'}`;
-    $('#auto', wrap).hidden = laser.getState().status !== 'connected';
+    const auto = $('#auto', wrap);
+    auto.innerHTML = `${autoNext ? icon.check : ''} Auto-next ${autoNext ? 'on' : 'off'}`;
+    auto.setAttribute('aria-pressed', String(autoNext));
     $('#finish', wrap).className = pr.done === all.length ? 'btn block primary big' : 'btn block soft';
     $('#finish', wrap).innerHTML = s.queue?.length ? `Back to results ${icon.chevron}` : `See results ${icon.chevron}`;
-    input.focus({ preventScroll: true });
+    // with a laser the keyboard would only get in the way
+    if (!laserOn()) input.focus({ preventScroll: true });
+    paintLaser();
   }
 
-  function updateGauge() {
+  function updateGauge(note) {
     const key = currentKey(s);
     const v = parseFloat(input.value);
     const d = Number.isFinite(v) ? v - targetFor(s, lineOf(key)) : null;
@@ -150,66 +179,88 @@ export function renderMeasure(root, ctx) {
     const implausible = Math.abs(d) > s.tolIndMm * 4;
     g.innerHTML = `<span class="val">${signed(d)}</span>
       <span class="status ${implausible ? 'bad' : st}">${implausible ? icon.warn : statusIcon(st)}
-      ${implausible ? 'implausible — check the hook-up' : st === 'good' ? 'in tolerance' : st === 'warn' ? 'a bit out' : 'out of tolerance'}</span>`;
+      ${implausible ? 'implausible — check the hook-up' : st === 'good' ? 'in tolerance' : st === 'warn' ? 'a bit out' : 'out of tolerance'}</span>
+      ${note ? `<span class="muted small">${esc(note)}</span>` : ''}`;
   }
 
-  // Moving to another line clears the sample window but does NOT re-arm
-  // auto-capture: the beam may still be on the line just captured, and re-arming
-  // here saved one steady reading onto several consecutive lines. Only the beam
-  // actually moving re-arms (see the laser handler below).
+  function clearTimers() { clearTimeout(typeTimer); clearTimeout(laserTimer); typeTimer = laserTimer = null; }
+
   function reset() {
-    stab.reset();
+    cap.reset();
     liveRaw = null;
-    $('#use', wrap).hidden = true;
   }
 
-  function commit(source) {
+  function commit() {
     const key = currentKey(s);
     const v = parseFloat(input.value);
     if (Number.isFinite(v)) {
-      const fromLaser = source === 'laser' || (liveRaw != null && Math.round(rawToLength(s, liveRaw)) === Math.round(v));
-      record(s, key, v, { raw: fromLaser ? liveRaw : null, source: fromLaser ? 'laser' : 'manual' });
-    } else if (s.measured[key] != null && input.value === '') {
-      clearLine(s, key);
+      const fromLaser = usedRaw != null && rawToLength(s, usedRaw) === Math.round(v);
+      record(s, key, v, { raw: fromLaser ? usedRaw : null, source: fromLaser ? 'laser' : 'manual' });
+      return true;
     }
-    save();
+    if (s.measured[key] != null && input.value === '') clearLine(s, key);
+    return false;
   }
   function save() { draft.set(s); }
 
-  function advance(step, source) {
-    commit(source);
+  function advance(step) {
+    clearTimers();
+    const key = currentKey(s);
+    const saved = commit();
+    if (saved && step > 0) lastEntry = { key, value: s.measured[key] };
+    save();
+    const atEnd = step > 0 && s.cursor >= walkKeys(s).length - 1;
     move(s, step);
     reset();
     draw();
+    if (atEnd && saved) toast('Last line done — tap See results');
   }
 
-  input.addEventListener('input', updateGauge);
+  // ---- typing: Enter, the button, or auto-next after 4 plausible digits
+  input.addEventListener('input', () => {
+    usedRaw = null;                         // typed over the laser value
+    updateGauge();
+    clearTimeout(typeTimer);
+    if (!autoNext) return;
+    const raw = input.value.trim();
+    const v = Number(raw);
+    const target = targetFor(s, lineOf(currentKey(s)));
+    if (/^\d{4}$/.test(raw) && Math.abs(v - target) <= TYPED_PLAUSIBLE_MM) {
+      updateGauge('saving…');
+      const keyAtType = currentKey(s);
+      typeTimer = setTimeout(() => {
+        if (currentKey(s) === keyAtType && input.value.trim() === raw) advance(1);
+      }, TYPED_PAUSE_MS);
+    }
+  });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#next', wrap).click(); } });
+
   $('#prev', wrap).addEventListener('click', () => advance(-1));
-  $('#skip', wrap).addEventListener('click', () => { input.value = s.measured[currentKey(s)] ?? ''; advance(1); });
+  $('#skip', wrap).addEventListener('click', () => {
+    clearTimers();
+    input.value = s.measured[currentKey(s)] ?? '';
+    advance(1);
+  });
   $('#next', wrap).addEventListener('click', () => {
     if (!Number.isFinite(parseFloat(input.value))) { toast('Enter the reading, or tap Skip'); return; }
-    const atEnd = s.cursor >= walkKeys(s).length - 1;
     advance(1);
-    if (atEnd) toast('Last line done — see the results below');
   });
   $('#finish', wrap).addEventListener('click', () => {
-    commit();
+    clearTimers(); commit();
     if (s.queue?.length) endRecheck(s);
     save();
     ctx.goto('result');
   });
   $('#auto', wrap).addEventListener('click', () => {
-    autoCapture = !autoCapture; prefs.set({ autoCapture }); draw();
+    autoNext = !autoNext;
+    prefs.set({ autoNext });
+    if (!autoNext) clearTimers();
+    draw();
   });
-  $('#use', wrap).addEventListener('click', () => {
-    if (liveRaw == null) return;
-    input.value = rawToLength(s, liveRaw);
-    updateGauge();
-  });
+  $('#use', wrap).addEventListener('click', () => { if (liveRaw != null) useReading(liveRaw, false); });
   $('#calib', wrap).addEventListener('click', () => {
     const key = currentKey(s);
-    const raw = liveRaw ?? parseFloat(input.value);
+    const raw = liveRaw ?? usedRaw ?? parseFloat(input.value);
     if (!Number.isFinite(raw)) { toast('Take a reading on a line you know first'); return; }
     const t = parseFloat(prompt(`True length of ${lineOf(key)} (mm), from a tape or a spec you trust:`));
     if (!Number.isFinite(t)) return;
@@ -228,45 +279,77 @@ export function renderMeasure(root, ctx) {
     if (Math.abs(dx) > 70 && e.target !== input) advance(dx < 0 ? 1 : -1);
   }, { passive: true });
 
-  // ---- laser: steady-reading capture
-  unsub = laser.subscribe((st, ev) => {
-    const connected = st.status === 'connected';
+  // ---- laser
+  /** Put a raw laser reading in the box; auto-next moves on after a beat. */
+  function useReading(raw, automatic) {
+    clearTimers();
+    usedRaw = raw;
+    liveRaw = null;
+    const mm = rawToLength(s, raw);
+    input.value = mm;
+    // a shot far off the target is usually the wrong line or the rig behind it:
+    // hold it on screen instead of saving — the next shot replaces it
+    const held = Math.abs(mm - targetFor(s, lineOf(currentKey(s)))) > s.tolIndMm * 4;
+    updateGauge(automatic && autoNext ? (held ? 'held — shoot again, or tap Next to keep it' : 'saving…') : '');
+    if (navigator.vibrate) navigator.vibrate(held ? [30, 60, 30] : 30);
+    paintLaser();
+    if (automatic && autoNext && !held) {
+      const keyAt = currentKey(s);
+      laserTimer = setTimeout(() => {
+        if (currentKey(s) === keyAt && Number(input.value) === mm) advance(1);
+      }, LASER_SHOW_MS);
+    }
+  }
+
+  let lastStatus = null;
+  function paintLaser(status = lastStatus) {
+    lastStatus = status;
     const led = $('#led', wrap), ls = $('#lstate', wrap), use = $('#use', wrap);
-    $('#auto', wrap).hidden = !connected;
-    if (!connected) {
+    if (!led) return;
+    if (!laserOn()) {
       led.className = 'led';
       ls.textContent = 'Type the reading, or connect a laser on the setup screen';
       use.hidden = true;
       return;
     }
-    if (ev?.type !== 'reading') { led.className = 'led on'; ls.textContent = `${st.message} · waiting for a reading`; return; }
-    const state = stab.push(ev.mm);
-    // re-arm once the beam has clearly moved off the last captured line
-    if (!armed && (state.status === 'moving' || (lastCapturedRaw != null && Math.abs(ev.mm - lastCapturedRaw) > 15))) armed = true;
-    if (state.status === 'stable') {
-      liveRaw = state.value;
-      const mm = rawToLength(s, state.value);
+    // "Use" is there whenever a reading is waiting that isn't in the box
+    use.hidden = liveRaw == null;
+    if (liveRaw != null) use.textContent = `Use ${fmtMm(rawToLength(s, liveRaw))}`;
+    if (!status || status.status === 'idle') {
       led.className = 'led on';
-      ls.innerHTML = `<span class="live">${fmtMm(mm)}</span> <span class="muted">steady</span>`;
-      // "Use" stays available whenever auto-capture won't fire on its own
-      use.hidden = autoCapture && armed;
-      if (!armed) ls.innerHTML += ` <span class="muted">· move to the next line</span>`;
-      if (autoCapture && armed) {
-        armed = false;
-        lastCapturedRaw = state.value;
-        input.value = mm;
-        updateGauge();
-        if (navigator.vibrate) navigator.vibrate(30);
-        setTimeout(() => {
-          if (Number(input.value) === mm) advance(1, 'laser');
-        }, 650);
-      }
-    } else {
-      led.className = 'led moving';
-      ls.innerHTML = `<span class="live">${fmtMm(rawToLength(s, ev.mm))}</span> <span class="muted">${state.status === 'moving' ? 'hold steady…' : 'settling…'}</span>`;
-      use.hidden = true;
+      ls.innerHTML = `${esc(laser.getState().message)} · <span class="muted">measure the line</span>`;
+      return;
     }
+    const mm = fmtMm(rawToLength(s, status.last));
+    if (status.status === 'moving' || status.status === 'settling') {
+      led.className = 'led moving';
+      ls.innerHTML = `<span class="live">${mm}</span> <span class="muted">hold steady…</span>`;
+    } else if (status.status === 'waiting') {
+      led.className = 'led moving';
+      ls.innerHTML = `<span class="live">${mm}</span> <span class="muted">reading…</span>`;
+    } else {
+      led.className = 'led on';
+      ls.innerHTML = `<span class="live">${mm}</span> <span class="muted">${cap.armed ? '' : 'captured · aim at the next line'}</span>`;
+    }
+  }
+
+  const offLaser = laser.subscribe((st, ev) => {
+    if (ev?.type !== 'reading') { paintLaser(); return; }
+    const r = cap.push(ev.mm);
+    if (r.capture) { paintLaser(r); useReading(r.capture.value, true); return; }
+    liveRaw = ev.mm;
+    paintLaser(r);
   });
+  // single shots are taken once it's clear no stream follows
+  const ticker = setInterval(() => {
+    const k = cap.tick();
+    if (k?.capture) { paintLaser(k); useReading(k.capture.value, true); }
+  }, 150);
+
+  // desk mocks aim near the line on screen (raw = length − zero offset)
+  laser.setAimHint(() => { const k = currentKey(s); return k ? targetFor(s, lineOf(k)) - (s.refOffsetMm || 0) : null; });
+
+  unsub = () => { offLaser(); clearInterval(ticker); clearTimers(); laser.setAimHint(null); };
 
   if (s.cursor >= walkKeys(s).length) s.cursor = 0;
   draw();

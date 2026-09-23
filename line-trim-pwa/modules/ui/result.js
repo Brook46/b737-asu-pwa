@@ -1,13 +1,15 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=7';
-import { icon, statusIcon } from './icons.js?v=7';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=7';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=7';
-import { startRecheck, goto, progress } from '../session.js?v=7';
-import { sessions, draft } from '../store.js?v=7';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=7';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=7';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=8';
+import { icon, statusIcon } from './icons.js?v=8';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=8';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=8';
+import { startRecheck, goto, progress } from '../session.js?v=8';
+import { sessions, draft } from '../store.js?v=8';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=8';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=8';
+import { methodFor } from './guide.js?v=8';
+import { checkDate } from './history.js?v=8';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;
@@ -30,7 +32,8 @@ export function renderResult(root, ctx) {
         <span class="small muted">${pr.done}/${pr.total} readings</span></div>
       <div id="verdict"></div>
       <div class="tiles" id="tiles"></div>
-      <h2>What to do</h2>
+      <div class="row" style="margin:26px 0 10px"><h2 style="margin:0" class="grow">Your trim plan</h2>
+        <button class="btn ghost sm" id="guide">${icon.info} Trimming guide</button></div>
       <div id="todo"></div>
       <h2>Trim profile</h2>
       <p class="small muted" style="margin-top:-4px">Each line against the reference, centre to tip. The green band is ±${s.tolIndMm} mm.
@@ -42,8 +45,9 @@ export function renderResult(root, ctx) {
         <summary>${icon.chevron} Details — reference, left/right, every reading</summary>
         <div id="detail-body" style="margin-top:8px"></div>
       </details>
+      <div id="save-panel"></div>
       <div class="actions">
-        <button class="btn primary" id="save">${icon.save} Save</button>
+        <button class="btn primary" id="save">${icon.save} ${s.savedAt ? 'Saved — edit' : 'Save'}</button>
         <button class="btn" id="share">${icon.share} Share</button>
         <button class="btn soft" id="csv">${icon.download} CSV</button>
         <button class="btn soft" id="json">${icon.download} JSON</button>
@@ -60,7 +64,8 @@ export function renderResult(root, ctx) {
     const det = $('#details', wrap);
     det.addEventListener('toggle', () => { if (det.open && !$('#detail-body', wrap).childElementCount) renderDetails($('#detail-body', wrap), a); });
 
-    $('#save', wrap).addEventListener('click', () => { s.savedAt = Date.now(); sessions.save(s); draft.clear(); toast('Saved to your history'); });
+    $('#guide', wrap).addEventListener('click', () => ctx.goto('guide'));
+    $('#save', wrap).addEventListener('click', () => openSave($('#save-panel', wrap)));
     $('#csv', wrap).addEventListener('click', () => exportCsv(s));
     $('#json', wrap).addEventListener('click', () => exportJson(s));
     $('#share', wrap).addEventListener('click', async () => {
@@ -73,6 +78,34 @@ export function renderResult(root, ctx) {
     $('#new', wrap).addEventListener('click', () => {
       if (!s.savedAt && pr.done && !confirm('This check isn\'t saved. Start a new one anyway?')) return;
       ctx.session = null; draft.clear(); ctx.goto('wings');
+    });
+  }
+
+  // ------------------------------------------------------------------ save
+  function openSave(host) {
+    clear(host);
+    const def = `${s.model} ${s.sizeKey} — ${checkDate(s)}`;
+    const box = el(`<div class="card" style="margin-top:14px">
+      <h3 style="margin-top:0">Save this check</h3>
+      <div class="row wrap">
+        <label class="field grow"><span>Name</span><input class="input" id="sv-name" value="${esc(s.name || def)}"></label>
+        <label class="field"><span>Measured on</span><input class="input" id="sv-date" type="date" value="${esc(checkDate(s))}"></label>
+      </div>
+      <label class="field"><span>Notes (optional)</span><input class="input" id="sv-notes" value="${esc(s.notes || '')}" placeholder="e.g. after 60 h, before re-trim"></label>
+      <div class="row"><button class="btn primary grow" id="sv-go">${icon.save} Save</button><button class="btn ghost" id="sv-cancel">Cancel</button></div>
+    </div>`);
+    host.appendChild(box);
+    box.querySelector('#sv-name').select();
+    box.querySelector('#sv-cancel').addEventListener('click', () => clear(host));
+    box.querySelector('#sv-go').addEventListener('click', () => {
+      s.name = box.querySelector('#sv-name').value.trim() || def;
+      s.measuredOn = box.querySelector('#sv-date').value || checkDate(s);
+      s.notes = box.querySelector('#sv-notes').value.trim();
+      s.savedAt = Date.now();
+      sessions.save(s);
+      draft.clear();
+      toast(`Saved "${s.name}" — find it under Your checks`);
+      draw();
     });
   }
 
@@ -105,74 +138,91 @@ export function renderResult(root, ctx) {
       + tile('Worst line', worst ? signed(worst.rel, '') : '–', worst ? `mm · ${esc(sideLabel(worst.side))} ${esc(worst.lineId)}` : '');
   }
 
-  // ------------------------------------------------------------------ todo
+  // ------------------------------------------------------------------ plan
   function renderTodo(host, a) {
-    const tasks = [];
+    const steps = [
+      { title: 'Re-measure the odd readings', tasks: [] },
+      { title: 'Inspect uneven lines', tasks: [] },
+      { title: 'Adjust the mains', tasks: [] },
+      { title: 'Set the brakes', tasks: [] },
+    ];
     for (const k of a.integrity.implausible) {
       const l = a.lines.find(x => x.key === k);
-      tasks.push({ key: `implausible:${k}`, kind: 'bad', title: `Re-measure ${sideLabel(l.side)} ${l.lineId}`,
+      steps[0].tasks.push({ key: `implausible:${k}`, title: `Re-measure ${sideLabel(l.side)} ${l.lineId}`,
         sub: `${signed(l.rel)} is more than ${s.tolIndMm * 4} mm out — usually a mis-hooked line or a typo.`,
         amt: signed(l.rel, ''), keys: [k] });
     }
     for (const m of a.recommendations) {
       const keys = m.lineIds.map(id => keyFor(m.side, id));
       if (m.action === 'inspect') {
-        tasks.push({ key: m.key, kind: 'bad',
+        steps[1].tasks.push({ key: m.key,
           title: `${m.sideLabel} ${m.id} — ${m.pinpointed.length ? `check ${m.pinpointed.join(', ')}` : 'uneven lines'}`,
           sub: m.pinpointed.length
-            ? `${m.pinpointed.join(', ')} disagrees with the other side by more than ${s.tolIndMm} mm. Inspect it for shrinkage or damage — a main adjustment can't fix one line.`
-            : `Lines ${m.outliers.join(', ')} spread ${m.spreadMm} mm within this main. Inspect them — a main adjustment moves the whole fan.`,
+            ? `${m.pinpointed.join(', ')} disagrees with the other side by more than ${s.tolIndMm} mm. Inspect it for shrinkage or damage and replace it — adjusting the main can't fix one line.`
+            : `Lines ${m.outliers.join(', ')} spread ${m.spreadMm} mm within this main. Inspect them — adjusting the main moves the whole fan.`,
           amt: `${m.spreadMm}`, keys });
       } else if (m.action === 'note') {
         const brake = isBrakeRiser(m.riser);
-        tasks.push({ key: m.key, kind: 'warn',
+        steps[brake ? 3 : 2].tasks.push({ key: m.key, method: brake ? 'brake' : null,
           title: `${m.sideLabel} ${brake ? 'brake' : m.id} — ${Math.abs(m.recommendMm)} mm ${m.recommendMm < 0 ? 'long' : 'short'}`,
-          sub: brake ? 'Brakes aren\'t trimmed at the maillon: retie the brake knot, then check there\'s slack with full speedbar.'
+          sub: brake ? 'Re-tie at the handle so both brakes match, keeping the factory free play.'
                      : 'Not a maillon adjustment — check this line and its attachment.',
           amt: signed(m.recommendMm, ''), keys });
       } else {
-        tasks.push({ key: m.key, kind: 'warn', sim: m,
+        const how = methodFor(m.recommendMm, m.hasLoop);
+        steps[2].tasks.push({ key: m.key, sim: m, method: how.id,
           title: `${m.sideLabel} ${m.id} — ${m.action} ${Math.abs(m.recommendMm)} mm`,
-          sub: adjustHint(m.recommendMm, m.hasLoop), amt: signed(m.recommendMm, ''), keys });
+          sub: how.text, amt: signed(m.recommendMm, ''), keys });
       }
     }
+    // mains: biggest first, so the one that matters most is done first
+    steps[2].tasks.sort((x, y) => Math.abs(parseFloat(y.amt)) - Math.abs(parseFloat(x.amt)));
 
-    if (!tasks.length) {
+    const active = steps.filter(st => st.tasks.length);
+    if (!active.length) {
       host.appendChild(el(`<div class="allgood">${icon.ok} Nothing to adjust — every main is within ±${s.tolIndMm} mm on both sides.</div>`));
       return;
     }
-    const ul = el('<ul class="todo"></ul>');
-    for (const t of tasks) {
-      const done = !!s.done[t.key];
-      const simOn = t.sim && !!s.simOffsets[t.sim.key];
-      const li = el(`<li class="${done ? 'done' : ''}">
-        <button class="tick" aria-pressed="${done}" aria-label="Mark done">${icon.check}</button>
-        <div class="what"><b>${esc(t.title)}</b><span>${esc(t.sub)}</span></div>
-        <div class="amt num">${esc(t.amt)}</div>
-        <div class="acts">
-          ${t.sim ? `<button class="btn sm ${simOn ? 'primary' : 'soft'}" data-sim aria-pressed="${simOn}">${simOn ? icon.check : ''} Preview result</button>` : ''}
-          <button class="btn sm soft" data-recheck>${icon.redo} Re-measure ${t.keys.length} line${t.keys.length > 1 ? 's' : ''}</button>
-        </div></li>`);
-      li.querySelector('.tick').addEventListener('click', () => { s.done[t.key] = !done; draft.set(s); draw(); });
-      li.querySelector('[data-sim]')?.addEventListener('click', () => {
-        if (s.simOffsets[t.sim.key]) delete s.simOffsets[t.sim.key];
-        else s.simOffsets[t.sim.key] = Math.round(t.sim.recommendMm);
-        draw();
-      });
-      li.querySelector('[data-recheck]').addEventListener('click', () => {
-        s.simOffsets = {};           // re-measuring means the real wing again
-        startRecheck(s, t.keys);
-        draft.set(s);
-        ctx.goto('measure');
-      });
-      ul.appendChild(li);
+    let n = 0;
+    for (const st of active) {
+      host.appendChild(el(`<p class="plan-step"><span>${++n}</span>${esc(st.title)}</p>`));
+      const ul = el('<ul class="todo"></ul>');
+      for (const t of st.tasks) ul.appendChild(taskItem(t));
+      host.appendChild(ul);
     }
-    host.appendChild(ul);
+    host.appendChild(el(`<p class="plan-step"><span>${++n}</span>Re-measure what you changed, then test fly in calm air</p>`));
     if (Object.keys(s.simOffsets).length) {
       const off = el(`<button class="btn ghost sm" style="margin-top:8px">Clear previews</button>`);
       off.addEventListener('click', () => { s.simOffsets = {}; draw(); });
       host.appendChild(off);
     }
+  }
+
+  function taskItem(t) {
+    const done = !!s.done[t.key];
+    const simOn = t.sim && !!s.simOffsets[t.sim.key];
+    const li = el(`<li class="${done ? 'done' : ''}">
+      <button class="tick" aria-pressed="${done}" aria-label="Mark done">${icon.check}</button>
+      <div class="what"><b>${esc(t.title)}</b><span>${esc(t.sub)}${t.method ? ` <a href="#guide" class="how" data-how="${t.method}">How →</a>` : ''}</span></div>
+      <div class="amt num">${esc(t.amt)}</div>
+      <div class="acts">
+        ${t.sim ? `<button class="btn sm ${simOn ? 'primary' : 'soft'}" data-sim aria-pressed="${simOn}">${simOn ? icon.check : ''} Preview result</button>` : ''}
+        <button class="btn sm soft" data-recheck>${icon.redo} Re-measure ${t.keys.length} line${t.keys.length > 1 ? 's' : ''}</button>
+      </div></li>`);
+    li.querySelector('.tick').addEventListener('click', () => { s.done[t.key] = !done; draft.set(s); draw(); });
+    li.querySelector('.how')?.addEventListener('click', e => { e.preventDefault(); ctx.guideAnchor = t.method; ctx.goto('guide'); });
+    li.querySelector('[data-sim]')?.addEventListener('click', () => {
+      if (s.simOffsets[t.sim.key]) delete s.simOffsets[t.sim.key];
+      else s.simOffsets[t.sim.key] = Math.round(t.sim.recommendMm);
+      draw();
+    });
+    li.querySelector('[data-recheck]').addEventListener('click', () => {
+      s.simOffsets = {};
+      startRecheck(s, t.keys);
+      draft.set(s);
+      ctx.goto('measure');
+    });
+    return li;
   }
 
   // -------------------------------------------------------------- profiles
@@ -233,7 +283,7 @@ export function renderResult(root, ctx) {
     // integrity
     const i = a.integrity;
     host.appendChild(el(`<p class="small muted" style="margin:10px 2px">
-      ${i.laser} laser · ${i.manual} typed readings${i.editedAfterComplete ? ' · edited after completion' : ''}
+      ${i.laser} laser · ${i.manual} typed${i.imported ? ` · ${i.imported} imported` : ''} readings${i.editedAfterComplete ? ' · edited after completion' : ''}
       · measured from the ${s.measureFrom === 'maillon' ? `maillons (targets −${s.riserMm} mm)` : 'riser bottom'}
       · zero offset ${signed(s.refOffsetMm || 0)} · whole set ${signed(a.globalOffsetMm)} (allowance ±${a.tolGlobal} mm)</p>`));
 

@@ -1,22 +1,26 @@
 // app.js — shell, hash router, screen orchestration.
 
-import { $, $$ } from './modules/ui/dom.js?v=7';
-import { icon } from './modules/ui/icons.js?v=7';
-import { renderPicker } from './modules/ui/picker.js?v=7';
-import { renderSetup, stopSetup } from './modules/ui/setup.js?v=7';
-import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=7';
-import { renderResult } from './modules/ui/result.js?v=7';
-import { renderHistory } from './modules/ui/history.js?v=7';
-import { renderImport } from './modules/ui/import.js?v=7';
-import { hideTip } from './modules/ui/charts.js?v=7';
-import { progress } from './modules/session.js?v=7';
-import { prefs, draft } from './modules/store.js?v=7';
+import { $, $$ } from './modules/ui/dom.js?v=8';
+import { icon } from './modules/ui/icons.js?v=8';
+import { renderPicker } from './modules/ui/picker.js?v=8';
+import { renderSetup, stopSetup } from './modules/ui/setup.js?v=8';
+import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=8';
+import { renderResult } from './modules/ui/result.js?v=8';
+import { renderHistory } from './modules/ui/history.js?v=8';
+import { renderImport } from './modules/ui/import.js?v=8';
+import { renderCompare } from './modules/ui/compare.js?v=8';
+import { renderPast } from './modules/ui/past.js?v=8';
+import { renderGuide } from './modules/ui/guide.js?v=8';
+import { hideTip } from './modules/ui/charts.js?v=8';
+import { progress } from './modules/session.js?v=8';
+import { prefs, draft } from './modules/store.js?v=8';
 
 const screen = $('#screen');
 const stepper = $('#stepper');
 
 $('#logo').innerHTML = icon.logo;
 $('#btn-history').innerHTML = icon.history;
+$('#btn-guide').innerHTML = icon.info;
 
 // The wing being set up, and the check in progress (restored after a reload).
 const ctx = {
@@ -43,6 +47,9 @@ const SCREENS = {
   result: renderResult,
   history: renderHistory,
   import: renderImport,
+  compare: renderCompare,
+  past: renderPast,
+  guide: renderGuide,
 };
 
 function route() {
@@ -78,6 +85,7 @@ function paintStepper(name) {
 
 $$('button', stepper).forEach(b => b.addEventListener('click', () => { if (!b.disabled) ctx.goto(b.dataset.step); }));
 $('#btn-history').addEventListener('click', () => ctx.goto('history'));
+$('#btn-guide').addEventListener('click', () => ctx.goto('guide'));
 
 // ---- theme: system by default, a tap cycles light ↔ dark and remembers it
 function paintThemeButton() {

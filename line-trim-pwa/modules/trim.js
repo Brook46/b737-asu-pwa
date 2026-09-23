@@ -21,7 +21,7 @@
 import {
   parseLineId, isTrimmableRiser, isStructuralRiser, isBrakeRiser,
   sectionsFor, sideOf, lineOf, keyFor, sideLabel, SIDES,
-} from './linemodel.js?v=7';
+} from './linemodel.js?v=8';
 
 const median = xs => {
   if (!xs.length) return 0;
@@ -207,6 +207,7 @@ export function analyse(session) {
   const integrity = {
     laser: lines.filter(l => l.source === 'laser').length,
     manual: lines.filter(l => l.source === 'manual').length,
+    imported: lines.filter(l => l.source === 'imported').length,
     implausible: lines.filter(l => l.implausible).map(l => l.key),
     editedAfterComplete: !!session.editedAfterComplete,
     simulating: Object.values(session.simOffsets || {}).some(v => v),

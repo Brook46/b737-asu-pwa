@@ -1,23 +1,27 @@
 // session.js — a measuring session: the plan, both sides, what's measured, the cursor.
 
-import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=7';
-import { uid } from './store.js?v=7';
+import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=8';
+import { uid } from './store.js?v=8';
 
 /**
  * Where the tape starts. Manufacturer check lengths here are "lines + risers"
- * (riser bottom → canopy). Measuring from the maillons instead removes the riser
- * from every A–E line, so the target drops by the riser length. Brake lines run
- * through a pulley, not the riser branches, and are unchanged.
+ * (riser bottom → canopy). Measuring from the maillons instead removes the riser.
+ * Best source: the sheet's own lines-only table (Ozone publishes both, and its
+ * risers differ in length — A 529.6, A' 525, B 520 — so one subtraction would be
+ * wrong). Otherwise subtract the single stated riser length from A–E lines;
+ * brakes run through a pulley, not the riser branches, and are unchanged.
  */
 export function canMeasureFromMaillon(size) {
-  return Number.isFinite(size?.riserMm) && size.riserMm > 0;
+  return !!(size?.linesOnly && Object.keys(size.linesOnly).length)
+    || (Number.isFinite(size?.riserMm) && size.riserMm > 0);
 }
 
 export function adjustedNominal(published, size, measureFrom) {
   if (measureFrom !== 'maillon' || !canMeasureFromMaillon(size)) return { ...published };
   const out = {};
   for (const [id, mm] of Object.entries(published)) {
-    out[id] = isBrakeRiser(parseLineId(id).riser) ? mm : mm - size.riserMm;
+    if (size.linesOnly?.[id] != null) out[id] = size.linesOnly[id];
+    else out[id] = isBrakeRiser(parseLineId(id).riser) ? mm : mm - size.riserMm;
   }
   return out;
 }

@@ -1,10 +1,10 @@
 // ui/import.js — add a wing (or one missing size) from the pilot's own sheet.
 
-import { $, $$, el, esc, clear, toast } from './dom.js?v=7';
-import { icon } from './icons.js?v=7';
-import { loadWing, expectedLineIds, CLASSES } from '../library.js?v=7';
-import { customGliders } from '../store.js?v=7';
-import { readSheetFile, candidatesFrom, candidateFromText, buildCustomWing, fillWingSize } from '../sheets/importsheet.js?v=7';
+import { $, $$, el, esc, clear, toast } from './dom.js?v=8';
+import { icon } from './icons.js?v=8';
+import { loadWing, expectedLineIds, CLASSES } from '../library.js?v=8';
+import { customGliders } from '../store.js?v=8';
+import { readSheetFile, candidatesFrom, candidateFromText, buildCustomWing, fillWingSize } from '../sheets/importsheet.js?v=8';
 
 export async function renderImport(root, ctx) {
   clear(root);

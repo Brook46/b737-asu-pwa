@@ -1,6 +1,6 @@
 // ble/laser.js — one shared connection to a laser meter, driver-agnostic.
 
-import { DRIVERS } from './drivers.js?v=7';
+import { DRIVERS } from './drivers.js?v=8';
 
 const listeners = new Set();   // ({type, ...}) => void
 let state = {
@@ -13,6 +13,11 @@ let state = {
   log: [],                     // recent driver log lines (newest last, capped)
 };
 let cleanup = null;
+// what the screen expects next (raw mm) — only the desk mocks read it, so they
+// can aim near the right length the way a real laser on a real line would
+let aimHint = null;
+export function setAimHint(fn) { aimHint = fn; }
+const aim = () => { try { return aimHint?.() ?? null; } catch { return null; } };
 
 function emit(patch) {
   state = { ...state, ...patch };
@@ -44,7 +49,7 @@ export async function connect(driverId) {
 
   if (!driver.needsBluetooth) {
     try {
-      cleanup = await driver.attach(null, { onReading, onLog: pushLog });
+      cleanup = await driver.attach(null, { onReading, onLog: pushLog, aim });
       emit({ status: 'connected', message: driver.label, device: null });
     } catch (e) {
       emit({ status: 'error', message: e.message });

@@ -16,7 +16,7 @@
     // apply a saved theme before first paint so there is no flash
     try { const t = JSON.parse(localStorage.getItem('pgtrim.prefs') || '{}').theme; if (t) document.documentElement.dataset.theme = t; } catch {}
   </script>
-  <link rel="stylesheet" href="./app.css?v=7">
+  <link rel="stylesheet" href="./app.css?v=8">
 </head>
 <body>
   <div id="app">
@@ -26,7 +26,8 @@
         <span><b>Line Trim</b><small>paraglider line check</small></span>
       </a>
       <span class="spacer"></span>
-      <button class="icon-btn" id="btn-history" aria-label="Saved checks" title="Saved checks"></button>
+      <button class="icon-btn" id="btn-guide" aria-label="Trimming guide" title="Trimming guide"></button>
+      <button class="icon-btn" id="btn-history" aria-label="Your checks" title="Your checks"></button>
       <button class="icon-btn" id="btn-theme" aria-label="Switch light / dark" title="Switch light / dark"></button>
     </header>
 
@@ -46,6 +47,6 @@
     </p>
   </div>
 
-  <script type="module" src="./app.js?v=7"></script>
+  <script type="module" src="./app.js?v=8"></script>
 </body>
 </html>

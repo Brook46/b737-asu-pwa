@@ -9,6 +9,7 @@
    "year": 2023,
    "liners": 3,
    "category": "School / hike & fly",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -45,6 +46,7 @@
    "year": 2019,
    "liners": 3,
    "category": "School",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -81,6 +83,7 @@
    "year": 2024,
    "liners": 3,
    "category": "High-B / XC",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -112,6 +115,7 @@
    "year": 2022,
    "liners": 3,
    "category": "Low-B / progression",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -148,6 +152,7 @@
    "year": 2018,
    "liners": 3,
    "category": "Low-B / progression",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -184,6 +189,7 @@
    "year": 2021,
    "liners": 3,
    "category": "High-B / XC",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -225,6 +231,7 @@
    "year": 2020,
    "liners": 3,
    "category": "Sport XC",
+   "caution": false,
    "sizes": [
     {
      "key": "S",
@@ -256,6 +263,7 @@
    "year": 2025,
    "liners": 2,
    "category": "Two-liner XC",
+   "caution": false,
    "sizes": [
     {
      "key": "S",
@@ -287,6 +295,7 @@
    "year": 2023,
    "liners": 3,
    "category": "Light XC",
+   "caution": false,
    "sizes": [
     {
      "key": "XS",
@@ -323,6 +332,7 @@
    "year": 2023,
    "liners": 3,
    "category": "Lightweight competition / X-Alps",
+   "caution": false,
    "sizes": [
     {
      "key": "21",
@@ -354,6 +364,7 @@
    "year": 2024,
    "liners": 2,
    "category": "Two-liner competition / XC",
+   "caution": false,
    "sizes": [
     {
      "key": "S",
@@ -378,6 +389,60 @@
    ]
   },
   {
+   "id": "ozone-zeolite",
+   "brand": "Ozone",
+   "model": "Zeolite",
+   "wingClass": "EN D",
+   "year": 2019,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 62
+    }
+   ]
+  },
+  {
+   "id": "ozone-zeolite-gt",
+   "brand": "Ozone",
+   "model": "Zeolite GT",
+   "wingClass": "EN D",
+   "year": null,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 62
+    }
+   ]
+  },
+  {
    "id": "bgd-dual-2",
    "brand": "BGD",
    "model": "Dual 2",
@@ -385,6 +450,7 @@
    "year": null,
    "liners": 4,
    "category": "Tandem",
+   "caution": false,
    "sizes": [
     {
      "key": "38",

@@ -1,8 +1,8 @@
 # Line Trim
 
 Check a paraglider's line trim against the **manufacturer's own check lengths**.
-Pick your wing, connect a laser (the FNIRSI IR40 is supported directly) or type the
-readings, walk the lines on both sides, and get a clear plan: which main to shorten
+Pick your wing, connect a laser (FNIRSI IR40, Bosch GLM/PLR and Leica DISTO are supported directly)
+or type the readings, walk the lines on both sides, and get a clear plan: which main to shorten
 or lengthen and by how much, which single line to inspect, and whether the wing is
 trimmed faster or slower than factory.
 
@@ -25,18 +25,43 @@ Works offline once loaded — take-off rarely has signal.
    placed on its **real rib** when the sheet lists rib positions. Each line shows its
    target, a live deviation gauge (green band = tolerance), and where it sits
    (side · row · main · rib). Tap any dot to jump to it; swipe the card to move.
-   With a laser connected the reading is captured automatically once it **holds
-   steady** (3 samples within 2 mm, median recorded), and capture only re-arms after
-   the beam moves — one steady reading can never land on two lines.
+   **Auto-next** (on by default, toggle on the card): a laser shot is entered and the
+   card moves on by itself — no Next to press. Both kinds of meter work: *single-shot*
+   meters (Bosch, Leica, the IR40 in single mode) are taken the moment a shot arrives
+   with nothing following it; *streaming* meters are taken once they **hold steady**
+   (3 samples within 2 mm, median recorded). Capture re-arms only on a new shot or the
+   beam moving, so one reading can never land on two lines. A shot more than 4× the
+   tolerance off target is **held** on screen instead of saved — usually the wrong
+   line — and the next shot replaces it. Typing works the same way: four digits near
+   the target move on after a short pause. The **Saved · Redo** chip on the card
+   jumps back to the line just entered.
 4. **Results**
    - a verdict and three numbers: **trim speed** (angle of incidence), **symmetry**,
      **worst line**;
-   - **What to do** — a checklist: *"Left CR2 — shorten 11 mm"*, saying whether that
-     main has a trim loop. **Preview result** re-runs the whole analysis as if the change
+   - **Your trim plan**, in working order — re-measure odd readings, inspect uneven
+     lines, adjust the mains (*"Left CR2 — shorten 11 mm"*, with the way to do it:
+     trim loop, extra larks-head turn or knot in the end loop, and a **How →** link
+     to the drawing in the guide), set the brakes, re-measure, test fly. **Preview result** re-runs the whole analysis as if the change
      were made; **Re-measure** walks just that main's lines, then drops you back here;
    - a **trim profile** per side (every row centre → tip against the tolerance band);
    - **angle of incidence** per section;
    - details: reference choice, left/right per main, every reading.
+
+   - **Save** — give the check a name and the date it was measured, plus notes.
+5. **Your checks** (clock icon) — every saved check, grouped by wing and size, newest
+   first. Rename, re-date or delete; tick two of the same wing and **Compare** to see
+   what moved between them (trim speed, symmetry, whole-set length, a per-side change
+   chart, the biggest movers, every main).
+   - **Add past check** — load readings taken before, from an .xlsx/.csv or pasted
+     text ("A1 6421 6425"); the app finds the line column and asks which column is
+     left and which right (L/R, Left/Right, Links/Rechts, Gauche/Droite are
+     recognised). Saved as an imported, dated check.
+   - **Export backup** (JSON — every check and your own wings; **Restore backup**
+     merges it back, newer copy wins) and **Export CSV** (every reading of every
+     check, one row each, for a spreadsheet).
+6. **Trimming guide** (i icon) — how to change a length (trim loops, larks head, an
+   extra turn, a knot in the end loop, brake lines) with drawings, and the order to
+   work in.
 
 The check in progress is saved on every reading — closing the app loses nothing.
 
@@ -49,10 +74,17 @@ Every number comes from a manufacturer-published **manual / check** table:
 | EN A | BGD Anda, BGD Magic |
 | EN B | BGD Base 3, BGD Epic 2, BGD Punk, Ozone Rush 6 |
 | EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2 |
-| EN D | Advance OMEGA ULS, BGD Diva 2 |
+| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeolite, Ozone Zeolite GT* |
 | Tandem | BGD Dual 2 |
 
-12 wings, 49 sizes ready to measure. BGD sheets also give the full cascade
+14 wings, 55 sizes ready to measure.
+
+\* Ozone's Zeolite GT chart is the Zeolite chart with the outer B lines (B9–B17)
+blank and "Zeolite" headers; the app shows that caution on setup — check it against
+your GT's manual. Nova publishes no absolute line lengths (relative, via NOVA Trim
+Tuning), so Nova wings can't be listed; load an NTT report as a past check instead.
+
+ BGD sheets also give the full cascade
 (top → middle → main), the rib of every attachment point, the riser length, and which
 mains carry trim loops — so the advice and the diagram are specific to the wing.
 
@@ -94,15 +126,19 @@ wings stay in your browser — they are never uploaded anywhere.
 
 ## Laser meters
 
-Web Bluetooth — **Chrome on Android or a computer**. iOS Safari has no Web Bluetooth;
-manual entry works everywhere.
+Web Bluetooth — **Chrome or Edge on Android, macOS, Windows, ChromeOS or Linux**.
+On a Mac, allow Chrome under System Settings → Privacy & Security → Bluetooth the
+first time. Safari (including every browser on iPhone/iPad) and Firefox have no Web
+Bluetooth; manual entry works everywhere.
 
 | Driver | |
 |---|---|
 | FNIRSI IR40 | direct support; starts continuous measuring, ignores area/rectangle frames, converts ft/in |
+| Bosch GLM / PLR | Bluetooth "C" models (GLM 50 C, 100 C, 50-27 C…, PLR 30/40/50 C); press measure on the meter, each shot is entered |
+| Leica DISTO | Bluetooth models (D1, D110, D2, D510, D810, X3/X4…); press measure on the meter |
 | Nordic UART | generic BLE meters and DIY ESP32 rigs |
 | Sniff | watch an unknown meter's frames to identify it |
-| Mock | a realistic simulated laser for trying the app |
+| Mock (stream / button presses) | simulated lasers for trying the app; they aim near the line on screen, with the odd mis-aimed shot |
 
 **Zero offset**: if your laser doesn't sit exactly at the reference point, calibrate on a
 line you know (measure screen → Calibrate) or set the offset in setup.
@@ -127,8 +163,9 @@ for t in test/check-*.mjs; do node "$t" || break; done
 | check-library | every built wing: structure, and a full analysis per size (perfect wing → in trim; long rears → faster) |
 | check-extract | every sheet-reading trap met on real files (styled empty cells, side-by-side tables, production/manual labels, formulas, cascade markers) |
 | check-sheet | the .xlsx/.csv reader |
-| check-capture | steady-reading capture |
-| check-ir40 | the IR40 frame parser against the documented packets |
+| check-capture | single-shot and stream capture, re-arming, never one reading on two lines |
+| check-meters | IR40, Bosch and Leica frame parsers |
+| check-pastcheck | past-check import: wide/long layouts, side headers in four languages |
 | check-omega | Advance OMEGA ULS data: every published main = mean of its points |
 | check-imports | every named import exists — a missing export blanks the whole app |
 
