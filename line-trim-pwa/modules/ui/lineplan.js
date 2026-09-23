@@ -14,8 +14,8 @@
 // Cascade levels come from the manufacturer sheet when it names them (BGD:
 // a1 → AMU1 → AM1 → AR1); otherwise a point joins its main, the main its riser.
 
-import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=11';
-import { esc } from './dom.js?v=11';
+import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=12';
+import { esc } from './dom.js?v=12';
 
 const W = 360, H = 300, CX = 180, HALF = 172, CY = 150, CH = 74;
 const ROW = { A: 0.12, B: 0.3, C: 0.55, D: 0.72, E: 0.84, K: 1, BR: 1 };
@@ -52,16 +52,20 @@ function buildTree(lineIds, mains, cascade) {
     const brake = isBrake(riser);
     const up = !brake && riser === 'A';
     const leaf = `pt:${id}`;
-    const mainKey = m ? `m:${m.id}` : null;
-    const rootIsMain = m && /riser$/i.test(m.id);
-    const root = rootIsMain ? mainKey : `riser:${brake ? 'K' : riser}`;
+    // a synthetic group is a whole row the sheet doesn't split into mains:
+    // draw the row straight to one node named for the row, not a riser
+    const synthetic = !!m?.synthetic;
+    const mainKey = m && !synthetic ? `m:${m.id}` : null;
+    const rootIsMain = m && !synthetic && /riser$/i.test(m.id);
+    const root = synthetic ? `row:${riser}` : rootIsMain ? mainKey : `riser:${brake ? 'K' : riser}`;
     const chain = (cascade?.[id] || []).filter(n => !m || n !== m.id).map(n => `c:${n}`);
     const path = [leaf, ...chain, ...(mainKey && mainKey !== root ? [mainKey] : []), root];
     for (let i = 0; i < path.length - 1; i++) if (!parent.has(path[i])) parent.set(path[i], path[i + 1]);
     for (const n of path) dir.set(n, brake ? 'brake' : up ? 'up' : 'down');
     if (mainKey) label.set(mainKey, m.id);
     chain.forEach(n => label.set(n, n.slice(2)));
-    label.set(root, rootIsMain ? m.id : RISER_NAME[brake ? 'K' : riser] || `${riser} riser`);
+    label.set(root, synthetic ? (brake ? 'Brakes' : `${riser} row`)
+      : rootIsMain ? m.id : RISER_NAME[brake ? 'K' : riser] || `${riser} riser`);
   }
   return { parent, label, dir };
 }
@@ -128,9 +132,10 @@ export function renderLinePlan(container, { lineIds, mains, cascade, ribs, activ
     if (d === 'up') p.y = isRoot ? Y_UP : EDGE_UP - (h / top) * (EDGE_UP - Y_UP);
     else p.y = isRoot ? Y_DOWN : EDGE_DOWN + (h / top) * (Y_DOWN - EDGE_DOWN);
   }
-  // keep riser labels apart along each row
-  for (const d of ['up', 'down', 'brake']) {
-    const rs = roots.filter(r => dir.get(r) === d).sort((a, b) => pos.get(a).x - pos.get(b).x);
+  // keep riser labels apart along each row (rear risers and the brake handle
+  // share the bottom row, so they're spaced together)
+  for (const ds of [['up'], ['down', 'brake']]) {
+    const rs = roots.filter(r => ds.includes(dir.get(r))).sort((a, b) => pos.get(a).x - pos.get(b).x);
     for (let i = 1; i < rs.length; i++) {
       const a = pos.get(rs[i - 1]), b = pos.get(rs[i]);
       if (b.x - a.x < 58) b.x = a.x + 58;

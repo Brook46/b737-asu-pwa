@@ -1,11 +1,11 @@
 // ui/history.js — every saved check, grouped by wing; compare, export, restore.
 
-import { gliderIdentity } from './glider.js?v=11';
-import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=11';
-import { icon, statusIcon } from './icons.js?v=11';
-import { sessions } from '../store.js?v=11';
-import { analyse } from '../trim.js?v=11';
-import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=11';
+import { gliderIdentity } from './glider.js?v=12';
+import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=12';
+import { icon, statusIcon } from './icons.js?v=12';
+import { sessions } from '../store.js?v=12';
+import { analyse } from '../trim.js?v=12';
+import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=12';
 
 // Checks saved before the left/right + v3 model can't be re-analysed.
 const isCurrent = s => s && s.v === 3 && Array.isArray(s.mains) && Array.isArray(s.sides);

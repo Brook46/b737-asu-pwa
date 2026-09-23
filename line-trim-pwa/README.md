@@ -79,13 +79,24 @@ Every number comes from a manufacturer-published **manual / check** table:
 
 | Class | Wings |
 |---|---|
-| EN A | BGD Anda, BGD Magic |
-| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Ozone Rush 6 |
-| EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2 |
+| EN A | BGD Anda, BGD Magic, Niviuk Koyot 6, Niviuk Koyot 6 P, Ozone Alta GT |
+| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6 |
+| EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2, Niviuk Artik 7 P, Niviuk Artik R 2, Ozone Alpina 5, Ozone Delta 5, Ozone Lyght |
 | EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT |
-| Tandem | BGD Dual 2 |
+| By size | Niviuk Kode 2 P (EN A–D), Ozone Ultralite 5 (EN A–C) |
+| Tandem | BGD Dual 2, Niviuk Takoo 6, Ozone Magnum 4, Ozone SwiftMax 2, Ozone Wisp 2 |
+| Load-tested only | Niviuk Jester (EN 926-1) |
 
-16 wings, 65 sizes ready to measure.
+35 wings, 161 sizes ready to measure. Every 2024-or-later wing from Ozone and Niviuk
+that publishes check lengths is in; each carries any caution about its source on the
+setup screen (e.g. Ozone's Alpina 5 and Delta 5 files are identical; SwiftMax 2 and
+Wisp 2 tables aren't labelled manual or production).
+
+**Niviuk** publishes the check lengths in each glider's user manual ("LINES HEIGHT +
+RISER mm"), read from the PDF by `scripts/niviuk-pdf.py`. The manuals draw the line
+plan but don't list which points share a main, so Niviuk wings are grouped per row.
+Missing: Hook 7, Hook 7 P, Peak 7 and Target have no manual online yet; Skin 4 P is a
+single-skin with nine rows (A–I), which this app doesn't model.
 
 \* Ozone's Zeolite GT chart is the Zeolite chart with the outer B lines (B9–B17)
 blank and "Zeolite" headers; the app shows that caution on setup — check it against
@@ -192,7 +203,10 @@ node scripts/build-library.mjs <folder-with-the-downloaded-sheets>
 `scripts/library-sources.json` lists each wing's source files. The build refuses any
 wing that fails validation, including sizes whose lengths don't increase from small to
 large — the check that catches a sheet filed under the wrong size. Legacy `.xls` files
-need converting to a grid first (see the script header).
+need converting to a grid first (see the script header). Niviuk manuals go through
+`python3 scripts/niviuk-pdf.py manual.pdf > manual.pdf.json` (needs `pdfplumber`),
+which places every number by its column position — blank cells are common and plain
+text extraction drops them.
 
 ### Deploying
 

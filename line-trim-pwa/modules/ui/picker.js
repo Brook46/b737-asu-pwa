@@ -1,10 +1,10 @@
 // ui/picker.js — screen 1: which wing, which size.
 
-import { $, $$, el, esc, clear, classBadge } from './dom.js?v=11';
-import { icon } from './icons.js?v=11';
-import { listWings, CLASSES } from '../library.js?v=11';
-import { prefs, draft } from '../store.js?v=11';
-import { progress } from '../session.js?v=11';
+import { $, $$, el, esc, clear, classBadge } from './dom.js?v=12';
+import { icon } from './icons.js?v=12';
+import { listWings, CLASSES } from '../library.js?v=12';
+import { prefs, draft } from '../store.js?v=12';
+import { progress } from '../session.js?v=12';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -60,11 +60,18 @@ export async function renderPicker(root, ctx) {
     }
   }
 
+  // a wing whose class spans sizes ("EN A–D") shows under every class it covers
+  function inClass(w, f) {
+    if (w.wingClass === f) return true;
+    const r = /^EN ([A-D])–([A-D])$/.exec(w.wingClass || ''), c = /^EN ([A-D])$/.exec(f);
+    return !!(r && c && c[1] >= r[1] && c[1] <= r[2]);
+  }
+
   let filter = 'all';
   const filters = $('#filters', wrap);
   for (const f of FILTERS) {
     const n = f.id === 'all' ? wings.length : f.id === 'yours' ? wings.filter(w => w.custom).length
-            : wings.filter(w => w.wingClass === f.id).length;
+            : wings.filter(w => inClass(w, f.id)).length;
     if (!n && f.id !== 'all') continue;
     const c = el(`<button class="chip" aria-pressed="${f.id === filter}" data-f="${esc(f.id)}">${esc(f.label)} <span class="muted">${n}</span></button>`);
     c.addEventListener('click', () => {
@@ -84,7 +91,7 @@ export async function renderPicker(root, ctx) {
     clear(list);
     const term = q.value.trim().toLowerCase();
     const shown = wings.filter(w =>
-      (filter === 'all' || (filter === 'yours' ? w.custom : w.wingClass === filter))
+      (filter === 'all' || (filter === 'yours' ? w.custom : inClass(w, filter)))
       && (!term || `${w.brand} ${w.model} ${w.wingClass} ${w.category || ''}`.toLowerCase().includes(term)));
     if (!shown.length) {
       list.appendChild(el(`<p class="empty">No wing matches. Add yours from its manufacturer sheet ↓</p>`));

@@ -89,12 +89,13 @@ export function mainsFor(lineIds, declared) {
     })).filter(m => m.lineIds.length);
   }
   return groupLines(lineIds).map(g => ({
-    id: `${g.riser}R1`,
+    id: isTrimmableRiser(g.riser) ? `${g.riser} row` : g.label === 'Brake' ? 'Brakes' : g.label,
     riser: g.riser,
     section: 1,
     label: g.label,
     trimmable: g.trimmable,
     lineIds: g.lineIds,
+    synthetic: true,          // a whole row, not a line the sheet names
   }));
 }
 

@@ -5,10 +5,10 @@
 // column of line names with one column per size. The pilot picks; we only ever
 // offer manual/check tables and never a table labelled production.
 
-import { readXlsxSheets, readDelimitedGrid } from '../xlsx.js?v=11';
-import { findCheckTables, findTopology, findLoops, findRiserLength } from './extract.js?v=11';
-import { detectLineTable, gridToLines, parseLineTable } from '../importer.js?v=11';
-import { completeMains, deriveSections, riserOfMain } from './sections.js?v=11';
+import { readXlsxSheets, readDelimitedGrid } from '../xlsx.js?v=12';
+import { findCheckTables, findTopology, findLoops, findRiserLength } from './extract.js?v=12';
+import { detectLineTable, gridToLines, parseLineTable } from '../importer.js?v=12';
+import { completeMains, deriveSections, riserOfMain } from './sections.js?v=12';
 
 export async function readSheetFile(file) {
   if (/\.xlsx$/i.test(file.name)) return readXlsxSheets(await file.arrayBuffer());

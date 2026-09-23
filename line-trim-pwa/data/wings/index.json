@@ -2,6 +2,142 @@
  "built": "2026-09-23",
  "wings": [
   {
+   "id": "niviuk-jester",
+   "brand": "Niviuk",
+   "model": "Jester",
+   "wingClass": "EN 926-1",
+   "year": 2025,
+   "liners": null,
+   "category": "Load-tested only",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "14",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "16",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "18",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "21",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 56
+    }
+   ]
+  },
+  {
+   "id": "niviuk-kode-2-p",
+   "brand": "Niviuk",
+   "model": "Kode 2 P",
+   "wingClass": "EN A–D",
+   "year": 2026,
+   "liners": null,
+   "category": "Lightweight (P series)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "12",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "14",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "16",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "18",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 59
+    }
+   ]
+  },
+  {
+   "id": "ozone-ultralite-5",
+   "brand": "Ozone",
+   "model": "Ultralite 5",
+   "wingClass": "EN A–C",
+   "year": 2024,
+   "liners": null,
+   "category": "Ultralight",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "13",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "15",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "17",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "19",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "21",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "23",
+     "ready": true,
+     "lines": 78
+    },
+    {
+     "key": "25",
+     "ready": true,
+     "lines": 78
+    }
+   ]
+  },
+  {
    "id": "bgd-anda",
    "brand": "BGD",
    "model": "Anda",
@@ -72,6 +208,127 @@
      "key": "L",
      "ready": true,
      "lines": 59
+    }
+   ]
+  },
+  {
+   "id": "niviuk-koyot-6",
+   "brand": "Niviuk",
+   "model": "Koyot 6",
+   "wingClass": "EN A",
+   "year": 2026,
+   "liners": null,
+   "category": "School / progression",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "30",
+     "ready": true,
+     "lines": 46
+    }
+   ]
+  },
+  {
+   "id": "niviuk-koyot-6-p",
+   "brand": "Niviuk",
+   "model": "Koyot 6 P",
+   "wingClass": "EN A",
+   "year": 2026,
+   "liners": null,
+   "category": "Lightweight (P series)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 46
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 46
+    }
+   ]
+  },
+  {
+   "id": "ozone-alta-gt",
+   "brand": "Ozone",
+   "model": "Alta GT",
+   "wingClass": "EN A",
+   "year": 2024,
+   "liners": null,
+   "category": "School / progression",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XXS",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 55
     }
    ]
   },
@@ -178,6 +435,164 @@
      "key": "L",
      "ready": true,
      "lines": 60
+    }
+   ]
+  },
+  {
+   "id": "niviuk-hiko",
+   "brand": "Niviuk",
+   "model": "Hiko",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": null,
+   "category": null,
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "30",
+     "ready": true,
+     "lines": 61
+    }
+   ]
+  },
+  {
+   "id": "niviuk-hiko-p",
+   "brand": "Niviuk",
+   "model": "Hiko P",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": null,
+   "category": "Lightweight (P series)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 61
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 61
+    }
+   ]
+  },
+  {
+   "id": "niviuk-ikuma-3",
+   "brand": "Niviuk",
+   "model": "Ikuma 3",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": null,
+   "category": null,
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "30",
+     "ready": true,
+     "lines": 47
+    }
+   ]
+  },
+  {
+   "id": "niviuk-ikuma-3-p",
+   "brand": "Niviuk",
+   "model": "Ikuma 3 P",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": null,
+   "category": "Lightweight (P series)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 47
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 47
     }
    ]
   },
@@ -321,6 +736,211 @@
      "key": "L",
      "ready": true,
      "lines": 73
+    }
+   ]
+  },
+  {
+   "id": "niviuk-artik-7-p",
+   "brand": "Niviuk",
+   "model": "Artik 7 P",
+   "wingClass": "EN C",
+   "year": 2024,
+   "liners": null,
+   "category": "Lightweight (P series)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 72
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 72
+    },
+    {
+     "key": "23",
+     "ready": true,
+     "lines": 72
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 72
+    },
+    {
+     "key": "26",
+     "ready": true,
+     "lines": 72
+    },
+    {
+     "key": "28",
+     "ready": true,
+     "lines": 72
+    }
+   ]
+  },
+  {
+   "id": "niviuk-artik-r-2",
+   "brand": "Niviuk",
+   "model": "Artik R 2",
+   "wingClass": "EN C",
+   "year": 2025,
+   "liners": null,
+   "category": null,
+   "caution": true,
+   "sizes": [
+    {
+     "key": "20",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "21",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "23",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "24",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "25",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "27",
+     "ready": true,
+     "lines": 59
+    }
+   ]
+  },
+  {
+   "id": "ozone-alpina-5",
+   "brand": "Ozone",
+   "model": "Alpina 5",
+   "wingClass": "EN C",
+   "year": 2025,
+   "liners": null,
+   "category": "Lightweight XC",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 68
+    }
+   ]
+  },
+  {
+   "id": "ozone-delta-5",
+   "brand": "Ozone",
+   "model": "Delta 5",
+   "wingClass": "EN C",
+   "year": 2025,
+   "liners": null,
+   "category": "Two-liner XC",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 68
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 68
+    }
+   ]
+  },
+  {
+   "id": "ozone-lyght",
+   "brand": "Ozone",
+   "model": "Lyght",
+   "wingClass": "EN C",
+   "year": 2024,
+   "liners": null,
+   "category": "Lightweight",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 54
     }
    ]
   },
@@ -540,6 +1160,94 @@
      "key": "42",
      "ready": true,
      "lines": 91
+    }
+   ]
+  },
+  {
+   "id": "niviuk-takoo-6",
+   "brand": "Niviuk",
+   "model": "Takoo 6",
+   "wingClass": "Tandem",
+   "year": 2024,
+   "liners": null,
+   "category": "Tandem · EN B",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "38",
+     "ready": true,
+     "lines": 86
+    },
+    {
+     "key": "41",
+     "ready": true,
+     "lines": 86
+    },
+    {
+     "key": "44",
+     "ready": true,
+     "lines": 86
+    }
+   ]
+  },
+  {
+   "id": "ozone-magnum-4",
+   "brand": "Ozone",
+   "model": "Magnum 4",
+   "wingClass": "Tandem",
+   "year": 2024,
+   "liners": null,
+   "category": "Tandem · EN B",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "38",
+     "ready": true,
+     "lines": 104
+    },
+    {
+     "key": "41",
+     "ready": true,
+     "lines": 104
+    },
+    {
+     "key": "44",
+     "ready": true,
+     "lines": 104
+    }
+   ]
+  },
+  {
+   "id": "ozone-swiftmax-2",
+   "brand": "Ozone",
+   "model": "SwiftMax 2",
+   "wingClass": "Tandem",
+   "year": 2025,
+   "liners": null,
+   "category": "Tandem · EN B",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "41",
+     "ready": true,
+     "lines": 66
+    }
+   ]
+  },
+  {
+   "id": "ozone-wisp-2",
+   "brand": "Ozone",
+   "model": "Wisp 2",
+   "wingClass": "Tandem",
+   "year": 2025,
+   "liners": null,
+   "category": "Hike & fly tandem · EN B",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "37",
+     "ready": true,
+     "lines": 90
     }
    ]
   }

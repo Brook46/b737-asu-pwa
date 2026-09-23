@@ -1,14 +1,14 @@
 // ui/setup.js — screen 2: how you'll measure, and the laser.
 
-import { rememberedGlider } from './glider.js?v=11';
-import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=11';
-import { icon } from './icons.js?v=11';
-import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=11';
-import { prefs, draft } from '../store.js?v=11';
-import * as laser from '../ble/laser.js?v=11';
-import { DRIVER_LIST } from '../ble/drivers.js?v=11';
-import { createSession, canMeasureFromMaillon } from '../session.js?v=11';
-import { ORDERS } from '../linemodel.js?v=11';
+import { rememberedGlider } from './glider.js?v=12';
+import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=12';
+import { icon } from './icons.js?v=12';
+import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=12';
+import { prefs, draft } from '../store.js?v=12';
+import * as laser from '../ble/laser.js?v=12';
+import { DRIVER_LIST } from '../ble/drivers.js?v=12';
+import { createSession, canMeasureFromMaillon } from '../session.js?v=12';
+import { ORDERS } from '../linemodel.js?v=12';
 
 let unsub = null;
 
@@ -49,6 +49,7 @@ export async function renderSetup(root, ctx) {
       </div>
 
       ${wing.caution ? `<div class="note warn" style="margin-top:12px">${icon.warn}<span>${esc(wing.caution)}</span></div>` : ''}
+      ${size?.rowNote ? `<div class="note" style="margin-top:12px">${icon.info}<span>${esc(size.rowNote)} — A and B on the A riser, C and D on the B riser.</span></div>` : ''}
       <div id="needs" ${ready ? 'hidden' : ''}>
         <div class="note warn" style="margin-top:14px">${icon.warn}<span>
           No published check lengths for size ${esc(sizeKey)}${size?.reason ? ` (${esc(size.reason)})` : ''}.
