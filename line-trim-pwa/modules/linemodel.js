@@ -32,14 +32,21 @@ export const sideLabel = side => (SIDES.find(s => s.id === side)?.label || side)
  *   "1A15"  -> { level: 1,    riser:'A',  index: 15 }   Advance <level><riser><index>,
  *                                                        level 1 = canopy attachment
  *   "K2"    -> { level: null, riser:'K',  index: 2 }
+ *   "A1b"   -> { level: null, riser:'A',  index: 1, sub:'b' }  Skywalk's split points:
+ *                                                        a1a / a1b are the two ends of
+ *                                                        one top line, side by side
  */
 export function parseLineId(id) {
-  const m = /^(\d*)([A-Za-z]+)(\d+)$/.exec(String(id).trim());
-  if (!m) return { level: null, riser: String(id), index: 0 };
+  const m = /^(\d*)([A-Za-z]+?)(\d+)([a-z]?)$/.exec(String(id).trim());
+  if (!m) return { level: null, riser: String(id), index: 0, sub: '', pos: 0 };
+  const index = Number(m[3]);
   return {
     level: m[1] === '' ? null : Number(m[1]),
     riser: m[2].toUpperCase(),
-    index: Number(m[3]),
+    index,
+    sub: m[4],
+    // span position: a split point's "b" end sits just outboard of its "a" end
+    pos: index + (m[4] ? (m[4].charCodeAt(0) - 97) * 0.4 : 0),
   };
 }
 
@@ -67,7 +74,7 @@ export function groupLines(lineIds) {
       riser,
       label: RISER_LABEL[riser] || riser,
       trimmable: isTrimmableRiser(riser),
-      lineIds: byRiser.get(riser).sort((a, b) => parseLineId(a).index - parseLineId(b).index),
+      lineIds: byRiser.get(riser).sort((a, b) => parseLineId(a).pos - parseLineId(b).pos),
     }));
 }
 
@@ -128,15 +135,14 @@ function orderLines(lineIds, mains, mode, ribs) {
     // walk the real span: every line on a rib, front to back, then the next rib out
     const rank = id => RISER_ORDER.indexOf(parseLineId(id).riser);
     return [...lineIds].sort((a, b) =>
-      (ribs[a] ?? 999) - (ribs[b] ?? 999) || rank(a) - rank(b) || parseLineId(a).index - parseLineId(b).index);
+      (ribs[a] ?? 999) - (ribs[b] ?? 999) || rank(a) - rank(b) || parseLineId(a).pos - parseLineId(b).pos);
   }
   if (mode === 'columns') {
     const maxIndex = Math.max(...lineIds.map(id => parseLineId(id).index), 0);
     const out = [];
     for (let i = 1; i <= maxIndex; i++) {
       for (const g of groups) {
-        const hit = g.lineIds.find(id => parseLineId(id).index === i);
-        if (hit) out.push(hit);
+        out.push(...g.lineIds.filter(id => parseLineId(id).index === i));
       }
     }
     // anything with a non-numeric id still needs measuring

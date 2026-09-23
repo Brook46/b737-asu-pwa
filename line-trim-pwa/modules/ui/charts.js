@@ -11,8 +11,8 @@
 // uses ink tokens. Every chart has a legend or title naming its series and a
 // table elsewhere on the page holds every value, so hover only enhances.
 
-import { parseLineId } from '../linemodel.js?v=13';
-import { signed } from './dom.js?v=13';
+import { parseLineId } from '../linemodel.js?v=14';
+import { signed } from './dom.js?v=14';
 
 const ROWS = ['A', 'B', 'C', 'D', 'E'];
 const NS = 'http://www.w3.org/2000/svg';
@@ -72,7 +72,7 @@ export function trimProfile({ lines, ribs, tol, yMax, title }) {
   const W = 340, H = 190, L = 38, R = 22, T = 10, B = 26;
   const pw = W - L - R, ph = H - T - B;
   const structural = lines.filter(l => ROWS.includes(l.riser));
-  const xOf = l => (ribs && ribs[l.lineId] != null ? ribs[l.lineId] : parseLineId(l.lineId).index);
+  const xOf = l => (ribs && ribs[l.lineId] != null ? ribs[l.lineId] : parseLineId(l.lineId).pos);
   const xs = structural.map(xOf);
   const x0 = Math.min(...xs, 1), x1 = Math.max(...xs, x0 + 1);
   const sx = v => L + ((v - x0) / (x1 - x0)) * pw;

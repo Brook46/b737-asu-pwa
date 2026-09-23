@@ -1,10 +1,10 @@
 // library.js — the wing library: built-in manufacturer data (data/wings/*.json)
 // plus wings the pilot added from their own sheet (localStorage).
 
-import { customGliders } from './store.js?v=13';
+import { customGliders } from './store.js?v=14';
 
 const SIZE_ORDER = ['XXS', 'XS', 'S', 'SM', 'MS', 'M', 'ML', 'L', 'XL', 'XXL'];
-export const sizeRank = k => (/^\d+(\.\d+)?$/.test(k) ? 100 + Number(k) : SIZE_ORDER.indexOf(k));
+export const sizeRank = k => (/^\d+(\.\d+)?\+?$/.test(k) ? 100 + parseFloat(k) : SIZE_ORDER.indexOf(k));   // "70+": Skywalk's weight sizes
 export const CLASSES = ['EN A', 'EN B', 'EN C', 'EN D', 'CCC', 'Tandem'];
 
 let indexPromise = null;

@@ -53,6 +53,12 @@ Works offline once loaded — take-off rarely has signal.
    - **angle of incidence** per section;
    - details: reference choice, left/right per main, every reading.
 
+   - **Report — views & table**: a printable report (Print / PDF, or save the file)
+     with the glider, serial and owner, the verdict, the wing drawn **from below, from
+     the front and from the side** with every line coloured by how far it is off (the
+     side view shows each row's average and the resulting trim tilt, exaggerated), the
+     fix list, and a table of every line — position (main, rib or place from centre),
+     target, left and right reading and difference, and L − R.
    - **Save** — give the check a name and the date it was measured, plus notes.
 5. **Your checks** (clock icon) — every saved check, grouped by wing and size, newest
    first. Rename, re-date or delete; tick two of the same wing and **Compare** to see
@@ -79,16 +85,26 @@ Every number comes from a manufacturer-published **manual / check** table:
 
 | Class | Wings |
 |---|---|
-| EN A | BGD Anda, BGD Magic, Niviuk Koyot 6, Niviuk Koyot 6 P, Ozone Alta GT |
-| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6 |
-| EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2, Niviuk Artik 7 P, Niviuk Artik R 2, Ozone Alpina 5, Ozone Delta 5, Ozone Lyght |
-| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeno 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT |
+| EN A | BGD Anda, BGD Magic, Niviuk Koyot 6, Niviuk Koyot 6 P, Ozone Alta GT, Skywalk Masala 4, Skywalk Mescal 7 |
+| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6, Skywalk Arak 2, Skywalk Arak Air 2, Skywalk Pace |
+| EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2, Niviuk Artik 7 P, Niviuk Artik R 2, Ozone Alpina 5, Ozone Delta 5, Ozone Lyght, Skywalk Mint, Skywalk Sage |
+| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeno 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT, Skywalk Poison 4, Skywalk X-Alps 6 |
 | CCC | Ozone Enzo 3 (from its CCC manual line check — no brake lengths) |
 | By size | Niviuk Kode 2 P (EN A–D), Ozone Ultralite 5 (EN A–C) |
-| Tandem | BGD Dual 2, Niviuk Takoo 6, Ozone Magnum 4, Ozone SwiftMax 2, Ozone Wisp 2 |
+| Tandem | BGD Dual 2, Niviuk Takoo 6, Ozone Magnum 4, Ozone SwiftMax 2, Ozone Wisp 2, Skywalk Join't 5 |
 | Load-tested only | Niviuk Jester (EN 926-1) |
 
-37 wings, 172 sizes ready to measure. Every 2024-or-later wing from Ozone and Niviuk
+47 wings, 220 sizes ready to measure. Filter the list by brand and by class.
+
+**Skywalk** publishes a Line Data PDF per model (skywalk.info → Downloads → Line
+length): total line length including risers to the lower sail, at 5 daN, brakes from
+the knot at the handle — read by `scripts/skywalk-pdf.py`. Skywalk's own point names
+are kept, including the a/b ends of split top lines (A1a, A1b).
+
+**Advance** delivers its "Total line length" sheets only by email (my.advance.swiss);
+the app includes what the pilot has fetched (OMEGA ULS). The 2024+ models — Alpha 8,
+Alpha 8 DLS, Sigma 12 DLS, Theta ULS, Pi 4 ULS, Tau DLS — are ready to add from those
+emails. Every 2024-or-later wing from Ozone and Niviuk
 that publishes check lengths is in; each carries any caution about its source on the
 setup screen (e.g. Ozone's Alpina 5 and Delta 5 files are identical; SwiftMax 2 and
 Wisp 2 tables aren't labelled manual or production).

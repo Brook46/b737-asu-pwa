@@ -333,6 +333,85 @@
    ]
   },
   {
+   "id": "skywalk-masala4",
+   "brand": "Skywalk",
+   "model": "Masala 4",
+   "wingClass": "EN A",
+   "year": 2024,
+   "liners": null,
+   "category": "Lightweight",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "70+",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "80+",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "95+",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "105+",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "120",
+     "ready": true,
+     "lines": 63
+    }
+   ]
+  },
+  {
+   "id": "skywalk-mescal7",
+   "brand": "Skywalk",
+   "model": "Mescal 7",
+   "wingClass": "EN A",
+   "year": 2026,
+   "liners": null,
+   "category": "School",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "75",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "115",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "135",
+     "ready": true,
+     "lines": 55
+    }
+   ]
+  },
+  {
    "id": "bgd-base-3",
    "brand": "BGD",
    "model": "Base 3",
@@ -635,6 +714,112 @@
      "key": "XL",
      "ready": true,
      "lines": 63
+    }
+   ]
+  },
+  {
+   "id": "skywalk-arak2",
+   "brand": "Skywalk",
+   "model": "Arak 2",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": null,
+   "category": "High-B / XC",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "75",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "115",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "135",
+     "ready": true,
+     "lines": 62
+    }
+   ]
+  },
+  {
+   "id": "skywalk-arak-air2",
+   "brand": "Skywalk",
+   "model": "Arak Air 2",
+   "wingClass": "EN B",
+   "year": 2025,
+   "liners": null,
+   "category": "Lightweight XC",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "70+",
+     "ready": true,
+     "lines": 66
+    },
+    {
+     "key": "80+",
+     "ready": true,
+     "lines": 66
+    },
+    {
+     "key": "95+",
+     "ready": true,
+     "lines": 66
+    },
+    {
+     "key": "105+",
+     "ready": true,
+     "lines": 66
+    },
+    {
+     "key": "115+",
+     "ready": true,
+     "lines": 66
+    }
+   ]
+  },
+  {
+   "id": "skywalk-pace",
+   "brand": "Skywalk",
+   "model": "Pace",
+   "wingClass": "EN B",
+   "year": 2025,
+   "liners": null,
+   "category": null,
+   "caution": false,
+   "sizes": [
+    {
+     "key": "70+",
+     "ready": true,
+     "lines": 106
+    },
+    {
+     "key": "85+",
+     "ready": true,
+     "lines": 106
+    },
+    {
+     "key": "95+",
+     "ready": true,
+     "lines": 106
     }
    ]
   },
@@ -945,6 +1130,85 @@
    ]
   },
   {
+   "id": "skywalk-mint",
+   "brand": "Skywalk",
+   "model": "Mint",
+   "wingClass": "EN C",
+   "year": 2024,
+   "liners": null,
+   "category": null,
+   "caution": false,
+   "sizes": [
+    {
+     "key": "75",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "115",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "125",
+     "ready": true,
+     "lines": 65
+    }
+   ]
+  },
+  {
+   "id": "skywalk-sage",
+   "brand": "Skywalk",
+   "model": "Sage",
+   "wingClass": "EN C",
+   "year": 2025,
+   "liners": null,
+   "category": null,
+   "caution": false,
+   "sizes": [
+    {
+     "key": "75",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 65
+    },
+    {
+     "key": "115",
+     "ready": true,
+     "lines": 65
+    }
+   ]
+  },
+  {
    "id": "advance-omega-uls",
    "brand": "Advance",
    "model": "OMEGA ULS",
@@ -1174,6 +1438,75 @@
    ]
   },
   {
+   "id": "skywalk-poison4",
+   "brand": "Skywalk",
+   "model": "Poison 4",
+   "wingClass": "EN D",
+   "year": 2025,
+   "liners": null,
+   "category": "Two-liner XC",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "115",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "125",
+     "ready": true,
+     "lines": 56
+    }
+   ]
+  },
+  {
+   "id": "skywalk-x-alps6",
+   "brand": "Skywalk",
+   "model": "X-Alps 6",
+   "wingClass": "EN D",
+   "year": 2025,
+   "liners": null,
+   "category": "Two-liner · X-Alps race",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "75",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "85",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "95",
+     "ready": true,
+     "lines": 55
+    },
+    {
+     "key": "105",
+     "ready": true,
+     "lines": 55
+    }
+   ]
+  },
+  {
    "id": "ozone-enzo-3",
    "brand": "Ozone",
    "model": "Enzo 3",
@@ -1327,6 +1660,33 @@
      "key": "37",
      "ready": true,
      "lines": 90
+    }
+   ]
+  },
+  {
+   "id": "skywalk-joint5",
+   "brand": "Skywalk",
+   "model": "Join't 5",
+   "wingClass": "Tandem",
+   "year": 2025,
+   "liners": null,
+   "category": "Tandem · EN B",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "200",
+     "ready": true,
+     "lines": 99
+    },
+    {
+     "key": "220",
+     "ready": true,
+     "lines": 99
+    },
+    {
+     "key": "240",
+     "ready": true,
+     "lines": 99
     }
    ]
   }

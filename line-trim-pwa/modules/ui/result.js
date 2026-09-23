@@ -1,16 +1,16 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { gliderCard } from './glider.js?v=13';
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=13';
-import { icon, statusIcon } from './icons.js?v=13';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=13';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=13';
-import { startRecheck, goto, progress } from '../session.js?v=13';
-import { sessions, draft } from '../store.js?v=13';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=13';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=13';
-import { methodFor } from './guide.js?v=13';
-import { checkDate } from './history.js?v=13';
+import { gliderCard } from './glider.js?v=14';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=14';
+import { icon, statusIcon } from './icons.js?v=14';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=14';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=14';
+import { startRecheck, goto, progress } from '../session.js?v=14';
+import { sessions, draft } from '../store.js?v=14';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=14';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=14';
+import { methodFor } from './guide.js?v=14';
+import { checkDate } from './history.js?v=14';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;
@@ -48,6 +48,7 @@ export function renderResult(root, ctx) {
       <div id="save-panel"></div>
       <div class="actions">
         <button class="btn primary" id="save">${icon.save} ${s.savedAt ? 'Saved — edit' : 'Save'}</button>
+        <button class="btn primary" id="report">${icon.download} Report — views &amp; table</button>
         <button class="btn" id="share">${icon.share} Share</button>
         <button class="btn soft" id="csv">${icon.download} CSV</button>
         <button class="btn soft" id="json">${icon.download} JSON</button>
@@ -67,6 +68,7 @@ export function renderResult(root, ctx) {
 
     $('#guide', wrap).addEventListener('click', () => ctx.goto('guide'));
     $('#save', wrap).addEventListener('click', () => openSave($('#save-panel', wrap)));
+    $('#report', wrap).addEventListener('click', () => ctx.goto('report'));
     $('#csv', wrap).addEventListener('click', () => exportCsv(s));
     $('#json', wrap).addEventListener('click', () => exportJson(s));
     $('#share', wrap).addEventListener('click', async () => {

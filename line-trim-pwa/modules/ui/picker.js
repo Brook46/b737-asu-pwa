@@ -1,14 +1,15 @@
 // ui/picker.js — screen 1: which wing, which size.
 
-import { $, $$, el, esc, clear, classBadge } from './dom.js?v=13';
-import { icon } from './icons.js?v=13';
-import { listWings, CLASSES } from '../library.js?v=13';
-import { prefs, draft } from '../store.js?v=13';
-import { progress } from '../session.js?v=13';
+import { $, $$, el, esc, clear, classBadge } from './dom.js?v=14';
+import { icon } from './icons.js?v=14';
+import { listWings, CLASSES } from '../library.js?v=14';
+import { prefs, draft } from '../store.js?v=14';
+import { progress } from '../session.js?v=14';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
-  ...CLASSES.filter(c => c !== 'CCC').map(c => ({ id: c, label: c })),
+  ...CLASSES.map(c => ({ id: c, label: c })),
+  { id: 'other', label: 'Other' },        // e.g. load-tested only
   { id: 'yours', label: 'Yours' },
 ];
 
@@ -23,7 +24,8 @@ export async function renderPicker(root, ctx) {
       <div class="search"><span>${icon.search}</span>
         <input class="input" id="q" type="search" placeholder="Search brand or model" autocomplete="off" aria-label="Search wings">
       </div>
-      <div class="chips" id="filters" role="toolbar" aria-label="Filter by class" style="margin-top:10px"></div>
+      <div class="chips" id="brands" role="toolbar" aria-label="Filter by brand" style="margin-top:10px"></div>
+      <div class="chips" id="filters" role="toolbar" aria-label="Filter by class"></div>
       <div class="wing-list" id="list" style="margin-top:6px"><p class="empty">Loading wings…</p></div>
       <button class="btn block soft" id="own" style="margin-top:14px">${icon.upload} Add a wing from your own sheet</button>
     </div>`);
@@ -62,25 +64,39 @@ export async function renderPicker(root, ctx) {
 
   // a wing whose class spans sizes ("EN A–D") shows under every class it covers
   function inClass(w, f) {
+    if (f === 'all') return true;
+    if (f === 'yours') return !!w.custom;
+    if (f === 'other') return !CLASSES.some(c => inClass(w, c));
     if (w.wingClass === f) return true;
     const r = /^EN ([A-D])–([A-D])$/.exec(w.wingClass || ''), c = /^EN ([A-D])$/.exec(f);
     return !!(r && c && c[1] >= r[1] && c[1] <= r[2]);
   }
+  const inBrand = (w, b) => b === 'all' || w.brand === b;
 
   let filter = 'all';
-  const filters = $('#filters', wrap);
-  for (const f of FILTERS) {
-    const n = f.id === 'all' ? wings.length : f.id === 'yours' ? wings.filter(w => w.custom).length
-            : wings.filter(w => inClass(w, f.id)).length;
-    if (!n && f.id !== 'all') continue;
-    const c = el(`<button class="chip" aria-pressed="${f.id === filter}" data-f="${esc(f.id)}">${esc(f.label)} <span class="muted">${n}</span></button>`);
-    c.addEventListener('click', () => {
-      filter = f.id;
-      $$('.chip', filters).forEach(x => x.setAttribute('aria-pressed', String(x.dataset.f === filter)));
-      draw();
-    });
-    filters.appendChild(c);
+  let brand = p.brandFilter && wings.some(w => w.brand === p.brandFilter) ? p.brandFilter : 'all';
+  const brands = [...new Set(wings.map(w => w.brand))].sort((a, b) => a.localeCompare(b));
+
+  // two rows of chips: brand, then class — they combine, and each row's counts
+  // are for what the other row has selected
+  function paintFilters() {
+    const br = $('#brands', wrap), cl = $('#filters', wrap);
+    clear(br); clear(cl);
+    for (const b of ['all', ...brands]) {
+      const n = wings.filter(w => inBrand(w, b) && inClass(w, filter)).length;
+      const c = el(`<button class="chip" aria-pressed="${b === brand}">${esc(b === 'all' ? 'All brands' : b)} <span class="muted">${n}</span></button>`);
+      c.addEventListener('click', () => { brand = b; prefs.set({ brandFilter: b === 'all' ? null : b }); paintFilters(); draw(); });
+      br.appendChild(c);
+    }
+    for (const f of FILTERS) {
+      const n = wings.filter(w => inBrand(w, brand) && inClass(w, f.id)).length;
+      if (!n && f.id !== 'all' && f.id !== filter) continue;
+      const c = el(`<button class="chip" aria-pressed="${f.id === filter}" data-f="${esc(f.id)}">${esc(f.id === 'all' ? 'All classes' : f.label)} <span class="muted">${n}</span></button>`);
+      c.addEventListener('click', () => { filter = f.id; paintFilters(); draw(); });
+      cl.appendChild(c);
+    }
   }
+  paintFilters();
 
   const q = $('#q', wrap);
   q.addEventListener('input', draw);
@@ -90,8 +106,7 @@ export async function renderPicker(root, ctx) {
     const list = $('#list', wrap);
     clear(list);
     const term = q.value.trim().toLowerCase();
-    const shown = wings.filter(w =>
-      (filter === 'all' || (filter === 'yours' ? w.custom : inClass(w, filter)))
+    const shown = wings.filter(w => inBrand(w, brand) && inClass(w, filter)
       && (!term || `${w.brand} ${w.model} ${w.wingClass} ${w.category || ''}`.toLowerCase().includes(term)));
     if (!shown.length) {
       list.appendChild(el(`<p class="empty">No wing matches. Add yours from its manufacturer sheet ↓</p>`));

@@ -591,3 +591,7 @@ svg.lineplan .half-label { fill: var(--ink-3); font-size: 8px; font-weight: 700;
 .glider-card .btn { flex: none; }
 .glider-form { margin-top: 10px; display: grid; gap: 2px; }
 .glider-form .row { gap: 8px; }
+
+/* ------------------------------------------------------------- report screen */
+.report-bar { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; padding: 8px 0; background: var(--bg); }
+.report-frame { display: block; width: 100%; min-height: 70vh; border: 1px solid var(--line); border-radius: 12px; background: #fff; }

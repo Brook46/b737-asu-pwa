@@ -14,8 +14,8 @@
 // Cascade levels come from the manufacturer sheet when it names them (BGD:
 // a1 → AMU1 → AM1 → AR1); otherwise a point joins its main, the main its riser.
 
-import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=13';
-import { esc } from './dom.js?v=13';
+import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=14';
+import { esc } from './dom.js?v=14';
 
 const W = 360, H = 300, CX = 180, HALF = 172, CY = 150, CH = 74;
 const ROW = { A: 0.12, B: 0.3, C: 0.55, D: 0.72, E: 0.84, K: 1, BR: 1 };
@@ -28,14 +28,15 @@ const EDGE_UP = le(0) - 6, EDGE_DOWN = te(0) + 6;
 const RISER_NAME = { A: 'A riser', B: 'B riser', C: 'C riser', D: 'D riser', E: 'E riser', K: 'Brake handle', BR: 'Brake handle', ST: 'Stabilo' };
 const isBrake = r => r === 'K' || r === 'BR';
 
-function spanOf(lineIds, ribs) {
+/** Span position 0 (centre) … 1 (tip) per point: its rib, else its number. */
+export function spanOf(lineIds, ribs) {
   const hasRibs = ribs && lineIds.some(id => ribs[id] != null);
   if (hasRibs) {
     const max = Math.max(...lineIds.map(id => ribs[id] ?? 0));
     return { max, u: id => (ribs[id] != null ? Math.min(0.97, (ribs[id] + 0.5) / (max + 1.5)) : 0.95), ribs: true };
   }
-  const maxIdx = Math.max(...lineIds.map(id => parseLineId(id).index), 1);
-  return { maxIdx, u: id => 0.05 + (parseLineId(id).index - 1) / Math.max(1, maxIdx - 1) * 0.88, ribs: false };
+  const maxIdx = Math.max(...lineIds.map(id => parseLineId(id).pos), 1);
+  return { maxIdx, u: id => 0.05 + (parseLineId(id).pos - 1) / Math.max(1, maxIdx - 1) * 0.88, ribs: false };
 }
 
 /**

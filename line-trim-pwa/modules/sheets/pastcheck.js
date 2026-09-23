@@ -7,11 +7,11 @@
 // Column roles are guessed from headers and contents, and always shown to the
 // pilot to confirm — a swapped left/right would invert every asymmetry.
 
-import { detectLineTable } from '../importer.js?v=13';
+import { detectLineTable } from '../importer.js?v=14';
 
 const LEFT_RE  = /^(l|left|links?|li|gauche|g|izq(uierda)?|sx|sinistra)$/i;
 const RIGHT_RE = /^(r|right|rechts?|re|droite|d|der(echa)?|dx|destra)$/i;
-const ID_RE    = /^\d?\s?[A-Za-z]{1,3}\s?\d{1,2}$/;
+const ID_RE    = /^\d?\s?[A-Za-z]{1,3}\s?\d{1,2}[a-z]?$/;
 
 const clean = s => String(s ?? '').trim();
 function toMm(s) {
@@ -34,7 +34,8 @@ export function idNormaliser(expectedIds = []) {
   const set = new Set(expectedIds);
   const prefixed = expectedIds.length && expectedIds.every(id => /^\d[A-Z]\d+$/.test(id));
   return raw => {
-    const id = clean(raw).replace(/\s+/g, '').toUpperCase();
+    // row letter upper-case, a split-point suffix lower-case: "a1b" → "A1b"
+    const id = clean(raw).replace(/\s+/g, '').toUpperCase().replace(/(\d)([A-Z])$/, (_, d, t) => d + t.toLowerCase());
     if (!ID_RE.test(id)) return null;
     if (set.has(id)) return id;
     if (prefixed && /^[A-Z]\d+$/.test(id) && set.has(expectedIds[0][0] + id)) return expectedIds[0][0] + id;
