@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=133" />
+  <link rel="stylesheet" href="./app.css?v=136" />
 </head>
 <body>
   <header class="app-header">
@@ -655,6 +655,12 @@
                    aria-label="Blank strip at the top of the sheet for a clip" />
             <output id="print-clip-out">12mm</output>
           </div>
+          <div class="print-size">
+            <label for="print-edge">Edge margin</label>
+            <input type="range" id="print-edge" min="0" max="10" step="1" value="5"
+                   aria-label="Safe margin on all four paper edges" />
+            <output id="print-edge-out">5mm</output>
+          </div>
           <div class="print-flags">
             <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
             <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
@@ -663,12 +669,16 @@
           <p class="muted small print-note">
             Four cards per A4. Two-sided printing is chosen in your printer’s own
             dialog — ticking “Both sides” here just puts cards on the back too.
+            Keep <strong>Edge margin</strong> at 5mm unless your printer does
+            borderless: below that the bottom pair fall into the strip most
+            printers can’t print, and the driver shifts the whole page to
+            compensate.
           </p>
           <button id="print-go" class="btn primary print-go">Print</button>
         </div>
         <!-- Right: live preview of a single card, at true proportions -->
         <div class="print-preview-wrap">
-          <div class="print-preview-label muted small">Preview — one card (¼ of an A4)</div>
+          <div class="print-preview-label muted small">Preview — the whole A4 sheet, bottom pair upside down for folding</div>
           <div id="print-preview" class="print-preview"></div>
         </div>
       </div>
@@ -680,6 +690,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=133"></script>
+  <script type="module" src="./app.js?v=136"></script>
 </body>
 </html>

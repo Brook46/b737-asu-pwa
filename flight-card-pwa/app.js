@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=133';
-import * as dataCard from './modules/data-card.js?v=133';
-import * as checklist from './modules/checklist.js?v=133';
-import * as speeches from './modules/speeches.js?v=133';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=133';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=133';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=133';
+import * as storage from './modules/storage.js?v=136';
+import * as dataCard from './modules/data-card.js?v=136';
+import * as checklist from './modules/checklist.js?v=136';
+import * as speeches from './modules/speeches.js?v=136';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=136';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=136';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=136';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1109,6 +1109,9 @@ function paintPrintSheet() {
   const clipMm = Math.round(Number(cfg.clipMm) || 0);
   $('print-clip').value = String(clipMm);
   $('print-clip-out').textContent = clipMm + 'mm';
+  const edgeMm = Math.round(Number(cfg.edgeMm ?? 5));
+  $('print-edge').value = String(edgeMm);
+  $('print-edge-out').textContent = edgeMm + 'mm';
   $('print-checklist').checked = cfg.checklist;
   $('print-blank').checked     = cfg.blank;
   $('print-both').checked      = cfg.bothSides;
@@ -1116,21 +1119,33 @@ function paintPrintSheet() {
   paintPrintPreview(cfg);
 }
 
-// Render the real card, then scale it to fit the preview column. Scaling (not
-// a separate small layout) is what keeps preview and paper identical.
+// Render the whole A4 sheet, then scale it to fit the preview column. Scaling
+// (not a separate small layout) is what keeps preview and paper identical.
+//
+// This used to preview a single card, which meant the two upside-down cards —
+// the half that actually goes wrong — were the one thing you could never see
+// before committing paper to it. Now the preview is the page.
 function paintPrintPreview(cfg) {
   const host = $('print-preview');
-  host.innerHTML = printMod.cardHtml(cfg);
-  const card = host.firstElementChild;
-  if (!card) return;
+  // Always one sheet: the back side is the same card again, so a second page
+  // in the preview would just be a taller picture of the same information.
+  host.innerHTML = printMod.sheetsHtml({ ...cfg, bothSides: false });
+  const sheet = host.firstElementChild;
+  if (!sheet) return;
   requestAnimationFrame(() => {
     const avail = host.clientWidth - 20;          // minus .print-preview padding
-    const natural = card.offsetWidth || 1;
-    const scale = Math.min(1, avail / natural);
-    card.style.transform = `scale(${scale})`;
+    const natural = sheet.offsetWidth || 1;
+    // Fit the height as well as the width. A full A4 at 1:1 is ~1120px tall,
+    // which on a desktop is wide enough not to need scaling but tall enough to
+    // push the Print button off the dialog — and the point of showing the
+    // whole page is seeing all four cards at once.
+    const maxH = Math.max(320, Math.round(window.innerHeight * 0.66));
+    const naturalH = sheet.offsetHeight || 1;
+    const scale = Math.min(1, avail / natural, maxH / naturalH);
+    sheet.style.transform = `scale(${scale})`;
     // A scaled element still reserves its unscaled box, so pull the host's
     // height back in or the sheet grows a large empty gap underneath.
-    host.style.height = (card.offsetHeight * scale + 20) + 'px';
+    host.style.height = (sheet.offsetHeight * scale + 20) + 'px';
   });
 }
 
@@ -1358,12 +1373,18 @@ $('print-textsize').addEventListener('input', () => {
   paintPrintPreview(printMod.getConfig());
 });
 
-// Clip margin. Only the readout changes live — the strip lives on the SHEET,
-// not the card, so the single-card preview can't show it.
+// Both margins live on the SHEET, not the card. They used to change only the
+// readout because the preview was a single card and had nowhere to show them;
+// now that the preview IS the sheet, both repaint it.
+$('print-edge').addEventListener('input', () => {
+  const mm = Number($('print-edge').value) || 0;
+  $('print-edge-out').textContent = mm + 'mm';
+  paintPrintPreview(printMod.setEdgeMm(mm));
+});
 $('print-clip').addEventListener('input', () => {
   const mm = Number($('print-clip').value) || 0;
   $('print-clip-out').textContent = mm + 'mm';
-  printMod.setClipMm(mm);
+  paintPrintPreview(printMod.setClipMm(mm));
 });
 
 $('print-go').addEventListener('click', () => {

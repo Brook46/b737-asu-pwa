@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=133';
+import * as storage from './storage.js?v=136';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -57,6 +57,7 @@ const DEFAULT_CFG = {
   deleted: [],          // built-in boxes the pilot removed, so they stay gone
   textScale: 1,         // printed text size, 1 = the design size
   clipMm: 12,           // blank strip at the TOP of the sheet, for a clip
+  edgeMm: 5,            // safe margin on all four edges — see setEdgeMm
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
   bothSides: false,
@@ -107,9 +108,11 @@ export function getConfig() {
     }
     const ts = Number(raw.textScale);
     const cm = Number(raw.clipMm);
+    const em = Number(raw.edgeMm);
     return {
       textScale: Number.isFinite(ts) ? Math.min(1.6, Math.max(0.75, ts)) : 1,
       clipMm:    Number.isFinite(cm) ? Math.min(30, Math.max(0, cm)) : 12,
+      edgeMm:    Number.isFinite(em) ? Math.min(10, Math.max(0, em)) : 5,
       order,
       off:       Array.isArray(raw.off) ? raw.off.filter(id => known.has(id)) : [],
       labels,
@@ -188,6 +191,29 @@ export function setClipMm(v) {
   const cfg = getConfig();
   const n = Number(v);
   cfg.clipMm = Number.isFinite(n) ? Math.min(30, Math.max(0, n)) : 12;
+  setConfig(cfg);
+  return cfg;
+}
+
+// Safe margin on ALL FOUR edges.
+//
+// This is the fix for "the upside-down half prints wrong and the text moves".
+// The sheet used to run the cards right out to the paper: 0 mm at the sides
+// and 2 mm at the bottom, against 12 mm of clip strip at the top. Almost no
+// printer can lay ink within ~4-5 mm of the edge, so the bottom row — the
+// rotated one — sat inside the unprintable band while the top row had a
+// comfortable cushion. Faced with ink it cannot place, a driver (AirPrint
+// especially) shrinks the page to fit its printable area, which slides
+// everything across and opens a white gap along one edge. Raising the text
+// size pushed the field block further out and tipped it over that line, which
+// is why it looked like a font-size bug.
+//
+// 5 mm clears the band on essentially every consumer printer. 0 mm restores
+// the old edge-to-edge behaviour for a borderless printer.
+export function setEdgeMm(v) {
+  const cfg = getConfig();
+  const n = Number(v);
+  cfg.edgeMm = Number.isFinite(n) ? Math.min(10, Math.max(0, n)) : 5;
   setConfig(cfg);
   return cfg;
 }
@@ -310,7 +336,9 @@ export function cardHtml(cfg = getConfig()) {
 export function sheetsHtml(cfg = getConfig()) {
   const card = cardHtml(cfg);
   const clip = Math.max(0, Number(cfg.clipMm) || 0);
-  const sheet = `<div class="pr-sheet" style="--clip:${clip}mm">${card}${card}${card}${card}</div>`;
+  const edge = Math.max(0, Number(cfg.edgeMm ?? 5));
+  const sheet = `<div class="pr-sheet" style="--clip:${clip}mm;--edge:${edge}mm">`
+    + `${card}${card}${card}${card}</div>`;
   return cfg.bothSides ? sheet + sheet : sheet;
 }
 

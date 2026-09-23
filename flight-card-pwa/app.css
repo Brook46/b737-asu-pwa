@@ -2235,7 +2235,17 @@ body { background: transparent; }
   display: flex; justify-content: center;
   padding: 10px;
 }
-.print-preview .pr-card { transform-origin: top center; }
+/* top center, matching the host's justify-content: a scaled element still
+   reserves its unscaled box, so centring the box and scaling about its centre
+   is what keeps the sheet centred at any scale.
+
+   flex:0 0 auto is load-bearing. .print-preview is a flex container, so the
+   sheet was a flex ITEM and shrank to the column width before the transform
+   ever ran — 210mm of width squashed into ~110mm while the height stayed at a
+   fixed 297mm. The preview was showing tall, narrow cards that were not the
+   shape of the thing being printed. Let it keep its natural A4 box and leave
+   all the sizing to the scale(). */
+.print-preview .pr-sheet { transform-origin: top center; flex: 0 0 auto; }
 
 @media (max-width: 640px) {
   .print-cols { flex-direction: column; }
@@ -2296,7 +2306,10 @@ body { background: transparent; }
   overflow: hidden;
   font-size: calc(2.5mm * var(--prs, 1)); line-height: 1.35;
 }
-.pr-cl-sec { break-inside: avoid; margin-bottom: 1.2mm; }
+/* No break-inside:avoid here. The card is a fixed-height, overflow-hidden box,
+   so a section can never usefully move to "the next page" — but a paged-media
+   engine honouring the rule will still shove it down and leave a gap behind. */
+.pr-cl-sec { margin-bottom: 1.2mm; }
 .pr-cl-name {
   font-weight: 700; font-size: calc(2.5mm * var(--prs, 1)); letter-spacing: .05em;
   border-bottom: 0.2mm solid #000;
@@ -2325,13 +2338,24 @@ body { background: transparent; }
 .pr-sheet {
   width: 210mm; height: 297mm;
   box-sizing: border-box;
-  padding: var(--clip, 0mm) 0 2mm;
+  /* --edge is a safe margin on ALL FOUR edges; --clip adds to it at the top
+     only, for the kneeboard clip. The old rule ran the cards out to 0mm at the
+     sides and 2mm at the bottom, which put the rotated bottom row inside the
+     band no printer can lay ink in — see setEdgeMm() in print.js for why that
+     showed up as the text shifting and a gap appearing. */
+  padding: calc(var(--edge, 5mm) + var(--clip, 0mm)) var(--edge, 5mm) var(--edge, 5mm);
   display: grid;
-  grid-template-columns: 105mm 105mm;
+  /* Fractions, not fixed 105mm: the columns now share whatever the margins
+     leave, so changing the edge margin can never push a card off the sheet. */
+  grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   background: #fff;
+  /* A rounding overflow of a fraction of a pixel against an exactly page-sized
+     box is enough to spill a near-blank strip onto a page of its own, which on
+     a duplex run lands on the back of the sheet. Clip instead. */
+  overflow: hidden;
 }
-.pr-sheet > .pr-card { height: 100%; }
+.pr-sheet > .pr-card { width: 100%; height: 100%; }
 /* Bottom row rotated 180°: fold the sheet across the middle and both halves
    read the right way up from their own side. Rotation is visual only — the
    grid cell, the cut guides and the page geometry are untouched. */
@@ -2348,7 +2372,7 @@ body { background: transparent; }
   body { background: #fff !important; margin: 0; padding: 0; }
   body::before { display: none !important; }
   #print-root { display: block !important; }
-  .pr-sheet { break-after: page; page-break-after: always; }
+  .pr-sheet { break-after: page; page-break-after: always; break-inside: avoid; }
   .pr-sheet:last-child { break-after: auto; page-break-after: auto; }
   /* Keep the rules and boxes solid — browsers drop backgrounds by default,
      but these are borders, so they survive. Force colour anyway for the
