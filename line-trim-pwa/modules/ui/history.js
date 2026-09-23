@@ -1,10 +1,11 @@
 // ui/history.js — every saved check, grouped by wing; compare, export, restore.
 
-import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=9';
-import { icon, statusIcon } from './icons.js?v=9';
-import { sessions } from '../store.js?v=9';
-import { analyse } from '../trim.js?v=9';
-import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=9';
+import { gliderIdentity } from './glider.js?v=10';
+import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=10';
+import { icon, statusIcon } from './icons.js?v=10';
+import { sessions } from '../store.js?v=10';
+import { analyse } from '../trim.js?v=10';
+import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=10';
 
 // Checks saved before the left/right + v3 model can't be re-analysed.
 const isCurrent = s => s && s.v === 3 && Array.isArray(s.mains) && Array.isArray(s.sides);
@@ -85,6 +86,7 @@ export function renderHistory(root, ctx) {
       <label class="pick" title="Select to compare"><input type="checkbox" ${isCurrent(s) ? '' : 'disabled'}><span></span></label>
       <div class="grow open">
         <b>${esc(checkName(s))}</b>
+        ${gliderIdentity(s) ? `<div class="small">${esc(gliderIdentity(s))}</div>` : ''}
         <div class="small muted">${fmtDate(checkDate(s))} · ${Object.keys(s.measured || {}).length} readings${speed ? ' · ' + speed : ''}${s.imported ? ' · imported' : ''}</div>
         <div style="margin-top:6px">${status}</div>
         ${s.notes ? `<div class="small" style="margin-top:6px;color:var(--ink-2)">${esc(s.notes)}</div>` : ''}
@@ -122,10 +124,12 @@ export function renderHistory(root, ctx) {
     const chosen = list.filter(s => picked.has(s.id));
     bar.hidden = !chosen.length;
     if (!chosen.length) return;
-    const same = chosen.every(s => s.gliderId === chosen[0].gliderId && s.sizeKey === chosen[0].sizeKey);
+    const sn = s => (s.serial || '').trim().toUpperCase();
+    const same = chosen.every(s => s.gliderId === chosen[0].gliderId && s.sizeKey === chosen[0].sizeKey)
+      && !(chosen.length === 2 && sn(chosen[0]) && sn(chosen[1]) && sn(chosen[0]) !== sn(chosen[1]));
     bar.innerHTML = chosen.length < 2 ? `<span>Pick one more check of the same wing to compare.</span>`
       : chosen.length > 2 ? `<span>Pick exactly two checks.</span>`
-      : !same ? `<span>Those are different wings or sizes — pick two of the same.</span>`
+      : !same ? `<span>Those are different gliders — pick two checks of the same wing (same model, size and serial).</span>`
       : `<span>Compare these two checks</span><button class="btn primary sm" id="go">Compare ${icon.chevron}</button>`;
     bar.querySelector('#go')?.addEventListener('click', () => {
       const [a, b] = chosen.sort((x, y) => checkDate(x).localeCompare(checkDate(y)));

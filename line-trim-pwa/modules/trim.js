@@ -21,7 +21,7 @@
 import {
   parseLineId, isTrimmableRiser, isStructuralRiser, isBrakeRiser,
   sectionsFor, sideOf, lineOf, keyFor, sideLabel, SIDES,
-} from './linemodel.js?v=9';
+} from './linemodel.js?v=10';
 
 const median = xs => {
   if (!xs.length) return 0;
@@ -264,6 +264,8 @@ function turnTendency(asymmetry, tolInd) {
 
 function buildVerdict({ recommendations, asymmetry, turn, globalOffsetMm,
                         globalWithinTol, integrity, measured, total, tolInd, worstPair }) {
+  // nothing measured is not "in trim": say so instead of a green verdict
+  if (!measured) return { level: 'none', title: 'No readings yet', detail: `Measure the lines — ${total} readings — and the result builds up here as you go.` };
   const partial = measured < total;
   const inspect = recommendations.filter(r => r.action === 'inspect');
   const adjust = recommendations.filter(r => r.action === 'shorten' || r.action === 'lengthen');

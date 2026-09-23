@@ -1,7 +1,7 @@
 // session.js — a measuring session: the plan, both sides, what's measured, the cursor.
 
-import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=9';
-import { uid } from './store.js?v=9';
+import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=10';
+import { uid } from './store.js?v=10';
 
 /**
  * Where the tape starts. Manufacturer check lengths here are "lines + risers"
@@ -57,6 +57,10 @@ export function createSession(wing, sizeKey, opts = {}) {
     orderMode,
     sides: ['L', 'R'],
     mains,
+    cascade: size.cascade || null,   // point -> [middle…, main] where the sheet names it
+    risers: size.risers || null,
+    serial: opts.serial || '',       // the glider's serial number, as on its label
+    owner: opts.owner || '',
     ribs: size.ribs || null,
     loops: size.loops || [],
     published,               // manufacturer check lengths, as printed

@@ -1,13 +1,14 @@
 // ui/setup.js — screen 2: how you'll measure, and the laser.
 
-import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=9';
-import { icon } from './icons.js?v=9';
-import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=9';
-import { prefs, draft } from '../store.js?v=9';
-import * as laser from '../ble/laser.js?v=9';
-import { DRIVER_LIST } from '../ble/drivers.js?v=9';
-import { createSession, canMeasureFromMaillon } from '../session.js?v=9';
-import { ORDERS } from '../linemodel.js?v=9';
+import { rememberedGlider } from './glider.js?v=10';
+import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=10';
+import { icon } from './icons.js?v=10';
+import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=10';
+import { prefs, draft } from '../store.js?v=10';
+import * as laser from '../ble/laser.js?v=10';
+import { DRIVER_LIST } from '../ble/drivers.js?v=10';
+import { createSession, canMeasureFromMaillon } from '../session.js?v=10';
+import { ORDERS } from '../linemodel.js?v=10';
 
 let unsub = null;
 
@@ -150,7 +151,8 @@ export async function renderSetup(root, ctx) {
     const refOffsetMm = Number(offset.value) || 0;
     prefs.set({ measureFrom, orderMode: order.value, tolIndMm: Number(tol.value), refOffsetMm,
                 lastWing: { id: wing.id, size: sizeKey } });
-    ctx.session = createSession(wing, sizeKey, { measureFrom, orderMode: order.value, tolIndMm: Number(tol.value), refOffsetMm });
+    ctx.session = createSession(wing, sizeKey, { measureFrom, orderMode: order.value, tolIndMm: Number(tol.value), refOffsetMm,
+                                                 ...rememberedGlider(wing.id, sizeKey) });
     draft.set(ctx.session);
     ctx.goto('measure');
   });

@@ -1,12 +1,13 @@
 // ui/compare.js — two checks of the same wing, side by side: what moved.
 
-import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=9';
-import { icon } from './icons.js?v=9';
-import { sessions } from '../store.js?v=9';
-import { analyse } from '../trim.js?v=9';
-import { SIDES, sideLabel } from '../linemodel.js?v=9';
-import { trimProfile, profileScale } from './charts.js?v=9';
-import { checkDate, checkName } from './history.js?v=9';
+import { gliderIdentity } from './glider.js?v=10';
+import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=10';
+import { icon } from './icons.js?v=10';
+import { sessions } from '../store.js?v=10';
+import { analyse } from '../trim.js?v=10';
+import { SIDES, sideLabel } from '../linemodel.js?v=10';
+import { trimProfile, profileScale } from './charts.js?v=10';
+import { checkDate, checkName } from './history.js?v=10';
 
 const days = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
 
@@ -29,7 +30,8 @@ export function renderCompare(root, ctx) {
 
   const wrap = el(`<div>
     <button class="btn ghost sm" id="back" style="margin-left:-8px">${icon.back} Your checks</button>
-    <div class="row" style="margin:6px 0 4px">${classBadge(B.wingClass || '')}<b class="grow">${esc(B.brand)} ${esc(B.model)} · ${esc(B.sizeKey)}</b></div>
+    <div class="row" style="margin:6px 0 4px">${classBadge(B.wingClass || '')}<b class="grow">${esc(B.brand)} ${esc(B.model)} · ${esc(B.sizeKey)}</b>
+      <span class="small muted">${esc(gliderIdentity(B) || gliderIdentity(A))}</span></div>
     <div class="compare-heads">
       <div class="card flat"><span class="small muted">Before</span><b>${esc(checkName(A))}</b><span class="small">${esc(checkDate(A))}</span></div>
       <div class="arrow">${icon.chevron}<span class="small muted">${days(checkDate(A), checkDate(B))} days</span></div>

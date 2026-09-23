@@ -1,15 +1,16 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=9';
-import { icon, statusIcon } from './icons.js?v=9';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=9';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=9';
-import { startRecheck, goto, progress } from '../session.js?v=9';
-import { sessions, draft } from '../store.js?v=9';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=9';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=9';
-import { methodFor } from './guide.js?v=9';
-import { checkDate } from './history.js?v=9';
+import { gliderCard } from './glider.js?v=10';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=10';
+import { icon, statusIcon } from './icons.js?v=10';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=10';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=10';
+import { startRecheck, goto, progress } from '../session.js?v=10';
+import { sessions, draft } from '../store.js?v=10';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=10';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=10';
+import { methodFor } from './guide.js?v=10';
+import { checkDate } from './history.js?v=10';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;
@@ -27,9 +28,8 @@ export function renderResult(root, ctx) {
     const pr = progress(s);
 
     const wrap = el(`<div>
-      <div class="row" style="margin-bottom:6px">${classBadge(s.wingClass)}
-        <b class="grow">${esc(s.brand)} ${esc(s.model)} · ${esc(s.sizeKey)}</b>
-        <span class="small muted">${pr.done}/${pr.total} readings</span></div>
+      <div id="glider"></div>
+      <div class="small muted" style="margin:-2px 0 8px">${pr.done}/${pr.total} readings</div>
       <div id="verdict"></div>
       <div class="tiles" id="tiles"></div>
       <div class="row" style="margin:26px 0 10px"><h2 style="margin:0" class="grow">Your trim plan</h2>
@@ -55,6 +55,7 @@ export function renderResult(root, ctx) {
       <button class="btn ghost block" id="new" style="margin-top:6px">Start a new check</button>
     </div>`);
     root.appendChild(wrap);
+    $('#glider', wrap).appendChild(gliderCard(s, { onChange: () => { if (s.savedAt) sessions.save(s); else draft.set(s); } }));
 
     renderVerdict($('#verdict', wrap), a);
     renderTiles($('#tiles', wrap), a);
@@ -180,6 +181,7 @@ export function renderResult(root, ctx) {
 
     const active = steps.filter(st => st.tasks.length);
     if (!active.length) {
+      if (!a.measuredCount) { host.appendChild(el(`<p class="muted">The plan appears once lines are measured.</p>`)); return; }
       host.appendChild(el(`<div class="allgood">${icon.ok} Nothing to adjust — every main is within ±${s.tolIndMm} mm on both sides.</div>`));
       return;
     }

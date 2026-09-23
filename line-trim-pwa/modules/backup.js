@@ -4,9 +4,9 @@
 // added from their own sheets) and restores into another browser or device.
 // CSV is for spreadsheets: one row per reading across every check.
 
-import { sessions, customGliders } from './store.js?v=9';
-import { analyse } from './trim.js?v=9';
-import { download } from './exporter.js?v=9';
+import { sessions, customGliders } from './store.js?v=10';
+import { analyse } from './trim.js?v=10';
+import { download } from './exporter.js?v=10';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -21,13 +21,13 @@ export function exportAllJson() {
 
 export function exportAllCsv() {
   const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const rows = [['check', 'measured_on', 'wing', 'size', 'measured_from', 'side', 'line', 'main',
+  const rows = [['check', 'measured_on', 'wing', 'size', 'serial', 'owner', 'measured_from', 'side', 'line', 'main',
                  'target_mm', 'reading_mm', 'delta_mm', 'relative_mm', 'status', 'source']];
   for (const s of sessions.all()) {
     let a; try { a = analyse(s); } catch { continue; }
     for (const l of a.lines) {
       rows.push([s.name || '', s.measuredOn || new Date(s.savedAt || s.createdAt).toISOString().slice(0, 10),
-        `${s.brand} ${s.model}`, s.sizeKey, s.measureFrom || 'riser', l.side, l.lineId, l.mainId || '',
+        `${s.brand} ${s.model}`, s.sizeKey, s.serial || '', s.owner || '', s.measureFrom || 'riser', l.side, l.lineId, l.mainId || '',
         l.target, l.measured, l.delta, l.rel, l.implausible ? 'implausible' : l.status, l.source]);
     }
   }

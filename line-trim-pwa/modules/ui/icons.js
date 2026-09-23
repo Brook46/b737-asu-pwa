@@ -23,6 +23,7 @@ export const icon = {
   save: svg('<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z"/><path d="M8 3v5h7"/><path d="M8 21v-7h8v7"/>'),
   download: svg('<path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>'),
   redo: svg('<path d="M20 12a8 8 0 1 1-2.3-5.7L20 8"/><path d="M20 3v5h-5"/>'),
+  edit: svg('<path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>'),
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
   ruler: svg('<path d="m3 17 14-14 4 4L7 21Z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/>'),
   sliders: svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
@@ -30,5 +31,5 @@ export const icon = {
 };
 
 /** Status icon for good / warn / bad. */
-export const statusIcon = s => (s === 'good' ? icon.ok : s === 'warn' ? icon.warn : icon.x);
+export const statusIcon = s => (s === 'good' ? icon.ok : s === 'warn' ? icon.warn : s === 'none' ? icon.info : icon.x);
 export const statusWord = s => (s === 'good' ? 'in tolerance' : s === 'warn' ? 'check' : 'out');

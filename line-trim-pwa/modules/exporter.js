@@ -1,8 +1,8 @@
 // exporter.js — session download + shareable text summary.
 
-import { analyse, aoiNote } from './trim.js?v=9';
-import { sideLabel } from './linemodel.js?v=9';
-import { signed } from './ui/dom.js?v=9';
+import { analyse, aoiNote } from './trim.js?v=10';
+import { sideLabel } from './linemodel.js?v=10';
+import { signed } from './ui/dom.js?v=10';
 
 export function download(name, mime, text) {
   const blob = new Blob([text], { type: mime });
@@ -33,6 +33,7 @@ export function exportCsv(s) {
                l.delta, l.rel, l.status, l.source, l.implausible ? 'yes' : '']);
   }
   rows.push([]);
+  rows.push(['glider', `${s.brand} ${s.model}`, 'size', s.sizeKey, 'serial', s.serial || '', 'owner', s.owner || '']);
   rows.push(['reference', a.refLabel, 'ref_delta_mm', a.refDelta]);
   rows.push(['global_offset_mm', a.globalOffsetMm, 'tolerance_mm', a.tolInd]);
   rows.push([]);
@@ -57,6 +58,7 @@ export function sessionSummaryText(s, a = analyse(s)) {
   const L = [];
   const name = m => `${m.sideLabel} ${m.label}`;
   L.push(`Line trim — ${s.brand} ${s.model} ${s.sizeKey}`);
+  if (s.serial || s.owner) L.push([s.serial ? `Serial ${s.serial}` : '', s.owner ? `Owner ${s.owner}` : ''].filter(Boolean).join(' · '));
   L.push(new Date(s.savedAt || s.createdAt).toLocaleString());
   L.push(`Tension ${s.tensionKg} kg · tol ±${a.tolInd} mm · measured from the ${s.measureFrom === 'maillon' ? 'maillons' : 'riser bottom'} · zero offset ${signed(s.refOffsetMm || 0)}`);
   L.push(`Reference: ${a.refLabel} (${signed(a.refDelta)})`);

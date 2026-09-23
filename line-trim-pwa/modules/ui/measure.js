@@ -4,19 +4,20 @@
 // value close to the target is saved and the next line comes up by itself. The
 // "Saved … · Redo" chip jumps straight back to re-enter the last value.
 
-import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=9';
-import { icon, statusIcon } from './icons.js?v=9';
-import * as laser from '../ble/laser.js?v=9';
+import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=10';
+import { icon, statusIcon } from './icons.js?v=10';
+import * as laser from '../ble/laser.js?v=10';
 import {
   currentKey, walkKeys, record, clearLine, calibrate, rawToLength,
   progress, move, goto, endRecheck,
-} from '../session.js?v=9';
-import { renderPlanform } from './planform.js?v=9';
-import { gauge } from './charts.js?v=9';
-import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=9';
-import { targetFor } from '../trim.js?v=9';
-import { createCapture } from '../capture.js?v=9';
-import { prefs, draft } from '../store.js?v=9';
+} from '../session.js?v=10';
+import { renderLinePlan } from './lineplan.js?v=10';
+import { gliderCard } from './glider.js?v=10';
+import { gauge } from './charts.js?v=10';
+import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=10';
+import { targetFor } from '../trim.js?v=10';
+import { createCapture } from '../capture.js?v=10';
+import { prefs, draft } from '../store.js?v=10';
 
 let unsub = null;
 const TYPED_PLAUSIBLE_MM = 600;   // a typed value this close to target may auto-advance
@@ -40,6 +41,7 @@ export function renderMeasure(root, ctx) {
 
   const wrap = el(`
     <div>
+      <div id="glider"></div>
       <div id="recheck"></div>
       <div class="measure-top"><div class="seg" id="sides" role="tablist" aria-label="Side"></div></div>
       <div class="planform-wrap" id="plan"></div>
@@ -76,6 +78,7 @@ export function renderMeasure(root, ctx) {
     </div>`);
   root.appendChild(wrap);
 
+  $('#glider', wrap).appendChild(gliderCard(s, { compact: true, onChange: () => save() }));
   const input = $('#len', wrap);
   const laserOn = () => laser.getState().status === 'connected';
 
@@ -133,11 +136,11 @@ export function renderMeasure(root, ctx) {
       seg.appendChild(b);
     }
 
-    // planform
+    // line plan
     const statusByKey = {};
     for (const k of s.order) statusByKey[k] = statusFor(k, s.measured[k]) || 'todo';
-    renderPlanform($('#plan', wrap), {
-      lineIds: Object.keys(s.nominal), ribs: s.ribs, activeKey: key, statusByKey,
+    renderLinePlan($('#plan', wrap), {
+      lineIds: Object.keys(s.nominal), mains: s.mains, cascade: s.cascade, ribs: s.ribs, activeKey: key, statusByKey,
       onPick: k => { clearTimers(); commit(); goto(s, k); reset(); draw(); },
     });
 

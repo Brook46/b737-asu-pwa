@@ -21,10 +21,16 @@ Works offline once loaded — take-off rarely has signal.
      brakes are unchanged. Only offered when the sheet states the riser length.
 
    Connect the laser, or stay on manual entry.
-3. **Measure** — the wing is drawn from above with a dot on every attachment point,
-   placed on its **real rib** when the sheet lists rib positions. Each line shows its
-   target, a live deviation gauge (green band = tolerance), and where it sits
-   (side · row · main · rib). Tap any dot to jump to it; swipe the card to move.
+3. **Measure** — the glider (model, size, and its **serial number and owner**, which
+   you can add or edit right there) heads the screen. Below it is a **line plan drawn
+   like a manufacturer's rigging diagram**: the canopy with its ribs, every line drawn
+   from its attachment point down its cascade to the riser — front lines up to the A
+   riser, rear lines down to theirs, the side's brakes on the other half down to the
+   handle. The line being measured is traced end to end (e.g. A10 → AMU9 → AM5 → AML1
+   → AR3 → A riser), so it's clear which physical line to put the laser on. Cascade
+   levels come from the sheet when it names them (BGD); otherwise point → main →
+   riser. Tap any point to jump to it; swipe the card to move. The last serial and
+   owner used for a model + size are offered on the next check.
    **Auto-next** (on by default, toggle on the card): a laser shot is entered and the
    card moves on by itself — no Next to press. Both kinds of meter work: *single-shot*
    meters (Bosch, Leica, the IR40 in single mode) are taken the moment a shot arrives

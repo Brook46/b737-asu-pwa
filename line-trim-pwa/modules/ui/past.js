@@ -1,13 +1,14 @@
 // ui/past.js — add a check measured before: pick the wing, load the readings,
 // confirm which column is which side, name and date it.
 
-import { $, el, esc, clear, toast, fmtMm } from './dom.js?v=9';
-import { icon } from './icons.js?v=9';
-import { listWings, loadWing, isReady, expectedLineIds } from '../library.js?v=9';
-import { readSheetFile } from '../sheets/importsheet.js?v=9';
-import { gridFromText, mapColumns, readingsFrom } from '../sheets/pastcheck.js?v=9';
-import { createSession, record, canMeasureFromMaillon, progress } from '../session.js?v=9';
-import { sessions } from '../store.js?v=9';
+import { $, el, esc, clear, toast, fmtMm } from './dom.js?v=10';
+import { icon } from './icons.js?v=10';
+import { listWings, loadWing, isReady, expectedLineIds } from '../library.js?v=10';
+import { readSheetFile } from '../sheets/importsheet.js?v=10';
+import { gridFromText, mapColumns, readingsFrom } from '../sheets/pastcheck.js?v=10';
+import { createSession, record, canMeasureFromMaillon, progress } from '../session.js?v=10';
+import { sessions } from '../store.js?v=10';
+import { rememberedGlider } from './glider.js?v=10';
 
 export async function renderPast(root, ctx) {
   clear(root);
@@ -91,6 +92,10 @@ export async function renderPast(root, ctx) {
     box.appendChild(el(`<div class="row wrap" style="margin-top:12px">
       <label class="field grow"><span>Name</span><input class="input" id="name" placeholder="e.g. Workshop check before the comp"></label>
       <label class="field"><span>Measured on</span><input class="input" id="date" type="date" value="${new Date().toISOString().slice(0, 10)}"></label></div>`));
+    const known = rememberedGlider(wing.id, sizeSel.value);
+    box.appendChild(el(`<div class="row wrap">
+      <label class="field grow"><span>Serial number (optional)</span><input class="input" id="serial" autocomplete="off" autocapitalize="characters" value="${esc(known.serial)}"></label>
+      <label class="field grow"><span>Owner (optional)</span><input class="input" id="owner" value="${esc(known.owner)}"></label></div>`));
     box.appendChild(el(`<label class="field"><span>Notes (optional)</span><input class="input" id="notes" placeholder="who measured, tension, anything unusual"></label>`));
     const save = el(`<button class="btn primary block big">${icon.save} Save this check</button>`);
     box.appendChild(save);
@@ -126,6 +131,8 @@ export async function renderPast(root, ctx) {
       s.name = box.querySelector('#name').value.trim() || `${wing.model} ${sizeSel.value} — imported`;
       s.measuredOn = date;
       s.notes = box.querySelector('#notes').value.trim();
+      s.serial = box.querySelector('#serial').value.trim();
+      s.owner = box.querySelector('#owner').value.trim();
       s.imported = true;
       s.savedAt = Date.now();
       sessions.save(s);

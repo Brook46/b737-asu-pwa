@@ -7,7 +7,7 @@
 // Column roles are guessed from headers and contents, and always shown to the
 // pilot to confirm — a swapped left/right would invert every asymmetry.
 
-import { detectLineTable } from '../importer.js?v=9';
+import { detectLineTable } from '../importer.js?v=10';
 
 const LEFT_RE  = /^(l|left|links?|li|gauche|g|izq(uierda)?|sx|sinistra)$/i;
 const RIGHT_RE = /^(r|right|rechts?|re|droite|d|der(echa)?|dx|destra)$/i;
