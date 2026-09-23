@@ -1009,6 +1009,43 @@
    ]
   },
   {
+   "id": "ozone-zeno-2",
+   "brand": "Ozone",
+   "model": "Zeno 2",
+   "wingClass": "EN D",
+   "year": null,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 56
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 56
+    }
+   ]
+  },
+  {
    "id": "ozone-zeolite",
    "brand": "Ozone",
    "model": "Zeolite",
@@ -1133,6 +1170,48 @@
      "key": "ML",
      "ready": true,
      "lines": 62
+    }
+   ]
+  },
+  {
+   "id": "ozone-enzo-3",
+   "brand": "Ozone",
+   "model": "Enzo 3",
+   "wingClass": "CCC",
+   "year": null,
+   "liners": 2,
+   "category": "Competition (CCC)",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XXS",
+     "ready": true,
+     "lines": 53
+    },
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 53
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 53
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 53
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 53
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 53
     }
    ]
   },

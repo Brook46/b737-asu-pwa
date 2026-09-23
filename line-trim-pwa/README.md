@@ -82,12 +82,13 @@ Every number comes from a manufacturer-published **manual / check** table:
 | EN A | BGD Anda, BGD Magic, Niviuk Koyot 6, Niviuk Koyot 6 P, Ozone Alta GT |
 | EN B | BGD Base 3, BGD Epic 2, BGD Punk, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6 |
 | EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2, Niviuk Artik 7 P, Niviuk Artik R 2, Ozone Alpina 5, Ozone Delta 5, Ozone Lyght |
-| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT |
+| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeno 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT |
+| CCC | Ozone Enzo 3 (from its CCC manual line check — no brake lengths) |
 | By size | Niviuk Kode 2 P (EN A–D), Ozone Ultralite 5 (EN A–C) |
 | Tandem | BGD Dual 2, Niviuk Takoo 6, Ozone Magnum 4, Ozone SwiftMax 2, Ozone Wisp 2 |
 | Load-tested only | Niviuk Jester (EN 926-1) |
 
-35 wings, 161 sizes ready to measure. Every 2024-or-later wing from Ozone and Niviuk
+37 wings, 172 sizes ready to measure. Every 2024-or-later wing from Ozone and Niviuk
 that publishes check lengths is in; each carries any caution about its source on the
 setup screen (e.g. Ozone's Alpina 5 and Delta 5 files are identical; SwiftMax 2 and
 Wisp 2 tables aren't labelled manual or production).
