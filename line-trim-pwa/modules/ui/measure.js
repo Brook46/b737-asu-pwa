@@ -4,20 +4,20 @@
 // value close to the target is saved and the next line comes up by itself. The
 // "Saved … · Redo" chip jumps straight back to re-enter the last value.
 
-import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=10';
-import { icon, statusIcon } from './icons.js?v=10';
-import * as laser from '../ble/laser.js?v=10';
+import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=11';
+import { icon, statusIcon } from './icons.js?v=11';
+import * as laser from '../ble/laser.js?v=11';
 import {
   currentKey, walkKeys, record, clearLine, calibrate, rawToLength,
   progress, move, goto, endRecheck,
-} from '../session.js?v=10';
-import { renderLinePlan } from './lineplan.js?v=10';
-import { gliderCard } from './glider.js?v=10';
-import { gauge } from './charts.js?v=10';
-import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=10';
-import { targetFor } from '../trim.js?v=10';
-import { createCapture } from '../capture.js?v=10';
-import { prefs, draft } from '../store.js?v=10';
+} from '../session.js?v=11';
+import { renderLinePlan } from './lineplan.js?v=11';
+import { gliderCard } from './glider.js?v=11';
+import { gauge } from './charts.js?v=11';
+import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=11';
+import { targetFor } from '../trim.js?v=11';
+import { createCapture } from '../capture.js?v=11';
+import { prefs, draft } from '../store.js?v=11';
 
 let unsub = null;
 const TYPED_PLAUSIBLE_MM = 600;   // a typed value this close to target may auto-advance

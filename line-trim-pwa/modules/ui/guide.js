@@ -8,8 +8,8 @@
 // connector, so the guide says to tie it and re-measure that main — the app then
 // shows exactly what it took up.
 
-import { $, el, clear } from './dom.js?v=10';
-import { icon } from './icons.js?v=10';
+import { $, el, clear } from './dom.js?v=11';
+import { icon } from './icons.js?v=11';
 
 // ---- drawing kit ------------------------------------------------------------
 // Shared gradients live in one zero-size <svg> on the page (not display:none —

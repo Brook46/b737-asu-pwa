@@ -1,13 +1,13 @@
 // ui/compare.js — two checks of the same wing, side by side: what moved.
 
-import { gliderIdentity } from './glider.js?v=10';
-import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=10';
-import { icon } from './icons.js?v=10';
-import { sessions } from '../store.js?v=10';
-import { analyse } from '../trim.js?v=10';
-import { SIDES, sideLabel } from '../linemodel.js?v=10';
-import { trimProfile, profileScale } from './charts.js?v=10';
-import { checkDate, checkName } from './history.js?v=10';
+import { gliderIdentity } from './glider.js?v=11';
+import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=11';
+import { icon } from './icons.js?v=11';
+import { sessions } from '../store.js?v=11';
+import { analyse } from '../trim.js?v=11';
+import { SIDES, sideLabel } from '../linemodel.js?v=11';
+import { trimProfile, profileScale } from './charts.js?v=11';
+import { checkDate, checkName } from './history.js?v=11';
 
 const days = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
 

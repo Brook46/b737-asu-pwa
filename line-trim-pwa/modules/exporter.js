@@ -1,8 +1,8 @@
 // exporter.js — session download + shareable text summary.
 
-import { analyse, aoiNote } from './trim.js?v=10';
-import { sideLabel } from './linemodel.js?v=10';
-import { signed } from './ui/dom.js?v=10';
+import { analyse, aoiNote } from './trim.js?v=11';
+import { sideLabel } from './linemodel.js?v=11';
+import { signed } from './ui/dom.js?v=11';
 
 export function download(name, mime, text) {
   const blob = new Blob([text], { type: mime });

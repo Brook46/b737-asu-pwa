@@ -21,7 +21,7 @@
 import {
   parseLineId, isTrimmableRiser, isStructuralRiser, isBrakeRiser,
   sectionsFor, sideOf, lineOf, keyFor, sideLabel, SIDES,
-} from './linemodel.js?v=10';
+} from './linemodel.js?v=11';
 
 const median = xs => {
   if (!xs.length) return 0;
