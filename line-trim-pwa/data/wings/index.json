@@ -1,0 +1,407 @@
+{
+ "built": "2026-09-23",
+ "wings": [
+  {
+   "id": "bgd-anda",
+   "brand": "BGD",
+   "model": "Anda",
+   "wingClass": "EN A",
+   "year": 2023,
+   "liners": 3,
+   "category": "School / hike & fly",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 50
+    }
+   ]
+  },
+  {
+   "id": "bgd-magic",
+   "brand": "BGD",
+   "model": "Magic",
+   "wingClass": "EN A",
+   "year": 2019,
+   "liners": 3,
+   "category": "School",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 59
+    },
+    {
+     "key": "ML",
+     "ready": false,
+     "lines": 0
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 59
+    }
+   ]
+  },
+  {
+   "id": "bgd-base-3",
+   "brand": "BGD",
+   "model": "Base 3",
+   "wingClass": "EN B",
+   "year": 2024,
+   "liners": 3,
+   "category": "High-B / XC",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 69
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 69
+    },
+    {
+     "key": "M",
+     "ready": false,
+     "lines": 0
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 69
+    }
+   ]
+  },
+  {
+   "id": "bgd-epic-2",
+   "brand": "BGD",
+   "model": "Epic 2",
+   "wingClass": "EN B",
+   "year": 2022,
+   "liners": 3,
+   "category": "Low-B / progression",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 57
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 57
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 57
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 57
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 57
+    }
+   ]
+  },
+  {
+   "id": "bgd-punk",
+   "brand": "BGD",
+   "model": "Punk",
+   "wingClass": "EN B",
+   "year": 2018,
+   "liners": 3,
+   "category": "Low-B / progression",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 60
+    }
+   ]
+  },
+  {
+   "id": "ozone-rush-6",
+   "brand": "Ozone",
+   "model": "Rush 6",
+   "wingClass": "EN B",
+   "year": 2021,
+   "liners": 3,
+   "category": "High-B / XC",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 63
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 63
+    }
+   ]
+  },
+  {
+   "id": "bgd-cure-2",
+   "brand": "BGD",
+   "model": "Cure 2",
+   "wingClass": "EN C",
+   "year": 2020,
+   "liners": 3,
+   "category": "Sport XC",
+   "sizes": [
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 69
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 69
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 69
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 69
+    }
+   ]
+  },
+  {
+   "id": "bgd-cure-3",
+   "brand": "BGD",
+   "model": "Cure 3",
+   "wingClass": "EN C",
+   "year": 2025,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "sizes": [
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 60
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 60
+    }
+   ]
+  },
+  {
+   "id": "bgd-lynx-2",
+   "brand": "BGD",
+   "model": "Lynx 2",
+   "wingClass": "EN C",
+   "year": 2023,
+   "liners": 3,
+   "category": "Light XC",
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 73
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 73
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 73
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 73
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 73
+    }
+   ]
+  },
+  {
+   "id": "advance-omega-uls",
+   "brand": "Advance",
+   "model": "OMEGA ULS",
+   "wingClass": "EN D",
+   "year": 2023,
+   "liners": 3,
+   "category": "Lightweight competition / X-Alps",
+   "sizes": [
+    {
+     "key": "21",
+     "ready": false,
+     "lines": 0
+    },
+    {
+     "key": "22",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "23",
+     "ready": true,
+     "lines": 50
+    },
+    {
+     "key": "24",
+     "ready": false,
+     "lines": 0
+    }
+   ]
+  },
+  {
+   "id": "bgd-diva-2",
+   "brand": "BGD",
+   "model": "Diva 2",
+   "wingClass": "EN D",
+   "year": 2024,
+   "liners": 2,
+   "category": "Two-liner competition / XC",
+   "sizes": [
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "M",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 62
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 62
+    }
+   ]
+  },
+  {
+   "id": "bgd-dual-2",
+   "brand": "BGD",
+   "model": "Dual 2",
+   "wingClass": "Tandem",
+   "year": null,
+   "liners": 4,
+   "category": "Tandem",
+   "sizes": [
+    {
+     "key": "38",
+     "ready": false,
+     "lines": 0
+    },
+    {
+     "key": "40",
+     "ready": true,
+     "lines": 90
+    },
+    {
+     "key": "42",
+     "ready": true,
+     "lines": 91
+    }
+   ]
+  }
+ ]
+}

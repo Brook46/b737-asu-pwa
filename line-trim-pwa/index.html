@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1210" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Line Trim</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+  <script>
+    // apply a saved theme before first paint so there is no flash
+    try { const t = JSON.parse(localStorage.getItem('pgtrim.prefs') || '{}').theme; if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+  <link rel="stylesheet" href="./app.css?v=7">
+</head>
+<body>
+  <div id="app">
+    <header class="appbar">
+      <a class="brandmark" href="#wings" id="home" aria-label="Line Trim home">
+        <span id="logo"></span>
+        <span><b>Line Trim</b><small>paraglider line check</small></span>
+      </a>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="btn-history" aria-label="Saved checks" title="Saved checks"></button>
+      <button class="icon-btn" id="btn-theme" aria-label="Switch light / dark" title="Switch light / dark"></button>
+    </header>
+
+    <nav class="stepper" id="stepper" aria-label="Progress">
+      <button data-step="wings">Wing</button>
+      <button data-step="setup">Setup</button>
+      <button data-step="measure">Measure</button>
+      <button data-step="result">Results</button>
+    </nav>
+
+    <main id="screen" aria-live="polite"></main>
+
+    <p class="disclaimer">
+      Not a certified measuring instrument. Line lengths affect airworthiness — if in doubt,
+      have a qualified workshop check your wing. Check lengths come from each manufacturer's
+      published sheet; their current sheet is always the authority.
+    </p>
+  </div>
+
+  <script type="module" src="./app.js?v=7"></script>
+</body>
+</html>
