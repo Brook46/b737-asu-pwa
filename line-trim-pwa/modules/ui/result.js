@@ -1,15 +1,15 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=8';
-import { icon, statusIcon } from './icons.js?v=8';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=8';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=8';
-import { startRecheck, goto, progress } from '../session.js?v=8';
-import { sessions, draft } from '../store.js?v=8';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=8';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=8';
-import { methodFor } from './guide.js?v=8';
-import { checkDate } from './history.js?v=8';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=9';
+import { icon, statusIcon } from './icons.js?v=9';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=9';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=9';
+import { startRecheck, goto, progress } from '../session.js?v=9';
+import { sessions, draft } from '../store.js?v=9';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=9';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=9';
+import { methodFor } from './guide.js?v=9';
+import { checkDate } from './history.js?v=9';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;

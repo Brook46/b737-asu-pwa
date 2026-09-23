@@ -416,6 +416,80 @@
    ]
   },
   {
+   "id": "ozone-zeolite-2",
+   "brand": "Ozone",
+   "model": "Zeolite 2",
+   "wingClass": "EN D",
+   "year": 2023,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 54
+    }
+   ]
+  },
+  {
+   "id": "ozone-zeolite-2-gt",
+   "brand": "Ozone",
+   "model": "Zeolite 2 GT",
+   "wingClass": "EN D",
+   "year": 2023,
+   "liners": 2,
+   "category": "Two-liner XC",
+   "caution": true,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 54
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 54
+    }
+   ]
+  },
+  {
    "id": "ozone-zeolite-gt",
    "brand": "Ozone",
    "model": "Zeolite GT",

@@ -6,8 +6,8 @@
 // from above, flying away from you). Taps pick the NEAREST dot, which keeps a
 // dense 70-point wingtip usable with a thumb.
 
-import { parseLineId, lineOf, sideOf } from '../linemodel.js?v=8';
-import { esc } from './dom.js?v=8';
+import { parseLineId, lineOf, sideOf } from '../linemodel.js?v=9';
+import { esc } from './dom.js?v=9';
 
 const W = 360, CX = 180, HALF = 164, TOP = 22;
 const ROW_Y = { A: 0.10, B: 0.30, C: 0.52, D: 0.70, E: 0.82, K: 0.96, BR: 0.96 };

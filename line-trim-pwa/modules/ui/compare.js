@@ -1,12 +1,12 @@
 // ui/compare.js — two checks of the same wing, side by side: what moved.
 
-import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=8';
-import { icon } from './icons.js?v=8';
-import { sessions } from '../store.js?v=8';
-import { analyse } from '../trim.js?v=8';
-import { SIDES, sideLabel } from '../linemodel.js?v=8';
-import { trimProfile, profileScale } from './charts.js?v=8';
-import { checkDate, checkName } from './history.js?v=8';
+import { $, el, esc, clear, signed, fmtMm, classBadge } from './dom.js?v=9';
+import { icon } from './icons.js?v=9';
+import { sessions } from '../store.js?v=9';
+import { analyse } from '../trim.js?v=9';
+import { SIDES, sideLabel } from '../linemodel.js?v=9';
+import { trimProfile, profileScale } from './charts.js?v=9';
+import { checkDate, checkName } from './history.js?v=9';
 
 const days = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
 

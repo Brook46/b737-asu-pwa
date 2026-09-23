@@ -1,10 +1,10 @@
 // ui/history.js — every saved check, grouped by wing; compare, export, restore.
 
-import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=8';
-import { icon, statusIcon } from './icons.js?v=8';
-import { sessions } from '../store.js?v=8';
-import { analyse } from '../trim.js?v=8';
-import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=8';
+import { $, $$, el, esc, clear, toast, signed, classBadge } from './dom.js?v=9';
+import { icon, statusIcon } from './icons.js?v=9';
+import { sessions } from '../store.js?v=9';
+import { analyse } from '../trim.js?v=9';
+import { exportAllJson, exportAllCsv, importBackup } from '../backup.js?v=9';
 
 // Checks saved before the left/right + v3 model can't be re-analysed.
 const isCurrent = s => s && s.v === 3 && Array.isArray(s.mains) && Array.isArray(s.sides);

@@ -59,9 +59,11 @@ Works offline once loaded — take-off rarely has signal.
    - **Export backup** (JSON — every check and your own wings; **Restore backup**
      merges it back, newer copy wins) and **Export CSV** (every reading of every
      check, one row each, for a spreadsheet).
-6. **Trimming guide** (i icon) — how to change a length (trim loops, larks head, an
-   extra turn, a knot in the end loop, brake lines) with drawings, and the order to
-   work in.
+6. **Trimming guide** (i icon) — how to change a length, each with a before → after
+   drawing (drawn the right way up: riser at the bottom, lines up to the wing) and
+   numbered steps: larks head, trim loops, an extra turn, a knot in the end loop,
+   **soft links** (how to open, adjust and re-close them, and when to replace one),
+   brake lines. Then the order to work in.
 
 The check in progress is saved on every reading — closing the app loses nothing.
 
@@ -74,15 +76,21 @@ Every number comes from a manufacturer-published **manual / check** table:
 | EN A | BGD Anda, BGD Magic |
 | EN B | BGD Base 3, BGD Epic 2, BGD Punk, Ozone Rush 6 |
 | EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2 |
-| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeolite, Ozone Zeolite GT* |
+| EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT |
 | Tandem | BGD Dual 2 |
 
-14 wings, 55 sizes ready to measure.
+16 wings, 65 sizes ready to measure.
 
 \* Ozone's Zeolite GT chart is the Zeolite chart with the outer B lines (B9–B17)
 blank and "Zeolite" headers; the app shows that caution on setup — check it against
 your GT's manual. Nova publishes no absolute line lengths (relative, via NOVA Trim
 Tuning), so Nova wings can't be listed; load an NTT report as a past check instead.
+
+\*\* Ozone publishes one set of inspection files for the Zeolite 2 and Zeolite 2 GT, all titled
+"Zeolite2 GT" (MS and ML chart sheets marked "preprod"); the chart matches Ozone's per-size
+manual line checks exactly. Both wings use it, each with a caution on setup. The chart gives
+lines + risers only, so these two are measured from the riser bottom; the sections follow
+Ozone's own check (lines 1–4, 5–8, 9–11, stabilo) with A+B at the front and C+D at the rear.
 
  BGD sheets also give the full cascade
 (top → middle → main), the rib of every attachment point, the riser length, and which

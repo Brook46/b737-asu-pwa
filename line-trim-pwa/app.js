@@ -1,19 +1,19 @@
 // app.js — shell, hash router, screen orchestration.
 
-import { $, $$ } from './modules/ui/dom.js?v=8';
-import { icon } from './modules/ui/icons.js?v=8';
-import { renderPicker } from './modules/ui/picker.js?v=8';
-import { renderSetup, stopSetup } from './modules/ui/setup.js?v=8';
-import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=8';
-import { renderResult } from './modules/ui/result.js?v=8';
-import { renderHistory } from './modules/ui/history.js?v=8';
-import { renderImport } from './modules/ui/import.js?v=8';
-import { renderCompare } from './modules/ui/compare.js?v=8';
-import { renderPast } from './modules/ui/past.js?v=8';
-import { renderGuide } from './modules/ui/guide.js?v=8';
-import { hideTip } from './modules/ui/charts.js?v=8';
-import { progress } from './modules/session.js?v=8';
-import { prefs, draft } from './modules/store.js?v=8';
+import { $, $$ } from './modules/ui/dom.js?v=9';
+import { icon } from './modules/ui/icons.js?v=9';
+import { renderPicker } from './modules/ui/picker.js?v=9';
+import { renderSetup, stopSetup } from './modules/ui/setup.js?v=9';
+import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=9';
+import { renderResult } from './modules/ui/result.js?v=9';
+import { renderHistory } from './modules/ui/history.js?v=9';
+import { renderImport } from './modules/ui/import.js?v=9';
+import { renderCompare } from './modules/ui/compare.js?v=9';
+import { renderPast } from './modules/ui/past.js?v=9';
+import { renderGuide } from './modules/ui/guide.js?v=9';
+import { hideTip } from './modules/ui/charts.js?v=9';
+import { progress } from './modules/session.js?v=9';
+import { prefs, draft } from './modules/store.js?v=9';
 
 const screen = $('#screen');
 const stepper = $('#stepper');
