@@ -71,11 +71,12 @@ Works offline once loaded — take-off rarely has signal.
    - **Export backup** (JSON — every check and your own wings; **Restore backup**
      merges it back, newer copy wins) and **Export CSV** (every reading of every
      check, one row each, for a spreadsheet).
-6. **Trimming guide** (i icon) — how to change a length, each with a before → after
-   drawing (drawn the right way up: riser at the bottom, lines up to the wing) and
-   numbered steps: larks head, trim loops, an extra turn, a knot in the end loop,
-   **soft links** (how to open, adjust and re-close them, and when to replace one),
-   brake lines. Then the order to work in.
+6. **Trimming guide** (i icon) — how line lengths are adjusted, following the PMA
+   inspection standard (Appendix B) and Ozone's manuals: loops on the maillon or soft
+   link, smallest first — open, one loop, lark's foot, turns around, lark's foot +
+   loop — each drawn on a quick-link as in the standard's photos, plus sewn trim
+   loops, line-to-line joints, soft links and brakes, the standard's measuring rules
+   and the order to work in.
 
 The check in progress is saved on every reading — closing the app loses nothing.
 

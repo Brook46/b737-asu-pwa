@@ -14,8 +14,8 @@
 // Cascade levels come from the manufacturer sheet when it names them (BGD:
 // a1 → AMU1 → AM1 → AR1); otherwise a point joins its main, the main its riser.
 
-import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=14';
-import { esc } from './dom.js?v=14';
+import { parseLineId, sideOf, lineOf } from '../linemodel.js?v=15';
+import { esc } from './dom.js?v=15';
 
 const W = 360, H = 300, CX = 180, HALF = 172, CY = 150, CH = 74;
 const ROW = { A: 0.12, B: 0.3, C: 0.55, D: 0.72, E: 0.84, K: 1, BR: 1 };

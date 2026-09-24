@@ -1,237 +1,183 @@
-// ui/guide.js — how to actually change a line's length, and the order to do it in.
+// ui/guide.js — how to change a line's length, and the order to do it in.
 //
-// Drawings are oriented as in flight: riser at the bottom, the connector
-// (maillon or soft link) above it, lines running UP to the wing. Each method is a
-// before → after pair so the change is visible, not described.
+// Reference: the PMA Standard "Periodical Inspection of Paragliders"
+// (V 2024.12.1), Appendix B "Line length modification options" — the list the
+// manufacturers' association recommends — plus Ozone's manuals ("a loop on the
+// maillon of the appropriate length"; trim loops on C lines). Measuring rules
+// come from the same standard, §5.5. Other modifications, knots in a line
+// included, are not recommended there, so they aren't taught here.
 //
-// No "mm per knot" figures on purpose: take-up depends on line diameter and the
-// connector, so the guide says to tie it and re-measure that main — the app then
-// shows exactly what it took up.
+// Drawings follow the PMA photos: the line comes in from the left with its sewn
+// end loop (zig-zag stitching), the connector's bar stands on the right.
+// Take-up per loop depends on the line and connector; the typical figures quoted
+// are one workshop's and are labelled as such — the app's re-measure is the truth.
 
-import { $, el, clear } from './dom.js?v=14';
-import { icon } from './icons.js?v=14';
+import { $, el, clear } from './dom.js?v=15';
+import { icon } from './icons.js?v=15';
 
 // ---- drawing kit ------------------------------------------------------------
-// Shared gradients live in one zero-size <svg> on the page (not display:none —
-// Safari won't paint gradients referenced from a hidden element).
 const DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-  <linearGradient id="lt-steel" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#f4f6f8"/><stop offset=".35" stop-color="#b9c0c7"/>
-    <stop offset=".6" stop-color="#7d8790"/><stop offset="1" stop-color="#d7dce1"/></linearGradient>
-  <linearGradient id="lt-barrel" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#8b949c"/><stop offset=".45" stop-color="#eef1f3"/><stop offset="1" stop-color="#6f7880"/></linearGradient>
-  <linearGradient id="lt-web" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="#2b2f34"/><stop offset=".5" stop-color="#4a5159"/><stop offset="1" stop-color="#2b2f34"/></linearGradient>
-  <linearGradient id="lt-grip" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#5b636b"/><stop offset="1" stop-color="#2e3338"/></linearGradient>
+  <linearGradient id="gd-steel" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#7d8790"/><stop offset=".45" stop-color="#eef1f3"/><stop offset="1" stop-color="#6f7880"/></linearGradient>
+  <linearGradient id="gd-steel-h" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#eef1f3"/><stop offset=".5" stop-color="#9aa3ab"/><stop offset="1" stop-color="#d7dce1"/></linearGradient>
+  <linearGradient id="gd-dyneema" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#b9bcaf"/><stop offset=".5" stop-color="#f3f4ec"/><stop offset="1" stop-color="#a9ad9e"/></linearGradient>
 </defs></svg>`;
 
-const W = 150, H = 240;                  // one panel
-const CX = 75;                           // centre line
-const MAIL = { top: 118, h: 50, w: 58 }; // maillon
-const LINE = '#e8712c';                  // an orange main, as most are
-const LINE_DK = '#b34f17';
-const BLUE = '#2f7fd1';
-const BLUE_DK = '#1b4f8a';
-const DYNEEMA = '#eef0e6';
+const W = 368, H = 196, BAR = 172, MID = 85, LINK_H = 130;   // link fixed; labels get the strip below     // one panel; the connector's near bar; line height
+const RED = '#d23a3a', RED_DK = '#7e1a1a';
 
-/** A braided line: dark edge, solid core, a fine lighter dash for the weave. */
-function cord(d, { color = LINE, edge = color === BLUE ? BLUE_DK : LINE_DK, w = 5 } = {}) {
-  return `<path d="${d}" fill="none" stroke="${edge}" stroke-opacity=".7" stroke-width="${w + 1.6}" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${d}" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="1.3" stroke-dasharray="2.2 2.6" stroke-linecap="round"/>`;
+/** A braided line: dark edge, solid core, fine weave. */
+function cord(d, { c = RED, dk = RED_DK, w = 9 } = {}) {
+  return `<path d="${d}" fill="none" stroke="${dk}" stroke-width="${w + 2.4}" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${d}" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="1.4" stroke-dasharray="2 3" stroke-linecap="round"/>`;
 }
-
-/** Riser webbing from the bottom edge up to yTop, with its stitching. */
-function riser(yTop) {
-  return `<rect x="${CX - 16}" y="${yTop}" width="32" height="${H - yTop + 2}" rx="3" fill="url(#lt-web)"/>
-    <path d="M${CX - 11} ${yTop + 14} V${H} M${CX + 11} ${yTop + 14} V${H}" stroke="#c9ced3" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 2.5"/>
-    <path d="M${CX - 12} ${yTop + 30} H${CX + 12} M${CX - 12} ${yTop + 36} H${CX + 12}" stroke="#c9ced3" stroke-opacity=".5" stroke-width="1" stroke-dasharray="2 2"/>`;
+/** The line coming in from the left, its sewn end marked by white zig-zag stitching. */
+function stitched(x1, y = MID) {
+  const x0 = x1 - 70;
+  let z = `M${x0} ${y}`;
+  for (let x = x0, up = true; x < x1; x += 6, up = !up) z += ` L${x + 6} ${y + (up ? 2.6 : -2.6)}`;
+  return cord(`M-10 ${y} H${x1}`) + `<path d="${z}" fill="none" stroke="#fff" stroke-width="1.4"/>`;
 }
-
-/** Steel quick-link with its screw gate on the right. */
-function maillon() {
-  const { top, h, w } = MAIL, x = CX - w / 2;
-  return `<rect x="${x}" y="${top}" width="${w}" height="${h}" rx="17" fill="none" stroke="#5c656d" stroke-width="9.5"/>
-    <rect x="${x}" y="${top}" width="${w}" height="${h}" rx="17" fill="none" stroke="url(#lt-steel)" stroke-width="7"/>
-    <rect x="${x + w - 5.5}" y="${top + 12}" width="11" height="22" rx="3" fill="url(#lt-barrel)" stroke="#59626a" stroke-width="1"/>
-    <path d="M${x + w - 5} ${top + 17} h10 M${x + w - 5} ${top + 21} h10 M${x + w - 5} ${top + 25} h10 M${x + w - 5} ${top + 29} h10" stroke="#59626a" stroke-width=".8"/>`;
-}
-
-/** Riser + maillon, the webbing's sewn loop round the lower bar. */
-function base() {
-  return riser(MAIL.top + MAIL.h - 8) + maillon()
-    + `<path d="M${CX - 16} ${MAIL.top + MAIL.h - 4} Q${CX} ${MAIL.top + MAIL.h - 14} ${CX + 16} ${MAIL.top + MAIL.h - 4}" fill="none" stroke="#1f2327" stroke-width="3"/>`;
-}
-
-/**
- * A larks head (girth hitch) on the maillon's top bar, the line going up.
- * wraps: 1 = normal, 2 = one extra turn. merge: where the two legs become the line.
- */
-function larks({ wraps = 1, merge = 70, color = LINE } = {}) {
-  const bar = MAIL.top;
-  const offs = wraps === 1 ? [-7, 7] : [-12, -4, 4, 12];
-  let s = '';
-  s += cord(`M${CX + offs[0]} ${bar - 4} C${CX + offs[0]} ${bar - 22} ${CX - 2} ${merge + 18} ${CX} ${merge}`, { color });
-  s += cord(`M${CX + offs.at(-1)} ${bar - 4} C${CX + offs.at(-1)} ${bar - 22} ${CX + 2} ${merge + 18} ${CX} ${merge}`, { color });
-  s += cord(`M${CX + offs[0] - 1} ${bar + 9} H${CX + offs.at(-1) + 1}`, { color, w: 5.5 });   // collar, in front
-  for (const o of offs) s += cord(`M${CX + o} ${bar - 7} V${bar + 9}`, { color });            // wraps over the bar
-  return s;
-}
-
-/** The line from the merge point up and off the top edge. */
-const lineUp = (from, color = LINE) => cord(`M${CX} ${from} V-4`, { color });
-
-/** A tied overhand knot sitting on the line at y. */
-function knot(y) {
-  return `<ellipse cx="${CX}" cy="${y}" rx="10" ry="12" fill="${LINE_DK}"/>
-    <ellipse cx="${CX}" cy="${y}" rx="8.5" ry="10.5" fill="${LINE}"/>
-    <path d="M${CX - 7} ${y - 6} C${CX} ${y - 1} ${CX + 2} ${y + 3} ${CX + 7} ${y + 7}" stroke="${LINE_DK}" stroke-width="2.2" fill="none"/>
-    <path d="M${CX - 7} ${y + 5} C${CX - 2} ${y + 1} ${CX + 2} ${y - 3} ${CX + 7} ${y - 6}" stroke="#fff" stroke-opacity=".5" stroke-width="1.4" fill="none"/>`;
-}
-
-/** A spare sewn loop on the line: an eye plus its stitched splice. */
-function sewnLoop(y, side = -1) {
-  const x = CX + side * 16;
-  return cord(`M${CX} ${y + 8} C${x} ${y + 8} ${x} ${y - 14} ${CX} ${y - 14}`, { w: 4 })
-    + `<rect x="${CX - 4}" y="${y + 4}" width="8" height="12" rx="2" fill="${LINE_DK}"/>
-       <path d="M${CX - 4} ${y + 7} h8 M${CX - 4} ${y + 10} h8 M${CX - 4} ${y + 13} h8" stroke="#fff" stroke-opacity=".6" stroke-width=".9"/>`;
-}
-
-/**
- * Leader-line label. The text sits at (tx, ty): anchor 'start' puts it to the
- * right of tx (a label on the left edge), 'end' to the left (right edge). The
- * leader stops at the near end of the text so it never strikes through it.
- */
-function tag(x, y, tx, ty, text, anchor = 'start') {
-  const w = text.length * 6.2;
-  const x0 = anchor === 'start' ? tx : tx - w, x1 = x0 + w;
-  // join the leader to the label edge nearest the point: a side, or the top/bottom
-  const [lx, ly] = x < x0 - 2 ? [x0 - 3, ty] : x > x1 + 2 ? [x1 + 3, ty] : [x, y < ty ? ty - 9 : ty + 7];
-  return `<path d="M${x} ${y} L${lx} ${ly}" stroke="var(--ink-3)" stroke-width="1"/>
-    <circle cx="${x}" cy="${y}" r="2" fill="var(--ink-3)"/>
-    <text x="${tx}" y="${ty + 4}" text-anchor="${anchor}" font-size="11" font-weight="600" fill="var(--ink-2)">${text}</text>`;
-}
-const upArrow = `<path d="M${CX + 30} 34 V10 m-5 6 l5 -6 l5 6" stroke="var(--ink-3)" stroke-width="1.6" fill="none"/>
-  <text x="${CX + 38}" y="20" font-size="10" fill="var(--ink-3)">to the</text><text x="${CX + 38}" y="32" font-size="10" fill="var(--ink-3)">wing</text>`;
-
-const panel = (inner, caption, tone = '') =>
-  `<figure class="fig-panel ${tone}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${caption}">${inner}</svg><figcaption>${caption}</figcaption></figure>`;
-const pair = (a, b) => `<div class="fig-pair">${a}<span class="fig-arrow" aria-hidden="true">${icon.chevron}</span>${b}</div>`;
-const single = a => `<div class="fig-pair single">${a}</div>`;
-
-// ---- the figures --------------------------------------------------------------
-function figLarks() {
-  return single(panel(base() + larks() + lineUp(70) + upArrow
-    + tag(CX - 7, MAIL.top - 3, 10, 92, 'wraps')
-    + tag(CX + 8, MAIL.top + 9, 146, 100, 'collar', 'end')
-    + tag(CX - 30, MAIL.top + 32, 8, 190, 'maillon')
-    + tag(CX - 14, 212, 8, 226, 'riser'), 'Larks head — the baseline'));
-}
-function figWrap() {
-  return pair(
-    panel(base() + larks() + lineUp(70) + upArrow, 'Before — one wrap'),
-    panel(base() + larks({ wraps: 2, merge: 62 }) + lineUp(62) + upArrow
-      + tag(CX + 12, MAIL.top - 6, 146, 92, '+1 turn', 'end'), 'After — two wraps: shorter', 'after'));
-}
-function figKnot() {
-  return pair(
-    panel(base() + larks() + lineUp(70) + upArrow, 'Before'),
-    panel(base() + larks({ merge: 84 }) + lineUp(84) + knot(70) + upArrow
-      + tag(CX + 9, 70, 146, 58, 'knot', 'end'), 'After — knot above the loop: shorter', 'after'));
-}
-function figLoops() {
-  return pair(
-    panel(base() + larks() + lineUp(70) + sewnLoop(52) + upArrow
-      + tag(CX - 16, 46, 8, 34, 'spare loop'), 'Before — on the end loop'),
-    panel(base()
-      // the old end loop now hangs free: a tail from the splice ending in its eye
-      + cord(`M${CX - 2} 92 C${CX - 18} 96 ${CX - 30} 100 ${CX - 34} 110`, { w: 4 })
-      + cord(`M${CX - 34} 110 C${CX - 44} 116 ${CX - 42} 130 ${CX - 34} 128 C${CX - 28} 126 ${CX - 30} 114 ${CX - 34} 110`, { w: 3.6 })
-      + larks({ merge: 88 }) + lineUp(88)
-      + `<rect x="${CX - 4}" y="84" width="8" height="12" rx="2" fill="${LINE_DK}"/>
-         <path d="M${CX - 4} 87 h8 M${CX - 4} 90 h8 M${CX - 4} 93 h8" stroke="#fff" stroke-opacity=".6" stroke-width=".9"/>`
-      + upArrow + tag(CX - 42, 130, 4, 196, 'old end'), 'After — on the spare loop: shorter', 'after'));
-}
-function softLink() {
-  const top = 100, bot = 176, hw = 26;     // the soft link's loop
-  let s = riser(bot - 18)
-    + `<path d="M${CX - 16} ${bot - 6} Q${CX} ${bot - 24} ${CX + 16} ${bot - 6}" fill="none" stroke="#1f2327" stroke-width="3"/>`;
-  for (const dx of [-4, 0, 4]) {           // several passes of Dyneema, side by side
-    s += `<rect x="${CX - hw + dx}" y="${top}" width="${hw * 2}" height="${bot - top}" rx="22" fill="none" stroke="#8d9383" stroke-width="4.4"/>
-          <rect x="${CX - hw + dx}" y="${top}" width="${hw * 2}" height="${bot - top}" rx="22" fill="none" stroke="${DYNEEMA}" stroke-width="2.8"/>`;
+/** The connector: a steel quick-link (its near bar on the left), or a Dyneema soft link. */
+function connector(soft = false) {
+  if (soft) {
+    let s = '';
+    for (const dx of [-5, 0, 5]) s += `<rect x="${BAR - 8 + dx}" y="20" width="190" height="${LINK_H}" rx="44" fill="none" stroke="#8d9383" stroke-width="7"/>
+      <rect x="${BAR - 8 + dx}" y="20" width="190" height="${LINK_H}" rx="44" fill="none" stroke="url(#gd-dyneema)" stroke-width="5"/>`;
+    return s;
   }
-  // stopper knot on the right, retaining ring gathering the lines
-  s += `<circle cx="${CX + hw + 5}" cy="${top + 42}" r="7" fill="${DYNEEMA}" stroke="#8d9383" stroke-width="1.6"/>
-    <path d="M${CX + hw + 1} ${top + 38} l8 8 M${CX + hw + 1} ${top + 46} l8 -8" stroke="#8d9383" stroke-width="1.2"/>
-    <rect x="${CX - hw - 6}" y="${top + 16}" width="${hw * 2 + 12}" height="8" rx="4" fill="#1d1f22"/>`;
-  // three lines larks-headed onto the passes, fanning up
-  [-13, 0, 13].forEach((x, i) => {
-    const color = i === 1 ? BLUE : LINE;
-    s += cord(`M${CX + x} ${top + 2} C${CX + x} ${top - 24} ${CX + x * 2.2} 50 ${CX + x * 3} -4`, { color, w: 4.2 });
-    s += cord(`M${CX + x - 4} ${top + 5} H${CX + x + 4}`, { color, w: 4.8 });
-  });
-  return s
-    + tag(CX - hw - 4, top + 50, 4, top + 76, 'soft link')
-    + tag(CX + hw + 12, top + 42, 146, top + 66, 'stopper', 'end')
-    + tag(CX + hw + 6, top + 20, 146, top - 6, 'ring', 'end')
-    + tag(CX - 14, 218, 4, 232, 'riser loop');
+  return `<rect x="${BAR - 8}" y="20" width="190" height="${LINK_H}" rx="44" fill="none" stroke="#4d565e" stroke-width="17"/>
+    <rect x="${BAR - 8}" y="20" width="190" height="${LINK_H}" rx="44" fill="none" stroke="url(#gd-steel)" stroke-width="14"/>
+    <rect x="${BAR + 60}" y="9" width="44" height="22" rx="4" fill="url(#gd-steel-h)" stroke="#4d565e"/>
+    <path d="M${BAR + 68} 9 v22 M${BAR + 76} 9 v22 M${BAR + 84} 9 v22 M${BAR + 92} 9 v22" stroke="#4d565e" stroke-width=".8"/>`;
 }
-function figSoft() {
-  return single(panel(softLink(), 'Soft link: several passes of Dyneema in place of a maillon; lines go up to the wing'));
+const X = BAR - 8;                    // the bar's centre line
+/**
+ * A wrap round the bar: a short band crossing in front of it, bowed like a strand
+ * round a cylinder, with a dark end where it turns away behind the bar.
+ */
+const across = (y0, y1) => cord(`M${X - 17} ${y0} Q${X - 2} ${(y0 + y1) / 2 + 5} ${X + 10} ${y1}`)
+  + `<circle cx="${X + 10}" cy="${y1}" r="4.4" fill="${RED_DK}"/>`;
+/** A strand leaving the line's end and reaching the bar at height y. */
+const leg = (xs, y) => cord(`M${xs} ${MID} C${xs + 26} ${MID} ${X - 40} ${y} ${X - 17} ${y}`);
+/** The loop's turn on the far side of the bar (visible inside the link). */
+const turn = (y0, y1, out = 30) => cord(`M${X + 22} ${y0} C${X + 22 + out} ${y0} ${X + 22 + out} ${y1} ${X + 22} ${y1}`);
+
+function label(x1, y1, x2, y2, t, anchor = 'start') {
+  return `<path d="M${x1} ${y1} L${x2} ${y2}" stroke="var(--ink-3)" stroke-width="1"/>
+    <circle cx="${x1}" cy="${y1}" r="2.2" fill="var(--ink-3)"/>
+    <text x="${x2 + (anchor === 'start' ? 3 : -3)}" y="${y2 + 4}" font-size="11.5" font-weight="600" fill="var(--ink-2)" text-anchor="${anchor}">${t}</text>`;
 }
-function figBrake() {
-  const b = { color: BLUE, edge: BLUE_DK, w: 4 };
-  // handle with its attachment eye on top; the knot ties the line into that eye
-  const grip = (y, ghost = false) => ghost
-    ? `<rect x="${CX - 30}" y="${y}" width="60" height="30" rx="13" fill="none" stroke="var(--ink-3)" stroke-width="1.4" stroke-dasharray="4 3"/>`
-    : `<path d="M${CX - 7} ${y + 2} Q${CX} ${y - 14} ${CX + 7} ${y + 2}" fill="none" stroke="#2e3338" stroke-width="4"/>
-       <rect x="${CX - 30}" y="${y}" width="60" height="30" rx="13" fill="url(#lt-grip)"/>
-       <rect x="${CX - 24}" y="${y + 6}" width="48" height="18" rx="9" fill="none" stroke="#7b848c" stroke-width="1.2"/>`;
-  // a bowline: the line comes down, loops through the handle's eye and locks
-  const bowline = y => cord(`M${CX} ${y} C${CX - 13} ${y + 2} ${CX - 13} ${y + 20} ${CX} ${y + 22} C${CX + 13} ${y + 20} ${CX + 13} ${y + 2} ${CX} ${y}`, b)
-    + `<circle cx="${CX}" cy="${y}" r="4.5" fill="${BLUE_DK}"/>`;
-  const mark = y => `<path d="M${CX - 20} ${y} H${CX + 20}" stroke="#e8b02c" stroke-width="3" stroke-dasharray="4 3"/>`;
-  return pair(
-    panel(cord(`M${CX} -4 V160`, b) + bowline(160) + grip(186) + mark(104)
-      + tag(CX + 20, 104, 146, 86, 'new mark', 'end') + tag(CX + 12, 170, 146, 150, 'knot', 'end')
-      + tag(CX - 30, 202, 4, 232, 'handle'), 'Before — tied at the old point'),
-    panel(cord(`M${CX} -4 V104`, b) + bowline(104) + grip(130)
-      // the spare tail past the knot, and where the handle used to be
-      + cord(`M${CX + 3} 106 C${CX + 18} 118 ${CX + 36} 132 ${CX + 40} 164`, { ...b, w: 3.4 })
-      + grip(186, true)
-      + tag(CX + 12, 112, 146, 92, 're-tied', 'end') + tag(CX + 40, 160, 146, 178, 'tail', 'end')
-      + tag(CX - 30, 200, 4, 232, 'was here'), 'After — handle higher: shorter brake', 'after'));
+
+/**
+ * Each hitch as [behind, in front]: what passes behind the bar is drawn before the
+ * connector, what crosses in front of it after — that ordering is what makes the
+ * difference between the options visible.
+ */
+const LY = H - 14;                 // label strip under the link
+const HITCH = {
+  open: () => [
+    cord(`M${X - 17} ${MID - 12} H${X + 22}`) + cord(`M${X - 17} ${MID + 12} H${X + 22}`),
+    stitched(96) + leg(96, MID - 12) + leg(96, MID + 12) + turn(MID - 12, MID + 12)
+      + label(60, MID - 3, 24, LY, 'sewn end loop') + label(X + 44, MID + 8, W - 8, LY, 'hangs through the link', 'end'),
+  ],
+  one: () => [
+    cord(`M${X - 17} ${MID - 14} H${X + 22}`),
+    stitched(96) + leg(96, MID - 14) + leg(96, MID + 14) + turn(MID - 14, MID + 12, 24) + across(MID + 14, MID - 10)
+      + label(X - 4, MID + 4, W - 8, LY, 'one loop round the bar', 'end'),
+  ],
+  larks: () => [
+    '',
+    stitched(108) + cord(`M108 ${MID} C${X - 42} ${MID} ${X - 40} ${MID - 13} ${X - 17} ${MID - 13}`) + cord(`M108 ${MID} C${X - 42} ${MID} ${X - 40} ${MID + 13} ${X - 17} ${MID + 13}`)
+      + across(MID - 13, MID - 13) + across(MID + 13, MID + 13)
+      + label(X - 2, MID + 18, W - 8, LY, 'two wraps, collar behind', 'end'),
+  ],
+  turns: () => [
+    '',
+    stitched(96) + leg(96, MID - 22) + leg(96, MID + 22)
+      + across(MID + 22, MID + 8) + across(MID + 7, MID - 7) + across(MID - 8, MID - 22)
+      + label(X - 2, MID + 26, W - 8, LY, 'wound round twice, turns side by side', 'end'),
+  ],
+  larksLoop: () => [
+    '',
+    stitched(100) + cord(`M100 ${MID} C${X - 42} ${MID} ${X - 40} ${MID - 20} ${X - 17} ${MID - 20}`) + cord(`M100 ${MID} C${X - 42} ${MID} ${X - 40} ${MID + 6} ${X - 17} ${MID + 6}`)
+      + across(MID - 20, MID - 20) + across(MID + 6, MID + 6)
+      + cord(`M${X - 17} ${MID + 6} C${X - 34} ${MID + 12} ${X - 34} ${MID + 30} ${X - 17} ${MID + 30}`) + across(MID + 30, MID + 22)
+      + label(X - 2, MID + 34, W - 8, LY, 'lark\'s foot + one more wrap', 'end'),
+  ],
+};
+
+const panel = (key, caption, { soft = false } = {}) => {
+  const [behind, front] = HITCH[key]();
+  return `<figure class="fig-panel"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${caption}">${behind}${connector(soft)}${front}</svg><figcaption>${caption}</figcaption></figure>`;
+};
+
+/** Relative take-up, as a strip of steps — no invented numbers on it. */
+function ladder() {
+  const steps = [['Open', 0], ['1 loop', 1], ['Lark\'s foot', 2], ['2 turns', 3], ['Lark\'s foot + loop', 4]];
+  return `<svg viewBox="0 0 520 112" class="ladder" role="img" aria-label="The options in order of how much they shorten the line">
+    ${steps.map(([t, n], i) => {
+      const x = 12 + i * 102, h = 10 + n * 13;
+      return `<rect x="${x}" y="${86 - h}" width="84" height="${h}" rx="4" fill="var(--row-A)" opacity="${0.35 + n * 0.15}"/>
+        <text x="${x + 42}" y="104" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink-2)">${t}</text>`;
+    }).join('')}
+    <text x="12" y="12" font-size="10.5" fill="var(--ink-3)">shortens less</text>
+    <text x="508" y="12" font-size="10.5" fill="var(--ink-3)" text-anchor="end">shortens more</text></svg>`;
 }
 
 // ---- content --------------------------------------------------------------------
 export const METHODS = [
-  { id: 'larks', title: 'The larks head (baseline)', when: 'How every line sits on its maillon or soft link', fig: figLarks,
-    steps: ['Pass the line\'s end loop around the bar.', 'Push the line through its own loop and pull it snug.',
-      'Dress it: collar flat, wraps side by side, nothing crossed.'],
-    note: 'Every adjustment below starts from — and can be undone back to — a clean larks head.' },
-  { id: 'loops', title: 'Trim loops', when: 'Mains that have spare sewn loops', fig: figLoops,
-    steps: ['Open the maillon (or soft link) and take the line off.', 'Larks-head the next loop towards the wing to shorten — or back towards the end loop to lengthen.',
-      'Close the connector properly, then re-measure that main.'],
-    note: 'The cleanest adjustment there is — the manufacturer sewed the loops for exactly this. The app says when the sheet shows a main has them.' },
-  { id: 'wrap', title: 'One extra turn', when: 'A small shortening', fig: figWrap,
-    steps: ['Take the line off the connector.', 'Pass the end loop around the bar twice before closing the larks head.',
-      'Dress the turns side by side and load it before measuring.'],
-    note: 'Takes up a little length. On a soft link the extra turn goes round all of its passes the same way.' },
-  { id: 'knot', title: 'Knot in the end loop', when: 'A larger shortening', fig: figKnot,
-    steps: ['Tie an overhand knot just above the end loop, through both strands of the loop.', 'Larks-head the smaller loop that\'s left, as usual.',
-      'Pull it hard under load — knots settle — then re-measure.'],
-    note: 'Takes up more than a turn. Leave enough loop for the larks head to sit flat.' },
-  { id: 'soft', title: 'Soft links', when: 'Wings with Dyneema soft links instead of steel maillons', fig: figSoft,
-    steps: ['Before opening one, photograph it: how many passes, which way round, where the stopper sits.',
-      'Adjust on the line\'s end loop exactly as with a maillon — trim loop, extra turn or knot.',
-      'Close it the way it was: same number of passes, stopper pulled right through, retaining ring back over the lines.',
-      'Check it\'s fully seated with the lines side by side, then load it before measuring.'],
-    note: 'Never knot, twist or shorten the soft link itself, and don\'t swap soft links and maillons: they differ in length, and the check lengths assume the connector your wing came with. Replace a soft link that\'s fuzzy, flattened, glazed or stiff — they wear faster than steel.' },
-  { id: 'brake', title: 'Brake line', when: 'Brakes too long or short', fig: figBrake,
-    steps: ['Mark the new point on the line, measured from the check.', 'Untie at the handle and re-tie at the mark with the knot your manufacturer uses — commonly a bowline.',
-      'Do both sides the same, then check the free play on the ground.'],
-    note: 'Brakes are set at the handle, never at the maillon. Keep the factory free play — Nova, for example, specifies 10–15 cm — so the wing is never braked on full speed bar.' },
+  { id: 'open', title: 'Open — no adjustment', when: 'The factory setting',
+    figs: [panel('open', 'Open — the sewn end loop simply hangs on the maillon')],
+    steps: ['The line\'s sewn end loop goes straight onto the maillon (or soft link) — no hitch, no turns.',
+      'This is where every line starts and where you come back to when you remove an adjustment.'],
+    note: 'If your wing came with a lark\'s foot or loop already on a line, that is its factory setting — take the manual and the check lengths as the reference, not this drawing.' },
+  { id: 'one-loop', title: 'One loop', when: 'The smallest shortening',
+    figs: [panel('one', 'One loop — the end loop taken once round the bar')],
+    steps: ['Open the maillon and take the line\'s end loop off.', 'Pass the end loop once around the bar, then seat it — the line now reaches the bar one loop shorter.',
+      'Close the maillon, load the line, re-measure the main.'],
+    note: 'Typically 8–12 mm on a maillon, depending on line thickness (a UK workshop\'s figure — measure yours).' },
+  { id: 'larks', title: 'Lark\'s foot (lark\'s head, girth hitch)', when: 'A bit more than one loop',
+    figs: [panel('larks', 'Lark\'s foot — two wraps side by side, the collar behind the bar')],
+    steps: ['Pass the end loop round the bar, then pass the line through its own loop.', 'Pull it snug: two wraps side by side on the bar, collar at the back, nothing crossed.',
+      'Load it and re-measure.'],
+    note: 'One of the options in the PMA standard\'s list — not the default: an open loop is.' },
+  { id: 'turns', title: 'Turns around', when: 'A larger shortening',
+    figs: [panel('turns', 'Turns around — the loop wound round the bar twice')],
+    steps: ['Wind the end loop round the bar two (or more) times before seating it.', 'Lay the turns side by side — never crossed over each other.',
+      'Load and re-measure; each turn takes up roughly one loop\'s worth.'],
+    note: 'On a soft link, turns take up much more than on a maillon — see below.' },
+  { id: 'larks-loop', title: 'Lark\'s foot + loop', when: 'The largest adjustment at the connector',
+    figs: [panel('larksLoop', 'Lark\'s foot + loop — one side taken round once more')],
+    steps: ['Tie a lark\'s foot, then take one side of it round the bar once more.', 'Dress the wraps so they lie flat and side by side.',
+      'Load and re-measure. If you need more than this, stop: that line or main is due for inspection or replacement, not more loops.'],
+    note: 'Also listed in the PMA standard. A pile hitch gives about the same change and is easier to fit on a small maillon.' },
+  { id: 'soft', title: 'On a soft link', when: 'Wings with Dyneema soft links instead of maillons',
+    figs: [panel('open', 'Open on a soft link', { soft: true }), panel('larks', 'Lark\'s foot on a soft link', { soft: true })],
+    steps: ['The same loops, round the soft link\'s passes instead of a steel bar.',
+      'Before opening one, photograph it: how many passes, which way round, where the stopper sits. Re-close it exactly so — stopper right through, retaining ring back on.',
+      'Expect bigger steps: a double loop on a soft link is typically 18–20 mm, where a maillon loop is 8–12 mm — so fine corrections are harder.'],
+    note: 'Never knot, twist or shorten the soft link itself, and don\'t swap soft links for maillons (or back) unless your manufacturer allows it: they differ in length and the check lengths assume the original connector.' },
+  { id: 'trim-loops', title: 'Sewn trim loops', when: 'Mains that have extra loops sewn in',
+    figs: [],
+    steps: ['Some wings have spare loops sewn into a main (Ozone uses them on C lines; BGD marks them on its sheets — the app says when yours has them).',
+      'Move the connector to the next sewn loop to shorten, back to the end loop to lengthen — no hitch needed.',
+      'Re-measure that main.'],
+    note: 'When a wing has them, use these first — they are the manufacturer\'s own adjustment.' },
+  { id: 'cascade', title: 'At a line-to-line joint', when: 'Only where your manufacturer allows it',
+    figs: [],
+    steps: ['The PMA list also allows the cascade joint between an upper and a lower line to be tied shorter ("cascade on lowers").',
+      'It changes only the lines above that joint, not the whole main — useful for one uneven line, but it needs the line plan and care.'],
+    note: 'Best left to a workshop unless your manual describes it.' },
+  { id: 'brake', title: 'Brake lines', when: 'Brakes too long or too short',
+    figs: [],
+    steps: ['Brakes are set at the handle knot, never at the maillon.',
+      'Measure from the top of the handle knot to the sail. The PMA standard allows a brake to be 0 to +50 mm on its reference — never shorter.',
+      'Mark the new point, re-tie with the knot your manual shows, do both sides the same, and keep the factory free play.'],
+    note: 'Too-short brakes brake the wing on speed bar and in turbulence — when in doubt, leave them a little long.' },
 ];
 
 export function renderGuide(root, ctx) {
@@ -240,37 +186,39 @@ export function renderGuide(root, ctx) {
     ${DEFS}
     <button class="btn ghost sm" id="back" style="margin-left:-8px">${icon.back} Back</button>
     <h1>Trimming guide</h1>
-    <p class="lede">How to change a line's length, and the order to do it in. Drawings are the right way up: riser at the bottom, lines going up to the wing.</p>
+    <p class="lede">How line lengths are adjusted: with loops on the maillon or soft link, following the PMA inspection standard's list of recommended options and Ozone's manuals.</p>
 
     <nav class="guide-toc" id="toc" aria-label="Methods"></nav>
 
     <div class="card">
-      <h3 style="margin-top:0">Before you touch anything</h3>
+      <h3 style="margin-top:0">Measure first — the standard's rules</h3>
       <ul class="plain">
-        <li><b>Adjust mains, not single lines.</b> A main moves every line hanging off it. One line off on its own is an inspect-and-replace job.</li>
-        <li><b>Trim is relative.</b> What matters is how the rows sit against each other. If a main needs lengthening and there's nothing to undo, shorten the other mains of that section instead.</li>
-        <li><b>Small steps, then re-measure.</b> How much a turn or knot takes up depends on the line and the connector — tie it, tap <i>Re-measure</i> for that main, and the app shows exactly what it did. Note it for next time.</li>
-        <li><b>Match left and right.</b> Do the same on both sides unless the check says the sides differ.</li>
-        <li><b>Typical ageing:</b> A and B lines stretch while rear lines shrink, so an older wing usually reads slower.</li>
+        <li><b>5 daN on every line</b> (about 5 kg, ±15%), both sides.</li>
+        <li><b>Total length</b> runs from the line's attachment on the sail to the inside of the riser loop at the harness end. Brakes: from the top of the handle knot to the sail.</li>
+        <li><b>Within ±12 mm</b> of the manufacturer's length, after one common offset for the whole wing (at most 1.5% of the longest line). Brakes: 0 to +50 mm.</li>
+        <li><b>Adjust mains at the connector</b> — one loop moves every line hanging off that main. One line off on its own is an inspect-and-replace job.</li>
+        <li><b>Your manufacturer's manual wins</b> where it says something different — tolerances included.</li>
       </ul>
     </div>
 
-    <h2>Ways to change a length</h2>
+    <h2>The options, smallest first</h2>
+    <div class="card">${ladder()}
+      <p class="small muted" style="margin:6px 0 0">How much each one takes up depends on the line's thickness and the connector. Tie it, tap <i>Re-measure</i> for that main, and the app shows exactly what it did. To lengthen, step back down the list.</p></div>
     <div id="methods"></div>
 
     <h2>The order to work in</h2>
     <ol class="steps-list">
       <li><b>Re-measure anything implausible.</b> A reading 40 mm+ out is usually a mis-hooked line.</li>
-      <li><b>Inspect uneven lines</b> — damaged or shrunk lines get replaced, not trimmed around.</li>
+      <li><b>Inspect uneven lines</b> — damaged or shrunk lines get replaced, not looped around.</li>
       <li><b>Make left and right match</b>, main by main.</li>
-      <li><b>Set the angle of incidence</b> with the rear (or front) mains of each section, smallest change first.</li>
+      <li><b>Set the trim</b> (front to rear) with the mains of each section, smallest change first.</li>
       <li><b>Set the brakes</b> — symmetric, with the factory free play.</li>
-      <li><b>Re-measure the mains you changed.</b></li>
-      <li><b>Test fly in calm air</b> before anything demanding. Launch, spin and collapse behaviour can all change with trim.</li>
+      <li><b>Re-measure every main you changed</b>, then test fly in calm air before anything demanding.</li>
     </ol>
 
     <div class="note warn" style="margin-top:16px">${icon.warn}<span>Trim changes affect certification and how the wing behaves in an incident.
-      Stay within your manufacturer's tolerances and follow its manual where it differs from this guide; if more than a small correction is needed, or you're unsure, let a qualified workshop do it.</span></div>
+      If a main needs more than a lark's foot + loop, or you're unsure, have a qualified workshop check it.</span></div>
+    <p class="small muted" style="margin-top:14px">Sources: PMA Standard "Periodical Inspection of Paragliders" V 2024.12.1, §5.5 and Appendix B; Ozone pilot manuals; typical take-up figures from Crickhowell Paragliding's workshop.</p>
   </div>`);
   root.appendChild(wrap);
   $('#back', wrap).addEventListener('click', () => history.length > 1 ? history.back() : ctx.goto('wings'));
@@ -278,12 +226,12 @@ export function renderGuide(root, ctx) {
   const toc = $('#toc', wrap);
   const host = $('#methods', wrap);
   for (const m of METHODS) {
-    const a = el(`<a href="#guide" class="chip">${m.title.replace(/ \(.*\)/, '')}</a>`);
+    const a = el(`<a href="#guide" class="chip">${m.title.replace(/ \(.*\)| — .*/, '')}</a>`);
     a.addEventListener('click', e => { e.preventDefault(); $(`#m-${m.id}`, wrap).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     toc.appendChild(a);
     host.appendChild(el(`<section class="card method" id="m-${m.id}">
       <div class="method-head"><b>${m.title}</b><span class="small muted">${m.when}</span></div>
-      ${m.fig()}
+      ${m.figs.length ? `<div class="fig-row">${m.figs.join('')}</div>` : ''}
       <ol class="method-steps">${m.steps.map(s => `<li>${s}</li>`).join('')}</ol>
       <p class="small method-note">${m.note}</p></section>`));
   }
@@ -294,12 +242,18 @@ export function renderGuide(root, ctx) {
   }
 }
 
-/** Which method fits one adjustment, for the results checklist. */
+/**
+ * Which option fits one main's change, for the trim plan. mm < 0 = shorten.
+ * Sizes follow the typical maillon figures (8–12 mm a loop); the pilot re-measures.
+ */
 export function methodFor(mm, hasLoop) {
-  if (mm > 0) return { id: hasLoop ? 'loops' : 'larks',
-    text: hasLoop ? 'Move it back a trim loop, towards the end loop.' : 'Undo a turn, knot or loop taken up before. Nothing to undo? Shorten the other mains of this section by the same amount instead.' };
-  if (hasLoop) return { id: 'loops', text: 'Move it to the next trim loop towards the wing.' };
-  return Math.abs(mm) < 8
-    ? { id: 'wrap', text: 'Try one extra turn of the larks head.' }
-    : { id: 'knot', text: 'Try a knot in the end loop (or a turn, if it gets closer).' };
+  const a = Math.abs(mm);
+  if (mm > 0) return { id: hasLoop ? 'trim-loops' : 'open',
+    text: hasLoop ? 'Move it back a sewn trim loop, towards the end loop.'
+      : 'Take off a loop you added before (one step down the list). Nothing to take off? Shorten the other mains of this section instead.' };
+  if (hasLoop) return { id: 'trim-loops', text: 'Move it to the next sewn trim loop.' };
+  if (a <= 12) return { id: 'one-loop', text: 'Add one loop at the maillon or soft link.' };
+  if (a <= 20) return { id: 'larks', text: 'Try a lark\'s foot at the maillon (or two turns).' };
+  if (a <= 30) return { id: 'larks-loop', text: 'Try a lark\'s foot + loop — and look at why it moved this much.' };
+  return { id: 'larks-loop', text: 'More than any loop should take up — inspect this main\'s lines before adjusting.' };
 }

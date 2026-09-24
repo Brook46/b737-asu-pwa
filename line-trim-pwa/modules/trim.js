@@ -21,7 +21,7 @@
 import {
   parseLineId, isTrimmableRiser, isStructuralRiser, isBrakeRiser,
   sectionsFor, sideOf, lineOf, keyFor, sideLabel, SIDES,
-} from './linemodel.js?v=14';
+} from './linemodel.js?v=15';
 
 const median = xs => {
   if (!xs.length) return 0;
@@ -339,10 +339,10 @@ function buildVerdict({ recommendations, asymmetry, turn, globalOffsetMm,
  */
 export function adjustHint(mm, hasLoop) {
   const dir = mm < 0 ? 'shorten' : 'lengthen';
-  const size = Math.abs(mm) < 8 ? 'a small change' : Math.abs(mm) < 18 ? 'about one loop' : 'more than one loop';
+  const size = Math.abs(mm) <= 12 ? 'about one loop' : Math.abs(mm) <= 20 ? 'about a lark\'s foot' : 'more than a lark\'s foot';
   return hasLoop
-    ? `${dir} at this main's trim loop (${size}), then re-measure its lines`
-    : `${dir} at the maillon (larks-head / trim knot, ${size}), then re-measure its lines`;
+    ? `${dir} at this main's sewn trim loop (${size}), then re-measure its lines`
+    : `${dir} with loops at the maillon or soft link (${size}), then re-measure its lines`;
 }
 
 /** Plain-language reading of an AoI number. + = faster. */

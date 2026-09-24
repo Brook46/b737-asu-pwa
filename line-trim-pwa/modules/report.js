@@ -7,10 +7,10 @@
 // and opens anywhere, offline. Colours: status only — in tolerance, a bit out,
 // out — each also carried by a sign in the table, never by colour alone.
 
-import { analyse } from './trim.js?v=14';
-import { parseLineId, isBrakeRiser } from './linemodel.js?v=14';
-import { spanOf } from './ui/lineplan.js?v=14';
-import { download } from './exporter.js?v=14';
+import { analyse } from './trim.js?v=15';
+import { parseLineId, isBrakeRiser } from './linemodel.js?v=15';
+import { spanOf } from './ui/lineplan.js?v=15';
+import { download } from './exporter.js?v=15';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const signed = v => (v == null || !Number.isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(Math.round(v * 10) / 10));

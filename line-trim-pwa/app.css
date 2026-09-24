@@ -595,3 +595,8 @@ svg.lineplan .half-label { fill: var(--ink-3); font-size: 8px; font-weight: 700;
 /* ------------------------------------------------------------- report screen */
 .report-bar { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; padding: 8px 0; background: var(--bg); }
 .report-frame { display: block; width: 100%; min-height: 70vh; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+
+/* guide figures: panels side by side, the take-up ladder */
+.fig-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.fig-row .fig-panel svg { max-width: 320px; }
+svg.ladder { display: block; width: 100%; height: auto; }

@@ -1,16 +1,16 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { gliderCard } from './glider.js?v=14';
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=14';
-import { icon, statusIcon } from './icons.js?v=14';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=14';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=14';
-import { startRecheck, goto, progress } from '../session.js?v=14';
-import { sessions, draft } from '../store.js?v=14';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=14';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=14';
-import { methodFor } from './guide.js?v=14';
-import { checkDate } from './history.js?v=14';
+import { gliderCard } from './glider.js?v=15';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=15';
+import { icon, statusIcon } from './icons.js?v=15';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=15';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=15';
+import { startRecheck, goto, progress } from '../session.js?v=15';
+import { sessions, draft } from '../store.js?v=15';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=15';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=15';
+import { methodFor } from './guide.js?v=15';
+import { checkDate } from './history.js?v=15';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;

@@ -4,9 +4,9 @@
 // added from their own sheets) and restores into another browser or device.
 // CSV is for spreadsheets: one row per reading across every check.
 
-import { sessions, customGliders } from './store.js?v=14';
-import { analyse } from './trim.js?v=14';
-import { download } from './exporter.js?v=14';
+import { sessions, customGliders } from './store.js?v=15';
+import { analyse } from './trim.js?v=15';
+import { download } from './exporter.js?v=15';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
