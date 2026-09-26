@@ -1,14 +1,14 @@
 // ui/setup.js — screen 2: how you'll measure, and the laser.
 
-import { rememberedGlider } from './glider.js?v=18';
-import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=18';
-import { icon } from './icons.js?v=18';
-import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=18';
-import { prefs, draft } from '../store.js?v=18';
-import * as laser from '../ble/laser.js?v=18';
-import { DRIVER_LIST } from '../ble/drivers.js?v=18';
-import { createSession, canMeasureFromMaillon } from '../session.js?v=18';
-import { ORDERS } from '../linemodel.js?v=18';
+import { rememberedGlider } from './glider.js?v=19';
+import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=19';
+import { icon } from './icons.js?v=19';
+import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=19';
+import { prefs, draft } from '../store.js?v=19';
+import * as laser from '../ble/laser.js?v=19';
+import { DRIVER_LIST } from '../ble/drivers.js?v=19';
+import { createSession, canMeasureFromMaillon } from '../session.js?v=19';
+import { ORDERS } from '../linemodel.js?v=19';
 
 let unsub = null;
 

@@ -1,7 +1,7 @@
 // session.js — a measuring session: the plan, both sides, what's measured, the cursor.
 
-import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=18';
-import { uid } from './store.js?v=18';
+import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=19';
+import { uid } from './store.js?v=19';
 
 /**
  * Where the tape starts. Manufacturer check lengths here are "lines + risers"

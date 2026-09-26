@@ -1,8 +1,9 @@
 // exporter.js — session download + shareable text summary.
 
-import { analyse, aoiNote } from './trim.js?v=18';
-import { sideLabel } from './linemodel.js?v=18';
-import { signed } from './ui/dom.js?v=18';
+import { porositySummary, RATING_LABEL } from './porosity.js?v=19';
+import { analyse, aoiNote } from './trim.js?v=19';
+import { sideLabel } from './linemodel.js?v=19';
+import { signed } from './ui/dom.js?v=19';
 
 export function download(name, mime, text) {
   const blob = new Blob([text], { type: mime });
@@ -51,6 +52,14 @@ export function exportCsv(s) {
   rows.push([]);
   rows.push(['main', 'left_mm', 'right_mm', 'l_minus_r_mm', 'status']);
   for (const x of a.asymmetry) rows.push([x.mainId, x.leftMm, x.rightMm, x.diffMm, x.status]);
+  const por = porositySummary(s);
+  if (por) {
+    rows.push([]);
+    rows.push(['porosity_zone', 'reading', 'unit', 'l_m2_min_20mbar', 'cell', 'zone_avg', 'zone_rating']);
+    for (const z of por.zones) for (const r of z.readings) {
+      rows.push([z.label, r.value, r.unit === 'jdc' ? 's (JDC 10 mbar)' : 'l/m2/min', r.unit === 'jdc' ? Math.round(5400 / r.value) : r.value, r.cell ?? '', z.avgLpm, z.rating ? RATING_LABEL[z.rating] : '']);
+    }
+  }
   download(base(s) + '.csv', 'text/csv', rows.map(r => r.join(',')).join('\n'));
 }
 
@@ -68,6 +77,12 @@ export function sessionSummaryText(s, a = analyse(s)) {
        + (a.integrity.simulating ? ' · SIMULATION ACTIVE' : ''));
   L.push('');
   L.push(`${a.verdict.title}: ${a.verdict.detail}`);
+  const por = porositySummary(s);
+  if (por) {
+    L.push('');
+    L.push(`Porosity: ${!por.complete ? 'not finished' : por.passed ? `passed (${RATING_LABEL[por.worst].toLowerCase()})` : 'FAILED'}`);
+    for (const z of por.zones) L.push(`  ${z.label}: ${z.rating ? `${RATING_LABEL[z.rating]} — ${z.avgLpm} l/m²/min avg of ${z.n}` : 'no reading'}`);
+  }
 
   L.push('\nAngle of incidence (+ = faster):');
   for (const side of ['L', 'R']) {

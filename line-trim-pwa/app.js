@@ -1,20 +1,21 @@
 // app.js — shell, hash router, screen orchestration.
 
-import { $, $$ } from './modules/ui/dom.js?v=18';
-import { icon } from './modules/ui/icons.js?v=18';
-import { renderPicker } from './modules/ui/picker.js?v=18';
-import { renderSetup, stopSetup } from './modules/ui/setup.js?v=18';
-import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=18';
-import { renderResult } from './modules/ui/result.js?v=18';
-import { renderHistory } from './modules/ui/history.js?v=18';
-import { renderImport } from './modules/ui/import.js?v=18';
-import { renderCompare } from './modules/ui/compare.js?v=18';
-import { renderPast } from './modules/ui/past.js?v=18';
-import { renderGuide } from './modules/ui/guide.js?v=18';
-import { renderReport } from './modules/ui/reportview.js?v=18';
-import { hideTip } from './modules/ui/charts.js?v=18';
-import { progress } from './modules/session.js?v=18';
-import { prefs, draft } from './modules/store.js?v=18';
+import { $, $$ } from './modules/ui/dom.js?v=19';
+import { icon } from './modules/ui/icons.js?v=19';
+import { renderPicker } from './modules/ui/picker.js?v=19';
+import { renderSetup, stopSetup } from './modules/ui/setup.js?v=19';
+import { renderMeasure, stopMeasure } from './modules/ui/measure.js?v=19';
+import { renderResult } from './modules/ui/result.js?v=19';
+import { renderHistory } from './modules/ui/history.js?v=19';
+import { renderImport } from './modules/ui/import.js?v=19';
+import { renderCompare } from './modules/ui/compare.js?v=19';
+import { renderPast } from './modules/ui/past.js?v=19';
+import { renderGuide } from './modules/ui/guide.js?v=19';
+import { renderReport } from './modules/ui/reportview.js?v=19';
+import { renderPorosity } from './modules/ui/porosity.js?v=19';
+import { hideTip } from './modules/ui/charts.js?v=19';
+import { progress } from './modules/session.js?v=19';
+import { prefs, draft } from './modules/store.js?v=19';
 
 const screen = $('#screen');
 const stepper = $('#stepper');
@@ -52,12 +53,13 @@ const SCREENS = {
   past: renderPast,
   guide: renderGuide,
   report: renderReport,
+  porosity: renderPorosity,
 };
 
 function route() {
   let name = location.hash.replace('#', '') || 'wings';
   if (!SCREENS[name]) name = 'wings';
-  if ((name === 'measure' || name === 'result' || name === 'report') && !ctx.session) name = 'wings';
+  if (['measure', 'result', 'report', 'porosity'].includes(name) && !ctx.session) name = 'wings';
   if (name === 'setup' && !ctx.wingId) name = 'wings';
 
   stopSetup(); stopMeasure(); hideTip();

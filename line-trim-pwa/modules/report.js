@@ -7,10 +7,12 @@
 // and opens anywhere, offline. Colours: status only — in tolerance, a bit out,
 // out — each also carried by a sign in the table, never by colour alone.
 
-import { analyse } from './trim.js?v=18';
-import { parseLineId, isBrakeRiser } from './linemodel.js?v=18';
-import { spanOf } from './ui/lineplan.js?v=18';
-import { download } from './exporter.js?v=18';
+import { analyse } from './trim.js?v=19';
+import { parseLineId, isBrakeRiser } from './linemodel.js?v=19';
+import { spanOf } from './ui/lineplan.js?v=19';
+import { download } from './exporter.js?v=19';
+import { porositySummary, RATING_LABEL, LIMIT_FAIL, LIMIT_GOOD } from './porosity.js?v=19';
+import { porosityPlanform } from './ui/porosity.js?v=19';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const signed = v => (v == null || !Number.isFinite(v) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(Math.round(v * 10) / 10));
@@ -202,6 +204,24 @@ function fixList(a) {
       <td>${m.n}</td></tr>`).join('')}</tbody></table>`;
 }
 
+// ---- porosity -------------------------------------------------------------------------
+
+/** Ratings per zone, as the PMA standard recommends reporting them (not values). */
+function porositySection(s) {
+  const sum = porositySummary(s);
+  if (!sum) return '<p class="note">Not checked in this inspection.</p>';
+  const RC = { good: 'good', acceptable: 'warn', fail: 'bad' };
+  const rows = sum.zones.map(z => `<tr><td><b>${esc(z.label)}</b></td><td class="num">${z.n || '–'}</td>
+    <td class="d ${z.rating ? RC[z.rating] : ''}">${z.rating ? `${z.rating === 'good' ? '✓' : z.rating === 'acceptable' ? '!' : '✕'} ${RATING_LABEL[z.rating]}` : 'not measured'}</td></tr>`).join('');
+  const verdict = !sum.complete ? 'Not complete — every zone needs at least one reading.'
+    : sum.passed ? `Passed (${RATING_LABEL[sum.worst].toLowerCase()}): every zone averages under ${LIMIT_FAIL} l/m²/min.`
+    : `Failed: a zone averages ${LIMIT_FAIL} l/m²/min or more.`;
+  return `<div class="verdict ${!sum.complete ? 'none' : RC[sum.worst]}"><b>Porosity</b><br>${esc(verdict)}${sum.notes.length ? '<br>' + sum.notes.map(esc).join(' ') : ''}</div>
+    ${porosityPlanform(sum, { W: 720, H: 200 })}
+    <table class="fix"><thead><tr><th>Zone</th><th class="num">Readings</th><th>Rating</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="note">Top sail, 5–30% of the chord from the leading edge, air from inside out, per the PMA inspection standard (§5.2): good under ${LIMIT_GOOD}, acceptable ${LIMIT_GOOD}–${LIMIT_FAIL}, fail from ${LIMIT_FAIL} l/m²/min at 20 mbar, judged on each zone's average. As the standard recommends, ratings are reported rather than values, which don't compare between fabrics.</p>`;
+}
+
 // ---- page ---------------------------------------------------------------------------
 
 export function reportHtml(s, { embedded = false } = {}) {
@@ -214,7 +234,9 @@ export function reportHtml(s, { embedded = false } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
 <style>
-  :root { --ink:#15191c; --ink2:#4a5157; --line:#dfe3e6; }
+  :root { --ink:#15191c; --ink2:#4a5157; --line:#dfe3e6;
+    /* the app's names, for drawings shared with it */
+    --ink-2:#4a5157; --ink-3:#8a9299; --surface:#fff; --good:${COL.good}; --warn:${COL.warn}; --bad:${COL.bad}; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #fff; }
   main { max-width: 900px; margin: 0 auto; padding: 24px 20px 40px; }
@@ -273,6 +295,9 @@ ${embedded ? '' : '<div class="bar"><span>Line Trim report</span><button onclick
 
   <h2>What to do</h2>
   ${fixList(a)}
+
+  <h2>Fabric porosity</h2>
+  ${porositySection(s)}
 
   <h2>Every line</h2>
   <p class="note">Target = the manufacturer's check length${s.measureFrom === 'maillon' ? ' (risers off)' : ''}.

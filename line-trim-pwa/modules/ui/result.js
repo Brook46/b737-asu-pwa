@@ -1,16 +1,17 @@
 // ui/result.js — screen 4: what's wrong, what to do, and the picture.
 
-import { gliderCard } from './glider.js?v=18';
-import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=18';
-import { icon, statusIcon } from './icons.js?v=18';
-import { analyse, adjustHint, aoiNote } from '../trim.js?v=18';
-import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=18';
-import { startRecheck, goto, progress } from '../session.js?v=18';
-import { sessions, draft } from '../store.js?v=18';
-import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=18';
-import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=18';
-import { methodFor } from './guide.js?v=18';
-import { checkDate } from './history.js?v=18';
+import { gliderCard } from './glider.js?v=19';
+import { porositySummary, RATING_LABEL, RATING_STATUS } from '../porosity.js?v=19';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, classBadge } from './dom.js?v=19';
+import { icon, statusIcon } from './icons.js?v=19';
+import { analyse, adjustHint, aoiNote } from '../trim.js?v=19';
+import { RISER_ORDER, sideLabel, keyFor, SIDES, isBrakeRiser } from '../linemodel.js?v=19';
+import { startRecheck, goto, progress } from '../session.js?v=19';
+import { sessions, draft } from '../store.js?v=19';
+import { exportJson, exportCsv, sessionSummaryText } from '../exporter.js?v=19';
+import { trimProfile, profileScale, aoiBars, hideTip } from './charts.js?v=19';
+import { methodFor } from './guide.js?v=19';
+import { checkDate } from './history.js?v=19';
 
 export function renderResult(root, ctx) {
   const s = ctx.session;
@@ -41,6 +42,8 @@ export function renderResult(root, ctx) {
       <div id="profiles"></div>
       <h2>Angle of incidence</h2>
       <div id="aoi"></div>
+      <h2>Porosity</h2>
+      <div id="porosity"></div>
       <details class="more" style="margin-top:18px" id="details">
         <summary>${icon.chevron} Details — reference, left/right, every reading</summary>
         <div id="detail-body" style="margin-top:8px"></div>
@@ -67,6 +70,7 @@ export function renderResult(root, ctx) {
     det.addEventListener('toggle', () => { if (det.open && !$('#detail-body', wrap).childElementCount) renderDetails($('#detail-body', wrap), a); });
 
     $('#guide', wrap).addEventListener('click', () => ctx.goto('guide'));
+    renderPorosityCard($('#porosity', wrap));
     $('#save', wrap).addEventListener('click', () => openSave($('#save-panel', wrap)));
     $('#report', wrap).addEventListener('click', () => ctx.goto('report'));
     $('#csv', wrap).addEventListener('click', () => exportCsv(s));
@@ -110,6 +114,27 @@ export function renderResult(root, ctx) {
       toast(`Saved "${s.name}" — find it under Your checks`);
       draw();
     });
+  }
+
+  // --------------------------------------------------------------- porosity
+  function renderPorosityCard(host) {
+    const sum = porositySummary(s);
+    const open = () => { ctx.porosityBack = 'result'; ctx.goto('porosity'); };
+    if (!sum) {
+      const b = el(`<button class="btn block soft">${icon.plus} Add a porosity check</button>`);
+      b.addEventListener('click', open);
+      host.appendChild(el('<p class="small muted" style="margin-top:-4px">The fabric check of the PMA inspection standard: a reading in each of four zones on the top sail.</p>'));
+      host.appendChild(b);
+      return;
+    }
+    const tiles = sum.zones.map(z => `<div class="poro-tile"><span>${esc(z.label)}</span>
+      <b class="${z.rating ? 'st-' + RATING_STATUS[z.rating] : ''}">${z.rating ? RATING_LABEL[z.rating] : '–'}</b>
+      <small>${z.n ? `${z.avgLpm} l/m²/min · ${z.n} reading${z.n > 1 ? 's' : ''}` : 'no reading'}</small></div>`).join('');
+    const c = el(`<div class="card flat"><div class="row"><b class="grow">${!sum.complete ? 'Porosity — not finished' : sum.passed ? `Porosity passed — ${RATING_LABEL[sum.worst].toLowerCase()}` : 'Porosity failed'}</b>
+      <button class="btn ghost sm">${icon.edit} Edit</button></div>
+      <div class="poro-tiles">${tiles}</div></div>`);
+    c.querySelector('button').addEventListener('click', open);
+    host.appendChild(c);
   }
 
   // --------------------------------------------------------------- verdict

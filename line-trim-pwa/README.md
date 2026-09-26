@@ -62,6 +62,12 @@ Works offline once loaded — take-off rarely has signal.
      side view shows each row's average and the resulting trim tilt, exaggerated), the
      fix list, and a table of every line — position (main, rib or place from centre),
      target, left and right reading and difference, and L − R.
+   - **Porosity** — the fabric check of the PMA inspection standard (§5.2): readings
+     in four spanwise zones of the top sail (5–30% chord, air from inside out), in
+     l/m²/min at 20 mbar or JDC seconds (converted as 5400 ÷ s). Each zone is rated on
+     its average — good under 360, acceptable to 540, fail from 540. Reached from the
+     measure and results screens; saved with the check; in the report as ratings (the
+     standard advises not to publish values), with values in the CSV.
    - **Save** — give the check a name and the date it was measured, plus notes.
 5. **Your checks** (clock icon) — every saved check, grouped by wing and size, newest
    first. Rename, re-date or delete; tick two of the same wing and **Compare** to see
@@ -213,6 +219,7 @@ for t in test/check-*.mjs; do node "$t" || break; done
 | check-meters | IR40, Bosch and Leica frame parsers |
 | check-pastcheck | past-check import: wide/long layouts, side headers in four languages |
 | check-order | tip-to-tip order on every size: each line once, right A stabilo first, rows snake tip to tip |
+| check-porosity | PMA §5.2 porosity: JDC conversion, rating boundaries, zone averages, 4-cell spacing per side |
 | check-omega | Advance OMEGA ULS data: every published main = mean of its points |
 | check-imports | every named import exists — a missing export blanks the whole app |
 

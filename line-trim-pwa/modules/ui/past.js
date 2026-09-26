@@ -1,14 +1,14 @@
 // ui/past.js — add a check measured before: pick the wing, load the readings,
 // confirm which column is which side, name and date it.
 
-import { $, el, esc, clear, toast, fmtMm } from './dom.js?v=18';
-import { icon } from './icons.js?v=18';
-import { listWings, loadWing, isReady, expectedLineIds } from '../library.js?v=18';
-import { readSheetFile } from '../sheets/importsheet.js?v=18';
-import { gridFromText, mapColumns, readingsFrom } from '../sheets/pastcheck.js?v=18';
-import { createSession, record, canMeasureFromMaillon, progress } from '../session.js?v=18';
-import { sessions } from '../store.js?v=18';
-import { rememberedGlider } from './glider.js?v=18';
+import { $, el, esc, clear, toast, fmtMm } from './dom.js?v=19';
+import { icon } from './icons.js?v=19';
+import { listWings, loadWing, isReady, expectedLineIds } from '../library.js?v=19';
+import { readSheetFile } from '../sheets/importsheet.js?v=19';
+import { gridFromText, mapColumns, readingsFrom } from '../sheets/pastcheck.js?v=19';
+import { createSession, record, canMeasureFromMaillon, progress } from '../session.js?v=19';
+import { sessions } from '../store.js?v=19';
+import { rememberedGlider } from './glider.js?v=19';
 
 export async function renderPast(root, ctx) {
   clear(root);

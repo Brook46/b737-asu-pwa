@@ -606,3 +606,19 @@ svg.ladder { display: block; width: 100%; height: auto; }
 .order-toggle > span { flex: none; }
 .seg.sm { flex: 1; padding: 3px; }
 .seg.sm button { min-height: 36px; padding: 6px 8px; font-size: 13px; }
+
+/* ------------------------------------------------------------- porosity */
+svg.poro-plan { display: block; width: 100%; height: auto; }
+.zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 12px; }
+.zone .zone-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.zone-readings { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.reading-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.reading-chip button { border: 0; background: transparent; color: var(--ink-3); font-size: 13px; cursor: pointer; padding: 2px 4px; }
+.zone-add { display: grid; grid-template-columns: 1fr 70px auto; gap: 6px; }
+.zone-add .input { min-width: 0; }
+.tile b.st-good { color: var(--good); } .tile b.st-warn { color: var(--warn); } .tile b.st-bad { color: var(--bad); }
+.poro-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.poro-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 1px; }
+.poro-tile span { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.poro-tile b { font-size: 17px; } .poro-tile small { color: var(--ink-2); font-size: 12px; }
+.poro-tile b.st-good { color: var(--good); } .poro-tile b.st-warn { color: var(--warn); } .poro-tile b.st-bad { color: var(--bad); }

@@ -6,9 +6,9 @@
 // offered on the next check of that model, visibly — a pilot with two of the same
 // wing can see it and change it.
 
-import { el, esc, classBadge } from './dom.js?v=18';
-import { icon } from './icons.js?v=18';
-import { prefs } from '../store.js?v=18';
+import { el, esc, classBadge } from './dom.js?v=19';
+import { icon } from './icons.js?v=19';
+import { prefs } from '../store.js?v=19';
 
 const keyOf = s => `${s.gliderId}|${s.sizeKey}`;
 
