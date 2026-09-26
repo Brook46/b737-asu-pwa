@@ -1,10 +1,10 @@
 // ui/picker.js — screen 1: which wing, which size.
 
-import { $, $$, el, esc, clear, classBadge } from './dom.js?v=17';
-import { icon } from './icons.js?v=17';
-import { listWings, CLASSES } from '../library.js?v=17';
-import { prefs, draft } from '../store.js?v=17';
-import { progress } from '../session.js?v=17';
+import { $, $$, el, esc, clear, classBadge } from './dom.js?v=18';
+import { icon } from './icons.js?v=18';
+import { listWings, CLASSES } from '../library.js?v=18';
+import { prefs, draft } from '../store.js?v=18';
+import { progress } from '../session.js?v=18';
 
 const FILTERS = [
   { id: 'all', label: 'All' },

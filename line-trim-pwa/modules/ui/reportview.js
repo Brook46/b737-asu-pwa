@@ -3,9 +3,9 @@
 // generated page in a new tab is unreliable). The report is a self-contained page
 // shown in a frame; Print prints just that frame, Save file keeps a copy.
 
-import { $, el, clear, toast } from './dom.js?v=17';
-import { icon } from './icons.js?v=17';
-import { reportHtml, saveReport } from '../report.js?v=17';
+import { $, el, clear, toast } from './dom.js?v=18';
+import { icon } from './icons.js?v=18';
+import { reportHtml, saveReport } from '../report.js?v=18';
 
 export function renderReport(root, ctx) {
   const s = ctx.session;

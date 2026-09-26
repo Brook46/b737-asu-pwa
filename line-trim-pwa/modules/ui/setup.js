@@ -1,16 +1,23 @@
 // ui/setup.js — screen 2: how you'll measure, and the laser.
 
-import { rememberedGlider } from './glider.js?v=17';
-import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=17';
-import { icon } from './icons.js?v=17';
-import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=17';
-import { prefs, draft } from '../store.js?v=17';
-import * as laser from '../ble/laser.js?v=17';
-import { DRIVER_LIST } from '../ble/drivers.js?v=17';
-import { createSession, canMeasureFromMaillon } from '../session.js?v=17';
-import { ORDERS } from '../linemodel.js?v=17';
+import { rememberedGlider } from './glider.js?v=18';
+import { $, el, esc, clear, toast, classBadge, fmtMm } from './dom.js?v=18';
+import { icon } from './icons.js?v=18';
+import { loadWing, isReady, sizeOf, expectedLineIds } from '../library.js?v=18';
+import { prefs, draft } from '../store.js?v=18';
+import * as laser from '../ble/laser.js?v=18';
+import { DRIVER_LIST } from '../ble/drivers.js?v=18';
+import { createSession, canMeasureFromMaillon } from '../session.js?v=18';
+import { ORDERS } from '../linemodel.js?v=18';
 
 let unsub = null;
+
+// the two ways pilots walk a wing; rib-by-rib and main-by-main stay in ORDERS
+// for anyone who picked them before
+const ORDER_CHOICES = [
+  { id: 'rows', title: 'Left side, then right', sub: 'Every row of the left side (A1…An, then B…), then the same on the right.' },
+  { id: 'tip', title: 'Tip to tip', sub: 'The A row from the right stabilo across to the left one, then the B row back from the left, and so on.' },
+];
 
 export async function renderSetup(root, ctx) {
   unsub?.(); unsub = null;
@@ -70,6 +77,12 @@ export async function renderSetup(root, ctx) {
             : size.linesOnly ? 'Risers off — uses the sheet\'s own lines-only lengths.'
             : `Risers off — targets drop by ${size.riserMm} mm on A–E lines (brakes unchanged).`}</span></div></label>
 
+        <h2>Measuring order</h2>
+        ${ORDER_CHOICES.map(o => `<label class="choice"><input type="radio" name="order" value="${o.id}" ${(p.orderMode || 'rows') === o.id ? 'checked' : ''}>
+          <div><b>${o.title}</b><span>${o.sub}</span></div></label>`).join('')}
+        <p class="small muted" style="margin:6px 0 0">You can also switch between these two on the measuring screen at any time.</p>
+        ${['columns', 'sections'].includes(p.orderMode) ? `<p class="small muted" style="margin:6px 0 0">Your current order (${esc(ORDERS.find(o => o.id === p.orderMode)?.label || '')}) stays selected until you pick one of these.</p>` : ''}
+
         <h2>Laser</h2>
         <div class="card">
           <label class="field"><span>Device</span>
@@ -86,8 +99,6 @@ export async function renderSetup(root, ctx) {
         <details class="more" style="margin-top:16px">
           <summary>${icon.chevron} More options</summary>
           <div class="card flat" style="margin-top:8px">
-            <label class="field"><span>Measuring order</span>
-              <select class="input" id="order">${ORDERS.map(o => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select></label>
             <label class="field"><span>Tolerance <b id="tolv"></b></span><input type="range" id="tol" min="5" max="20" step="1"></label>
             <label class="field"><span>Laser zero offset (mm)</span>
               <input class="input" id="offset" type="number" inputmode="numeric" placeholder="0"></label>
@@ -107,7 +118,7 @@ export async function renderSetup(root, ctx) {
   if (!ready) return;
 
   // ---- options
-  const order = $('#order', wrap); order.value = p.orderMode || 'rows';
+  const order = { get value() { return wrap.querySelector('input[name="order"]:checked')?.value || p.orderMode || 'rows'; } };
   const tol = $('#tol', wrap); tol.value = p.tolIndMm || wing.method.tolIndMm || 10;
   const tolv = $('#tolv', wrap); const syncTol = () => { tolv.textContent = `±${tol.value} mm`; }; syncTol();
   tol.addEventListener('input', syncTol);

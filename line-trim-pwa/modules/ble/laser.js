@@ -1,6 +1,6 @@
 // ble/laser.js — one shared connection to a laser meter, driver-agnostic.
 
-import { DRIVERS } from './drivers.js?v=17';
+import { DRIVERS } from './drivers.js?v=18';
 
 const listeners = new Set();   // ({type, ...}) => void
 let state = {

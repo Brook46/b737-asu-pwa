@@ -29,7 +29,10 @@ Works offline once loaded — take-off rarely has signal.
    handle. The line being measured is traced end to end (e.g. A10 → AMU9 → AM5 → AML1
    → AR3 → A riser), so it's clear which physical line to put the laser on. Cascade
    levels come from the sheet when it names them (BGD); otherwise point → main →
-   riser. Tap any point to jump to it; swipe the card to move. The last serial and
+   riser. Tap any point to jump to it; swipe the card to move. **Order** switches
+   between left side then right, and **tip to tip**: the A row from the right stabilo
+   across to the left one, the B row back from the left, and so on — each row starting
+   where the last one ended; switching mid-check keeps your readings and place. The last serial and
    owner used for a model + size are offered on the next check.
    **Auto-next** (on by default, toggle on the card): a laser shot is entered and the
    card moves on by itself — no Next to press. Both kinds of meter work: *single-shot*
