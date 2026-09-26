@@ -87,7 +87,7 @@ Every number comes from a manufacturer-published **manual / check** table:
 | Class | Wings |
 |---|---|
 | EN A | BGD Anda, BGD Magic, Niviuk Koyot 6, Niviuk Koyot 6 P, Ozone Alta GT, Skywalk Masala 4, Skywalk Mescal 7 |
-| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6, Skywalk Arak 2, Skywalk Arak Air 2, Skywalk Pace |
+| EN B | BGD Base 3, BGD Epic 2, BGD Punk, Ozone Buzz Z6, Niviuk Hiko, Niviuk Hiko P, Niviuk Ikuma 3, Niviuk Ikuma 3 P, Ozone Rush 6, Skywalk Arak 2, Skywalk Arak Air 2, Skywalk Pace |
 | EN C | BGD Cure 2, BGD Cure 3, BGD Lynx 2, Niviuk Artik 7 P, Niviuk Artik R 2, Ozone Alpina 5, Ozone Delta 5, Ozone Lyght, Skywalk Mint, Skywalk Sage |
 | EN D | Advance OMEGA ULS, BGD Diva 2, Ozone Zeno 2, Ozone Zeolite, Ozone Zeolite GT\*, Ozone Zeolite 2\*\*, Ozone Zeolite 2 GT, Skywalk Poison 4, Skywalk X-Alps 6 |
 | CCC | Ozone Enzo 3 (from its CCC manual line check — no brake lengths) |
@@ -95,7 +95,7 @@ Every number comes from a manufacturer-published **manual / check** table:
 | Tandem | BGD Dual 2, Niviuk Takoo 6, Ozone Magnum 4, Ozone SwiftMax 2, Ozone Wisp 2, Skywalk Join't 5 |
 | Load-tested only | Niviuk Jester (EN 926-1) |
 
-47 wings, 220 sizes ready to measure. Filter the list by brand and by class.
+48 wings, 226 sizes ready to measure. Filter the list by brand and by class.
 
 **Skywalk** publishes a Line Data PDF per model (skywalk.info → Downloads → Line
 length): total line length including risers to the lower sail, at 5 daN, brakes from

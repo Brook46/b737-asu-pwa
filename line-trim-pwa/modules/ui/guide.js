@@ -12,8 +12,8 @@
 // Take-up per loop depends on the line and connector; the typical figures quoted
 // are one workshop's and are labelled as such — the app's re-measure is the truth.
 
-import { $, el, clear } from './dom.js?v=15';
-import { icon } from './icons.js?v=15';
+import { $, el, clear } from './dom.js?v=16';
+import { icon } from './icons.js?v=16';
 
 // ---- drawing kit ------------------------------------------------------------
 const DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>

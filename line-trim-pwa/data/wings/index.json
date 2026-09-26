@@ -676,6 +676,48 @@
    ]
   },
   {
+   "id": "ozone-buzz-z6",
+   "brand": "Ozone",
+   "model": "Buzz Z6",
+   "wingClass": "EN B",
+   "year": 2019,
+   "liners": 3,
+   "category": "Low-B / progression",
+   "caution": false,
+   "sizes": [
+    {
+     "key": "XS",
+     "ready": true,
+     "lines": 64
+    },
+    {
+     "key": "S",
+     "ready": true,
+     "lines": 64
+    },
+    {
+     "key": "MS",
+     "ready": true,
+     "lines": 64
+    },
+    {
+     "key": "ML",
+     "ready": true,
+     "lines": 64
+    },
+    {
+     "key": "L",
+     "ready": true,
+     "lines": 64
+    },
+    {
+     "key": "XL",
+     "ready": true,
+     "lines": 64
+    }
+   ]
+  },
+  {
    "id": "ozone-rush-6",
    "brand": "Ozone",
    "model": "Rush 6",
