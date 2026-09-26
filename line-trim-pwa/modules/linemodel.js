@@ -127,7 +127,25 @@ export const ORDERS = [
   { id: 'rows',     label: 'Rows — A1…An, then B1…Bn' },
   { id: 'columns',  label: 'Columns — rib by rib, A→D, centre out' },
   { id: 'sections', label: 'Sections — every point on one main, then the next' },
+  { id: 'tip',      label: 'Tip to tip — right A stabilo across to the left, B back, and so on' },
 ];
+
+/**
+ * Tip to tip, row by row, both sides in one sweep: the A row from the right
+ * stabilo (outermost point) in to the centre and out to the left stabilo; the B
+ * row starts where A ended, left tip to right tip; and so on, snaking so each row
+ * begins where the last one finished. Brakes come last, the same way.
+ */
+function tipToTip(lineIds, ribs) {
+  const out = (id) => (ribs && ribs[id] != null ? ribs[id] : parseLineId(id).pos);   // further out = bigger
+  const keys = [];
+  groupLines(lineIds).forEach((g, i) => {
+    const inward = [...g.lineIds].sort((a, b) => out(b) - out(a));        // tip → centre
+    const sweep = [...inward.map(id => keyFor('R', id)), ...[...inward].reverse().map(id => keyFor('L', id))];
+    keys.push(...(i % 2 ? sweep.reverse() : sweep));
+  });
+  return keys;
+}
 
 function orderLines(lineIds, mains, mode, ribs) {
   const groups = groupLines(lineIds);
@@ -162,6 +180,7 @@ function orderLines(lineIds, mains, mode, ribs) {
  * Starts on the left, as the shop convention does.
  */
 export function walkOrder(lineIds, { mains = null, order = 'rows', sides = ['L', 'R'], ribs = null } = {}) {
+  if (order === 'tip') return tipToTip(lineIds, ribs);
   const ms = mains || mainsFor(lineIds, null);
   const ordered = orderLines(lineIds, ms, order, ribs);
   return sides.flatMap(side => ordered.map(id => keyFor(side, id)));

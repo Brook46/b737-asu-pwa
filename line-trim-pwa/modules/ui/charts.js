@@ -11,8 +11,8 @@
 // uses ink tokens. Every chart has a legend or title naming its series and a
 // table elsewhere on the page holds every value, so hover only enhances.
 
-import { parseLineId } from '../linemodel.js?v=16';
-import { signed } from './dom.js?v=16';
+import { parseLineId } from '../linemodel.js?v=17';
+import { signed } from './dom.js?v=17';
 
 const ROWS = ['A', 'B', 'C', 'D', 'E'];
 const NS = 'http://www.w3.org/2000/svg';

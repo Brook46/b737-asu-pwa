@@ -1,7 +1,7 @@
 // session.js — a measuring session: the plan, both sides, what's measured, the cursor.
 
-import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=16';
-import { uid } from './store.js?v=16';
+import { walkOrder, mainsFor, keyFor, lineOf, sideOf, parseLineId, isBrakeRiser } from './linemodel.js?v=17';
+import { uid } from './store.js?v=17';
 
 /**
  * Where the tape starts. Manufacturer check lengths here are "lines + risers"
@@ -76,6 +76,22 @@ export function createSession(wing, sizeKey, opts = {}) {
     simOffsets: {},
     done: {},                // action checklist ticks: mainKey -> true
   };
+}
+
+/**
+ * Switch a check to another measuring order mid-way. Readings are kept; the
+ * cursor stays on the line being measured.
+ */
+export function setOrder(session, mode) {
+  const key = currentKey(session);
+  const lineIds = Object.keys(session.nominal);
+  session.orderMode = mode;
+  session.order = walkOrder(lineIds, { mains: session.mains, order: mode, sides: ['L', 'R'], ribs: session.ribs });
+  // nothing measured yet: start at the new order's beginning; otherwise stay put
+  if (!session.queue?.length) {
+    session.cursor = Object.keys(session.measured || {}).length ? Math.max(0, session.order.indexOf(key)) : 0;
+  }
+  return session;
 }
 
 /** The keys the pilot is currently walking: a re-check queue, or everything. */

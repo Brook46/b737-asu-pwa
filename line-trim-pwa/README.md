@@ -209,6 +209,7 @@ for t in test/check-*.mjs; do node "$t" || break; done
 | check-capture | single-shot and stream capture, re-arming, never one reading on two lines |
 | check-meters | IR40, Bosch and Leica frame parsers |
 | check-pastcheck | past-check import: wide/long layouts, side headers in four languages |
+| check-order | tip-to-tip order on every size: each line once, right A stabilo first, rows snake tip to tip |
 | check-omega | Advance OMEGA ULS data: every published main = mean of its points |
 | check-imports | every named import exists — a missing export blanks the whole app |
 

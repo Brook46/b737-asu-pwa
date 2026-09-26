@@ -600,3 +600,8 @@ svg.lineplan .half-label { fill: var(--ink-3); font-size: 8px; font-weight: 700;
 .fig-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
 .fig-row .fig-panel svg { max-width: 320px; }
 svg.ladder { display: block; width: 100%; height: auto; }
+
+/* measuring-order switch under the progress bar */
+.order-toggle { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.seg.sm { flex: 1; padding: 3px; }
+.seg.sm button { min-height: 36px; padding: 6px 8px; font-size: 13px; }

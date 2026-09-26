@@ -4,20 +4,20 @@
 // value close to the target is saved and the next line comes up by itself. The
 // "Saved … · Redo" chip jumps straight back to re-enter the last value.
 
-import { $, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=16';
-import { icon, statusIcon } from './icons.js?v=16';
-import * as laser from '../ble/laser.js?v=16';
+import { $, $$, el, esc, clear, toast, signed, fmtMm, rowColor } from './dom.js?v=17';
+import { icon, statusIcon } from './icons.js?v=17';
+import * as laser from '../ble/laser.js?v=17';
 import {
   currentKey, walkKeys, record, clearLine, calibrate, rawToLength,
-  progress, move, goto, endRecheck,
-} from '../session.js?v=16';
-import { renderLinePlan } from './lineplan.js?v=16';
-import { gliderCard } from './glider.js?v=16';
-import { gauge } from './charts.js?v=16';
-import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=16';
-import { targetFor } from '../trim.js?v=16';
-import { createCapture } from '../capture.js?v=16';
-import { prefs, draft } from '../store.js?v=16';
+  progress, move, goto, endRecheck, setOrder,
+} from '../session.js?v=17';
+import { renderLinePlan } from './lineplan.js?v=17';
+import { gliderCard } from './glider.js?v=17';
+import { gauge } from './charts.js?v=17';
+import { lineOf, sideOf, sideLabel, SIDES, parseLineId, RISER_LABEL } from '../linemodel.js?v=17';
+import { targetFor } from '../trim.js?v=17';
+import { createCapture } from '../capture.js?v=17';
+import { prefs, draft } from '../store.js?v=17';
 
 let unsub = null;
 const TYPED_PLAUSIBLE_MM = 600;   // a typed value this close to target may auto-advance
@@ -73,6 +73,13 @@ export function renderMeasure(root, ctx) {
         <div class="progress-label"><span id="plabel"></span>
           <span><button class="btn ghost sm" id="calib">${icon.ruler} Calibrate</button>
           <button class="btn ghost sm" id="auto" aria-pressed="false"></button></span></div>
+        <div class="order-toggle" role="group" aria-label="Measuring order">
+          <span class="small muted">Order</span>
+          <div class="seg sm" id="ordertog">
+            <button data-o="side">Left, then right</button>
+            <button data-o="tip">Tip to tip</button>
+          </div>
+        </div>
       </div>
       <button class="btn block soft" id="finish" style="margin-top:12px">See results ${icon.chevron}</button>
     </div>`);
@@ -161,6 +168,7 @@ export function renderMeasure(root, ctx) {
     $('#plabel', wrap).textContent = s.queue?.length
       ? `Re-check ${s.cursor + 1} of ${all.length}`
       : `${s.cursor + 1} of ${all.length} · ${pr.done} measured`;
+    $$('#ordertog button', wrap).forEach(b => b.setAttribute('aria-pressed', String((s.orderMode === 'tip') === (b.dataset.o === 'tip'))));
     const auto = $('#auto', wrap);
     auto.innerHTML = `${autoNext ? icon.check : ''} Auto-next ${autoNext ? 'on' : 'off'}`;
     auto.setAttribute('aria-pressed', String(autoNext));
@@ -254,6 +262,19 @@ export function renderMeasure(root, ctx) {
     save();
     ctx.goto('result');
   });
+  // switch the walking order mid-check; readings stay, the current line stays.
+  // "Left, then right" goes back to the pilot's chosen side-by-side order.
+  $$('#ordertog button', wrap).forEach(b => b.addEventListener('click', () => {
+    const tip = b.dataset.o === 'tip';
+    if (tip === (s.orderMode === 'tip')) return;
+    clearTimers(); commit();
+    const side = prefs.get().sideOrderMode || 'rows';
+    if (tip && s.orderMode !== 'tip') prefs.set({ sideOrderMode: s.orderMode || 'rows' });
+    setOrder(s, tip ? 'tip' : side);
+    prefs.set({ orderMode: s.orderMode });
+    save(); reset(); draw();
+    toast(tip ? 'Tip to tip: A row from the right stabilo across to the left, then B back' : 'Left side first, then the right');
+  }));
   $('#auto', wrap).addEventListener('click', () => {
     autoNext = !autoNext;
     prefs.set({ autoNext });
