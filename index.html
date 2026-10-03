@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=13" />
+  <link rel="stylesheet" href="app.css?v=14" />
 </head>
 <body>
   <!-- Disclaimer modal (shown once) -->
@@ -193,19 +193,17 @@
   <!-- Stick Shaker CB photo lightbox -->
   <div id="cb-modal" class="modal" aria-hidden="true">
     <div class="modal-card cb-card">
-      <button type="button" id="cb-close" class="cb-close" aria-label="Close">×</button>
-      <h2 class="cb-title">Stick Shaker — Circuit Breakers</h2>
-      <div class="cb-images">
-        <figure class="cb-fig">
-          <img class="cb-image" src="images/stick-shaker-cb-p6.svg" alt="P6-1 panel with stick shaker right CB (B3, C1393) highlighted" />
-          <figcaption>P6‑1</figcaption>
-        </figure>
-        <figure class="cb-fig">
-          <img class="cb-image" src="images/stick-shaker-cb-p18.svg" alt="P18-2 panel with stick shaker left CB (E3, C1392) highlighted" />
-          <figcaption>P18‑2</figcaption>
-        </figure>
+      <div class="cb-top">
+        <div class="cb-tabs" role="tablist" aria-label="Stick shaker side">
+          <button type="button" class="cb-tab" data-cb="right" aria-pressed="true">RIGHT · P6‑1</button>
+          <button type="button" class="cb-tab" data-cb="left" aria-pressed="false">LEFT · P18‑2</button>
+        </div>
+        <button type="button" id="cb-close" class="cb-close" aria-label="Close">×</button>
       </div>
-      <p class="cb-hint">Tap a panel to enlarge · tap outside to close</p>
+      <div class="cb-stage">
+        <img class="cb-image" data-cb="right" src="images/stick-shaker-cb-p6.svg?v=14" alt="P6-1 panel, stick shaker right CB C1393 at row B column 6 highlighted" />
+        <img class="cb-image" data-cb="left" src="images/stick-shaker-cb-p18.svg?v=14" alt="P18-2 panel, stick shaker left CB C1392 at row E column 4 highlighted" hidden />
+      </div>
     </div>
   </div>
 
@@ -243,6 +241,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=13" defer></script>
+  <script src="app.js?v=14" defer></script>
 </body>
 </html>

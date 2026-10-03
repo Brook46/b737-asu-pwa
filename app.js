@@ -266,8 +266,10 @@ const subCard = $('#sub-controls');
 function buildSubControls() {
   subCard.innerHTML = '';
   if (!state.variant) { subCard.hidden = true; return; }
+  // Always shown once a variant is picked, so the layout doesn't jump between
+  // phases; dimmed (still settable) where the phase's table doesn't use it.
   const needsApt = state.phase === 'terminal' || state.phase === 'approach' || state.phase === 'go_around';
-  if (!needsApt) { subCard.hidden = true; return; }
+  subCard.classList.toggle('apt-inactive', !needsApt);
 
   // Pull the full airport-altitude list from the Terminal dataset (most granular).
   // Terminal/Approach look up an exact row; Go-Around snaps to the nearest GA altitude
@@ -281,7 +283,10 @@ function buildSubControls() {
 
   subCard.classList.add('apt-card');
   subCard.innerHTML = `
-    <span class="section-label">Airport altitude</span>
+    <div class="apt-label">
+      <span class="section-label">Airport altitude</span>
+      ${needsApt ? '' : '<span class="apt-note">Used in Terminal · Final · G/A</span>'}
+    </div>
     <div class="apt-select-wrap">
       <select id="apt-alt-select" class="apt-select" aria-label="Airport altitude">
         ${alts.map(a =>
@@ -519,17 +524,12 @@ function closeCbModal() {
 }
 cbBtn.addEventListener('click', openCbModal);
 cbClose.addEventListener('click', closeCbModal);
-// Tap a panel to view it solo (bigger); tap again to return to both.
-$$('.cb-fig').forEach(fig => {
-  fig.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const wrap = fig.parentElement;
-    const solo = fig.classList.contains('solo');
-    wrap.classList.toggle('solo-mode', !solo);
-    $$('.cb-fig').forEach(f => f.classList.remove('solo'));
-    if (!solo) fig.classList.add('solo');
-  });
-});
+// RIGHT / LEFT tabs — one panel at a time so it can fill the screen.
+function showCbSide(side) {
+  $$('.cb-tab').forEach(t => t.setAttribute('aria-pressed', String(t.dataset.cb === side)));
+  $$('.cb-image').forEach(img => { img.hidden = img.dataset.cb !== side; });
+}
+$$('.cb-tab').forEach(t => t.addEventListener('click', () => showCbSide(t.dataset.cb)));
 cbModal.addEventListener('click', (e) => {
   if (e.target === cbModal) closeCbModal();
 });
@@ -607,13 +607,17 @@ function startGPS() {
   );
 }
 
-/* Motion permission — mirrors the Flight Card PWA approach.
+/* Motion permission (iOS 13+).
  *
- * The trick: iOS remembers a granted DeviceMotion permission per-origin, and
- * once granted we can just addEventListener('devicemotion') on every launch
- * and events flow with NO dialog. The dialog only ever appears when we call
- * DeviceMotionEvent.requestPermission() — so we call that in exactly one
- * place (an explicit user tap), never automatically on launch. */
+ * DeviceMotionEvent.requestPermission() must run inside a user gesture, and
+ * after a fresh page load iOS delivers no 'devicemotion' events until it has
+ * been called again — even if the user granted it before. So we call it on
+ * every launch from the "Got it" tap (showMemoryItems). Where iOS persists the
+ * grant this resolves silently; on iPadOS builds that don't persist it, the
+ * system dialog reappears each launch (web apps can't avoid that — the native
+ * shell in ios/ can). Settings → Motion and the footer button are the manual
+ * fallback. Status only reports motion as working once real data arrives
+ * (sensor.motionSeen), so a silently-dead sensor never hides those buttons. */
 function motionNeedsPermission() {
   return typeof DeviceMotionEvent !== 'undefined' &&
          typeof DeviceMotionEvent.requestPermission === 'function';
@@ -625,9 +629,8 @@ function cachedMotionPermission() {
   catch { return 'prompt'; }
 }
 
-// Attach the accelerometer listener. No requestPermission() — safe to call on
-// every launch. If the origin isn't granted, iOS simply won't deliver events
-// (handled by the enable button falling back to requestMotionPermission).
+// Attach the accelerometer listener. On iOS this only receives events after
+// requestMotionPermission() has succeeded in this page load.
 function startMotion() {
   if (sensor.motionActive) return;
   window.addEventListener('devicemotion', onMotion);
@@ -635,7 +638,7 @@ function startMotion() {
   reportSensorStatus();
 }
 
-// The ONLY caller of requestPermission(). Must run inside a user gesture.
+// The only caller of requestPermission(). Must run inside a user gesture.
 async function requestMotionPermission() {
   if (!motionNeedsPermission()) { startMotion(); return 'granted'; }
   let state = 'denied';
@@ -838,6 +841,7 @@ if ('serviceWorker' in navigator) {
   buildSubControls();
   render();
 
-  // If motion permission never gets requested (non-iOS / no memory click), show enable button
+  // Paint the initial sensor status (footer text + enable button) even if
+  // "Got it" hasn't been tapped yet.
   setTimeout(reportSensorStatus, 1500);
 })();
