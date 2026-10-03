@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=141" />
+  <link rel="stylesheet" href="./app.css?v=143" />
   <style>
     /* Screen only: app.css keeps #print-root hidden until print, because in
        the app the sheet is off-screen. Here the sheet IS the page, so show it
@@ -34,6 +34,10 @@
         background: #0a7d6f; color: #fff; cursor: pointer;
       }
       .pp-go:active { filter: brightness(.9); }
+      .pp-back {
+        font: 600 16px system-ui, sans-serif; color: #0a7d6f; text-decoration: none;
+        padding: 10px 12px 10px 0; white-space: nowrap;
+      }
       .pp-err { padding: 40px 20px; text-align: center; color: #444; font-size: 15px; }
       /* overflow-x hidden: the sheet's layout box stays a true 210mm even while
          it's drawn scaled down, and on a phone that unscaled box is wider than
@@ -61,14 +65,18 @@
 </head>
 <body>
   <div class="pp-bar">
-    <p id="pp-msg">Your print layout from Flight Card. Tap Print, or use Safari’s
-       Share button → Print.</p>
+    <!-- The way out. This page sits inside the Home Screen app's scope, so on
+         iOS a link to it opens INSIDE the app's own window — no address bar,
+         no back button. Without this, the only escape was force-quitting. -->
+    <a href="./index.html" class="pp-back">‹ Back to Flight Card</a>
+    <p id="pp-msg">Your print layout from Flight Card. If Print does nothing here,
+       go back and use “Share as PDF” instead.</p>
     <button type="button" id="pp-go" class="pp-go">Print</button>
   </div>
   <div id="print-root"></div>
 
   <script type="module">
-    import { sheetsHtml, decodePayload } from './modules/print.js?v=141';
+    import { sheetsHtml, decodePayload } from './modules/print.js?v=143';
 
     const root = document.getElementById('print-root');
     const data = decodePayload(location.hash);

@@ -1,39 +1,40 @@
 // Flight Card service worker.
 // App shell is cache-first. Tesseract.js is fetched on demand and then cached.
 
-const CACHE_VERSION = 'flightcard-v141';
+const CACHE_VERSION = 'flightcard-v143';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=141',
-  './app.js?v=141',
+  './app.css?v=143',
+  './app.js?v=143',
   './manifest.json',
   './icon.svg',
   './menu.html',
   './share.html',
   './print.html',
-  './modules/storage.js?v=141',
-  './modules/dates.js?v=141',
-  './modules/data-card.js?v=141',
-  './modules/checklist.js?v=141',
-  './modules/print.js?v=141',
-  './modules/ui.js?v=141',
-  './modules/ocr.js?v=141',
-  './modules/speeches.js?v=141',
-  './modules/airports.js?v=141',
-  './modules/worldmap.js?v=141',
-  './modules/roster.js?v=141',
-  './modules/ly-routes.js?v=141',
-  './modules/wx.js?v=141',
-  './modules/logbook.js?v=141',
-  './modules/logbook-push.js?v=141',
-  './modules/gps.js?v=141',
-  './modules/g.js?v=141',
-  './modules/analytics.js?v=141',
-  './modules/sectors-csv.js?v=141',
-  './modules/ical.js?v=141',
-  './modules/calendar.js?v=141',
-  './modules/proxy.js?v=141',
+  './modules/storage.js?v=143',
+  './modules/dates.js?v=143',
+  './modules/data-card.js?v=143',
+  './modules/checklist.js?v=143',
+  './modules/print.js?v=143',
+  './modules/print-pdf.js?v=143',
+  './modules/ui.js?v=143',
+  './modules/ocr.js?v=143',
+  './modules/speeches.js?v=143',
+  './modules/airports.js?v=143',
+  './modules/worldmap.js?v=143',
+  './modules/roster.js?v=143',
+  './modules/ly-routes.js?v=143',
+  './modules/wx.js?v=143',
+  './modules/logbook.js?v=143',
+  './modules/logbook-push.js?v=143',
+  './modules/gps.js?v=143',
+  './modules/g.js?v=143',
+  './modules/analytics.js?v=143',
+  './modules/sectors-csv.js?v=143',
+  './modules/ical.js?v=143',
+  './modules/calendar.js?v=143',
+  './modules/proxy.js?v=143',
   './share-roster.html',
   './icons/icon-152.png',
   './icons/icon-167.png',
@@ -80,7 +81,9 @@ self.addEventListener('fetch', (event) => {
   // Lazy-loaded CDN library (Tesseract.js for OCR): cache after first fetch
   // so the feature works offline once you've used it once on a connected
   // device.
-  const isTesseract = /tesseract(\.js)?|tessdata|jsdelivr.*tesseract/i.test(url.href);
+  // html2canvas is the Share-as-PDF renderer — same treatment, so after one
+  // use it's on the device and the PDF doesn't wait on the network.
+  const isTesseract = /tesseract(\.js)?|tessdata|jsdelivr.*tesseract|html2canvas/i.test(url.href);
   if (isTesseract) {
     event.respondWith(
       caches.open(CACHE_VERSION).then(async (cache) => {

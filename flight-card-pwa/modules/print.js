@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=141';
+import * as storage from './storage.js?v=143';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -345,38 +345,19 @@ export function sheetsHtml(cfg = getConfig(), tpl) {
   return cfg.bothSides ? sheet + sheet : sheet;
 }
 
-// ---------- Hand-off to Safari ----------
+// ---------- print.html links ----------
 //
-// Some iOS versions give a Home Screen web app no working print dialog:
-// window.print() returns and nothing happens. Safari itself still prints. The
-// obstacle to just opening the page there is storage — iOS keeps the Home
-// Screen app's apart from Safari's, so the layout you built would be gone.
-// So the layout travels in the link: the print config plus the checklist,
-// stripped to what the cards actually print, as base64url JSON in the #hash
-// (a fragment is never sent to the server). A few KB.
-function b64urlEncode(str) {
-  const bytes = new TextEncoder().encode(str);       // UTF-8: Hebrew labels survive
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+// print.html renders a sheet from a layout carried in its #hash, because iOS
+// keeps a Home Screen app's storage apart from Safari's. Flight Card no longer
+// links to it — on the pilot's iPad that link opened inside the app's own
+// window, where printing failed the same way and there was no way back; the
+// route that works is Share as PDF (print-pdf.js). The decoder stays so a link
+// made by an older version still renders instead of erroring.
 function b64urlDecode(s) {
   let t = String(s).replace(/-/g, '+').replace(/_/g, '/');
   while (t.length % 4) t += '=';
   const bin = atob(t);
   return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
-}
-
-export function safariPrintUrl() {
-  const tpl = storage.getTemplate();
-  const slim = {
-    sections: ((tpl && tpl.sections) || []).map(sec => ({
-      name: sec.name,
-      items: (sec.items || []).map(it => ({ label: it.label })),
-    })),
-  };
-  const payload = b64urlEncode(JSON.stringify({ v: 1, cfg: getConfig(), tpl: slim }));
-  return new URL('./print.html#p=' + payload, location.href).href;
 }
 
 // Returns { cfg, tpl } or null for a missing/corrupt link.

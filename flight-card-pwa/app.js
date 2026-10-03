@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=141';
-import * as dataCard from './modules/data-card.js?v=141';
-import * as checklist from './modules/checklist.js?v=141';
-import * as speeches from './modules/speeches.js?v=141';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=141';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=141';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=141';
+import * as storage from './modules/storage.js?v=143';
+import * as dataCard from './modules/data-card.js?v=143';
+import * as checklist from './modules/checklist.js?v=143';
+import * as speeches from './modules/speeches.js?v=143';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=143';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=143';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=143';
 
 const $ = (id) => document.getElementById(id);
 
@@ -278,6 +278,12 @@ const historyBody = $('history-body');
 // card the slowest thing on the screen for no benefit.
 const HIST_PAST_PAGE = 25;
 let histShowAllPast = false;
+// A PDF already built for "Share as PDF", kept when iOS refused the share
+// because the tap had gone stale. Declared up here, not beside its handler:
+// paintPrintPreview reads it too, and a let still in its temporal dead zone
+// throws even under typeof.
+let pdfReady = null;
+let pdfModule = null;   // print-pdf.js once loaded, so a ready PDF shares with no await first
 
 
 // CTOT pill state classes. Declared HERE, above startClocks(), because the
@@ -1058,10 +1064,6 @@ async function openPrintSheet() {
   }
   showOverlay('print-overlay');
   paintPrintSheet();
-  // navigator.standalone is iOS-only and true only in a Home Screen app — the
-  // place the print dialog has been failing to open — so offer the Safari
-  // route up front there instead of only after a failed attempt.
-  if (navigator.standalone === true) revealSafariPrint();
 }
 
 function paintPrintSheet() {
@@ -1131,6 +1133,9 @@ function paintPrintSheet() {
 // the half that actually goes wrong — were the one thing you could never see
 // before committing paper to it. Now the preview is the page.
 function paintPrintPreview(cfg) {
+  // Any layout change makes a PDF built earlier out of date — drop it, so the
+  // "tap to share" button can never hand over cards that no longer match.
+  if (pdfReady) { pdfReady = null; resetPdfButton(); }
   const host = $('print-preview');
   // Always one sheet: the back side is the same card again, so a second page
   // in the preview would just be a taller picture of the same information.
@@ -1402,25 +1407,80 @@ $('print-go').addEventListener('click', () => {
   // without checking — wrong for anyone it was working for.
   printMod.print().then((opened) => {
     if (opened) return;
-    // Bring the sheet back with the Safari route showing, rather than leaving
-    // the pilot with a toast and a closed dialog.
+    // Bring the sheet back so the working route is right there, rather than
+    // leaving the pilot with a toast and a closed dialog.
     showOverlay('print-overlay');
-    revealSafariPrint();
-    toast('The print dialog didn\u2019t open — use \u201cPrint via Safari\u201d');
+    toast('The print dialog didn\u2019t open \u2014 use \u201cShare as PDF\u201d');
   });
 });
 
-// The Safari hand-off. Fill the href at the moment of the tap so it carries
-// whatever the layout is right now, then let the link's own default action do
-// the navigation — still inside the gesture, so nothing can block it.
-$('print-safari').addEventListener('click', (e) => {
-  if (!printMod) { e.preventDefault(); return; }
-  e.currentTarget.href = printMod.safariPrintUrl();
-});
-function revealSafariPrint() {
-  $('print-safari').hidden = false;
-  $('print-safari-note').hidden = false;
+// Share as PDF. Building the PDF takes a moment, and iOS only lets a page
+// open the share sheet straight after a tap — so if the build outlasts that
+// window the share is refused (NotAllowedError). Keep the finished PDF and
+// turn the button into a one-tap share: that second tap is fresh permission.
+function resetPdfButton(label = 'Share as PDF') {
+  const b = $('print-pdf');
+  b.disabled = false;
+  b.textContent = label;
 }
+$('print-pdf').addEventListener('click', async () => {
+  if (!printMod) return;
+  const btn = $('print-pdf');
+  if (btn.disabled) return;          // a build is already running
+
+  // A PDF is already built: this tap exists only to give iOS a fresh gesture,
+  // so call the share sheet before ANY await. sharePdf() reaches
+  // navigator.share() synchronously.
+  if (pdfReady && pdfModule) {
+    const bytes = pdfReady;
+    pdfReady = null;
+    btn.disabled = true;
+    btn.textContent = 'Opening share sheet\u2026';
+    pdfModule.sharePdf(bytes).then(
+      () => resetPdfButton(),
+      (err) => {
+        resetPdfButton();
+        if (err?.name !== 'AbortError') toast(err?.message || 'Couldn\u2019t share the PDF');
+      });
+    return;
+  }
+
+  // Feedback first, before any await: the very first tap also has to fetch
+  // the renderer, and a button that sits unchanged for seconds gets tapped
+  // again.
+  btn.disabled = true;
+  btn.textContent = 'Preparing PDF\u2026';
+  let pdfMod;
+  try {
+    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js');
+  } catch {
+    resetPdfButton();
+    toast('PDF unavailable \u2014 check connection');
+    return;
+  }
+  let bytes;
+  try {
+    bytes = await pdfMod.buildCardsPdf(printMod.sheetsHtml(printMod.getConfig()));
+  } catch (err) {
+    console.warn('PDF build failed', err);
+    resetPdfButton();
+    toast(err?.message || 'Couldn\u2019t make the PDF');
+    return;
+  }
+  try {
+    await pdfMod.sharePdf(bytes);
+    resetPdfButton();
+  } catch (err) {
+    if (err?.name === 'AbortError') { resetPdfButton(); return; }      // sheet closed
+    if (err?.name === 'NotAllowedError') {                              // tap went stale
+      pdfReady = bytes;
+      resetPdfButton('PDF ready \u2014 tap to share');
+      return;
+    }
+    resetPdfButton();
+    toast(err?.message || 'Couldn\u2019t share the PDF');
+  }
+});
 
 function doChecklistEditToggle() {
   const on = !checklist.isEditMode();
