@@ -8,6 +8,15 @@
    this file; in light mode they resolve to flat paper values so the
    same rules render both treatments. */
 :root {
+  /* The line everything pinned to the top of the screen starts below.
+     safe-area-inset-top alone used to be enough: content began just under the
+     status bar. Newer iOS draws a soft legibility blur under the status bar
+     that reaches past that line, and the header's clock, CTOT and icons sat
+     inside it and came out blurred. The extra 12px clears the band; where
+     there is no inset (desktop, windowed iPad) it's simply a little top
+     breathing room. One variable so the header, the PA sheet and the update
+     banner can never disagree about where "below the blur" is. */
+  --top-clear: calc(env(safe-area-inset-top, 0px) + 12px);
   --bg: #FAFAF8;
   --bg-elev: #ffffff;
   --bg-sunk: #F1EFEA;
@@ -119,7 +128,7 @@ body {
   gap: 6px;
   /* Left padding leaves room for the iOS Slide Over / Stage Manager
      close/minimise/maximise pill so it doesn't overlap the UTC clock. */
-  padding: max(env(safe-area-inset-top, 0), 8px) 10px 8px
+  padding: var(--top-clear) 10px 8px
            max(env(safe-area-inset-left, 0), 72px);
   background: var(--bg-elev);
   border-bottom: 1px solid var(--line);
@@ -1110,10 +1119,10 @@ div.airport-notes.is-empty::before {
   display: flex; flex-direction: column; gap: 10px;
 }
 /* PA overlay is bigger and sits higher */
-#pa-overlay { align-items: flex-start; padding: max(env(safe-area-inset-top, 0), 12px) 8px 0; }
+#pa-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
 #pa-overlay .pa-sheet {
   width: 100%; max-width: 720px;
-  height: calc(100vh - max(env(safe-area-inset-top, 0), 12px) - max(env(safe-area-inset-bottom, 0), 12px));
+  height: calc(100vh - var(--top-clear) - max(env(safe-area-inset-bottom, 0), 12px));
   max-height: none;
   border-radius: 18px;
   display: flex; flex-direction: column; gap: 10px;
@@ -1261,7 +1270,7 @@ div.airport-notes.is-empty::before {
    overlay we currently render. */
 .fc-update-banner {
   position: fixed;
-  top: env(safe-area-inset-top, 0);
+  top: var(--top-clear);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -2347,12 +2356,18 @@ body { background: transparent; }
 .pr-sheet {
   width: 210mm; height: 297mm;
   box-sizing: border-box;
-  /* --edge is a safe margin on ALL FOUR edges; --clip adds to it at the top
-     only, for the kneeboard clip. The old rule ran the cards out to 0mm at the
-     sides and 2mm at the bottom, which put the rotated bottom row inside the
-     band no printer can lay ink in — see setEdgeMm() in print.js for why that
-     showed up as the text shifting and a gap appearing. */
-  padding: calc(var(--edge, 5mm) + var(--clip, 0mm)) var(--edge, 5mm) var(--edge, 5mm);
+  /* --edge is a safe margin on ALL FOUR edges (see setEdgeMm() in print.js).
+     --clip adds to it at the TOP AND THE BOTTOM, equally.
+
+     It used to be the top only, which put the fold line clip/2 below the true
+     middle of the paper — 6mm off at the default 12mm, measured — so the sheet
+     never folded cleanly. And folding is the point: fold the sheet in half and
+     the paper's top and bottom edges come together on the same side, which is
+     where the clip grips, through BOTH layers. The upside-down bottom card has
+     its header at the paper's bottom edge, so it needs the same clear strip
+     there as the front card. Symmetric padding gives both, and with two equal
+     grid rows the fold lands exactly on 148.5mm whatever the clip setting. */
+  padding: calc(var(--edge, 5mm) + var(--clip, 0mm)) var(--edge, 5mm);
   display: grid;
   /* Fractions, not fixed 105mm: the columns now share whatever the margins
      leave, so changing the edge margin can never push a card off the sheet. */

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=143" />
+  <link rel="stylesheet" href="./app.css?v=144" />
 </head>
 <body>
   <header class="app-header">
@@ -660,7 +660,7 @@
           <div class="print-size">
             <label for="print-clip">Clip margin</label>
             <input type="range" id="print-clip" min="0" max="30" step="1" value="12"
-                   aria-label="Blank strip at the top of the sheet for a clip" />
+                   aria-label="Blank strip at the top and bottom edges, where the clip grips the folded sheet" />
             <output id="print-clip-out">12mm</output>
           </div>
           <div class="print-size">
@@ -707,6 +707,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=143"></script>
+  <script type="module" src="./app.js?v=144"></script>
 </body>
 </html>

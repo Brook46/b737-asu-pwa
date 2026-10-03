@@ -9,8 +9,8 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=143';
-import { dateTs, legTs } from './dates.js?v=143';
+import { flipName } from './roster.js?v=144';
+import { dateTs, legTs } from './dates.js?v=144';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own

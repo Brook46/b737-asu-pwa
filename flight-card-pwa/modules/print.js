@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=143';
+import * as storage from './storage.js?v=144';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -56,7 +56,7 @@ const DEFAULT_CFG = {
   labels: {},           // id → the pilot's own wording, overriding FIELDS
   deleted: [],          // built-in boxes the pilot removed, so they stay gone
   textScale: 1,         // printed text size, 1 = the design size
-  clipMm: 12,           // blank strip at the TOP of the sheet, for a clip
+  clipMm: 12,           // blank strip at the top AND bottom edges, for a clip
   edgeMm: 5,            // safe margin on all four edges — see setEdgeMm
   checklist: true,      // show the checklist column
   blank: true,          // show the free-writing block
@@ -184,9 +184,11 @@ export function setTextScale(v) {
   return cfg;
 }
 
-// A blank strip along the top edge so a kneeboard/clipboard clip has somewhere
-// to bite without covering a card. The bottom edge keeps only a hairline
-// margin, so the space is spent where the clip actually goes.
+// A blank strip where a kneeboard/clipboard clip bites, so it never covers a
+// card. Applied to the top AND bottom edges equally: folded in half, the
+// sheet's top and bottom edges meet on the same side and the clip grips both
+// layers there — and equal strips keep the fold line on the paper's exact
+// middle (top-only put it clip/2 low; see .pr-sheet in app.css).
 export function setClipMm(v) {
   const cfg = getConfig();
   const n = Number(v);
