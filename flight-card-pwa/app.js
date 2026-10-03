@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=139';
-import * as dataCard from './modules/data-card.js?v=139';
-import * as checklist from './modules/checklist.js?v=139';
-import * as speeches from './modules/speeches.js?v=139';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=139';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=139';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=139';
+import * as storage from './modules/storage.js?v=141';
+import * as dataCard from './modules/data-card.js?v=141';
+import * as checklist from './modules/checklist.js?v=141';
+import * as speeches from './modules/speeches.js?v=141';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=141';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=141';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=141';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1058,6 +1058,10 @@ async function openPrintSheet() {
   }
   showOverlay('print-overlay');
   paintPrintSheet();
+  // navigator.standalone is iOS-only and true only in a Home Screen app — the
+  // place the print dialog has been failing to open — so offer the Safari
+  // route up front there instead of only after a failed attempt.
+  if (navigator.standalone === true) revealSafariPrint();
 }
 
 function paintPrintSheet() {
@@ -1393,15 +1397,30 @@ $('print-go').addEventListener('click', () => {
   // Close first: the overlay is display:none in print CSS anyway, but leaving
   // it up over the print dialog is confusing on iPad.
   hideOverlay('print-overlay');
-  printMod.print();
-  // navigator.standalone is iOS-only and true only for a home-screen app.
-  // Those have no print support whatsoever — window.print() is a silent no-op
-  // and there is no Share → Print either — so the button looks broken rather
-  // than unsupported. Say which it is; from Safari the same page prints fine.
-  if (navigator.standalone === true) {
-    toast('iOS home-screen apps can\u2019t print — open Flight Card in Safari');
-  }
+  // Only speak up when the dialog demonstrably failed to open. The earlier
+  // version asserted "home-screen apps can't print" to every home-screen user
+  // without checking — wrong for anyone it was working for.
+  printMod.print().then((opened) => {
+    if (opened) return;
+    // Bring the sheet back with the Safari route showing, rather than leaving
+    // the pilot with a toast and a closed dialog.
+    showOverlay('print-overlay');
+    revealSafariPrint();
+    toast('The print dialog didn\u2019t open — use \u201cPrint via Safari\u201d');
+  });
 });
+
+// The Safari hand-off. Fill the href at the moment of the tap so it carries
+// whatever the layout is right now, then let the link's own default action do
+// the navigation — still inside the gesture, so nothing can block it.
+$('print-safari').addEventListener('click', (e) => {
+  if (!printMod) { e.preventDefault(); return; }
+  e.currentTarget.href = printMod.safariPrintUrl();
+});
+function revealSafariPrint() {
+  $('print-safari').hidden = false;
+  $('print-safari-note').hidden = false;
+}
 
 function doChecklistEditToggle() {
   const on = !checklist.isEditMode();

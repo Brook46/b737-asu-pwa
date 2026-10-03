@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Print cards — Flight Card</title>
+  <!-- Print hand-off page. Opened in Safari from the Home Screen app when that
+       app can't bring up a print dialog. It renders the SAME sheets with the
+       SAME stylesheet as the in-app print, from a layout carried in the link's
+       #hash — the Home Screen app's storage isn't visible from Safari. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./app.css?v=141" />
+  <style>
+    /* Screen only: app.css keeps #print-root hidden until print, because in
+       the app the sheet is off-screen. Here the sheet IS the page, so show it
+       as a preview, scaled to fit. Print media is untouched — app.css's own
+       @media print block does the real work, exactly as it does in the app. */
+    @media screen {
+      body { background: #e9e9ee; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+      .pp-bar {
+        position: sticky; top: 0; z-index: 2;
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 12px 16px calc(12px) 16px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        background: #fff; border-bottom: 1px solid #d5d5dc;
+      }
+      .pp-bar p { margin: 0; flex: 1 1 220px; font-size: 14px; color: #333; line-height: 1.35; }
+      .pp-go {
+        -webkit-appearance: none; appearance: none;
+        font: 600 17px system-ui, sans-serif;
+        padding: 12px 26px; border-radius: 12px; border: 0;
+        background: #0a7d6f; color: #fff; cursor: pointer;
+      }
+      .pp-go:active { filter: brightness(.9); }
+      .pp-err { padding: 40px 20px; text-align: center; color: #444; font-size: 15px; }
+      /* overflow-x hidden: the sheet's layout box stays a true 210mm even while
+         it's drawn scaled down, and on a phone that unscaled box is wider than
+         the screen — without this the page would scroll sideways into blank. */
+      #print-root { display: block; padding: 16px 0 40px; overflow-x: hidden; }
+      #print-root .pr-sheet {
+        margin: 0 0 16px;
+        box-shadow: 0 2px 14px rgba(0,0,0,.18);
+        /* top left, with the centring done in px by fit() below. margin:auto
+           can't centre a box wider than its container, and scaling about the
+           centre of that over-wide box leaves the sheet shoved right and cut
+           off — which is what the first version of this page did. */
+        transform-origin: top left;
+      }
+    }
+    /* The preview scale is an inline transform. Safari's Share → Print may not
+       fire beforeprint, so don't rely on the script clearing it: !important
+       here outranks the inline style and the paper always gets true A4. */
+    @media print {
+      #print-root .pr-sheet {
+        transform: none !important; margin: 0 !important; box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="pp-bar">
+    <p id="pp-msg">Your print layout from Flight Card. Tap Print, or use Safari’s
+       Share button → Print.</p>
+    <button type="button" id="pp-go" class="pp-go">Print</button>
+  </div>
+  <div id="print-root"></div>
+
+  <script type="module">
+    import { sheetsHtml, decodePayload } from './modules/print.js?v=141';
+
+    const root = document.getElementById('print-root');
+    const data = decodePayload(location.hash);
+    if (!data) {
+      root.innerHTML = '<div class="pp-err">This link has no print layout in it. '
+        + 'Open Print in Flight Card and use “Print via Safari” again.</div>';
+      document.getElementById('pp-go').hidden = true;
+    } else {
+      root.innerHTML = sheetsHtml(data.cfg, data.tpl);
+      // Fit each sheet to the screen width for the preview. scale() keeps the
+      // layout box at true A4 size, so pull the margin in to match.
+      const fit = () => {
+        const avail = root.clientWidth;
+        for (const sh of root.querySelectorAll('.pr-sheet')) {
+          sh.style.transform = '';
+          const w = sh.offsetWidth || 1;
+          const k = Math.min(1, (avail - 24) / w);
+          sh.style.transform = `scale(${k})`;
+          // Centre on the width actually drawn, and hand back the height the
+          // scale freed, so sheets don't sit far apart on a narrow screen.
+          sh.style.marginLeft = Math.max(0, (avail - w * k) / 2) + 'px';
+          sh.style.marginBottom = (16 - sh.offsetHeight * (1 - k)) + 'px';
+        }
+      };
+      fit();
+      addEventListener('resize', fit);
+      // The scale is a SCREEN transform. Drop it for the printer or the paper
+      // gets the shrunken preview instead of a true A4.
+      addEventListener('beforeprint', () => {
+        for (const sh of root.querySelectorAll('.pr-sheet')) {
+          sh.style.transform = ''; sh.style.marginBottom = ''; sh.style.marginLeft = '';
+        }
+      });
+      addEventListener('afterprint', fit);
+    }
+
+    document.getElementById('pp-go').addEventListener('click', () => {
+      for (const sh of root.querySelectorAll('.pr-sheet')) {
+        sh.style.transform = ''; sh.style.marginBottom = ''; sh.style.marginLeft = '';
+      }
+      void root.offsetHeight;
+      window.print();
+    });
+  </script>
+</body>
+</html>

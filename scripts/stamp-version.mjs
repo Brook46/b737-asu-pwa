@@ -53,13 +53,21 @@ for (const rel of files) {
   save(path, before, stampImports(before));
 }
 
-// 2. index.html — the two URLs the browser is told to load directly.
-const indexPath = join(root, 'index.html');
-if (existsSync(indexPath)) {
-  const before = readFileSync(indexPath, 'utf8');
+// 2. Every top-level HTML page — the URLs the browser is told to load
+//    directly. Was index.html alone; a second page that imports the module
+//    graph itself (flight-card-pwa/print.html, the Safari print hand-off) kept
+//    its own ?v= frozen at whatever it was written with, which is the stale-
+//    pairing this whole script exists to prevent. Module references are only
+//    rewritten where a page already makes them, so plain pages are untouched
+//    apart from their app.js/app.css URLs.
+const pages = readdirSync(root).filter((f) => f.endsWith('.html'));
+for (const page of pages) {
+  const path = join(root, page);
+  const before = readFileSync(path, 'utf8');
   const after = before
-    .replace(/(["'])(\.?\/?app\.(?:js|css))(\?v=\d+)?(["'])/g, `$1$2?v=${V}$4`);
-  save(indexPath, before, after);
+    .replace(/(["'])(\.?\/?app\.(?:js|css))(\?v=\d+)?(["'])/g, `$1$2?v=${V}$4`)
+    .replace(/(["'])(\.\/modules\/[^'"]+?\.js)(\?v=\d+)?(["'])/g, `$1$2?v=${V}$4`);
+  save(path, before, after);
 }
 
 // 3. sw.js — the precache list must ask for the same URLs the page will, or

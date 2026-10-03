@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=139';
+import * as storage from './storage.js?v=141';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -306,8 +306,11 @@ function fieldsHtml(cfg) {
   ).join('') + `</div>`;
 }
 
-function checklistHtml() {
-  const tpl = storage.getTemplate();
+// tpl is passed in by print.html, which runs in Safari: iOS gives a Home
+// Screen app its own storage, separate from Safari's, so over there
+// storage.getTemplate() would find nothing. Passing it in also keeps that page
+// from ever reading — and therefore ever writing — an app state of its own.
+function checklistHtml(tpl = storage.getTemplate()) {
   const secs = (tpl && Array.isArray(tpl.sections)) ? tpl.sections : [];
   if (!secs.length) return `<div class="pr-cl"><div class="pr-cl-empty">No checklist items.</div></div>`;
   return `<div class="pr-cl">` + secs.map(sec => `
@@ -321,9 +324,9 @@ function checklistHtml() {
 
 // One quarter-sheet card. Identical in the preview and on paper — the preview
 // renders the very same markup, only scaled, so what you see is what prints.
-export function cardHtml(cfg = getConfig()) {
+export function cardHtml(cfg = getConfig(), tpl) {
   const cols = [];
-  if (cfg.checklist) cols.push(checklistHtml());
+  if (cfg.checklist) cols.push(checklistHtml(tpl));
   if (cfg.blank) cols.push(`<div class="pr-blank"><span class="pr-lbl">NOTES</span></div>`);
   const body = cols.length ? `<div class="pr-body" data-cols="${cols.length}">${cols.join('')}</div>` : '';
   const scale = Number(cfg.textScale) || 1;
@@ -333,8 +336,8 @@ export function cardHtml(cfg = getConfig()) {
 // ---------- Sheets ----------
 
 // An A4 page holding the same card 4×. `pages` = 1 or 2 (2 = both sides).
-export function sheetsHtml(cfg = getConfig()) {
-  const card = cardHtml(cfg);
+export function sheetsHtml(cfg = getConfig(), tpl) {
+  const card = cardHtml(cfg, tpl);
   const clip = Math.max(0, Number(cfg.clipMm) || 0);
   const edge = Math.max(0, Number(cfg.edgeMm ?? 5));
   const sheet = `<div class="pr-sheet" style="--clip:${clip}mm;--edge:${edge}mm">`
@@ -342,20 +345,92 @@ export function sheetsHtml(cfg = getConfig()) {
   return cfg.bothSides ? sheet + sheet : sheet;
 }
 
+// ---------- Hand-off to Safari ----------
+//
+// Some iOS versions give a Home Screen web app no working print dialog:
+// window.print() returns and nothing happens. Safari itself still prints. The
+// obstacle to just opening the page there is storage — iOS keeps the Home
+// Screen app's apart from Safari's, so the layout you built would be gone.
+// So the layout travels in the link: the print config plus the checklist,
+// stripped to what the cards actually print, as base64url JSON in the #hash
+// (a fragment is never sent to the server). A few KB.
+function b64urlEncode(str) {
+  const bytes = new TextEncoder().encode(str);       // UTF-8: Hebrew labels survive
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(s) {
+  let t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  while (t.length % 4) t += '=';
+  const bin = atob(t);
+  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+}
+
+export function safariPrintUrl() {
+  const tpl = storage.getTemplate();
+  const slim = {
+    sections: ((tpl && tpl.sections) || []).map(sec => ({
+      name: sec.name,
+      items: (sec.items || []).map(it => ({ label: it.label })),
+    })),
+  };
+  const payload = b64urlEncode(JSON.stringify({ v: 1, cfg: getConfig(), tpl: slim }));
+  return new URL('./print.html#p=' + payload, location.href).href;
+}
+
+// Returns { cfg, tpl } or null for a missing/corrupt link.
+export function decodePayload(hash) {
+  const m = /[#&]p=([A-Za-z0-9_-]+)/.exec(String(hash || ''));
+  if (!m) return null;
+  try {
+    const o = JSON.parse(b64urlDecode(m[1]));
+    if (!o || typeof o !== 'object' || !o.cfg) return null;
+    return { cfg: o.cfg, tpl: o.tpl || { sections: [] } };
+  } catch { return null; }
+}
+
 // Paint the hidden print container, then hand off to the browser's dialog.
+//
+// Resolves true if the print dialog actually opened, false if it did not.
+// That is detected, not assumed: browsers fire `beforeprint` (and flip the
+// `print` media query) as the dialog opens, so silence afterwards means
+// window.print() went nowhere. The previous version guessed instead — it told
+// every home-screen user that printing was impossible, including the ones it
+// was working for.
 export function print(cfg = getConfig()) {
   const root = document.getElementById('print-root');
-  if (!root) return;
+  if (!root) return Promise.resolve(false);
   root.innerHTML = sheetsHtml(cfg);
-  // Force layout NOW, synchronously, by reading a geometry property. The point
-  // is the same as the two requestAnimationFrames this replaces — don't hand
-  // Safari a half-laid-out page — but without leaving the click's user-gesture
-  // context. Safari can ignore a window.print() that arrives two frames after
-  // the tap, which looks exactly like the button doing nothing.
+  // Force layout NOW, synchronously, by reading a geometry property. Same
+  // intent as waiting a frame — don't hand Safari a half-laid-out page — but
+  // without leaving the tap's user-gesture context.
   void root.offsetHeight;
+
+  let opened = false;
+  const mark = () => { opened = true; };
+  window.addEventListener('beforeprint', mark, { once: true });
+  // Belt and braces: some WebKit builds are patchy about beforeprint but do
+  // flip the print media query when the dialog renders the page.
+  let mq = null;
+  try {
+    mq = window.matchMedia('print');
+    mq.addEventListener?.('change', mark);
+  } catch { /* old engines */ }
+
   try {
     window.print();
   } catch (err) {
     console.warn('print() failed', err);
   }
+  // On desktop window.print() blocks until the dialog closes, so `opened` is
+  // already settled here. On iOS it returns at once and the sheet animates in,
+  // so give it a moment before concluding nothing happened.
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      window.removeEventListener('beforeprint', mark);
+      try { mq?.removeEventListener?.('change', mark); } catch {}
+      resolve(opened);
+    }, 1500);
+  });
 }
