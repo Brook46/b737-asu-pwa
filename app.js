@@ -821,7 +821,7 @@ function setSensorsCollapsed(collapsed) {
   let startY = null, dy = 0, dragged = false;
   sensorToggle.addEventListener('pointerdown', (e) => {
     startY = e.clientY; dy = 0; dragged = false;
-    sensorToggle.setPointerCapture(e.pointerId);
+    try { sensorToggle.setPointerCapture(e.pointerId); } catch {}
     sensorBar.style.transition = 'none';
   });
   sensorToggle.addEventListener('pointermove', (e) => {
