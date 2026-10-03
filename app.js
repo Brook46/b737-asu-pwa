@@ -519,17 +519,21 @@ function openCbModal() {
   cbModal.classList.add('is-open');
 }
 function closeCbModal() {
+  $('.cb-stage').classList.remove('solo-mode');
+  $$('.cb-fig').forEach(f => f.classList.remove('solo'));
   cbModal.setAttribute('aria-hidden', 'true');
   cbModal.classList.remove('is-open');
 }
 cbBtn.addEventListener('click', openCbModal);
 cbClose.addEventListener('click', closeCbModal);
-// RIGHT / LEFT tabs — one panel at a time so it can fill the screen.
-function showCbSide(side) {
-  $$('.cb-tab').forEach(t => t.setAttribute('aria-pressed', String(t.dataset.cb === side)));
-  $$('.cb-image').forEach(img => { img.hidden = img.dataset.cb !== side; });
-}
-$$('.cb-tab').forEach(t => t.addEventListener('click', () => showCbSide(t.dataset.cb)));
+// Tap a panel to view it alone (larger); tap again to return to both.
+$$('.cb-fig').forEach(fig => fig.addEventListener('click', () => {
+  const stage = fig.parentElement;
+  const solo = !fig.classList.contains('solo');
+  $$('.cb-fig').forEach(f => f.classList.remove('solo'));
+  fig.classList.toggle('solo', solo);
+  stage.classList.toggle('solo-mode', solo);
+}));
 cbModal.addEventListener('click', (e) => {
   if (e.target === cbModal) closeCbModal();
 });
@@ -737,6 +741,18 @@ enableBtn.addEventListener('click', async () => {
   renderSensorSettings();
   enableBtn.disabled = false;
 });
+
+/* ─── Collapsible sensor footer (remembered per device) ─────────── */
+const SENSOR_COLLAPSE_KEY = 'asu.sensorsCollapsed';
+const sensorToggle = $('#sensor-toggle');
+function setSensorsCollapsed(collapsed) {
+  document.querySelector('.sensor-bar').classList.toggle('collapsed', collapsed);
+  sensorToggle.setAttribute('aria-expanded', String(!collapsed));
+  try { localStorage.setItem(SENSOR_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch {}
+}
+sensorToggle.addEventListener('click', () =>
+  setSensorsCollapsed(sensorToggle.getAttribute('aria-expanded') === 'true'));
+try { setSensorsCollapsed(localStorage.getItem(SENSOR_COLLAPSE_KEY) === '1'); } catch {}
 
 /* ─── Settings modal (sensor toggles) ──────────────────────────── */
 const settingsBtn   = $('#settings-btn');

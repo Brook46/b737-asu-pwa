@@ -117,7 +117,7 @@ button { cursor: pointer; }
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: max(env(safe-area-inset-top), 0.55rem) 1rem 0.55rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.9rem) 1rem 0.55rem;
   background: var(--card);
   border-bottom: 1px solid var(--card-border);
   position: sticky;
@@ -602,105 +602,64 @@ button { cursor: pointer; }
 }
 #cb-modal.is-open { display: flex; }
 /* Near-full-screen: the modal's own padding shrinks, the card takes the rest. */
-#cb-modal { padding: 0.6rem; }
+#cb-modal { padding: calc(env(safe-area-inset-top, 0px) + 0.6rem) 0.6rem calc(env(safe-area-inset-bottom, 0px) + 0.6rem); }
 #cb-modal .cb-card {
   position: relative;
   width: 100%;
   max-width: none;
-  height: calc(100dvh - 1.2rem);
+  height: 100%;
   max-height: none;
   padding: 0.6rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-.cb-top { display: flex; align-items: center; gap: 0.6rem; }
-.cb-tabs { display: flex; gap: 0.4rem; flex: 1; }
-.cb-tab {
-  flex: 1;
-  padding: 0.6rem 0.8rem;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: var(--card-elev);
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  cursor: pointer;
+.cb-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.cb-title { margin: 0; font-size: 1.05rem; color: var(--text); }
+/* Top-down flight deck locator */
+.cb-locator { width: 100%; height: clamp(80px, 13vh, 120px); flex: none; }
+.cb-locator .loc-shell { fill: none; stroke: var(--text-sub); stroke-width: 1.5; }
+.cb-locator .loc-seat  { fill: var(--card-elev); stroke: var(--text-sub); stroke-width: 1; }
+.cb-locator .loc-txt   { font: 700 10px var(--font-sys); fill: var(--text-sub); }
+.cb-locator .loc-dim   { font: 700 9px var(--font-sys); fill: var(--text-mute); letter-spacing: 1px; }
+.cb-locator .loc-panel { fill: #ffb340; stroke: #ff3b30; stroke-width: 1.5; }
+.cb-locator .loc-hl    { font: 800 11px var(--font-sys); fill: #ff9f0a; }
+/* Panels side by side — left panel on the left, as in the aircraft */
+.cb-stage {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;
 }
-.cb-tab[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
-.cb-stage { flex: 1; min-height: 0; display: flex; }
-
-/* ─── Settings modal ──────────────────────────────────────── */
-.settings-card {
-  position: relative;
-  max-width: 420px;
-  text-align: left;
+@media (max-width: 640px) and (orientation: portrait) {
+  .cb-stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
 }
-.settings-title { margin: 0 0 0.2rem; font-size: 1.2rem; }
-.settings-section-label {
-  margin: 0.8rem 0 0.5rem;
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-sub);
-  font-weight: 700;
+.cb-stage.solo-mode { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.cb-stage.solo-mode .cb-fig:not(.solo) { display: none; }
+.cb-fig {
+  margin: 0; min-height: 0; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.35rem;
+  cursor: zoom-in;
 }
-.sensor-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  padding: 0.7rem 0.15rem;
-  border-top: 1px solid var(--card-border);
+.cb-fig.solo { cursor: zoom-out; }
+.cb-fig figcaption {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 159, 10, 0.14);
+  border: 1px solid rgba(255, 159, 10, 0.55);
 }
-.sensor-setting:last-of-type { border-bottom: 1px solid var(--card-border); }
-.sensor-setting-info { display: flex; flex-direction: column; gap: 0.15rem; }
-.sensor-setting-info strong { font-size: 0.95rem; color: var(--text); }
-.sensor-setting-state { font-size: 0.75rem; color: var(--text-sub); }
-.sensor-setting[data-state="granted"] .sensor-setting-state { color: var(--ok, #34c759); }
-.sensor-setting[data-state="denied"]  .sensor-setting-state { color: var(--danger, #ff453a); }
-.sensor-setting-btn {
-  flex: none;
-  min-width: 5.2rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.sensor-setting[data-state="granted"] .sensor-setting-btn {
-  background: transparent;
-  color: var(--ok, #34c759);
-  border-color: var(--ok, #34c759);
-  cursor: default;
-}
-.sensor-setting-btn:disabled { opacity: 0.5; }
-.settings-hint { margin-top: 0.9rem; text-align: left; }
-.settings-warn {
-  margin: 0.9rem 0 0;
-  padding: 0.6rem 0.7rem;
-  border-radius: 10px;
-  background: var(--amber-bg, rgba(255, 179, 0, 0.14));
-  border: 1px solid var(--amber, #ff9f0a);
-  color: var(--text);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  text-align: left;
-}
-.settings-warn[hidden] { display: none; }
+.cb-fig figcaption strong { font-size: 0.9rem; color: var(--text); letter-spacing: 0.04em; }
+.cb-fig figcaption span { font-size: 0.75rem; color: var(--text-sub); }
+.cb-fig figcaption .cb-ref { color: #ff9f0a; font-weight: 800; letter-spacing: 0.04em; }
+.cb-fig figcaption { flex-wrap: wrap; }
 .cb-image {
   display: block;
   width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   object-fit: contain;
   border-radius: 10px;
-  background: #0b0d10;
+  background: transparent;
 }
-.cb-image[hidden] { display: none; }
 .cb-hint {
   margin: 0.7rem 0 0;
   font-size: 0.72rem;
@@ -739,6 +698,21 @@ button { cursor: pointer; }
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
   z-index: 5;
 }
+.sensor-toggle {
+  display: flex; align-items: center; gap: 0.35rem;
+  margin: 0 auto 0.3rem;
+  width: fit-content;
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em;
+}
+.sensor-toggle-chev { transition: transform 0.2s ease; }
+.sensor-bar.collapsed .sensor-toggle-chev { transform: rotate(180deg); }
+.sensor-bar.collapsed .sensor-row { display: none; }
+.sensor-bar.collapsed .sensor-toggle { margin-bottom: 0; }
 .sensor-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

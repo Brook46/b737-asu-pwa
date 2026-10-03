@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=14" />
+  <link rel="stylesheet" href="app.css?v=15" />
 </head>
 <body>
   <!-- Disclaimer modal (shown once) -->
@@ -194,21 +194,45 @@
   <div id="cb-modal" class="modal" aria-hidden="true">
     <div class="modal-card cb-card">
       <div class="cb-top">
-        <div class="cb-tabs" role="tablist" aria-label="Stick shaker side">
-          <button type="button" class="cb-tab" data-cb="right" aria-pressed="true">RIGHT · P6‑1</button>
-          <button type="button" class="cb-tab" data-cb="left" aria-pressed="false">LEFT · P18‑2</button>
-        </div>
+        <h2 class="cb-title">Stick Shaker circuit breakers</h2>
         <button type="button" id="cb-close" class="cb-close" aria-label="Close">×</button>
       </div>
+
+      <!-- Top-down flight deck: where the two panels are -->
+      <svg class="cb-locator" viewBox="0 0 520 120" role="img" aria-label="Flight deck seen from above: P18-2 behind the Captain seat on the left, P6-1 behind the First Officer seat on the right">
+        <text x="260" y="12" text-anchor="middle" class="loc-dim">▲ NOSE</text>
+        <path d="M150 22 Q260 6 370 22 L392 62 L128 62 Z" class="loc-shell"/>
+        <rect x="128" y="62" width="264" height="50" class="loc-shell"/>
+        <rect x="250" y="40" width="20" height="44" rx="3" class="loc-seat"/>
+        <rect x="178" y="56" width="44" height="40" rx="9" class="loc-seat"/>
+        <rect x="298" y="56" width="44" height="40" rx="9" class="loc-seat"/>
+        <text x="200" y="80" text-anchor="middle" class="loc-txt">CAPT</text>
+        <text x="320" y="80" text-anchor="middle" class="loc-txt">F/O</text>
+        <rect x="132" y="98" width="70" height="12" rx="3" class="loc-panel"/>
+        <rect x="318" y="98" width="70" height="12" rx="3" class="loc-panel"/>
+        <text x="122" y="108" text-anchor="end" class="loc-hl">P18‑2 · LEFT</text>
+        <text x="398" y="108" class="loc-hl">P6‑1 · RIGHT</text>
+      </svg>
+
       <div class="cb-stage">
-        <img class="cb-image" data-cb="right" src="images/stick-shaker-cb-p6.svg?v=14" alt="P6-1 panel, stick shaker right CB C1393 at row B column 6 highlighted" />
-        <img class="cb-image" data-cb="left" src="images/stick-shaker-cb-p18.svg?v=14" alt="P18-2 panel, stick shaker left CB C1392 at row E column 4 highlighted" hidden />
+        <figure class="cb-fig" data-cb="left">
+          <figcaption><strong>LEFT shaker · P18‑2</strong><span class="cb-ref">Row E · Col 4 · C1392 · 5 A</span><span>Behind Captain seat</span></figcaption>
+          <img class="cb-image" src="images/stick-shaker-cb-p18.svg?v=15" alt="P18-2 panel behind the Captain seat, stick shaker left CB C1392 at row E column 4 highlighted" />
+        </figure>
+        <figure class="cb-fig" data-cb="right">
+          <figcaption><strong>RIGHT shaker · P6‑1</strong><span class="cb-ref">Row B · Col 6 · C1393 · 5 A</span><span>Behind F/O seat</span></figcaption>
+          <img class="cb-image" src="images/stick-shaker-cb-p6.svg?v=15" alt="P6-1 panel behind the First Officer seat, stick shaker right CB C1393 at row B column 6 highlighted" />
+        </figure>
       </div>
+      <p class="cb-hint">Tap a panel to enlarge · tap again for both</p>
     </div>
   </div>
 
   <footer class="sensor-bar" aria-label="Sensors">
-    <div class="sensor-row">
+    <button type="button" id="sensor-toggle" class="sensor-toggle" aria-expanded="true" aria-controls="sensor-row">
+      <span class="sensor-toggle-label">GPS / G</span><span class="sensor-toggle-chev" aria-hidden="true">▾</span>
+    </button>
+    <div class="sensor-row" id="sensor-row">
       <div class="sensor-cell" data-role="gs">
         <span class="sensor-label">GND SPD</span>
         <span class="sensor-value">—</span>
@@ -241,6 +265,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=14" defer></script>
+  <script src="app.js?v=15" defer></script>
 </body>
 </html>
