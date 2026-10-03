@@ -17,6 +17,7 @@ A suite of vanilla-JS Progressive Web Apps for a 737 pilot, all served from one 
 - **airline-radar-pwa/** — "Airline Radar": live airline traffic on a map, airliners only, keyless ADS-B. See `airline-radar-pwa/CLAUDE.md`. **Not currently linked from Flight Card** — its radar button points at Flightradar24 while the keyless feeds are unreliable; see `doRadar()` in `flight-card-pwa/app.js` to point it back.
 - **xcsky-pwa/** — "Sky Monkeys": free soaring/XC weather, map-first, entirely keyless. See `xcsky-pwa/CLAUDE.md`.
 - **sky-club-pwa/** — "Sky Club": toddler-friendly solar system orrery + real-time AR-style sky (point-the-phone star/planet finder), entirely keyless. See `sky-club-pwa/CLAUDE.md`.
+- **b737-systems-pwa/** — "737 NG Inside": Innerbody-style 737 NG systems explorer — see-through procedural 3D airplane (vendored three.js), system layers with tappable parts, phase modes, and operable schematics with overhead-panel replicas. Content paraphrased from the FCOM (public site: own words, own drawings, cite sections). Linked from Flight Card's header. See `b737-systems-pwa/CLAUDE.md`.
 - **line-trim-pwa/** — "Line Trim": paraglider line-trim check against manufacturer check lengths, FNIRSI IR40 laser. **Source of truth is `~/pg-trim`** (its own git repo, tests, library build) — this folder is a published copy: edit there, then re-copy and stamp every module recursively (the stamp script here only covers top-level `modules/*.js`). See `~/pg-trim/CLAUDE.md`.
 
 ## Branch & deploy flow

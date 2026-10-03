@@ -1,0 +1,301 @@
+// 737 NG Inside — app shell. Wires the 3D scene, the system layers, hotspots,
+// the page sheet, the phase modes and the operable schematics together.
+//
+// One state object per system ({ sw, fail, q, mem }) is the single source of
+// truth: the 3D flows and the schematic both draw from the same evaluate().
+
+import { installResumeHardening } from './modules/resume.js?v=1';
+import { createScene } from './modules/scene.js?v=1';
+import { buildAirframe } from './modules/airframe.js?v=1';
+import { createSystems3D } from './modules/systems3d.js?v=1';
+import { createOverlay } from './modules/overlay.js?v=1';
+import { createSheet } from './modules/sheet.js?v=1';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=1';
+import { SYSTEMS, READY } from './modules/systems.js?v=1';
+
+const $ = (id) => document.getElementById(id);
+
+// Early module state lives up here, before anything reads it.
+let phase = 'ground';
+let sysId = null;
+let partId = null;
+let view = '3d';
+let schem = null;          // mounted schematic { update }
+let schemFor = null;
+const states = new Map();  // system id → { sw, fail, q, mem }
+
+const store = {
+  get(k) { try { return localStorage.getItem('b737i.' + k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem('b737i.' + k, v); } catch { /* private mode */ } },
+};
+
+function init() {
+  installResumeHardening();
+
+  const api = createScene($('gl'));
+  const airframe = buildAirframe(api.materials);
+  api.setAirframe(airframe);
+  const anim = createPhaseAnimator(airframe, api.world);
+  anim.go('ground', true);
+  const s3d = createSystems3D(api, airframe.root);
+  for (const s of READY) s3d.build(s.mod);
+
+  const overlay = createOverlay(api, $('leaders'), $('hotspots'), (id) => {
+    if (id.startsWith('sys:')) selectSystem(id.slice(4)); else selectPart(id);
+  });
+  const sheet = createSheet($('sheet'), $('sheet-body'), $('sheet-close'), {
+    onRelated: (id) => (id.startsWith('sys:') ? selectSystem(id.slice(4)) : selectPart(id)),
+    onClose: () => { partId = null; s3d.select(null); overlay.setSelected(null); },
+  });
+
+  // The sheet covers part of the screen: shift the camera's centre into the
+  // free area and keep hotspot labels out of the sheet and the HUD bars.
+  function relayout() {
+    const sh = $('sheet');
+    const narrow = window.innerWidth < 760;
+    let right = 0, bottom = 0;
+    if (!sh.hidden) {
+      // offsetLeft/Top ignore the slide-in transform still running.
+      if (narrow) bottom = window.innerHeight - sh.offsetTop; else right = window.innerWidth - sh.offsetLeft + 8;
+    }
+    api.setInsets(right, bottom);
+    // Phase bar centres in the free area too.
+    document.querySelector('.hud-bottom').style.left = `${(window.innerWidth - right) / 2}px`;
+    const obs = ['.hud-tl', '.hud-tr', '.hud-bottom'].map((q) => {
+      const r = document.querySelector(q).getBoundingClientRect();
+      return { x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 };
+    });
+    overlay.setBounds({ right, bottom }, obs);
+  }
+  new MutationObserver(relayout).observe($('sheet'), { attributes: true, attributeFilter: ['hidden'] });
+  new MutationObserver(relayout).observe($('sys-list'), { attributes: true, attributeFilter: ['hidden'] });
+  window.addEventListener('resize', relayout);
+
+  // ── Theme ──
+  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  let theme = store.get('theme') || (prefersDark ? 'dark' : 'light');
+  function applyTheme() {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0e1013' : '#efefed';
+    api.applyTheme(theme);
+  }
+  applyTheme();
+  $('theme-btn').addEventListener('click', () => {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    store.set('theme', theme);
+    applyTheme();
+  });
+
+  // ── System state ──
+  const sysOf = (id) => SYSTEMS.find((s) => s.id === id);
+  const env = () => ({ ...PHASES[phase].env, phase });
+  function stateOf(id) {
+    if (!states.has(id)) states.set(id, sysOf(id).mod.normal(phase));
+    return states.get(id);
+  }
+  function evaluate(id) {
+    const s = sysOf(id);
+    const e = env();
+    const res = s.mod.evaluate(e, stateOf(id));
+    res.env = e;
+    return res;
+  }
+
+  function refresh() {
+    let note = '';
+    for (const s of READY) {
+      if (s.id !== sysId) continue;
+      const res = evaluate(s.id);
+      s3d.apply(s.id, res);
+      if (schem && schemFor === s.id) schem.update(res);
+      note = res.note || '';
+    }
+    $('phase-note').textContent = PHASES[phase].note.toUpperCase() + (note ? ' — ' + note : '');
+  }
+
+  // ── Systems list / prev-next ──
+  const list = $('sys-list');
+  const pad = (n) => String(n).padStart(2, '0');
+  for (const s of SYSTEMS) {
+    const b = document.createElement('button');
+    b.className = 'tag tag-btn' + (s.ready ? '' : ' soon');
+    b.innerHTML = `<span class="sw" style="background:${s.color}"></span>[${pad(s.num)}] ${s.title}${s.ready ? '' : '<span class="soon-l">soon</span>'}`;
+    b.disabled = !s.ready;
+    b.addEventListener('click', () => { toggleList(false); selectSystem(s.id); });
+    list.append(b);
+  }
+  const ov = document.createElement('button');
+  ov.className = 'tag tag-btn';
+  ov.innerHTML = `<span class="sw" style="background:var(--tag-fg)"></span>[00] Overview`;
+  ov.addEventListener('click', () => { toggleList(false); selectSystem(null); });
+  list.prepend(ov);
+  function toggleList(v = list.hidden) {
+    list.hidden = !v;
+    $('sys-current').setAttribute('aria-expanded', String(v));
+  }
+  $('sys-current').addEventListener('click', () => toggleList());
+  const cycle = [null, ...READY.map((s) => s.id)];
+  $('sys-prev').addEventListener('click', () => selectSystem(cycle[(cycle.indexOf(sysId) - 1 + cycle.length) % cycle.length]));
+  $('sys-next').addEventListener('click', () => selectSystem(cycle[(cycle.indexOf(sysId) + 1) % cycle.length]));
+
+  // ── Selection ──
+  function hotspotsFor(id) {
+    if (!id) {
+      return READY.filter((s) => s.mod.anchor).map((s) => ({ id: 'sys:' + s.id, label: s.title, at: s.mod.anchor }));
+    }
+    return sysOf(id).mod.parts.map((p) => ({ id: p.id, label: p.short || p.name, at: p.at }));
+  }
+
+  function selectSystem(id, quiet = false) {
+    sysId = id;
+    partId = null;
+    s3d.show(id);
+    s3d.select(null);
+    api.setXray(id ? 1 : 0);
+    overlay.set(hotspotsFor(id));
+    const s = id && sysOf(id);
+    $('sys-current').textContent = id ? `[${pad(s.num)}] ${s.title.toUpperCase()} ▾` : '[00] OVERVIEW ▾';
+    if (view === 'schem' || quiet) sheet.hide(); else if (id) sheet.system(s.mod); else sheet.overview(SYSTEMS);
+    const v = s?.mod.view;
+    if (v) api.flyTo(new api.THREE.Vector3(...v.target), v.dist, new api.THREE.Vector3(...v.dir), 1100);
+    else api.home();
+    if (view === 'schem') mountSchematic();
+    refresh();
+  }
+
+  function selectPart(id) {
+    if (!sysId) return;
+    const s = sysOf(sysId);
+    const idx = s.mod.parts.findIndex((p) => p.id === id);
+    if (idx < 0) return;
+    const p = s.mod.parts[idx];
+    partId = id;
+    s3d.select(id);
+    overlay.setSelected(id);
+    sheet.part(s.mod, p, idx);
+    if (view === '3d') {
+      // Keep the part left of the sheet on wide screens by aiming a bit right of it.
+      const t = api.worldOf(p.at);
+      api.flyTo(t, p.zoom ?? 15, null, 900);
+    }
+  }
+
+  api.setPick((part) => {
+    if (part) selectPart(part);
+    else if (partId && sysId) { partId = null; s3d.select(null); overlay.setSelected(null); sheet.system(sysOf(sysId).mod); }
+  });
+
+  // ── Phases ──
+  function setPhase(p) {
+    phase = p;
+    for (const b of document.querySelectorAll('#phases [data-phase]')) b.classList.toggle('on', b.dataset.phase === p);
+    anim.go(p);
+    // Each phase starts from its normal configuration; failures you set stay.
+    for (const [id, st] of states) {
+      const fresh = sysOf(id).mod.normal(p);
+      st.sw = fresh.sw;
+      if (fresh.q && sysOf(id).mod.phaseQty) st.q = fresh.q;
+      if (fresh.mem) st.mem = fresh.mem;
+    }
+    refresh();
+  }
+  $('phases').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-phase]');
+    if (b) setPhase(b.dataset.phase);
+  });
+
+  // ── 3D / Schematic ──
+  function setView(v) {
+    view = v;
+    for (const b of document.querySelectorAll('[data-view]')) {
+      const on = b.dataset.view === v;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    }
+    const sch = v === 'schem';
+    $('schematic').hidden = !sch;
+    overlay.visible(!sch);
+    $('hint').classList.add('gone');
+    api.pause(sch);
+    if (sch) { sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
+    refresh();
+  }
+  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => setView(b.dataset.view));
+
+  function mountSchematic() {
+    const s = sysId && sysOf(sysId);
+    if (!s?.schem) {
+      $('schem-svg').innerHTML = `<div class="schem-empty">${s ? 'Schematic coming soon' : 'Pick a system (top left) to operate it'}</div>`;
+      $('schem-panel').replaceChildren();
+      $('schem-panel').hidden = true;
+      schem = null; schemFor = null;
+      return;
+    }
+    if (schemFor === s.id && schem) return;
+    const id = s.id;
+    const ctx = {
+      get sw() { return stateOf(id).sw; },
+      get fail() { return stateOf(id).fail; },
+      set(k, v) { stateOf(id).sw[k] = v; refresh(); },
+      toggleFail(k) { const f = stateOf(id).fail; f[k] = !f[k]; refresh(); },
+      action(k, label) { s.mod.action?.(stateOf(id), k, label, env()); refresh(); },
+      onPart(pid) { selectPart(pid); },
+      reset() { states.set(id, s.mod.normal(phase)); refresh(); },
+      env,
+    };
+    $('schem-panel').hidden = false;
+    schem = s.schem.mount($('schem-svg'), $('schem-panel'), ctx);
+    schemFor = id;
+  }
+
+  // ── Frame loop pieces ──
+  api.onFrame((dt) => {
+    anim.frame(dt);
+    s3d.frame(dt);
+    overlay.frame();
+  });
+  // System ticks (leaks draining, fuel burning) run in both views.
+  let lastTick = performance.now();
+  setInterval(() => {
+    const now = performance.now();
+    const dt = Math.min(0.5, (now - lastTick) / 1000);
+    lastTick = now;
+    let moved = false;
+    for (const s of READY) {
+      if (!states.has(s.id) || !s.mod.tick) continue;
+      if (s.mod.tick(dt, stateOf(s.id), env())) moved = true;
+    }
+    if (moved) refresh();
+  }, 100);
+
+  $('home-btn').addEventListener('click', () => {
+    const v = sysId && sysOf(sysId).mod.view;
+    if (v) api.flyTo(new api.THREE.Vector3(...v.target), v.dist, new api.THREE.Vector3(...v.dir), 900);
+    else api.home();
+  });
+
+  // Hint fades after the first interaction.
+  const gone = () => $('hint').classList.add('gone');
+  $('gl').addEventListener('pointerdown', gone, { once: true });
+  setTimeout(gone, 9000);
+
+  // Keyboard: ← → cycle systems, Esc closes the sheet.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') $('sys-next').click();
+    else if (e.key === 'ArrowLeft') $('sys-prev').click();
+    else if (e.key === 'Escape') { sheet.hide(); partId = null; s3d.select(null); overlay.setSelected(null); }
+  });
+
+  selectSystem(null, true);
+  relayout();
+  api.start();
+  window.__booted = true;
+  // Debug handle for local development only.
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d };
+
+  if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+init();

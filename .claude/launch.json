@@ -162,6 +162,16 @@
         "/Users/alonbrookstein/Claude AS/sky-club-pwa"
       ],
       "port": 8199
+    },
+    {
+      "name": "737 NG Inside",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8101",
+        "/Users/alonbrookstein/Claude AS/b737-systems-pwa"
+      ],
+      "port": 8101
     }
   ]
 }

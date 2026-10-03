@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=144';
-import * as dataCard from './modules/data-card.js?v=144';
-import * as checklist from './modules/checklist.js?v=144';
-import * as speeches from './modules/speeches.js?v=144';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=144';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=144';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=144';
+import * as storage from './modules/storage.js?v=145';
+import * as dataCard from './modules/data-card.js?v=145';
+import * as checklist from './modules/checklist.js?v=145';
+import * as speeches from './modules/speeches.js?v=145';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=145';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=145';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=145';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1014,6 +1014,7 @@ const TOP_ACTIONS = {
   'checklist-print': () => openPrintSheet(),
   'radar':           () => doRadar(),
   'asu':             () => doAirspeedUnreliable(),
+  'systems':         () => doSystems(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
   'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
@@ -1554,6 +1555,11 @@ async function doAirspeedUnreliable() {
   }
   const q = params.toString();
   window.open('../' + (q ? '?' + q : ''), '_blank', 'noopener,noreferrer');
+}
+
+// 737 NG Inside — the systems explorer, a sibling app on the same site.
+function doSystems() {
+  window.open('../b737-systems-pwa/', '_blank', 'noopener,noreferrer');
 }
 
 function openSettingsSheet() {

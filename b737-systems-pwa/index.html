@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>737 NG Inside</title>
+  <meta name="theme-color" content="#f2f2f0">
+  <meta name="description" content="Explore the Boeing 737 NG systems inside a see-through 3D airplane, with operable schematics.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="737 Inside">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="gl" aria-label="3D view of the 737"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <svg id="leaders" aria-hidden="true"></svg>
+    <div id="hotspots"></div>
+  </div>
+
+  <section id="schematic" class="schematic" hidden aria-label="Schematic">
+    <div class="schem-scroll">
+      <div id="schem-svg" class="schem-svg"></div>
+      <aside id="schem-panel" class="schem-panel" aria-label="Flight deck controls"></aside>
+    </div>
+  </section>
+
+  <header class="hud hud-tl">
+    <a class="tag tag-btn" href="../flight-card-pwa/" id="suite-link" aria-label="Back to Flight Card">&lt; SUITE</a>
+    <div class="tag tag-title">737 NG&nbsp;INSIDE</div>
+    <button class="tag tag-btn" id="sys-current" aria-expanded="false" aria-controls="sys-list">[00] OVERVIEW ▾</button>
+    <div class="tag-row">
+      <button class="tag tag-btn" id="sys-prev">&lt;Prev</button><button class="tag tag-btn" id="sys-next">Next&gt;</button>
+    </div>
+    <nav id="sys-list" class="sys-list" hidden></nav>
+  </header>
+
+  <div class="hud hud-tr">
+    <div class="seg" role="tablist" aria-label="View">
+      <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true">3D</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false">Schematic</button>
+    </div>
+    <button class="tag tag-btn" id="theme-btn" aria-label="Day / night">◐</button>
+    <button class="tag tag-btn" id="home-btn" aria-label="Reset view">⌂</button>
+  </div>
+
+  <div class="hud hud-bottom">
+    <div class="seg" id="phases" role="tablist" aria-label="Phase of flight">
+      <button class="tag tag-btn on" data-phase="ground">Ground</button><button class="tag tag-btn" data-phase="takeoff">Takeoff</button><button class="tag tag-btn" data-phase="cruise">Cruise</button><button class="tag tag-btn" data-phase="landing">Landing</button>
+    </div>
+    <div id="phase-note" class="phase-note"></div>
+  </div>
+
+  <aside id="sheet" class="sheet" aria-live="polite" hidden>
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <button class="sheet-close tag tag-btn" id="sheet-close" aria-label="Close">✕</button>
+    <div id="sheet-body" class="sheet-body"></div>
+  </aside>
+
+  <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
+  <div id="boot-error" class="boot-error" hidden></div>
+
+  <script type="module" src="app.js?v=1"></script>
+  <script>
+    // If the module graph fails to evaluate, say so instead of a silent dead page.
+    window.addEventListener('error', function (e) {
+      var b = document.getElementById('boot-error');
+      if (b && !window.__booted) { b.hidden = false; b.textContent = 'Failed to start: ' + (e.message || 'script error'); }
+    });
+  </script>
+</body>
+</html>
