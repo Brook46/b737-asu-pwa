@@ -127,6 +127,12 @@ body {
 }
 .hdr-row {
   display: flex; align-items: center; gap: 6px;
+  /* Wrap rather than squeeze. The clock, the CTOT block and the icon row need
+     more than a 375px phone gives them, and with nowrap the icons were either
+     pushed off the right edge (flex-shrink:0) or crushed below their own
+     content width and spilled out of their box. Wrapping drops the icon row
+     onto its own line, intact, only on the screens that actually need it. */
+  flex-wrap: wrap;
 }
 .hdr-spacer { flex: 1 1 0; }
 .clock-utc {
@@ -247,7 +253,10 @@ body.is-past-leg #card-checklist {
 
 .actions {
   display: flex; gap: 3px; align-items: center;
+  /* Stays whole and wraps as a unit (see .hdr-row). margin-left:auto keeps it
+     against the right edge on both the shared line and a line of its own. */
   flex-shrink: 0;
+  margin-left: auto;
 }
 .actions .btn.icon-btn {
   width: 30px; height: 30px; min-height: 30px;

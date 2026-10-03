@@ -699,19 +699,29 @@ button { cursor: pointer; }
   z-index: 5;
 }
 .sensor-toggle {
-  display: flex; align-items: center; gap: 0.35rem;
-  margin: 0 auto 0.3rem;
-  width: fit-content;
-  padding: 0.15rem 0.7rem;
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  width: 100%;
+  margin: -0.3rem 0 0.2rem;
+  padding: 0.25rem 0 0.15rem;
+  border: 0;
   background: transparent;
   color: var(--text-sub);
-  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+  touch-action: none;          /* we handle vertical drags ourselves */
+  cursor: grab;
 }
-.sensor-toggle-chev { transition: transform 0.2s ease; }
-.sensor-bar.collapsed .sensor-toggle-chev { transform: rotate(180deg); }
-.sensor-bar.collapsed .sensor-row { display: none; }
+.sensor-grabber {
+  width: 38px; height: 5px; border-radius: 3px;
+  background: var(--text-mute);
+  opacity: 0.7;
+}
+.sensor-bar { transition: transform 0.22s ease, padding 0.22s ease; }
+/* Collapsed: just the grab handle — no readings, no status line. */
+.sensor-bar.collapsed { padding-top: 0.3rem; padding-bottom: calc(0.25rem + env(safe-area-inset-bottom)); }
+.sensor-bar.collapsed .sensor-row,
+.sensor-bar.collapsed .sensor-status { display: none; }
+.sensor-bar.collapsed .sensor-toggle { margin: 0; padding: 0.1rem 0; }
+.sensor-row { display: none; }
 .sensor-bar.collapsed .sensor-toggle { margin-bottom: 0; }
 .sensor-row {
   display: grid;

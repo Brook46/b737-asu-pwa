@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=136';
-import * as dataCard from './modules/data-card.js?v=136';
-import * as checklist from './modules/checklist.js?v=136';
-import * as speeches from './modules/speeches.js?v=136';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=136';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=136';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=136';
+import * as storage from './modules/storage.js?v=138';
+import * as dataCard from './modules/data-card.js?v=138';
+import * as checklist from './modules/checklist.js?v=138';
+import * as speeches from './modules/speeches.js?v=138';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=138';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=138';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=138';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1007,6 +1007,7 @@ const TOP_ACTIONS = {
   'checklist-edit':  () => doChecklistEditToggle(),
   'checklist-print': () => openPrintSheet(),
   'radar':           () => doRadar(),
+  'asu':             () => doAirspeedUnreliable(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
   'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
@@ -1425,6 +1426,50 @@ function doRadar() {
     + encodeURIComponent(reg.toLowerCase());
   window.open(url, '_blank', 'noopener,noreferrer');
 }
+// ---------- Airspeed Unreliable (the QRH app next door) ----------
+//
+// Opens the Airspeed Unreliable quick-reference already set up for the flight
+// on the card, so a non-normal doesn't start with two dropdowns.
+//
+// Variant comes from the airframe. Across 492 logged sectors the 4X fleet maps
+// cleanly by registration block — EK is a -800, EH a -900 — and an imported
+// sector also carries the type string outright. ED/ER are 787s and EC a 777,
+// none of which this QRH covers, so those open the app without a variant and
+// let the pilot choose rather than being shown the wrong aeroplane's numbers.
+function asuVariant(leg, card) {
+  const type = String((card && card.ac_type) || (leg && leg.ac_type) || '');
+  if (/737\s*-?\s*8/.test(type)) return '800';
+  if (/737\s*-?\s*9/.test(type)) return '900';
+  const reg = normaliseRegistration((card && card.tail) || (leg && leg.tail) || '');
+  const m = /^4X-E([A-Z])/.exec(reg);
+  if (!m) return '';
+  if (m[1] === 'K') return '800';
+  if (m[1] === 'H') return '900';
+  return '';
+}
+
+async function doAirspeedUnreliable() {
+  // The airport table is lazy-loaded (the logbook pulls it in). Without this
+  // the very first tap would quietly drop the altitude.
+  try { await ensureLbAirports(); } catch { /* fall through without an altitude */ }
+  const card = storage.getCurrent().dataCard || {};
+  const leg  = storage.getLeg() || {};
+  const params = new URLSearchParams();
+  const v = asuVariant(leg, card);
+  if (v) params.set('v', v);
+  // Departure field elevation: the tables are indexed by airport altitude, and
+  // the one airport we can be sure about on the ground is where we're leaving
+  // from. Not every airport in the table carries an elevation, and the app is
+  // explicit that an absent one just means "leave the picker alone".
+  const dep = String(card.dep || leg.dep || '').trim().toUpperCase();
+  if (dep && lbAirports) {
+    const ap = lbAirports.lookup(dep);
+    if (ap && Number.isFinite(ap.elev)) params.set('alt', String(Math.round(ap.elev)));
+  }
+  const q = params.toString();
+  window.open('../' + (q ? '?' + q : ''), '_blank', 'noopener,noreferrer');
+}
+
 function openSettingsSheet() {
   showOverlay('settings-overlay');
   try { paintCalendarSection(); } catch (err) { console.warn('cal paint skipped', err); }

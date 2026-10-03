@@ -2,6 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "ASU (no-cache)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8010",
+        "/Users/alonbrookstein/Claude AS"
+      ],
+      "port": 8010
+    },
+    {
       "name": "PWA static server",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
@@ -88,7 +98,11 @@
     {
       "name": "Thermal Debrief",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/alonbrookstein/Claude AS/dev-server.py", "8094", "/Users/alonbrookstein/Claude AS/debrief-pwa"],
+      "runtimeArgs": [
+        "/Users/alonbrookstein/Claude AS/dev-server.py",
+        "8094",
+        "/Users/alonbrookstein/Claude AS/debrief-pwa"
+      ],
       "port": 8094
     },
     {
@@ -129,6 +143,15 @@
         "/Users/alonbrookstein/Claude AS/flight-card-pwa"
       ],
       "port": 8096
+    },
+    {
+      "name": "Line Trim",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "/Users/alonbrookstein/pg-trim/dev-server.py",
+        "8060"
+      ],
+      "port": 8060
     },
     {
       "name": "Sky Club",

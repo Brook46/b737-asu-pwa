@@ -19,6 +19,15 @@ const MOTION_PERM_KEY = 'asu.sensor.motion'; // 'granted' | 'denied' | 'prompt'
 const THEME_KEY = 'asu.theme.v1';
 
 /* ─── State ────────────────────────────────────────────────────── */
+// Gross-weight bounds, in tonnes. Declared up here because the deep-link
+// parser below validates against them and runs at module top level — a const
+// still in its temporal dead zone throws a ReferenceError that kills the rest
+// of the file.
+const MIN_W = 40, MAX_W = 80;
+
+// The seven phase tabs, by their data-phase id.
+const PHASE_IDS = ['climb', 'cruise', 'descent', 'holding', 'terminal', 'approach', 'go_around'];
+
 const defaultState = {
   variant: null,     // null | '800' | '900' — null = user hasn't picked
   phase: 'climb',
@@ -26,6 +35,59 @@ const defaultState = {
   aptAlt: 5000,      // default airport altitude — common DA/MDA region
 };
 const state = Object.assign({}, defaultState, loadJSON(STORE_KEY, {}));
+
+/* ─── Deep link ────────────────────────────────────────────────────
+ * Flight Card links straight here when the pilot needs this procedure, and
+ * carries what it already knows so the page opens ready instead of asking for
+ * things that are sitting on the flight card:
+ *
+ *   ?v=800|900   aircraft variant (from the tail: 4X-EK is a -800, 4X-EH a -900)
+ *   ?alt=<feet>  departure field elevation, snapped below to the nearest band
+ *                the QRH tables actually publish
+ *   ?wt=<tonnes> gross weight
+ *
+ * Anything absent or unrecognised is simply left as the pilot last had it —
+ * a link must never quietly reset a selection it was not asked to carry.
+ * requestedAlt is held aside because the altitude bands come out of the QRH
+ * data, which has not loaded yet at this point. */
+let requestedAlt = null;
+(function applyDeepLink() {
+  let q;
+  try { q = new URLSearchParams(location.search); } catch { return; }
+  // num() via the raw string, never Number(q.get(...)) directly: a missing
+  // param comes back as null and Number(null) is 0, not NaN — so a link that
+  // carried no altitude was silently forcing Sea Level.
+  const num = (key) => {
+    const raw = q.get(key);
+    if (raw == null || raw.trim() === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  let touched = false;
+  const v = q.get('v') || q.get('variant');
+  if (v === '800' || v === '900') { state.variant = v; touched = true; }
+  const wt = num('wt');
+  if (wt != null && wt >= MIN_W && wt <= MAX_W) { state.weight = wt; touched = true; }
+  const alt = num('alt');
+  if (alt != null && alt > -3000 && alt < 20000) { requestedAlt = alt; touched = true; }
+  const ph = q.get('phase');
+  if (ph && PHASE_IDS.includes(ph)) { state.phase = ph; touched = true; }
+  if (touched) saveState();
+})();
+
+/* Snap a field elevation onto the nearest altitude the tables publish. The
+ * bands are 1000 ft apart, so the ~±50 ft of slop in a published field
+ * elevation can only matter within 50 ft of a boundary — and the QRH itself
+ * expects you to round to the nearest band. */
+function snapRequestedAlt() {
+  if (requestedAlt == null || !state.variant || !qrh[state.variant]) return;
+  const alts = (qrh[state.variant].terminal || []).map(r => r.apt_alt);
+  if (!alts.length) return;
+  state.aptAlt = alts.reduce((best, a) =>
+    Math.abs(a - requestedAlt) < Math.abs(best - requestedAlt) ? a : best, alts[0]);
+  requestedAlt = null;
+  saveState();
+}
 
 function loadJSON(k, fb) {
   try { return JSON.parse(localStorage.getItem(k)) ?? fb; }
@@ -45,7 +107,6 @@ async function loadQRH() {
 }
 
 /* ─── Utilities ────────────────────────────────────────────────── */
-const MIN_W = 40, MAX_W = 80;
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -519,21 +580,23 @@ function openCbModal() {
   cbModal.classList.add('is-open');
 }
 function closeCbModal() {
-  $('.cb-stage').classList.remove('solo-mode');
-  $$('.cb-fig').forEach(f => f.classList.remove('solo'));
+  setCbView('both');
   cbModal.setAttribute('aria-hidden', 'true');
   cbModal.classList.remove('is-open');
 }
 cbBtn.addEventListener('click', openCbModal);
 cbClose.addEventListener('click', closeCbModal);
-// Tap a panel to view it alone (larger); tap again to return to both.
-$$('.cb-fig').forEach(fig => fig.addEventListener('click', () => {
-  const stage = fig.parentElement;
-  const solo = !fig.classList.contains('solo');
-  $$('.cb-fig').forEach(f => f.classList.remove('solo'));
-  fig.classList.toggle('solo', solo);
-  stage.classList.toggle('solo-mode', solo);
-}));
+// View selector: one panel alone, or both side by side (facing-aft order).
+function setCbView(view) {
+  $('.cb-stage').dataset.view = view;
+  $$('.cb-seg-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+  $$('.cb-locator .loc-panel').forEach(r =>
+    r.classList.toggle('dim', view !== 'both' && r.dataset.cb !== view));
+}
+$$('.cb-seg-btn').forEach(b => b.addEventListener('click', () => setCbView(b.dataset.view)));
+// Tapping a panel in "Both" zooms to it; tapping the lone panel goes back.
+$$('.cb-fig').forEach(fig => fig.addEventListener('click', () =>
+  setCbView($('.cb-stage').dataset.view === 'both' ? fig.dataset.cb : 'both')));
 cbModal.addEventListener('click', (e) => {
   if (e.target === cbModal) closeCbModal();
 });
@@ -742,16 +805,51 @@ enableBtn.addEventListener('click', async () => {
   enableBtn.disabled = false;
 });
 
-/* ─── Collapsible sensor footer (remembered per device) ─────────── */
+/* ─── Collapsible sensor footer (remembered per device) ───────────
+ * Works like an iOS sheet handle: tap to toggle, or drag down to collapse /
+ * up to expand. The footer follows the finger while dragging, then snaps. */
 const SENSOR_COLLAPSE_KEY = 'asu.sensorsCollapsed';
 const sensorToggle = $('#sensor-toggle');
+const sensorBar    = $('.sensor-bar');
 function setSensorsCollapsed(collapsed) {
-  document.querySelector('.sensor-bar').classList.toggle('collapsed', collapsed);
+  sensorBar.classList.toggle('collapsed', collapsed);
   sensorToggle.setAttribute('aria-expanded', String(!collapsed));
   try { localStorage.setItem(SENSOR_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch {}
 }
-sensorToggle.addEventListener('click', () =>
-  setSensorsCollapsed(sensorToggle.getAttribute('aria-expanded') === 'true'));
+{
+  const SNAP = 24;            // px of travel that counts as a deliberate drag
+  let startY = null, dy = 0, dragged = false;
+  sensorToggle.addEventListener('pointerdown', (e) => {
+    startY = e.clientY; dy = 0; dragged = false;
+    sensorToggle.setPointerCapture(e.pointerId);
+    sensorBar.style.transition = 'none';
+  });
+  sensorToggle.addEventListener('pointermove', (e) => {
+    if (startY == null) return;
+    dy = e.clientY - startY;
+    if (Math.abs(dy) > 6) dragged = true;
+    const collapsed = sensorBar.classList.contains('collapsed');
+    // Only follow the finger in the direction that would change state.
+    const follow = collapsed ? Math.min(0, dy) : Math.max(0, dy);
+    sensorBar.style.transform = `translateY(${follow * 0.6}px)`;
+  });
+  const end = () => {
+    if (startY == null) return;
+    sensorBar.style.transition = '';
+    sensorBar.style.transform = '';
+    const collapsed = sensorBar.classList.contains('collapsed');
+    if (!dragged) setSensorsCollapsed(!collapsed);          // plain tap
+    else if (dy > SNAP && !collapsed) setSensorsCollapsed(true);
+    else if (dy < -SNAP && collapsed) setSensorsCollapsed(false);
+    startY = null;
+  };
+  sensorToggle.addEventListener('pointerup', end);
+  sensorToggle.addEventListener('pointercancel', end);
+  // Keyboard users: Enter/Space fire click without pointer events.
+  sensorToggle.addEventListener('click', (e) => {
+    if (e.detail === 0) setSensorsCollapsed(!sensorBar.classList.contains('collapsed'));
+  });
+}
 try { setSensorsCollapsed(localStorage.getItem(SENSOR_COLLAPSE_KEY) === '1'); } catch {}
 
 /* ─── Settings modal (sensor toggles) ──────────────────────────── */
@@ -854,6 +952,7 @@ if ('serviceWorker' in navigator) {
   startGPS();
   if (!motionNeedsPermission()) startMotion(); // non-iOS only
 
+  snapRequestedAlt();
   buildSubControls();
   render();
 

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=136" />
+  <link rel="stylesheet" href="./app.css?v=138" />
 </head>
 <body>
   <header class="app-header">
@@ -39,6 +39,14 @@
             <circle cx="12" cy="12" r="5"/>
             <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
             <line x1="12" y1="12" x2="19" y2="6.5"/>
+          </svg>
+        </button>
+        <button id="asu-btn" data-action="asu" class="btn icon-btn" title="Airspeed Unreliable — QRH pitch &amp; N1" aria-label="Airspeed Unreliable quick reference">
+          <!-- A crossed-out airspeed needle: the one instrument you can't trust. -->
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.5"/>
+            <path d="M12 12l3.5-3"/>
+            <line x1="4.8" y1="19.2" x2="19.2" y2="4.8"/>
           </svg>
         </button>
         <button id="pa-toggle"  data-action="pa-toggle" class="btn icon-btn" title="Passenger speech (PA)" aria-label="Passenger speech">
@@ -690,6 +698,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=136"></script>
+  <script type="module" src="./app.js?v=138"></script>
 </body>
 </html>
