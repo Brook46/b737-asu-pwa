@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=138';
+import * as storage from './storage.js?v=139';
 
 const CFG_KEY = 'fc.print.cfg';
 
@@ -347,7 +347,15 @@ export function print(cfg = getConfig()) {
   const root = document.getElementById('print-root');
   if (!root) return;
   root.innerHTML = sheetsHtml(cfg);
-  // Let layout settle before the (synchronous, blocking) print call, or Safari
-  // can snapshot a half-laid-out page.
-  requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  // Force layout NOW, synchronously, by reading a geometry property. The point
+  // is the same as the two requestAnimationFrames this replaces — don't hand
+  // Safari a half-laid-out page — but without leaving the click's user-gesture
+  // context. Safari can ignore a window.print() that arrives two frames after
+  // the tap, which looks exactly like the button doing nothing.
+  void root.offsetHeight;
+  try {
+    window.print();
+  } catch (err) {
+    console.warn('print() failed', err);
+  }
 }

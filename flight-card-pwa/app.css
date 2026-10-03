@@ -2381,7 +2381,11 @@ body { background: transparent; }
   body { background: #fff !important; margin: 0; padding: 0; }
   body::before { display: none !important; }
   #print-root { display: block !important; }
-  .pr-sheet { break-after: page; page-break-after: always; break-inside: avoid; }
+  /* No break-inside:avoid here. A box exactly one page tall and marked
+     unbreakable is a known way to make WebKit produce no pages at all — the
+     dialog never opens and nothing reaches the printer. overflow:hidden on
+     .pr-sheet already makes it monolithic, so the rule bought nothing. */
+  .pr-sheet { break-after: page; page-break-after: always; }
   .pr-sheet:last-child { break-after: auto; page-break-after: auto; }
   /* Keep the rules and boxes solid — browsers drop backgrounds by default,
      but these are borders, so they survive. Force colour anyway for the

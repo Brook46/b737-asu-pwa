@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=138';
-import * as dataCard from './modules/data-card.js?v=138';
-import * as checklist from './modules/checklist.js?v=138';
-import * as speeches from './modules/speeches.js?v=138';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=138';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=138';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=138';
+import * as storage from './modules/storage.js?v=139';
+import * as dataCard from './modules/data-card.js?v=139';
+import * as checklist from './modules/checklist.js?v=139';
+import * as speeches from './modules/speeches.js?v=139';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=139';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=139';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=139';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1394,6 +1394,13 @@ $('print-go').addEventListener('click', () => {
   // it up over the print dialog is confusing on iPad.
   hideOverlay('print-overlay');
   printMod.print();
+  // navigator.standalone is iOS-only and true only for a home-screen app.
+  // Those have no print support whatsoever — window.print() is a silent no-op
+  // and there is no Share → Print either — so the button looks broken rather
+  // than unsupported. Say which it is; from Safari the same page prints fine.
+  if (navigator.standalone === true) {
+    toast('iOS home-screen apps can\u2019t print — open Flight Card in Safari');
+  }
 });
 
 function doChecklistEditToggle() {
