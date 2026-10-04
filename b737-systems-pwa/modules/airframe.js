@@ -12,7 +12,7 @@
 // each system module can place its parts inside the real structure rather
 // than at hand-typed coordinates that drift when the airframe is tuned.
 
-import * as THREE from '../vendor/three.module.min.js?v=4';
+import * as THREE from '../vendor/three.module.min.js?v=5';
 
 // ── Fuselage ────────────────────────────────────────────────────────────────
 
@@ -29,14 +29,14 @@ export const FLOOR_Y = YC - 0.62; // cabin floor
 export function fusSection(x) {
   let top = YC + FUS_H, bot = YC - FUS_H, w = FUS_R;
   if (x > NOSE_TAPER_X) {
-    // 737 nose: the crown falls away steeply over the windshield, the chin
-    // rises late, and the radome tip sits low.
+    // 737 nose: full section until the flight deck, then a blunt, round
+    // radome whose tip sits just below the centreline.
     const s = Math.min(1, (x - NOSE_TAPER_X) / (NOSE_X - NOSE_TAPER_X));
-    const tip = YC - 0.7;
+    const tip = YC - 0.3;
     const se = (p, q) => Math.pow(Math.max(0, 1 - s ** p), 1 / q);
-    top = tip + (YC + FUS_H - tip) * se(1.7, 1.6);
-    bot = tip - (tip - (YC - FUS_H)) * se(2.2, 2.2);
-    w = FUS_R * se(1.9, 1.9);
+    top = tip + (YC + FUS_H - tip) * se(2.4, 1.9);
+    bot = tip - (tip - (YC - FUS_H)) * se(2.6, 2.4);
+    w = FUS_R * se(2.6, 2.2);
   } else if (x < TAIL_TAPER_X) {
     const s = Math.min(1, (TAIL_TAPER_X - x) / (TAIL_TAPER_X - TAIL_X));
     top = YC + FUS_H - 0.85 * s ** 1.6;
@@ -95,7 +95,9 @@ export function wingPoint(z, u, v = 0) {
 
 // ── Engines, gear, tail and bays ────────────────────────────────────────────
 
-export const ENG = { x: 6.7, y: 1.45, z: 4.95, len: 4.4, r: 1.04 };
+// CFM56-7B: inlet ~4 m ahead of the wing leading edge, fan nozzle at the LE,
+// core and plug running on under the wing; ~0.45 m ground clearance.
+export const ENG = { x: 5.75, y: 1.32, z: 4.95, len: 4.0, r: 1.05 };
 /** A point on/in engine No. n (1 left, 2 right). a = metres aft of the inlet. */
 export function engPoint(n, a, dy = 0, dz = 0) {
   const s = n === 1 ? -1 : 1;
@@ -280,11 +282,11 @@ export function paintLivery(canvas) {
     // Side-view outlines: one continuous band with thin posts, No. 2 and
     // No. 3 sharing a straight sill, No. 1 sweeping down to the nose.
     const shield = [
-      [[18.6, 0.28], [17.58, 0.47], [17.64, 1.0], [18.42, 0.62]],
-      [[17.5, 0.48], [16.66, 0.55], [16.69, 1.12], [17.56, 1.01]],
-      [[16.58, 0.556], [15.98, 0.6], [15.95, 0.92], [16.12, 1.1], [16.61, 1.13]],
+      [[18.2, 0.56], [17.5, 0.6], [17.5, 1.16], [18.05, 1.06]],
+      [[17.38, 0.61], [16.58, 0.63], [16.52, 1.2], [17.38, 1.18]],
+      [[16.44, 0.64], [15.84, 0.66], [15.84, 1.06], [15.96, 1.2], [16.38, 1.22]],
     ];
-    for (const w of shield) { path(w, side, 86); g.fill(); }
+    for (const w of shield) { path(w, side, 87); g.fill(); }
     // Cabin windows on a ~0.51 m pitch, skipping the overwing exits.
     for (let x = 12.85; x > -9.8; x -= 0.508) {
       if (x < 1.8 && x > 0.1) continue;
@@ -312,6 +314,17 @@ function latheX(profile, segs = 40) {
   const pts = profile.map(([a, r]) => new THREE.Vector2(r, a));
   const g = new THREE.LatheGeometry(pts, segs);
   g.rotateZ(Math.PI / 2); // +y (a) → -x
+  return g;
+}
+
+/** Squash the lower part of a nacelle surface (the 737's flattened engine bottom). */
+function flattenBottom(g, from = -0.55, k = 0.55) {
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    if (y < from) p.setY(i, from + (y - from) * k);
+  }
+  g.computeVertexNormals();
   return g;
 }
 
@@ -451,30 +464,36 @@ export function buildAirframe(materials) {
     const eng = new THREE.Group();
     eng.position.set(ENG.x, ENG.y, side * ENG.z);
     root.add(eng);
-    const nac = latheX([[0, 0.86], [0.06, 0.97], [0.25, 1.03], [0.9, 1.05], [2.2, 1.0], [2.25, 0.99]], 44);
-    add(nac, eng);
-    const inlet = latheX([[0.02, 0.84], [0.9, 0.86]], 40);
-    add(inlet, eng);
+    // Nacelle: thick inlet lip, fattest a third of the way back, tapering to
+    // the translating sleeve and a big fan nozzle. The lower half is
+    // flattened (flattenBottom) the way the CFM56 nacelle is on the 737.
+    const nac = latheX([[0, 0.83], [0.03, 0.93], [0.12, 1.0], [0.45, 1.05], [1.2, 1.05], [2.05, 1.0], [2.1, 0.99]], 48);
+    add(flattenBottom(nac), eng);
+    // Inlet lip inner face and the duct back to the fan (grey, so it reads deep).
+    add(flattenBottom(latheX([[0.0, 0.83], [0.08, 0.8], [0.3, 0.79], [0.86, 0.8]], 48)), eng, 'metal');
     // Translating sleeve (thrust reverser) and the cascade it uncovers.
-    const sleeve = latheX([[2.2, 0.995], [3.3, 0.93], [3.95, 0.8]], 44);
+    const sleeve = latheX([[2.05, 0.995], [2.9, 0.95], [3.62, 0.86], [3.95, 0.8]], 48);
     const sleeveGroup = new THREE.Group();
     eng.add(sleeveGroup);
-    add(sleeve, sleeveGroup);
-    const cascade = latheX([[2.15, 0.9], [2.85, 0.88]], 44);
-    const cm = add(cascade, eng, 'dark');
+    add(flattenBottom(sleeve), sleeveGroup);
+    // Fan duct liner inside the sleeve, dark — the fan nozzle reads hollow.
+    add(flattenBottom(latheX([[2.05, 0.8], [3.0, 0.78], [3.93, 0.75]], 48)), sleeveGroup, 'dark');
+    const cascade = latheX([[2.0, 0.92], [2.68, 0.9]], 48);
+    const cm = add(flattenBottom(cascade), eng, 'dark');
     cm.userData.skin = 'dark';
     movers.sleeves.push({ group: sleeveGroup, cascade: cm });
-    // Core and plug.
-    add(latheX([[3.6, 0.7], [4.6, 0.55], [5.0, 0.46]], 32), eng);
-    add(latheX([[4.9, 0.36], [5.3, 0.26], [5.75, 0.02]], 24), eng, 'dark');
+    // Core cowl, primary nozzle and the long exhaust plug.
+    add(latheX([[2.9, 0.68], [3.6, 0.66], [4.3, 0.58], [4.75, 0.5]], 36), eng, 'metal');
+    add(latheX([[4.75, 0.5], [4.8, 0.44]], 36), eng, 'dark');
+    add(latheX([[4.7, 0.4], [5.1, 0.34], [5.6, 0.17], [5.9, 0.05]], 28), eng, 'metal');
     // Fan: spinner + blades.
     const fan = new THREE.Group();
-    fan.position.set(-0.9, 0, 0);
+    fan.position.set(-0.86, 0, 0);
     eng.add(fan);
-    const spinner = latheX([[-0.45, 0.0], [-0.3, 0.16], [0, 0.3]], 24);
+    const spinner = latheX([[-0.42, 0.0], [-0.3, 0.13], [-0.12, 0.25], [0, 0.29]], 24);
     add(spinner, fan, 'dark');
-    const bladeGeo = new THREE.BoxGeometry(0.05, 0.56, 0.16);
-    bladeGeo.translate(0, 0.58, 0);
+    const bladeGeo = new THREE.BoxGeometry(0.04, 0.52, 0.2);
+    bladeGeo.translate(0, 0.54, 0);
     for (let i = 0; i < 24; i++) {
       const b = add(bladeGeo.clone(), fan, 'dark');
       b.rotation.x = (i / 24) * Math.PI * 2;

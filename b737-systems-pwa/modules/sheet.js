@@ -50,7 +50,8 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
     decorate?.(body, key);
   }
   function hide() { el.hidden = true; current = null; }
-  const star = '<button class="star-btn no-hl" data-star aria-label="Add to favorites">☆</button>';
+  const star = '<button class="star-btn no-hl" data-star aria-label="Add to favorites">☆</button>'
+    + '<button class="listen-btn no-hl" data-listen aria-label="Listen to this page and the ones after it">🔊 Listen</button>';
 
   function part(sys, p, idx) {
     const rel = (p.related || []).map((id) => sys.parts.find((q) => q.id === id)).filter(Boolean);

@@ -43,7 +43,7 @@ export const tts = {
   get rate() { return rate; },
   setRate(r) { rate = r; try { localStorage.setItem('b737i.rate', String(r)); } catch { /* fine */ } },
   /** Speak and resolve when finished (or cancelled). */
-  speak(text) {
+  speak(text, opts = {}) {
     return new Promise((resolve) => {
       if (!synth) return resolve(false);
       const said = speakable(text);
@@ -56,6 +56,8 @@ export const tts = {
       const words = said.split(/\s+/).length;
       const guard = setTimeout(() => done(true), ((words / (2.4 * rate)) + 4) * 1000);
       const done = (v) => { clearTimeout(guard); resolve(v); };
+      // Word boundaries (iOS / macOS Safari, Chrome): report how far through.
+      if (opts.onWord) u.onboundary = (e) => { if (e.name === 'word' || e.name == null) opts.onWord(e.charIndex / Math.max(1, said.length)); };
       u.onend = () => done(true);
       u.onerror = (e) => done(e.error === 'interrupted' || e.error === 'canceled' ? false : true);
       synth.speak(u);

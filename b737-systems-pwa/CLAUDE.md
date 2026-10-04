@@ -51,6 +51,9 @@ modules/
   quizbank.js     study questions per page ({ sys, part|null, q, c[4], a,
                   why, ref }) — our own words; every number cited
   progress.js     per-page status new/seen/learning/learned/review (14 d)
+  reader.js       read-along: splits the page on screen into sentences and
+                  highlights sentence + word (CSS Custom Highlight API, no
+                  DOM changes; paragraph outline fallback)
   learn.js        Learn dashboard, lesson player (reads pages aloud while
                   the 3D view follows), voice quiz (parseAnswer handles
                   letters, phonetics, spoken numbers, answer content)
@@ -97,6 +100,13 @@ export default {
 - `sw.js` matches `/vendor/` ignoring the query string; new modules must be
   added to `APP_SHELL`.
 - Linked from Flight Card's header (`doSystems()` in flight-card-pwa/app.js).
+
+## Engines
+
+CFM56-7B nacelle (`buildAirframe`, "Engine"): inlet ~4 m ahead of the wing
+LE, fan nozzle at the LE, core cowl + long plug under the wing, lower half
+flattened (`flattenBottom`), ~0.45 m ground clearance. `ENG` moves every
+engine-mounted system part with it (engPoint).
 
 ## Fuselage windows
 

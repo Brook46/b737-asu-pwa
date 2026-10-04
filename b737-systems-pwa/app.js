@@ -4,18 +4,18 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=4';
-import { createScene } from './modules/scene.js?v=4';
-import { buildAirframe } from './modules/airframe.js?v=4';
-import { createSystems3D } from './modules/systems3d.js?v=4';
-import { createOverlay } from './modules/overlay.js?v=4';
-import { createSheet } from './modules/sheet.js?v=4';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=4';
-import { SYSTEMS, READY } from './modules/systems.js?v=4';
-import { createSearch } from './modules/search.js?v=4';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=4';
-import { createProgress } from './modules/progress.js?v=4';
-import { createLearn } from './modules/learn.js?v=4';
+import { installResumeHardening } from './modules/resume.js?v=5';
+import { createScene } from './modules/scene.js?v=5';
+import { buildAirframe } from './modules/airframe.js?v=5';
+import { createSystems3D } from './modules/systems3d.js?v=5';
+import { createOverlay } from './modules/overlay.js?v=5';
+import { createSheet } from './modules/sheet.js?v=5';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=5';
+import { SYSTEMS, READY } from './modules/systems.js?v=5';
+import { createSearch } from './modules/search.js?v=5';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=5';
+import { createProgress } from './modules/progress.js?v=5';
+import { createLearn } from './modules/learn.js?v=5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -355,7 +355,8 @@ function init() {
     goTo: (key) => goTo(key),
     els: {
       body: $('sheet-body'), player: $('player'), plK: $('pl-k'), plT: $('pl-t'), plProg: $('pl-prog'),
-      plPlay: $('pl-play'), plNext: $('pl-next'), plPrev: $('pl-prev'), plRate: $('pl-rate'), plClose: $('pl-close'),
+      plPlay: $('pl-play'), plNext: $('pl-next'), plPrev: $('pl-prev'), plBack: $('pl-back'), plFwd: $('pl-fwd'),
+      plRate: $('pl-rate'), plRateV: $('pl-rate-v'), plSlower: $('pl-slower'), plFaster: $('pl-faster'), plClose: $('pl-close'),
       quiz: $('quiz'), card: $('quiz-card'),
     },
   });

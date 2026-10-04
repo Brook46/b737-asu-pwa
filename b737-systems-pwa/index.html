@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
   <div id="stage">
@@ -78,13 +78,22 @@
   <div id="hl-pop" class="hl-pop" hidden></div>
 
   <div id="player" class="player" hidden aria-label="Lesson player">
-    <div class="pl-info"><div class="pl-k" id="pl-k"></div><div class="pl-t" id="pl-t"></div><div class="pl-bar"><span id="pl-prog"></span></div></div>
-    <div class="pl-btns">
-      <button class="tag tag-btn" id="pl-prev" aria-label="Previous">⏮</button>
-      <button class="tag tag-btn" id="pl-play" aria-label="Play or pause">▶</button>
-      <button class="tag tag-btn" id="pl-next" aria-label="Next">⏭</button>
-      <button class="tag tag-btn" id="pl-rate" aria-label="Speed">1×</button>
-      <button class="tag tag-btn" id="pl-close" aria-label="Stop">✕</button>
+    <div class="pl-row">
+      <div class="pl-info"><div class="pl-k" id="pl-k"></div><div class="pl-t" id="pl-t"></div><div class="pl-bar"><span id="pl-prog"></span></div></div>
+      <button class="pl-b" id="pl-close" aria-label="Stop">✕</button>
+    </div>
+    <div class="pl-row pl-ctrls">
+      <button class="pl-b" id="pl-prev" aria-label="Previous page">⏮&#xFE0E;</button>
+      <button class="pl-b" id="pl-back" aria-label="Previous sentence">⏪&#xFE0E;</button>
+      <button class="pl-b pl-main" id="pl-play" aria-label="Play or pause">▶&#xFE0E;</button>
+      <button class="pl-b" id="pl-fwd" aria-label="Next sentence">⏩&#xFE0E;</button>
+      <button class="pl-b" id="pl-next" aria-label="Next page">⏭&#xFE0E;</button>
+      <span class="pl-speed">
+        <button class="pl-b" id="pl-slower" aria-label="Slower">−</button>
+        <input type="range" id="pl-rate" min="0.5" max="2" step="0.05" value="1" aria-label="Reading speed">
+        <button class="pl-b" id="pl-faster" aria-label="Faster">+</button>
+        <output id="pl-rate-v">1.00×</output>
+      </span>
     </div>
   </div>
   <div id="quiz" class="quiz" hidden><div class="quiz-card" id="quiz-card" role="dialog" aria-label="Quiz"></div></div>
@@ -92,7 +101,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

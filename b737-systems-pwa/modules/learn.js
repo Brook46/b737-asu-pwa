@@ -7,8 +7,9 @@
 //   • Voice quiz: questions read aloud; answer by voice ("B", "bravo", or the
 //     answer itself) or by tapping. Spoken feedback, then the next question.
 
-import { tts, stt, speakable } from './speech.js?v=4';
-import { QUESTIONS } from './quizbank.js?v=4';
+import { tts, stt, speakable } from './speech.js?v=5';
+import { QUESTIONS } from './quizbank.js?v=5';
+import { createReader, sentencesOf } from './reader.js?v=5';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const plain = (s) => String(s).replace(/\*\*/g, '');
@@ -18,28 +19,6 @@ const pref = {
   get(k, d) { try { const v = localStorage.getItem('b737i.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('b737i.' + k, JSON.stringify(v)); } catch { /* fine */ } },
 };
-
-/** The paragraphs to read for a page. */
-function scriptFor(sysMod, part) {
-  const out = [];
-  const add = (s) => { if (s && String(s).trim()) out.push(plain(s)); };
-  if (!part) {
-    const o = sysMod.overview;
-    add(`${sysMod.title}.`);
-    add(o.lead);
-    (o.how || []).forEach(add);
-    if (o.limits?.length) add('Key numbers. ' + o.limits.map(([l, v]) => `${l}: ${v}.`).join(' '));
-    if (o.memory?.length) add('Must knows. ' + o.memory.join(' '));
-  } else {
-    add(`${part.name}.`);
-    add(part.lead);
-    (part.how || []).flat().forEach(add);
-    if (part.deck?.length) add('On the flight deck. ' + part.deck.map(([n, t]) => `${n}: ${t}`).join(' '));
-    if (part.limits?.length) add('Numbers. ' + part.limits.map(([l, v]) => (v ? `${l}: ${v}.` : `${l}.`)).join(' '));
-    if (part.fails?.length) add('If it fails. ' + part.fails.join(' '));
-  }
-  return out;
-}
 
 // Spoken numbers → digits: "three thousand five hundred" → 3500,
 // "seven point eight" → 7.8, "twenty two" → 22.
@@ -111,12 +90,6 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
   const sysOf = (id) => systems.find((s) => s.id === id)?.mod;
   const keysOf = (s) => [s.id, ...s.mod.parts.map((p) => `${s.id}/${p.id}`)];
   const allKeys = () => systems.flatMap(keysOf);
-  const pageText = (key) => {
-    const [sid, pid] = key.split('/');
-    const m = sysOf(sid);
-    return scriptFor(m, pid ? m.parts.find((p) => p.id === pid) : null);
-  };
-
   // ── Dashboard ──
   function dashboard() {
     const tot = progress.summary(allKeys());
@@ -138,12 +111,12 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
         return `<h3><span class="swatch" style="background:${s.mod.color}"></span>${esc(s.mod.title)} · ${c.pct}%</h3>
           ${bar(c)}
           <div class="lp-actions">
-            <button class="tag tag-btn" data-act="listen" data-sys="${s.id}">▶ Listen</button>
+            <button class="tag tag-btn" data-act="listen" data-sys="${s.id}">▶ Listen to all ${s.mod.parts.length + 1} pages</button>
             <button class="tag tag-btn" data-act="quiz" data-sys="${s.id}">🎤 Quiz</button>
           </div>
           <div class="lp-pages">${keys.map((k) => {
             const st = progress.status(k), d = describe(k);
-            return `<button class="lp-page" data-go="${k}"><i class="dot st-${st}"></i>${esc(k.includes('/') ? d.title : 'Overview')}<em>${ST_LABEL[st]}</em></button>`;
+            return `<div class="lp-row"><button class="lp-page" data-go="${k}"><i class="dot st-${st}"></i>${esc(k.includes('/') ? d.title : 'Overview')}<em>${ST_LABEL[st]}</em></button><button class="lp-play" data-act="listen-from" data-key="${k}" aria-label="Listen from ${esc(d.title)}">▶</button></div>`;
           }).join('')}</div>`;
       }).join('')}
       <p class="note-src">A page is <b>learned</b> when you've answered all of its questions right (pages without questions: when you've listened to it to the end). Learned pages come back for review after two weeks.
@@ -152,9 +125,23 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
     sheet.custom(html, 'learn');
   }
 
+  /** This page and the rest of its system, in order. */
+  const fromHere = (key) => {
+    const sid = key.split('/')[0];
+    const keys = keysOf(systems.find((x) => x.id === sid));
+    return keys.slice(Math.max(0, keys.indexOf(key)));
+  };
   els.body.addEventListener('click', (e) => {
+    const l = e.target.closest('[data-listen]');
+    if (l && sheet.key) { playKeys(fromHere(sheet.key)); return; }
+    // During a lesson, tapping a sentence on the page being read jumps there.
+    if (!els.player.hidden && sheet.key === P.keys[P.i] && !e.target.closest('button, a, mark')) {
+      const i = reader.indexAt(P.sents, e.target);
+      if (i >= 0) { seek(P.i, i); return; }
+    }
     const b = e.target.closest('[data-act]');
     if (!b || sheet.key !== 'learn') return;
+    if (b.dataset.act === 'listen-from') { playKeys(fromHere(b.dataset.key)); return; }
     const sys = b.dataset.sys || null;
     if (b.dataset.act === 'listen') playKeys(keysOf(systems.find((s) => s.id === sys)));
     else if (b.dataset.act === 'continue') {
@@ -164,61 +151,92 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
     else if (b.dataset.act === 'reset' && confirm('Reset all learning progress on this device?')) { progress.reset(); dashboard(); }
   });
 
-  // ── Lesson player ──
-  const P = { keys: [], i: 0, para: 0, paras: [], playing: false, token: 0 };
-  const RATES = [0.9, 1, 1.15, 1.3];
-  function showPlayer(v) { els.player.hidden = !v; document.body.classList.toggle('has-player', v); }
+  // ── Lesson player: reads the page on screen, sentence by sentence ──
+  const reader = createReader();
+  const P = { keys: [], i: 0, s: 0, sents: [], loaded: null, playing: false, token: 0 };
+  function showPlayer(v) { els.player.hidden = !v; document.body.classList.toggle('has-player', v); if (!v) reader.clear(); }
   function paintPlayer() {
     const key = P.keys[P.i];
     if (!key) return;
     const d = describe(key);
     els.plK.textContent = `${P.i + 1} / ${P.keys.length} · ${d.sub || ''}`;
     els.plT.textContent = key.includes('/') ? d.title : `${d.title} — overview`;
-    els.plPlay.textContent = P.playing ? '❚❚' : '▶';
-    els.plRate.textContent = `${tts.rate}×`;
-    els.plProg.style.width = `${(100 * P.para) / Math.max(1, P.paras.length)}%`;
+    els.plPlay.textContent = P.playing ? '❚❚' : '▶\uFE0E';
+    els.plProg.style.width = `${(100 * P.s) / Math.max(1, P.sents.length)}%`;
   }
-  async function playItem() {
+  function paintRate() {
+    els.plRate.value = String(tts.rate);
+    els.plRateV.textContent = `${tts.rate.toFixed(2)}×`;
+  }
+  /** Open page i (if it isn't already) and collect its sentences. */
+  function load(i) {
+    const key = P.keys[i];
+    if (P.loaded !== key || !P.sents[0]?.block.isConnected) {
+      goTo(key);
+      P.sents = sentencesOf(els.body);
+      P.loaded = key;
+    }
+  }
+  async function play() {
     const my = ++P.token;
-    const key = P.keys[P.i];
-    if (!key) return stop();
-    goTo(key);
-    P.paras = pageText(key);
+    if (!P.keys[P.i]) return stop();
+    load(P.i);
     P.playing = true;
     paintPlayer();
-    for (; P.para < P.paras.length; P.para++) {
+    for (; P.s < P.sents.length; P.s++) {
+      const s = P.sents[P.s];
+      reader.sentence(s);
       paintPlayer();
-      const ok = await tts.speak(P.paras[P.para]);
-      if (my !== P.token) return;          // skipped, paused or stopped
-      if (!ok && !tts.supported) break;
+      await tts.speak(s.text, { onWord: (f) => { if (my === P.token) reader.word(s, f); } });
+      if (my !== P.token) return;          // moved, paused or stopped
     }
-    progress.markHeard(key);
-    P.para = 0;
-    if (P.i < P.keys.length - 1) { P.i++; playItem(); }
-    else { P.playing = false; paintPlayer(); tts.speak('That\'s the end of this lesson.'); }
+    reader.clear();
+    progress.markHeard(P.keys[P.i]);
+    if (P.i < P.keys.length - 1) { P.i++; P.s = 0; play(); }
+    else { P.playing = false; P.s = 0; paintPlayer(); tts.speak('That\'s the end of this lesson.'); }
+  }
+  /** Jump to page i, sentence s: keep playing if playing, else just show it. */
+  function seek(i, s) {
+    P.token++;
+    tts.cancel();
+    P.i = Math.max(0, Math.min(P.keys.length - 1, i));
+    load(P.i);
+    P.s = Math.max(0, Math.min(P.sents.length - 1, s));
+    if (P.playing) play();
+    else { reader.sentence(P.sents[P.s]); paintPlayer(); }
   }
   function playKeys(keys) {
     if (!keys.length) return;
     tts.cancel();
-    P.keys = keys; P.i = 0; P.para = 0;
+    P.keys = keys; P.i = 0; P.s = 0; P.loaded = null;
     showPlayer(true);
-    playItem();
+    paintRate();
+    play();
   }
   function pause() { P.token++; P.playing = false; tts.cancel(); paintPlayer(); }
   function stop() { P.token++; P.playing = false; tts.cancel(); showPlayer(false); }
-  els.plPlay.addEventListener('click', () => (P.playing ? pause() : playItem()));
-  els.plNext.addEventListener('click', () => { tts.cancel(); P.para = 0; P.i = Math.min(P.keys.length - 1, P.i + 1); playItem(); });
-  els.plPrev.addEventListener('click', () => {
-    tts.cancel();
-    if (P.para > 1) P.para = 0; else { P.para = 0; P.i = Math.max(0, P.i - 1); }
-    playItem();
+  els.plPlay.addEventListener('click', () => (P.playing ? pause() : play()));
+  els.plBack.addEventListener('click', () => {
+    if (P.s > 0) seek(P.i, P.s - 1);
+    else if (P.i > 0) { const i = P.i - 1; P.loaded = null; load(i); seek(i, P.sents.length - 1); }
   });
-  els.plRate.addEventListener('click', () => {
-    const i = RATES.indexOf(tts.rate);
-    tts.setRate(RATES[(i + 1) % RATES.length]);
-    paintPlayer();
-    if (P.playing) { tts.cancel(); playItem(); }
+  els.plFwd.addEventListener('click', () => {
+    if (P.s < P.sents.length - 1) seek(P.i, P.s + 1);
+    else if (P.i < P.keys.length - 1) seek(P.i + 1, 0);
   });
+  els.plPrev.addEventListener('click', () => seek(P.s > 1 ? P.i : P.i - 1, 0));
+  els.plNext.addEventListener('click', () => seek(P.i + 1, 0));
+  // Speed: slider plus − / + in 0.05 steps; applies from the current sentence.
+  let rateT = 0;
+  const setRate = (r) => {
+    tts.setRate(Math.round(Math.max(0.5, Math.min(2, r)) * 100) / 100);
+    paintRate();
+    clearTimeout(rateT);
+    rateT = setTimeout(() => { if (P.playing) seek(P.i, P.s); }, 350);
+  };
+  els.plRate.addEventListener('input', () => setRate(Number(els.plRate.value)));
+  els.plSlower.addEventListener('click', () => setRate(tts.rate - 0.05));
+  els.plFaster.addEventListener('click', () => setRate(tts.rate + 0.05));
   els.plClose.addEventListener('click', stop);
 
   // ── Voice quiz ──
@@ -227,7 +245,7 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
   let readAloud = pref.get('readAloud', true);
 
   function startQuiz(sys) {
-    stop();
+    if (!els.player.hidden) stop();
     Z.list = progress.pickQuiz(10, sys);
     Z.i = 0; Z.score = 0; Z.missed = [];
     els.quiz.hidden = false;
