@@ -7,9 +7,9 @@
 //   • Voice quiz: questions read aloud; answer by voice ("B", "bravo", or the
 //     answer itself) or by tapping. Spoken feedback, then the next question.
 
-import { tts, stt, speakable } from './speech.js?v=10';
-import { QUESTIONS } from './quizbank.js?v=10';
-import { createReader, sentencesOf } from './reader.js?v=10';
+import { tts, stt, speakable } from './speech.js?v=11';
+import { QUESTIONS } from './quizbank.js?v=11';
+import { createReader, sentencesOf } from './reader.js?v=11';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const plain = (s) => String(s).replace(/\*\*/g, '');

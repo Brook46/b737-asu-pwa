@@ -12,7 +12,7 @@ A study companion for the Boeing 737 NG systems.
 
 Built so far: Air Systems, Electrical, Fuel, Hydraulics.
 
-Content is paraphrased for study from the El Al 737 FCOM (rev. Sep 2025), with
+Content is paraphrased for study from the 737 FCOM (rev. Sep 2025), with
 figures cited by section. It is **not an approved document** — the FCOM, QRH
 and company manuals govern.
 

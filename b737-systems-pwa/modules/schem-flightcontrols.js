@@ -1,9 +1,9 @@
 // schem-flightcontrols.js — high-lift / speedbrake / primary-surface power
 // schematic, with the flap & speedbrake panel and stab trim cutouts.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=10';
-import { createOverhead } from './overhead.js?v=10';
-import { DETENTS } from './sys-flightcontrols.js?v=10';
+import { createSchematic, createPanel } from './schem-kit.js?v=11';
+import { createOverhead } from './overhead.js?v=11';
+import { DETENTS } from './sys-flightcontrols.js?v=11';
 
 const C = '#3a86ff', B = '#12a874', A = '#2f7cf6', S = '#f2711c', DRV = '#fab005', EL = '#f5a300';
 

@@ -5,7 +5,7 @@
 // elevator and rudder sweep, the speedbrakes rise, the reversers open, the
 // doors open. With only a system picked, all its pieces get a light tint.
 
-import * as THREE from '../vendor/three.module.min.js?v=10';
+import * as THREE from '../vendor/three.module.min.js?v=11';
 
 // part page → airframe pieces (keys into collect()).
 const LINKS = {

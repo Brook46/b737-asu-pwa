@@ -65,7 +65,7 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
       ${limitsHtml(p.limits)}
       ${failsHtml(p.fails)}
       ${rel.length ? `<h3>Related</h3><div class="chips">${rel.map((r) => `<button class="tag tag-btn" data-rel="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}
-      <p class="note-src">Written for study from the El Al 737 FCOM (D6-27370-858-ELA, rev. Sep 2025). Explanations are paraphrased; figures cite the FCOM section. The FCOM and QRH govern.</p>
+      <p class="note-src">Written for study from the 737 FCOM (D6-27370-858-ELA, rev. Sep 2025). Explanations are paraphrased; figures cite the FCOM section. The FCOM and QRH govern.</p>
     `, `${sys.id}/${p.id}`);
   }
 
@@ -92,7 +92,7 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
       <p class="lead">Pick a system to see where it lives in the airplane. Every part is tappable; the phase buttons at the bottom show what each system does on the ground, at takeoff, in cruise and on landing.</p>
       <h3>Systems</h3>
       <div class="chips">${systems.map((s) => `<button class="tag tag-btn" data-rel="sys:${s.id}" ${s.ready ? '' : 'disabled style="opacity:.5"'}><span class="swatch" style="background:${s.color}"></span>${String(s.num).padStart(2, '0')} ${esc(s.title)}${s.ready ? '' : ' · soon'}</button>`).join('')}</div>
-      <p class="note-src">Study aid only — not an approved document. Content paraphrased from the El Al 737 FCOM (rev. Sep 2025); the FCOM, QRH and company manuals govern.</p>
+      <p class="note-src">Study aid only — not an approved document. Content paraphrased from the 737 FCOM (rev. Sep 2025); the FCOM, QRH and company manuals govern.</p>
     `);
   }
 

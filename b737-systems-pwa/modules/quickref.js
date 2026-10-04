@@ -2,7 +2,7 @@
 // (done from memory), the limitations a pilot must know by heart (#) and the
 // other key numbers, plus every number cited on the system pages.
 //
-// Source: El Al 737 QRH and FCOM D6-27370-858-ELA, Rev 57 (30 Sep 2025).
+// Source: 737 QRH and FCOM D6-27370-858-ELA, Rev 57 (30 Sep 2025).
 // Memory items are the steps above the dashed separator line in each Quick
 // Action Index checklist — kept as short action lines, because the exact
 // action matters. A study aid only: the QRH in the airplane governs.
