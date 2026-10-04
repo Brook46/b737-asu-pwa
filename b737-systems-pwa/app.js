@@ -4,25 +4,26 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=9';
-import { createOutside } from './modules/outside.js?v=9';
-import { createViewCube } from './modules/viewcube.js?v=9';
-import { createQuickRef } from './modules/quickref.js?v=9';
-import { installResumeHardening } from './modules/resume.js?v=9';
-import { createScene } from './modules/scene.js?v=9';
-import { buildAirframe } from './modules/airframe.js?v=9';
-import { createSystems3D } from './modules/systems3d.js?v=9';
-import { createOverlay } from './modules/overlay.js?v=9';
-import { createSheet } from './modules/sheet.js?v=9';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=9';
-import { SYSTEMS, READY } from './modules/systems.js?v=9';
-import { createSearch } from './modules/search.js?v=9';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=9';
-import { createProgress } from './modules/progress.js?v=9';
-import { createLearn } from './modules/learn.js?v=9';
-import { explain } from './modules/cockpit-info.js?v=9';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=9';
-import { createCockpit } from './modules/cockpit.js?v=9';
+import { makeEnv } from './modules/world.js?v=10';
+import { createOutside } from './modules/outside.js?v=10';
+import { createViewCube } from './modules/viewcube.js?v=10';
+import { createAirLink } from './modules/airlink.js?v=10';
+import { createQuickRef } from './modules/quickref.js?v=10';
+import { installResumeHardening } from './modules/resume.js?v=10';
+import { createScene } from './modules/scene.js?v=10';
+import { buildAirframe } from './modules/airframe.js?v=10';
+import { createSystems3D } from './modules/systems3d.js?v=10';
+import { createOverlay } from './modules/overlay.js?v=10';
+import { createSheet } from './modules/sheet.js?v=10';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=10';
+import { SYSTEMS, READY } from './modules/systems.js?v=10';
+import { createSearch } from './modules/search.js?v=10';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=10';
+import { createProgress } from './modules/progress.js?v=10';
+import { createLearn } from './modules/learn.js?v=10';
+import { explain } from './modules/cockpit-info.js?v=10';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=10';
+import { createCockpit } from './modules/cockpit.js?v=10';
 
 const $ = (id) => document.getElementById(id);
 
@@ -53,6 +54,27 @@ function init() {
   const outside = createOutside(api, airframe);
   // Fusion 360-style navigation cube (airplane views only).
   const viewcube = createViewCube(document.body, api, { onHome: () => $('home-btn').click() });
+  // Pages light up (and move) the real airframe pieces they describe.
+  const airlink = createAirLink(airframe);
+
+  // ── Show menu: what to draw around the airplane (remembered per device) ──
+  const SHOW_DEFAULT = { airflow: true, lights: true, crew: true, doors: false, evac: false, links: true };
+  const show = (() => { try { return { ...SHOW_DEFAULT, ...JSON.parse(localStorage.getItem('b737inside.show') || '{}') }; } catch { return { ...SHOW_DEFAULT }; } })();
+  for (const cb of document.querySelectorAll('[data-show]')) {
+    cb.checked = !!show[cb.dataset.show];
+    cb.addEventListener('change', () => {
+      show[cb.dataset.show] = cb.checked;
+      try { localStorage.setItem('b737inside.show', JSON.stringify(show)); } catch { /* private mode */ }
+    });
+  }
+  const showMenu = (open) => {
+    $('show-menu').hidden = !open;
+    $('show-btn').classList.toggle('on', open);
+    $('show-btn').setAttribute('aria-expanded', String(open));
+    document.body.classList.toggle('show-open', open);
+  };
+  $('show-btn').addEventListener('click', (e) => { e.stopPropagation(); showMenu($('show-menu').hidden); });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#show-menu, #show-btn')) showMenu(false); });
   for (const s of READY) s3d.build(s.mod);
 
   const overlay = createOverlay(api, $('leaders'), $('hotspots'), (id) => {
@@ -456,12 +478,29 @@ function init() {
     viewcube.frame(dt);
     const fcs = states.get('flightcontrols');
     const gr = states.get('gear');
-    if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}) });
+    // The open page can move its piece of the airplane (aileron, rudder, doors…).
+    airlink.select(show.links && sysId && view !== 'cockpit' ? { sys: sysId, part: partId, color: sysOf(sysId).color } : null);
+    const ex = airlink.frame(dt);
+    const { doors: exDoors, ...exPose } = ex;
+    if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}), ...exPose });
+    // Doors: open in Airplane General (instructor), from the Show menu, or for the Doors page.
+    {
+      const gen = stateOf('general'), open = gen.mem.open || {}, all = show.doors || show.evac || !!exDoors;
+      const onGround = !PHASES[phase].env.air;
+      const doorT = {}, slideT = {};
+      for (const k of ['fwdEntry', 'fwdSvc', 'aftEntry', 'aftSvc', 'fwdCargo', 'aftCargo']) doorT[k] = onGround && (all || !!open[k]);
+      for (const k of ['owL1', 'owL2', 'owR1', 'owR2']) doorT[k] = onGround && (show.evac || !!exDoors);
+      if (show.evac && onGround) for (const k of ['fwdEntry', 'fwdSvc', 'aftEntry', 'aftSvc']) slideT[k] = true;
+      if (show.evac) { doorT.fwdCargo = false; doorT.aftCargo = false; }
+      airframe.setDoors(doorT, slideT, show.evac && onGround);
+      airframe.doorsFrame(dt);
+    }
     anim.frame(dt);
     {
       const gen = stateOf('general'), e = PHASES[phase].env;
       outside.update(dt, {
-        phase, air: e.air, tas: flightFor(phase).tas, lights: gen.sw, gpu: gen.sw.gpuCart, pca: gen.sw.acCart,
+        phase, air: e.air, tas: flightFor(phase).tas, lights: show.lights ? gen.sw : {}, gpu: gen.sw.gpuCart, pca: gen.sw.acCart,
+        airflow: show.airflow, crew: show.crew,
         gearDown: (states.get('gear')?.mem.pos ?? 1) > 0.5,
       });
     }

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=9">
+  <link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
   <div id="stage">
@@ -46,12 +46,28 @@
     <div class="seg" role="tablist" aria-label="View">
       <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true" title="The airplane in 3D"><span class="vi">✈&#xFE0E;</span>Airplane</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false" title="System diagram and its overhead panel"><span class="vi">▦</span>Schematic</button><button class="tag tag-btn" data-view="split" role="tab" aria-selected="false" title="Airplane and schematic side by side"><span class="vi">◧</span>Split</button><button class="tag tag-btn" data-view="cockpit" role="tab" aria-selected="false" title="3D flight deck"><span class="vi">◉</span>Cockpit</button>
     </div>
-    <button class="tag tag-btn" id="qr-btn" aria-label="Quick reference: memory items and limits" title="Quick reference">QRH</button>
-    <button class="tag tag-btn" id="learn-btn" aria-label="Learn by voice and progress">🎧</button>
-    <button class="tag tag-btn" id="search-btn" aria-label="Search">⌕</button>
-    <button class="tag tag-btn" id="fav-btn" aria-label="Favorites and highlights">★</button>
-    <button class="tag tag-btn" id="theme-btn" aria-label="Day / night">◐</button>
-    <button class="tag tag-btn" id="home-btn" aria-label="Reset view">⌂</button>
+    <div class="toolbar" role="toolbar" aria-label="Tools">
+      <div class="tb-group">
+        <button class="tag tag-btn tb" id="qr-btn" title="Quick reference: memory items, maneuvers, limits"><span class="ti">QRH</span></button>
+        <button class="tag tag-btn tb" id="learn-btn" title="Learn by voice and progress"><span class="ti">🎧</span><span class="tl">Learn</span></button>
+        <button class="tag tag-btn tb" id="search-btn" title="Search every page"><span class="ti">⌕</span><span class="tl">Search</span></button>
+        <button class="tag tag-btn tb" id="fav-btn" title="Favorites and highlights"><span class="ti">★</span><span class="tl">Saved</span></button>
+      </div>
+      <div class="tb-group">
+        <button class="tag tag-btn tb" id="show-btn" title="What to show on the airplane" aria-haspopup="true" aria-expanded="false"><span class="ti">◎</span><span class="tl">Show ▾</span></button>
+        <button class="tag tag-btn tb" id="theme-btn" title="Day / night"><span class="ti">◐</span><span class="tl">Night</span></button>
+        <button class="tag tag-btn tb" id="home-btn" title="Reset view"><span class="ti">⌂</span><span class="tl">Home</span></button>
+      </div>
+      <div class="show-menu" id="show-menu" hidden>
+        <div class="sm-title">Show on the airplane</div>
+        <label><input type="checkbox" data-show="airflow"> Airflow <small>in flight</small></label>
+        <label><input type="checkbox" data-show="lights"> Exterior lights</label>
+        <label><input type="checkbox" data-show="crew"> Ground crew &amp; carts <small>at the gate</small></label>
+        <label><input type="checkbox" data-show="doors"> Doors open</label>
+        <label><input type="checkbox" data-show="evac"> Evacuation: slides &amp; exits</label>
+        <label><input type="checkbox" data-show="links"> Light up parts for the page</label>
+      </div>
+    </div>
   </div>
 
   <div class="hud hud-bottom">
@@ -101,7 +117,7 @@
 
   <div id="cp-bar" class="cp-bar" hidden>
     <div class="seg" role="tablist" aria-label="Look at">
-      <button class="tag tag-btn" data-look="out">Out</button><button class="tag tag-btn" data-look="panel">Panel</button><button class="tag tag-btn" data-look="center">Center</button><button class="tag tag-btn" data-look="overhead">Overhead</button><button class="tag tag-btn" data-look="mcp">MCP</button><button class="tag tag-btn" data-look="pedestal">Pedestal</button>
+      <button class="tag tag-btn" data-look="out">Out</button><button class="tag tag-btn" data-look="panel">Panel</button><button class="tag tag-btn" data-look="center">Center</button><button class="tag tag-btn" data-look="overhead">Overhead</button><button class="tag tag-btn" data-look="mcp">MCP</button><button class="tag tag-btn" data-look="pedestal">Pedestal</button><button class="tag tag-btn" data-look="aft">Aft · CBs</button>
     </div>
     <div class="cp-hint">Drag to look around · pinch to zoom · tap any switch, light or screen</div>
   </div>
@@ -116,7 +132,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

@@ -40,6 +40,15 @@ modules/
                   General switches (strobes, beacons, beams, logo…), ground
                   crew / chocks / cones / GPU and air carts at the gate,
                   airflow streaks in flight scaled by TAS
+  airlink.js      ties pages to the airframe: LINKS (system/part → movers
+                  collections) get a pulsing overlay twin in the system
+                  colour; MOTION moves them while the page is open (aileron
+                  rolls, rudder sweeps, doors open…). Add new links there
+  cockpit-cab.js  flight deck cab: moulded window frames (per-edge margins —
+                  deep at the top so frames merge into the crown), 737 control
+                  column (ram's-horn wheel, trim / A/P disconnect / mic
+                  switches), rudder pedals, seats, P18 / P6 circuit breaker
+                  panels, flight deck door
   viewcube.js     Fusion 360-style navigation cube (CSS 3D, matrix3d from the
                   camera each frame): 3×3 hit zones per face → face / edge /
                   corner views, swung round the target (slerp, never through
@@ -156,6 +165,24 @@ export default {
 - `sw.js` matches `/vendor/` ignoring the query string; new modules must be
   added to `APP_SHELL`.
 - Linked from Flight Card's header (`doSystems()` in flight-card-pwa/app.js).
+
+## Doors, exits and slides
+
+`buildDoors()` in airframe.js: curved skin patches over the painted outlines
+(`skinPatch`), each on a hinge pivot — entry/service doors (FCOM: integral
+slides) hinge on the forward edge and swing forward; overwing exits are
+canopy hatches (top hinge, up and out); cargo doors open in and up. Slides
+inflate only once their door is mostly open; escape straps run from the AFT
+overwing exits to the wing (FCOM 1.40). Driven by `setDoors()` +
+`doorsFrame(dt)` from app.js: General's door state, the Show menu
+(Doors open / Evacuation) and the Doors page.
+
+## Toolbar
+
+Views on top; then tools (QRH · Learn · Search · Saved) and display (Show ▾ ·
+Night · Home). Show menu toggles are stored in localStorage
+`b737inside.show`. On a mouse the HUD fades to 42 % over the 3D view and comes
+up on hover.
 
 ## Engines
 

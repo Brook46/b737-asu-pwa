@@ -7,9 +7,10 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=9';
-import { createOverhead } from './overhead.js?v=9';
-import * as D from './cockpit-displays.js?v=9';
+import * as THREE from '../vendor/three.module.min.js?v=10';
+import { createOverhead } from './overhead.js?v=10';
+import * as CAB from './cockpit-cab.js?v=10';
+import * as D from './cockpit-displays.js?v=10';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -21,6 +22,7 @@ export const VIEWS = {
   overhead: { eye: [0.12, 1.26, 0], look: [0.24, 1.75, 0], fov: 66 },
   mcp: { eye: [0.4, 1.16, 0], look: [0.745, 1.08, 0], fov: 46 },
   pedestal: { eye: [0.22, 1.26, -0.08], look: [0.38, 0.7, 0], fov: 52 },
+  aft: { eye: [0.25, 1.2, 0], look: [-0.6, 0.85, 0], fov: 78 },
 };
 
 function canvasTex(w, h) {
@@ -111,7 +113,17 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     metal: new THREE.MeshStandardMaterial({ color: 0xb8bdc1, roughness: 0.35, metalness: 0.6 }),
     knob: new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.5 }),
     seat: new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.9 }),
-    glass: new THREE.MeshBasicMaterial({ color: 0x9fc4e8, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }),
+    glass: new THREE.MeshBasicMaterial({ color: 0xa9cdee, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide }),
+    // Flight deck lining and the control column.
+    trim: new THREE.MeshStandardMaterial({ color: 0x7d878f, roughness: 0.55 }),
+    trimSide: new THREE.MeshStandardMaterial({ color: 0x6b747b, roughness: 0.7, side: THREE.DoubleSide }),
+    boot: new THREE.MeshStandardMaterial({ color: 0x121314, roughness: 0.95 }),
+    column: new THREE.MeshStandardMaterial({ color: 0x2a2d30, roughness: 0.45, metalness: 0.2 }),
+    wheel: new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.35, metalness: 0.15 }),
+    grip: new THREE.MeshStandardMaterial({ color: 0x0d0e0f, roughness: 0.95 }),
+    logo: new THREE.MeshStandardMaterial({ color: 0x3a3f44, roughness: 0.3, metalness: 0.5 }),
+    card: new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.9 }),
+    red: new THREE.MeshStandardMaterial({ color: 0xc92a2a, roughness: 0.4 }),
   };
   const add = (m) => { scene.add(m); return m; };
 
@@ -129,21 +141,13 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   const bulk = add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.0, 2.1), M.shell));
   bulk.position.set(-1.0, 1.0, 0);
 
-  // ── Windshield: No. 1 (front), No. 2 (sliding), No. 3, with posts ──
-  const W1 = (s) => [[0.99, 1.13, s * 0.03], [0.9, 1.13, s * 0.6], [0.71, 1.52, s * 0.53], [0.8, 1.56, s * 0.03]];
-  const W2 = (s) => [[0.88, 1.13, s * 0.63], [0.46, 1.13, s * 0.96], [0.36, 1.49, s * 0.86], [0.69, 1.53, s * 0.56]];
-  const W3 = (s) => [[0.42, 1.13, s * 0.98], [0.02, 1.13, s * 1.04], [0.02, 1.43, s * 0.98], [0.33, 1.48, s * 0.89]];
+  // ── Windshield: No. 1 (front), No. 2 (sliding), No. 3 in moulded frames ──
+  const cab = CAB.windows(add, M);
+  for (const m of cab.compass) pickables.push(m);
   for (const s of [-1, 1]) {
-    for (const q of [W1(s), W2(s), W3(s)]) {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(q.flat(), 3));
-      g.setIndex([0, 1, 2, 0, 2, 3]);
-      add(new THREE.Mesh(g, M.glass));
-      for (let i = 0; i < 4; i++) add(beam(q[i], q[(i + 1) % 4], 0.045, M.frame));
-    }
-    // Crown above the windows and the side wall up to the roof.
-    add(beam([0.8, 1.6, s * 0.05], [0.3, 1.66, s * 0.85], 0.12, M.shell));
-    add(beam([0.02, 1.47, s * 1.0], [-1.0, 1.55, s * 1.05], 0.1, M.shell));
+    // Side wall from the sill up to the roof, aft of No. 3.
+    const up = add(new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.96, 0.04), M.shell));
+    up.position.set(-0.63, 1.54, s * 1.05);
   }
   // Roof skin over the windows.
   const roofG = new THREE.BufferGeometry();
@@ -392,32 +396,16 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     pickables.push(wheel, stripe);
   }
 
-  // ── Yokes, pedals, seats ──
+  // ── Control columns, rudder pedals, seats, circuit breakers ──
   const yokes = [];
   for (const s of [-1, 1]) {
     const z = s * 0.52;
-    const yoke = new THREE.Group();
-    yoke.position.set(0.6, 0.12, z);
-    add(yoke);
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.62, 12), M.dark);
-    col.position.y = 0.31;
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.018, 10, 30, Math.PI * 1.15), M.dark);
-    wheel.rotation.set(0, Math.PI / 2, Math.PI * 1.425);
-    wheel.position.set(-0.05, 0.66, 0);
-    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.22), M.dark);
-    hub.position.set(-0.04, 0.64, 0);
-    yoke.add(col, wheel, hub);
-    for (const m of [col, wheel, hub]) { m.userData.pick = { kind: 'lever', name: 'Control column and wheel' }; pickables.push(m); }
-    yokes.push(yoke);
-    for (const dz of [-0.09, 0.09]) {
-      const pedal = add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.18, 0.08), M.dark));
-      pedal.position.set(0.82, 0.15, z + dz); pedal.rotation.z = 0.5;
-    }
-    const seat = add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.52), M.seat));
-    seat.position.set(-0.2, 0.5, z);
-    const back = add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.75, 0.5), M.seat));
-    back.position.set(-0.44, 0.9, z); back.rotation.z = 0.12;
+    yokes.push(CAB.yoke(add, M, z, pickables));
+    CAB.pedals(add, M, z, pickables);
+    CAB.seat(add, M, z);
   }
+  CAB.breakers(add, M, pickables);
+  CAB.door(add, M, pickables);
 
   // ── Look around ──
   const look = { yaw: 0, pitch: -6, fov: 62, eye: EYE.clone() };
@@ -557,7 +545,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     levers['Start lever 1'].rotation.z = l1 ? 0.3 : -0.4;
     levers['Start lever 2'].rotation.z = l2 ? 0.3 : -0.4;
     gearLever.rotation.z = d.gearLever != null ? [0.5, 0, -0.5][d.gearLever] : d.env.gearDown ? -0.5 : 0.5;
-    for (const y of yokes) y.rotation.z = ph === 'takeoff' ? -0.12 : 0;
+    for (const y of yokes) y.rotation.z = ph === 'takeoff' ? 0.09 : 0;   // pulled back for rotation
     // Outside: apron at the gate and on the runway, clouds at altitude.
     const air = d.env.alt > 2000;
     ground.visible = !air;
@@ -566,7 +554,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     scene.fog.far = air ? 9000 : 3500;
   }
 
-  return {
+  return { get look() { return look; }, aim: () => aim(),
     scene, camera, frame, update, setData, goView, texPanels,
     enter() { active = true; look.eye.copy(EYE); goView('out'); for (const tp of texPanels) tp.dirty = true; },
     exit() { active = false; pointers.clear(); drag = null; },

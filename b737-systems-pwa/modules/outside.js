@@ -8,8 +8,8 @@
 //   • in flight: airflow streaks streaming past at a speed set by the TAS.
 // Everything here is decoration on top of the airframe; nothing is pickable.
 
-import * as THREE from '../vendor/three.module.min.js?v=9';
-import { YC, FUS_H, FUS_R, TIP_Z, TAIL_X, wingLE, wingTE, wingY, NLG, MLG } from './airframe.js?v=9';
+import * as THREE from '../vendor/three.module.min.js?v=10';
+import { YC, FUS_H, FUS_R, TIP_Z, TAIL_X, wingLE, wingTE, wingY, wingChord, wingTC, naca, NLG, MLG } from './airframe.js?v=10';
 
 // ── Glow sprites ────────────────────────────────────────────────────────────
 function glowTexture() {
@@ -216,9 +216,14 @@ export function createOutside(api, airframe) {
     band.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), t);
   }
 
-  // ── Airflow streaks ──
-  const N = 460, BOX = { x0: -34, x1: 34, y0: -7, y1: 14, z: 24 };
-  const pos = new Float32Array(N * 6), col = new Float32Array(N * 6), seeds = [];
+  // ── Airflow: streamlines over the wing section, round the body, tip vortices ──
+  // Each streak is a short trail along a streamline; the streamline is set by
+  // where it starts in the free stream (height d above the local chord line,
+  // span station z). Over the wing it rises ahead of the leading edge, hugs
+  // the cambered upper / lower skin, and leaves with downwash behind the
+  // trailing edge; near the tips it curls into the tip vortex.
+  const N = 300, K = 8, X0 = 30, X1 = -36;
+  const pos = new Float32Array(N * (K - 1) * 6), col = new Float32Array(N * (K - 1) * 6), seeds = [];
   const streakGeo = new THREE.BufferGeometry();
   streakGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   streakGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -228,25 +233,50 @@ export function createOutside(api, airframe) {
   streaks.renderOrder = 6;
   world.add(streaks);
   const rnd = (a, b) => a + Math.random() * (b - a);
-  for (let i = 0; i < N; i++) seeds.push({ x: rnd(BOX.x0, BOX.x1), y: rnd(BOX.y0, BOX.y1), z: rnd(-BOX.z, BOX.z), k: rnd(0.7, 1.3) });
-  // Simple flow field: the air rises ahead of the wing and is pushed down
-  // behind it; it is deflected around the fuselage.
-  function deflect(s) {
-    let dy = 0;
-    const az = Math.abs(s.z);
-    if (az < TIP_Z) {
-      const le = wingLE(Math.max(az, 2)), te = wingTE(Math.max(az, 2)), wy = wingY(Math.max(az, 2));
-      const near = Math.exp(-((s.y - wy) ** 2) / 10);
-      if (s.x > le) dy += 0.6 * near * Math.exp(-(s.x - le) / 4);
-      else if (s.x < te) dy -= 0.9 * near * Math.exp(-(te - s.x) / 6);
-      else dy += 0.6 * near * (s.x - te) / (le - te + 0.01);
+  function seed(s = {}) {
+    const r = Math.random();
+    s.x = rnd(X1, X0); s.k = rnd(0.85, 1.15);
+    if (r < 0.72) {          // over / under the wing
+      s.kind = 'wing'; s.z = (Math.random() < 0.5 ? -1 : 1) * rnd(2.3, TIP_Z - 0.6); s.d = Math.sign(Math.random() - 0.5) * (0.06 + 2.2 * Math.random() ** 1.8);   // most close to the skin
+    } else if (r < 0.86) {   // round the fuselage
+      s.kind = 'body'; s.a = rnd(0, Math.PI * 2); s.rr = rnd(2.2, 3.6);
+    } else {                 // tip vortex
+      s.kind = 'tip'; s.side = Math.random() < 0.5 ? -1 : 1; s.r0 = rnd(0.25, 1.1); s.ph = rnd(0, Math.PI * 2);
     }
-    const r = Math.hypot(s.y - YC, s.z);
-    let ry = 0, rz = 0;
-    if (r < 3.2 && s.x < 20 && s.x > -20) { const push = (3.2 - r) / 3.2; ry = (s.y - YC) / (r || 1) * push * 1.4; rz = s.z / (r || 1) * push * 1.4; }
-    return [dy + ry, rz];
+    return s;
   }
-
+  for (let i = 0; i < N; i++) seeds.push(seed());
+  // Streamline: point at station x for seed s.
+  function along(s, x, out) {
+    if (s.kind === 'wing') {
+      const z = s.z, c = wingChord(z), le = wingLE(z), wy = wingY(z), t = wingTC(z);
+      const u = (le - x) / c, uc = Math.min(1, Math.max(0, u));
+      const camber = 0.018 * c * Math.sin(Math.PI * uc);
+      const near = Math.exp(-Math.abs(s.d) / (0.9 * c));
+      // Follow the skin (upper or lower), fading with distance from it.
+      let y = wy + s.d + (camber + Math.sign(s.d || 1) * naca(uc, t) * c) * near;
+      // Upwash ahead of the leading edge, downwash behind the trailing edge.
+      const A = 0.11 * c * Math.exp(-Math.abs(s.d) / c), B = 0.24 * c * Math.exp(-Math.abs(s.d) / (2 * c));
+      if (u < 0) y += A * Math.exp(3 * u);
+      else if (u <= 1) y += A * (1 - u) - B * 0.25 * Math.max(0, (u - 0.6) / 0.4) ** 2;
+      else y -= B * (0.25 + 0.75 * (1 - Math.exp(-(u - 1) * 1.4)));
+      out[0] = x; out[1] = y; out[2] = z;
+      return out;
+    }
+    if (s.kind === 'body') {
+      // Around the fuselage: a ring of air that stays clear of the skin.
+      const R = s.rr + (x > NLG.x + 2 ? 0.6 * Math.exp(-(x - NLG.x - 2) / 3) : 0);
+      out[0] = x; out[1] = YC + Math.sin(s.a) * R; out[2] = Math.cos(s.a) * R;
+      return out;
+    }
+    // Tip vortex: below → outboard → up → inboard, tightening aft of the wing.
+    const tz = s.side * (TIP_Z - 0.4), te = wingTE(TIP_Z), ty = wingY(TIP_Z) + 0.1;
+    const aft = Math.max(0, te - x);
+    const r = x > te ? s.r0 + (x - te) * 0.08 : s.r0 * (0.75 + 0.25 * Math.exp(-aft / 8));
+    const ph = s.ph + aft * 0.55;
+    out[0] = x; out[1] = ty + r * Math.sin(ph); out[2] = tz + s.side * r * Math.cos(ph);
+    return out;
+  }
   // ── Per-frame update ──
   let clock = 0, streakAlpha = 0;
   function update(dt, info) {
@@ -292,34 +322,38 @@ export function createOutside(api, airframe) {
     }
     // Ground equipment: only parked at the gate.
     const atGate = info.phase === 'ground';
-    ground.visible = atGate;
+    ground.visible = atGate && info.crew !== false;
     gpu.visible = atGate && !!info.gpu;
     pca.visible = atGate && !!info.pca;
-    // Airflow streaks: in flight, faster and longer with TAS.
-    const tas = info.air ? info.tas || 0 : 0;
-    streakAlpha += ((tas > 0 ? (dark ? 0.9 : 0.75) : 0) - streakAlpha) * Math.min(1, dt * 2);
+    // Airflow: in flight only, speed and length with TAS; can be switched off.
+    const tas = info.air && info.airflow !== false ? info.tas || 0 : 0;
+    streakAlpha += ((tas > 0 ? (dark ? 0.5 : 0.38) : 0) - streakAlpha) * Math.min(1, dt * 2);
     streakMat.opacity = streakAlpha;
     streaks.visible = streakAlpha > 0.01;
     if (streaks.visible) {
-      // Visual speed: compressed so cruise reads fast but trackable.
-      const v = 6 + tas * 0.07;                 // m/s on screen
-      const len = 1 + tas * 0.022;            // streak length, m
-      const c = new THREE.Color(dark ? 0xd6eeff : 0x3c4854);
+      const v = 3 + tas * 0.04;                 // m/s on screen (compressed)
+      const len = 1.2 + tas * 0.014;            // trail length, m
+      const head = new THREE.Color(dark ? 0xd6eeff : 0x46525e);
+      const bg = new THREE.Color(dark ? 0x0e1013 : 0xefefed);
+      const P = [0, 0, 0];
+      let o = 0;
       for (let i = 0; i < N; i++) {
-        const s = seeds[i];
-        s.x -= v * s.k * dt;
-        if (s.x < BOX.x0) { s.x = BOX.x1; s.y = rnd(BOX.y0, BOX.y1); s.z = rnd(-BOX.z, BOX.z); }
-        const [dy, dz] = deflect(s);
-        const y = s.y + dy, z = s.z + dz;
-        const o = i * 6;
-        pos[o] = s.x; pos[o + 1] = y; pos[o + 2] = z;
-        pos[o + 3] = s.x + len * s.k; pos[o + 4] = y; pos[o + 5] = z;
-        // Fade at the ends of the box.
-        const edge = Math.min(1, (s.x - BOX.x0) / 8, (BOX.x1 - s.x) / 8);
-        col[o] = c.r * edge; col[o + 1] = c.g * edge; col[o + 2] = c.b * edge;
-        col[o + 3] = 0; col[o + 4] = 0; col[o + 5] = 0;
+        const sd = seeds[i];
+        sd.x -= v * sd.k * dt;
+        if (sd.x < X1) { seed(sd); sd.x = X0; }
+        const edge = Math.max(0, Math.min(1, (sd.x - X1) / 6, (X0 - sd.x) / 6));
+        for (let k = 0; k < K - 1; k++) {
+          for (const kk of [k, k + 1]) {
+            along(sd, sd.x + (len * kk) / (K - 1), P);
+            pos[o] = P[0]; pos[o + 1] = P[1]; pos[o + 2] = P[2];
+            // Bright at the head, fading into the background toward the tail.
+            const f = edge * (1 - kk / (K - 1));
+            col[o] = bg.r + (head.r - bg.r) * f; col[o + 1] = bg.g + (head.g - bg.g) * f; col[o + 2] = bg.b + (head.b - bg.b) * f;
+            if (dark) { col[o] = head.r * f; col[o + 1] = head.g * f; col[o + 2] = head.b * f; }
+            o += 3;
+          }
+        }
       }
-      if (!dark) for (let i = 0; i < N * 6; i += 6) { col[i + 3] = col[i]; col[i + 4] = col[i + 1]; col[i + 5] = col[i + 2]; }
       streakGeo.attributes.position.needsUpdate = true;
       streakGeo.attributes.color.needsUpdate = true;
       streakMat.blending = dark ? THREE.AdditiveBlending : THREE.NormalBlending;

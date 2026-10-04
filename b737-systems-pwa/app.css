@@ -557,7 +557,7 @@ body.view-cockpit .vignette { display: none; }
 /* ── ViewCube (Fusion 360-style navigation cube) ── */
 .vc {
   position: fixed; z-index: 19; width: 112px; height: 124px;
-  top: calc(64px + var(--safe-t)); right: calc(var(--vc-right, 0px) + 14px + var(--safe-r));
+  top: calc(100px + var(--safe-t)); right: calc(var(--vc-right, 0px) + 14px + var(--safe-r));
   user-select: none; -webkit-user-select: none; touch-action: none;
 }
 .vc[hidden] { display: none; }
@@ -615,3 +615,36 @@ body.view-cockpit .vignette { display: none; }
 .qr-num td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
 .qr-num td:last-child { text-align: right; font-weight: 700; font-family: var(--mono); font-size: 12.5px; }
 .qr-num tr:first-child td { border-top: 0; }
+
+/* ── Toolbar: views on top, then tools | display, with a Show menu ── */
+.hud-tr { flex-direction: column; align-items: flex-end; gap: 6px; }
+.toolbar { position: relative; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.tb-group { display: flex; gap: 2px; }
+.tb { display: inline-flex; align-items: center; gap: 6px; }
+.tb .ti { font-size: 13px; line-height: 1; }
+.tb .tl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.tb.on { background: var(--blue); color: #fff; }
+.show-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 240px;
+  background: var(--paper-solid); color: var(--ink); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 8px 10px; font: 500 13px/1.3 var(--sans);
+}
+.show-menu[hidden] { display: none; }
+.sm-title { font: 700 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin: 2px 0 8px; }
+.show-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 2px; cursor: pointer; }
+.show-menu small { color: var(--ink-3); font-size: 11px; margin-left: auto; }
+.show-menu input { width: 16px; height: 16px; accent-color: var(--blue); }
+@media (max-width: 759px) {
+  .toolbar { flex-direction: column; align-items: flex-end; }
+  .tb-group { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .tb .tl { display: none; }
+  .show-menu { top: 0; right: calc(100% + 6px); }
+}
+/* On a mouse, the controls fade back while you work in the 3D view and come
+   up the moment the pointer is over one of them. */
+@media (hover: hover) and (pointer: fine) {
+  body:is(.view-3d, .view-split) .hud > *, body:is(.view-3d, .view-split) .vc { opacity: .42; transition: opacity .2s; }
+  body:is(.view-3d, .view-split) .hud > *:hover, body:is(.view-3d, .view-split) .hud > *:focus-within,
+  body:is(.view-3d, .view-split) .vc:hover { opacity: 1; }
+  body.show-open .hud-tr > * { opacity: 1 !important; }
+}

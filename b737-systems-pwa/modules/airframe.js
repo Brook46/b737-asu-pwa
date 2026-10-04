@@ -12,7 +12,7 @@
 // each system module can place its parts inside the real structure rather
 // than at hand-typed coordinates that drift when the airframe is tuned.
 
-import * as THREE from '../vendor/three.module.min.js?v=9';
+import * as THREE from '../vendor/three.module.min.js?v=10';
 
 // ── Fuselage ────────────────────────────────────────────────────────────────
 
@@ -340,7 +340,8 @@ export function buildAirframe(materials) {
   root.name = 'airframe';
   const skin = [];
   const movers = { flaps: [], slats: [], kruegers: [], spoilers: [], ailerons: [],
-    elevators: [], rudder: null, mains: [], nose: null, sleeves: [], fans: [] };
+    elevators: [], rudder: null, mains: [], nose: null, sleeves: [], fans: [],
+    stab: [], fin: [], engines: [], doors: {}, slides: {}, straps: [] };
 
   const add = (geom, parent = root, kind = 'skin') => {
     const m = new THREE.Mesh(geom, materials[kind]);
@@ -378,6 +379,9 @@ export function buildAirframe(materials) {
     materials.fuselage.needsUpdate = true;
     add(fuselageGeometry(), root, 'fuselage');
   }
+
+  // ── Doors, exits and escape slides ──
+  buildDoors();
 
   // ── Wings ──
   const FLAP_U = 0.74;   // flap hinge line (chord fraction)
@@ -464,6 +468,7 @@ export function buildAirframe(materials) {
     const eng = new THREE.Group();
     eng.position.set(ENG.x, ENG.y, side * ENG.z);
     root.add(eng);
+    movers.engines.push(eng);
     // Nacelle: thick inlet lip, fattest a third of the way back, tapering to
     // the translating sleeve and a big fan nozzle. The lower half is
     // flattened (flattenBottom) the way the CFM56 nacelle is on the 737.
@@ -555,7 +560,7 @@ export function buildAirframe(materials) {
   const finRoot = { le: [-10.6, 4.55, 0], chord: 7.0, t: 0.11, thick: [0, 0, 1] };
   const finTip = { le: [-16.0, 12.5, 0], chord: 1.9, t: 0.09, thick: [0, 0, 1] };
   const RUD_U = 0.7;
-  add(loft([{ ...finRoot, u1: RUD_U }, { ...finTip, u1: RUD_U }], 16));
+  movers.fin.push(add(loft([{ ...finRoot, u1: RUD_U }, { ...finTip, u1: RUD_U }], 16)));
   // Dorsal fillet.
   add(loft([
     { le: [-8.2, 4.7, 0], chord: 3.0, t: 0.06, thick: [0, 0, 1], chordDir: [-1, 0, 0] },
@@ -581,7 +586,7 @@ export function buildAirframe(materials) {
     const r = { le: [-14.4, 3.75, side * 0.5], chord: 4.4, t: 0.1, thick: [0, 1, 0] };
     const t = { le: [-18.35, 3.75 + Math.tan(7 * Math.PI / 180) * 6.7, side * 7.18], chord: 1.35, t: 0.09,
       thick: [0, 1, 0] };
-    add(loft([{ ...r, u1: ELEV_U }, { ...t, u1: ELEV_U }], 14));
+    movers.stab.push(add(loft([{ ...r, u1: ELEV_U }, { ...t, u1: ELEV_U }], 14)));
     const g = loft([{ ...r, u0: ELEV_U }, { ...t, u0: ELEV_U }], 8);
     const a = [r.le[0] - ELEV_U * r.chord, r.le[1], r.le[2]];
     const b = [t.le[0] - ELEV_U * t.chord, t.le[1], t.le[2]];
@@ -595,6 +600,141 @@ export function buildAirframe(materials) {
     g.rotateZ(Math.PI / 2);
     g.translate(TAIL_X - 0.08, s.yc, 0);
     add(g, root, 'dark');
+  }
+
+  // A curved panel on the skin over the side-view outline (x0…x1 aft→fwd,
+  // h0…h1 above the centreline, corner radius r), pushed `off` outward.
+  function skinPatch(x0, x1, h0, h1, side, r, off) {
+    const nx = 14, nh = 14, pos = [], idx = [];
+    for (let j = 0; j <= nh; j++) {
+      const h = h0 + (h1 - h0) * (j / nh);
+      // Round the corners by pulling the row's ends in.
+      const dy = Math.max(0, r - Math.min(h - h0, h1 - h)), cut = dy > 0 ? r - Math.sqrt(Math.max(0, r * r - dy * dy)) : 0;
+      for (let i = 0; i <= nx; i++) {
+        const x = x0 + cut + (x1 - x0 - 2 * cut) * (i / nx);
+        let th = thAtHeight(x, YC + h);
+        if (side < 0) th = 180 - th;
+        pos.push(...fusPoint(x, th, off));
+      }
+    }
+    for (let j = 0; j < nh; j++) for (let i = 0; i < nx; i++) {
+      const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+  function buildDoors() {
+    const F = FLOOR_Y - YC + 0.05;
+    // [key, x0 (aft), x1 (fwd), h0, h1, side, r, type]
+    const list = [
+      ['fwdEntry', 13.55, 14.42, F, 1.28, -1, 0.16, 'plug'], ['fwdSvc', 13.55, 14.42, F, 1.28, 1, 0.16, 'plug'],
+      ['aftEntry', -11.0, -10.15, F, 1.28, -1, 0.16, 'plug'], ['aftSvc', -11.0, -10.15, F, 1.28, 1, 0.16, 'plug'],
+      ['owL1', 0.24, 0.76, -0.22, 0.86, -1, 0.1, 'canopy'], ['owL2', 1.14, 1.66, -0.22, 0.86, -1, 0.1, 'canopy'],
+      ['owR1', 0.24, 0.76, -0.22, 0.86, 1, 0.1, 'canopy'], ['owR2', 1.14, 1.66, -0.22, 0.86, 1, 0.1, 'canopy'],
+      ['fwdCargo', 8.7, 9.95, -1.5, -0.72, 1, 0.1, 'cargo'], ['aftCargo', -6.1, -4.9, -1.45, -0.7, 1, 0.1, 'cargo'],
+    ];
+    for (const [key, x0, x1, h0, h1, side, r, type] of list) {
+      // Dark opening behind the door.
+      const hole = add(skinPatch(x0 + 0.02, x1 - 0.02, h0 + 0.02, h1 - 0.02, side, r, 0.012), root, 'dark');
+      hole.renderOrder = 1;
+      // The door itself, about its hinge.
+      const g = skinPatch(x0, x1, h0, h1, side, r, 0.03);
+      let A, axis;
+      if (type === 'plug') {
+        // Hinged on the forward edge; swings out and forward against the skin.
+        const p = fusPoint(x1, side < 0 ? 180 - thAtHeight(x1, YC + (h0 + h1) / 2) : thAtHeight(x1, YC + (h0 + h1) / 2), 0.12);
+        A = new THREE.Vector3(...p); axis = new THREE.Vector3(0, side < 0 ? -1 : 1, 0);
+      } else {
+        // Hinged along the top edge: canopy exits swing up and out, cargo doors in and up.
+        const p = fusPoint((x0 + x1) / 2, side < 0 ? 180 - thAtHeight((x0 + x1) / 2, YC + h1) : thAtHeight((x0 + x1) / 2, YC + h1), 0.03);
+        A = new THREE.Vector3(...p);
+        axis = new THREE.Vector3(1, 0, 0).multiplyScalar(type === 'canopy' ? -side : side);
+      }
+      const pivot = new THREE.Group();
+      pivot.position.copy(A);
+      g.translate(-A.x, -A.y, -A.z);
+      root.add(pivot);
+      add(g, pivot, 'skin');
+      const max = type === 'plug' ? 170 : type === 'canopy' ? 80 : 100;
+      movers.doors[key] = { pivot, axis, max: (max * Math.PI) / 180, cur: 0, target: 0, side, x0, x1 };
+      // Integral escape slides on the four entry / service doors.
+      if (type === 'plug') {
+        const sl = slide(x0, x1, F, side);
+        movers.slides[key] = sl;
+      }
+    }
+    // Overwing escape straps: aft exit frame to a ring on the wing.
+    for (const side of [-1, 1]) {
+      // Above the AFT overwing exit (x 0.24–0.76), to a ring on the upper wing.
+      const top = fusPoint(0.3, side < 0 ? 180 - thAtHeight(0.3, YC + 0.84) : thAtHeight(0.3, YC + 0.84), 0.04);
+      const ring = [wingLE(5.6) - 2.6, wingY(5.6) + 0.14, side * 5.6];
+      const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(...top), new THREE.Vector3((top[0] + ring[0]) / 2, (top[1] + ring[1]) / 2 + 0.1, (top[2] + ring[2]) / 2), new THREE.Vector3(...ring)]);
+      const strap = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.02, 6), new THREE.MeshStandardMaterial({ color: 0xf2c200, roughness: 0.6 }));
+      strap.visible = false;
+      root.add(strap);
+      movers.straps.push(strap);
+    }
+  }
+  // An inflatable slide from the door sill down to the ramp.
+  function slide(x0, x1, F, side) {
+    const sill = fusPoint((x0 + x1) / 2, side < 0 ? 180 - thAtHeight((x0 + x1) / 2, YC + F) : thAtHeight((x0 + x1) / 2, YC + F), 0.05);
+    const group = new THREE.Group();
+    group.position.set(...sill);
+    root.add(group);
+    const holder = new THREE.Group();       // rotated to slope down and out
+    group.add(holder);
+    const L = 5.2, W = 1.15;
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xf3c11b, roughness: 0.55 });
+    const grey = new THREE.MeshStandardMaterial({ color: 0x9aa1a7, roughness: 0.6 });
+    const tube = (len, r, mat) => { const g = new THREE.CylinderGeometry(r, r, len, 16); g.rotateX(Math.PI / 2); g.translate(0, 0, len / 2); return new THREE.Mesh(g, mat); };
+    for (const dx of [-W / 2, W / 2]) { const t = tube(L, 0.17, yellow); t.position.x = dx; t.castShadow = true; holder.add(t); }
+    for (const dz of [0.08, L - 0.05]) { const g = new THREE.CylinderGeometry(0.15, 0.15, W, 14); g.rotateZ(Math.PI / 2); const m = new THREE.Mesh(g, yellow); m.position.z = dz; holder.add(m); }
+    const bed = new THREE.Mesh(new THREE.PlaneGeometry(W, L), grey);
+    bed.rotation.x = -Math.PI / 2; bed.position.set(0, 0.05, L / 2); bed.receiveShadow = true;
+    bed.material.side = THREE.DoubleSide;
+    holder.add(bed);
+    // Hand grips along the sides.
+    for (let k = 1; k < 5; k++) for (const dx of [-W / 2, W / 2]) {
+      const gr = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 6, 12, Math.PI), grey);
+      gr.position.set(dx, 0.15, (k * L) / 5); gr.rotation.y = Math.PI / 2;
+      holder.add(gr);
+    }
+    // Slope from the sill to the ground, pointing out from the fuselage side.
+    const drop = sill[1] - 0.15, reach = Math.sqrt(Math.max(0.1, L * L - drop * drop));
+    holder.rotation.y = side < 0 ? Math.PI : 0;
+    holder.rotation.order = 'YXZ';
+    holder.rotation.x = Math.atan2(drop, reach);
+    group.visible = false;
+    return { group, holder, cur: 0, target: 0 };
+  }
+
+  // Open / close doors and inflate slides smoothly. targets: { key: 0|1 }.
+  function setDoors(doorT = {}, slideT = {}, straps = false) {
+    for (const k in movers.doors) movers.doors[k].target = doorT[k] ? 1 : 0;
+    for (const k in movers.slides) movers.slides[k].target = slideT[k] ? 1 : 0;
+    for (const st of movers.straps) st.userData.want = straps;
+  }
+  function doorsFrame(dt) {
+    for (const k in movers.doors) {
+      const d = movers.doors[k];
+      d.cur += Math.sign(d.target - d.cur) * Math.min(Math.abs(d.target - d.cur), dt * 0.7);
+      const e = d.cur < 0.5 ? 2 * d.cur * d.cur : 1 - (-2 * d.cur + 2) ** 2 / 2;
+      d.pivot.quaternion.setFromAxisAngle(d.axis, e * d.max);
+    }
+    for (const k in movers.slides) {
+      const sl = movers.slides[k];
+      // A slide only inflates once its door is mostly open.
+      const t = sl.target && movers.doors[k].cur > 0.7 ? 1 : 0;
+      sl.cur += Math.sign(t - sl.cur) * Math.min(Math.abs(t - sl.cur), dt * 0.9);
+      sl.group.visible = sl.cur > 0.01;
+      const e = 1 - (1 - sl.cur) ** 3;
+      sl.holder.scale.set(0.3 + 0.7 * e, 0.3 + 0.7 * e, Math.max(0.01, e));
+    }
+    for (const st of movers.straps) st.visible = !!st.userData.want && movers.doors.owL1.cur > 0.8;
   }
 
   // ── Pose ──
@@ -651,5 +791,5 @@ export function buildAirframe(materials) {
     for (const f of movers.fans) f.rotation.x += dt * speed;
   }
 
-  return { root, skin, pose, spinFans, movers };
+  return { root, skin, pose, spinFans, movers, setDoors, doorsFrame };
 }
