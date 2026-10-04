@@ -7,8 +7,10 @@
 //
 // Used by app.js and by the logic audit harness (scratchpad) alike.
 
-export function makeEnv({ PHASES, phase, stateOf, sysOf }) {
+export function makeEnv({ PHASES, phase, stateOf, sysOf, flight }) {
   const e = { ...PHASES[phase].env, phase };
+  // The flight sim (FMC route flying) says where the airplane really is.
+  if (flight) { e.air = !flight.onGround; e.alt = flight.alt; e.wheel = flight.onGround ? Math.round(flight.ias) : 0; e.sim = true; }
   const ev = (id) => sysOf(id).mod.evaluate(e, stateOf(id));
   // Fire switches pulled cut the fuel (engines) or shut the APU down.
   const fire = stateOf('fire');

@@ -7,10 +7,11 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=12';
-import { createOverhead } from './overhead.js?v=12';
-import * as CAB from './cockpit-cab.js?v=12';
-import * as D from './cockpit-displays.js?v=12';
+import * as THREE from '../vendor/three.module.min.js?v=13';
+import { createOverhead } from './overhead.js?v=13';
+import * as CAB from './cockpit-cab.js?v=13';
+import * as D from './cockpit-displays.js?v=13';
+import { drawCDUScreen } from './cdu.js?v=13';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -82,7 +83,7 @@ function beam(a, b, t, mat) {
   return m;
 }
 
-export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
+export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu }) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.02, 4000);
   camera.position.copy(EYE);
@@ -371,7 +372,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   placePanel('gear', 'Parking brake', [0.34, 0.716, -0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
   placePanel('flightcontrols', 'Stabilizer trim', [0.34, 0.716, 0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
   // Aft electronic panel, forward to aft: door lock, nav radios, transponder, VHF, cargo fire, fire protection.
-  const AFT = (sys, title, x, w = 0.2) => placePanel(sys, title, [x, 0.713, 0], [0, 1, 0], [1, 0, 0], w);
+  // (The two CDUs sit forward of them, at the front of the aft pedestal.)
+  const AFT = (sys, title, x, w = 0.2) => placePanel(sys, title, [x - 0.23, 0.713, 0], [0, 1, 0], [1, 0, 0], w);
   AFT('general', 'Flight deck door', 0.245, 0.16);
   AFT('fms', 'Nav radios', 0.205);
   AFT('warnings', 'Transponder', 0.158);
@@ -407,8 +409,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   }
 
   // ── Pedestal ──
-  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.7, 0.36), M.shell));
-  ped.position.set(0.32, 0.35, 0);
+  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(1.09, 0.7, 0.36), M.shell));
+  ped.position.set(0.085, 0.35, 0);
   const fwdPed = add(plate(0.36, 0.36, M.dark, [0.47, 0.71, 0], [-0.25, 1, 0]));
   fwdPed.userData.pick = { kind: 'static', name: 'Control stand' };
   {
@@ -417,9 +419,45 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     g.fillStyle = '#5f666c'; g.fillRect(0, 0, 512, 640);
     // Every unit on the aft electronic panel is a real panel now (placePanel below).
     ct.t.needsUpdate = true;
-    const aft = add(plate(0.34, 0.425, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.7 }), [0.06, 0.705, 0], [0, 1, 0], [1, 0, 0]));
+    const aft = add(plate(0.34, 0.655, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.7 }), [-0.055, 0.705, 0], [0, 1, 0], [1, 0, 0]));
     aft.userData.pick = { kind: 'aftpedestal', name: 'Aft electronic panel' };
     pickables.push(aft);
+  }
+  // CDUs, left and right: the screen is the live FMC page; a tap opens the keypad.
+  const cdus = [];
+  for (const s of [-1, 1]) {
+    const ct = canvasTex(360, 500);
+    const m = add(plate(0.165, 0.229, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.175, 0.711, s * 0.088], [0, 1, 0], [1, 0, 0]));
+    m.userData.pick = { kind: 'cdu', name: `CDU (${s < 0 ? 'left' : 'right'})` };
+    pickables.push(m);
+    cdus.push(ct);
+  }
+  const scr = canvasTex(300, 220);
+  function drawCDUs() {
+    if (!cdu) return;
+    drawCDUScreen(scr.g, 300, 220, cdu.screen());
+    for (const ct of cdus) {
+      const g = ct.g;
+      g.fillStyle = '#3f444a'; g.fillRect(0, 0, 360, 500);
+      g.fillStyle = '#16181a'; g.fillRect(26, 14, 308, 228);
+      g.drawImage(scr.c, 30, 18, 300, 220);
+      // Line select keys.
+      g.fillStyle = '#1d2023';
+      for (let i = 0; i < 6; i++) { const y = 54 + i * 31; g.fillRect(4, y, 18, 10); g.fillRect(338, y, 18, 10); }
+      // Function, alpha and numeric keys (drawn, not separate meshes).
+      g.font = '700 9px Helvetica, Arial'; g.textAlign = 'center';
+      const key = (x, y, w, h, t, lit) => {
+        g.fillStyle = '#202326'; g.fillRect(x, y, w, h);
+        if (lit != null) { g.fillStyle = lit ? '#e8f8ff' : '#2a2c2a'; g.fillRect(x + w * 0.2, y + 2, w * 0.6, 3); }
+        g.fillStyle = '#eee'; g.fillText(t, x + w / 2, y + h / 2 + 3);
+      };
+      [['INIT', 'RTE', 'CLB', 'CRZ', 'DES', ''], ['MENU', 'LEGS', 'DEP', 'HOLD', 'PROG', 'EXEC'], ['N1', 'FIX', 'PREV', 'NEXT', '', '']].forEach((row, r) =>
+        row.forEach((t, i) => t && key(16 + i * 56, 254 + r * 30, 50, 24, t, t === 'EXEC' ? cdu.exec() : null)));
+      for (let i = 0; i < 12; i++) key(16 + (i % 3) * 32, 350 + Math.floor(i / 3) * 34, 28, 28, '1234567890.-'[i]);
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['SP', 'DEL', '/', 'CLR']).forEach((t, i) => key(128 + (i % 5) * 44, 344 + Math.floor(i / 5) * 25, 40, 21, t));
+      g.fillStyle = cdu.msg() ? '#ffb21e' : '#5a4a2a'; g.font = '700 10px Helvetica'; g.fillText('MSG', 30, 495);
+      ct.t.needsUpdate = true;
+    }
   }
   const levers = {};
   const leverAt = (name, x, z, len, color, info) => {
@@ -553,7 +591,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   }
   function setData(d) { data = d; }
 
-  let tDisp = 0, t = 0;
+  let tDisp = 0, t = 0, tCdu = 1;
   function frame(dt) {
     if (!active) return;
     t += dt;
@@ -587,6 +625,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
       }
       pose(data);
     }
+    tCdu += dt;
+    if (tCdu > 0.5) { tCdu = 0; drawCDUs(); }
   }
 
   /** Levers, yokes and the outside world follow the phase. */
@@ -610,7 +650,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   }
 
   return { get look() { return look; }, aim: () => aim(),
-    scene, camera, frame, update, setData, goView, texPanels,
+    scene, camera, frame, update, setData, goView, texPanels, screens,
     enter() { active = true; look.eye.copy(EYE); goView('out'); for (const tp of texPanels) tp.dirty = true; },
     exit() { active = false; pointers.clear(); drag = null; },
     get active() { return active; },

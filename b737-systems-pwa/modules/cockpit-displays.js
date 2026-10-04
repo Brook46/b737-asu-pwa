@@ -40,11 +40,13 @@ export function drawPFD(g, W, H, d) {
   // Attitude: clipped to the ADI window.
   g.save();
   g.beginPath(); g.roundRect?.(cx - 140, cy - 150, 280, 300, 22) ?? g.rect(cx - 140, cy - 150, 280, 300); g.clip();
+  // Bank rolls the horizon round the airplane symbol.
+  g.translate(cx, cy); g.rotate((-(f.bank || 0) * Math.PI) / 180); g.translate(-cx, -cy);
   const hy = cy + f.pitch * ppd;
-  g.fillStyle = '#1c78d4'; g.fillRect(0, 0, W, hy);
-  g.fillStyle = '#7b4a1e'; g.fillRect(0, hy, W, H);
+  g.fillStyle = '#1c78d4'; g.fillRect(-W, -H, W * 3, hy + H);
+  g.fillStyle = '#7b4a1e'; g.fillRect(-W, hy, W * 3, H * 2);
   g.strokeStyle = WHT; g.lineWidth = 2;
-  g.beginPath(); g.moveTo(0, hy); g.lineTo(W, hy); g.stroke();
+  g.beginPath(); g.moveTo(-W, hy); g.lineTo(W * 2, hy); g.stroke();
   for (let p = -30; p <= 30; p += 2.5) {
     if (!p) continue;
     const y = hy - p * ppd, w = p % 10 === 0 ? 60 : p % 5 === 0 ? 34 : 16;
@@ -78,9 +80,29 @@ export function drawPFD(g, W, H, d) {
     g.fillStyle = '#000'; g.fillRect(x - (right ? 4 : 0), cy - 20, w + 4, 40); box(g, x - (right ? 4 : 0), cy - 20, w + 4, 40, WHT, 2);
   };
   tape(16, 82, f.ias, 10, 20, (v) => String(v), false);
+  // Speed bugs: target (magenta), and V1 / VR on the ground.
+  const spdY = (v) => cy - (v - f.ias) * (340 / 60);
+  if (f.spdTgt) {
+    const y = Math.max(cy - 168, Math.min(cy + 168, spdY(f.spdTgt)));
+    g.strokeStyle = MAG; g.lineWidth = 2.5; g.beginPath(); g.moveTo(98, y - 9); g.lineTo(88, y - 9); g.lineTo(88, y + 9); g.lineTo(98, y + 9); g.stroke();
+    g.fillStyle = '#000'; g.fillRect(16, cy - 170, 82, 26);
+    text(g, String(Math.round(f.spdTgt)), 57, cy - 150, MAG, 22, 'center');
+  }
+  for (const [lbl, v] of f.vBugs || []) {
+    const y = spdY(v);
+    if (y < cy - 170 || y > cy + 170) continue;
+    g.strokeStyle = GRN; g.lineWidth = 2; g.beginPath(); g.moveTo(98, y); g.lineTo(110, y); g.stroke();
+    text(g, lbl, 112, y + 6, GRN, 15);
+  }
   text(g, String(Math.round(f.ias)), 90, cy + 10, WHT, 28, 'right');
   tape(W - 108, 92, f.alt, 100, 200, (v) => String(v), true);
   text(g, String(Math.round(f.alt)).padStart(3, ' '), W - 22, cy + 10, WHT, 24, 'right');
+  if (f.altTgt != null) {
+    g.fillStyle = '#000'; g.fillRect(W - 108, cy - 170, 92, 26);
+    text(g, String(f.altTgt), W - 62, cy - 150, MAG, 22, 'center');
+    const y = cy - (f.altTgt - f.alt) * (340 / 600);
+    if (y > cy - 170 && y < cy + 170) { g.strokeStyle = MAG; g.lineWidth = 2.5; g.strokeRect(W - 112, y - 10, 10, 20); }
+  }
   if (f.mach > 0.4) text(g, `.${String(Math.round(f.mach * 1000)).padStart(3, '0')}`, 56, cy + 210, WHT, 22, 'center');
   // FMA.
   g.fillStyle = '#000'; g.fillRect(0, 0, W, 58);
@@ -104,42 +126,140 @@ export function drawPFD(g, W, H, d) {
   }
   g.fillStyle = '#000'; g.fillRect(cx - 28, H - 76, 56, 22); text(g, String(Math.round(f.hdg)).padStart(3, '0'), cx, H - 59, WHT, 18, 'center');
   text(g, 'STD', W - 60, H - 10, CYN, 18, 'center');
-  if (f.vs) text(g, `${f.vs > 0 ? '+' : ''}${f.vs}`, W - 54, 60, WHT, 16, 'center');
+  if (Math.abs(f.vs) >= 400) text(g, `${f.vs > 0 ? '+' : ''}${f.vs}`, W - 54, cy + 214, WHT, 16, 'center');
+  if (f.ra != null && f.ra < 2500 && !f.onGround) text(g, String(Math.max(0, Math.round(f.ra / 10) * 10)), cx, cy + 190, WHT, 22, 'center');
 }
 
 // ── ND (MAP) ────────────────────────────────────────────────────────────────
+// Track-up expanded MAP: compass arc, range rings, the FMC route (active leg
+// and route magenta, a modification white dashed), waypoints, airports and
+// runways, T/C and T/D, the VNAV path deviation on the right in descent.
+// d.nav comes from app.js (FMC + flight sim); without it the arc is empty.
+function star(g, x, y, r, c) {
+  g.strokeStyle = c; g.lineWidth = 2;
+  g.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4, rr = i % 2 ? r * 0.32 : r;
+    g.lineTo(x + rr * Math.sin(a), y - rr * Math.cos(a));
+  }
+  g.closePath(); g.stroke();
+}
 export function drawND(g, W, H, d) {
   clear(g, W, H);
-  const f = d.flight;
+  const f = d.flight, n = d.nav;
   const cx = W / 2, cy = H * 0.86, R = H * 0.66;
+  const trkM = n?.ac ? n.ac.trkM : f.hdg;
+  const range = n?.range || 40, k = R / range;
+  // Compass arc (track up).
   g.strokeStyle = WHT; g.lineWidth = 2;
   g.beginPath(); g.arc(cx, cy, R, Math.PI * 1.17, Math.PI * 1.83); g.stroke();
-  for (let a = -60; a <= 60; a += 5) {
-    const hd = (f.hdg + a + 360) % 360, rad = ((a - 90) * Math.PI) / 180;
-    const r0 = R, r1 = R - (hd % 10 === 0 ? 16 : 8);
-    g.beginPath(); g.moveTo(cx + r0 * Math.cos(rad), cy + r0 * Math.sin(rad)); g.lineTo(cx + r1 * Math.cos(rad), cy + r1 * Math.sin(rad)); g.stroke();
-    if (hd % 30 === 0) {
-      const rr = R - 32;
-      text(g, String(hd / 10), cx + rr * Math.cos(rad), cy + rr * Math.sin(rad) + 7, WHT, 18, 'center');
+  const t0 = Math.ceil((trkM - 62) / 5) * 5;
+  for (let hd = t0; hd <= trkM + 62; hd += 5) {
+    const a = hd - trkM, rad = ((a - 90) * Math.PI) / 180, h = ((hd % 360) + 360) % 360;
+    const r1 = R - (h % 10 === 0 ? 16 : 8);
+    g.beginPath(); g.moveTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad)); g.lineTo(cx + r1 * Math.cos(rad), cy + r1 * Math.sin(rad)); g.stroke();
+    if (h % 30 === 0) { const rr = R - 32; text(g, String(h / 10), cx + rr * Math.cos(rad), cy + rr * Math.sin(rad) + 7, WHT, 18, 'center'); }
+  }
+  // Heading pointer (no wind: heading = track) and the track box.
+  g.fillStyle = '#000'; g.fillRect(cx - 34, cy - R - 34, 68, 28); box(g, cx - 34, cy - R - 34, 68, 28);
+  text(g, String(Math.round(trkM) % 360 || 360).padStart(3, '0'), cx, cy - R - 12, WHT, 22, 'center');
+  text(g, 'TRK', cx - 44, cy - R - 13, GRN, 16, 'right'); text(g, 'MAG', cx + 44, cy - R - 13, GRN, 16);
+  // Range ring at half range.
+  g.setLineDash([6, 8]); g.strokeStyle = '#9aa0a6'; g.lineWidth = 1.5;
+  g.beginPath(); g.arc(cx, cy, R / 2, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); g.setLineDash([]);
+  text(g, String(range / 2), cx - R / 2 * 0.86 - 4, cy - R / 2 * 0.5 + 6, WHT, 15, 'right');
+  // MCP heading bug in HDG SEL.
+  if (d.mcpHdg != null) {
+    const rad = ((d.mcpHdg - trkM - 90) * Math.PI) / 180;
+    g.strokeStyle = MAG; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad)); g.lineTo(cx + (R + 12) * Math.cos(rad), cy + (R + 12) * Math.sin(rad)); g.stroke();
+  }
+
+  if (n?.ac) {
+    const A = n.ac, cosL = Math.cos((A.lat * Math.PI) / 180), t = (A.trk * Math.PI) / 180;
+    const P = (p) => {
+      const dx = (p.lon - A.lon) * 60 * cosL, dy = (p.lat - A.lat) * 60;
+      const x = dx * Math.cos(t) - dy * Math.sin(t), y = dx * Math.sin(t) + dy * Math.cos(t);
+      return [cx + x * k, cy - y * k];
+    };
+    g.save();
+    g.beginPath(); g.rect(0, 40, W, cy + 30 - 40); g.clip();
+    // Runways: two edges along the runway and a dashed extended centreline.
+    for (const rw of n.rwys || []) {
+      const end = rw.far || rw;
+      const [x1, y1] = P(rw), [x2, y2] = P(end);
+      const ang = Math.atan2(y2 - y1, x2 - x1), nx = -Math.sin(ang) * 4, ny = Math.cos(ang) * 4;
+      g.strokeStyle = WHT; g.lineWidth = 1.6;
+      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(x1 + nx * s, y1 + ny * s); g.lineTo(x2 + nx * s, y2 + ny * s); g.stroke(); }
+      if (rw.ext) {
+        const [ex, ey] = P(rw.ext);
+        g.setLineDash([10, 8]); g.beginPath(); g.moveTo(x1, y1); g.lineTo(ex, ey); g.stroke(); g.setLineDash([]);
+      }
+      text(g, rw.label, x1 + 10, y1 + 18, WHT, 15);
     }
-  }
-  g.fillStyle = '#000'; g.fillRect(cx - 30, cy - R - 32, 60, 26); box(g, cx - 30, cy - R - 32, 60, 26);
-  text(g, String(Math.round(f.hdg)).padStart(3, '0'), cx, cy - R - 12, WHT, 20, 'center');
-  // Range ring and the route.
-  g.setLineDash([6, 8]); g.strokeStyle = '#9aa0a6';
-  g.beginPath(); g.arc(cx, cy, R / 2, Math.PI * 1.17, Math.PI * 1.83); g.stroke(); g.setLineDash([]);
-  g.strokeStyle = MAG; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 18, cy - R * 0.55); g.lineTo(cx - 40, cy - R * 0.95); g.stroke();
-  for (const [x, y, n] of [[cx + 18, cy - R * 0.55, 'BALUN'], [cx - 40, cy - R * 0.95, 'GITAX']]) {
-    g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.strokeStyle = MAG; g.strokeRect(-6, -6, 12, 12); g.restore();
-    text(g, n, x + 14, y + 6, MAG, 16);
-  }
+    // Airports.
+    for (const ap of n.apts || []) {
+      const [x, y] = P(ap);
+      g.strokeStyle = CYN; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.stroke();
+      text(g, ap.ident, x + 11, y - 8, CYN, 16);
+    }
+    // Route: modification white dashed, active magenta.
+    const drawRoute = (legs, color, dash, from = 0) => {
+      g.strokeStyle = color; g.lineWidth = 2.6; g.setLineDash(dash);
+      g.beginPath();
+      legs.slice(from).forEach((l, i) => { const [x, y] = P(l); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+      g.stroke(); g.setLineDash([]);
+    };
+    if (n.mod?.length) drawRoute(n.mod, WHT, [12, 8]);
+    if (n.legs?.length) {
+      const from = Math.max(0, (n.activeIdx || 1) - 1);
+      if (n.active) {
+        // Active leg starts at the airplane.
+        g.strokeStyle = MAG; g.lineWidth = 2.6;
+        drawRoute(n.legs, MAG, [], from);
+      } else drawRoute(n.legs, CYN, [10, 8]);
+      n.legs.forEach((l, i) => {
+        if (n.active && i < from) return;
+        if (l.kind === 'rwy' || l.kind === 'rwyArr') return;
+        const [x, y] = P(l);
+        const act = n.active && i === n.activeIdx;
+        if (l.kind === 'apt' || l.kind === 'aptArr') return;
+        star(g, x, y, 10, act ? MAG : WHT);
+        text(g, l.ident, x + 13, y + 6, act ? MAG : WHT, 17);
+        if (l.alt != null) text(g, l.alt >= 18000 ? `FL${Math.round(l.alt / 100)}` : String(l.alt), x + 13, y + 24, WHT, 14);
+      });
+    }
+    // Top of climb / descent.
+    for (const [p, lbl] of [[n.tc, 'T/C'], [n.tod, 'T/D']]) {
+      if (!p) continue;
+      const [x, y] = P(p);
+      g.strokeStyle = GRN; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.stroke();
+      text(g, lbl, x + 11, y + 6, GRN, 16);
+    }
+    g.restore();
+    // Active waypoint data, top right.
+    if (n.to) {
+      text(g, n.to.ident, W - 14, 26, MAG, 21, 'right');
+      text(g, n.to.eta, W - 14, 50, WHT, 18, 'right');
+      text(g, `${n.to.dist < 100 ? n.to.dist.toFixed(1) : Math.round(n.to.dist)} NM`, W - 14, 74, WHT, 18, 'right');
+    }
+    // VNAV path deviation (descent).
+    if (n.vdev != null) {
+      const x = W - 30, y0 = H * 0.45;
+      g.strokeStyle = WHT; g.lineWidth = 2;
+      for (const s of [-2, -1, 1, 2]) { g.beginPath(); g.arc(x, y0 + s * 30, 4, 0, Math.PI * 2); g.stroke(); }
+      g.beginPath(); g.moveTo(x - 10, y0); g.lineTo(x + 10, y0); g.stroke();
+      const dy = Math.max(-66, Math.min(66, (-n.vdev / 400) * 60));
+      g.fillStyle = MAG; g.beginPath(); g.moveTo(x, y0 + dy - 9); g.lineTo(x + 7, y0 + dy); g.lineTo(x, y0 + dy + 9); g.lineTo(x - 7, y0 + dy); g.closePath(); g.fill();
+    }
+  } else text(g, 'NO ACTIVE ROUTE', cx, cy - R * 0.55, CYN, 20, 'center');
+
   // Own ship.
   g.strokeStyle = WHT; g.lineWidth = 3;
   g.beginPath(); g.moveTo(cx, cy - 22); g.lineTo(cx - 13, cy + 10); g.lineTo(cx + 13, cy + 10); g.closePath(); g.stroke();
-  text(g, `GS ${Math.round(f.gs)}`, 12, 26, WHT, 18); text(g, `TAS ${Math.round(f.tas)}`, 104, 26, WHT, 18);
-  text(g, 'MAP', W - 12, 26, GRN, 18, 'right');
-  text(g, '40', cx - R / 2 + 10, cy - R * 0.38, WHT, 15);
+  text(g, 'GS', 12, 26, WHT, 15); text(g, String(Math.round(f.gs)), 40, 26, WHT, 21);
+  text(g, 'TAS', 96, 26, WHT, 15); text(g, String(Math.round(f.tas)), 132, 26, WHT, 21);
+  text(g, `MAP ${range}`, 14, H - 14, GRN, 15);
   // Terrain / windshear / traffic messages.
   const w = d.warn;
   if (w?.windshear) text(g, 'WINDSHEAR', cx, H * 0.5, w.windshear === 'red' ? RED : AMB, 28, 'center');

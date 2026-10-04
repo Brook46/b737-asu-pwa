@@ -62,11 +62,13 @@ export function createPhaseAnimator(airframe, world) {
   // Other systems can take over parts of the pose (flaps from Flight
   // Controls, gear from Landing Gear) once they have a state.
   let override = {};
-  function setOverride(o) { override = o || {}; airframe.pose({ ...cur, ...override }); }
+  function setOverride(o) { override = o || {}; apply(); }
   function apply() {
     airframe.pose({ ...cur, ...override });
-    world.position.y = cur.y;
-    world.rotation.z = cur.pitch * Math.PI / 180;
+    // The flight sim can take over height and pitch too.
+    world.position.y = override.y ?? cur.y;
+    world.rotation.z = (override.pitch ?? cur.pitch) * Math.PI / 180;
+    world.rotation.x = (override.bank ?? 0) * Math.PI / 180;
   }
 
   function frame(dt) {

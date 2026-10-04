@@ -2,8 +2,8 @@
 // the IRS mode select unit, instrument transfer switches, nav radios and a
 // small CDU.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=12';
-import { createOverhead } from './overhead.js?v=12';
+import { createSchematic, createPanel } from './schem-kit.js?v=13';
+import { createOverhead } from './overhead.js?v=13';
 
 const C = '#06d6a0', IRS = '#20c997', RAD = '#74c0fc';
 
@@ -44,10 +44,10 @@ export function mount(svgHost, panelHost, ctx) {
   panelHost.append(ih);
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · CDU & FAILURES');
-  P.actions(P.push('COLD AIRPLANE (IRS OFF)', () => ctx.action('coldStart')), P.push('CDU: ENTER POS INIT', () => ctx.action('enterPos')));
+  P.actions(P.push('OPEN THE CDU (FMC)', () => ctx.openCdu?.()), P.push('COLD AIRPLANE (IRS OFF)', () => ctx.action('coldStart')), P.push('CDU: ENTER POS INIT', () => ctx.action('enterPos')));
   P.actions(P.fail('IRS L fault', 'irsL'), P.fail('IRS R fault', 'irsR'), P.fail('Both GPS', 'gps'), P.fail('Radio updating', 'radio'), P.fail('ILS receivers', 'ils'), P.fail('AC lost (IRS on DC)', 'acLost'), P.fail('FMC alert', 'fmcAlert'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('On the <b>Ground</b>: cold airplane, then turn both IRS selectors to NAV. ALIGN counts down (fast). Don\'t enter the position and ALIGN flashes at the end — ENTER POS INIT. In <b>Cruise</b>: fail both GPS then radio — the FMC falls back to IRS only and ANP grows; fail IRS L and use the IRS transfer.');
+  P.note('<b>Fly a route:</b> open the CDU — POS INIT (ref airport, SET IRS POS), RTE (origin, destination, runway, ACTIVATE, EXEC), LEGS (type waypoints: navaids, airports, N32E034, BGN270/20), DEP ARR (arrival runway), PERF INIT (ZFW, cruise altitude), TAKEOFF REF. Then in the Cockpit view: LINE UP, TO/GA; the ND and FMA follow. On the <b>Ground</b>: cold airplane, then turn both IRS selectors to NAV. ALIGN counts down (fast). Don\'t enter the position and ALIGN flashes at the end — ENTER POS INIT. In <b>Cruise</b>: fail both GPS then radio — the FMC falls back to IRS only and ANP grows; fail IRS L and use the IRS transfer.');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }
 

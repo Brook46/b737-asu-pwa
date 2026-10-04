@@ -191,6 +191,43 @@ and cargo fire on the aft electronic panel. Placement is in cockpit.js
 Kit extras in overhead.js: `knob({grey})`, `fireHandle()`, `placard()`,
 `panel(..., {bg})`, `toggle({noLabels})`.
 
+## FMC, CDU, flight sim (v13)
+
+A study FMC you can program and fly — numbers are rough approximations,
+labelled "not for operational use" on the CDU.
+
+- `navdb.js` + `data/navdb.json` — OurAirports (public domain) airports with
+  runway ends, VOR/DME/NDB navaids; built by `scripts/build-navdb.py` from the
+  CSVs at davidmegginson.github.io/ourairports-data. No named fixes, airways
+  or procedures, so waypoints are navaids, airports, lat/lon (`N33E034`,
+  `N3201.5E03452.1`) or place/bearing/distance (`BGN270/20`, magnetic).
+  Magnetic variation comes from the nearest VOR. Loaded ~1 s after boot.
+- `fmc.js` — route with a MOD copy (ACTIVATE arms, EXEC makes it active;
+  direct-to inserts PPOS), legs (origin runway → waypoints → FFxx 8 NM out
+  on the centreline → threshold), V-speeds / VREF / N1 approximations,
+  vertical profile (T/C by climb integration, T/D on a 3° path, 318 ft/NM),
+  LNAV sequencing (turn anticipation; reversals > 100° fly over). Persisted
+  in localStorage `b737inside.fmc`.
+- `cdu.js` — pages (IDENT, POS INIT, RTE, DEP/ARR, LEGS, PERF INIT, N1 LIMIT,
+  TAKEOFF REF, CLB/CRZ/DES, PROG, APPROACH REF) as a 14 × 24 cell grid with
+  colours; `drawCDUScreen` paints it for the 3D CDUs. `cdu-view.js` is the
+  floating keypad (physical keyboard works while open).
+- `flightsim.js` — kinematic airplane flying the active route: TO/GA roll,
+  LNAV at 50 ft, VNAV at 400 ft, VNAV SPD/PTH/ALT, "RESET MCP ALT" at T/D if
+  the MCP isn't lowered, LVL CHG / V/S / ALT HOLD / HDG SEL, LOC and G/S
+  capture (APP), approach steps via the autopilot's `step` action, flare,
+  rollout, go-around if the runway is overflown. It writes the modes into
+  the Automatic Flight `mem`, so the FMA and MCP lights are the real ones.
+  Auto flaps and gear by speed / distance to go.
+- Integration: `makeEnv({ flight })` overrides air / alt / wheel while
+  flying; phases change *softly* (`softPhase` — no switch reset); the phase
+  buttons stop the sim. ND MAP (`navData()` in app.js → `drawND`) is track
+  up with the route, waypoints, runways, T/C, T/D, VNAV deviation; PFD has
+  bank, speed / altitude bugs, V1/VR, RA. Cockpit bar: CDU · LINE UP ·
+  TO/GA · pause · 1–64× · ND range. The 3D CDUs sit at the front of the aft
+  pedestal (the aft panels moved 0.23 m aft); tapping one opens the keypad.
+- Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
+
 ## Voice
 
 speech.js ranks installed voices (Premium / Natural / Enhanced first, novelty

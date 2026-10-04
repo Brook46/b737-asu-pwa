@@ -1,9 +1,9 @@
 // schem-autoflight.js — AFDS / autothrottle schematic with a live FMA, and
 // the MCP as three operable panels (also placed on the 3D glareshield).
 
-import { createSchematic, createPanel } from './schem-kit.js?v=12';
-import { createOverhead } from './overhead.js?v=12';
-import { STEPS } from './sys-autoflight.js?v=12';
+import { createSchematic, createPanel } from './schem-kit.js?v=13';
+import { createOverhead } from './overhead.js?v=13';
+import { STEPS } from './sys-autoflight.js?v=13';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 
