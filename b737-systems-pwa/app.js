@@ -4,16 +4,18 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=3';
-import { createScene } from './modules/scene.js?v=3';
-import { buildAirframe } from './modules/airframe.js?v=3';
-import { createSystems3D } from './modules/systems3d.js?v=3';
-import { createOverlay } from './modules/overlay.js?v=3';
-import { createSheet } from './modules/sheet.js?v=3';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=3';
-import { SYSTEMS, READY } from './modules/systems.js?v=3';
-import { createSearch } from './modules/search.js?v=3';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=3';
+import { installResumeHardening } from './modules/resume.js?v=4';
+import { createScene } from './modules/scene.js?v=4';
+import { buildAirframe } from './modules/airframe.js?v=4';
+import { createSystems3D } from './modules/systems3d.js?v=4';
+import { createOverlay } from './modules/overlay.js?v=4';
+import { createSheet } from './modules/sheet.js?v=4';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=4';
+import { SYSTEMS, READY } from './modules/systems.js?v=4';
+import { createSearch } from './modules/search.js?v=4';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=4';
+import { createProgress } from './modules/progress.js?v=4';
+import { createLearn } from './modules/learn.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 
@@ -55,8 +57,24 @@ function init() {
     const p = pid && m.parts.find((q) => q.id === pid);
     return p ? { title: p.name, sub: m.title } : { title: m.title, sub: 'System' };
   };
+  const progress = createProgress();
+  const ST_COLOR = { new: '#c6c9cc', seen: '#74c0fc', learning: '#ffa94d', learned: '#40c057', review: '#be4bdb' };
+  const ST_NAME = { new: 'New', seen: 'Seen', learning: 'Learning', learned: 'Learned', review: 'Review due' };
   function decorate(body, key) {
-    if (!key) return;
+    if (!key || key === 'learn') return;
+    progress.markSeen(key);
+    // Learning status: on this page, and as a dot on each part chip.
+    const st = progress.status(key);
+    const kick = body.querySelector('.kicker');
+    if (kick) kick.insertAdjacentHTML('afterend', `<div class="page-st no-hl"><i class="dot st-${st}"></i>${ST_NAME[st]}</div>`);
+    const sid = key.split('/')[0];
+    for (const c of body.querySelectorAll('.chips [data-rel]')) {
+      const r = c.dataset.rel;
+      if (r.startsWith('sys:')) continue;
+      const k2 = `${sid}/${r}`;
+      c.dataset.st = progress.status(k2);
+      c.style.setProperty('--st', ST_COLOR[c.dataset.st]);
+    }
     applyHighlights(body, notes.hls(key));
     const star = body.querySelector('[data-star]');
     if (star) {
@@ -121,6 +139,9 @@ function init() {
     api.setInsets(right, bottom);
     // Phase bar centres in the free area too.
     document.querySelector('.hud-bottom').style.left = `${(window.innerWidth - right) / 2}px`;
+    // The lesson player follows: centred in the free area, above a bottom sheet.
+    document.documentElement.style.setProperty('--free-cx', `${(window.innerWidth - right) / 2}px`);
+    document.documentElement.style.setProperty('--sheet-b', `${bottom}px`);
     const obs = ['.hud-tl', '.hud-tr', '.hud-bottom'].map((q) => {
       const r = document.querySelector(q).getBoundingClientRect();
       return { x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 };
@@ -327,6 +348,18 @@ function init() {
     }
     if (moved) refresh();
   }, 100);
+
+  // ── Learn by voice ──
+  const learn = createLearn({
+    systems: READY, progress, describe, sheet,
+    goTo: (key) => goTo(key),
+    els: {
+      body: $('sheet-body'), player: $('player'), plK: $('pl-k'), plT: $('pl-t'), plProg: $('pl-prog'),
+      plPlay: $('pl-play'), plNext: $('pl-next'), plPrev: $('pl-prev'), plRate: $('pl-rate'), plClose: $('pl-close'),
+      quiz: $('quiz'), card: $('quiz-card'),
+    },
+  });
+  $('learn-btn').addEventListener('click', () => (sheet.key === 'learn' && !$('sheet').hidden ? sheet.hide() : learn.dashboard()));
 
   // ── Search ──
   const search = createSearch($('search'), READY, (sid, pid) => goTo(pid ? `${sid}/${pid}` : sid));

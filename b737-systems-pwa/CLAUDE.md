@@ -46,6 +46,14 @@ modules/
                   in schem-<id>.js follow the FCOM chapter's panel figures.
   search.js       full-text index over every system/part page
   notes.js        favourites + highlights (localStorage, per device)
+  speech.js       TTS (speakable() expands units/acronyms for reading aloud)
+                  + speech recognition, feature-detected; tap fallback
+  quizbank.js     study questions per page ({ sys, part|null, q, c[4], a,
+                  why, ref }) — our own words; every number cited
+  progress.js     per-page status new/seen/learning/learned/review (14 d)
+  learn.js        Learn dashboard, lesson player (reads pages aloud while
+                  the 3D view follows), voice quiz (parseAnswer handles
+                  letters, phonetics, spoken numbers, answer content)
   sys-<id>.js     one FCOM chapter: content + build(K) + logic
   schem-<id>.js   that chapter's schematic + panel
   systems.js      the 15 FCOM chapters; ones with `mod` are built
@@ -108,4 +116,6 @@ Dev server: `.claude/launch.json` → "737 NG Inside" (port 8101).
 - **M1 (done):** shell, airframe, phases, Electrical, Hydraulics, Fuel, Air.
 - **M2:** Flight Controls, Landing Gear, Engines/APU, Fire Protection, Anti-Ice.
 - **M3:** Auto Flight, Instruments, FMS/Nav, Warnings (match gpws-pwa), Comms,
-  Airplane General; search; quiz.
+  Airplane General.
+- New systems need quiz questions in quizbank.js too, or their pages only
+  count as learned by listening.

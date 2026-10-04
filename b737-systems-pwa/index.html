@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=3">
+  <link rel="stylesheet" href="app.css?v=4">
 </head>
 <body>
   <div id="stage">
@@ -46,6 +46,7 @@
     <div class="seg" role="tablist" aria-label="View">
       <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true">3D</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false">Schematic</button>
     </div>
+    <button class="tag tag-btn" id="learn-btn" aria-label="Learn by voice and progress">🎧</button>
     <button class="tag tag-btn" id="search-btn" aria-label="Search">⌕</button>
     <button class="tag tag-btn" id="fav-btn" aria-label="Favorites and highlights">★</button>
     <button class="tag tag-btn" id="theme-btn" aria-label="Day / night">◐</button>
@@ -76,10 +77,22 @@
   </div>
   <div id="hl-pop" class="hl-pop" hidden></div>
 
+  <div id="player" class="player" hidden aria-label="Lesson player">
+    <div class="pl-info"><div class="pl-k" id="pl-k"></div><div class="pl-t" id="pl-t"></div><div class="pl-bar"><span id="pl-prog"></span></div></div>
+    <div class="pl-btns">
+      <button class="tag tag-btn" id="pl-prev" aria-label="Previous">⏮</button>
+      <button class="tag tag-btn" id="pl-play" aria-label="Play or pause">▶</button>
+      <button class="tag tag-btn" id="pl-next" aria-label="Next">⏭</button>
+      <button class="tag tag-btn" id="pl-rate" aria-label="Speed">1×</button>
+      <button class="tag tag-btn" id="pl-close" aria-label="Stop">✕</button>
+    </div>
+  </div>
+  <div id="quiz" class="quiz" hidden><div class="quiz-card" id="quiz-card" role="dialog" aria-label="Quiz"></div></div>
+
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=3"></script>
+  <script type="module" src="app.js?v=4"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

@@ -112,5 +112,8 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
     `, null);
   }
 
-  return { part, system, overview, favorites, hide, get open() { return !el.hidden; }, get key() { return current; } };
+  /** Any other page (e.g. the Learn dashboard), keyed so callers can tell it's showing. */
+  function custom(html, key) { show(html, key); }
+
+  return { part, system, overview, favorites, custom, hide, get open() { return !el.hidden; }, get key() { return current; } };
 }
