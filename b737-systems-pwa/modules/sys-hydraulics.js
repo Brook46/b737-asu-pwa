@@ -1,7 +1,7 @@
 // sys-hydraulics.js — FCOM chapter 13. Content is written for study in our
 // own words; numbers cite the FCOM section they come from.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, MLG, NLG } from './airframe.js?v=7';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, MLG, NLG } from './airframe.js?v=8';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
@@ -268,9 +268,11 @@ export default {
     const eng1 = env.eng1 && !f.eng1, eng2 = env.eng2 && !f.eng2;
     // FLT CONTROL: 0 STBY RUD · 1 OFF · 2 ON
     const edp1 = eng1 && sw.eng1 && !f.leakAedp && q.A > 0.5;
-    const emdpA = !!sw.elec2 && !f.ovhtA && q.A > 0.5;
+    // Electric pumps are AC motors.
+    const ac = env.acPower !== false;
+    const emdpA = ac && !!sw.elec2 && !f.ovhtA && q.A > 0.5;
     const edp2 = eng2 && sw.eng2 && q.B > 0.5;
-    const emdpB = !!sw.elec1 && q.B > 0.5;
+    const emdpB = ac && !!sw.elec1 && q.B > 0.5;
     const pA = edp1 || emdpA, pB0 = edp2 || emdpB;
     const flapsOut = env.flaps > 0;
     // B's standpipe keeps enough fluid for the PTU even after a B leak (13.20.6).

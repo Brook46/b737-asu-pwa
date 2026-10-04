@@ -2,9 +2,9 @@
 // radios, interphones, PA; with the audio control panel, radio tuning panel
 // and the calls / voice recorder panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=7';
-import { createOverhead } from './overhead.js?v=7';
-import { MICS, RXS } from './sys-comms.js?v=7';
+import { createSchematic, createPanel } from './schem-kit.js?v=8';
+import { createOverhead } from './overhead.js?v=8';
+import { MICS, RXS } from './sys-comms.js?v=8';
 
 const C = '#00a6a6', RX = '#66d9e8';
 

@@ -2,7 +2,7 @@
 // our own words. Display switching is live: fail a DU or a DEU, or turn a
 // selector, and the six screens in the 3D cockpit change format.
 
-import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=7';
+import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=8';
 
 const C = '#8338ec', AIRC = '#4dabf7';
 export const DUS = ['capOut', 'capIn', 'upper', 'lower', 'foIn', 'foOut'];
@@ -123,9 +123,15 @@ export default {
     }
     if (f.upper) { du.upper = 'X'; du.lower = 'ENG'; }
     if (f.lower) du.lower = 'X';
+    // Power: on standby power (battery / AC standby) only the captain's two
+    // DUs and the upper DU stay; with nothing at all every screen is dark.
+    if (env.acPower === false) {
+      for (const k of ['foOut', 'foIn', 'lower']) du[k] = '';
+      if (!env.bus?.acStby) for (const k of DUS) du[k] = '';
+    }
     // DEUs.
-    const deu1 = !f.deu1 && sw.source !== 2, deu2 = !f.deu2 && sw.source !== 0;
-    const single = !(deu1 && deu2);
+    const deu1 = !f.deu1 && sw.source !== 2 && (env.acPower !== false || !!env.bus?.acStby), deu2 = !f.deu2 && sw.source !== 0 && env.acPower !== false;
+    const single = !(deu1 && deu2) && env.acPower !== false;
     if (!deu1 && !deu2) for (const k of DUS) du[k] = 'X';
     const srcAnn = !single ? '' : deu1 ? 'DSPLY SOURCE 1' : deu2 ? 'DSPLY SOURCE 2' : '';
     // Air data: each side from its own pitot; standby from the auxiliary.

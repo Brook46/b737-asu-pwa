@@ -4,21 +4,23 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=7';
-import { createScene } from './modules/scene.js?v=7';
-import { buildAirframe } from './modules/airframe.js?v=7';
-import { createSystems3D } from './modules/systems3d.js?v=7';
-import { createOverlay } from './modules/overlay.js?v=7';
-import { createSheet } from './modules/sheet.js?v=7';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=7';
-import { SYSTEMS, READY } from './modules/systems.js?v=7';
-import { createSearch } from './modules/search.js?v=7';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=7';
-import { createProgress } from './modules/progress.js?v=7';
-import { createLearn } from './modules/learn.js?v=7';
-import { explain } from './modules/cockpit-info.js?v=7';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=7';
-import { createCockpit } from './modules/cockpit.js?v=7';
+import { makeEnv } from './modules/world.js?v=8';
+import { createOutside } from './modules/outside.js?v=8';
+import { installResumeHardening } from './modules/resume.js?v=8';
+import { createScene } from './modules/scene.js?v=8';
+import { buildAirframe } from './modules/airframe.js?v=8';
+import { createSystems3D } from './modules/systems3d.js?v=8';
+import { createOverlay } from './modules/overlay.js?v=8';
+import { createSheet } from './modules/sheet.js?v=8';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=8';
+import { SYSTEMS, READY } from './modules/systems.js?v=8';
+import { createSearch } from './modules/search.js?v=8';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=8';
+import { createProgress } from './modules/progress.js?v=8';
+import { createLearn } from './modules/learn.js?v=8';
+import { explain } from './modules/cockpit-info.js?v=8';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=8';
+import { createCockpit } from './modules/cockpit.js?v=8';
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,6 +47,8 @@ function init() {
   const anim = createPhaseAnimator(airframe, api.world);
   anim.go('ground', true);
   const s3d = createSystems3D(api, airframe.root);
+  // Lights, ground crew and carts, airflow — the world around the airplane.
+  const outside = createOutside(api, airframe);
   for (const s of READY) s3d.build(s.mod);
 
   const overlay = createOverlay(api, $('leaders'), $('hotspots'), (id) => {
@@ -172,36 +176,9 @@ function init() {
 
   // ── System state ──
   const sysOf = (id) => SYSTEMS.find((s) => s.id === id);
-  // The phase sets the scene; the engines model says what is actually
-  // running (an engine you start or shut down changes every other system).
-  const env = () => {
-    const e = { ...PHASES[phase].env, phase };
-    // Fire switches pulled cut the fuel (engines) or shut the APU down.
-    const fire = states.get('fire');
-    if (fire) { e.cut1 = !!fire.sw.pull1; e.cut2 = !!fire.sw.pull2; e.cutApu = !!fire.sw.pullApu; }
-    const eng = states.get('engines') || stateOf('engines');
-    if (!states.has('flightcontrols')) stateOf('flightcontrols');
-    if (eng) {
-      e.eng1 = eng.mem.e[0].run; e.eng2 = eng.mem.e[1].run;
-      e.apu = eng.mem.apu.st === 'running';
-    }
-    // Actual flap position (Flight Controls), then what hydraulics can power.
-    const fc = states.get('flightcontrols');
-    if (fc) { e.flaps = Math.round(fc.mem.flap); e.stabApCut = fc.sw.stabAp === 1; }
-    const ai = states.get('air');
-    if (ai) { const v = sysOf('air').mod.evaluate(e, ai).values; e.ductL = v.ductL; e.ductR = v.ductR; }
-    const gr = states.get('gear');
-    if (gr) e.gearDown = gr.mem.pos > 0.999;
-    const hy = states.get('hydraulics');
-    if (hy) {
-      const h = sysOf('hydraulics').mod.evaluate(e, hy);
-      Object.assign(e, {
-        hydA: h.users.A, hydB: h.users.B, leB: h.users.Ble, hydAfc: h.users.Afc, hydBfc: h.users.Bfc,
-        stbyRud: h.users.Srud, stbyLe: h.users.Sle, altFlapsArmed: !!hy.sw.altFlaps, fcBOff: hy.sw.fcB !== 2,
-      });
-    }
-    return e;
-  };
+  // The phase sets the scene; the real models (engines, electrical,
+  // hydraulics, flaps, gear…) say what is actually running — see world.js.
+  const env = () => makeEnv({ PHASES, phase, stateOf, sysOf });
   function stateOf(id) {
     if (!states.has(id)) states.set(id, sysOf(id).mod.normal(phase));
     return states.get(id);
@@ -471,6 +448,13 @@ function init() {
     const gr = states.get('gear');
     if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}) });
     anim.frame(dt);
+    {
+      const gen = stateOf('general'), e = PHASES[phase].env;
+      outside.update(dt, {
+        phase, air: e.air, tas: flightFor(phase).tas, lights: gen.sw, gpu: gen.sw.gpuCart, pca: gen.sw.acCart,
+        gearDown: (states.get('gear')?.mem.pos ?? 1) > 0.5,
+      });
+    }
     s3d.frame(dt);
     overlay.frame();
   });

@@ -3,7 +3,7 @@
 // transfer switches, nav radios and the FMC. Alignment runs fast (one
 // "minute" every 2 s) so it can be watched.
 
-import { EE, YC, FLIGHT_DECK_X, NOSE_X } from './airframe.js?v=7';
+import { EE, YC, FLIGHT_DECK_X, NOSE_X } from './airframe.js?v=8';
 
 const C = '#06d6a0', IRS = '#20c997', RAD = '#74c0fc';
 export const IRS_POS = ['OFF', 'ALIGN', 'NAV', 'ATT'];
@@ -129,7 +129,7 @@ export default {
   evaluate(env, st) {
     const { sw, fail: f, mem } = st;
     const elec = env.resOf?.('electrical');
-    const acLost = !!f.acLost || !!(elec && elec.lights.stbyOff);
+    const acLost = !!f.acLost || env.acPower === false;
     const irs = {};
     for (const s of ['L', 'R']) {
       const m = mem[s], mode = sw[`irs${s}`];
@@ -147,8 +147,8 @@ export default {
     const src = { L: sw.irsX === 2 ? 'R' : 'L', R: sw.irsX === 0 ? 'L' : 'R' };
     const attCapt = irs[src.L].att, attFo = irs[src.R].att;
     // FMC position: GPS, then radio, then inertial.
-    const gpsOk = !f.gps;
-    const radioOk = !f.radio;
+    const gpsOk = !f.gps && env.acPower !== false;
+    const radioOk = !f.radio && env.acPower !== false;
     const anyNav = irs.L.nav || irs.R.nav;
     const posSrc = gpsOk ? 'GPS' : radioOk && env.alt < 30000 ? 'RADIO (DME/DME)' : anyNav ? 'IRS ONLY' : 'NO POSITION';
     const anp = { 'GPS': 0.05, 'RADIO (DME/DME)': 0.3, 'IRS ONLY': env.air ? 2.0 : 0.5, 'NO POSITION': 99 }[posSrc];
@@ -161,7 +161,7 @@ export default {
     }
     Object.assign(lights, { gps: !!f.gps, ils: !!f.ils, fmcAlert: !!f.fmcAlert });
     return {
-      flows: { gpsF: gpsOk, radF: !f.radio, irsF: anyNav },
+      flows: { gpsF: gpsOk, radF: radioOk, irsF: anyNav },
       units: {
         irs: irs.L.failed || irs.R.failed ? 'fault' : irs.L.nav && irs.R.nav ? 'on' : irs.L.aligning || irs.R.aligning ? 'fault' : 'off',
         gps: f.gps ? 'fault' : 'on', radios: f.radio || f.ils ? 'fault' : 'on', fmc: 'on', wxr: 'on',

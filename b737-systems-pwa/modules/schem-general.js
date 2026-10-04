@@ -1,9 +1,9 @@
 // schem-general.js — lights, signs, emergency lighting, doors and oxygen at
 // a glance, with the lights, signs, oxygen, door and flight deck door panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=7';
-import { createOverhead } from './overhead.js?v=7';
-import { DOORS } from './sys-general.js?v=7';
+import { createSchematic, createPanel } from './schem-kit.js?v=8';
+import { createOverhead } from './overhead.js?v=8';
+import { DOORS } from './sys-general.js?v=8';
 
 const C = '#6b7280', LT = '#fab005';
 const EXT = [['llL', 'L LANDING'], ['llR', 'R LANDING'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY TURNOFF'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLLISION'], ['wingLt', 'WING'], ['wwLt', 'WHEEL WELL']];
@@ -43,6 +43,7 @@ export function mount(svgHost, panelHost, ctx) {
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · DOORS & FAILURES');
   P.actions(...DOORS.map(([k, n]) => P.push(`${n} open/close`, () => ctx.action('door:' + k))));
+  P.actions(P.push('GPU CONNECT / DISCONNECT', () => ctx.set('gpuCart', ctx.sw.gpuCart ? 0 : 1)), P.push('AIR-CON CART CONNECT / DISCONNECT', () => ctx.set('acCart', ctx.sw.acCart ? 0 : 1)));
   P.actions(P.fail('DC bus 1 lost', 'dcBus1'), P.fail('Overwing exit unlocked', 'overwing'), P.fail('Equipment cooling fan', 'cool'),
     P.fail('Flight deck door lock', 'lockFail'), P.push('EMERGENCY ACCESS CODE', () => ctx.action('code')), P.push('RESET TO NORMAL', ctx.reset));
   P.note('Move the flaps (Flight Controls) with FASTEN BELTS in AUTO and the signs follow. Turn EMER EXIT LIGHTS off: NOT ARMED + MASTER CAUTION (OVERHEAD). Fail DC bus 1 with them ARMED: they come on. Air Systems → cabin above 14,000 ft: the masks drop.');

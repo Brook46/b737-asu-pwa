@@ -1,8 +1,8 @@
 // schem-gear.js — gear actuation, brakes and steering schematic, with the
 // landing gear, autobrake and nose wheel steering panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=7';
-import { createOverhead } from './overhead.js?v=7';
+import { createSchematic, createPanel } from './schem-kit.js?v=8';
+import { createOverhead } from './overhead.js?v=8';
 
 const A = '#2f7cf6', B = '#12a874', G = '#868e96', BR = '#e8590c';
 
@@ -41,7 +41,9 @@ export function mount(svgHost, panelHost, ctx) {
   X.unit(410, 490, 180, 40, 'PARKING BRAKE', (r) => r.units.park, { color: '#e03131', part: 'park', small: true });
   // Steering.
   X.pipe([[140, 74], [140, 100], [300, 100], [300, 600], [420, 600]], 'steer', { color: A, thin: true });
-  X.unit(420, 580, 200, 40, 'NOSE WHEEL STEERING', (r) => (r.flows.steer ? 'on' : 'off'), { color: G, part: 'nlg', small: true });
+  X.pipe([[860, 74], [860, 90], [720, 90], [720, 560], [620, 560], [620, 580]], 'steerB', { color: B, thin: true });
+  X.value(300, 625, (r) => ({ text: ctx.sw.nws ? (ctx.sw.lever === 2 ? 'NORM: A via lever DN' : 'NORM: lever not DN — no steering') : 'ALT: system B', cls: 't-small' + (ctx.sw.nws && ctx.sw.lever !== 2 ? ' warn' : '') }));
+  X.unit(420, 580, 200, 40, 'NOSE WHEEL STEERING', (r) => (r.flows.steer || r.flows.steerB ? 'on' : 'off'), { color: G, part: 'nlg', small: true });
   X.text(640, 604, 'tiller ±78° · pedals ±7°', 't-small t-dim');
 
   const O = createOverhead(panelHost, ctx);

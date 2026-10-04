@@ -1,7 +1,7 @@
 // sys-gear.js — FCOM chapter 14, landing gear, brakes and steering, in our
 // own words. The gear position here drives the 3D gear.
 
-import { MLG, NLG, FLOOR_Y } from './airframe.js?v=7';
+import { MLG, NLG, FLOOR_Y } from './airframe.js?v=8';
 
 const G = '#495057', A = '#2f7cf6', B = '#12a874', BR = '#e8590c';
 
@@ -111,6 +111,7 @@ export default {
     }
     K.unit('nlg', { cyl: [[NLG.x, NLG.pivotY, 0], [NLG.x, 0.4, 0]], r: 0.05 }, { color: G });
     K.flow('steer', [[MLG.x + 0.5, 1.8, 0], [4, 1.35, 0.1], [NLG.x - 0.4, 1.4, 0.1], [NLG.x, 1.2, 0]], { color: A, part: 'nlg', r: 0.04 });
+    K.flow('steerB', [[MLG.x + 0.5, 1.9, -0.2], [4, 1.45, -0.1], [NLG.x - 0.4, 1.5, -0.1], [NLG.x, 1.25, 0]], { color: B, part: 'nlg', r: 0.04 });
     K.unit('brakes', { cyl: [[MLG.x + 0.6, 1.6, 0.9], [MLG.x + 0.6, 2.0, 0.9]], r: 0.12 }, { color: B });
     K.unit('autobrake', { box: [MLG.x + 0.4, 1.3, 0.6], size: [0.25, 0.2, 0.2] }, { color: BR });
     K.unit('lever', { box: [15.2, FLOOR_Y + 0.9, 0.2], size: [0.1, 0.2, 0.08] }, { color: G });
@@ -150,16 +151,20 @@ export default {
     const pos = mem.pos;
     const downLocked = pos > 0.999, upLocked = pos < 0.001;
     const transit = !downLocked && !upLocked;
-    const disagree = (sw.lever === 2 && !downLocked) || (sw.lever !== 2 && !upLocked);
+    // OFF is neither up nor down: only UP with gear not up, or DN with gear not down, disagree.
+    const disagree = (sw.lever === 2 && !downLocked) || (sw.lever === 0 && !upLocked);
     const thrustIdleLow = env.alt < 800 && env.air && env.phase === 'landing';
     const red = transit || disagree || (!downLocked && thrustIdleLow);
     const hydA = env.hydA !== false;
+    const steer = downLocked && !env.air && (sw.nws ? sw.lever === 2 && hydA : env.hydB !== false);
     const abArmed = sw.ab >= 2 || (sw.ab === 1 && !env.air);
     const braking = env.phase === 'landing' && sw.ab >= 2 && env.hydB !== false;
     return {
       flows: {
         gearA: transit && hydA, brakeB: braking || (!!sw.park && env.hydB !== false), brakeA: env.hydB === false && hydA && (braking || !!sw.park),
-        steer: downLocked && !env.air && (sw.nws ? hydA : env.hydB !== false),
+        // NORM: system A reaches the steering valve only with the lever DN.
+        // ALT: system B (normal B reservoir quantity), on the ground.
+        steer: steer && !!sw.nws, steerB: steer && !sw.nws,
       },
       units: {
         lever: red ? 'fault' : 'on', mlg: downLocked ? 'on' : transit ? 'fault' : 'off', nlg: downLocked ? 'on' : transit ? 'fault' : 'off',
@@ -170,9 +175,9 @@ export default {
         green: downLocked, red, abDisarm: !!f.autobrake || (sw.ab === 1 && env.phase === 'landing'), antiskid: !!f.antiskid,
         park: !!sw.park, brakeTemp: env.phase === 'landing' && sw.ab >= 4,
       },
-      values: { pos, xfr: env.air && !env.eng1 && !upLocked && sw.lever === 0, lock: !!mem.lock, manual: !!mem.manual, acc: Math.round(mem.acc), ab: ['OFF', 'RTO', '1', '2', '3', 'MAX'][sw.ab], lever: ['UP', 'OFF', 'DN'][sw.lever] },
+      values: { steer, pos, xfr: env.air && !env.eng1 && !upLocked && sw.lever === 0, lock: !!mem.lock, manual: !!mem.manual, acc: Math.round(mem.acc), ab: ['OFF', 'RTO', '1', '2', '3', 'MAX'][sw.ab], lever: ['UP', 'OFF', 'DN'][sw.lever] },
       pose: { gear: pos },
-      note: [mem.lock && !env.air && 'Lever lock: gear lever cannot go UP on the ground', transit && (sw.lever === 2 ? 'Gear extending' : 'Gear retracting'), braking && `Autobrake ${['', '', '1', '2', '3', 'MAX'][sw.ab]} braking`].filter(Boolean).join(' · '),
+      note: [!env.air && downLocked && !steer && (sw.nws && sw.lever !== 2 ? 'No nose wheel steering: lever not DN (NORM steering needs it)' : 'No nose wheel steering: no hydraulic pressure'), mem.lock && !env.air && 'Lever lock: gear lever cannot go UP on the ground', transit && (sw.lever === 2 ? 'Gear extending' : 'Gear retracting'), braking && `Autobrake ${['', '', '1', '2', '3', 'MAX'][sw.ab]} braking`].filter(Boolean).join(' · '),
     };
   },
 };

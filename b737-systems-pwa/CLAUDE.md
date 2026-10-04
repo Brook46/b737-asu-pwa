@@ -31,6 +31,15 @@ modules/
                   fusSection, fusPoint, loft) — metres, +x fwd, +y up, +z right
   scene.js        renderer, grid floor, shadows, solid↔x-ray skin, camera
                   flights, picking, view offset for the sheet (setInsets)
+  world.js        makeEnv(): the shared env every system evaluates against —
+                  phase scene + the real engines, electrical, hydraulics,
+                  flaps, gear, air and ground-cart state (always consulted,
+                  so no system assumes power or pressure). app.js and the
+                  logic audit harness both use it.
+  outside.js      the world around the airplane: exterior lights from the
+                  General switches (strobes, beacons, beams, logo…), ground
+                  crew / chocks / cones / GPU and air carts at the gate,
+                  airflow streaks in flight scaled by TAS
   systems3d.js    builds each system's 3D parts from its build(K); animated
                   flow tubes (shader dashes), unit states on/off/fault
   overlay.js      hotspot rings + leaders + chips; avoids HUD and sheet;
@@ -100,9 +109,14 @@ export default {
 - Phase change resets `sw` (and `mem`, and `q` if `phaseQty`) to `normal()`;
   **failures persist** so you can set one and step through the phases.
 - `env` from the phase: `eng1, eng2, apu, gpu, air, flaps, alt, wheel, gearDown, phase`,
-  then overridden in app.js `env()` by the real models: engines (eng1/eng2/apu),
-  fire (cut1/cut2/cutApu), flight controls (flaps, stabApCut), gear (gearDown),
-  air (ductL/ductR), hydraulics (hydA/hydB/leB/…).
+  then overridden in `world.js` by the real models: engines (eng1/eng2/apu,
+  lever1/lever2), fire (cut1/cut2/cutApu), General's carts (gpu, extAir),
+  electrical (bus, acPower), flight controls (flaps, stabApCut), gear
+  (gearDown, gearLever), air (ductL/ductR/cab), hydraulics (hydA/hydB/…).
+- Logic audit: a harness in the session scratchpad evaluated every system in
+  every phase plus cross-system scenarios (lever OFF → no NORM steering,
+  cold & dark → standby displays / IRS ON DC, A leak → A/P A off). Re-run the
+  same idea after logic changes: import world.js + systems.js in node.
 - `needsOthers: true` gives `evaluate` an `env.resOf(id)` to read other
   systems' results (warnings six-pack, instruments, FMS, general). Panels can
   read another system with `ctx.resOf(id)` and bind a switch to it with

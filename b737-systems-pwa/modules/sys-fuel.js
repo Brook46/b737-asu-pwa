@@ -1,7 +1,7 @@
 // sys-fuel.js — FCOM chapter 12 (fuel) in our own words, with tank layout,
 // feed logic, alerts and a fuel burn you can watch (and fast-forward).
 
-import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=7';
+import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=8';
 
 const F = '#d6336c', CTR = '#9c36b5', APUC = '#e8590c';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -246,10 +246,12 @@ export default {
   // Who feeds whom, from switches + quantities. Used by evaluate() and tick().
   feed(env, st) {
     const { sw, q, fail: f, mem } = st;
-    const m1 = (sw.m1fwd && !f.p1fwd ? 1 : 0) + (sw.m1aft ? 1 : 0);
-    const m2 = (sw.m2fwd ? 1 : 0) + (sw.m2aft ? 1 : 0);
+    // Boost pumps are AC motors: no AC, no pump pressure (engines suction feed).
+    const ac = env.acPower !== false;
+    const m1 = ac ? (sw.m1fwd && !f.p1fwd ? 1 : 0) + (sw.m1aft ? 1 : 0) : 0;
+    const m2 = ac ? (sw.m2fwd ? 1 : 0) + (sw.m2aft ? 1 : 0) : 0;
     const has = { m1: q.m1 > 1, m2: q.m2 > 1, c: q.c > 1 };
-    const cL = sw.ctrL && !mem.autoL && !f.ctrL && has.c, cR = sw.ctrR && !mem.autoR && has.c;
+    const cL = ac && sw.ctrL && !mem.autoL && !f.ctrL && has.c, cR = ac && sw.ctrR && !mem.autoR && has.c;
     const pm1 = m1 > 0 && has.m1, pm2 = m2 > 0 && has.m2;
     const x = !!sw.xfeed;
     // Sides: what pressurises each side of the manifold?
@@ -340,17 +342,19 @@ export default {
       main1: q.m1 < 907 ? 'fault' : 'on', main2: q.m2 < 907 ? 'fault' : 'on', ctr: q.c > 1 ? 'on' : 'off', surge: 'off',
       pumps1: fd.pm1 ? 'on' : 'off', pumps2: fd.pm2 ? 'on' : 'off',
       pumpsC: fd.cL || fd.cR ? 'on' : (sw.ctrL || sw.ctrR) ? 'fault' : 'off',
-      xfeed: fd.x ? 'on' : 'off', spar1: env.eng1 ? 'on' : 'off', spar2: env.eng2 ? 'on' : 'off',
+      xfeed: fd.x ? 'on' : 'off', spar1: (env.lever1 ?? env.eng1) && !env.cut1 ? 'on' : 'off', spar2: (env.lever2 ?? env.eng2) && !env.cut2 ? 'on' : 'off',
       filter: f.filter1 ? 'fault' : 'on', apufeed: env.apu ? 'on' : 'off', scav: mem.scav ? 'on' : 'off', refuel: 'off',
     };
-    const lpMain = (on, tank) => !on || tank <= 1;
+    const open1 = (env.lever1 ?? env.eng1) && !env.cut1, open2 = (env.lever2 ?? env.eng2) && !env.cut2;
+    const lpMain = (on, tank) => !on || tank <= 1 || env.acPower === false;
     const lights = {
       lp1fwd: lpMain(sw.m1fwd && !f.p1fwd, q.m1), lp1aft: lpMain(sw.m1aft, q.m1),
       lp2fwd: lpMain(sw.m2fwd, q.m2), lp2aft: lpMain(sw.m2aft, q.m2),
       lpCL: !!sw.ctrL && !fd.cL, lpCR: !!sw.ctrR && !fd.cR,
       valveOpen: fd.x ? 'dim' : false,
-      engValve1: env.eng1 ? false : 'dim', sparValve1: env.eng1 ? false : 'dim',
-      engValve2: env.eng2 ? false : 'dim', sparValve2: env.eng2 ? false : 'dim',
+      // VALVE CLOSED (blue): dim when closed — start lever CUTOFF or fire switch pulled.
+      engValve1: open1 ? false : 'dim', sparValve1: open1 ? false : 'dim',
+      engValve2: open2 ? false : 'dim', sparValve2: open2 ? false : 'dim',
       filter1: !!f.filter1, filter2: false,
     };
     const temp = { ground: 18, takeoff: 16, cruise: -22, landing: -6 }[env.phase] ?? 10;

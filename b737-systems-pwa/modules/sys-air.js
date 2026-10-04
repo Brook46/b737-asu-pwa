@@ -6,7 +6,7 @@
 // differential at 9.1 psi. AUTO/ALTN close the loop on the outflow valve to
 // follow the FCOM differential schedule; MAN hands the valve to you.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=7';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=8';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -131,7 +131,7 @@ export default {
     {
       id: 'mix', name: 'Mix manifold', at: [3.7, 1.55, 0],
       lead: 'Where right-pack air, extra left-pack air and recirculated cabin air are blended before going to the cabin.',
-      how: ['A preconditioned ground air source can also be plugged in here.'],
+      how: ['On the ground a conditioned-air cart can be plugged into a connection under the belly; its air goes straight into the mix manifold and on to the cabin and flight deck, with the packs off.'],
       related: ['dist', 'recirc', 'trim'],
     },
     {
@@ -239,6 +239,7 @@ export default {
         { color: COOL, part: side < 0 ? 'packL' : 'packR' });
     }
     // Mix manifold, risers, overhead duct, flight deck supply.
+    K.flow('pca', [[1.2, 0.98, 0.35], [2.4, 1.05, 0.25], [3.7, 1.25, 0]], { color: COOL, part: 'mix', r: 0.12 });
     K.unit('mix', { cyl: [[3.7, 1.25, 0], [3.7, 1.9, 0]], r: 0.38 }, { color: COOL });
     for (const side of [-1, 1]) {
       K.flow('cab', [[3.7, 1.7, side * 0.3], [3.9, FLOOR_Y + 0.2, side * 1.65], [4.0, 3.6, side * 1.75], [4.0, 4.5, side * 0.9], [4.0, 4.55, side * 0.15]],
@@ -365,14 +366,15 @@ export default {
         b1: a.b1, b2: a.b2, apuB: a.ab, iso: a.isoOpen && (a.L || a.R),
         dL: a.pL, dR: a.pR,
         pL: a.pL, pR: a.pR, ramL: a.pL, ramR: a.pR,
-        cab: a.pL || a.pR || recircL || recircR, fd: a.pL, trim: (a.pL || a.pR) && !!sw.trim,
+        pca: !!env.extAir,
+        cab: a.pL || a.pR || recircL || recircR || !!env.extAir, fd: a.pL || !!env.extAir, trim: (a.pL || a.pR) && !!sw.trim,
         recirc: recircL || recircR, ofv: (a.pL || a.pR) && m.ofv > 0.02, obev: !env.air || diff < 2,
       },
       units: {
         bleed1: f.trip1 ? 'fault' : a.b1 ? 'on' : 'off', bleed2: f.trip2 ? 'fault' : a.b2 ? 'on' : 'off',
         apubleed: a.ab ? 'on' : 'off', iso: a.isoOpen ? 'on' : 'off',
         packL: f.packL ? 'fault' : a.pL ? 'on' : 'off', packR: f.packR ? 'fault' : a.pR ? 'on' : 'off',
-        ram: a.pL || a.pR ? 'on' : 'off', mix: a.pL || a.pR ? 'on' : 'off', recirc: recircL || recircR ? 'on' : 'off',
+        ram: a.pL || a.pR ? 'on' : 'off', mix: a.pL || a.pR || env.extAir ? 'on' : 'off', recirc: recircL || recircR ? 'on' : 'off',
         trim: sw.trim ? 'on' : 'off', ofv: 'on', obev: 'on', cpc: autoFail ? 'fault' : 'on',
         wbovht: f.wbL ? 'fault' : 'on', eqcool: 'on', dist: 'on',
       },
@@ -389,6 +391,7 @@ export default {
         fltAlt: m.fltAlt, landAlt: m.landAlt,
       },
       note: [
+        env.extAir && 'Conditioned air from the ground cart',
         dual && 'DUAL BLEED — thrust idle',
         (a.high.L || a.high.R) && `${a.high.L && a.high.R ? 'Both packs' : 'Pack'} in high flow`,
         a.isoOpen && 'Isolation valve open',
