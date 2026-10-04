@@ -4,18 +4,21 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=5';
-import { createScene } from './modules/scene.js?v=5';
-import { buildAirframe } from './modules/airframe.js?v=5';
-import { createSystems3D } from './modules/systems3d.js?v=5';
-import { createOverlay } from './modules/overlay.js?v=5';
-import { createSheet } from './modules/sheet.js?v=5';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=5';
-import { SYSTEMS, READY } from './modules/systems.js?v=5';
-import { createSearch } from './modules/search.js?v=5';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=5';
-import { createProgress } from './modules/progress.js?v=5';
-import { createLearn } from './modules/learn.js?v=5';
+import { installResumeHardening } from './modules/resume.js?v=6';
+import { createScene } from './modules/scene.js?v=6';
+import { buildAirframe } from './modules/airframe.js?v=6';
+import { createSystems3D } from './modules/systems3d.js?v=6';
+import { createOverlay } from './modules/overlay.js?v=6';
+import { createSheet } from './modules/sheet.js?v=6';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=6';
+import { SYSTEMS, READY } from './modules/systems.js?v=6';
+import { createSearch } from './modules/search.js?v=6';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=6';
+import { createProgress } from './modules/progress.js?v=6';
+import { createLearn } from './modules/learn.js?v=6';
+import { explain } from './modules/cockpit-info.js?v=6';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=6';
+import { createCockpit } from './modules/cockpit.js?v=6';
 
 const $ = (id) => document.getElementById(id);
 
@@ -184,13 +187,20 @@ function init() {
 
   function refresh() {
     let note = '';
+    const inCockpit = view === 'cockpit' && cockpit;
+    const results = {};
     for (const s of READY) {
-      if (s.id !== sysId) continue;
+      if (s.id !== sysId && !inCockpit) continue;
       const res = evaluate(s.id);
-      s3d.apply(s.id, res);
-      if (schem && schemFor === s.id) schem.update(res);
-      note = res.note || '';
+      results[s.id] = res;
+      if (s.id === sysId) {
+        s3d.apply(s.id, res);
+        if (schem && schemFor === s.id) schem.update(res);
+        note = res.note || '';
+      }
+      if (inCockpit) cockpit.update(s.id, res);
     }
+    if (inCockpit) cockpit.setData(cockpitData(results));
     $('phase-note').textContent = PHASES[phase].note.toUpperCase() + (note ? ' — ' + note : '');
   }
 
@@ -236,11 +246,11 @@ function init() {
     overlay.set(hotspotsFor(id));
     const s = id && sysOf(id);
     $('sys-current').textContent = id ? `[${pad(s.num)}] ${s.title.toUpperCase()} ▾` : '[00] OVERVIEW ▾';
-    if (view === 'schem' || quiet) sheet.hide(); else if (id) sheet.system(s.mod); else sheet.overview(SYSTEMS);
+    if (view === 'schem' || view === 'cockpit' || quiet) sheet.hide(); else if (id) sheet.system(s.mod); else sheet.overview(SYSTEMS);
     const v = s?.mod.view;
     if (v) api.flyTo(new api.THREE.Vector3(...v.target), v.dist, new api.THREE.Vector3(...v.dir), 1100);
     else api.home();
-    if (view === 'schem') mountSchematic();
+    if (view === 'schem' || view === 'split') mountSchematic();
     refresh();
   }
 
@@ -286,19 +296,82 @@ function init() {
   });
 
   // ── 3D / Schematic ──
+  // ── Views: Airplane · Schematic · Split · Cockpit ──
+  let cockpit = null;
+  const MCP_LIT = { ground: [], takeoff: ['N1'], cruise: ['LNAV', 'VNAV', 'CMD A'], landing: [] };
+  function cockpitData(r) {
+    const e = env();
+    const hf = states.get('hydraulics')?.fail || {};
+    return {
+      phase, env: e, flight: flightFor(phase),
+      e1: engineFor(phase, e.eng1 && !hf.eng1), e2: engineFor(phase, e.eng2 && !hf.eng2),
+      rev: phase === 'landing', fuel: r.fuel?.values, hyd: r.hydraulics?.values,
+      tat: { ground: 18, takeoff: 16, cruise: -32, landing: 12 }[phase], mcp: new Set(MCP_LIT[phase]),
+    };
+  }
+  /** The switch/failure context for one system (shared by schematic and cockpit). */
+  function ctxFor(id) {
+    const s = sysOf(id);
+    return {
+      get sw() { return stateOf(id).sw; },
+      get fail() { return stateOf(id).fail; },
+      set(k, v) { stateOf(id).sw[k] = v; refresh(); },
+      toggleFail(k) { const f = stateOf(id).fail; f[k] = !f[k]; refresh(); },
+      action(k, label) { s.mod.action?.(stateOf(id), k, label, env()); refresh(); },
+      onPart(pid) { selectPart(pid); },
+      reset() { states.set(id, s.mod.normal(phase)); refresh(); },
+      env,
+    };
+  }
+  function showInfo(ev) {
+    const x = explain(READY, ev);
+    $('cp-info-t').textContent = x.title;
+    $('cp-info-pos').textContent = x.pos ? `Now: ${x.pos}` : '';
+    $('cp-info-pos').hidden = !x.pos;
+    $('cp-info-text').textContent = x.text;
+    const go = $('cp-info-go');
+    go.hidden = !x.page;
+    go.textContent = x.page ? `Open “${x.pageTitle}” ›` : '';
+    go.dataset.page = x.page || '';
+    $('cp-info').hidden = false;
+  }
+  $('cp-info-x').addEventListener('click', () => { $('cp-info').hidden = true; });
+  $('cp-info-go').addEventListener('click', () => { const p = $('cp-info-go').dataset.page; if (p) goTo(p); });
+  for (const b of document.querySelectorAll('[data-look]')) b.addEventListener('click', () => cockpit?.goView(b.dataset.look));
+
   function setView(v) {
+    const was = view;
     view = v;
     for (const b of document.querySelectorAll('[data-view]')) {
       const on = b.dataset.view === v;
       b.classList.toggle('on', on);
       b.setAttribute('aria-selected', String(on));
     }
-    const sch = v === 'schem';
+    document.body.classList.remove('view-3d', 'view-schem', 'view-split', 'view-cockpit');
+    document.body.classList.add('view-' + v);
+    const sch = v === 'schem' || v === 'split';
     $('schematic').hidden = !sch;
-    overlay.visible(!sch);
+    overlay.visible(v === '3d' || v === 'split');
     $('hint').classList.add('gone');
-    api.pause(sch);
-    if (sch) { sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
+    api.pause(v === 'schem');
+    if (sch) { if (v === 'schem') sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
+    // Cockpit: built the first time it's opened (it renders every panel).
+    if (v === 'cockpit') {
+      if (!cockpit) cockpit = createCockpit({ canvas: api.canvas, systems: READY, ctxFor, onControl: showInfo });
+      sheet.hide();
+      api.setMode('cockpit', cockpit);
+      cockpit.enter();
+      $('cp-bar').hidden = false;
+      const h = document.querySelector('.cp-hint');
+      h.classList.remove('gone');
+      setTimeout(() => h.classList.add('gone'), 6000);
+    } else if (was === 'cockpit') {
+      cockpit?.exit();
+      api.setMode('airplane');
+      $('cp-bar').hidden = true;
+      $('cp-info').hidden = true;
+    }
+    relayout();
     refresh();
   }
   for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => setView(b.dataset.view));
@@ -313,24 +386,14 @@ function init() {
       return;
     }
     if (schemFor === s.id && schem) return;
-    const id = s.id;
-    const ctx = {
-      get sw() { return stateOf(id).sw; },
-      get fail() { return stateOf(id).fail; },
-      set(k, v) { stateOf(id).sw[k] = v; refresh(); },
-      toggleFail(k) { const f = stateOf(id).fail; f[k] = !f[k]; refresh(); },
-      action(k, label) { s.mod.action?.(stateOf(id), k, label, env()); refresh(); },
-      onPart(pid) { selectPart(pid); },
-      reset() { states.set(id, s.mod.normal(phase)); refresh(); },
-      env,
-    };
     $('schem-panel').hidden = false;
-    schem = s.schem.mount($('schem-svg'), $('schem-panel'), ctx);
-    schemFor = id;
+    schem = s.schem.mount($('schem-svg'), $('schem-panel'), ctxFor(s.id));
+    schemFor = s.id;
   }
 
   // ── Frame loop pieces ──
   api.onFrame((dt) => {
+    cockpit?.frame(dt);
     anim.frame(dt);
     s3d.frame(dt);
     overlay.frame();
@@ -387,12 +450,13 @@ function init() {
     else if (e.key === 'Escape') { sheet.hide(); partId = null; s3d.select(null); overlay.setSelected(null); }
   });
 
+  document.body.classList.add('view-3d');
   selectSystem(null, true);
   relayout();
   api.start();
   window.__booted = true;
   // Debug handle for local development only.
-  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d, states };
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d, states, get cockpit() { return cockpit; } };
 
   if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

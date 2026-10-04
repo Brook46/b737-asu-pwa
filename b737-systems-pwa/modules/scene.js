@@ -1,8 +1,8 @@
 // scene.js — renderer, studio (grid floor, soft shadow, vignette lives in CSS),
 // camera + orbit controls, solid ↔ x-ray skin, picking, and the frame loop.
 
-import * as THREE from '../vendor/three.module.min.js?v=5';
-import { OrbitControls } from './orbit-controls.js?v=5';
+import * as THREE from '../vendor/three.module.min.js?v=6';
+import { OrbitControls } from './orbit-controls.js?v=6';
 
 const XRAY_VERT = /* glsl */`
   varying vec3 vN; varying vec3 vV;
@@ -208,8 +208,14 @@ export function createScene(canvas) {
   let down = null;
   let onPick = () => {};
   canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  // Which world the renderer draws: the airplane, or another (the cockpit).
+  let mode = 'airplane', alt = null;
+  function setMode(m, other = null) {
+    mode = m; alt = other;
+    controls.enabled = m === 'airplane';
+  }
   canvas.addEventListener('pointerup', (e) => {
-    if (!down) return;
+    if (!down || mode !== 'airplane') { down = null; return; }
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
     const quick = performance.now() - down.t < 500;
     down = null;
@@ -264,6 +270,7 @@ export function createScene(canvas) {
     applyOffset();
   }
   window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(canvas);
   resize();
 
   function tick(now) {
@@ -294,13 +301,14 @@ export function createScene(canvas) {
       if (Math.abs(xray - xrayTarget) < 0.002) xray = xrayTarget;
       applyXray();
     }
-    controls.update();
+    if (mode === 'airplane') controls.update();
     // Floor and shadow vanish when looking from below.
     const below = camera.position.y < 0.2;
     grid.visible = !below;
     catcher.visible = !below;
     for (const f of frameFns) f(dt, now);
-    renderer.render(scene, camera);
+    if (mode !== 'airplane' && alt) renderer.render(alt.scene, alt.camera);
+    else renderer.render(scene, camera);
   }
   function start() { if (running) return; running = true; last = performance.now(); requestAnimationFrame(tick); }
   function stop() { running = false; }
@@ -312,7 +320,7 @@ export function createScene(canvas) {
 
   return {
     THREE, scene, camera, renderer, controls, world, materials: solid,
-    setAirframe, setXray, applyTheme, flyTo, home, project, worldOf, pickables, setInsets,
+    setAirframe, setXray, applyTheme, flyTo, home, project, worldOf, pickables, setInsets, setMode, canvas,
     onFrame: (fn) => frameFns.push(fn),
     setPick: (fn) => { onPick = fn; },
     start, pause, resize,

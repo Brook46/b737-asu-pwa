@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=5">
+  <link rel="stylesheet" href="app.css?v=6">
 </head>
 <body>
   <div id="stage">
@@ -44,7 +44,7 @@
 
   <div class="hud hud-tr">
     <div class="seg" role="tablist" aria-label="View">
-      <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true">3D</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false">Schematic</button>
+      <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true" title="The airplane in 3D"><span class="vi">✈&#xFE0E;</span>Airplane</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false" title="System diagram and its overhead panel"><span class="vi">▦</span>Schematic</button><button class="tag tag-btn" data-view="split" role="tab" aria-selected="false" title="Airplane and schematic side by side"><span class="vi">◧</span>Split</button><button class="tag tag-btn" data-view="cockpit" role="tab" aria-selected="false" title="3D flight deck"><span class="vi">◉</span>Cockpit</button>
     </div>
     <button class="tag tag-btn" id="learn-btn" aria-label="Learn by voice and progress">🎧</button>
     <button class="tag tag-btn" id="search-btn" aria-label="Search">⌕</button>
@@ -98,10 +98,24 @@
   </div>
   <div id="quiz" class="quiz" hidden><div class="quiz-card" id="quiz-card" role="dialog" aria-label="Quiz"></div></div>
 
+  <div id="cp-bar" class="cp-bar" hidden>
+    <div class="seg" role="tablist" aria-label="Look at">
+      <button class="tag tag-btn" data-look="out">Out</button><button class="tag tag-btn" data-look="panel">Panel</button><button class="tag tag-btn" data-look="center">Center</button><button class="tag tag-btn" data-look="overhead">Overhead</button><button class="tag tag-btn" data-look="mcp">MCP</button><button class="tag tag-btn" data-look="pedestal">Pedestal</button>
+    </div>
+    <div class="cp-hint">Drag to look around · pinch to zoom · tap any switch, light or screen</div>
+  </div>
+  <div id="cp-info" class="cp-info" hidden>
+    <button class="cp-x" id="cp-info-x" aria-label="Close">✕</button>
+    <div class="cp-t" id="cp-info-t"></div>
+    <div class="cp-pos" id="cp-info-pos"></div>
+    <p id="cp-info-text"></p>
+    <button class="tag tag-btn" id="cp-info-go" hidden>Open page ›</button>
+  </div>
+
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

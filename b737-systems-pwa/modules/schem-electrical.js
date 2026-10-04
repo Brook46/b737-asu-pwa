@@ -1,7 +1,7 @@
 // schem-electrical.js — operable AC/DC/standby schematic + electrical panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=5';
-import { createOverhead } from './overhead.js?v=5';
+import { createSchematic, createPanel } from './schem-kit.js?v=6';
+import { createOverhead } from './overhead.js?v=6';
 
 const AC = '#f5a300', DC = '#7048e8', STBY = '#e03131', BAT = '#2f9e44', APUC = '#e8590c', GPU = '#1c7ed6';
 
@@ -89,6 +89,27 @@ export function mount(svgHost, panelHost, ctx) {
 
   // ── Overhead panels (layout after FCOM 6.10) ──
   const O = createOverhead(panelHost, ctx);
+  panels(O, ctx);
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('INSTRUCTOR · APU & FAILURES');
+  P.actions(P.push('APU START / STOP', () => ctx.action('apuRun', '')));
+  P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('GEN 1 trip', 'gen1'),
+    P.fail('APU fail', 'apu'), P.fail('TR 1 fail', 'tr1'), P.fail('TR 3 fail', 'tr3'));
+  P.actions(P.push('RESET TO NORMAL', ctx.reset));
+  P.note('GEN, APU GEN and GRD PWR are spring-loaded: tap the top half for OFF, the bottom half for ON. Guarded switches: lift the guard first.');
+  P.note('Try: Cruise → <b>GEN 1 trip</b> (BTBs close, GEN 2 powers both, galley/main 2 shed) → APU START → APU GEN ON. Or <b>ENG 1 + ENG 2 fail</b> to see standby on battery.');
+
+  return { update(res) { X.update(res); O.update(res); P.update(res); } };
+}
+
+/** The overhead panels for this system — drawn in the schematic view and,
+ *  as textures, in the 3D cockpit. */
+export function panels(O, ctx) {
   const ac = (r) => r.buses.xfr1 || r.buses.xfr2;
   // Electrical (metering) panel.
   const E1 = O.panel('Electrical', 238);
@@ -144,19 +165,4 @@ export function mount(svgHost, panelHost, ctx) {
   E3.toggle(182, 200, 'apu2', ['OFF', '·', 'ON'], { momentary: [0, 2] });
   E3.toggle(252, 200, 'gen2', ['OFF', '·', 'ON'], { momentary: [0, 2] });
   E3.text(48, 238, 'GEN 1', { size: 8, box: true }); E3.text(150, 238, 'APU GEN', { size: 8, box: true }); E3.text(252, 238, 'GEN 2', { size: 8, box: true });
-
-  // ── Instructor station ──
-  const ih = document.createElement('div');
-  ih.className = 'instr';
-  panelHost.append(ih);
-  const P = createPanel(ih, ctx);
-  P.title('INSTRUCTOR · APU & FAILURES');
-  P.actions(P.push('APU START / STOP', () => ctx.action('apuRun', '')));
-  P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('GEN 1 trip', 'gen1'),
-    P.fail('APU fail', 'apu'), P.fail('TR 1 fail', 'tr1'), P.fail('TR 3 fail', 'tr3'));
-  P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('GEN, APU GEN and GRD PWR are spring-loaded: tap the top half for OFF, the bottom half for ON. Guarded switches: lift the guard first.');
-  P.note('Try: Cruise → <b>GEN 1 trip</b> (BTBs close, GEN 2 powers both, galley/main 2 shed) → APU START → APU GEN ON. Or <b>ENG 1 + ENG 2 fail</b> to see standby on battery.');
-
-  return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }

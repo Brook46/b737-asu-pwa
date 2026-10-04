@@ -39,11 +39,40 @@ function defs(svg, id) {
     </filter>`;
 }
 
+// Styles live inside each SVG too, so a panel serialized into an image (the
+// 3D cockpit's textures) looks exactly like the one on the page. Image SVGs
+// can't load web fonts, so the condensed system fonts come first there.
+const FONT = "'Barlow Condensed', 'Avenir Next Condensed', 'Arial Narrow', Arial, sans-serif";
+const STYLE = `
+  .ovh-bg { fill: #6d747a; stroke: #3b4044; stroke-width: 2; }
+  .ovh-band { fill: #4f555a; }
+  .ovh-line { fill: none; stroke: #eef0f1; stroke-linejoin: round; stroke-linecap: round; }
+  .ovh-frame { fill: none; stroke: #eef0f1; stroke-width: 1.5; }
+  .ovh-labelbox { fill: #3a3f43; }
+  .ovh-t, .ovh-gl { fill: #f4f5f6; font-family: ${FONT}; font-weight: 600; letter-spacing: .05em; }
+  .ovh-needle-t { fill: #0b0c0d; font-family: ${FONT}; font-weight: 700; }
+  .ovh-lcd { fill: #eaf4ec; font-family: 'JetBrains Mono', Menlo, monospace; font-weight: 700; letter-spacing: .08em; }
+  .ovh-lamp .lens { fill: #0a0b0c; stroke: #26292c; stroke-width: 1; }
+  .ovh-lamp .legend { fill: #3f4448; font-family: ${FONT}; font-weight: 700; letter-spacing: .03em; }
+  .ovh-lamp.amber.on .lens { stroke: #ffae22; } .ovh-lamp.amber.on .legend { fill: #ffb42e; }
+  .ovh-lamp.blue.on .lens { fill: #2a6dff; stroke: #9cc0ff; } .ovh-lamp.blue.on .legend { fill: #ffffff; }
+  .ovh-lamp.blue.dim .lens { fill: #183a78; stroke: #2e4f8c; } .ovh-lamp.blue.dim .legend { fill: #a9c2f2; }
+  .ovh-lamp.green.on .lens { stroke: #46e584; } .ovh-lamp.green.on .legend { fill: #46e584; }
+  .ovh-push.down circle:last-child { fill: #3a3d40; }`;
+
 const pt = (r, deg) => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
 
+/**
+ * host: element to draw into (null → a detached container, for textures).
+ * Every interactive control is also recorded in panel.controls with its box
+ * in panel units and an act(px, py) that does what a tap there would do —
+ * the 3D cockpit uses that to operate panels drawn as textures.
+ */
 export function createOverhead(host, ctx) {
+  host = host || document.createElement('div');
   host.replaceChildren();
   const binds = [];
+  const panels = [];
   const update = (res) => { for (const b of binds) b(res); };
 
   /** Start a new panel drawing. */
@@ -54,8 +83,11 @@ export function createOverhead(host, ctx) {
     const svg = el('svg', { viewBox: `0 0 300 ${h}`, class: 'ovh', role: 'group', 'aria-label': title });
     wrap.append(svg);
     host.append(wrap);
+    svg.setAttribute('xmlns', NS);
     defs(svg, id);
+    el('style', {}, svg).textContent = STYLE;
     el('rect', { x: 0, y: 0, width: 300, height: h, rx: 4, class: 'ovh-bg' }, svg);
+    const controls = [];
     // Corner screws.
     for (const [x, y] of [[8, 8], [292, 8], [8, h - 8], [292, h - 8]]) {
       el('circle', { cx: x, cy: y, r: 3, fill: '#4b5156', stroke: '#2b2f33' }, svg);
@@ -64,7 +96,7 @@ export function createOverhead(host, ctx) {
     const layers = { base: el('g', {}, svg), lines: el('g', {}, svg), parts: el('g', {}, svg) };
 
     const P = {
-      svg,
+      svg, title, h, controls,
       band(y, hh) { el('rect', { x: 0, y, width: 300, height: hh, class: 'ovh-band' }, layers.base); },
       /** White mimic line. */
       line(points, w = 2.4) {
@@ -108,6 +140,11 @@ export function createOverhead(host, ctx) {
           if (v && v !== 'dim') r.setAttribute('filter', `url(#glow${id})`); else r.removeAttribute('filter');
         });
         if (key == null) g.classList.add('inert');
+        controls.push({
+          kind: 'lamp', name: String(legend).replace(/\n/g, ' '), about: arguments[7], inert: true,
+          x0: x, x1: x + w, y0: y, y1: y + hh, pos: () => (g.classList.contains('on') ? 'ON' : g.classList.contains('dim') ? 'DIM' : 'OFF'),
+          act() { return 'lamp'; },
+        });
         return g;
       },
       /**
@@ -147,14 +184,8 @@ export function createOverhead(host, ctx) {
           el('rect', { x: -8, y: -22, width: 16, height: 44, rx: 2, fill: 'none', stroke: 'rgba(255,255,255,.18)' }, gClosed);
           gOpen = el('g', { class: 'ovh-guard' }, inner);
           el('rect', { x: -12.5, y: -38, width: 25, height: 9, rx: 2, fill: col, stroke: edge, 'stroke-width': 1 }, gOpen);
-          gClosed.addEventListener('click', (e) => { e.stopPropagation(); guardOpen = true; paint(); });
-          gOpen.addEventListener('click', (e) => {
-            e.stopPropagation();
-            guardOpen = false;
-            // Closing the guard pushes the switch to its guarded position.
-            if (o2.guardPos != null && ctx.sw[key] !== o2.guardPos) ctx.set(key, o2.guardPos);
-            paint();
-          });
+          gClosed.addEventListener('click', (e) => { e.stopPropagation(); openGuard(); });
+          gOpen.addEventListener('click', (e) => { e.stopPropagation(); closeGuard(); });
         }
         if (o2.guard && o2.inert) {
           const col = o2.guard === 'red' ? '#c4302b' : '#1d1f21';
@@ -171,19 +202,43 @@ export function createOverhead(host, ctx) {
           lever.setAttribute('transform', i === n - 1 && !mid ? 'scale(1,-1)' : '');
           if (gClosed) { gClosed.style.display = guardOpen ? 'none' : ''; gOpen.style.display = guardOpen ? '' : 'none'; }
         };
-        if (!o2.inert) hit.addEventListener('click', (e) => {
-          const r = hit.getBoundingClientRect();
-          const up = o2.horizontal ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2;
+        function openGuard() { guardOpen = true; paint(); ctx.touched?.(); }
+        function closeGuard() {
+          guardOpen = false;
+          // Closing the guard pushes the switch to its guarded position.
+          if (o2.guardPos != null && ctx.sw[key] !== o2.guardPos) ctx.set(key, o2.guardPos);
+          paint(); ctx.touched?.();
+        }
+        function operate(up) {
           const cur = ctx.sw[key];
           const next = Math.max(0, Math.min(n - 1, cur + (up ? -1 : 1)));
           if (next === cur) return;
           if (o2.momentary?.includes(next)) {
-            thrown = next; paint();
+            thrown = next; paint(); ctx.touched?.();
             ctx.action(key, positions[next]);
-            setTimeout(() => { thrown = null; paint(); }, 260);
+            setTimeout(() => { thrown = null; paint(); ctx.touched?.(); }, 260);
             return;
           }
           ctx.set(key, next);
+        }
+        if (!o2.inert) hit.addEventListener('click', (e) => {
+          const r = hit.getBoundingClientRect();
+          operate(o2.horizontal ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2);
+        });
+        const hz = !!o2.horizontal;
+        controls.push({
+          kind: 'toggle', key, positions, name: o2.name || o2.label || key, about: o2.about, inert: !!o2.inert,
+          x0: x - (hz ? 40 : 16), x1: x + (hz ? 30 : 16), y0: y - (hz ? 16 : 40), y1: y + (hz ? 16 : 30),
+          pos: () => positions[thrown ?? (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0)],
+          guarded: () => !!(o2.guard && !o2.inert && !guardOpen),
+          act(px, py) {
+            if (o2.inert) return 'inert';
+            if (o2.guard && !guardOpen) { openGuard(); return 'guard-open'; }
+            // The lifted guard sits just beyond the switch's top (left when horizontal).
+            if (o2.guard && guardOpen && (hz ? px < x - 28 : py < y - 28)) { closeGuard(); return 'guard-closed'; }
+            operate(hz ? px < x : py < y);
+            return 'moved';
+          },
         });
         binds.push(paint);
         return g;
@@ -213,13 +268,21 @@ export function createOverhead(host, ctx) {
           P.text(x + lx, y + ly + 2.5, p, { size: 6.6 });
         });
         if (o2.name) P.text(x, y + R + (o2.nameDy ?? 16), o2.name, { size: 7.5, box: true });
-        if (!o2.inert) g.addEventListener('click', (e) => {
-          const r = g.getBoundingClientRect();
-          const left = e.clientX < r.left + r.width / 2;
+        const turn = (left) => {
           const next = Math.max(0, Math.min(positions.length - 1, (ctx.sw[key] ?? 0) + (left ? -1 : 1)));
           if (o2.action) ctx.action(key, left ? 'DEC' : 'INC'); else ctx.set(key, next);
+        };
+        if (!o2.inert) g.addEventListener('click', (e) => {
+          const r = g.getBoundingClientRect();
+          turn(e.clientX < r.left + r.width / 2);
         });
         const idx = () => (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0);
+        controls.push({
+          kind: 'knob', key, positions, name: o2.name || o2.label || key, about: o2.about, inert: !!o2.inert,
+          x0: x - R - 6, x1: x + R + 6, y0: y - R - 6, y1: y + R + 6,
+          pos: () => (o2.action ? '' : positions[idx()]),
+          act(px) { if (o2.inert) return 'inert'; turn(px < x); return 'moved'; },
+        });
         binds.push(() => { ptr.setAttribute('transform', `rotate(${o2.action ? 0 : angles[idx()] ?? 0})`); });
         return g;
       },
@@ -230,9 +293,16 @@ export function createOverhead(host, ctx) {
         el('circle', { r: 7, fill: '#0e0f10', stroke: '#000' }, g);
         if (o2.top) P.text(x, y - 14, o2.top, { size: 6.8 });
         if (o2.bottom) P.text(x, y + 19, o2.bottom, { size: 6.8 });
-        if (fn) g.addEventListener('click', () => {
-          g.classList.add('down'); setTimeout(() => g.classList.remove('down'), 160);
+        const press = () => {
+          g.classList.add('down'); ctx.touched?.();
+          setTimeout(() => { g.classList.remove('down'); ctx.touched?.(); }, 160);
           fn();
+        };
+        if (fn) g.addEventListener('click', press);
+        controls.push({
+          kind: 'push', name: o2.name || [o2.top, o2.bottom].filter(Boolean).join(' '), about: o2.about, inert: !fn,
+          x0: x - 12, x1: x + 12, y0: y - 12, y1: y + 12, pos: () => '',
+          act() { if (!fn) return 'inert'; press(); return 'pressed'; },
         });
         return g;
       },
@@ -323,8 +393,9 @@ export function createOverhead(host, ctx) {
         binds.push((res) => { t.textContent = fn(res); });
       },
     };
+    panels.push(P);
     return P;
   }
 
-  return { panel, update };
+  return { panel, update, panels };
 }

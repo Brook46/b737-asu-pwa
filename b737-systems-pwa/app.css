@@ -506,3 +506,45 @@ body.has-player .hint { display: none; }
 .qz-tools { display: flex; flex-wrap: wrap; gap: 4px; }
 .qz-next { background: #2f9e44 !important; color: #fff !important; }
 .sheet-body:has(.listen-btn) .kicker { margin-right: 170px; }
+
+/* ── Views: Airplane · Schematic · Split · Cockpit ─────────────────────── */
+.seg .vi { font-size: 13px; margin-right: 5px; opacity: .85; }
+.seg [data-view] { padding-left: 8px; padding-right: 10px; }
+/* Split: airplane left, schematic + panel right (stacked on phones). */
+body.view-split #stage { right: 50%; }
+body.view-split .schematic { left: 50%; padding-left: 8px; border-left: 1px solid #000; }
+body.view-split .schem-scroll { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 46%) minmax(0, 1fr); }
+body.view-split .schem-panel { min-height: 0; }
+body.view-split .hud-bottom { left: 25% !important; }
+@media (max-width: 760px) {
+  body.view-split #stage { right: 0; bottom: 50%; }
+  body.view-split .schematic { left: 0; top: 50%; padding-top: 8px; border-left: 0; border-top: 1px solid #000; }
+  body.view-split .hud-bottom { left: 50% !important; top: calc(50% - 64px); bottom: auto; }
+  .seg [data-view] .vi { margin-right: 0; }
+  .seg [data-view] { font-size: 0; padding: 6px 9px; }
+  .seg [data-view] .vi { font-size: 15px; }
+}
+/* Cockpit. */
+body.view-cockpit .vignette { display: none; }
+.cp-bar {
+  position: fixed; z-index: 21; top: calc(14px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+}
+.cp-bar > * { pointer-events: auto; }
+.cp-hint { font: 500 10px var(--mono); letter-spacing: .1em; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); pointer-events: none;
+  background: rgba(0,0,0,.35); padding: 3px 8px; transition: opacity 1s; }
+.cp-hint.gone { opacity: 0; }
+.cp-info {
+  position: fixed; z-index: 30; left: calc(14px + var(--safe-l)); bottom: calc(100px + var(--safe-b));
+  width: min(380px, calc(100vw - 28px)); background: var(--paper-solid); color: var(--ink);
+  border: 1px solid var(--line); box-shadow: 0 14px 40px rgba(0,0,0,.35); padding: 12px 14px;
+}
+.cp-x { position: absolute; top: 6px; right: 6px; background: none; border: 0; font-size: 16px; color: var(--ink-3); cursor: pointer; }
+.cp-t { font-weight: 700; font-size: 15px; margin-right: 22px; }
+.cp-pos { display: inline-block; margin-top: 4px; font: 600 11px var(--mono); letter-spacing: .1em; background: #1a1a1a; color: #ffb42e; padding: 3px 6px; }
+.cp-info p { margin: 8px 0; font-size: 14px; line-height: 1.45; }
+@media (max-width: 760px) {
+  .cp-bar { top: calc(96px + var(--safe-t)); max-width: 96vw; }
+  .cp-bar .seg { flex-wrap: wrap; justify-content: center; }
+  .cp-info { bottom: calc(96px + var(--safe-b)); }
+}

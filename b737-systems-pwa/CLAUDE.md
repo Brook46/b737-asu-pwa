@@ -44,6 +44,18 @@ modules/
                   returns the switch to guardPos), knobs, gauges, LCDs,
                   annunciators styled like the FCOM figures. Panel layouts
                   in schem-<id>.js follow the FCOM chapter's panel figures.
+  cockpit.js      3D flight deck (own scene; scene.setMode swaps what the
+                  renderer draws). Overhead = every system's panels(O, ctx)
+                  rendered SVG → texture; a tap maps uv → panel units →
+                  panel.controls[].act(px, py). Texture top points AFT (that
+                  is how the pilot sees the forward overhead). DUs/MCP/ISFD
+                  are canvases redrawn at 5 Hz from cockpitData() in app.js.
+  cockpit-displays.js  PFD, ND, upper/lower DU, MCP, ISFD drawing + typical
+                  engine/flight numbers per phase (illustrative)
+  cockpit-info.js "what does this do" card text: switch key → part page +
+                  its flight-deck entry; levers/screens get short notes
+  panels-extra.js the forward-overhead panels of systems not built yet —
+                  switches move, nothing simulated; replace as chapters land
   search.js       full-text index over every system/part page
   notes.js        favourites + highlights (localStorage, per device)
   speech.js       TTS (speakable() expands units/acronyms for reading aloud)
@@ -58,7 +70,8 @@ modules/
                   the 3D view follows), voice quiz (parseAnswer handles
                   letters, phonetics, spoken numbers, answer content)
   sys-<id>.js     one FCOM chapter: content + build(K) + logic
-  schem-<id>.js   that chapter's schematic + panel
+  schem-<id>.js   that chapter's schematic (mount) + export panels(O, ctx)
+                  — the overhead panels, shared by schematic and cockpit
   systems.js      the 15 FCOM chapters; ones with `mod` are built
 vendor/three.module.min.js   three r169 (MIT), vendored for offline use
 ```

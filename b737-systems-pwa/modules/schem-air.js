@@ -1,8 +1,8 @@
 // schem-air.js — operable bleed / packs / pressurisation schematic + panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=5';
-import { createOverhead } from './overhead.js?v=5';
-import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=5';
+import { createSchematic, createPanel } from './schem-kit.js?v=6';
+import { createOverhead } from './overhead.js?v=6';
+import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=6';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 
@@ -63,6 +63,25 @@ export function mount(svgHost, panelHost, ctx) {
 
   // ── Overhead panels (layout after FCOM 2.10) ──
   const O = createOverhead(panelHost, ctx);
+  panels(O, ctx);
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('INSTRUCTOR · FAILURES');
+  P.actions(P.fail('ENG 2 fail', 'eng2'), P.fail('Bleed trip 1', 'trip1'), P.fail('L pack trip', 'packL'), P.fail('Wing-body ovht L', 'wbL'),
+    P.fail('Controller 1', 'ctrl1'), P.fail('Controller 2', 'ctrl2'));
+  P.actions(P.push('RESET TO NORMAL', ctx.reset));
+  P.note('Outflow valve switch works in MAN only. Try: Cruise → <b>L pack trip</b> (the right pack goes to high flow). Both packs OFF and watch the cabin climb to the horn.');
+
+  return { update(res) { X.update(res); O.update(res); P.update(res); } };
+}
+
+/** The overhead panels for this system — drawn in the schematic view and,
+ *  as textures, in the 3D cockpit. */
+export function panels(O, ctx) {
   // Bleed air controls.
   const B = O.panel('Bleed air', 358);
   B.band(0, 40);
@@ -136,17 +155,4 @@ export function mount(svgHost, panelHost, ctx) {
   }
   T.toggle(260, 46, 'trim', ['OFF', 'ON'], { labels: 'left' });
   T.text(260, 80, 'TRIM AIR', { size: 6.5 });
-
-  // ── Instructor station ──
-  const ih = document.createElement('div');
-  ih.className = 'instr';
-  panelHost.append(ih);
-  const P = createPanel(ih, ctx);
-  P.title('INSTRUCTOR · FAILURES');
-  P.actions(P.fail('ENG 2 fail', 'eng2'), P.fail('Bleed trip 1', 'trip1'), P.fail('L pack trip', 'packL'), P.fail('Wing-body ovht L', 'wbL'),
-    P.fail('Controller 1', 'ctrl1'), P.fail('Controller 2', 'ctrl2'));
-  P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Outflow valve switch works in MAN only. Try: Cruise → <b>L pack trip</b> (the right pack goes to high flow). Both packs OFF and watch the cabin climb to the horn.');
-
-  return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }

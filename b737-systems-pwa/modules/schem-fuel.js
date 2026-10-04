@@ -1,8 +1,8 @@
 // schem-fuel.js — operable fuel schematic + fuel panel replica.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=5';
-import { createOverhead } from './overhead.js?v=5';
-import { fuelTemp } from './gauges.js?v=5';
+import { createSchematic, createPanel } from './schem-kit.js?v=6';
+import { createOverhead } from './overhead.js?v=6';
+import { fuelTemp } from './gauges.js?v=6';
 
 const F = '#d6336c', CTR = '#9c36b5', SUC = '#fab005', APUC = '#e8590c';
 
@@ -71,6 +71,42 @@ export function mount(svgHost, panelHost, ctx) {
 
   // ── Fuel control panel (layout after FCOM 12.10.1) ──
   const O = createOverhead(panelHost, ctx);
+  panels(O, ctx);
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('UPPER DU · FUEL');
+  P.row(P.readout((r) => `${r.values.m1}`, 'TANK 1'), P.readout((r) => `${r.values.c}`, 'CTR'), P.readout((r) => `${r.values.m2}`, 'TANK 2'));
+  P.row(P.readout((r) => `${r.values.total}<small>kg</small>`, 'TOTAL'));
+  P.title('INSTRUCTOR · SIMULATION');
+  P.actions(
+    P.push('TIME ×1 / ×120', () => ctx.action('rate')),
+    P.push('+700 kg IN TANK 2', () => ctx.action('imbal')),
+    P.push('EMPTY CENTER', () => ctx.action('emptyCtr')),
+  );
+  P.title('INSTRUCTOR · FAILURES');
+  P.actions(P.fail('ENG 1 fuel leak', 'leak1'), P.fail('1 FWD pump', 'p1fwd'), P.fail('CTR L pump', 'ctrL'),
+    P.fail('ENG 1 filter', 'filter1'), P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'));
+  P.actions(P.push('RESET TO NORMAL', ctx.reset));
+  P.note('CROSSFEED knob: tap its right half to open, left half to close. Try: Cruise → <b>+700 kg in tank 2</b> → IMBAL; crossfeed open, tank 1 pumps OFF, TIME ×120.');
+
+  return {
+    update(res) {
+      res.values.f1 = Math.min(1, res.values.f1);
+      res.values.f2 = Math.min(1, res.values.f2);
+      X.update(res);
+      O.update(res);
+      P.update(res);
+    },
+  };
+}
+
+/** The overhead panels for this system — drawn in the schematic view and,
+ *  as textures, in the 3D cockpit. */
+export function panels(O, ctx) {
   const F2 = O.panel('Fuel', 372);
   F2.band(0, 118);
   F2.lamp(18, 16, 56, 20, 'ENG VALVE\nCLOSED', 'engValve1', 'blue');
@@ -110,34 +146,4 @@ export function mount(svgHost, panelHost, ctx) {
   F2.text(226, 312, 'FWD', { size: 7.5, box: true }); F2.text(261, 312, 'AFT', { size: 7.5, box: true });
   F2.text(57, 364, '1', { size: 9, box: true }); F2.text(243, 364, '2', { size: 9, box: true });
   F2.text(150, 344, 'FUEL\nPUMPS', { size: 8.5, box: true });
-
-  // ── Instructor station ──
-  const ih = document.createElement('div');
-  ih.className = 'instr';
-  panelHost.append(ih);
-  const P = createPanel(ih, ctx);
-  P.title('UPPER DU · FUEL');
-  P.row(P.readout((r) => `${r.values.m1}`, 'TANK 1'), P.readout((r) => `${r.values.c}`, 'CTR'), P.readout((r) => `${r.values.m2}`, 'TANK 2'));
-  P.row(P.readout((r) => `${r.values.total}<small>kg</small>`, 'TOTAL'));
-  P.title('INSTRUCTOR · SIMULATION');
-  P.actions(
-    P.push('TIME ×1 / ×120', () => ctx.action('rate')),
-    P.push('+700 kg IN TANK 2', () => ctx.action('imbal')),
-    P.push('EMPTY CENTER', () => ctx.action('emptyCtr')),
-  );
-  P.title('INSTRUCTOR · FAILURES');
-  P.actions(P.fail('ENG 1 fuel leak', 'leak1'), P.fail('1 FWD pump', 'p1fwd'), P.fail('CTR L pump', 'ctrL'),
-    P.fail('ENG 1 filter', 'filter1'), P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'));
-  P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('CROSSFEED knob: tap its right half to open, left half to close. Try: Cruise → <b>+700 kg in tank 2</b> → IMBAL; crossfeed open, tank 1 pumps OFF, TIME ×120.');
-
-  return {
-    update(res) {
-      res.values.f1 = Math.min(1, res.values.f1);
-      res.values.f2 = Math.min(1, res.values.f2);
-      X.update(res);
-      O.update(res);
-      P.update(res);
-    },
-  };
 }
