@@ -1,9 +1,9 @@
 // schem-general.js — lights, signs, emergency lighting, doors and oxygen at
 // a glance, with the lights, signs, oxygen, door and flight deck door panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
-import { DOORS } from './sys-general.js?v=11';
+import { createSchematic, createPanel } from './schem-kit.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
+import { DOORS } from './sys-general.js?v=12';
 
 const C = '#6b7280', LT = '#fab005';
 const EXT = [['llL', 'L LANDING'], ['llR', 'R LANDING'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY TURNOFF'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLLISION'], ['wingLt', 'WING'], ['wwLt', 'WHEEL WELL']];
@@ -51,33 +51,65 @@ export function mount(svgHost, panelHost, ctx) {
 }
 
 export function panels(O, ctx) {
-  const L = O.panel('Lights', 96);
-  L.text(150, 12, 'LIGHTS', { size: 8.5 });
-  const row = [['llL', 'L LAND'], ['llR', 'R LAND'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLL'], ['wingLt', 'WING']];
-  row.forEach(([k, n], i) => L.toggle(20 + i * 33, 46, k, ['ON', 'OFF'], { name: n.replace(' TURNOFF', ' TURN'), nameBox: false, invert: true }));
-  L.toggle(282, 46, 'pos', ['STROBE', 'OFF', 'STEADY'], { name: 'POSITION', nameBox: false, labels: 'left' });
-  const C2 = O.panel('Cabin signs and equipment cooling', 130);
-  C2.text(70, 14, 'EQUIP COOLING', { size: 7.5 });
-  C2.toggle(40, 52, 'coolSup', ['NORM', 'ALTN'], { name: 'SUPPLY', nameBox: false });
-  C2.toggle(100, 52, 'coolExh', ['NORM', 'ALTN'], { name: 'EXHAUST', nameBox: false });
-  C2.lamp(24, 100, 32, 14, 'OFF', 'coolOffSup'); C2.lamp(84, 100, 32, 14, 'OFF', 'coolOffExh');
-  C2.text(210, 14, 'EMER EXIT LIGHTS', { size: 7.5 });
-  C2.lamp(240, 24, 46, 18, 'NOT\nARMED', 'exitNotArmed');
-  C2.toggle(200, 54, 'exitLt', ['OFF', 'ARMED', 'ON'], { guard: 'black', guardPos: 1 });
-  C2.toggle(170, 108, 'smoke', ['OFF', 'AUTO', 'ON'], { horizontal: true, name: 'NO SMOKING' });
-  C2.toggle(250, 108, 'belts', ['OFF', 'AUTO', 'ON'], { horizontal: true, name: 'FASTEN BELTS' });
-  const X = O.panel('Oxygen', 80);
-  X.dial(60, 42, 26, {
-    scales: [{ pts: [[0, -135], [2000, 135]], ticks: [0, 500, 1000, 1500, 2000].map((v) => [v, 0.2, 1.3]), labels: [[0, '0'], [1000, '10'], [2000, '20']], lr: 0.6, lfs: 7 }],
-    texts: [[0, 0.5, 'CREW OXY\nPSI ×100', 5]], hub: 0.18,
+  // Exterior lights, two groups along the front of the overhead; OFF is up.
+  const L = O.panel('Lights L', 88);
+  L.text(76, 12, 'LANDING', { size: 7 });
+  L.toggle(52, 40, 'llL', ['OFF', 'ON'], { name: 'L', nameBox: false });
+  L.toggle(100, 40, 'llR', ['OFF', 'ON'], { name: 'R', nameBox: false });
+  L.text(76, 84, 'FIXED', { size: 6 });
+  L.text(186, 12, 'RUNWAY\nTURNOFF', { size: 6.5 });
+  L.toggle(166, 44, 'rtoL', ['OFF', 'ON'], { name: 'L', nameBox: false });
+  L.toggle(206, 44, 'rtoR', ['OFF', 'ON'], { name: 'R', nameBox: false });
+  L.text(262, 12, 'TAXI', { size: 7 });
+  L.toggle(262, 44, 'taxi', ['OFF', 'ON'], {});
+  const R = O.panel('Lights R', 88);
+  R.text(36, 12, 'LOGO', { size: 6.5 });
+  R.toggle(36, 44, 'logo', ['OFF', 'ON'], {});
+  R.text(100, 12, 'POSITION', { size: 6.5 });
+  R.toggle(100, 50, 'pos', ['STROBE & STEADY', 'OFF', 'STEADY'], { noLabels: true });
+  R.text(126, 30, 'STROBE &\nSTEADY', { size: 5.5 }); R.text(122, 54, 'OFF', { size: 5.5 }); R.text(126, 72, 'STEADY', { size: 5.5 });
+  R.text(170, 12, 'ANTI\nCOLLISION', { size: 6 });
+  R.toggle(170, 46, 'beacon', ['OFF', 'ON'], {});
+  R.text(220, 12, 'WING', { size: 6.5 });
+  R.toggle(220, 44, 'wingLt', ['OFF', 'ON'], {});
+  R.text(268, 12, 'WHEEL\nWELL', { size: 6 });
+  R.toggle(268, 46, 'wwLt', ['OFF', 'ON'], {});
+
+  // Equipment cooling (centre column of the overhead).
+  const Q = O.panel('Equipment cooling', 80);
+  Q.text(150, 12, 'EQUIP COOLING', { size: 7.5 });
+  Q.toggle(100, 40, 'coolSup', ['NORMAL', 'ALTERNATE'], { labels: 'left' });
+  Q.toggle(200, 40, 'coolExh', ['NORMAL', 'ALTERNATE'], {});
+  Q.text(100, 76, 'SUPPLY', { size: 6 }); Q.text(200, 76, 'EXHAUST', { size: 6 });
+  Q.lamp(126, 30, 22, 12, 'OFF', 'coolOffSup'); Q.lamp(152, 30, 22, 12, 'OFF', 'coolOffExh');
+
+  // Emergency exit lights and passenger signs.
+  const E = O.panel('Cabin signs and equipment cooling', 104);
+  E.text(150, 12, 'EMER EXIT LIGHTS', { size: 7.5 });
+  E.lamp(104, 20, 14, 38, 'N\nO\nT\n\nA\nR\nM\nE\nD', 'exitNotArmed');
+  E.toggle(150, 40, 'exitLt', ['OFF', 'ARMED', 'ON'], { guard: 'black', guardPos: 1 });
+  E.text(120, 72, 'NO\nSMOKING', { size: 6 }); E.text(180, 72, 'FASTEN\nBELTS', { size: 6 });
+  E.toggle(120, 92, 'smoke', ['OFF', 'AUTO', 'ON'], { labels: 'left' });
+  E.toggle(180, 92, 'belts', ['OFF', 'AUTO', 'ON'], {});
+  const X = O.panel('Oxygen', 84);
+  X.text(60, 10, 'CREW OXYGEN', { size: 6.5 }); X.text(230, 10, 'PASS OXYGEN', { size: 6.5 });
+  X.dial(60, 46, 26, {
+    scales: [{ pts: [[0, -135], [2000, 135]], ticks: [0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000].map((v) => [v, v % 500 ? 0.1 : 0.2, v % 500 ? 0.8 : 1.3]),
+      labels: [[0, '0'], [500, '5'], [1000, '10'], [1500, '15'], [2000, '20']], lr: 0.62, lfs: 6.5 }],
+    texts: [[0, 0.78, 'OXY PRESS PSI x 100', 3.8]], hub: 0.18,
     needles: [{ fn: (r) => r.values.crewOxy, len: 0.8, w: 2 }],
   });
   X.lamp(130, 12, 60, 22, 'PASS OXY\nON', 'passOxyOn');
-  X.toggle(240, 44, 'passOxy', ['NORMAL', 'ON'], { guard: 'red', guardPos: 0, name: 'PASS OXYGEN', nameBox: false, labels: 'left' });
-  const D = O.panel('Door lights', 86);
-  D.text(150, 10, 'DOORS', { size: 8 });
-  DOORS.forEach(([k, n], i) => D.lamp(10 + (i % 4) * 72, 18 + Math.floor(i / 4) * 22, 66, 18, n.replace(' ', '\n'), 'door_' + k));
-  D.lamp(10, 64, 66, 16, 'L OVERWING', 'overwingL'); D.lamp(82, 64, 66, 16, 'R OVERWING', 'overwingR');
+  X.toggle(240, 46, 'passOxy', ['NORMAL', 'ON'], { guard: 'red', guardPos: 0, labels: 'left' });
+  // Door lights, laid out like the airplane (forward at the top).
+  const D = O.panel('Door lights', 96);
+  const dl = (x, y, label, key) => D.lamp(x, y, 50, 18, label, key);
+  dl(100, 8, 'FWD\nENTRY', 'door_fwdEntry'); dl(152, 8, 'FWD\nSERVICE', 'door_fwdSvc');
+  D.lamp(40, 30, 40, 18, 'INOP', null, 'white');
+  dl(100, 30, 'LEFT FWD\nOVERWING', 'overwingL'); dl(152, 30, 'RIGHT FWD\nOVERWING', 'overwingR'); dl(204, 30, 'FWD\nCARGO', 'door_fwdCargo');
+  dl(40, 52, 'EQUIP', 'door_equip');
+  dl(100, 52, 'LEFT AFT\nOVERWING', 'overwingL'); dl(152, 52, 'RIGHT AFT\nOVERWING', 'overwingR'); dl(204, 52, 'AFT\nCARGO', 'door_aftCargo');
+  dl(100, 74, 'AFT\nENTRY', 'door_aftEntry'); dl(152, 74, 'AFT\nSERVICE', 'door_aftSvc');
   const F = O.panel('Flight deck door', 50);
   F.lamp(14, 14, 56, 22, 'LOCK\nFAIL', 'lockFail');
   F.lamp(80, 14, 56, 22, 'AUTO\nUNLK', 'autoUnlk');

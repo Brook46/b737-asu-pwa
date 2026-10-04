@@ -1,9 +1,9 @@
 // schem-flightcontrols.js — high-lift / speedbrake / primary-surface power
 // schematic, with the flap & speedbrake panel and stab trim cutouts.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
-import { DETENTS } from './sys-flightcontrols.js?v=11';
+import { createSchematic, createPanel } from './schem-kit.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
+import { DETENTS } from './sys-flightcontrols.js?v=12';
 
 const C = '#3a86ff', B = '#12a874', A = '#2f7cf6', S = '#f2711c', DRV = '#fab005', EL = '#f5a300';
 
@@ -83,8 +83,16 @@ export function panels(O, ctx) {
   });
   F.knob(70, 150, 'flap', DETENTS.map((v) => (v ? String(v) : 'UP')), [-120, -90, -60, -30, 0, 30, 60, 90, 120], { name: 'FLAP LEVER', r: 14 });
   F.knob(230, 150, 'sb', ['DOWN', 'ARMED', 'FLT DET', 'UP'], [-75, -25, 25, 75], { name: 'SPEED BRAKE', r: 14 });
-  const T = O.panel('Stabilizer trim', 86);
-  T.text(150, 14, 'STAB TRIM', { size: 8.5 });
-  T.toggle(80, 50, 'stabMain', ['NORMAL', 'CUTOUT'], { guard: 'red', guardPos: 0, name: 'MAIN ELECT', nameBox: false });
-  T.toggle(220, 50, 'stabAp', ['NORMAL', 'CUTOUT'], { guard: 'red', guardPos: 0, name: 'AUTOPILOT', nameBox: false, labels: 'left' });
+  // STAB TRIM cutout switches: a black control-stand panel, both guarded.
+  const T = O.panel('Stabilizer trim', 70, { bg: '#17191b' });
+  T.text(150, 13, 'STAB TRIM', { size: 8 });
+  T.toggle(110, 42, 'stabMain', ['NORMAL', 'CUT OUT'], { guard: 'red', guardPos: 0, labels: 'left' });
+  T.toggle(190, 42, 'stabAp', ['NORMAL', 'CUT OUT'], { guard: 'red', guardPos: 0 });
+  T.text(110, 64, 'MAIN ELECT', { size: 6 }); T.text(190, 64, 'AUTO PILOT', { size: 6 });
+  // Speedbrake lights: ARMED / DO NOT ARM (captain), EXTENDED (first officer).
+  const SL = O.panel('Speedbrake lights L', 26);
+  SL.lamp(20, 4, 120, 18, 'SPEED BRAKE\nARMED', 'sbArmed', 'green');
+  SL.lamp(160, 4, 120, 18, 'SPEED BRAKE\nDO NOT ARM', 'sbDoNotArm');
+  const SR = O.panel('Speedbrake lights R', 26);
+  SR.lamp(90, 4, 120, 18, 'SPEEDBRAKES\nEXTENDED', 'sbExtended');
 }

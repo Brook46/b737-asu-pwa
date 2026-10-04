@@ -177,6 +177,26 @@ overwing exits to the wing (FCOM 1.40). Driven by `setDoors()` +
 `doorsFrame(dt)` from app.js: General's door state, the Show menu
 (Doors open / Evacuation) and the Doors page.
 
+## Panels true to the airplane
+
+Panel layouts follow the FCOM controls figures (Rev 57) and the chapter 1
+panel-arrangement figures (1.20.24–1.20.33): forward overhead in five columns
+with the lights / ENGINE START row at the front; centre forward panel strip
+(N1 SET, SPD REF, FUEL FLOW, MFD, AUTO BRAKE, flap gauge, LE FLAPS); gear
+lights over the 3D gear lever; HYD BRAKE PRESS on the F/O panel; A/P-A/T-FMC
+lights, speedbrake lights and display select across the top of each forward
+panel; parking brake and STAB TRIM cutouts on the control stand; fire panel
+and cargo fire on the aft electronic panel. Placement is in cockpit.js
+(`onMip`, `AFT`, `COLUMNS`, `FRONT_ROW`). Exterior light switches: OFF up.
+Kit extras in overhead.js: `knob({grey})`, `fireHandle()`, `placard()`,
+`panel(..., {bg})`, `toggle({noLabels})`.
+
+## Voice
+
+speech.js ranks installed voices (Premium / Natural / Enhanced first, novelty
+voices never) and the Learn page has a voice picker with a sample; iOS users
+are told to download a Premium voice when only basic ones exist.
+
 ## Toolbar
 
 Views on top; then tools (QRH · Learn · Search · Saved) and display (Show ▾ ·

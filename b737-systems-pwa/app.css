@@ -648,3 +648,9 @@ body.view-cockpit .vignette { display: none; }
   body:is(.view-3d, .view-split) .vc:hover { opacity: 1; }
   body.show-open .hud-tr > * { opacity: 1 !important; }
 }
+
+/* Learn: voice picker */
+.lp-voice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.lp-voice label { font: 600 13px/1 var(--sans); display: flex; align-items: center; gap: 6px; }
+.lp-voice select { font: 13px var(--sans); padding: 4px 6px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-solid); color: var(--ink); max-width: 260px; }
+.lp-voice .note-src { flex-basis: 100%; margin: 2px 0 0; }

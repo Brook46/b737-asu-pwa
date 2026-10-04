@@ -2,9 +2,9 @@
 // warnings and the GPWS / TCAS alerts; glareshield annunciators, GPWS panel,
 // transponder and the aft overhead warning tests.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
-import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=11';
+import { createSchematic, createPanel } from './schem-kit.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
+import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=12';
 
 const C = '#e85d04', AMB = '#fab005', RED = '#e03131';
 
@@ -78,7 +78,8 @@ export function panels(O, ctx) {
     A.lamp(mx, 8, 58, 46, 'MASTER\nCAUTION', 'master', 'amber', 'warnings', () => ctx.action('mc'));
     const six = SIXPACK.filter((s) => s[1] === side);
     six.forEach(([label], i) => {
-      const x = (sx ? 10 : 138) + (i % 2) * 76, y = 8 + Math.floor(i / 2) * 16;
+      // Column by column, as on the glareshield: FLT CONT / IRS / FUEL, then ELEC / APU / OVHT·DET.
+      const x = (sx ? 10 : 138) + Math.floor(i / 3) * 76, y = 8 + (i % 3) * 16;
       A.lamp(x, y, 72, 14, label, 'sp_' + label, 'amber', 'warnings', () => ctx.action('recall'));
     });
   }

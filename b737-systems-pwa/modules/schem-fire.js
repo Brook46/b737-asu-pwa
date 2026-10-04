@@ -1,8 +1,8 @@
 // schem-fire.js — fire detection / extinguishing schematic + the fire
 // protection panel (aft pedestal) and the cargo fire panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
+import { createSchematic, createPanel } from './schem-kit.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
 
 const R = '#d62828', DET = '#ff8787', AG = '#dee2e6';
 
@@ -52,36 +52,53 @@ export function mount(svgHost, panelHost, ctx) {
 
 /** Fire protection panel (aft pedestal) and cargo fire panel. */
 export function panels(O, ctx) {
-  const F = O.panel('Fire protection', 250);
-  F.lamp(118, 8, 64, 22, 'FIRE WARN', 'fireWarn', 'red');
-  F.push(206, 19, () => ctx.action('bell'), { name: 'BELL CUTOUT' });
-  F.text(150, 44, 'OVHT DET', { size: 7 });
-  F.toggle(40, 66, 'ovht1', ['A', 'NORMAL', 'B'], { horizontal: true, name: '1' });
-  F.toggle(260, 66, 'ovht2', ['A', 'NORMAL', 'B'], { horizontal: true, name: '2' });
-  F.lamp(96, 52, 50, 16, 'ENG 1\nOVERHEAT', 'engOvht1');
-  F.lamp(154, 52, 50, 16, 'ENG 2\nOVERHEAT', 'engOvht2');
-  F.lamp(96, 72, 50, 14, 'FAULT', 'fault');
-  F.lamp(154, 72, 50, 14, 'APU DET\nINOP', 'apuDetInop');
-  // Fire switches: a lit red handle, pull it, then rotate for L or R bottle.
-  for (const [k, x, label] of [['1', 52, 'ENG 1'], ['Apu', 150, 'APU'], ['2', 248, 'ENG 2']]) {
-    F.lamp(x - 30, 102, 60, 30, label, `fsw${k}`, 'red');
-    F.toggle(x - 14, 168, `pull${k}`, ['IN', 'PULLED'], { labels: 'left' });
-    F.knob(x + 18, 168, `rot${k}`, ['L', 'R'], [-45, 45], { action: true, r: 10, noLabels: true });
-    F.text(x + 18, 192, 'L  ·  R', { size: 6 });
+  // Overheat / fire protection panel (aft electronic panel), laid out as on
+  // the airplane: OVHT DET + overheat light, handle 1, the centre lights,
+  // APU handle, BELL CUTOUT, OVHT DET 2, handle 2, bottle lights + EXT TEST.
+  const F = O.panel('Fire protection', 122);
+  F.text(30, 10, 'OVHT DET', { size: 6 });
+  F.toggle(30, 36, 'ovht1', ['A', 'NORMAL', 'B'], { horizontal: true });
+  F.lamp(8, 52, 44, 18, 'ENG 1\nOVERHEAT', 'engOvht1');
+  F.text(30, 80, 'TEST', { size: 5.5 });
+  F.toggle(30, 104, 'test', ['FAULT\nINOP', '', 'OVHT\nFIRE'], { horizontal: true, momentary: [0, 2] });
+  for (const [k, x, label] of [['1', 60, '1'], ['Apu', 137, 'APU'], ['2', 212, '2']]) {
+    F.text(x + 15, 13, '↶ DISCH ↷', { size: 5.2 });
+    F.fireHandle(x, 20, 30, 78, { label, pullKey: `pull${k}`, rotKey: `rot${k}`, lamp: `fsw${k}`, name: `${label === 'APU' ? 'APU' : 'Engine ' + label} fire switch` });
   }
-  F.lamp(20, 210, 60, 16, 'L BOTTLE\nDISCHARGED', 'botL');
-  F.lamp(120, 210, 60, 16, 'APU BOTTLE\nDISCHARGE', 'botApu');
-  F.lamp(220, 210, 60, 16, 'R BOTTLE\nDISCHARGED', 'botR');
-  F.lamp(124, 230, 52, 14, 'WHEEL WELL', 'wheelWell', 'red');
-  F.toggle(40, 236, 'test', ['FAULT/INOP', '·', 'OVHT/FIRE'], { horizontal: true });
-  F.toggle(260, 236, 'ext', ['1', '·', '2'], { horizontal: true, name: 'EXT TEST' });
+  F.text(152, 114, 'PULL · ROTATE', { size: 5 });
+  F.lamp(96, 8, 37, 14, 'WHEEL\nWELL', 'wheelWell', 'red');
+  F.lamp(96, 25, 37, 12, 'FAULT', 'fault');
+  F.lamp(96, 40, 37, 14, 'APU DET\nINOP', 'apuDetInop');
+  F.lamp(96, 57, 37, 18, 'APU BOTTLE\nDISCHARGED', 'botApu');
+  F.push(186, 20, () => ctx.action('bell'), { top: 'BELL CUTOUT', name: 'BELL CUTOUT' });
+  F.text(188, 42, 'OVHT DET', { size: 6 });
+  F.toggle(188, 68, 'ovht2', ['A', 'NORMAL', 'B'], { horizontal: true });
+  F.lamp(169, 84, 38, 18, 'ENG 2\nOVERHEAT', 'engOvht2');
+  F.lamp(246, 8, 25, 22, 'L BOTTLE\nDISCHARGED', 'botL');
+  F.lamp(273, 8, 25, 22, 'R BOTTLE\nDISCHARGED', 'botR');
+  F.text(272, 44, 'EXT TEST', { size: 6 });
+  F.toggle(272, 62, 'ext', ['1', '', '2'], { horizontal: true, momentary: [0, 2] });
+  for (const [x, y] of [[256, 84], [280, 84], [268, 98]]) F.lamp(x - 5, y - 5, 10, 10, '', 'extTest', 'green');
 
-  const C = O.panel('Cargo fire', 96);
-  C.text(150, 14, 'CARGO FIRE', { size: 8.5 });
-  C.lamp(40, 24, 50, 22, 'FWD', 'cargoFwd', 'red');
-  C.lamp(210, 24, 50, 22, 'AFT', 'cargoAft', 'red');
-  C.toggle(65, 70, 'armFwd', ['NORM', 'ARMED']);
-  C.toggle(235, 70, 'armAft', ['NORM', 'ARMED'], { labels: 'left' });
-  C.lamp(122, 30, 56, 18, 'DISCH', 'cargoDisch');
-  C.push(150, 70, () => ctx.action('cargoDisch'), { bottom: 'DISCH' });
+  // Cargo fire panel.
+  const C = O.panel('Cargo fire', 84);
+  C.text(10, 24, 'C\nA\nR\nG\nO', { size: 6 });
+  C.text(46, 12, 'EXT', { size: 6.5 });
+  C.text(36, 21, 'FWD', { size: 5.5 }); C.text(56, 21, 'AFT', { size: 5.5 });
+  C.lamp(30, 25, 12, 12, '', 'extTest', 'green'); C.lamp(50, 25, 12, 12, '', 'extTest', 'green');
+  C.push(46, 60, () => ctx.action('cargoTest'), { top: 'TEST', name: 'Cargo fire TEST' });
+  C.text(126, 8, 'DET SELECT', { size: 6 });
+  C.knob(104, 38, 'detSel', ['A', 'NORM', 'B'], [-45, 0, 45], { grey: true, r: 9, name: 'FWD', nameDy: 10 });
+  C.knob(148, 38, 'detSelAft', ['A', 'NORM', 'B'], [-45, 0, 45], { grey: true, r: 9, name: 'AFT', nameDy: 10 });
+  C.text(126, 64, 'ARM', { size: 6 });
+  for (const [x, k, fire, lab] of [[90, 'armFwd', 'cargoFwd', 'FWD'], [136, 'armAft', 'cargoAft', 'AFT']]) {
+    const tog = () => ctx.set(k, ctx.sw[k] ? 0 : 1);
+    C.lamp(x, 68, 36, 7, 'ARMED', () => !!ctx.sw[k], 'white', 'fire', tog);
+    C.lamp(x, 75, 36, 7, lab, fire, 'red', 'fire', tog);
+  }
+  C.lamp(190, 12, 46, 20, 'DETECTOR\nFAULT', null);
+  C.text(262, 12, 'DISCH', { size: 6.5 });
+  C.frame(240, 20, 44, 50, '');
+  C.lamp(246, 48, 32, 16, 'DISCH', 'cargoDisch', 'amber', 'fire', () => ctx.action('cargoDisch'));
+  C.text(292, 30, 'F\nI\nR\nE', { size: 6 });
 }

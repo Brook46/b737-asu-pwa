@@ -99,6 +99,7 @@ const NOTES = {
   'No. 2 window handle': 'Opens the sliding No. 2 window — also an emergency exit for the flight crew, with an escape strap stowed above it.',
   'Standby magnetic compass': 'Liquid-damped compass with its correction card nearby; the last-resort heading reference (check the ISFD heading against it).',
   'P18 circuit breaker panel': 'Circuit breakers behind the captain. A tripped breaker is only reset on the ground after maintenance has said it is safe (FCOM NP.11).',
+  'Clock': 'Flight deck clock: UTC time (set from GPS or by hand), date or elapsed time, and a chronograph with the sweep second hand.',
   'Flight deck door': 'Bullet- and intrusion-resistant; locked whenever it is closed with power on. The lock selector (UNLKD · AUTO · DENY) is on the aft pedestal — see Airplane General.',
   'P6 circuit breaker panel': 'Circuit breakers behind the first officer. A tripped breaker is only reset on the ground after maintenance has said it is safe (FCOM NP.11).',
   'Captain PFD': 'Primary flight display: attitude, speed and altitude tapes, heading, and the flight mode annunciations along the top.',

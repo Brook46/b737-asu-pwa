@@ -1,8 +1,8 @@
 // schem-engines.js — engine start / APU schematic, with the ENGINE START,
 // APU and engine (EEC) panels and the start levers.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
+import { createSchematic, createPanel } from './schem-kit.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#f5a300', APUC = '#e8590c';
 
@@ -66,22 +66,27 @@ export function mount(svgHost, panelHost, ctx) {
 
 /** ENGINE START, APU, engine (EEC) panels and the start levers. */
 export function panels(O, ctx) {
-  const S = O.panel('Engine start', 120);
+  // ENGINE START: light-grey bar selectors, ignition select between them.
+  const S = O.panel('Engine start', 104);
   S.text(150, 16, 'ENGINE START', { size: 8.5 });
-  S.knob(66, 62, 'start1', ['GRD', 'AUTO', 'CONT', 'FLT'], [-75, -25, 25, 75], { name: '1' });
-  S.knob(234, 62, 'start2', ['GRD', 'AUTO', 'CONT', 'FLT'], [-75, -25, 25, 75], { name: '2' });
-  S.toggle(150, 72, 'ign', ['IGN L', 'BOTH', 'IGN R'], { horizontal: true, name: 'IGNITION' });
+  S.knob(66, 58, 'start1', ['GRD', 'AUTO', 'CONT', 'FLT'], [-60, -20, 20, 60], { grey: true, r: 15, name: '1', nameDy: 22 });
+  S.knob(234, 58, 'start2', ['GRD', 'AUTO', 'CONT', 'FLT'], [-60, -20, 20, 60], { grey: true, r: 15, name: '2', nameDy: 22 });
+  S.toggle(150, 62, 'ign', ['IGN L', 'BOTH', 'IGN R'], { horizontal: true });
 
-  const A = O.panel('APU', 120);
-  A.lamp(16, 14, 44, 18, 'MAINT', 'apuMaint', 'blue');
-  A.lamp(16, 36, 44, 18, 'LOW OIL\nPRESSURE', 'apuLowOil');
-  A.lamp(64, 14, 44, 18, 'FAULT', 'apuFault');
-  A.lamp(64, 36, 44, 18, 'OVER\nSPEED', 'apuOverspeed');
-  A.dial(176, 52, 30, {
-    scales: [{ pts: [[0, -135], [10, 135]], ticks: [0, 2, 4, 6, 8, 10].map((v) => [v, 0.18, 1.2]), labels: [[0, '0'], [5, '5'], [10, '10']], lr: 0.6, lfs: 8 }],
-    texts: [[0, 0.45, 'APU EGT', 5.5], [0, 0.62, '°C X 100', 4.6]], needles: [{ fn: (r) => r.values.apuEgt / 100, len: 0.8, w: 2 }],
+  // APU: four lights in a row, EGT gauge (0 lower right, clockwise to 10 at
+  // the top), and the OFF / ON / START switch (START spring-loaded to ON).
+  const A = O.panel('APU', 118);
+  A.text(150, 12, 'APU', { size: 8 });
+  A.lamp(46, 18, 50, 18, 'MAINT', 'apuMaint', 'blue');
+  A.lamp(98, 18, 50, 18, 'LOW OIL\nPRESSURE', 'apuLowOil');
+  A.lamp(150, 18, 50, 18, 'FAULT', 'apuFault');
+  A.lamp(202, 18, 50, 18, 'OVER\nSPEED', 'apuOverspeed');
+  A.dial(110, 76, 30, {
+    scales: [{ pts: [[0, 125], [10, 360]], ticks: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => [v, v % 2 ? 0.1 : 0.18, v % 2 ? 0.8 : 1.3]),
+      labels: [[0, '0'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], lr: 0.64, lfs: 7.5 }],
+    texts: [[-0.05, 0.42, 'EGT', 6]], hub: 0.22, needles: [{ fn: (r) => r.values.apuEgt / 100, len: 0.82, w: 2.4 }],
   });
-  A.knob(256, 58, 'apu', ['OFF', 'ON', 'START'], [-50, 0, 50], { name: 'APU', momentary: [2] });
+  A.toggle(212, 78, 'apu', ['OFF', 'ON', 'START'], { momentary: [2], name: 'APU', nameBox: false });
 
   const E = O.panel('Engine panel', 104);
   E.text(150, 14, 'ENGINE', { size: 8.5 });

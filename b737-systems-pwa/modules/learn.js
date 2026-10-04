@@ -7,9 +7,9 @@
 //   • Voice quiz: questions read aloud; answer by voice ("B", "bravo", or the
 //     answer itself) or by tapping. Spoken feedback, then the next question.
 
-import { tts, stt, speakable } from './speech.js?v=11';
-import { QUESTIONS } from './quizbank.js?v=11';
-import { createReader, sentencesOf } from './reader.js?v=11';
+import { tts, stt, speakable } from './speech.js?v=12';
+import { QUESTIONS } from './quizbank.js?v=12';
+import { createReader, sentencesOf } from './reader.js?v=12';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const plain = (s) => String(s).replace(/\*\*/g, '');
@@ -91,6 +91,20 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
   const keysOf = (s) => [s.id, ...s.mod.parts.map((p) => `${s.id}/${p.id}`)];
   const allKeys = () => systems.flatMap(keysOf);
   // ── Dashboard ──
+  /** Voice picker: best voices first, with a sample. */
+  function voiceBox() {
+    if (!tts.supported) return '';
+    const vs = tts.voices().slice(0, 14), cur = tts.voiceName;
+    const ios = /iPhone|iPad|Macintosh/.test(navigator.userAgent);
+    return `<div class="lp-voice">
+      <label>Voice <select data-voice>${vs.map((v) => `<option value="${esc(v.name)}" ${v.name === cur ? 'selected' : ''}>${esc(v.name)}${v.good ? ' ★' : ''} · ${esc(v.lang)}</option>`).join('')}</select></label>
+      <button class="tag tag-btn" data-act="sample">▶ Hear it</button>
+      ${tts.onlyBasic ? `<p class="note-src">Only basic voices are installed. For a much more natural voice ${ios
+        ? 'on iPhone / iPad / Mac: Settings → Accessibility → Spoken Content (or Live Speech) → Voices → English → download e.g. <b>Ava (Premium)</b> or <b>Zoe (Premium)</b>, then reopen the app.'
+        : 'install a Natural / Premium English voice in your system\'s speech settings, or use Chrome / Edge, which bring online voices.'}</p>` : '<p class="note-src">★ = natural-sounding voice.</p>'}
+    </div>`;
+  }
+
   function dashboard() {
     const tot = progress.summary(allKeys());
     const acc = tot.answered ? Math.round((100 * tot.correct) / tot.answered) : null;
@@ -102,6 +116,7 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
       <div class="lp-big"><b>${tot.pct}%</b> learned <span>${tot.learned} of ${tot.total} pages${acc != null ? ` · quiz ${acc}% right (${tot.answered} answers)` : ''}</span></div>
       ${bar(tot)}
       <div class="lp-legend">${['learned', 'review', 'learning', 'seen', 'new'].map((k) => `<span><i class="dot st-${k}"></i>${ST_LABEL[k]} ${tot[k]}</span>`).join('')}</div>
+      ${voiceBox()}
       <div class="lp-actions">
         <button class="tag tag-btn lp-main" data-act="continue">▶ Continue — listen to what you haven't learned</button>
         <button class="tag tag-btn lp-main" data-act="quiz">🎤 Voice quiz · 10 questions</button>
@@ -131,6 +146,10 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
     const keys = keysOf(systems.find((x) => x.id === sid));
     return keys.slice(Math.max(0, keys.indexOf(key)));
   };
+  els.body.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-voice]');
+    if (sel) { tts.setVoice(sel.value); tts.cancel(); tts.speak('This is the voice for your lessons.'); }
+  });
   els.body.addEventListener('click', (e) => {
     const l = e.target.closest('[data-listen]');
     if (l && sheet.key) { playKeys(fromHere(sheet.key)); return; }
@@ -142,6 +161,7 @@ export function createLearn({ systems, progress, describe, goTo, sheet, els }) {
     const b = e.target.closest('[data-act]');
     if (!b || sheet.key !== 'learn') return;
     if (b.dataset.act === 'listen-from') { playKeys(fromHere(b.dataset.key)); return; }
+    if (b.dataset.act === 'sample') { tts.cancel(); tts.speak('Hydraulic system B powers the trailing edge flaps. If it is lost, use alternate flaps — slow, electric, and extend only.'); return; }
     const sys = b.dataset.sys || null;
     if (b.dataset.act === 'listen') playKeys(keysOf(systems.find((s) => s.id === sys)));
     else if (b.dataset.act === 'continue') {

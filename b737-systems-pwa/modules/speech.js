@@ -5,16 +5,32 @@
 
 const synth = window.speechSynthesis;
 let voice = null;
-let rate = 1;
-try { rate = Number(localStorage.getItem('b737i.rate')) || 1; } catch { /* default */ }
+let chosen = null;           // name the user picked, if any
+let rate = 0.95;
+try {
+  rate = Number(localStorage.getItem('b737i.rate')) || 0.95;
+  chosen = localStorage.getItem('b737i.voice') || null;
+} catch { /* defaults */ }
 
+// Robotic / novelty voices that should never be picked automatically.
+const NOVELTY = /Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Junior|Organ|Trinoids|Whisper|Zarvox|Ralph|Fred|Kathy|Princess|Superstar|Jester|Wobble|Rocko|Shelley|Grandma|Grandpa|Eddy|Flo|Reed|Sandy/i;
+/** How natural a voice is likely to sound (higher is better). */
+function score(v) {
+  let s = 0;
+  if (!/^en[-_]/i.test(v.lang)) return -100;
+  if (NOVELTY.test(v.name)) return -50;
+  if (/premium/i.test(v.name)) s += 60;                     // Apple Premium (neural)
+  if (/natural|neural/i.test(v.name)) s += 55;              // Edge / Windows natural voices
+  if (/enhanced/i.test(v.name)) s += 40;                    // Apple Enhanced
+  if (/^Google/i.test(v.name)) s += 30;                     // Chrome's online voices
+  if (/Ava|Zoe|Evan|Nathan|Joelle|Noelle|Samantha|Allison|Susan|Tom|Serena|Daniel|Kate|Oliver|Karen|Lee|Moira|Tessa|Aria|Jenny|Guy|Sonia|Ryan|Libby/i.test(v.name)) s += 15;
+  if (/en[-_](US|GB)/i.test(v.lang)) s += 5;
+  if (v.localService === false) s += 3;                     // cloud voices tend to be smoother
+  return s;
+}
 function pickVoice() {
-  const vs = synth?.getVoices() || [];
-  const en = vs.filter((v) => /^en[-_]/i.test(v.lang));
-  // Prefer the higher-quality voices iOS / macOS ship, then any en-US.
-  voice = en.find((v) => /premium|enhanced|natural|neural/i.test(v.name) && /en[-_]US/i.test(v.lang))
-    || en.find((v) => /Samantha|Ava|Allison|Susan|Daniel|Karen/i.test(v.name))
-    || en.find((v) => /en[-_]US/i.test(v.lang)) || en[0] || null;
+  const vs = (synth?.getVoices() || []).filter((v) => /^en[-_]/i.test(v.lang));
+  voice = (chosen && vs.find((v) => v.name === chosen)) || [...vs].sort((a, b) => score(b) - score(a))[0] || null;
 }
 if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
 
@@ -31,16 +47,30 @@ export function speakable(s) {
     .replace(/ft\/min/g, 'feet per minute').replace(/(\d)\s*ft\b/g, '$1 feet').replace(/(\d)\s*kt\b/g, '$1 knots').replace(/(\d)\s*V\b/g, '$1 volts')
     .replace(/(\d)\s*Hz\b/g, '$1 hertz').replace(/(\d)\s*min\b/g, '$1 minutes').replace(/(\d)\s*l\b/g, '$1 litres')
     .replace(/(\d)\s*%/g, '$1 percent')
+    .replace(/\be\.g\.\s*/gi, 'for example ').replace(/\bi\.e\.\s*/gi, 'that is ').replace(/\bvs\.?\s/g, 'versus ')
+    .replace(/\bFL\s?(\d{2,3})\b/g, 'flight level $1')
+    .replace(/\bA\/P\b/g, 'autopilot').replace(/\bA\/T\b/g, 'autothrottle').replace(/\bF\/Ds?\b/g, 'flight director')
+    .replace(/\bF\/O\b/g, 'first officer').replace(/\bCapt\b/g, 'captain').replace(/\bRA\b/g, 'radio altitude')
+    .replace(/\s*\(([^)]{1,80})\)/g, ', $1,')
     .replace(/\bA\/B\b/g, 'A and B').replace(/\bLE\b/g, 'leading edge').replace(/\bTE\b/g, 'trailing edge')
     .replace(/\bEDP\b/g, 'engine driven pump').replace(/\bEMDP\b/g, 'electric pump').replace(/\bIDG\b/g, 'I D G')
     .replace(/\bBTBs?\b/g, 'bus tie breakers').replace(/\bTRs?\b/g, (m) => (m.endsWith('s') ? 'T Rs' : 'T R'))
     .replace(/[·•→]/g, ', ').replace(/[—–]/g, ', ').replace(/\s*\/\s*/g, ' or ')
-    .replace(/\s{2,}/g, ' ').trim();
+    .replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim();
 }
 
 export const tts = {
   supported: !!synth,
   get rate() { return rate; },
+  get voiceName() { return voice?.name || ''; },
+  /** English voices, best first, for a picker. */
+  voices() {
+    return (synth?.getVoices() || []).filter((v) => /^en[-_]/i.test(v.lang) && !NOVELTY.test(v.name))
+      .sort((a, b) => score(b) - score(a)).map((v) => ({ name: v.name, lang: v.lang, good: score(v) >= 40 }));
+  },
+  /** True when no Premium / Enhanced / Natural voice is installed. */
+  get onlyBasic() { return !this.voices().some((v) => v.good); },
+  setVoice(name) { chosen = name || null; try { if (name) localStorage.setItem('b737i.voice', name); else localStorage.removeItem('b737i.voice'); } catch { /* fine */ } pickVoice(); },
   setRate(r) { rate = r; try { localStorage.setItem('b737i.rate', String(r)); } catch { /* fine */ } },
   /** Speak and resolve when finished (or cancelled). */
   speak(text, opts = {}) {
@@ -51,6 +81,7 @@ export const tts = {
       if (voice) u.voice = voice;
       u.lang = voice?.lang || 'en-US';
       u.rate = rate;
+      u.pitch = 1.02;
       // Some engines (and iOS on long utterances) never fire 'end': give up
       // waiting after a generous estimate so a lesson can't stall.
       const words = said.split(/\s+/).length;

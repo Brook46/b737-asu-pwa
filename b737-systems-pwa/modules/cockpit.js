@@ -7,10 +7,10 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=11';
-import { createOverhead } from './overhead.js?v=11';
-import * as CAB from './cockpit-cab.js?v=11';
-import * as D from './cockpit-displays.js?v=11';
+import * as THREE from '../vendor/three.module.min.js?v=12';
+import { createOverhead } from './overhead.js?v=12';
+import * as CAB from './cockpit-cab.js?v=12';
+import * as D from './cockpit-displays.js?v=12';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -47,6 +47,30 @@ function plate(w, h, mat, pos, normal, up = [0, 1, 0]) {
 const DU_OF = { pfdC: 'capOut', ndC: 'capIn', upper: 'upper', lower: 'lower', ndF: 'foIn', pfdF: 'foOut' };
 const FORMAT = { PFD: D.drawPFD, ND: D.drawND, ENG: D.drawUpper, SYS: D.drawLower };
 function blank(g, W, H) { g.fillStyle = '#020303'; g.fillRect(0, 0, W, H); }
+
+/** Flight deck clock: analog seconds hand, digital UTC time above and date / ET below. */
+function drawClock(g, W, H) {
+  const now = new Date(), cx = W / 2, cy = H / 2, R = W * 0.46;
+  g.fillStyle = '#16181a'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#050606'; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#e9ecef'; g.lineWidth = 3;
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2, r0 = i % 5 ? R * 0.9 : R * 0.82;
+    g.beginPath(); g.moveTo(cx + Math.sin(a) * r0, cy - Math.cos(a) * r0); g.lineTo(cx + Math.sin(a) * R * 0.97, cy - Math.cos(a) * R * 0.97); g.stroke();
+  }
+  g.fillStyle = '#e9ecef'; g.font = '700 20px Helvetica, Arial'; g.textAlign = 'center';
+  for (const [n, a] of [['60', 0], ['15', 90], ['30', 180], ['45', 270]]) {
+    const r = (a * Math.PI) / 180; g.fillText(n, cx + Math.sin(r) * R * 0.66, cy - Math.cos(r) * R * 0.66 + 7);
+  }
+  g.fillStyle = '#ffb21e'; g.font = '700 34px Menlo, monospace';
+  const p = (v) => String(v).padStart(2, '0');
+  g.fillText(`${p(now.getUTCHours())}:${p(now.getUTCMinutes())}`, cx, cy - 18);
+  g.font = '700 22px Menlo, monospace';
+  g.fillText(`${p(now.getUTCDate())} ${p(now.getUTCMonth() + 1)} ${String(now.getUTCFullYear()).slice(2)}`, cx, cy + 40);
+  g.fillStyle = '#e9ecef'; g.font = '700 14px Helvetica'; g.fillText('UTC', cx, cy - 52);
+  const sa = (now.getUTCSeconds() / 60) * Math.PI * 2;
+  g.strokeStyle = '#f4f4f4'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.sin(sa) * R * 0.85, cy - Math.cos(sa) * R * 0.85); g.stroke();
+}
 
 /** A beam (box) from a to b with a square section. */
 function beam(a, b, t, mat) {
@@ -166,39 +190,49 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
   const MIP_N = [-1, 0.22, 0];
   const mip = add(plate(1.96, 0.46, M.panel, [0.87, 0.82, 0], MIP_N));
   mip.userData.pick = { kind: 'static', name: 'Main instrument panel' };
-  const center = add(plate(0.42, 0.3, M.panel, [0.83, 0.6, 0], MIP_N));
+  const center = add(plate(0.42, 0.36, M.panel, [0.87 + 0.22 * (0.57 - 0.82) + 0.003, 0.57, 0], MIP_N));
   center.userData.pick = { kind: 'static', name: 'Center panel' };
   const screens = {};
   const DU = 0.2;
   const duAt = (id, z, y, draw, label) => {
     const ct = canvasTex(512, 512);
     const off = new THREE.Vector3(...MIP_N).normalize().multiplyScalar(0.012);
-    const bez = add(plate(DU + 0.03, DU + 0.03, M.dark, [0.865 + off.x, y + off.y, z], MIP_N));
-    const m = add(plate(DU, DU, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.86 + off.x * 2, y + off.y * 2, z], MIP_N));
+    // On the sloped panel face at this height, just proud of it.
+    const fx = 0.87 + 0.22 * (y - 0.82);
+    const bez = add(plate(DU + 0.03, DU + 0.03, M.dark, [fx + off.x * 0.5, y + off.y * 0.5, z], MIP_N));
+    const m = add(plate(DU, DU, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [fx + off.x, y + off.y, z], MIP_N));
     m.userData.pick = { kind: 'screen', name: label };
     bez.userData.pick = m.userData.pick;
     pickables.push(m, bez);
     screens[id] = { ...ct, draw };
   };
-  duAt('pfdC', -0.68, 0.86, D.drawPFD, 'Captain PFD');
-  duAt('ndC', -0.44, 0.86, D.drawND, 'Captain ND');
-  duAt('upper', 0, 0.86, D.drawUpper, 'Upper DU — engines and fuel');
-  duAt('lower', 0, 0.62, D.drawLower, 'Lower DU — engines and hydraulics');
-  duAt('ndF', 0.44, 0.86, D.drawND, 'First officer ND');
-  duAt('pfdF', 0.68, 0.86, D.drawPFD, 'First officer PFD');
+  duAt('pfdC', -0.68, 0.80, D.drawPFD, 'Captain PFD');
+  duAt('ndC', -0.44, 0.80, D.drawND, 'Captain ND');
+  duAt('upper', 0, 0.78, D.drawUpper, 'Upper DU — engines and fuel');
+  duAt('lower', 0, 0.55, D.drawLower, 'Lower DU — engines and hydraulics');
+  duAt('ndF', 0.44, 0.80, D.drawND, 'First officer ND');
+  duAt('pfdF', 0.68, 0.80, D.drawPFD, 'First officer PFD');
   // ISFD (standby) left of the upper DU.
   {
     const ct = canvasTex(256, 256);
-    const m = add(plate(0.085, 0.085, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.85, 0.93, -0.19], MIP_N));
+    const m = add(plate(0.085, 0.085, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.87 + 0.22 * (0.86 - 0.82) - 0.008, 0.86, -0.19], MIP_N));
     m.userData.pick = { kind: 'screen', name: 'Integrated standby flight display (ISFD)' };
     pickables.push(m);
     screens.isfd = { ...ct, draw: D.drawISFD };
   }
+  // Clocks at the outboard edge of each forward panel: time, date / ET.
+  for (const [id, z] of [['clockL', -0.9], ['clockR', 0.9]]) {
+    const ct = canvasTex(256, 256);
+    const m = add(plate(0.075, 0.075, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.87 + 0.22 * (0.87 - 0.82) - 0.008, 0.87, z], MIP_N));
+    m.userData.pick = { kind: 'screen', name: 'Clock' };
+    pickables.push(m);
+    screens[id] = { ...ct, draw: drawClock };
+  }
   // Gear lever to the right of the upper DU.
-  const gearBase = add(plate(0.08, 0.16, M.dark, [0.855, 0.86, 0.17], MIP_N));
+  const gearBase = add(plate(0.08, 0.16, M.dark, [0.87 + 0.22 * (0.80 - 0.82) - 0.006, 0.80, 0.21], MIP_N));
   gearBase.userData.pick = { kind: 'lever', name: 'Landing gear lever' };
   const gearLever = new THREE.Group();
-  gearLever.position.set(0.83, 0.86, 0.17);
+  gearLever.position.set(0.84, 0.80, 0.21);
   add(gearLever);
   const gstem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.012), M.metal);
   gstem.position.x = -0.025;
@@ -252,37 +286,49 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     panelSets.set(s.id, O);
   }
   const byTitle = (sys, t) => panelSets.get(sys)?.panels.find((p) => p.title === t);
+  // Forward overhead as on the airplane (FCOM 1.20 figure): five columns,
+  // aft edge first, and the lights / ENGINE START row along the front edge.
   const COLUMNS = [
-    [['hydraulics', 'Flight control'], ['fms', 'Instrument transfer'], ['instruments', 'Displays'], ['antiice', 'Wipers'], ['fuel', 'Fuel'], ['general', 'Lights']],
-    [['electrical', 'Electrical'], ['electrical', 'Generator drive and standby power'], ['electrical', 'Ground power and bus switching'], ['engines', 'APU'], ['comms', 'Calls and voice recorder']],
-    [['general', 'Cabin signs and equipment cooling'], ['antiice', 'Window heat'], ['antiice', 'Probe heat'], ['antiice', 'Wing and engine anti-ice'], ['hydraulics', 'Hydraulic pumps'], ['engines', 'Engine start']],
-    [['air', 'Cabin altitude'], ['air', 'Air temperature'], ['air', 'Bleed air'], ['air', 'Cabin pressurization']],
+    [['hydraulics', 'Flight control'], ['fms', 'Instrument transfer'], ['instruments', 'Displays'], ['fuel', 'Fuel']],
+    [['electrical', 'Electrical'], ['electrical', 'Generator drive and standby power'], ['electrical', 'Ground power and bus switching'], ['engines', 'APU']],
+    [['general', 'Equipment cooling'], ['general', 'Cabin signs and equipment cooling'], ['comms', 'Calls and voice recorder'], ['antiice', 'Wipers']],
+    [['antiice', 'Window heat'], ['antiice', 'Probe heat'], ['antiice', 'Wing and engine anti-ice'], ['hydraulics', 'Hydraulic pumps'], ['air', 'Cabin altitude']],
+    [['air', 'Air temperature'], ['air', 'Bleed air'], ['air', 'Cabin pressurization']],
   ];
-  const colZ = [-0.33, -0.11, 0.11, 0.33];
+  const FRONT_ROW = [['general', 'Lights L', -0.3, 0.32], ['engines', 'Engine start', 0, 0.2], ['general', 'Lights R', 0.3, 0.32]];
+  const colZ = [-0.42, -0.21, 0, 0.21, 0.42];
   // Looking up at the forward overhead, the top of your view is its AFT edge —
   // which is why the FCOM figures (drawn as you see them) put FLT CONTROL at
   // the top and LIGHTS / ENGINE START at the bottom, nearest the windshield.
   // So each panel's texture top points aft, and columns stack from the aft end.
-  const colLen = (col) => col.reduce((a, [sys, t]) => a + ((byTitle(sys, t)?.h || 0) * U + 0.008), 0.02);
-  const OV_LEN = Math.max(...COLUMNS.map(colLen)) + 0.02;
+  const colLen = (col) => col.reduce((a, [sys, t]) => a + ((byTitle(sys, t)?.h || 0) * U + 0.006), 0.02);
+  const rowH = Math.max(...FRONT_ROW.map(([sys, t, , w]) => ((byTitle(sys, t)?.h || 0) * w) / 300));
+  const OV_LEN = Math.max(...COLUMNS.map(colLen)) + rowH + 0.03;
   const OV_AFT = OV_FRONT.clone().addScaledVector(OV_T, OV_LEN);
+  const texPanel = (P, sys, w, h, centerPos) => {
+    const scale = 2.5;
+    const ct = canvasTex(300 * scale, Math.round(P.h * scale));
+    const mesh = add(plate(w, h, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.6 }), centerPos.toArray(), OV_N.toArray(), OV_T.toArray()));
+    mesh.userData.pick = { kind: 'panel', sys, P };
+    pickables.push(mesh);
+    texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
+  };
   COLUMNS.forEach((col, ci) => {
     let along = 0.02;
     for (const [sys, title] of col) {
       const P = byTitle(sys, title);
       if (!P) continue;
       const w = 0.2, h = P.h * U;
-      const centerPos = OV_AFT.clone().addScaledVector(OV_T, -(along + h / 2)).add(new THREE.Vector3(0, 0, colZ[ci]));
-      const scale = 2.5;
-      const ct = canvasTex(300 * scale, Math.round(P.h * scale));
-      const mesh = add(plate(w, h, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.6 }), centerPos.toArray(), OV_N.toArray(),
-        OV_T.toArray()));
-      mesh.userData.pick = { kind: 'panel', sys, P };
-      pickables.push(mesh);
-      texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
-      along += h + 0.008;
+      texPanel(P, sys, w, h, OV_AFT.clone().addScaledVector(OV_T, -(along + h / 2)).add(new THREE.Vector3(0, 0, colZ[ci])));
+      along += h + 0.006;
     }
   });
+  for (const [sys, title, z, w] of FRONT_ROW) {
+    const P = byTitle(sys, title);
+    if (!P) continue;
+    const h = (P.h * w) / 300;
+    texPanel(P, sys, w, h, OV_FRONT.clone().addScaledVector(OV_T, 0.015 + rowH - h / 2).add(new THREE.Vector3(0, 0, z)));
+  }
   // Panels that live elsewhere: the fire protection panel on the aft pedestal.
   function placePanel(sys, title, pos, normal, up, w = 0.2) {
     const P = byTitle(sys, title);
@@ -294,38 +340,47 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever }) {
     pickables.push(mesh);
     texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
   }
-  placePanel('fire', 'Fire protection', [-0.04, 0.712, 0], [0, 1, 0], [1, 0, 0], 0.26);
-  placePanel('fire', 'Cargo fire', [0.14, 0.712, 0], [0, 1, 0], [1, 0, 0], 0.2);
-  // Center panel: gear lights beside the lever, autobrake right of the lower DU.
-  const MIP_UP = [0.22, 1, 0];
-  placePanel('gear', 'Landing gear', [0.849, 0.765, 0.205], [-1, 0.22, 0], MIP_UP, 0.12);
-  placePanel('gear', 'Autobrake', [0.83, 0.68, 0.18], [-1, 0.22, 0], MIP_UP, 0.12);
-  placePanel('antiice', 'Icing advisory', [0.842, 0.72, -0.27], [-1, 0.22, 0], MIP_UP, 0.07);
-  // Glareshield annunciators outboard of the EFIS panels; GPWS and config lights on the MIP.
+  // ── Where each panel sits (FCOM 1.20 panel figures) ──
+  const MIP = [-1, 0.22, 0], MIP_UP = [0.22, 1, 0];
+  const mipX = (y) => 0.864 + 0.22 * (y - 0.82);        // on the main panel face, just proud of it
+  const onMip = (sys, title, y, z, w) => placePanel(sys, title, [mipX(y), y, z], MIP, MIP_UP, w);
+  // Centre forward panel: strip above the upper DU, gear lights over the lever.
+  onMip('gear', 'Center panel', 0.965, 0, 0.3);
+  onMip('gear', 'Landing gear', 0.92, 0.215, 0.11);
+  // Captain's forward panel: display select, A/P-A/T-FMC lights, speedbrake
+  // ARMED / DO NOT ARM, takeoff config & cabin altitude, icing, steering.
+  onMip('instruments', 'Display select (captain)', 0.99, -0.62, 0.11);
+  onMip('autoflight', 'Autoflight lights', 0.995, -0.4, 0.13);
+  onMip('flightcontrols', 'Speedbrake lights L', 0.968, -0.4, 0.12);
+  onMip('warnings', 'Takeoff config and cabin altitude', 0.985, -0.245, 0.1);
+  onMip('antiice', 'Icing advisory', 0.655, -0.27, 0.07);
+  onMip('gear', 'Nose wheel steering', 0.78, -0.89, 0.09);
+  // First officer's forward panel: brake pressure, A/P lights, SPEEDBRAKES
+  // EXTENDED, display select, GPWS.
+  onMip('gear', 'Brake pressure', 0.962, 0.24, 0.14);
+  onMip('autoflight', 'Autoflight lights', 0.995, 0.42, 0.13);
+  onMip('flightcontrols', 'Speedbrake lights R', 0.968, 0.42, 0.12);
+  onMip('instruments', 'Display select (first officer)', 0.99, 0.62, 0.11);
+  onMip('warnings', 'GPWS', 0.655, 0.44, 0.13);
+  // Glareshield: annunciators outboard, the MCP across the middle.
   placePanel('warnings', 'Annunciator L', [0.75, 1.08, -0.93], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
   placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.93], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
-  placePanel('warnings', 'GPWS', [0.835, 0.70, 0.62], [-1, 0.22, 0], MIP_UP, 0.13);
-  placePanel('warnings', 'Takeoff config and cabin altitude', [0.835, 0.70, -0.62], [-1, 0.22, 0], MIP_UP, 0.11);
-  placePanel('warnings', 'Transponder', [0.205, 0.713, 0], [0, 1, 0], [1, 0, 0], 0.2);
-  // The MCP: three operable panels across the glareshield.
   const MCP_UP = [0.32, 1, 0];
-  placePanel('autoflight', 'MCP speed', [0.743, 1.08, -0.322], [-1, 0.32, 0], MCP_UP, 0.315);
-  placePanel('autoflight', 'MCP heading', [0.743, 1.08, 0], [-1, 0.32, 0], MCP_UP, 0.315);
-  placePanel('autoflight', 'MCP altitude', [0.743, 1.08, 0.322], [-1, 0.32, 0], MCP_UP, 0.315);
-  placePanel('autoflight', 'Autoflight lights', [0.906, 1.01, -0.56], [-1, 0.22, 0], MIP_UP, 0.12);
-  placePanel('instruments', 'Display select (captain)', [0.845, 0.72, -0.86], [-1, 0.22, 0], MIP_UP, 0.12);
-  placePanel('instruments', 'Display select (first officer)', [0.845, 0.72, 0.86], [-1, 0.22, 0], MIP_UP, 0.12);
-  placePanel('comms', 'VHF comm', [0.088, 0.713, 0], [0, 1, 0], [1, 0, 0], 0.2);
-  // Audio control panels on the side consoles, beside each pilot.
+  ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.238));
+  // Control stand: parking brake (left), stab trim cutouts (right).
+  placePanel('gear', 'Parking brake', [0.34, 0.716, -0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
+  placePanel('flightcontrols', 'Stabilizer trim', [0.34, 0.716, 0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
+  // Aft electronic panel, forward to aft: door lock, nav radios, transponder, VHF, cargo fire, fire protection.
+  const AFT = (sys, title, x, w = 0.2) => placePanel(sys, title, [x, 0.713, 0], [0, 1, 0], [1, 0, 0], w);
+  AFT('general', 'Flight deck door', 0.245, 0.16);
+  AFT('fms', 'Nav radios', 0.205);
+  AFT('warnings', 'Transponder', 0.158);
+  AFT('comms', 'VHF comm', 0.11);
+  AFT('fire', 'Cargo fire', 0.058);
+  AFT('fire', 'Fire protection', -0.06, 0.3);
+  // Audio control panels on the side consoles, CDUs on the forward pedestal.
   placePanel('comms', 'Audio control panel', [0.33, 0.70, -0.62], [0, 1, 0], [1, 0, 0], 0.17);
   placePanel('comms', 'Audio control panel', [0.33, 0.70, 0.62], [0, 1, 0], [1, 0, 0], 0.17);
-  placePanel('fms', 'Nav radios', [0.252, 0.713, 0], [0, 1, 0], [1, 0, 0], 0.2);
-  // Forward pedestal with the two CDUs.
-  const fped = add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.62, 0.36), M.shell));
-  fped.position.set(0.73, 0.31, 0);
-  for (const z of [-0.088, 0.088]) placePanel('fms', 'CDU', [0.73, 0.625, z], [-0.45, 1, 0], [1, 0.45, 0], 0.15);
-  placePanel('general', 'Flight deck door', [-0.17, 0.705, 0], [0, 1, 0], [1, 0, 0], 0.16);
-  placePanel('gear', 'Nose wheel steering', [0.83, 0.68, -0.17], [-1, 0.22, 0], MIP_UP, 0.09);
   function markDirty(sys) { for (const t of texPanels) if (t.sys === sys) t.dirty = true; }
 
   // Render a panel's SVG into its texture (only when its markup changed).

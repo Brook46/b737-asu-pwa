@@ -2,7 +2,7 @@
 // Pulling an engine fire switch here really shuts that engine's fuel off —
 // app.js passes it to the engines model through env (cut1 / cut2).
 
-import { ENG, engPoint, APU, YC, MLG, FLOOR_Y } from './airframe.js?v=11';
+import { ENG, engPoint, APU, YC, MLG, FLOOR_Y } from './airframe.js?v=12';
 
 const R = '#d62828', DET = '#ff8787', BOT = '#adb5bd';
 
@@ -148,7 +148,7 @@ export default {
 
   normal() {
     return {
-      sw: { ovht1: 1, ovht2: 1, pull1: 0, pull2: 0, pullApu: 0, test: 1, ext: 1, armFwd: 0, armAft: 0, detSel: 1 },
+      sw: { ovht1: 1, ovht2: 1, pull1: 0, pull2: 0, pullApu: 0, rot1: 0, rot2: 0, rotApu: 0, test: 1, ext: 1, armFwd: 0, armAft: 0, detSel: 1, detSelAft: 1 },
       fail: {},
       mem: { bottles: { L: true, R: true, apu: true, cargo: 2 }, out: {}, sig: '', cutSig: '', cargoDisch: false },
     };
@@ -161,9 +161,12 @@ export default {
       const n = key === 'rot1' ? 1 : 2;
       if (!st.sw[`pull${n}`]) return;
       const bot = label === 'L' || label === 'DEC' ? 'L' : 'R';
+      st.sw[key] = bot === 'L' ? -1 : 1;            // the handle stays turned
       if (b[bot]) { b[bot] = false; m.out[`fire${n}`] = true; }
     } else if (key === 'rotApu') {
-      if (st.sw.pullApu && b.apu) { b.apu = false; m.out.apuFire = true; }
+      if (!st.sw.pullApu) return;
+      st.sw.rotApu = label === 'L' || label === 'DEC' ? -1 : 1;
+      if (b.apu) { b.apu = false; m.out.apuFire = true; }
     } else if (key === 'bell') m.cutSig = m.sig;   // silence what's showing now; a new warning rings again
     else if (key === 'cargoDisch') {
       if ((st.sw.armFwd || st.sw.armAft) && b.cargo === 2) { b.cargo = 1; m.cargoDisch = true; m.out.cargo = true; }

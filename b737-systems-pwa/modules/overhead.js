@@ -63,7 +63,8 @@ const STYLE = `
   .ovh-lamp.white.on .lens { stroke: #f1f3f5; } .ovh-lamp.white.on .legend { fill: #f8f9fa; }
   .ovh-lamp.flash .lens, .ovh-lamp.flash .legend { animation: ovhFlash 1s steps(2, jump-none) infinite; }
   @keyframes ovhFlash { 50% { opacity: .25; } }
-  .ovh-push.down circle:last-child { fill: #3a3d40; }`;
+  .ovh-push.down circle:last-child { fill: #3a3d40; }
+  .ovh-fire { cursor: pointer; } .ovh-fire-t { fill: #fff; font-family: ${FONT}; font-weight: 800; }`;
 
 const pt = (r, deg) => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
 
@@ -92,7 +93,9 @@ export function createOverhead(host, ctx) {
     svg.setAttribute('xmlns', NS);
     defs(svg, id);
     el('style', {}, svg).textContent = STYLE;
-    el('rect', { x: 0, y: 0, width: 300, height: h, rx: 4, class: 'ovh-bg' }, svg);
+    const bgRect = el('rect', { x: 0, y: 0, width: 300, height: h, rx: 4, class: 'ovh-bg' }, svg);
+    // o.bg: panel colour (control-stand panels are black, the MCP darker grey).
+    if (o.bg) bgRect.style.fill = o.bg;
     const controls = [];
     // Corner screws.
     for (const [x, y] of [[8, 8], [292, 8], [8, h - 8], [292, h - 8]]) {
@@ -183,7 +186,7 @@ export function createOverhead(host, ctx) {
         const n = positions.length;
         const side = o2.labels === 'left' ? -1 : 1;
         positions.forEach((p, i) => {
-          if (!p || p === '·') return;
+          if (!p || p === '·' || o2.noLabels) return;
           let lx, ly;
           if (o2.horizontal) { lx = (n === 2 ? (i ? 16 : -16) : (i - 1) * 18); ly = -15; }
           else { lx = side * 14; ly = n === 2 ? (i ? 18 : -13) : (i - 1) * 15 + 3; }
@@ -265,7 +268,11 @@ export function createOverhead(host, ctx) {
         const R = o2.r ?? 12;
         const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-knob' + (o2.inert ? ' inert' : '') }, layers.parts);
         if (o2.skirt) el('circle', { r: R + 4, fill: '#2d3135', stroke: '#1a1c1e' }, g);
-        if (o2.knurl) {
+        if (o2.grey) {
+          // Light-grey bar knob (ENGINE START, AUTO BRAKE, IRS): round base, a
+          // raised grip bar along the pointer, a black index line on the bar.
+          el('circle', { r: R, fill: '#c9cdd0', stroke: '#5c6266', 'stroke-width': 1 }, g);
+        } else if (o2.knurl) {
           // Grey knurled knob (FLT ALT / LAND ALT): a ring of grip bumps.
           const pts2 = [];
           for (let i = 0; i < 48; i++) { const rr = i % 2 ? R : R - 1.6; pts2.push(pt(rr, i * 7.5).join(',')); }
@@ -273,7 +280,10 @@ export function createOverhead(host, ctx) {
           el('circle', { r: R * 0.62, fill: '#b6babd', stroke: '#6b7074' }, g);
         } else el('circle', { r: R, fill: `url(#knob${id})`, stroke: '#000', 'stroke-width': 1 }, g);
         const ptr = el('g', {}, g);
-        if (o2.bar) {
+        if (o2.grey) {
+          el('rect', { x: -R * 0.32, y: -R * 1.08, width: R * 0.64, height: R * 2.16, rx: R * 0.3, fill: '#dfe2e4', stroke: '#6b7175', 'stroke-width': .8 }, ptr);
+          el('rect', { x: -0.9, y: -R * 1.02, width: 1.8, height: R * 0.95, fill: '#111' }, ptr);
+        } else if (o2.bar) {
           el('rect', { x: -2.2, y: -R + 1.5, width: 4.4, height: 2 * R - 3, rx: 2, fill: '#e9e9e9' }, ptr);
           for (const dx of [-6, 6]) el('rect', { x: dx - 1, y: -R + 4, width: 2, height: 2 * R - 8, rx: 1, fill: '#3a3d40' }, ptr);
         } else if (!o2.knurl) {
@@ -411,6 +421,54 @@ export function createOverhead(host, ctx) {
         // Glass glint.
         if (bz !== 'half') el('path', { d: `M${-r * 0.7},${-r * 0.45} A${r * 0.85},${r * 0.85} 0 0 1 ${r * 0.35},${-r * 0.78}`, fill: 'none', stroke: 'rgba(255,255,255,.08)', 'stroke-width': r * 0.08, 'stroke-linecap': 'round' }, g);
         return g;
+      },
+      /**
+       * Engine / APU fire switch: a red handle with its number. Tap = pull;
+       * once pulled, tap the left or right half to rotate it (discharge a
+       * bottle). o2: { pullKey, rotKey, lamp (lights key: lit red on fire), label }.
+       */
+      fireHandle(x, y, w, hh, o2) {
+        const c = o2.ctx || ctxRoot;
+        const g = el('g', { class: 'ovh-fire' }, layers.parts);
+        const slot = el('rect', { x: x - 2, y: y - 2, width: w + 4, height: hh + 4, rx: 4, fill: '#121314' }, g);
+        void slot;
+        const body = el('g', {}, g);
+        const r = el('rect', { x, y, width: w, height: hh, rx: 5, fill: '#b3201c', stroke: '#5e0e0c', 'stroke-width': 1.2 }, body);
+        const glow = el('rect', { x: x + 3, y: y + 3, width: w - 6, height: hh - 6, rx: 3, fill: '#ff3b30', opacity: 0 }, body);
+        const t = el('text', { x: x + w / 2, y: y + hh * 0.66, 'text-anchor': 'middle', class: 'ovh-fire-t', 'font-size': o2.label.length > 1 ? Math.min(hh * 0.3, (w * 1.5) / o2.label.length) : hh * 0.6 }, body);
+        t.textContent = o2.label;
+        el('text', { x: x + w / 2, y: y + hh + 9, 'text-anchor': 'middle', class: 'ovh-t', 'font-size': 5.5 }, g).textContent = o2.note || '';
+        const paint = (res) => {
+          const pulled = !!c.sw[o2.pullKey], rot = c.sw[o2.rotKey] || 0;
+          const lit = typeof o2.lamp === 'function' ? o2.lamp(res) : res?.lights?.[o2.lamp];
+          glow.setAttribute('opacity', lit ? 0.85 : 0);
+          r.setAttribute('fill', lit ? '#e8281f' : '#b3201c');
+          const cx = x + w / 2, cy = y + hh / 2;
+          body.setAttribute('transform', `translate(0,${pulled ? -5 : 0}) rotate(${pulled ? rot * 28 : 0},${cx},${cy})`);
+        };
+        binds.push(paint);
+        const act = (px) => {
+          if (!c.sw[o2.pullKey]) c.set(o2.pullKey, 1);
+          else c.action(o2.rotKey, px < x + w / 2 ? 'L' : 'R');
+          c.touched?.();
+        };
+        g.addEventListener('click', (e) => { const b = g.getBoundingClientRect(); act(x + ((e.clientX - b.left) / b.width) * w); });
+        controls.push({
+          kind: 'fire', key: o2.pullKey, name: o2.name || `${o2.label} fire switch`, about: o2.about,
+          x0: x, x1: x + w, y0: y, y1: y + hh, pos: () => (c.sw[o2.pullKey] ? 'PULLED' : 'IN'),
+          act(px) { act(px); return 'moved'; },
+        });
+        return g;
+      },
+      /** White-on-black placard (FLAPS LIMIT, LANDING GEAR LIMIT). */
+      placard(x, y, w, lines, o2 = {}) {
+        const size = o2.size ?? 5.6, hh = lines.length * size * 1.18 + 6;
+        el('rect', { x, y, width: w, height: hh, rx: 1.5, fill: o2.bg ?? '#5b6166', stroke: '#3c4144' }, layers.parts);
+        lines.forEach((ln, i) => {
+          const tt = el('text', { x: x + 4, y: y + 4 + size + i * size * 1.18, class: 'ovh-t', 'font-size': size }, layers.parts);
+          if (o2.ink) tt.style.fill = o2.ink; else if (/^#[ef]/i.test(o2.bg || '')) tt.style.fill = '#111';
+          tt.textContent = ln;
+        });
       },
       /** LCD window (FLT ALT, LAND ALT, meters). */
       lcd(x, y, w, fn, o2 = {}) {
