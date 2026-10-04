@@ -4,23 +4,25 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=8';
-import { createOutside } from './modules/outside.js?v=8';
-import { installResumeHardening } from './modules/resume.js?v=8';
-import { createScene } from './modules/scene.js?v=8';
-import { buildAirframe } from './modules/airframe.js?v=8';
-import { createSystems3D } from './modules/systems3d.js?v=8';
-import { createOverlay } from './modules/overlay.js?v=8';
-import { createSheet } from './modules/sheet.js?v=8';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=8';
-import { SYSTEMS, READY } from './modules/systems.js?v=8';
-import { createSearch } from './modules/search.js?v=8';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=8';
-import { createProgress } from './modules/progress.js?v=8';
-import { createLearn } from './modules/learn.js?v=8';
-import { explain } from './modules/cockpit-info.js?v=8';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=8';
-import { createCockpit } from './modules/cockpit.js?v=8';
+import { makeEnv } from './modules/world.js?v=9';
+import { createOutside } from './modules/outside.js?v=9';
+import { createViewCube } from './modules/viewcube.js?v=9';
+import { createQuickRef } from './modules/quickref.js?v=9';
+import { installResumeHardening } from './modules/resume.js?v=9';
+import { createScene } from './modules/scene.js?v=9';
+import { buildAirframe } from './modules/airframe.js?v=9';
+import { createSystems3D } from './modules/systems3d.js?v=9';
+import { createOverlay } from './modules/overlay.js?v=9';
+import { createSheet } from './modules/sheet.js?v=9';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=9';
+import { SYSTEMS, READY } from './modules/systems.js?v=9';
+import { createSearch } from './modules/search.js?v=9';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=9';
+import { createProgress } from './modules/progress.js?v=9';
+import { createLearn } from './modules/learn.js?v=9';
+import { explain } from './modules/cockpit-info.js?v=9';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=9';
+import { createCockpit } from './modules/cockpit.js?v=9';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,6 +51,8 @@ function init() {
   const s3d = createSystems3D(api, airframe.root);
   // Lights, ground crew and carts, airflow — the world around the airplane.
   const outside = createOutside(api, airframe);
+  // Fusion 360-style navigation cube (airplane views only).
+  const viewcube = createViewCube(document.body, api, { onHome: () => $('home-btn').click() });
   for (const s of READY) s3d.build(s.mod);
 
   const overlay = createOverlay(api, $('leaders'), $('hotspots'), (id) => {
@@ -149,7 +153,10 @@ function init() {
     // The lesson player follows: centred in the free area, above a bottom sheet.
     document.documentElement.style.setProperty('--free-cx', `${(window.innerWidth - right) / 2}px`);
     document.documentElement.style.setProperty('--sheet-b', `${bottom}px`);
-    const obs = ['.hud-tl', '.hud-tr', '.hud-bottom'].map((q) => {
+    // In Split the airplane has the left half: keep the cube there.
+    const splitW = document.body.classList.contains('view-split') && !narrow ? window.innerWidth / 2 : 0;
+    document.documentElement.style.setProperty('--vc-right', `${Math.max(right, splitW)}px`);
+    const obs = ['.hud-tl', '.hud-tr', '.hud-bottom', '.vc'].map((q) => {
       const r = document.querySelector(q).getBoundingClientRect();
       return { x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 8 };
     });
@@ -377,6 +384,8 @@ function init() {
     const sch = v === 'schem' || v === 'split';
     $('schematic').hidden = !sch;
     overlay.visible(v === '3d' || v === 'split');
+    viewcube.visible = v === '3d' || v === 'split';
+    relayout();
     $('hint').classList.add('gone');
     api.pause(v === 'schem');
     if (sch) { if (v === 'schem') sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
@@ -444,6 +453,7 @@ function init() {
   // ── Frame loop pieces ──
   api.onFrame((dt) => {
     cockpit?.frame(dt);
+    viewcube.frame(dt);
     const fcs = states.get('flightcontrols');
     const gr = states.get('gear');
     if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}) });
@@ -484,6 +494,10 @@ function init() {
     },
   });
   $('learn-btn').addEventListener('click', () => (sheet.key === 'learn' && !$('sheet').hidden ? sheet.hide() : learn.dashboard()));
+
+  // ── Quick reference (memory items, maneuvers, limits) ──
+  const quickref = createQuickRef(sheet, SYSTEMS);
+  $('qr-btn').addEventListener('click', () => (sheet.key === 'quickref' && !$('sheet').hidden ? sheet.hide() : quickref.open()));
 
   // ── Search ──
   const search = createSearch($('search'), READY, (sid, pid) => goTo(pid ? `${sid}/${pid}` : sid));

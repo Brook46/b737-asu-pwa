@@ -8,8 +8,8 @@
 //   • in flight: airflow streaks streaming past at a speed set by the TAS.
 // Everything here is decoration on top of the airframe; nothing is pickable.
 
-import * as THREE from '../vendor/three.module.min.js?v=8';
-import { YC, FUS_H, FUS_R, TIP_Z, TAIL_X, wingLE, wingTE, wingY, NLG, MLG } from './airframe.js?v=8';
+import * as THREE from '../vendor/three.module.min.js?v=9';
+import { YC, FUS_H, FUS_R, TIP_Z, TAIL_X, wingLE, wingTE, wingY, NLG, MLG } from './airframe.js?v=9';
 
 // ── Glow sprites ────────────────────────────────────────────────────────────
 function glowTexture() {

@@ -40,6 +40,16 @@ modules/
                   General switches (strobes, beacons, beams, logo…), ground
                   crew / chocks / cones / GPU and air carts at the gate,
                   airflow streaks in flight scaled by TAS
+  viewcube.js     Fusion 360-style navigation cube (CSS 3D, matrix3d from the
+                  camera each frame): 3×3 hit zones per face → face / edge /
+                  corner views, swung round the target (slerp, never through
+                  the airplane); drag to orbit; airplane views only
+  quickref.js     QRH memory items (steps above the dashed separator of each
+                  Quick Action Index checklist), back-cover quick actions,
+                  non-normal maneuvers, # limitations and key numbers, plus
+                  every number on the system pages. Source QRH/FCOM Rev 57;
+                  ~/Downloads/QRH.pdf. Keep action lines exact — re-check
+                  against the QRH on every revision
   systems3d.js    builds each system's 3D parts from its build(K); animated
                   flow tubes (shader dashes), unit states on/off/fault
   overlay.js      hotspot rings + leaders + chips; avoids HUD and sheet;

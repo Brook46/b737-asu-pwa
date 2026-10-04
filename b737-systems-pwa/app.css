@@ -553,3 +553,65 @@ body.view-cockpit .vignette { display: none; }
 .sx .fma-on { fill: #3df03d; }
 .sx .fma-box { text-decoration: underline; }
 .sx .fma-arm { fill: #f4f4f4; }
+
+/* ── ViewCube (Fusion 360-style navigation cube) ── */
+.vc {
+  position: fixed; z-index: 19; width: 112px; height: 124px;
+  top: calc(64px + var(--safe-t)); right: calc(var(--vc-right, 0px) + 14px + var(--safe-r));
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.vc[hidden] { display: none; }
+.vc-stage { position: absolute; inset: 0 0 12px 0; perspective: 420px; cursor: grab; }
+.vc-stage:active { cursor: grabbing; }
+.vc-cube { position: absolute; left: 50%; top: 46%; width: 0; height: 0; transform-style: preserve-3d; }
+.vc-face {
+  position: absolute; left: -32px; top: -32px; width: 64px; height: 64px; box-sizing: border-box;
+  display: grid; grid-template-columns: 13px 1fr 13px; grid-template-rows: 13px 1fr 13px;
+  background: color-mix(in srgb, var(--paper-solid) 88%, transparent); border: 1px solid var(--ink-3);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.vc-face.front { background: var(--paper-solid); }
+.vc-label {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font: 700 9.5px/1 var(--mono); letter-spacing: .06em; color: var(--ink);
+}
+.vc-zone { cursor: pointer; }
+.vc-zone:hover { background: color-mix(in srgb, var(--blue) 45%, transparent); }
+.vc-zone.mid:hover { background: color-mix(in srgb, var(--blue) 25%, transparent); }
+.vc-ring {
+  position: absolute; left: -50px; top: -50px; width: 100px; height: 100px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--ink-3) 70%, transparent); box-sizing: border-box; pointer-events: none;
+}
+.vc-n { position: absolute; left: 50%; top: -9px; transform: translateX(-50%); font: 700 10px/1 var(--mono); color: var(--ink-2); }
+.vc-home {
+  position: absolute; left: 0; top: 0; width: 22px; height: 22px; border: 0; border-radius: 3px; cursor: pointer;
+  background: var(--tag-bg); color: var(--tag-fg); font: 12px/22px var(--mono); padding: 0;
+}
+@media (max-width: 759px) {
+  .vc { top: calc(54px + var(--safe-t)); right: calc(var(--vc-right, 0px) + 50px + var(--safe-r)); transform: scale(.82); transform-origin: top right; }
+}
+
+/* ── Quick reference ── */
+.qr-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 14px; }
+.qr-tabs .tag-btn:not(.on) { background: var(--tag-off); color: var(--tag-off-fg); }
+.qr-note, .qr-foot { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+.qr-foot { margin-top: 16px; font-style: italic; }
+.qr-h2 { font: 700 12px/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); margin: 22px 0 8px; }
+.qr-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0 0 10px; background: var(--paper-solid); }
+.qr-card.mem { border-left: 4px solid #d62828; }
+.qr-card h3 { font: 700 14px/1.3 var(--sans); margin: 0 0 4px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.qr-ref { font: 500 10.5px/1 var(--mono); color: var(--ink-3); white-space: nowrap; }
+.qr-when { font-size: 12.5px; color: var(--ink-2); margin: 0 0 6px; }
+.qr-steps { margin: 0; padding-left: 20px; }
+.qr-steps li { display: flex; align-items: baseline; gap: 6px; font-size: 13.5px; line-height: 1.35; padding: 3px 0; }
+.qr-steps li::marker { font: 600 12px var(--mono); }
+.qr-a { flex: 0 1 auto; }
+.qr-dots { flex: 1 1 18px; min-width: 12px; border-bottom: 1px dotted var(--ink-3); transform: translateY(-3px); }
+.qr-b { flex: 0 1 auto; text-align: right; font-weight: 700; font-family: var(--mono); font-size: 12.5px; }
+.qr-steps li.long { display: block; }
+.qr-steps li.long .qr-a { display: block; font-weight: 600; }
+.qr-steps li.long .qr-b { display: block; text-align: left; font: 500 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 1px; }
+.qr-num { width: 100%; border-collapse: collapse; font-size: 13px; }
+.qr-num td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+.qr-num td:last-child { text-align: right; font-weight: 700; font-family: var(--mono); font-size: 12.5px; }
+.qr-num tr:first-child td { border-top: 0; }
