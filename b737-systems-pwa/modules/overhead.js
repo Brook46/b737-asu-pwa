@@ -193,12 +193,18 @@ export function createOverhead(host, ctx) {
         const R = o2.r ?? 12;
         const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-knob' + (o2.inert ? ' inert' : '') }, layers.parts);
         if (o2.skirt) el('circle', { r: R + 4, fill: '#2d3135', stroke: '#1a1c1e' }, g);
-        el('circle', { r: R, fill: `url(#knob${id})`, stroke: '#000', 'stroke-width': 1 }, g);
+        if (o2.knurl) {
+          // Grey knurled knob (FLT ALT / LAND ALT): a ring of grip bumps.
+          const pts2 = [];
+          for (let i = 0; i < 48; i++) { const rr = i % 2 ? R : R - 1.6; pts2.push(pt(rr, i * 7.5).join(',')); }
+          el('polygon', { points: pts2.join(' '), fill: '#9da2a6', stroke: '#41464a', 'stroke-width': .8 }, g);
+          el('circle', { r: R * 0.62, fill: '#b6babd', stroke: '#6b7074' }, g);
+        } else el('circle', { r: R, fill: `url(#knob${id})`, stroke: '#000', 'stroke-width': 1 }, g);
         const ptr = el('g', {}, g);
         if (o2.bar) {
           el('rect', { x: -2.2, y: -R + 1.5, width: 4.4, height: 2 * R - 3, rx: 2, fill: '#e9e9e9' }, ptr);
           for (const dx of [-6, 6]) el('rect', { x: dx - 1, y: -R + 4, width: 2, height: 2 * R - 8, rx: 1, fill: '#3a3d40' }, ptr);
-        } else {
+        } else if (!o2.knurl) {
           el('rect', { x: -1.6, y: -R + 1, width: 3.2, height: R, rx: 1.4, fill: '#f2f2f2' }, ptr);
         }
         if (!o2.noLabels) positions.forEach((p, i) => {
@@ -230,36 +236,84 @@ export function createOverhead(host, ctx) {
         });
         return g;
       },
-      /** Round instrument. Angles in degrees clockwise from 12 o'clock. */
-      gauge(x, y, r, o2) {
+      /**
+       * Instrument dial, built to match the real gauge faces. Angles are
+       * degrees clockwise from 12 o'clock; each scale maps value → angle
+       * (piecewise via `pts: [[v, deg], …]` for non-linear faces).
+       *   bezel: 'round' | 'teardrop' | 'octagon' | 'half'
+       *   scales: [{ pts, ticks: [[v, len(0-1 of r), width]], labels: [[v, text]], lr, lfs,
+       *              ring, r0 (tick outer radius, fraction of r), bands: [[v0, v1, color, w]] }]
+       *   texts: [[x, y, text, size, anchor, fill]] (fractions of r)
+       *   needles: [{ fn, scale, len, w, tag, tail }]
+       *   hub: fraction of r
+       */
+      dial(x, y, r, o2) {
         const g = el('g', { transform: `translate(${x},${y})` }, layers.parts);
-        el('circle', { r: r + 3, fill: '#2b2e31' }, g);
-        el('circle', { r, fill: '#0b0c0d', stroke: '#9aa0a5', 'stroke-width': 1 }, g);
-        const { min, max, a0, a1 } = o2;
-        const ang = (v) => a0 + ((Math.max(min, Math.min(max, v)) - min) / (max - min)) * (a1 - a0);
-        for (const v of o2.ticks || []) {
-          const major = (o2.major || []).includes(v);
-          const [x0, y0] = pt(r - 1.5, ang(v)), [x1, y1] = pt(r - (major ? 7 : 4), ang(v));
-          el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: '#f2f2f2', 'stroke-width': major ? 1.4 : .8 }, g);
+        const map = (pts, v) => {
+          if (v <= pts[0][0]) return pts[0][1];
+          for (let i = 1; i < pts.length; i++) {
+            const [v0, a0] = pts[i - 1], [v1, a1] = pts[i];
+            if (v <= v1) return a0 + ((v - v0) / (v1 - v0)) * (a1 - a0);
+          }
+          return pts[pts.length - 1][1];
+        };
+        // Bezel / mount.
+        const bz = o2.bezel || 'round';
+        if (bz === 'teardrop') el('path', { d: `M${-r * 1.75},0 L${-r * 0.55},${-r * 0.95} A${r * 1.12},${r * 1.12} 0 1 1 ${-r * 0.55},${r * 0.95} Z`, fill: '#1e2022' }, g);
+        if (bz === 'octagon') {
+          const R = r * 1.2, k = R * 0.42;
+          el('path', { d: `M${-R + k},${-R} H${R - k} L${R},${-R + k} V${R - k} L${R - k},${R} H${-R + k} L${-R},${R - k} V${-R + k} Z`, fill: '#3e4246' }, g);
         }
-        for (const [v, txt] of o2.labels || []) {
-          const [lx, ly] = pt(r - 13, ang(v));
-          const t = el('text', { x: lx, y: ly + 2.6, 'text-anchor': 'middle', class: 'ovh-gl', 'font-size': o2.lfs ?? 7 }, g);
-          t.textContent = txt;
+        if (bz === 'half') {
+          el('circle', { r: r + 3, fill: '#2a2d30' }, g);
+          el('path', { d: `M${-r},0 A${r},${r} 0 0 1 ${r},0 Z`, fill: '#0b0c0d' }, g);
+          el('path', { d: `M${-r},0 A${r},${r} 0 0 0 ${r},0 Z`, fill: '#454a4e' }, g);
+        } else {
+          el('circle', { r: r + 4, fill: '#2a2d30' }, g);
+          el('circle', { r: r + 1, fill: '#0b0c0d', stroke: '#5a5f63', 'stroke-width': .8 }, g);
         }
-        if (o2.caption) {
-          String(o2.caption).split('\n').forEach((c, i) => {
-            const t = el('text', { x: 0, y: (o2.capY ?? r * 0.42) + i * 6.5, 'text-anchor': 'middle', class: 'ovh-gl', 'font-size': 5.6 }, g);
-            t.textContent = c;
+        for (const sc of o2.scales || []) {
+          const r0 = (sc.r0 ?? 0.97) * r;
+          if (sc.ring) el('circle', { r: sc.ring * r, fill: 'none', stroke: '#e9e9e9', 'stroke-width': .7 }, g);
+          for (const [v0, v1, color, w] of sc.bands || []) {
+            const a0 = map(sc.pts, v0), a1 = map(sc.pts, v1), rr = r0 - (w ?? 3) / 2;
+            const [x0, y0] = pt(rr, a0), [x1, y1] = pt(rr, a1);
+            el('path', { d: `M${x0},${y0} A${rr},${rr} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1},${y1}`, fill: 'none', stroke: color, 'stroke-width': w ?? 3 }, g);
+          }
+          for (const [v, len, w] of sc.ticks || []) {
+            const a = map(sc.pts, v);
+            const [x0, y0] = pt(r0, a), [x1, y1] = pt(r0 - len * r, a);
+            el('line', { x1: x0, y1: y0, x2: x1, y2: y1, stroke: '#f2f2f2', 'stroke-width': w ?? .8, 'stroke-linecap': 'butt' }, g);
+          }
+          for (const [v, txt, col] of sc.labels || []) {
+            const [lx, ly] = pt((sc.lr ?? 0.66) * r, map(sc.pts, v));
+            const t = el('text', { x: lx, y: ly + (sc.lfs ?? 7) * 0.36, 'text-anchor': 'middle', class: 'ovh-gl', 'font-size': sc.lfs ?? 7 }, g);
+            if (col) t.style.fill = col;
+            t.textContent = txt;
+          }
+        }
+        for (const [tx, ty, txt, size, anchor, fill] of o2.texts || []) {
+          String(txt).split('\n').forEach((ln, i) => {
+            const t = el('text', { x: tx * r, y: ty * r + i * (size ?? 6) * 1.05, 'text-anchor': anchor ?? 'middle', class: 'ovh-gl', 'font-size': size ?? 6 }, g);
+            if (fill) t.style.fill = fill;
+            t.textContent = ln;
           });
         }
         for (const nd of o2.needles || []) {
+          const sc = o2.scales[nd.scale ?? 0];
           const ng = el('g', {}, g);
-          el('path', { d: `M-1.6,4 L0,${-(r - 6)} L1.6,4 Z`, fill: '#f6f6f6' }, ng);
-          if (nd.tag) { const t = el('text', { x: 0, y: -(r - 16), 'text-anchor': 'middle', 'font-size': 6.5, class: 'ovh-needle-t' }, ng); t.textContent = nd.tag; }
-          binds.push((res) => ng.setAttribute('transform', `rotate(${ang(nd.fn(res))})`));
+          const L = (nd.len ?? 0.8) * r, w = nd.w ?? 2.2, tail = (nd.tail ?? 0.12) * r;
+          el('path', { d: `M${-w},${tail} L${-w * 0.45},${-L} L0,${-L - w} L${w * 0.45},${-L} L${w},${tail} Z`, fill: '#f7f7f7', stroke: '#9a9a9a', 'stroke-width': .3 }, ng);
+          if (nd.tag) {
+            const t = el('text', { x: 0, y: -L * 0.62, 'text-anchor': 'middle', 'font-size': Math.max(5.5, w * 2.2), class: 'ovh-needle-t' }, ng);
+            t.textContent = nd.tag;
+          }
+          binds.push((res) => ng.setAttribute('transform', `rotate(${map(sc.pts, nd.fn(res))})`));
         }
-        el('circle', { r: 3.4, fill: '#2b2e31', stroke: '#888' }, g);
+        const hub = (o2.hub ?? 0.14) * r;
+        el('circle', { r: hub, fill: '#0b0c0d', stroke: o2.hubRing ? '#e9e9e9' : '#3a3d40', 'stroke-width': o2.hubRing ? 1.1 : 1 }, g);
+        // Glass glint.
+        if (bz !== 'half') el('path', { d: `M${-r * 0.7},${-r * 0.45} A${r * 0.85},${r * 0.85} 0 0 1 ${r * 0.35},${-r * 0.78}`, fill: 'none', stroke: 'rgba(255,255,255,.08)', 'stroke-width': r * 0.08, 'stroke-linecap': 'round' }, g);
         return g;
       },
       /** LCD window (FLT ALT, LAND ALT, meters). */

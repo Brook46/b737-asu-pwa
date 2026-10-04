@@ -1,7 +1,8 @@
 // schem-air.js — operable bleed / packs / pressurisation schematic + panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=2';
-import { createOverhead } from './overhead.js?v=2';
+import { createSchematic, createPanel } from './schem-kit.js?v=3';
+import { createOverhead } from './overhead.js?v=3';
+import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=3';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 
@@ -63,7 +64,7 @@ export function mount(svgHost, panelHost, ctx) {
   // ── Overhead panels (layout after FCOM 2.10) ──
   const O = createOverhead(panelHost, ctx);
   // Bleed air controls.
-  const B = O.panel('Bleed air', 344);
+  const B = O.panel('Bleed air', 358);
   B.band(0, 40);
   B.lamp(56, 11, 44, 20, 'DUAL\nBLEED', 'dualBleed');
   B.lamp(102, 11, 48, 20, 'RAM DOOR\nFULL OPEN', 'ramL', 'blue');
@@ -72,12 +73,10 @@ export function mount(svgHost, panelHost, ctx) {
   B.text(238, 54, 'R RECIRC FAN', { size: 7.5 });
   B.toggle(50, 84, 'recircL', ['OFF', 'AUTO']);
   B.toggle(250, 84, 'recircR', ['OFF', 'AUTO'], { labels: 'left' });
-  B.gauge(150, 92, 36, { min: 0, max: 80, a0: -140, a1: 140, ticks: [0, 10, 20, 30, 40, 50, 60, 70, 80], major: [0, 20, 40, 60, 80],
-    labels: [[0, '0'], [20, '20'], [40, '40'], [60, '60'], [80, '80']], caption: 'DUCT\nPRESS\nPSI', capY: 12,
-    needles: [{ fn: (r) => r.values.ductL, tag: 'L' }, { fn: (r) => r.values.ductR, tag: 'R' }] });
-  B.push(240, 134, () => {}, { top: 'OVHT', bottom: 'TEST' });
+  ductPress(B, 160, 92, 33, (r) => r.values.ductL, (r) => r.values.ductR);
+  B.push(214, 130, () => {}, { top: 'OVHT', bottom: 'TEST' });
   // Duct mimic: bleeds up the sides, across through the isolation valve.
-  B.line([[50, 296], [50, 184], [250, 184], [250, 296]]);
+  B.line([[50, 296], [50, 212], [250, 212], [250, 296]]);
   B.line([[150, 296], [150, 270], [50, 270]]);
   B.text(50, 148, 'L PACK', { size: 8, box: true });
   B.text(250, 148, 'R PACK', { size: 8, box: true });
@@ -96,7 +95,7 @@ export function mount(svgHost, panelHost, ctx) {
   B.toggle(50, 300, 'bleed1', ['OFF', 'ON'], { name: '1' });
   B.toggle(150, 300, 'apuBleed', ['OFF', 'ON'], { name: 'APU' });
   B.toggle(250, 300, 'bleed2', ['OFF', 'ON'], { name: '2', labels: 'left' });
-  B.text(150, 340, 'BLEED', { size: 8.5 });
+  B.text(150, 352, 'BLEED', { size: 8.5 });
 
   // Cabin pressurization panel.
   const C = O.panel('Cabin pressurization', 258);
@@ -107,28 +106,26 @@ export function mount(svgHost, panelHost, ctx) {
   C.text(75, 50, 'AUTO', { size: 8 });
   C.lcd(35, 58, 80, (r) => String(r.values.fltAlt));
   C.text(75, 86, 'FLT ALT', { size: 7.5 });
-  C.knob(75, 110, 'fltAltK', ['', ''], [0, 0], { action: true, noLabels: true });
+  C.knob(75, 112, 'fltAltK', ['', ''], [0, 0], { action: true, noLabels: true, knurl: true, r: 13 });
   C.lcd(35, 140, 80, (r) => String(r.values.landAlt));
   C.text(75, 168, 'LAND ALT', { size: 7.5 });
-  C.knob(75, 192, 'landAltK', ['', ''], [0, 0], { action: true, noLabels: true });
-  C.gauge(220, 80, 28, { min: 0, max: 100, a0: -60, a1: 60, ticks: [0, 50, 100], major: [0, 100], labels: [[0, 'C'], [100, 'O']],
-    caption: 'VALVE', capY: 12, needles: [{ fn: (r) => r.values.ofv }] });
+  C.knob(75, 194, 'landAltK', ['', ''], [0, 0], { action: true, noLabels: true, knurl: true, r: 13 });
+  C.text(220, 44, 'MANUAL', { size: 8 });
+  valvePosition(C, 212, 92, 26, (r) => r.values.ofv);
+  C.text(260, 66, 'V\nA\nL\nV\nE', { size: 7 });
   C.toggle(220, 146, 'ofvSw', ['CLOSE', '·', 'OPEN'], { horizontal: true, momentary: [0, 2] });
   C.text(220, 170, 'OUTFLOW VALVE', { size: 6.8 });
   C.knob(220, 214, 'mode', ['AUTO', 'ALTN', 'MAN'], [-50, 0, 50]);
   C.text(75, 240, 'tap knob: left −, right +', { size: 6.5 });
 
   // Cabin altitude panel.
-  const CA = O.panel('Cabin altitude', 132);
-  CA.gauge(70, 66, 46, { min: 0, max: 50, a0: -150, a1: 150, ticks: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50], major: [0, 10, 20, 30, 40, 50],
-    labels: [[0, '0'], [10, '10'], [20, '20'], [30, '30'], [40, '40'], [50, '50']], caption: 'CABIN\nALT 1000 FT', capY: 16,
-    needles: [{ fn: (r) => r.values.cab / 1000 }] });
-  CA.gauge(170, 66, 36, { min: 0, max: 10, a0: -150, a1: 150, ticks: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], major: [0, 2, 4, 6, 8, 10],
-    labels: [[0, '0'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], caption: 'DIFF\nPSI', capY: 12,
-    needles: [{ fn: (r) => Number(r.values.diff) }] });
-  CA.gauge(254, 50, 28, { min: -4, max: 4, a0: -150, a1: 150, ticks: [-4, -2, 0, 2, 4], major: [-4, 0, 4], labels: [[-4, '-4'], [0, '0'], [4, '4']],
-    caption: 'RATE', capY: 10, lfs: 6, needles: [{ fn: (r) => r.values.rate / 1000 }] });
-  CA.push(254, 108, () => {}, { top: 'ALT HORN', bottom: 'CUTOUT' });
+  const CA = O.panel('Cabin altitude', 250);
+  cabinAltDiff(CA, 112, 82, 62, (r) => r.values.cab / 1000, (r) => Number(r.values.diff));
+  CA.text(66, 172, 'PRESS DIFF\nLIMIT:TAKE-\nOFF & LDG\n.125 PSI', { size: 6.6, box: true });
+  cabinClimb(CA, 140, 206, 36, (r) => r.values.rate / 1000);
+  CA.line([[222, 10], [222, 240]], 1.2);
+  CA.text(258, 30, 'ALT\nHORN\nCUTOUT', { size: 8 });
+  CA.push(258, 80, () => {});
 
   // Air temperature (trim air).
   const T = O.panel('Air temperature', 84);

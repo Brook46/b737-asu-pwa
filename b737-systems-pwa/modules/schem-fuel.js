@@ -1,7 +1,8 @@
 // schem-fuel.js — operable fuel schematic + fuel panel replica.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=2';
-import { createOverhead } from './overhead.js?v=2';
+import { createSchematic, createPanel } from './schem-kit.js?v=3';
+import { createOverhead } from './overhead.js?v=3';
+import { fuelTemp } from './gauges.js?v=3';
 
 const F = '#d6336c', CTR = '#9c36b5', SUC = '#fab005', APUC = '#e8590c';
 
@@ -76,9 +77,7 @@ export function mount(svgHost, panelHost, ctx) {
   F2.lamp(18, 38, 56, 20, 'SPAR VALVE\nCLOSED', 'sparValve1', 'blue');
   F2.lamp(226, 16, 56, 20, 'ENG VALVE\nCLOSED', 'engValve2', 'blue');
   F2.lamp(226, 38, 56, 20, 'SPAR VALVE\nCLOSED', 'sparValve2', 'blue');
-  F2.gauge(150, 56, 40, { min: -50, max: 50, a0: -130, a1: 130, ticks: [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50],
-    major: [-40, -20, 0, 20, 40], labels: [[-40, '-40'], [-20, '-20'], [0, '0'], [20, '+20'], [40, '+40']],
-    caption: 'FUEL\nTEMP °C', capY: 14, needles: [{ fn: (r) => r.values.temp }] });
+  fuelTemp(F2, 150, 54, 38, (r) => r.values.temp);
   F2.lamp(30, 100, 46, 20, 'FILTER\nBYPASS', 'filter1');
   F2.lamp(126, 100, 48, 20, 'VALVE\nOPEN', 'valveOpen', 'blue');
   F2.lamp(224, 100, 46, 20, 'FILTER\nBYPASS', 'filter2');
@@ -97,7 +96,7 @@ export function mount(svgHost, panelHost, ctx) {
   F2.text(150, 234, 'FUEL PUMPS', { size: 8.5, box: true });
   F2.toggle(127, 262, 'ctrL', ['OFF', 'ON'], { labels: 'left' });
   F2.toggle(173, 262, 'ctrR', ['OFF', 'ON'] );
-  F2.text(112, 266, 'L', { size: 8.5, box: true }); F2.text(188, 266, 'R', { size: 8.5, box: true });
+  F2.text(103, 266, 'L', { size: 8.5, box: true }); F2.text(197, 266, 'R', { size: 8.5, box: true });
   F2.text(150, 300, 'CTR', { size: 8.5, box: true });
   F2.lamp(22, 282, 34, 20, 'LOW\nPRESSURE', 'lp1aft');
   F2.lamp(57, 282, 34, 20, 'LOW\nPRESSURE', 'lp1fwd');

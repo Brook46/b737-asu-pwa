@@ -4,16 +4,16 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=2';
-import { createScene } from './modules/scene.js?v=2';
-import { buildAirframe } from './modules/airframe.js?v=2';
-import { createSystems3D } from './modules/systems3d.js?v=2';
-import { createOverlay } from './modules/overlay.js?v=2';
-import { createSheet } from './modules/sheet.js?v=2';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=2';
-import { SYSTEMS, READY } from './modules/systems.js?v=2';
-import { createSearch } from './modules/search.js?v=2';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=2';
+import { installResumeHardening } from './modules/resume.js?v=3';
+import { createScene } from './modules/scene.js?v=3';
+import { buildAirframe } from './modules/airframe.js?v=3';
+import { createSystems3D } from './modules/systems3d.js?v=3';
+import { createOverlay } from './modules/overlay.js?v=3';
+import { createSheet } from './modules/sheet.js?v=3';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=3';
+import { SYSTEMS, READY } from './modules/systems.js?v=3';
+import { createSearch } from './modules/search.js?v=3';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 
