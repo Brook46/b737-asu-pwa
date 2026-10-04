@@ -6,7 +6,7 @@
 // differential at 9.1 psi. AUTO/ALTN close the loop on the outflow valve to
 // follow the FCOM differential schedule; MAN hands the valve to you.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=1';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=2';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -272,7 +272,10 @@ export default {
   },
 
   action(st, key, label) {
-    if (key === 'ofvSw') {
+    const step = label === 'INC' ? 1 : -1;
+    if (key === 'fltAltK') st.mem.fltAlt = Math.max(-1000, Math.min(42000, st.mem.fltAlt + 500 * step));
+    else if (key === 'landAltK') st.mem.landAlt = Math.max(-1000, Math.min(14000, st.mem.landAlt + 50 * step));
+    else if (key === 'ofvSw') {
       // Spring-loaded: each throw moves the valve a step (MAN only).
       if (st.sw.mode !== 2) return;
       st.mem.ofv = Math.max(0, Math.min(1, st.mem.ofv + (label === 'OPEN' ? 0.06 : -0.06)));
@@ -300,15 +303,19 @@ export default {
     return { b1, b2, ab, isoOpen, L, R, pL, pR, high, units, apuOnly };
   },
 
+  /** Cabin pressure the auto controller aims for in this phase. */
+  target(env, m) {
+    const pa = pAt(env.alt);
+    if (!env.air && env.phase !== 'takeoff') return pa;                    // ground/rollout: open up
+    if (env.phase === 'takeoff') return pAt(Math.max(0, env.alt - 300) - 200);
+    return Math.min(pa + diffFor(m.fltAlt), P0 + 0.1);                      // cruise: scheduled differential
+  },
+
   tick(dt, st, env) {
     const a = this.air(env, st);
     const m = st.mem, sw = st.sw, f = st.fail;
     const pa = pAt(env.alt);
-    // Target cabin per phase in AUTO/ALTN.
-    let target;
-    if (!env.air && env.phase !== 'takeoff') target = pa;                       // ground/rollout: open up
-    else if (env.phase === 'takeoff') target = pAt(Math.max(0, env.alt - 300) - 200);
-    else target = Math.min(pa + diffFor(m.fltAlt), P0 + 0.1);   // cruise: hold the scheduled differential
+    const target = this.target(env, m);
     if (m.pc == null) m.pc = target;
     const autoOk = sw.mode === 2 ? false : !(f.ctrl1 && f.ctrl2);
     const inflow = a.units * PACK;
@@ -340,7 +347,9 @@ export default {
     const a = this.air(env, st);
     const { sw, fail: f, mem: m } = st;
     const pa = pAt(env.alt);
-    const pc = m.pc ?? pa;
+    // Before the first tick, start the cabin where the controller wants it.
+    if (m.pc == null) m.pc = this.target(env, m);
+    const pc = m.pc;
     const cab = Math.round(ftAt(pc) / 10) * 10;
     const diff = Math.max(0, pc - pa);
     const dual = a.ab && (sw.bleed1 || (sw.bleed2 && a.isoOpen));

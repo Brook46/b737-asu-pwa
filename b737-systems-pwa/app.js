@@ -4,14 +4,16 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=1';
-import { createScene } from './modules/scene.js?v=1';
-import { buildAirframe } from './modules/airframe.js?v=1';
-import { createSystems3D } from './modules/systems3d.js?v=1';
-import { createOverlay } from './modules/overlay.js?v=1';
-import { createSheet } from './modules/sheet.js?v=1';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=1';
-import { SYSTEMS, READY } from './modules/systems.js?v=1';
+import { installResumeHardening } from './modules/resume.js?v=2';
+import { createScene } from './modules/scene.js?v=2';
+import { buildAirframe } from './modules/airframe.js?v=2';
+import { createSystems3D } from './modules/systems3d.js?v=2';
+import { createOverlay } from './modules/overlay.js?v=2';
+import { createSheet } from './modules/sheet.js?v=2';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=2';
+import { SYSTEMS, READY } from './modules/systems.js?v=2';
+import { createSearch } from './modules/search.js?v=2';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,10 +45,68 @@ function init() {
   const overlay = createOverlay(api, $('leaders'), $('hotspots'), (id) => {
     if (id.startsWith('sys:')) selectSystem(id.slice(4)); else selectPart(id);
   });
+  // ── Favorites & highlights ──
+  const notes = createNotes();
+  // Title + subtitle for a page key "sys" or "sys/part".
+  const describe = (key) => {
+    const [sid, pid] = key.split('/');
+    const m = SYSTEMS.find((x) => x.id === sid)?.mod;
+    if (!m) return { title: key };
+    const p = pid && m.parts.find((q) => q.id === pid);
+    return p ? { title: p.name, sub: m.title } : { title: m.title, sub: 'System' };
+  };
+  function decorate(body, key) {
+    if (!key) return;
+    applyHighlights(body, notes.hls(key));
+    const star = body.querySelector('[data-star]');
+    if (star) {
+      const on = notes.isFav(key);
+      star.classList.toggle('on', on);
+      star.textContent = on ? '★' : '☆';
+      star.setAttribute('aria-label', on ? 'Remove from favorites' : 'Add to favorites');
+    }
+  }
+  function showFavorites() {
+    favOpen = true;
+    sheet.favorites(notes.favs(), notes.hls());
+  }
+  let favOpen = false;
+
   const sheet = createSheet($('sheet'), $('sheet-body'), $('sheet-close'), {
     onRelated: (id) => (id.startsWith('sys:') ? selectSystem(id.slice(4)) : selectPart(id)),
-    onClose: () => { partId = null; s3d.select(null); overlay.setSelected(null); },
+    onClose: () => { favOpen = false; partId = null; s3d.select(null); overlay.setSelected(null); },
+    onStar: (key) => { if (key) { notes.toggleFav(key, describe(key)); decorate($('sheet-body'), key); } },
+    onUnfav: (key) => { notes.removeFav(key); showFavorites(); },
+    onDelHL: (id) => { notes.removeHL(id); showFavorites(); },
+    onGo: (key, hl) => goTo(key, hl),
+    decorate,
   });
+  attachSelection($('sheet-body'), $('hl-pop'), {
+    getKey: () => sheet.key,
+    notes,
+    meta: () => describe(sheet.key || ''),
+    onChange: () => {
+      // Re-render the page so the new mark (or its removal) shows.
+      const key = sheet.key;
+      if (key) goTo(key, null, true);
+    },
+  });
+
+  /** Open the page for "sys" or "sys/part", optionally flashing a highlight. */
+  function goTo(key, hl, keepScroll = false) {
+    favOpen = false;
+    const [sid, pid] = key.split('/');
+    const body = $('sheet-body');
+    const top = body.scrollTop;
+    if (sysId !== sid) selectSystem(sid);
+    if (pid) selectPart(pid, keepScroll); else sheet.system(sysOf(sid).mod);
+    if (view === 'schem' && !pid) sheet.system(sysOf(sid).mod);
+    if (keepScroll) body.scrollTop = top;
+    if (hl) {
+      const m = body.querySelector(`mark[data-hl="${hl}"]`);
+      if (m) { m.scrollIntoView({ block: 'center', behavior: 'smooth' }); m.classList.add('flash'); }
+    }
+  }
 
   // The sheet covers part of the screen: shift the camera's centre into the
   // free area and keep hotspot labels out of the sheet and the HUD bars.
@@ -163,7 +223,7 @@ function init() {
     refresh();
   }
 
-  function selectPart(id) {
+  function selectPart(id, noFly = false) {
     if (!sysId) return;
     const s = sysOf(sysId);
     const idx = s.mod.parts.findIndex((p) => p.id === id);
@@ -173,7 +233,7 @@ function init() {
     s3d.select(id);
     overlay.setSelected(id);
     sheet.part(s.mod, p, idx);
-    if (view === '3d') {
+    if (view === '3d' && !noFly) {
       // Keep the part left of the sheet on wide screens by aiming a bit right of it.
       const t = api.worldOf(p.at);
       api.flyTo(t, p.zoom ?? 15, null, 900);
@@ -268,6 +328,11 @@ function init() {
     if (moved) refresh();
   }, 100);
 
+  // ── Search ──
+  const search = createSearch($('search'), READY, (sid, pid) => goTo(pid ? `${sid}/${pid}` : sid));
+  $('search-btn').addEventListener('click', () => search.open());
+  $('fav-btn').addEventListener('click', () => (favOpen && !$('sheet').hidden ? (sheet.hide(), favOpen = false) : showFavorites()));
+
   $('home-btn').addEventListener('click', () => {
     const v = sysId && sysOf(sysId).mod.view;
     if (v) api.flyTo(new api.THREE.Vector3(...v.target), v.dist, new api.THREE.Vector3(...v.dir), 900);
@@ -281,6 +346,8 @@ function init() {
 
   // Keyboard: ← → cycle systems, Esc closes the sheet.
   window.addEventListener('keydown', (e) => {
+    if (e.target.closest?.('input, textarea')) return;
+    if (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) { e.preventDefault(); search.open(); return; }
     if (e.key === 'ArrowRight') $('sys-next').click();
     else if (e.key === 'ArrowLeft') $('sys-prev').click();
     else if (e.key === 'Escape') { sheet.hide(); partId = null; s3d.select(null); overlay.setSelected(null); }
@@ -291,7 +358,7 @@ function init() {
   api.start();
   window.__booted = true;
   // Debug handle for local development only.
-  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d };
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d, states };
 
   if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -26,23 +26,36 @@ function failsHtml(rows) {
   return `<h3>If it fails</h3>` + rows.map((f) => `<div class="fail">${md(f)}</div>`).join('');
 }
 
-export function createSheet(el, body, closeBtn, { onRelated, onClose }) {
+export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, onGo, onDelHL, onUnfav, decorate }) {
+  let current = null;
   closeBtn.addEventListener('click', () => { hide(); onClose(); });
   body.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-del]');
+    if (del) { e.stopPropagation(); onDelHL(del.dataset.del); return; }
+    const uf = e.target.closest('[data-unfav]');
+    if (uf) { onUnfav(uf.dataset.unfav); return; }
+    const go = e.target.closest('[data-go]');
+    if (go) { onGo(go.dataset.go, go.dataset.hl); return; }
+    const st = e.target.closest('[data-star]');
+    if (st) { onStar(current); return; }
     const b = e.target.closest('[data-rel]');
     if (b) onRelated(b.dataset.rel);
   });
 
-  function show(html) {
+  function show(html, key = null) {
+    current = key;
     body.innerHTML = html;
     body.scrollTop = 0;
     el.hidden = false;
+    decorate?.(body, key);
   }
-  function hide() { el.hidden = true; }
+  function hide() { el.hidden = true; current = null; }
+  const star = '<button class="star-btn no-hl" data-star aria-label="Add to favorites">☆</button>';
 
   function part(sys, p, idx) {
     const rel = (p.related || []).map((id) => sys.parts.find((q) => q.id === id)).filter(Boolean);
     show(`
+      ${star}
       <div class="kicker"><span class="swatch" style="background:${sys.color}"></span>[${String(sys.num).padStart(2, '0')}] ${esc(sys.title)} · ${String(idx + 1).padStart(2, '0')}</div>
       <h2>${esc(p.name)}</h2>
       ${p.lead ? `<p class="lead">${md(p.lead)}</p>` : ''}
@@ -52,12 +65,13 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose }) {
       ${failsHtml(p.fails)}
       ${rel.length ? `<h3>Related</h3><div class="chips">${rel.map((r) => `<button class="tag tag-btn" data-rel="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}
       <p class="note-src">Written for study from the El Al 737 FCOM (D6-27370-858-ELA, rev. Sep 2025). Explanations are paraphrased; figures cite the FCOM section. The FCOM and QRH govern.</p>
-    `);
+    `, `${sys.id}/${p.id}`);
   }
 
   function system(sys) {
     const o = sys.overview;
     show(`
+      ${star}
       <div class="kicker"><span class="swatch" style="background:${sys.color}"></span>[${String(sys.num).padStart(2, '0')}] System · ${esc(sys.fcom)}</div>
       <h2>${esc(sys.title)}</h2>
       <p class="lead">${md(o.lead)}</p>
@@ -66,8 +80,8 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose }) {
       ${o.memory?.length ? `<h3>Memory items &amp; must-knows</h3><div class="memory">${o.memory.map((m) => `<p>${md(m)}</p>`).join('')}</div>` : ''}
       <h3>Parts</h3>
       <div class="chips">${sys.parts.map((p, i) => `<button class="tag tag-btn" data-rel="${p.id}"><span style="opacity:.6">[${String(i + 1).padStart(2, '0')}]</span> ${esc(p.name)}</button>`).join('')}</div>
-      <p class="note-src">Tap a part on the airplane or in the list. Switch to <b>Schematic</b> (top right) to operate the system.</p>
-    `);
+      <p class="note-src">Tap a part on the airplane or in the list. Switch to <b>Schematic</b> (top right) to operate the system. Select any text to highlight it; ☆ saves the page.</p>
+    `, sys.id);
   }
 
   function overview(systems) {
@@ -81,5 +95,22 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose }) {
     `);
   }
 
-  return { part, system, overview, hide, get open() { return !el.hidden; } };
+  /** Starred pages and saved highlights. favs/hls carry {key, title, sub}. */
+  function favorites(favs, hls) {
+    const color = { y: '#ffe066', g: '#8ce99a', p: '#ffadd2' };
+    show(`
+      <div class="kicker">Saved on this device</div>
+      <h2>Favorites</h2>
+      <h3>Starred pages</h3>
+      ${favs.length ? favs.map((f) => `<div class="fav-row"><button class="tag tag-btn" data-go="${esc(f.key)}">★ ${esc(f.title)}${f.sub ? ` <span style="opacity:.6">· ${esc(f.sub)}</span>` : ''}</button><button class="tag tag-btn unfav" data-unfav="${esc(f.key)}" aria-label="Remove">✕</button></div>`).join('')
+        : '<p class="empty-note">Tap ☆ at the top of any page to keep it here.</p>'}
+      <h3>Highlights</h3>
+      ${hls.length ? hls.map((h) => `<button class="hl-item" style="border-color:${color[h.color] || color.y}" data-go="${esc(h.key)}" data-hl="${h.id}">
+          <q>${esc(h.text)}</q><small>${esc(h.title)}${h.sub ? ' · ' + esc(h.sub) : ''}</small>
+          <span class="hl-del" data-del="${h.id}" role="button" aria-label="Delete highlight">✕</span></button>`).join('')
+        : '<p class="empty-note">Select any text on a page and pick a colour to highlight it.</p>'}
+    `, null);
+  }
+
+  return { part, system, overview, favorites, hide, get open() { return !el.hidden; }, get key() { return current; } };
 }

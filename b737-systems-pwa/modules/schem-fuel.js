@@ -1,6 +1,7 @@
 // schem-fuel.js — operable fuel schematic + fuel panel replica.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=1';
+import { createSchematic, createPanel } from './schem-kit.js?v=2';
+import { createOverhead } from './overhead.js?v=2';
 
 const F = '#d6336c', CTR = '#9c36b5', SUC = '#fab005', APUC = '#e8590c';
 
@@ -67,39 +68,76 @@ export function mount(svgHost, panelHost, ctx) {
   X.value(150, 88 + 98, (r) => (r.values.src1 ? `◂ ${src[r.values.src1]}` : ''), 't-small', 'middle');
   X.value(850, 88 + 98, (r) => (r.values.src2 ? `◂ ${src[r.values.src2]}` : ''), 't-small', 'middle');
 
-  // ── Panel ──
-  const P = createPanel(panelHost, ctx);
-  P.title('FUEL');
-  P.row(P.lamp('ENG VALVE\nCLOSED', 'engValve1', 'blue'), P.lamp('SPAR VALVE\nCLOSED', 'sparValve1', 'blue'),
-    P.lamp('ENG VALVE\nCLOSED', 'engValve2', 'blue'), P.lamp('SPAR VALVE\nCLOSED', 'sparValve2', 'blue'));
-  P.row(P.lamp('FILTER\nBYPASS', 'filter1'), P.lamp('VALVE\nOPEN', 'valveOpen', 'blue'), P.lamp('FILTER\nBYPASS', 'filter2'));
-  P.row(P.rotary('CROSSFEED', 'xfeed', ['CLOSED', 'OPEN'], [0, 90]),
-    P.readout((r) => `${r.values.temp > 0 ? '+' : ''}${r.values.temp}<small>°C</small>`, 'FUEL TEMP'));
-  P.row(P.lamp('LOW\nPRESSURE', 'lpCL'), P.lamp('LOW\nPRESSURE', 'lpCR'));
-  P.row(P.toggle('CTR L', 'ctrL', ['OFF', 'ON']), P.toggle('CTR R', 'ctrR', ['OFF', 'ON']));
-  P.row(P.lamp('LOW\nPRESSURE', 'lp1aft'), P.lamp('LOW\nPRESSURE', 'lp1fwd'), P.lamp('LOW\nPRESSURE', 'lp2fwd'), P.lamp('LOW\nPRESSURE', 'lp2aft'));
-  P.row(P.toggle('1 AFT', 'm1aft', ['OFF', 'ON']), P.toggle('1 FWD', 'm1fwd', ['OFF', 'ON']),
-    P.toggle('2 FWD', 'm2fwd', ['OFF', 'ON']), P.toggle('2 AFT', 'm2aft', ['OFF', 'ON']));
-  P.title('FUEL DISPLAY');
+  // ── Fuel control panel (layout after FCOM 12.10.1) ──
+  const O = createOverhead(panelHost, ctx);
+  const F2 = O.panel('Fuel', 372);
+  F2.band(0, 118);
+  F2.lamp(18, 16, 56, 20, 'ENG VALVE\nCLOSED', 'engValve1', 'blue');
+  F2.lamp(18, 38, 56, 20, 'SPAR VALVE\nCLOSED', 'sparValve1', 'blue');
+  F2.lamp(226, 16, 56, 20, 'ENG VALVE\nCLOSED', 'engValve2', 'blue');
+  F2.lamp(226, 38, 56, 20, 'SPAR VALVE\nCLOSED', 'sparValve2', 'blue');
+  F2.gauge(150, 56, 40, { min: -50, max: 50, a0: -130, a1: 130, ticks: [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50],
+    major: [-40, -20, 0, 20, 40], labels: [[-40, '-40'], [-20, '-20'], [0, '0'], [20, '+20'], [40, '+40']],
+    caption: 'FUEL\nTEMP °C', capY: 14, needles: [{ fn: (r) => r.values.temp }] });
+  F2.lamp(30, 100, 46, 20, 'FILTER\nBYPASS', 'filter1');
+  F2.lamp(126, 100, 48, 20, 'VALVE\nOPEN', 'valveOpen', 'blue');
+  F2.lamp(224, 100, 46, 20, 'FILTER\nBYPASS', 'filter2');
+  // Mimic lines: engine feeds down the sides, crossfeed across the middle.
+  F2.line([[53, 122], [53, 160], [118, 160]]);
+  F2.line([[247, 122], [247, 160], [182, 160]]);
+  F2.line([[53, 160], [53, 290]]);
+  F2.line([[247, 160], [247, 290]]);
+  F2.line([[132, 186], [132, 200]]);
+  F2.line([[168, 186], [168, 200]]);
+  F2.text(100, 151, 'CROSS', { size: 8.5, box: true });
+  F2.text(200, 151, 'FEED', { size: 8.5, box: true });
+  F2.knob(150, 160, 'xfeed', ['', ''], [0, 90], { r: 22, bar: true, noLabels: true });
+  F2.lamp(116, 200, 34, 20, 'LOW\nPRESSURE', 'lpCL');
+  F2.lamp(150, 200, 34, 20, 'LOW\nPRESSURE', 'lpCR');
+  F2.text(150, 234, 'FUEL PUMPS', { size: 8.5, box: true });
+  F2.toggle(127, 262, 'ctrL', ['OFF', 'ON'], { labels: 'left' });
+  F2.toggle(173, 262, 'ctrR', ['OFF', 'ON'] );
+  F2.text(112, 266, 'L', { size: 8.5, box: true }); F2.text(188, 266, 'R', { size: 8.5, box: true });
+  F2.text(150, 300, 'CTR', { size: 8.5, box: true });
+  F2.lamp(22, 282, 34, 20, 'LOW\nPRESSURE', 'lp1aft');
+  F2.lamp(57, 282, 34, 20, 'LOW\nPRESSURE', 'lp1fwd');
+  F2.lamp(209, 282, 34, 20, 'LOW\nPRESSURE', 'lp2fwd');
+  F2.lamp(244, 282, 34, 20, 'LOW\nPRESSURE', 'lp2aft');
+  F2.toggle(39, 334, 'm1aft', ['OFF', 'ON'], { labels: 'left' });
+  F2.toggle(74, 334, 'm1fwd', ['OFF', 'ON']);
+  F2.toggle(226, 334, 'm2fwd', ['OFF', 'ON'], { labels: 'left' });
+  F2.toggle(261, 334, 'm2aft', ['OFF', 'ON']);
+  F2.text(39, 312, 'AFT', { size: 7.5, box: true }); F2.text(74, 312, 'FWD', { size: 7.5, box: true });
+  F2.text(226, 312, 'FWD', { size: 7.5, box: true }); F2.text(261, 312, 'AFT', { size: 7.5, box: true });
+  F2.text(57, 364, '1', { size: 9, box: true }); F2.text(243, 364, '2', { size: 9, box: true });
+  F2.text(150, 344, 'FUEL\nPUMPS', { size: 8.5, box: true });
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('UPPER DU · FUEL');
   P.row(P.readout((r) => `${r.values.m1}`, 'TANK 1'), P.readout((r) => `${r.values.c}`, 'CTR'), P.readout((r) => `${r.values.m2}`, 'TANK 2'));
   P.row(P.readout((r) => `${r.values.total}<small>kg</small>`, 'TOTAL'));
-  P.title('SIMULATION');
+  P.title('INSTRUCTOR · SIMULATION');
   P.actions(
     P.push('TIME ×1 / ×120', () => ctx.action('rate')),
     P.push('+700 kg IN TANK 2', () => ctx.action('imbal')),
     P.push('EMPTY CENTER', () => ctx.action('emptyCtr')),
   );
-  P.title('FAILURES');
+  P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('ENG 1 fuel leak', 'leak1'), P.fail('1 FWD pump', 'p1fwd'), P.fail('CTR L pump', 'ctrL'),
     P.fail('ENG 1 filter', 'filter1'), P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Try: Cruise → <b>+700 kg in tank 2</b> → IMBAL. Fix it: CROSSFEED open, tank 1 pumps OFF, TIME ×120, and watch tank 2 feed both engines. Or switch both pumps of one tank OFF to see suction feed.');
+  P.note('CROSSFEED knob: tap its right half to open, left half to close. Try: Cruise → <b>+700 kg in tank 2</b> → IMBAL; crossfeed open, tank 1 pumps OFF, TIME ×120.');
 
   return {
     update(res) {
       res.values.f1 = Math.min(1, res.values.f1);
       res.values.f2 = Math.min(1, res.values.f2);
       X.update(res);
+      O.update(res);
       P.update(res);
     },
   };

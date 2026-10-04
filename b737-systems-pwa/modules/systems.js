@@ -2,14 +2,14 @@
 // with `mod` are built; the rest are listed so the map of the airplane is
 // complete and show as "soon".
 
-import hydraulics from './sys-hydraulics.js?v=1';
-import * as schemHydraulics from './schem-hydraulics.js?v=1';
-import fuel from './sys-fuel.js?v=1';
-import * as schemFuel from './schem-fuel.js?v=1';
-import electrical from './sys-electrical.js?v=1';
-import * as schemElectrical from './schem-electrical.js?v=1';
-import air from './sys-air.js?v=1';
-import * as schemAir from './schem-air.js?v=1';
+import hydraulics from './sys-hydraulics.js?v=2';
+import * as schemHydraulics from './schem-hydraulics.js?v=2';
+import fuel from './sys-fuel.js?v=2';
+import * as schemFuel from './schem-fuel.js?v=2';
+import electrical from './sys-electrical.js?v=2';
+import * as schemElectrical from './schem-electrical.js?v=2';
+import air from './sys-air.js?v=2';
+import * as schemAir from './schem-air.js?v=2';
 
 export const SYSTEMS = [
   { id: 'general', num: 1, title: 'Airplane General', color: '#6b7280' },

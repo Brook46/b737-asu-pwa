@@ -1,6 +1,7 @@
 // schem-air.js — operable bleed / packs / pressurisation schematic + panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=1';
+import { createSchematic, createPanel } from './schem-kit.js?v=2';
+import { createOverhead } from './overhead.js?v=2';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 
@@ -59,32 +60,96 @@ export function mount(svgHost, panelHost, ctx) {
   X.value(560, 574, (r) => `OUTFLOW VALVE ${r.values.ofv}% open`, 't-small', 'start');
   X.text(612, 604, 'OVERBOARD', 't-small t-dim');
 
-  // ── Panel ──
-  const P = createPanel(panelHost, ctx);
-  P.title('AIR CONDITIONING');
-  P.row(P.lamp('PACK', 'packL'), P.lamp('RAM DOOR\nFULL OPEN', 'ramL', 'blue'), P.lamp('RAM DOOR\nFULL OPEN', 'ramR', 'blue'), P.lamp('PACK', 'packR'));
-  P.row(P.toggle('L PACK', 'packL', ['OFF', 'AUTO', 'HIGH']), P.toggle('ISOLATION', 'iso', ['CLOSE', 'AUTO', 'OPEN']),
-    P.toggle('R PACK', 'packR', ['OFF', 'AUTO', 'HIGH']));
-  P.row(P.toggle('L RECIRC', 'recircL', ['OFF', 'AUTO']), P.toggle('TRIM AIR', 'trim', ['OFF', 'ON']), P.toggle('R RECIRC', 'recircR', ['OFF', 'AUTO']));
-  P.title('BLEED');
-  P.row(P.lamp('DUAL\nBLEED', 'dualBleed'), P.readout((r) => `${r.values.ductL}·${r.values.ductR}`, 'DUCT PRESS L·R'));
-  P.row(P.lamp('WING-BODY\nOVERHEAT', 'wbL'), P.lamp('BLEED TRIP\nOFF', 'trip1'), P.lamp('BLEED TRIP\nOFF', 'trip2'), P.lamp('WING-BODY\nOVERHEAT', 'wbR'));
-  P.row(P.toggle('BLEED 1', 'bleed1', ['OFF', 'ON']), P.toggle('APU', 'apuBleed', ['OFF', 'ON']), P.toggle('BLEED 2', 'bleed2', ['OFF', 'ON']));
-  P.actions(P.push('TRIP RESET', () => { ctx.fail.trip1 = false; ctx.fail.trip2 = false; ctx.fail.packL = false; ctx.fail.packR = false; ctx.set('bleed1', ctx.sw.bleed1); }));
-  P.title('PRESSURIZATION');
-  P.row(P.lamp('AUTO\nFAIL', 'autoFail'), P.lamp('ALTN', 'altn', 'green'), P.lamp('MANUAL', 'manual', 'green'), P.lamp('CABIN\nALT HORN', 'horn'));
-  P.row(P.readout((r) => `${(r.values.cab / 1000).toFixed(1)}<small>k ft</small>`, 'CABIN ALT'), P.readout((r) => `${r.values.diff}<small>psi</small>`, 'DIFF'),
-    P.readout((r) => `${r.values.rate}<small>fpm</small>`, 'RATE'));
-  P.row(P.readout((r) => `${(r.values.fltAlt / 1000).toFixed(0)}<small>k</small>`, 'FLT ALT'), P.readout((r) => `${r.values.landAlt}`, 'LAND ALT'),
-    P.readout((r) => `${r.values.ofv}<small>%</small>`, 'OUTFLOW VLV'));
-  P.row(P.rotary('MODE', 'mode', ['AUTO', 'ALTN', 'MAN'], [-50, 0, 50]),
-    P.toggle('OUTFLOW', 'ofvSw', ['CLOSE', '·', 'OPEN'], { momentary: [0, 2] }));
-  P.note('Outflow valve switch works in MAN only. A small movement makes a big rate.');
-  P.title('FAILURES');
+  // ── Overhead panels (layout after FCOM 2.10) ──
+  const O = createOverhead(panelHost, ctx);
+  // Bleed air controls.
+  const B = O.panel('Bleed air', 344);
+  B.band(0, 40);
+  B.lamp(56, 11, 44, 20, 'DUAL\nBLEED', 'dualBleed');
+  B.lamp(102, 11, 48, 20, 'RAM DOOR\nFULL OPEN', 'ramL', 'blue');
+  B.lamp(196, 11, 48, 20, 'RAM DOOR\nFULL OPEN', 'ramR', 'blue');
+  B.text(62, 54, 'L RECIRC FAN', { size: 7.5 });
+  B.text(238, 54, 'R RECIRC FAN', { size: 7.5 });
+  B.toggle(50, 84, 'recircL', ['OFF', 'AUTO']);
+  B.toggle(250, 84, 'recircR', ['OFF', 'AUTO'], { labels: 'left' });
+  B.gauge(150, 92, 36, { min: 0, max: 80, a0: -140, a1: 140, ticks: [0, 10, 20, 30, 40, 50, 60, 70, 80], major: [0, 20, 40, 60, 80],
+    labels: [[0, '0'], [20, '20'], [40, '40'], [60, '60'], [80, '80']], caption: 'DUCT\nPRESS\nPSI', capY: 12,
+    needles: [{ fn: (r) => r.values.ductL, tag: 'L' }, { fn: (r) => r.values.ductR, tag: 'R' }] });
+  B.push(240, 134, () => {}, { top: 'OVHT', bottom: 'TEST' });
+  // Duct mimic: bleeds up the sides, across through the isolation valve.
+  B.line([[50, 296], [50, 184], [250, 184], [250, 296]]);
+  B.line([[150, 296], [150, 270], [50, 270]]);
+  B.text(50, 148, 'L PACK', { size: 8, box: true });
+  B.text(250, 148, 'R PACK', { size: 8, box: true });
+  B.toggle(50, 184, 'packL', ['OFF', 'AUTO', 'HIGH']);
+  B.toggle(250, 184, 'packR', ['OFF', 'AUTO', 'HIGH'], { labels: 'left' });
+  B.text(150, 146, 'ISOLATION\nVALVE', { size: 7.5 });
+  B.toggle(150, 184, 'iso', ['CLOSE', 'AUTO', 'OPEN']);
+  for (const [x, side] of [[74, 'L'], [184, 'R']]) {
+    const n = side === 'L' ? 1 : 2;
+    B.lamp(x, 214, 42, 15, 'PACK', 'pack' + side);
+    B.lamp(x, 230, 42, 18, 'WING-BODY\nOVERHEAT', 'wb' + side);
+    B.lamp(x, 249, 42, 18, 'BLEED\nTRIP OFF', 'trip' + n);
+  }
+  B.push(150, 240, () => { ctx.fail.trip1 = false; ctx.fail.trip2 = false; ctx.fail.packL = false; ctx.fail.packR = false; ctx.set('bleed1', ctx.sw.bleed1); },
+    { top: 'TRIP', bottom: 'RESET' });
+  B.toggle(50, 300, 'bleed1', ['OFF', 'ON'], { name: '1' });
+  B.toggle(150, 300, 'apuBleed', ['OFF', 'ON'], { name: 'APU' });
+  B.toggle(250, 300, 'bleed2', ['OFF', 'ON'], { name: '2', labels: 'left' });
+  B.text(150, 340, 'BLEED', { size: 8.5 });
+
+  // Cabin pressurization panel.
+  const C = O.panel('Cabin pressurization', 258);
+  C.lamp(20, 12, 44, 20, 'AUTO\nFAIL', 'autoFail');
+  C.lamp(66, 12, 44, 20, 'OFF SCHED\nDESCENT', null);
+  C.lamp(190, 12, 44, 20, 'ALTN', 'altn', 'green');
+  C.lamp(236, 12, 44, 20, 'MANUAL', 'manual', 'green');
+  C.text(75, 50, 'AUTO', { size: 8 });
+  C.lcd(35, 58, 80, (r) => String(r.values.fltAlt));
+  C.text(75, 86, 'FLT ALT', { size: 7.5 });
+  C.knob(75, 110, 'fltAltK', ['', ''], [0, 0], { action: true, noLabels: true });
+  C.lcd(35, 140, 80, (r) => String(r.values.landAlt));
+  C.text(75, 168, 'LAND ALT', { size: 7.5 });
+  C.knob(75, 192, 'landAltK', ['', ''], [0, 0], { action: true, noLabels: true });
+  C.gauge(220, 80, 28, { min: 0, max: 100, a0: -60, a1: 60, ticks: [0, 50, 100], major: [0, 100], labels: [[0, 'C'], [100, 'O']],
+    caption: 'VALVE', capY: 12, needles: [{ fn: (r) => r.values.ofv }] });
+  C.toggle(220, 146, 'ofvSw', ['CLOSE', '·', 'OPEN'], { horizontal: true, momentary: [0, 2] });
+  C.text(220, 170, 'OUTFLOW VALVE', { size: 6.8 });
+  C.knob(220, 214, 'mode', ['AUTO', 'ALTN', 'MAN'], [-50, 0, 50]);
+  C.text(75, 240, 'tap knob: left −, right +', { size: 6.5 });
+
+  // Cabin altitude panel.
+  const CA = O.panel('Cabin altitude', 132);
+  CA.gauge(70, 66, 46, { min: 0, max: 50, a0: -150, a1: 150, ticks: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50], major: [0, 10, 20, 30, 40, 50],
+    labels: [[0, '0'], [10, '10'], [20, '20'], [30, '30'], [40, '40'], [50, '50']], caption: 'CABIN\nALT 1000 FT', capY: 16,
+    needles: [{ fn: (r) => r.values.cab / 1000 }] });
+  CA.gauge(170, 66, 36, { min: 0, max: 10, a0: -150, a1: 150, ticks: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], major: [0, 2, 4, 6, 8, 10],
+    labels: [[0, '0'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], caption: 'DIFF\nPSI', capY: 12,
+    needles: [{ fn: (r) => Number(r.values.diff) }] });
+  CA.gauge(254, 50, 28, { min: -4, max: 4, a0: -150, a1: 150, ticks: [-4, -2, 0, 2, 4], major: [-4, 0, 4], labels: [[-4, '-4'], [0, '0'], [4, '4']],
+    caption: 'RATE', capY: 10, lfs: 6, needles: [{ fn: (r) => r.values.rate / 1000 }] });
+  CA.push(254, 108, () => {}, { top: 'ALT HORN', bottom: 'CUTOUT' });
+
+  // Air temperature (trim air).
+  const T = O.panel('Air temperature', 84);
+  for (const [x, z] of [[40, 'CONT CAB'], [110, 'FWD CAB'], [180, 'AFT CAB']]) {
+    T.lamp(x - 22, 12, 44, 18, 'ZONE\nTEMP', null);
+    T.knob(x, 52, 'z' + x, ['', ''], [0, 0], { inert: true, noLabels: true, r: 10 });
+    T.text(x, 78, z, { size: 6.5 });
+  }
+  T.toggle(260, 46, 'trim', ['OFF', 'ON'], { labels: 'left' });
+  T.text(260, 80, 'TRIM AIR', { size: 6.5 });
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('ENG 2 fail', 'eng2'), P.fail('Bleed trip 1', 'trip1'), P.fail('L pack trip', 'packL'), P.fail('Wing-body ovht L', 'wbL'),
     P.fail('Controller 1', 'ctrl1'), P.fail('Controller 2', 'ctrl2'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Try: Cruise → <b>L pack trip</b> (the right pack goes to high flow by itself; flaps up). Both packs OFF and watch the cabin climb to the horn. MAN mode → drive the outflow valve yourself. Ground → DUAL BLEED is normal with the APU bleed on.');
+  P.note('Outflow valve switch works in MAN only. Try: Cruise → <b>L pack trip</b> (the right pack goes to high flow). Both packs OFF and watch the cabin climb to the horn.');
 
-  return { update(res) { X.update(res); P.update(res); } };
+  return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }

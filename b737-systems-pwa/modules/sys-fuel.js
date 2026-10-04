@@ -1,7 +1,7 @@
 // sys-fuel.js — FCOM chapter 12 (fuel) in our own words, with tank layout,
 // feed logic, alerts and a fuel burn you can watch (and fast-forward).
 
-import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=1';
+import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=2';
 
 const F = '#d6336c', CTR = '#9c36b5', APUC = '#e8590c';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];

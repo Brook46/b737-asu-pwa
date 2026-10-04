@@ -14,8 +14,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=2">
 </head>
 <body>
   <div id="stage">
@@ -46,6 +46,8 @@
     <div class="seg" role="tablist" aria-label="View">
       <button class="tag tag-btn on" data-view="3d" role="tab" aria-selected="true">3D</button><button class="tag tag-btn" data-view="schem" role="tab" aria-selected="false">Schematic</button>
     </div>
+    <button class="tag tag-btn" id="search-btn" aria-label="Search">⌕</button>
+    <button class="tag tag-btn" id="fav-btn" aria-label="Favorites and highlights">★</button>
     <button class="tag tag-btn" id="theme-btn" aria-label="Day / night">◐</button>
     <button class="tag tag-btn" id="home-btn" aria-label="Reset view">⌂</button>
   </div>
@@ -63,10 +65,21 @@
     <div id="sheet-body" class="sheet-body"></div>
   </aside>
 
+  <div id="search" class="search" hidden>
+    <div class="search-box" role="dialog" aria-label="Search">
+      <div class="search-bar">
+        <input type="search" placeholder="Search systems, parts, limits…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <button class="tag tag-btn search-close" aria-label="Close search">✕</button>
+      </div>
+      <div class="search-results"></div>
+    </div>
+  </div>
+  <div id="hl-pop" class="hl-pop" hidden></div>
+
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=1"></script>
+  <script type="module" src="app.js?v=2"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

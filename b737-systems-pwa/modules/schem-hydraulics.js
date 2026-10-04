@@ -1,6 +1,7 @@
 // schem-hydraulics.js — operable A / B / standby schematic + hydraulic panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=1';
+import { createSchematic, createPanel } from './schem-kit.js?v=2';
+import { createOverhead } from './overhead.js?v=2';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
@@ -94,28 +95,58 @@ export function mount(svgHost, panelHost, ctx) {
   X.value(xA - 60, 190, (r) => ({ text: r.env.eng1 ? 'ENG 1 RUN' : 'ENG 1 OFF', cls: 't-small' + (r.env.eng1 ? '' : ' t-dim') }));
   X.value(xB + 60, 190, (r) => ({ text: r.env.eng2 ? 'ENG 2 RUN' : 'ENG 2 OFF', cls: 't-small' + (r.env.eng2 ? '' : ' t-dim') }));
 
-  // ── Panel ──
-  const P = createPanel(panelHost, ctx);
-  P.title('HYD PUMPS');
-  P.row(P.lamp('OVERHEAT', 'ovhtElec2'), P.lamp('OVERHEAT', 'ovhtElec1'));
-  P.row(P.lamp('LOW\nPRESSURE', 'lpEng1'), P.lamp('LOW\nPRESSURE', 'lpElec2'), P.lamp('LOW\nPRESSURE', 'lpElec1'), P.lamp('LOW\nPRESSURE', 'lpEng2'));
-  P.row(P.toggle('ENG 1', 'eng1', ['OFF', 'ON']), P.toggle('ELEC 2', 'elec2', ['OFF', 'ON']),
-    P.toggle('ELEC 1', 'elec1', ['OFF', 'ON']), P.toggle('ENG 2', 'eng2', ['OFF', 'ON']));
-  P.note('Left pair is system <b>A</b> (ENG 1, ELEC 2); right pair is <b>B</b> (ELEC 1, ENG 2).');
-  P.title('FLT CONTROL · STANDBY HYD');
-  P.row(P.lamp('A\nLOW PRESS', 'fcLpA'), P.lamp('B\nLOW PRESS', 'fcLpB'), P.lamp('STBY\nLOW QTY', 'stbyLowQty'), P.lamp('STBY\nLOW PRESS', 'stbyLowPress'));
-  P.row(P.toggle('FLT CTL A', 'fcA', ['STBY RUD', 'OFF', 'ON'], { guard: true }),
-    P.toggle('FLT CTL B', 'fcB', ['STBY RUD', 'OFF', 'ON'], { guard: true }),
-    P.toggle('ALT FLAPS', 'altFlaps', ['OFF', 'ARM'], { guard: true }));
-  P.row(P.lamp('STBY RUD\nON', 'stbyRudOn'));
-  P.title('SYS PAGE');
+  // ── Overhead panels (layout after FCOM 13.10) ──
+  const O = createOverhead(panelHost, ctx);
+  const H = O.panel('Hydraulic pumps', 178);
+  H.frame(14, 30, 132, 124, 'A');
+  H.frame(154, 30, 132, 124, 'B');
+  H.lamp(97, 40, 36, 16, 'OVERHEAT', 'ovhtElec2');
+  H.lamp(167, 40, 36, 16, 'OVERHEAT', 'ovhtElec1');
+  const pumpSw = [[45, 'eng1', 'ENG 1', 'lpEng1'], [115, 'elec2', 'ELEC 2', 'lpElec2'], [185, 'elec1', 'ELEC 1', 'lpElec1'], [255, 'eng2', 'ENG 2', 'lpEng2']];
+  for (const [x, key, name, lp] of pumpSw) {
+    H.lamp(x - 20, 60, 40, 18, 'LOW\nPRESSURE', lp);
+    H.toggle(x, 108, key, ['OFF', 'ON'], { name, labels: x < 150 ? 'left' : 'right' });
+  }
+  H.text(150, 170, 'HYD PUMPS', { box: true, size: 9 });
+
+  const FC = O.panel('Flight control', 262);
+  FC.text(75, 16, 'FLT CONTROL', { size: 9 });
+  FC.text(50, 30, 'A', { size: 8 }); FC.text(100, 30, 'B', { size: 8 });
+  FC.toggle(50, 70, 'fcA', ['STBY RUD', 'OFF', 'ON'], { guard: 'black', guardPos: 2, labels: 'left' });
+  FC.toggle(100, 70, 'fcB', ['STBY RUD', 'OFF', 'ON'], { guard: 'black', guardPos: 2 });
+  FC.lamp(31, 108, 38, 18, 'LOW\nPRESSURE', 'fcLpA');
+  FC.lamp(81, 108, 38, 18, 'LOW\nPRESSURE', 'fcLpB');
+  FC.text(228, 14, 'STANDBY\nHYD', { size: 8 });
+  FC.lamp(206, 30, 44, 17, 'LOW\nQUANTITY', 'stbyLowQty');
+  FC.lamp(206, 49, 44, 17, 'LOW\nPRESSURE', 'stbyLowPress');
+  FC.lamp(206, 68, 44, 17, 'STBY\nRUD ON', 'stbyRudOn');
+  FC.text(232, 102, 'ALTERNATE FLAPS', { size: 8 });
+  FC.toggle(205, 140, 'altFlaps', ['OFF', 'ARM'], { guard: 'red', guardPos: 0, labels: 'left' });
+  FC.toggle(262, 140, 'altFlapPos', ['UP', 'OFF', 'DOWN'], { inert: true, inertPos: 1 });
+  FC.text(75, 148, 'SPOILER', { size: 8 });
+  FC.text(50, 160, 'A', { size: 8 }); FC.text(100, 160, 'B', { size: 8 });
+  FC.toggle(50, 196, 'spA', ['OFF', 'ON'], { guard: 'black', inert: true, inertPos: 1, labels: 'left' });
+  FC.toggle(100, 196, 'spB', ['OFF', 'ON'], { guard: 'black', inert: true, inertPos: 1 });
+  FC.lamp(206, 172, 44, 16, 'FEEL\nDIFF PRESS', null);
+  FC.lamp(206, 190, 44, 16, 'SPEED TRIM\nFAIL', null);
+  FC.lamp(206, 208, 44, 16, 'MACH TRIM\nFAIL', null);
+  FC.lamp(206, 226, 44, 16, 'AUTO SLAT\nFAIL', null);
+  FC.lamp(56, 238, 38, 16, 'YAW\nDAMPER', null);
+
+  // ── Instructor station: SYS page readouts, failures ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('LOWER DU · SYS PAGE');
   P.row(P.readout((r) => `${r.values.pressA}<small>psi</small>`, 'A PRESS'), P.readout((r) => `${r.values.pressB}<small>psi</small>`, 'B PRESS'));
   P.row(P.readout((r) => `${r.values.qtyA}<small>%${r.values.rfA ? ' RF' : ''}</small>`, 'A QTY'),
     P.readout((r) => `${r.values.qtyB}<small>%${r.values.rfB ? ' RF' : ''}</small>`, 'B QTY'));
-  P.title('FAILURES');
+  P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('A leak · EDP side', 'leakAedp'),
     P.fail('A leak · common', 'leakAcom'), P.fail('B leak', 'leakB'), P.fail('STBY leak', 'leakS'), P.fail('ELEC 2 overheat', 'ovhtA'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
+  P.note('Guarded switches: tap the guard to lift it, then the switch. Tap the lifted guard to close it — that returns the switch to its guarded position.');
   P.note('Try: Takeoff phase → <b>ENG 2 fail</b> (PTU runs with flaps out) · <b>ENG 1 fail</b> (gear transfer valve) · <b>B leak</b> with flaps out (standby starts by itself).');
 
   return {
@@ -124,6 +155,7 @@ export function mount(svgHost, panelHost, ctx) {
       res.values.fB = res.values.qtyB / 106;
       res.values.fS = res.values.qtyS / 100;
       X.update(res);
+      O.update(res);
       P.update(res);
     },
   };

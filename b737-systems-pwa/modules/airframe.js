@@ -12,7 +12,7 @@
 // each system module can place its parts inside the real structure rather
 // than at hand-typed coordinates that drift when the airframe is tuned.
 
-import * as THREE from '../vendor/three.module.min.js?v=1';
+import * as THREE from '../vendor/three.module.min.js?v=2';
 
 // ── Fuselage ────────────────────────────────────────────────────────────────
 
@@ -186,29 +186,124 @@ function wingSection(z, u0 = 0, u1 = 1, tScale = 1) {
   };
 }
 
+// Fuselage mesh with UVs: u runs nose → tail, v runs round the section
+// starting at the belly (θ = −90°) so the texture seam sits underneath,
+// well away from the windows and doors painted on by paintLivery().
+const FUS_M = 72;
+const thOfV = (v) => -90 + 360 * v;
 function fuselageGeometry() {
   const xs = [];
-  const N = 150;
+  const N = 170;
   for (let i = 0; i <= N; i++) {
     // Denser at both ends, where the shape changes fastest.
     const k = i / N, e = 0.5 - 0.5 * Math.cos(Math.PI * k);
     xs.push(NOSE_X - (NOSE_X - TAIL_X) * (0.35 * k + 0.65 * e));
   }
-  const M = 48;
-  const rings = xs.map((x) => {
-    const s = fusSection(x);
-    const ring = [];
-    for (let j = 0; j < M; j++) {
-      const th = (j / M) * Math.PI * 2;
-      // Slightly squarer than an ellipse — the 737's double-lobe section.
-      const c = Math.cos(th), sn = Math.sin(th);
-      const k = 0.9;
-      const cx = Math.sign(c) * Math.abs(c) ** k, sy = Math.sign(sn) * Math.abs(sn) ** k;
-      ring.push(new THREE.Vector3(x, s.yc + s.hh * sy, s.hw * cx));
+  const pos = [], uv = [], idx = [];
+  const R = FUS_M + 1;
+  xs.forEach((x, i) => {
+    for (let j = 0; j < R; j++) {
+      const [px, py, pz] = fusPoint(x, thOfV(j / FUS_M));
+      pos.push(px, py, pz);
+      uv.push((NOSE_X - x) / (NOSE_X - TAIL_X), j / FUS_M);
     }
-    return ring;
   });
-  return ringsToGeometry(rings, true);
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < FUS_M; j++) {
+      const a = i * R + j, b = a + 1, c = a + R, d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // Tail cap (fan) — the nose closes to a point by itself.
+  const last = (xs.length - 1) * R, s = fusSection(TAIL_X);
+  const ci = pos.length / 3;
+  pos.push(TAIL_X, s.yc, 0); uv.push(1, 0.5);
+  for (let j = 0; j < FUS_M; j++) idx.push(ci, last + j + 1, last + j);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Angle (deg, right side) at which the skin at station x reaches height y. */
+function thAtHeight(x, y) {
+  const s = fusSection(x);
+  const sy = Math.max(-1, Math.min(1, (y - s.yc) / s.hh));
+  const a = Math.pow(Math.abs(sy), 1 / 0.9);
+  return Math.sign(sy) * (Math.asin(Math.min(1, a)) * 180) / Math.PI;
+}
+
+/**
+ * Paint windows and door outlines onto a canvas in the fuselage's UV space.
+ * Shapes are drawn in side view (x, height above the centreline) and mapped
+ * onto the skin, so they follow the nose curvature exactly.
+ */
+export function paintLivery(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, W, H);
+  const L = NOSE_X - TAIL_X;
+  const toUV = (x, h, side, thMax = 89) => {
+    let th = Math.min(thMax, thAtHeight(x, YC + h));
+    if (side < 0) th = 180 - th;
+    return [((NOSE_X - x) / L) * W, ((th + 90) / 360) * H];
+  };
+  // Densify a closed side-view polygon so long edges bend with the skin.
+  const dense = (poly, step = 0.04) => {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const [x0, h0] = poly[i], [x1, h1] = poly[(i + 1) % poly.length];
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, h1 - h0) / step));
+      for (let k = 0; k < n; k++) out.push([x0 + (x1 - x0) * (k / n), h0 + (h1 - h0) * (k / n)]);
+    }
+    return out;
+  };
+  const rrect = (x0, x1, h0, h1, r) => {
+    const out = [];
+    const arc = (cx, ch, a0) => { for (let k = 0; k <= 6; k++) { const a = a0 + (k / 6) * (Math.PI / 2); out.push([cx + r * Math.cos(a), ch + r * Math.sin(a)]); } };
+    arc(x1 - r, h1 - r, 0); arc(x0 + r, h1 - r, Math.PI / 2); arc(x0 + r, h0 + r, Math.PI); arc(x1 - r, h0 + r, 1.5 * Math.PI);
+    return out;
+  };
+  const path = (poly, side, thMax) => {
+    g.beginPath();
+    dense(poly).forEach(([x, h], i) => { const [u, v] = toUV(x, h, side, thMax); if (i) g.lineTo(u, v); else g.moveTo(u, v); });
+    g.closePath();
+  };
+  const glass = '#1e2732', seam = '#8f969d';
+  for (const side of [1, -1]) {
+    // Flight deck windows (No. 1 front, No. 2 sliding, No. 3 aft). The front
+    // pair stops short of the crown so a centre post stays between them.
+    g.fillStyle = glass;
+    // Side-view outlines: one continuous band with thin posts, No. 2 and
+    // No. 3 sharing a straight sill, No. 1 sweeping down to the nose.
+    const shield = [
+      [[18.6, 0.28], [17.58, 0.47], [17.64, 1.0], [18.42, 0.62]],
+      [[17.5, 0.48], [16.66, 0.55], [16.69, 1.12], [17.56, 1.01]],
+      [[16.58, 0.556], [15.98, 0.6], [15.95, 0.92], [16.12, 1.1], [16.61, 1.13]],
+    ];
+    for (const w of shield) { path(w, side, 86); g.fill(); }
+    // Cabin windows on a ~0.51 m pitch, skipping the overwing exits.
+    for (let x = 12.85; x > -9.8; x -= 0.508) {
+      if (x < 1.8 && x > 0.1) continue;
+      path(rrect(x - 0.115, x + 0.115, 0.26, 0.58, 0.08), side); g.fill();
+    }
+    for (const x of [0.5, 1.4]) { path(rrect(x - 0.115, x + 0.115, 0.26, 0.58, 0.08), side); g.fill(); }
+    // Door and exit outlines.
+    g.strokeStyle = seam;
+    g.lineWidth = 2.2;
+    const out = (poly) => { path(poly, side); g.stroke(); };
+    out(rrect(13.55, 14.42, FLOOR_Y - YC + 0.05, 1.28, 0.16));         // forward entry / galley door
+    out(rrect(-10.15, -11.0, FLOOR_Y - YC + 0.05, 1.28, 0.16));        // aft door
+    out(rrect(0.24, 0.76, -0.22, 0.86, 0.1));                          // overwing exits
+    out(rrect(1.14, 1.66, -0.22, 0.86, 0.1));
+    if (side > 0) {                                                    // cargo doors (right side)
+      out(rrect(8.7, 9.95, -1.5, -0.72, 0.1));
+      out(rrect(-4.9, -6.1, -1.45, -0.7, 0.1));
+    }
+  }
 }
 
 function latheX(profile, segs = 40) {
@@ -259,39 +354,16 @@ export function buildAirframe(materials) {
     return pivot;
   };
 
-  add(fuselageGeometry());
-
-  // ── Windows: flight deck windshields and the cabin window line ──
   {
-    const pos = [], idx = [];
-    const patch = (x0, x1, t0, t1, n = 3) => {
-      const base = pos.length / 3;
-      for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
-        const p = fusPoint(x0 + (x1 - x0) * (i / n), t0 + (t1 - t0) * (j / n), 0.012);
-        pos.push(...p);
-      }
-      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-        const a = base + i * (n + 1) + j, b = a + 1, c = a + n + 1, d = c + 1;
-        idx.push(a, c, b, b, c, d);
-      }
-    };
-    for (const m of [0, 1]) {
-      const th = (t) => (m ? 180 - t : t);
-      const win = (x0, x1, t0, t1, n) => patch(x0, x1, Math.min(th(t0), th(t1)), Math.max(th(t0), th(t1)), n);
-      win(17.45, 18.2, 34, 64, 4);   // No. 1 (front)
-      win(16.7, 17.35, 28, 56, 4);   // No. 2
-      win(16.05, 16.6, 24, 46, 3);   // No. 3
-      // Cabin windows (~0.5 m pitch), gaps at the doors and overwing exits.
-      for (let x = 12.6; x > -10.8; x -= 0.508) {
-        if ((x < 1.75 && x > 0.15)) continue;
-        win(x - 0.12, x + 0.12, 5, 15, 1);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    add(g, root, 'glass');
+    const canvas = document.createElement('canvas');
+    canvas.width = 4096; canvas.height = 1024;
+    paintLivery(canvas);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    materials.fuselage.map = tex;
+    materials.fuselage.needsUpdate = true;
+    add(fuselageGeometry(), root, 'fuselage');
   }
 
   // ── Wings ──

@@ -1,6 +1,7 @@
 // schem-electrical.js — operable AC/DC/standby schematic + electrical panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=1';
+import { createSchematic, createPanel } from './schem-kit.js?v=2';
+import { createOverhead } from './overhead.js?v=2';
 
 const AC = '#f5a300', DC = '#7048e8', STBY = '#e03131', BAT = '#2f9e44', APUC = '#e8590c', GPU = '#1c7ed6';
 
@@ -86,30 +87,76 @@ export function mount(svgHost, panelHost, ctx) {
   X.wire([[775, 520], [775, 470], [620, 470], [620, 261], [570, 261]], (r) => r.values.onBattery && r.buses.acStby, { color: STBY });
   X.value(500, 640, (r) => (r.values.onBattery ? { text: 'STANDBY ON BATTERY — ≥30 min (≥60 min with aux battery)', cls: 't-small warn' } : ''));
 
-  // ── Panel ──
-  const P = createPanel(panelHost, ctx);
-  P.title('ELECTRICAL');
-  P.row(P.lamp('BAT\nDISCHARGE', 'batDischarge'), P.lamp('TR\nUNIT', 'trUnit'), P.lamp('ELEC', 'elec'));
-  P.row(P.toggle('BAT', 'bat', ['OFF', 'ON'], { guard: true }));
-  P.title('GEN DRIVE · STANDBY POWER');
-  P.row(P.lamp('DRIVE', 'drive1'), P.lamp('STANDBY\nPWR OFF', 'stbyOff'), P.lamp('DRIVE', 'drive2'));
-  P.row(P.toggle('DISC 1', 'disc1', ['NORM', 'DISC'], { guard: true, momentary: [1] }),
-    P.toggle('STANDBY PWR', 'stby', ['BAT', 'OFF', 'AUTO'], { guard: true }),
-    P.toggle('DISC 2', 'disc2', ['NORM', 'DISC'], { guard: true, momentary: [1] }));
-  P.title('GROUND POWER · BUS SWITCHING');
-  P.row(P.lamp('GRD POWER\nAVAILABLE', 'grdAvail', 'blue'), P.toggle('GRD PWR', 'grd', ['OFF', '·', 'ON'], { momentary: [0, 2] }));
-  P.row(P.lamp('TRANSFER\nBUS OFF', 'xferOff1'), P.toggle('BUS TRANSFER', 'busXfer', ['OFF', 'AUTO'], { guard: true }), P.lamp('TRANSFER\nBUS OFF', 'xferOff2'));
-  P.row(P.lamp('SOURCE\nOFF', 'srcOff1'), P.lamp('SOURCE\nOFF', 'srcOff2'));
-  P.row(P.lamp('GEN OFF\nBUS', 'genOffBus1', 'blue'), P.lamp('APU GEN\nOFF BUS', 'apuGenOffBus', 'blue'), P.lamp('GEN OFF\nBUS', 'genOffBus2', 'blue'));
-  P.row(P.toggle('GEN 1', 'gen1', ['OFF', '·', 'ON'], { momentary: [0, 2] }), P.toggle('APU GEN', 'apu1', ['OFF', '·', 'ON'], { momentary: [0, 2] }),
-    P.toggle('APU GEN', 'apu2', ['OFF', '·', 'ON'], { momentary: [0, 2] }), P.toggle('GEN 2', 'gen2', ['OFF', '·', 'ON'], { momentary: [0, 2] }));
-  P.note('GEN, APU GEN and GRD PWR are spring-loaded: tap the top half for OFF, the bottom half for ON.');
-  P.title('APU · FAILURES');
+  // ── Overhead panels (layout after FCOM 6.10) ──
+  const O = createOverhead(panelHost, ctx);
+  const ac = (r) => r.buses.xfr1 || r.buses.xfr2;
+  // Electrical (metering) panel.
+  const E1 = O.panel('Electrical', 238);
+  E1.band(0, 72);
+  E1.text(90, 13, 'DC AMPS', { size: 7 }); E1.text(210, 13, 'CPS FREQ', { size: 7 });
+  E1.lcd(55, 18, 70, (r) => (r.values.onBattery ? '-12' : '28'));
+  E1.lcd(175, 18, 70, (r) => (ac(r) ? '400' : '0'));
+  E1.lcd(25, 40, 70, (r) => String(r.values.batV));
+  E1.lcd(115, 40, 70, (r) => (ac(r) ? '62' : '0'));
+  E1.lcd(205, 40, 70, (r) => (ac(r) ? '115' : r.buses.acStby ? '115' : '0'));
+  E1.text(150, 68, 'DC VOLTS  /  AC AMPS  /  AC VOLTS', { size: 6.5 });
+  E1.lamp(60, 80, 44, 20, 'BAT\nDISCHARGE', 'batDischarge');
+  E1.lamp(106, 80, 44, 20, 'TR\nUNIT', 'trUnit');
+  E1.lamp(152, 80, 44, 20, 'ELEC', 'elec');
+  E1.push(226, 90, null, { bottom: 'MAINT' });
+  E1.knob(80, 140, 'dcSel', ['STBY PWR', 'BAT BUS', 'BAT', 'TR1', 'TR2', 'TR3', 'TEST'], [-120, -80, -40, 0, 40, 80, 120], { inert: true, inertPos: 2 });
+  E1.knob(220, 140, 'acSel', ['STBY PWR', 'GRD PWR', 'GEN1', 'APU GEN', 'GEN2', 'INV', 'TEST'], [-120, -80, -40, 0, 40, 80, 120], { inert: true, inertPos: 2 });
+  E1.toggle(70, 200, 'bat', ['OFF', 'ON'], { guard: 'black', guardPos: 1, name: 'BAT', labels: 'left' });
+  E1.toggle(170, 200, 'cab', ['OFF', 'ON'], { inert: true, inertPos: 1 });
+  E1.toggle(240, 200, 'ife', ['OFF', 'ON'], { inert: true, inertPos: 1 });
+  E1.text(170, 234, 'CAB/UTIL', { size: 7 }); E1.text(240, 234, 'IFE/PASS', { size: 7 });
+
+  // Generator drive and standby power.
+  const E2 = O.panel('Generator drive and standby power', 150);
+  E2.text(60, 14, '1', { size: 8 }); E2.text(240, 14, '2', { size: 8 });
+  E2.lamp(40, 20, 40, 18, 'DRIVE', 'drive1');
+  E2.lamp(126, 14, 48, 20, 'STANDBY\nPWR OFF', 'stbyOff');
+  E2.lamp(220, 20, 40, 18, 'DRIVE', 'drive2');
+  E2.text(60, 56, 'DISCONNECT', { size: 7.5 }); E2.text(240, 56, 'DISCONNECT', { size: 7.5 });
+  E2.toggle(60, 98, 'disc1', ['', 'DISC'], { guard: 'red', guardPos: 0, momentary: [1] });
+  E2.toggle(240, 98, 'disc2', ['', 'DISC'], { guard: 'red', guardPos: 0, momentary: [1] });
+  E2.text(150, 50, 'STANDBY POWER', { size: 7.5 });
+  E2.toggle(150, 96, 'stby', ['BAT', 'OFF', 'AUTO'], { horizontal: true, guard: 'black', guardPos: 2 });
+
+  // Ground power and bus switching.
+  const E3 = O.panel('Ground power and bus switching', 246);
+  E3.band(0, 92);
+  E3.lamp(124, 10, 52, 20, 'GRD POWER\nAVAILABLE', 'grdAvail', 'blue');
+  E3.text(118, 52, 'GRD\nPWR', { size: 8.5, anchor: 'end' });
+  E3.toggle(150, 62, 'grd', ['OFF', '·', 'ON'], { momentary: [0, 2], housing: true });
+  E3.text(150, 104, 'BUS TRANSFER', { size: 8 });
+  E3.toggle(150, 128, 'busXfer', ['OFF', 'AUTO'], { horizontal: true, guard: 'black', guardPos: 1 });
+  for (const [x, n] of [[40, 1], [214, 2]]) {
+    E3.lamp(x, 98, 46, 18, 'TRANSFER\nBUS OFF', 'xferOff' + n);
+    E3.lamp(x, 118, 46, 18, 'SOURCE\nOFF', 'srcOff' + n);
+    E3.lamp(x, 138, 46, 18, 'GEN OFF\nBUS', 'genOffBus' + n, 'blue');
+  }
+  E3.lamp(126, 150, 48, 18, 'APU GEN\nOFF BUS', 'apuGenOffBus', 'blue');
+  E3.line([[63, 156], [63, 178]]); E3.line([[237, 156], [237, 178]]);
+  E3.line([[150, 168], [150, 178], [118, 178]]); E3.line([[150, 178], [182, 178]]);
+  E3.toggle(48, 200, 'gen1', ['OFF', '·', 'ON'], { momentary: [0, 2], labels: 'left' });
+  E3.toggle(118, 200, 'apu1', ['OFF', '·', 'ON'], { momentary: [0, 2], labels: 'left' });
+  E3.toggle(182, 200, 'apu2', ['OFF', '·', 'ON'], { momentary: [0, 2] });
+  E3.toggle(252, 200, 'gen2', ['OFF', '·', 'ON'], { momentary: [0, 2] });
+  E3.text(48, 238, 'GEN 1', { size: 8, box: true }); E3.text(150, 238, 'APU GEN', { size: 8, box: true }); E3.text(252, 238, 'GEN 2', { size: 8, box: true });
+
+  // ── Instructor station ──
+  const ih = document.createElement('div');
+  ih.className = 'instr';
+  panelHost.append(ih);
+  const P = createPanel(ih, ctx);
+  P.title('INSTRUCTOR · APU & FAILURES');
   P.actions(P.push('APU START / STOP', () => ctx.action('apuRun', '')));
   P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('GEN 1 trip', 'gen1'),
     P.fail('APU fail', 'apu'), P.fail('TR 1 fail', 'tr1'), P.fail('TR 3 fail', 'tr3'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Try: Cruise → <b>GEN 1 trip</b> (BTBs close, GEN 2 powers both, galley/main 2 shed) → APU START → APU GEN 1 ON. Or <b>ENG 1 + ENG 2 fail</b> to see standby on battery. On the ground, GRD PWR ON then APU GEN ON — last selected wins.');
+  P.note('GEN, APU GEN and GRD PWR are spring-loaded: tap the top half for OFF, the bottom half for ON. Guarded switches: lift the guard first.');
+  P.note('Try: Cruise → <b>GEN 1 trip</b> (BTBs close, GEN 2 powers both, galley/main 2 shed) → APU START → APU GEN ON. Or <b>ENG 1 + ENG 2 fail</b> to see standby on battery.');
 
-  return { update(res) { X.update(res); P.update(res); } };
+  return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }

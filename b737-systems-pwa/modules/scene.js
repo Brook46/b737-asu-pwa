@@ -1,8 +1,8 @@
 // scene.js — renderer, studio (grid floor, soft shadow, vignette lives in CSS),
 // camera + orbit controls, solid ↔ x-ray skin, picking, and the frame loop.
 
-import * as THREE from '../vendor/three.module.min.js?v=1';
-import { OrbitControls } from './orbit-controls.js?v=1';
+import * as THREE from '../vendor/three.module.min.js?v=2';
+import { OrbitControls } from './orbit-controls.js?v=2';
 
 const XRAY_VERT = /* glsl */`
   varying vec3 vN; varying vec3 vV;
@@ -123,6 +123,7 @@ export function createScene(canvas) {
     metal: new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.35, metalness: 0.6, transparent: true }),
     tyre: new THREE.MeshStandardMaterial({ color: 0x232427, roughness: 0.9, metalness: 0, transparent: true }),
     glass: new THREE.MeshStandardMaterial({ color: 0x1c2530, roughness: 0.12, metalness: 0.5, side: THREE.DoubleSide, transparent: true }),
+    fuselage: new THREE.MeshStandardMaterial({ color: 0xf3f3f1, roughness: 0.42, metalness: 0.05, side: THREE.DoubleSide, transparent: true }),
   };
   const xrayMat = new THREE.ShaderMaterial({
     vertexShader: XRAY_VERT, fragmentShader: XRAY_FRAG,
@@ -141,6 +142,7 @@ export function createScene(canvas) {
     xrayMat.uniforms.uBase.value.set(theme.base);
     xrayMat.uniforms.uFill.value = theme.fill;
     solid.skin.color.set(theme.skin);
+    solid.fuselage.color.set(theme.skin);
     solid.dark.color.set(theme.dark);
     solid.metal.color.set(theme.metal);
     solid.tyre.color.set(theme.tyre);

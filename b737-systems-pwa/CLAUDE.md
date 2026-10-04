@@ -37,8 +37,15 @@ modules/
                   number-only chips under 760 px
   sheet.js        part / system / overview pages
   phases.js       the four phases: pose, attitude, environment (env)
-  schem-kit.js    SVG pieces (pipe, valve, unit, tank, bus) + panel controls
-                  (toggle incl. 3-position/guarded/momentary, rotary, lamp…)
+  schem-kit.js    schematic SVG pieces (pipe, valve, unit, tank, bus) + the
+                  HTML "instructor station" (readouts, failures, sim buttons)
+  overhead.js     SVG overhead-panel kit drawn to look like the airplane:
+                  bat-handle toggles (guards lift first; closing a guard
+                  returns the switch to guardPos), knobs, gauges, LCDs,
+                  annunciators styled like the FCOM figures. Panel layouts
+                  in schem-<id>.js follow the FCOM chapter's panel figures.
+  search.js       full-text index over every system/part page
+  notes.js        favourites + highlights (localStorage, per device)
   sys-<id>.js     one FCOM chapter: content + build(K) + logic
   schem-<id>.js   that chapter's schematic + panel
   systems.js      the 15 FCOM chapters; ones with `mod` are built
@@ -83,9 +90,16 @@ export default {
   added to `APP_SHELL`.
 - Linked from Flight Card's header (`doSystems()` in flight-card-pwa/app.js).
 
+## Fuselage windows
+
+Windows and door outlines are painted (`paintLivery`) onto a canvas in the
+fuselage's UV space (u nose→tail, v round the section from the belly), from
+side-view outlines in metres — they follow the nose curvature exactly. Edit
+the `shield` outlines there, not geometry.
+
 ## Debugging
 
-On localhost `window.__app = { api, airframe, anim, s3d }`, e.g.
+On localhost `window.__app = { api, airframe, anim, s3d, states }`, e.g.
 `__app.api.flyTo(new __app.api.THREE.Vector3(15,3,0), 14)`.
 Dev server: `.claude/launch.json` → "737 NG Inside" (port 8101).
 
