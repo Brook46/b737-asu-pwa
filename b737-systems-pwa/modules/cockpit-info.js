@@ -17,6 +17,53 @@ const KEYS = {
     bat: ['bat', 'BAT'], stby: ['stbypwr', ''], busXfer: ['btb', 'BUS TRANSFER'], grd: ['gpu', 'GRD POWER'],
     gen1: ['idg1', 'GEN 1'], gen2: ['idg2', ''], apu1: ['apugen', ''], apu2: ['apugen', ''], disc1: ['idg1', 'DISCONNECT'], disc2: ['idg1', 'DISCONNECT'],
   },
+  engines: {
+    start1: ['start', 'ENGINE START'], start2: ['start', 'ENGINE START'], ign: ['ign', 'Ignition select'],
+    apu: ['apu', 'APU switch'], eec1: ['eec', 'EEC switches'], eec2: ['eec', 'EEC switches'],
+    lever1: ['start', ''], lever2: ['start', ''],
+  },
+  fire: {
+    ovht1: ['loops1', 'OVHT DET'], ovht2: ['loops1', 'OVHT DET'], pull1: ['fsw', 'Engine fire switch'], pull2: ['fsw', 'Engine fire switch'],
+    pullApu: ['apufire', 'APU fire switch'], rot1: ['fsw', 'Engine fire switch'], rot2: ['fsw', 'Engine fire switch'], rotApu: ['apufire', 'APU fire switch'],
+    test: ['test', ''], ext: ['test', ''], armFwd: ['cargo', 'ARMED'], armAft: ['cargo', 'ARMED'],
+  },
+  flightcontrols: {
+    flap: ['flaps', 'FLAP lever'], sb: ['sb', 'SPEED BRAKE lever'], yd: ['rud', 'YAW DAMPER'], spA: ['ail', 'SPOILER'], spB: ['ail', 'SPOILER'],
+    altPos: ['flaps', 'FLAP lever'], stabMain: ['stab', 'STAB TRIM MAIN'], stabAp: ['stab', 'STAB TRIM MAIN'],
+  },
+  antiice: {
+    wh1: ['windows', 'WINDOW HEAT'], wh2: ['windows', 'WINDOW HEAT'], wh3: ['windows', 'WINDOW HEAT'], wh4: ['windows', 'WINDOW HEAT'],
+    test: ['windows', 'Test'], probeA: ['probes', 'PROBE HEAT'], probeB: ['probes', 'PROBE HEAT'], wing: ['wingai', 'WING ANTI-ICE'],
+    eng1: ['cowl', 'ENG ANTI-ICE'], eng2: ['cowl', 'ENG ANTI-ICE'], wiperL: ['wipers', 'WIPER'], wiperR: ['wipers', 'WIPER'],
+  },
+  warnings: {
+    flapInh: ['gpws', 'FLAP / GEAR / TERR'], gearInh: ['gpws', 'FLAP / GEAR / TERR'], terrInh: ['gpws', 'FLAP / GEAR / TERR'],
+    xpdr: ['tcas', 'Transponder mode'], range: ['tcas', 'Altitude range'],
+  },
+  autoflight: {
+    fdL: ['mcp', 'F/D'], fdR: ['mcp', 'F/D'], atArm: ['mcp', 'A/T ARM'], dis: ['mcp', 'DISENGAGE bar'], bank: ['mcp', ''],
+    spd: ['mcp', ''], hdg: ['mcp', 'HDG SEL'], alt: ['mcp', 'ALT HLD'], vs: ['mcp', 'V/S'],
+  },
+  instruments: {
+    source: ['deu', 'DISPLAYS SOURCE'], cp: ['deu', 'CONTROL PANEL'], capMain: ['dus', 'MAIN PANEL'], foMain: ['dus', 'MAIN PANEL'],
+    capLower: ['dus', 'LOWER DU'], foLower: ['dus', 'LOWER DU'],
+  },
+  fms: {
+    irsL: ['irs', 'IRS mode selector'], irsR: ['irs', 'IRS mode selector'], irsX: ['irs', 'IRS transfer'],
+    vhfX: ['radios', 'VHF NAV transfer'], fmcX: ['fmc', 'FMC source'],
+  },
+  comms: {
+    alt: ['acp', 'ALT – NORM'], mask: ['acp', 'MASK – BOOM'], cvr: ['cvr', 'VOICE RECORDER'], svcInt: ['interphone', 'SERVICE INTERPHONE'], stbyTune: ['vhf', 'Radio tuning'],
+  },
+  general: {
+    llL: ['lights', 'LANDING'], llR: ['lights', 'LANDING'], rtoL: ['lights', 'RUNWAY TURNOFF'], rtoR: ['lights', 'RUNWAY TURNOFF'], taxi: ['lights', 'TAXI'],
+    logo: ['lights', 'LOGO'], pos: ['lights', 'POSITION'], beacon: ['lights', 'ANTI COLLISION'], wingLt: ['lights', 'WING'], wwLt: ['lights', 'WHEEL WELL'],
+    exitLt: ['emergency', 'EMER EXIT LIGHTS'], smoke: ['signs', 'NO SMOKING'], belts: ['signs', 'FASTEN BELTS'], passOxy: ['oxygen', 'PASS OXY ('],
+    fdDoor: ['fddoor', 'FLT DK DOOR'], coolSup: ['signs', ''], coolExh: ['signs', ''],
+  },
+  gear: {
+    lever: ['lever', 'LANDING GEAR lever'], ab: ['autobrake', 'AUTO BRAKE ('], park: ['park', 'PARKING BRAKE'], nws: ['nlg', 'NOSE WHEEL'],
+  },
   air: {
     bleed1: ['bleed1', 'BLEED 1'], bleed2: ['bleed2', ''], apuBleed: ['apubleed', 'APU BLEED'], iso: ['iso', 'ISOLATION'],
     packL: ['packL', 'L PACK'], packR: ['packR', ''], recircL: ['recirc', 'RECIRC'], recircR: ['recirc', 'RECIRC'],
@@ -32,13 +79,13 @@ const LATER = {
 
 // Levers, screens and panels that aren't switches.
 const NOTES = {
-  'Landing gear lever': 'UP · OFF · DOWN. Raises and lowers the gear (system A, with B as the alternate source through the transfer valve). It follows the phase here.',
+  'Landing gear lever': 'UP · OFF · DOWN — tap to move it (the lever lock stops UP on the ground). Raises and lowers the gear on system A, with B through the transfer valve.',
   'Thrust lever 1': 'Forward thrust for engine 1, with the reverse thrust lever on its front face. The autothrottle can drive both levers. It follows the phase here.',
   'Thrust lever 2': 'Forward thrust for engine 2, with the reverse thrust lever on its front face. It follows the phase here.',
-  'Speed brake lever': 'DOWN · ARMED · FLIGHT DETENT · UP. In flight, not beyond the FLIGHT DETENT (FCOM L.10). Up on the landing rollout here.',
-  'Flap lever': 'Detents UP, 1, 2, 5, 10, 15, 25, 30, 40 — selects trailing-edge flaps and the leading-edge devices. It follows the phase here.',
-  'Start lever 1': 'IDLE · CUTOFF. CUTOFF closes engine 1\'s spar and engine fuel valves (see Fuel).',
-  'Start lever 2': 'IDLE · CUTOFF. CUTOFF closes engine 2\'s spar and engine fuel valves (see Fuel).',
+  'Speed brake lever': 'DOWN · ARMED · FLIGHT DETENT · UP — tap to move it. In flight, not beyond the FLIGHT DETENT (FCOM L.10); never below 1,000 ft RA in flight.',
+  'Flap lever': 'Detents UP, 1, 2, 5, 10, 15, 25, 30, 40 — tap to select the next one; the flaps run on system B and the LE devices follow.',
+  'Start lever 1': 'IDLE · CUTOFF — tap to move it. IDLE opens the spar and engine fuel valves (fuel and ignition once the starter has the engine turning, ~25 % N2); CUTOFF closes them and shuts the engine down.',
+  'Start lever 2': 'IDLE · CUTOFF — tap to move it. Same as lever 1, for engine 2.',
   'Stabilizer trim wheel': 'Turns with the stabiliser trim; can be used to trim manually.',
   'Control column and wheel': 'Pitch and roll. Either A or B hydraulics can power the surfaces (see Hydraulics).',
   'Captain PFD': 'Primary flight display: attitude, speed and altitude tapes, heading, and the flight mode annunciations along the top.',
@@ -48,8 +95,8 @@ const NOTES = {
   'Upper DU — engines and fuel': 'Primary engine indications (N1, EGT) and fuel quantity with LOW / CONFIG / IMBAL alerts — fed by the Fuel system here.',
   'Lower DU — engines and hydraulics': 'Secondary engine indications (N2, fuel flow, oil, vibration) and the hydraulic system page — fed by the Hydraulics system here.',
   'Integrated standby flight display (ISFD)': 'Standby attitude, airspeed and altitude, powered from the standby system.',
-  'Mode control panel (MCP)': 'Autopilot and autothrottle modes and targets: course, speed, heading, altitude, vertical speed. Automatic Flight is a later chapter in this app.',
-  'Aft electronic panel': 'Radios, transponder and the engine / APU fire switches. Communications and Fire Protection are later chapters in this app.',
+  'Mode control panel (MCP)': 'Autopilot and autothrottle modes and targets: course, speed, heading, altitude, vertical speed.',
+  'Aft electronic panel': 'Radios, transponder and the engine / APU fire switches.',
 };
 
 export function explain(systems, ev) {
@@ -67,7 +114,7 @@ export function explain(systems, ev) {
   }
   // Find the page and its flight-deck entry for this control.
   let partId = null, words = '';
-  if (c.kind === 'lamp') {
+  if (c.kind === 'lamp' || !c.key) {
     const leg = c.name.toUpperCase();
     for (const p of sysMod.parts) {
       const hit = (p.deck || []).find(([n]) => n.toUpperCase().includes(leg));

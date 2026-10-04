@@ -54,8 +54,6 @@ modules/
                   engine/flight numbers per phase (illustrative)
   cockpit-info.js "what does this do" card text: switch key → part page +
                   its flight-deck entry; levers/screens get short notes
-  panels-extra.js the forward-overhead panels of systems not built yet —
-                  switches move, nothing simulated; replace as chapters land
   search.js       full-text index over every system/part page
   notes.js        favourites + highlights (localStorage, per device)
   speech.js       TTS (speakable() expands units/acronyms for reading aloud)
@@ -72,7 +70,7 @@ modules/
   sys-<id>.js     one FCOM chapter: content + build(K) + logic
   schem-<id>.js   that chapter's schematic (mount) + export panels(O, ctx)
                   — the overhead panels, shared by schematic and cockpit
-  systems.js      the 15 FCOM chapters; ones with `mod` are built
+  systems.js      the 15 FCOM chapters, all built (v7)
 vendor/three.module.min.js   three r169 (MIT), vendored for offline use
 ```
 
@@ -101,7 +99,28 @@ export default {
   flows read `evaluate().flows[key]`, units read `units[part]`.
 - Phase change resets `sw` (and `mem`, and `q` if `phaseQty`) to `normal()`;
   **failures persist** so you can set one and step through the phases.
-- `env` from the phase: `eng1, eng2, apu, gpu, air, flaps, alt, wheel, gearDown, phase`.
+- `env` from the phase: `eng1, eng2, apu, gpu, air, flaps, alt, wheel, gearDown, phase`,
+  then overridden in app.js `env()` by the real models: engines (eng1/eng2/apu),
+  fire (cut1/cut2/cutApu), flight controls (flaps, stabApCut), gear (gearDown),
+  air (ductL/ductR), hydraulics (hydA/hydB/leB/…).
+- `needsOthers: true` gives `evaluate` an `env.resOf(id)` to read other
+  systems' results (warnings six-pack, instruments, FMS, general). Panels can
+  read another system with `ctx.resOf(id)` and bind a switch to it with
+  `toggle(…, { ctx: ctx.ctxOf(id) })`.
+- Lamp values: truthy = on, `'dim'` (blue lights), `'flash'`. A 9th argument
+  to `lamp()` makes it a push-light (MASTER CAUTION, MCP buttons).
+  `toggle(…, { invert: true })` when the state's 1 is the TOP position.
+
+### Cross-system links worth knowing
+
+- **Warnings** six-pack (`SIXPACK` in sys-warnings.js) maps each annunciator
+  to other systems' amber light keys — rename a light key, update it there.
+- **Flight Controls** flap/speedbrake and **Gear** position drive the 3D pose
+  (`anim.setOverride` in app.js's frame loop).
+- **Instruments** `du` formats choose what each cockpit screen draws
+  (`DU_OF`/`FORMAT` in cockpit.js); captain screens read `capIas`.
+- **Automatic Flight** owns the MCP (three panels on the glareshield) and
+  the FMA (`flight.fma/fmaArm/ap` in cockpitData).
 
 ## Shipping
 
@@ -137,8 +156,10 @@ Dev server: `.claude/launch.json` → "737 NG Inside" (port 8101).
 ## Milestones
 
 - **M1 (done):** shell, airframe, phases, Electrical, Hydraulics, Fuel, Air.
-- **M2:** Flight Controls, Landing Gear, Engines/APU, Fire Protection, Anti-Ice.
-- **M3:** Auto Flight, Instruments, FMS/Nav, Warnings (match gpws-pwa), Comms,
-  Airplane General.
+- **M2 (done, v7):** Flight Controls, Landing Gear, Engines/APU, Fire Protection, Anti-Ice.
+- **M3 (done, v7):** Auto Flight, Instruments, FMS/Nav, Warnings (GPWS phrasing
+  matches gpws-pwa), Comms, Airplane General.
+- Not modelled in 3D cockpit: the aft overhead (IRS mode select, oxygen,
+  door lights, warning tests) — those panels live in the schematic view.
 - New systems need quiz questions in quizbank.js too, or their pages only
   count as learned by listening.

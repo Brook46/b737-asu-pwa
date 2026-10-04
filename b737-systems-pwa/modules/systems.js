@@ -2,31 +2,53 @@
 // with `mod` are built; the rest are listed so the map of the airplane is
 // complete and show as "soon".
 
-import hydraulics from './sys-hydraulics.js?v=6';
-import * as schemHydraulics from './schem-hydraulics.js?v=6';
-import fuel from './sys-fuel.js?v=6';
-import * as schemFuel from './schem-fuel.js?v=6';
-import electrical from './sys-electrical.js?v=6';
-import * as schemElectrical from './schem-electrical.js?v=6';
-import air from './sys-air.js?v=6';
-import * as schemAir from './schem-air.js?v=6';
+import hydraulics from './sys-hydraulics.js?v=7';
+import * as schemHydraulics from './schem-hydraulics.js?v=7';
+import fuel from './sys-fuel.js?v=7';
+import * as schemFuel from './schem-fuel.js?v=7';
+import electrical from './sys-electrical.js?v=7';
+import * as schemElectrical from './schem-electrical.js?v=7';
+import air from './sys-air.js?v=7';
+import * as schemAir from './schem-air.js?v=7';
+import engines from './sys-engines.js?v=7';
+import * as schemEngines from './schem-engines.js?v=7';
+import fire from './sys-fire.js?v=7';
+import * as schemFire from './schem-fire.js?v=7';
+import flightcontrols from './sys-flightcontrols.js?v=7';
+import * as schemFlightcontrols from './schem-flightcontrols.js?v=7';
+import gear from './sys-gear.js?v=7';
+import antiice from './sys-antiice.js?v=7';
+import warnings from './sys-warnings.js?v=7';
+import autoflight from './sys-autoflight.js?v=7';
+import instruments from './sys-instruments.js?v=7';
+import fms from './sys-fms.js?v=7';
+import comms from './sys-comms.js?v=7';
+import general from './sys-general.js?v=7';
+import * as schemGeneral from './schem-general.js?v=7';
+import * as schemComms from './schem-comms.js?v=7';
+import * as schemFms from './schem-fms.js?v=7';
+import * as schemInstruments from './schem-instruments.js?v=7';
+import * as schemAutoflight from './schem-autoflight.js?v=7';
+import * as schemWarnings from './schem-warnings.js?v=7';
+import * as schemAntiice from './schem-antiice.js?v=7';
+import * as schemGear from './schem-gear.js?v=7';
 
 export const SYSTEMS = [
-  { id: 'general', num: 1, title: 'Airplane General', color: '#6b7280' },
+  { id: 'general', num: 1, title: 'Airplane General', color: '#6b7280', mod: general, schem: schemGeneral },
   { id: 'air', num: 2, title: 'Air Systems', color: '#ff6a3d', mod: air, schem: schemAir },
-  { id: 'antiice', num: 3, title: 'Anti-Ice, Rain', color: '#4cc9f0' },
-  { id: 'autoflight', num: 4, title: 'Automatic Flight', color: '#9b5de5' },
-  { id: 'comms', num: 5, title: 'Communications', color: '#00a6a6' },
+  { id: 'antiice', num: 3, title: 'Anti-Ice, Rain', color: '#4cc9f0', mod: antiice, schem: schemAntiice },
+  { id: 'autoflight', num: 4, title: 'Automatic Flight', color: '#9b5de5', mod: autoflight, schem: schemAutoflight },
+  { id: 'comms', num: 5, title: 'Communications', color: '#00a6a6', mod: comms, schem: schemComms },
   { id: 'electrical', num: 6, title: 'Electrical', color: '#f5a300', mod: electrical, schem: schemElectrical },
-  { id: 'engines', num: 7, title: 'Engines, APU', color: '#e63946' },
-  { id: 'fire', num: 8, title: 'Fire Protection', color: '#d62828' },
-  { id: 'flightcontrols', num: 9, title: 'Flight Controls', color: '#3a86ff' },
-  { id: 'instruments', num: 10, title: 'Flight Instruments', color: '#8338ec' },
-  { id: 'fms', num: 11, title: 'FMS, Navigation', color: '#06d6a0' },
+  { id: 'engines', num: 7, title: 'Engines, APU', color: '#e63946', mod: engines, schem: schemEngines },
+  { id: 'fire', num: 8, title: 'Fire Protection', color: '#d62828', mod: fire, schem: schemFire },
+  { id: 'flightcontrols', num: 9, title: 'Flight Controls', color: '#3a86ff', mod: flightcontrols, schem: schemFlightcontrols },
+  { id: 'instruments', num: 10, title: 'Flight Instruments', color: '#8338ec', mod: instruments, schem: schemInstruments },
+  { id: 'fms', num: 11, title: 'FMS, Navigation', color: '#06d6a0', mod: fms, schem: schemFms },
   { id: 'fuel', num: 12, title: 'Fuel', color: '#d6336c', mod: fuel, schem: schemFuel },
   { id: 'hydraulics', num: 13, title: 'Hydraulics', color: '#2f7cf6', mod: hydraulics, schem: schemHydraulics },
-  { id: 'gear', num: 14, title: 'Landing Gear', color: '#495057' },
-  { id: 'warnings', num: 15, title: 'Warning Systems', color: '#e85d04' },
+  { id: 'gear', num: 14, title: 'Landing Gear', color: '#495057', mod: gear, schem: schemGear },
+  { id: 'warnings', num: 15, title: 'Warning Systems', color: '#e85d04', mod: warnings, schem: schemWarnings },
 ].map((s) => ({ ...s, ready: !!s.mod, ...(s.mod ? { color: s.mod.color } : {}) }));
 
 export const READY = SYSTEMS.filter((s) => s.ready);

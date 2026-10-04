@@ -5,7 +5,7 @@
 // failure you set in a schematic shows up on the displays too.
 
 const F = (px, w = 700) => `${w} ${px}px "Helvetica Neue", Arial, sans-serif`;
-const MAG = '#ff5ad2', GRN = '#3df03d', CYN = '#28e3f2', AMB = '#ffb21e', WHT = '#f4f4f4';
+const RED = '#ff3b30', MAG = '#ff5ad2', GRN = '#3df03d', CYN = '#28e3f2', AMB = '#ffb21e', WHT = '#f4f4f4';
 
 /** Engine numbers for a phase (illustrative, typical values). */
 export function engineFor(phase, running) {
@@ -24,7 +24,7 @@ export function flightFor(phase) {
     ground: { ias: 0, mach: 0, alt: 0, vs: 0, hdg: 90, gs: 0, tas: 0, pitch: 0, fma: ['', '', ''], ap: '' },
     takeoff: { ias: 158, mach: 0.24, alt: 300, vs: 2400, hdg: 90, gs: 162, tas: 160, pitch: 15, fma: ['N1', 'LNAV', 'TO/GA'], ap: 'FD' },
     cruise: { ias: 268, mach: 0.785, alt: 37000, vs: 0, hdg: 93, gs: 468, tas: 452, pitch: 2.2, fma: ['MCP SPD', 'LNAV', 'VNAV PTH'], ap: 'CMD' },
-    landing: { ias: 92, mach: 0.14, alt: 0, vs: 0, hdg: 90, gs: 90, tas: 92, pitch: 0, fma: ['', 'ROLLOUT', ''], ap: '' },
+    landing: { ias: 92, mach: 0.14, alt: 0, vs: 0, hdg: 90, gs: 90, tas: 92, pitch: 0, fma: ['', '', ''], ap: '' },
   }[phase];
 }
 
@@ -83,12 +83,17 @@ export function drawPFD(g, W, H, d) {
   text(g, String(Math.round(f.alt)).padStart(3, ' '), W - 22, cy + 10, WHT, 24, 'right');
   if (f.mach > 0.4) text(g, `.${String(Math.round(f.mach * 1000)).padStart(3, '0')}`, 56, cy + 210, WHT, 22, 'center');
   // FMA.
-  g.fillStyle = '#000'; g.fillRect(0, 0, W, 44);
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, 58);
   f.fma.forEach((m, i) => {
     const x = 96 + i * 120;
-    if (m) { text(g, m, x, 30, GRN, 20, 'center'); box(g, x - 52, 8, 104, 30, GRN, 1.5); }
+    if (m) { text(g, m, x, 28, GRN, 20, 'center'); box(g, x - 56, 6, 112, 28, GRN, 1.5); }
+    if (f.fmaArm?.[i]) text(g, f.fmaArm[i], x, 52, WHT, 15, 'center');
   });
   if (f.ap) text(g, f.ap, cx, 82, GRN, 24, 'center');
+  // GPWS / windshear on the attitude display.
+  const w = d.warn;
+  if (w?.pullUp) { g.fillStyle = '#000'; g.fillRect(cx - 62, cy + 58, 124, 34); text(g, 'PULL UP', cx, cy + 84, RED, 26, 'center'); }
+  if (w?.windshear === 'red') { g.fillStyle = '#000'; g.fillRect(cx - 82, cy + 100, 164, 34); text(g, 'WINDSHEAR', cx, cy + 126, RED, 26, 'center'); }
   // Heading at the bottom.
   g.fillStyle = '#4a4f55'; g.fillRect(cx - 150, H - 58, 300, 58);
   for (let k = -30; k <= 30; k += 5) {
@@ -135,6 +140,11 @@ export function drawND(g, W, H, d) {
   text(g, `GS ${Math.round(f.gs)}`, 12, 26, WHT, 18); text(g, `TAS ${Math.round(f.tas)}`, 104, 26, WHT, 18);
   text(g, 'MAP', W - 12, 26, GRN, 18, 'right');
   text(g, '40', cx - R / 2 + 10, cy - R * 0.38, WHT, 15);
+  // Terrain / windshear / traffic messages.
+  const w = d.warn;
+  if (w?.windshear) text(g, 'WINDSHEAR', cx, H * 0.5, w.windshear === 'red' ? RED : AMB, 28, 'center');
+  else if (w?.terrain) text(g, w.terrain === 'red' ? 'TERRAIN' : 'CAUTION TERRAIN', cx, H * 0.5, w.terrain === 'red' ? RED : AMB, 28, 'center');
+  if (w?.tcas) text(g, 'TRAFFIC', W - 70, H - 30, w.tcas === 'RA' ? RED : AMB, 22, 'center');
 }
 
 // ── Gauges for the engine displays ──────────────────────────────────────────
@@ -168,6 +178,8 @@ export function drawUpper(g, W, H, d) {
   arcGauge(g, 300, 290, 56, e2.egt / 1000, String(Math.round(e2.egt)), 0.95);
   text(g, 'EGT', 210, 316, CYN, 20, 'center');
   if (d.rev) { text(g, 'REV', 120, 64, GRN, 18, 'center'); text(g, 'REV', 300, 64, GRN, 18, 'center'); }
+  // Thermal anti-ice: green when the cowl valve is open, amber if it disagrees.
+  (d.tai || []).forEach((t, i) => { if (t) text(g, 'TAI', i ? 300 : 120, 40, t === 'amber' ? AMB : GRN, 18, 'center'); });
   // Fuel quantity.
   const fu = d.fuel;
   if (fu) {

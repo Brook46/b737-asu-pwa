@@ -59,8 +59,12 @@ export function createPhaseAnimator(airframe, world) {
     if (instant) { Object.assign(cur, to); active = false; apply(); }
   }
 
+  // Other systems can take over parts of the pose (flaps from Flight
+  // Controls, gear from Landing Gear) once they have a state.
+  let override = {};
+  function setOverride(o) { override = o || {}; airframe.pose({ ...cur, ...override }); }
   function apply() {
-    airframe.pose(cur);
+    airframe.pose({ ...cur, ...override });
     world.position.y = cur.y;
     world.rotation.z = cur.pitch * Math.PI / 180;
   }
@@ -82,5 +86,5 @@ export function createPhaseAnimator(airframe, world) {
     if (done) active = false;
   }
 
-  return { go, frame, get state() { return cur; } };
+  return { go, frame, setOverride, get state() { return cur; } };
 }

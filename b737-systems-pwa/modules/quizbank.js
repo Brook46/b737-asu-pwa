@@ -9,6 +9,17 @@ const h = Q('hydraulics');
 const f = Q('fuel');
 const e = Q('electrical');
 const r = Q('air');
+const en = Q('engines');
+const fp = Q('fire');
+const fc = Q('flightcontrols');
+const lg = Q('gear');
+const ai = Q('antiice');
+const w = Q('warnings');
+const af = Q('autoflight');
+const ins = Q('instruments');
+const nav = Q('fms');
+const cm = Q('comms');
+const g = Q('general');
 
 export const QUESTIONS = [
   // ── Hydraulics ──
@@ -132,6 +143,131 @@ export const QUESTIONS = [
     'Fire and smoke checklists that call for HIGH take precedence.', 'FCOM L.10'),
   r('ram', 'ram', 'On the ground the ram air inlet doors are…', ['Fully open', 'Closed', 'Modulating', 'Open only with the APU running'], 0,
     'Fully open on the ground and in slow flight with flaps out; RAM DOOR FULL OPEN shows it.', 'FCOM 2.31'),
+  // ── Engines, APU ──
+  en('lever', 'start', 'During a ground start, the start lever goes to IDLE at about…', ['15 % N2', '25 % N2 (or max motoring)', '40 % N2', '56 % N2'], 1,
+    'IDLE at about 25 % N2 or maximum motoring, whichever comes first.', 'FCOM 7.20'),
+  en('cutout', 'start', 'The starter cuts out (ENGINE START back to AUTO) at about…', ['25 % N2', '46 % N2', '56 % N2', '70 % N2'], 2,
+    'The start valve closes and the switch returns at about 56 % N2.', 'FCOM 7.20'),
+  en('ign', 'ign', 'Engine ignition must be on for…', ['Taxi only', 'Takeoff, landing, heavy rain and anti-ice operation', 'Cruise above FL250', 'Never — AUTO handles it'], 1,
+    'A limitation: takeoff, landing, heavy rain and anti-ice operation.', 'FCOM L.10'),
+  en('rev', 'rev', 'Reverse thrust may be used…', ['In flight below 10,000 ft', 'On the ground only', 'Any time below 200 kt', 'Only with autobrake'], 1,
+    'Reverse thrust is for ground use only.', 'FCOM L.10'),
+  en('apubleed', 'apu', 'Before using the APU as a bleed air source it should run for…', ['30 s', '1 min', '2 min', '5 min'], 2,
+    'Two minutes of running before it is used as a bleed source.', 'FCOM L.10'),
+  // ── Fire protection ──
+  fp('pull', 'fsw', 'Pulling an engine fire switch does NOT…', ['Close the spar fuel valve', 'Close the engine bleed valve', 'Fire a bottle', 'Trip the generator'], 2,
+    'Pulling shuts things off; rotating the switch discharges a bottle.', 'FCOM 8.20'),
+  fp('bottles', 'bottles', 'How many engine fire bottles are there, and where can they go?', ['One per engine, own engine only', 'Two, either can go to either engine', 'Three, one shared', 'Two, both to the same engine together'], 1,
+    'Two bottles; rotating left or right fires one into the selected engine.', 'FCOM 8.20'),
+  fp('cargo', 'cargo', 'Total cargo fire suppression time is about…', ['60 min', '120 min', '195 min', '6 hours'], 2,
+    'Initial discharge plus metered flow gives about 195 minutes.', 'FCOM 8.20'),
+  fp('loops', 'loops1', 'With OVHT DET in NORMAL, a fire warning needs…', ['Either loop', 'Both loops', 'Loop A only', 'The test switch'], 1,
+    'Both loops must detect; select A or B alone if one loop is faulty.', 'FCOM 8.20'),
+  // ── Flight controls ──
+  fc('flapalt', 'flaps', 'Maximum altitude with flaps extended is…', ['10,000 ft', '15,000 ft', '20,000 ft', '25,000 ft'], 2,
+    'A limitation: 20,000 ft with flaps extended.', 'FCOM L.10'),
+  fc('sb', 'sb', 'In flight the speedbrake lever must not go beyond…', ['ARMED', 'FLIGHT DETENT', 'UP', 'DOWN'], 1,
+    'Not beyond the FLIGHT DETENT in flight, and no speedbrakes below 1,000 ft RA.', 'FCOM L.10'),
+  fc('mach', 'elev', 'Mach trim works above about…', ['Mach .50', 'Mach .615', 'Mach .74', 'Mach .82'], 1,
+    'Mach trim is active above Mach .615.', 'FCOM 9.20'),
+  fc('rud', 'rud', 'Above about 137 kt the rudder load limiter…', ['Locks the rudder', 'Reduces rudder authority', 'Turns off the yaw damper', 'Switches to the standby PCU'], 1,
+    'Reduced authority above 137 kt; full authority again below 132 kt.', 'FCOM 9.20'),
+  fc('altflap', 'flaps', 'With ALTERNATE FLAPS the LE devices…', ['Retract and extend normally', 'Extend only, on the standby system', 'Stay where they are', 'Run on system A'], 1,
+    'TE flaps run electrically; LE devices extend on standby hydraulics and cannot be retracted that way.', 'FCOM 9.20'),
+  // ── Landing gear ──
+  lg('rto', 'autobrake', 'RTO autobrake gives maximum braking if the takeoff is rejected above…', ['60 kt', '80 kt', '88 kt wheel speed', 'V1'], 2,
+    'Above 88 kt wheel speed, when the thrust levers come to idle.', 'FCOM 14.20'),
+  lg('tiller', 'nlg', 'The tiller steers the nose wheels up to…', ['7°', '40°', '78°', '90°'], 2,
+    'Tiller up to 78°, rudder pedals up to 7°.', 'FCOM 14.20'),
+  lg('xfr', 'lever', 'If engine 1 fails, the gear can still be raised normally thanks to…', ['The PTU', 'The transfer valve (system B)', 'The standby system', 'Manual extension'], 1,
+    'The transfer valve lets system B supply the volume to retract the gear.', 'FCOM 14.20'),
+  lg('green', 'lever', 'The gear is down and locked when…', ['All three red lights are out', 'At least one green light per gear is on (centre or overhead)', 'The lever is DN', 'The horn stops'], 1,
+    'One green per gear, on either the centre or overhead set, is enough.', 'FCOM 14.20'),
+  lg('brakes', 'brakes', 'Normal brakes are powered by…', ['System A', 'System B', 'Standby system', 'The accumulator only'], 1,
+    'Normal brakes on B, alternate on A, with the accumulator as backup.', 'FCOM 14.20'),
+  lg('manual', 'manual', 'With the manual extension access door open…', ['The gear retracts faster', 'Retraction is disabled', 'Autobrake disarms', 'Steering moves to system B'], 1,
+    'Open door: manual extension possible in any lever position and retraction disabled.', 'FCOM 14.20'),
+  // ── Anti-ice ──
+  ai('icing', null, 'Icing conditions exist when OAT / TAT is at or below… with visible moisture', ['0 °C', '5 °C', '10 °C', '15 °C'], 2,
+    'At or below 10 °C OAT on the ground or TAT in flight, with visible moisture or contaminated surfaces.', 'FCOM SP.16'),
+  ai('wing', 'wingai', 'Wing anti-ice protects…', ['All LE slats and flaps', 'The three inboard slats on each wing', 'The Krueger flaps only', 'The wingtips'], 1,
+    'Only the three inboard slats per wing — not the LE flaps or outboard slats.', 'FCOM 3.20'),
+  ai('trip', 'wingai', 'On the ground with WING ANTI-ICE ON, at lift-off the switch…', ['Stays ON', 'Trips OFF', 'Goes to AUTO', 'Opens the cowl valves'], 1,
+    'It trips OFF automatically when the air/ground sensing goes to air.', 'FCOM 3.20'),
+  ai('probes', 'probes', 'Which of these is NOT heated?', ['Pitot probes', 'Alpha vanes', 'TAT probe', 'Static ports'], 3,
+    'Pitots, alpha vanes and the TAT probe are heated; the static ports are not.', 'FCOM 3.20'),
+  ai('cowlbright', 'cowl', 'COWL VALVE OPEN bright blue (not dim) means…', ['Valve open normally', 'Valve in transit or disagreeing with the switch', 'Duct overpressure', 'Engine anti-ice off'], 1,
+    'Dim = open as selected; bright = in transit or disagreement.', 'FCOM 3.10'),
+  // ── Warning systems ──
+  w('horn', 'config', 'An intermittent horn in the climb is most likely…', ['Takeoff configuration', 'Cabin altitude', 'Landing gear', 'Overspeed'], 1,
+    'Takeoff config and cabin altitude share the intermittent horn — airborne, it is the cabin.', 'FCOM 15.20'),
+  w('cabalt', 'config', 'The cabin altitude warning comes on above…', ['8,000 ft', '10,000 ft', '12,000 ft', '14,000 ft'], 1,
+    'Cabin altitude above 10,000 ft: intermittent horn and red CABIN ALTITUDE.', 'FCOM 15.20'),
+  w('toflaps', 'config', 'The takeoff configuration warning sounds if the flaps are…', ['Between 1 and 25', 'Outside 1 to 25', 'At 5 exactly', 'Moving'], 1,
+    'Flaps outside the 1–25 takeoff range (among other conditions).', 'FCOM 15.20'),
+  w('clacker', 'stall', 'The overspeed clacker stops when…', ['You push MASTER CAUTION', 'Speed drops below Vmo/Mmo', 'The A/P disengages', 'After 10 s'], 1,
+    'It can only be silenced by slowing below Vmo/Mmo.', 'FCOM 15.20'),
+  w('gearhorn', 'config', 'With flaps above 25 and a gear not down, the gear horn…', ['Can be silenced with the cutout', 'Cannot be silenced', 'Only sounds below 200 ft', 'Needs a thrust lever at idle'], 1,
+    'Flaps above 25: regardless of thrust, no cutout.', 'FCOM 15.20'),
+  w('tcas', 'tcas', 'TCAS resolution advisories are inhibited below about…', ['500 ft RA', '1,000 ft RA', '1,500 ft RA', '2,500 ft RA'], 1,
+    'All RAs are inhibited below about 1,000 ft RA (TA ONLY then shows).', 'FCOM 15.20'),
+  // ── Automatic flight ──
+  af('400', 'servos', 'After takeoff the autopilot must not be engaged below…', ['50 ft AGL', '400 ft AGL', '1,000 ft AGL', '1,500 ft AGL'], 1,
+    'A limitation: not below 400 ft AGL after takeoff.', 'FCOM L.10'),
+  af('single', 'approach', 'On a single-channel approach the autopilot must not remain engaged below…', ['200 ft AGL', '100 ft AGL', '50 ft AGL', 'Touchdown'], 2,
+    'Single channel: not below 50 ft AGL.', 'FCOM L.10'),
+  af('800', 'approach', 'For a dual-channel approach the second autopilot must be in CMD by…', ['1,500 ft RA', '800 ft RA', '500 ft RA', '200 ft RA'], 1,
+    'Engage the second A/P by 800 ft RA.', 'FCOM 4.20'),
+  af('retard', 'at', 'On an autoland, RETARD starts at about…', ['50 ft RA', '27 ft RA', '10 ft RA', 'Touchdown'], 1,
+    'The A/T retards from about 27 ft to reach idle at touchdown; it disconnects ~2 s after touchdown.', 'FCOM 4.20'),
+  af('hyd', 'servos', 'Autopilot B moves the controls through…', ['Hydraulic system A', 'Hydraulic system B', 'Both systems', 'The standby system'], 1,
+    'A/P A uses system A, A/P B system B.', 'FCOM 4.20'),
+  af('autoland', 'approach', 'Autoland may be used with…', ['Any flap setting', 'Flaps 15 or 30', 'Flaps 30 or 40, both engines operating', 'Flaps 40 only'], 2,
+    'Flaps 30 or 40 and both engines operating.', 'FCOM L.10'),
+  // ── Flight instruments ──
+  ins('outbd', 'dus', 'If the captain\'s outboard DU fails…', ['Both captain DUs blank', 'The PFD moves to the inboard DU', 'The PFD moves to the upper DU', 'Use the ISFD only'], 1,
+    'Automatic switching puts the PFD on the inboard DU.', 'FCOM 10.21'),
+  ins('deu', 'deu', 'If one DEU fails…', ['Its three DUs blank', 'The other DEU drives all six, DSPLY SOURCE shows', 'The ISFD takes over', 'Displays freeze'], 1,
+    'The remaining DEU supplies all six; a DSPLY SOURCE annunciation appears.', 'FCOM 10.21'),
+  ins('aux', 'standby', 'The standby airspeed and altitude come from…', ['The captain\'s pitot', 'The auxiliary pitot and alternate static ports', 'The left ADIRU', 'GPS'], 1,
+    'Auxiliary pitot and alternate static, direct to the ISFD / standby instruments.', 'FCOM 10.21'),
+  ins('rvsm', null, 'For RVSM, the maximum in-flight captain vs first officer altitude difference is…', ['100 ft', '200 ft', '300 ft', '500 ft'], 1,
+    'A limitation: 200 ft in flight.', 'FCOM L.10'),
+  ins('aoa', 'pitot', 'AOA DISAGREE shows when the vanes differ by more than…', ['5° for 5 s', '10° for 10 s', '15° for 3 s', '20° immediately'], 1,
+    'More than 10° for more than 10 s, above 400 ft RA.', 'FCOM 10.11'),
+  // ── FMS / navigation ──
+  nav('align', 'irs', 'IRS alignment takes…', ['About 30 s', '5 to 17 min depending on latitude', 'Exactly 10 min', '20 to 30 min'], 1,
+    'Five to seventeen minutes depending on latitude.', 'FCOM 11.20'),
+  nav('flash', 'irs', 'A flashing ALIGN light means…', ['Alignment complete', 'Check / re-enter the present position', 'IRS on DC power', 'IRS fault'], 1,
+    'The entered position failed a comparison test or none was entered.', 'FCOM 11.20'),
+  nav('ondc', 'irs', 'ON DC on the IRS panel means…', ['DC power has failed', 'The IRS is running on battery power', 'Alignment is complete', 'The IRS is in ATT'], 1,
+    'AC power isn\'t normal; it runs from the switched hot battery bus (nose wheel well horn on the ground).', 'FCOM 11.20'),
+  nav('att', 'irs', 'In ATT mode, heading becomes available after…', ['30 s of level flight', 'You enter the magnetic heading', 'GPS update', 'Never'], 1,
+    'Attitude after ~30 s level flight; heading only once you enter it — and it drifts up to 15°/h.', 'FCOM 11.20'),
+  nav('pos', 'fmc', 'The FMC\'s primary position update is…', ['DME/DME', 'VOR/DME', 'GPS', 'IRS'], 2,
+    'GPS first; radio too when available; IRS alone if both are lost.', 'FCOM 11.20'),
+  // ── Communications ──
+  cm('alt', 'acp', 'With the ACP in ALT (degraded) mode you get…', ['All radios but no speaker', 'One fixed radio, headset only', 'Interphone only', 'Normal operation'], 1,
+    'One radio through the headset; no speaker, interphones, PA or aural warnings on that side.', 'FCOM 5.20'),
+  cm('aurals', 'acp', 'GPWS, TCAS and windshear aurals…', ['Follow the speaker volume', 'Come through at a fixed volume you can\'t turn off', 'Only play in the headset', 'Can be muted with the ACP'], 1,
+    'Preset volume on speakers and headsets; the crew cannot control them.', 'FCOM 5.20'),
+  cm('cvr', 'cvr', 'In AUTO, the voice recorder runs from first engine start until…', ['Last engine shutdown', '5 minutes after the last engine shutdown', 'The parking brake is set', 'Battery OFF'], 1,
+    'Until 5 minutes after the last engine shutdown.', 'FCOM 5.10'),
+  cm('pa', 'interphone', 'Which has the highest PA priority?', ['Pre-recorded announcements', 'Cabin crew handset', 'Flight deck (ACP PA or hand mic)', 'Boarding music'], 2,
+    'The flight deck pre-empts everything, then cabin crew handsets, then PRAM.', 'FCOM 5.20'),
+  // ── Airplane general ──
+  g('oxy', 'oxygen', 'The passenger oxygen masks drop automatically at a cabin altitude of…', ['10,000 ft', '12,000 ft', '14,000 ft', '18,000 ft'], 2,
+    'At 14,000 ft cabin altitude, or with PASS OXY ON.', 'FCOM 1.40'),
+  g('oxyt', 'oxygen', 'Once started, passenger chemical oxygen flows for about…', ['5 min', '12 min (some ~22 min)', '45 min', 'Until switched off'], 1,
+    'About 12 minutes (22 on some installations) and it cannot be stopped.', 'FCOM 1.40'),
+  g('exit', 'emergency', 'With EMER EXIT LIGHTS ARMED the lights come on automatically when…', ['A door opens', 'DC bus 1 fails or AC power is lost', 'The engines stop', 'Cabin altitude exceeds 10,000 ft'], 1,
+    'ARMED: on by themselves if DC bus 1 or AC power is lost.', 'FCOM 1.30'),
+  g('belts', 'signs', 'FASTEN BELTS in AUTO are on when…', ['Below 10,000 ft', 'Flaps or gear are extended', 'Engines are running', 'The A/P is off'], 1,
+    'On with flaps or gear extended; off when both are retracted.', 'FCOM 1.40'),
+  g('wind', 'doors', 'Entry and service doors must not be operated in steady winds above…', ['25 kt', '40 kt', '50 kt', '65 kt'], 1,
+    'Not in steady winds over 40 kt, and not left open in gusts over 65 kt.', 'FCOM 1.40'),
+  g('lock', 'doors', 'The overwing exit flight locks engage when three doors are closed, an engine is running and…', ['The parking brake is released', 'Airborne or both thrust levers advanced', 'Flaps are up', 'The seat belt sign is on'], 1,
+    'Air mode or both thrust levers advanced; they unlock otherwise or with DC lost.', 'FCOM 1.40'),
 ];
 
 export const questionsFor = (sys, part) => QUESTIONS.filter((q) => q.sys === sys && (part === undefined || q.part === part));

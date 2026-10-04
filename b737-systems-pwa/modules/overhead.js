@@ -58,6 +58,11 @@ const STYLE = `
   .ovh-lamp.blue.on .lens { fill: #2a6dff; stroke: #9cc0ff; } .ovh-lamp.blue.on .legend { fill: #ffffff; }
   .ovh-lamp.blue.dim .lens { fill: #183a78; stroke: #2e4f8c; } .ovh-lamp.blue.dim .legend { fill: #a9c2f2; }
   .ovh-lamp.green.on .lens { stroke: #46e584; } .ovh-lamp.green.on .legend { fill: #46e584; }
+  .ovh-lamp.red .lens { fill: #3a0d0d; } .ovh-lamp.red .legend { fill: #6b2a2a; }
+  .ovh-lamp.red.on .lens { fill: #e03131; stroke: #ff8787; } .ovh-lamp.red.on .legend { fill: #fff; }
+  .ovh-lamp.white.on .lens { stroke: #f1f3f5; } .ovh-lamp.white.on .legend { fill: #f8f9fa; }
+  .ovh-lamp.flash .lens, .ovh-lamp.flash .legend { animation: ovhFlash 1s steps(2, jump-none) infinite; }
+  @keyframes ovhFlash { 50% { opacity: .25; } }
   .ovh-push.down circle:last-child { fill: #3a3d40; }`;
 
 const pt = (r, deg) => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg * Math.PI) / 180)];
@@ -69,6 +74,7 @@ const pt = (r, deg) => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg 
  * the 3D cockpit uses that to operate panels drawn as textures.
  */
 export function createOverhead(host, ctx) {
+  const ctxRoot = ctx;
   host = host || document.createElement('div');
   host.replaceChildren();
   const binds = [];
@@ -137,13 +143,17 @@ export function createOverhead(host, ctx) {
           const v = key == null ? false : typeof key === 'function' ? key(res) : res.lights?.[key];
           g.classList.toggle('on', !!v && v !== 'dim');
           g.classList.toggle('dim', v === 'dim');
+          g.classList.toggle('flash', v === 'flash');
           if (v && v !== 'dim') r.setAttribute('filter', `url(#glow${id})`); else r.removeAttribute('filter');
         });
         if (key == null) g.classList.add('inert');
+        // Push-lights (MASTER CAUTION, FIRE WARN, BELOW G/S): press is the 9th argument.
+        const press = arguments[8];
+        if (press) { g.classList.add('ovh-pushlamp'); g.addEventListener('click', press); }
         controls.push({
-          kind: 'lamp', name: String(legend).replace(/\n/g, ' '), about: arguments[7], inert: true,
+          kind: press ? 'push' : 'lamp', name: String(legend).replace(/\n/g, ' '), about: arguments[7], inert: !press,
           x0: x, x1: x + w, y0: y, y1: y + hh, pos: () => (g.classList.contains('on') ? 'ON' : g.classList.contains('dim') ? 'DIM' : 'OFF'),
-          act() { return 'lamp'; },
+          act() { if (press) { press(); return 'pressed'; } return 'lamp'; },
         });
         return g;
       },
@@ -153,6 +163,13 @@ export function createOverhead(host, ctx) {
        * momentary [indices], inert, labels 'right'|'left'.
        */
       toggle(x, y, key, positions, o2 = {}) {
+        const ctx0 = o2.ctx || ctxRoot;   // a switch can belong to another system's state
+        // invert: the state's 1 is the TOP position (F/D, A/T ARM: ON is up).
+        const flip = (v) => (o2.invert ? positions.length - 1 - (v ?? 0) : v);
+        const ctx = !o2.invert ? ctx0 : {
+          get sw() { return new Proxy(ctx0.sw, { get: (o, k) => (k === key ? flip(o[k]) : o[k]) }); },
+          set: (k, v) => ctx0.set(k, k === key ? flip(v) : v), action: (...a) => ctx0.action(...a), touched: () => ctx0.touched?.(),
+        };
         const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-tg' + (o2.inert ? ' inert' : '') }, layers.parts);
         const inner = el('g', { transform: o2.horizontal ? 'rotate(-90)' : null }, g);
         if (o2.housing) el('rect', { x: -12, y: -26, width: 24, height: 52, rx: 3, fill: '#151719' }, inner);
@@ -268,15 +285,24 @@ export function createOverhead(host, ctx) {
           P.text(x + lx, y + ly + 2.5, p, { size: 6.6 });
         });
         if (o2.name) P.text(x, y + R + (o2.nameDy ?? 16), o2.name, { size: 7.5, box: true });
+        let thrown = null;
         const turn = (left) => {
           const next = Math.max(0, Math.min(positions.length - 1, (ctx.sw[key] ?? 0) + (left ? -1 : 1)));
-          if (o2.action) ctx.action(key, left ? 'DEC' : 'INC'); else ctx.set(key, next);
+          if (o2.action) { ctx.action(key, left ? 'DEC' : 'INC'); return; }
+          // Spring-loaded positions (APU START): act, show the throw, spring back.
+          if (o2.momentary?.includes(next)) {
+            thrown = next; ptr.setAttribute('transform', `rotate(${angles[next]})`); ctx.touched?.();
+            ctx.action(key, positions[next]);
+            setTimeout(() => { thrown = null; ptr.setAttribute('transform', `rotate(${angles[idx()]})`); ctx.touched?.(); }, 400);
+            return;
+          }
+          ctx.set(key, next);
         };
         if (!o2.inert) g.addEventListener('click', (e) => {
           const r = g.getBoundingClientRect();
           turn(e.clientX < r.left + r.width / 2);
         });
-        const idx = () => (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0);
+        const idx = () => thrown ?? (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0);
         controls.push({
           kind: 'knob', key, positions, name: o2.name || o2.label || key, about: o2.about, inert: !!o2.inert,
           x0: x - R - 6, x1: x + R + 6, y0: y - R - 6, y1: y + R + 6,

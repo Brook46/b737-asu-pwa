@@ -1,7 +1,7 @@
 // schem-hydraulics.js — operable A / B / standby schematic + hydraulic panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=6';
-import { createOverhead } from './overhead.js?v=6';
+import { createSchematic, createPanel } from './schem-kit.js?v=7';
+import { createOverhead } from './overhead.js?v=7';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
@@ -155,14 +155,16 @@ export function panels(O, ctx) {
   FC.lamp(206, 68, 44, 17, 'STBY\nRUD ON', 'stbyRudOn');
   FC.text(232, 102, 'ALTERNATE FLAPS', { size: 8 });
   FC.toggle(205, 140, 'altFlaps', ['OFF', 'ARM'], { guard: 'red', guardPos: 0, labels: 'left' });
-  FC.toggle(262, 140, 'altFlapPos', ['UP', 'OFF', 'DOWN'], { inert: true, inertPos: 1 });
+  FC.toggle(262, 140, 'altPos', ['UP', 'OFF', 'DOWN'], { ctx: ctx.ctxOf?.('flightcontrols'), inert: !ctx.ctxOf, inertPos: 1 });
   FC.text(75, 148, 'SPOILER', { size: 8 });
   FC.text(50, 160, 'A', { size: 8 }); FC.text(100, 160, 'B', { size: 8 });
-  FC.toggle(50, 196, 'spA', ['OFF', 'ON'], { guard: 'black', inert: true, inertPos: 1, labels: 'left' });
-  FC.toggle(100, 196, 'spB', ['OFF', 'ON'], { guard: 'black', inert: true, inertPos: 1 });
-  FC.lamp(206, 172, 44, 16, 'FEEL\nDIFF PRESS', null);
-  FC.lamp(206, 190, 44, 16, 'SPEED TRIM\nFAIL', null);
-  FC.lamp(206, 208, 44, 16, 'MACH TRIM\nFAIL', null);
-  FC.lamp(206, 226, 44, 16, 'AUTO SLAT\nFAIL', null);
-  FC.lamp(56, 238, 38, 16, 'YAW\nDAMPER', null);
+  FC.toggle(50, 196, 'spA', ['OFF', 'ON'], { guard: 'black', guardPos: 1, ctx: ctx.ctxOf?.('flightcontrols'), inert: !ctx.ctxOf, inertPos: 1, labels: 'left' });
+  FC.toggle(100, 196, 'spB', ['OFF', 'ON'], { guard: 'black', guardPos: 1, ctx: ctx.ctxOf?.('flightcontrols'), inert: !ctx.ctxOf, inertPos: 1 });
+  const fcl = (k) => (ctx.resOf ? () => ctx.resOf('flightcontrols')?.lights[k] : null);
+  FC.lamp(206, 172, 44, 16, 'FEEL\nDIFF PRESS', fcl('feelDiff'));
+  FC.lamp(206, 190, 44, 16, 'SPEED TRIM\nFAIL', fcl('speedTrimFail'));
+  FC.lamp(206, 208, 44, 16, 'MACH TRIM\nFAIL', fcl('machTrimFail'));
+  FC.lamp(206, 226, 44, 16, 'AUTO SLAT\nFAIL', fcl('autoSlatFail'));
+  FC.lamp(56, 230, 38, 16, 'YAW\nDAMPER', fcl('ydLight'));
+  FC.toggle(120, 238, 'yd', ['OFF', 'ON'], { horizontal: true, ctx: ctx.ctxOf?.('flightcontrols'), inert: !ctx.ctxOf, inertPos: 1 });
 }

@@ -548,3 +548,8 @@ body.view-cockpit .vignette { display: none; }
   .cp-bar .seg { flex-wrap: wrap; justify-content: center; }
   .cp-info { bottom: calc(96px + var(--safe-b)); }
 }
+
+/* FMA in the autoflight schematic */
+.sx .fma-on { fill: #3df03d; }
+.sx .fma-box { text-decoration: underline; }
+.sx .fma-arm { fill: #f4f4f4; }

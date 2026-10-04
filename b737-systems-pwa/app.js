@@ -4,21 +4,21 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { installResumeHardening } from './modules/resume.js?v=6';
-import { createScene } from './modules/scene.js?v=6';
-import { buildAirframe } from './modules/airframe.js?v=6';
-import { createSystems3D } from './modules/systems3d.js?v=6';
-import { createOverlay } from './modules/overlay.js?v=6';
-import { createSheet } from './modules/sheet.js?v=6';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=6';
-import { SYSTEMS, READY } from './modules/systems.js?v=6';
-import { createSearch } from './modules/search.js?v=6';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=6';
-import { createProgress } from './modules/progress.js?v=6';
-import { createLearn } from './modules/learn.js?v=6';
-import { explain } from './modules/cockpit-info.js?v=6';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=6';
-import { createCockpit } from './modules/cockpit.js?v=6';
+import { installResumeHardening } from './modules/resume.js?v=7';
+import { createScene } from './modules/scene.js?v=7';
+import { buildAirframe } from './modules/airframe.js?v=7';
+import { createSystems3D } from './modules/systems3d.js?v=7';
+import { createOverlay } from './modules/overlay.js?v=7';
+import { createSheet } from './modules/sheet.js?v=7';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=7';
+import { SYSTEMS, READY } from './modules/systems.js?v=7';
+import { createSearch } from './modules/search.js?v=7';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=7';
+import { createProgress } from './modules/progress.js?v=7';
+import { createLearn } from './modules/learn.js?v=7';
+import { explain } from './modules/cockpit-info.js?v=7';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=7';
+import { createCockpit } from './modules/cockpit.js?v=7';
 
 const $ = (id) => document.getElementById(id);
 
@@ -172,7 +172,36 @@ function init() {
 
   // ── System state ──
   const sysOf = (id) => SYSTEMS.find((s) => s.id === id);
-  const env = () => ({ ...PHASES[phase].env, phase });
+  // The phase sets the scene; the engines model says what is actually
+  // running (an engine you start or shut down changes every other system).
+  const env = () => {
+    const e = { ...PHASES[phase].env, phase };
+    // Fire switches pulled cut the fuel (engines) or shut the APU down.
+    const fire = states.get('fire');
+    if (fire) { e.cut1 = !!fire.sw.pull1; e.cut2 = !!fire.sw.pull2; e.cutApu = !!fire.sw.pullApu; }
+    const eng = states.get('engines') || stateOf('engines');
+    if (!states.has('flightcontrols')) stateOf('flightcontrols');
+    if (eng) {
+      e.eng1 = eng.mem.e[0].run; e.eng2 = eng.mem.e[1].run;
+      e.apu = eng.mem.apu.st === 'running';
+    }
+    // Actual flap position (Flight Controls), then what hydraulics can power.
+    const fc = states.get('flightcontrols');
+    if (fc) { e.flaps = Math.round(fc.mem.flap); e.stabApCut = fc.sw.stabAp === 1; }
+    const ai = states.get('air');
+    if (ai) { const v = sysOf('air').mod.evaluate(e, ai).values; e.ductL = v.ductL; e.ductR = v.ductR; }
+    const gr = states.get('gear');
+    if (gr) e.gearDown = gr.mem.pos > 0.999;
+    const hy = states.get('hydraulics');
+    if (hy) {
+      const h = sysOf('hydraulics').mod.evaluate(e, hy);
+      Object.assign(e, {
+        hydA: h.users.A, hydB: h.users.B, leB: h.users.Ble, hydAfc: h.users.Afc, hydBfc: h.users.Bfc,
+        stbyRud: h.users.Srud, stbyLe: h.users.Sle, altFlapsArmed: !!hy.sw.altFlaps, fcBOff: hy.sw.fcB !== 2,
+      });
+    }
+    return e;
+  };
   function stateOf(id) {
     if (!states.has(id)) states.set(id, sysOf(id).mod.normal(phase));
     return states.get(id);
@@ -180,6 +209,8 @@ function init() {
   function evaluate(id) {
     const s = sysOf(id);
     const e = env();
+    // Warning systems listen to every other system.
+    if (s.mod.needsOthers) e.resOf = (o) => (o !== id && sysOf(o)?.mod ? evaluate(o) : null);
     const res = s.mod.evaluate(e, stateOf(id));
     res.env = e;
     return res;
@@ -303,10 +334,21 @@ function init() {
     const e = env();
     const hf = states.get('hydraulics')?.fail || {};
     return {
-      phase, env: e, flight: flightFor(phase),
-      e1: engineFor(phase, e.eng1 && !hf.eng1), e2: engineFor(phase, e.eng2 && !hf.eng2),
-      rev: phase === 'landing', fuel: r.fuel?.values, hyd: r.hydraulics?.values,
-      tat: { ground: 18, takeoff: 16, cruise: -32, landing: 12 }[phase], mcp: new Set(MCP_LIT[phase]),
+      phase, env: e, flight: (() => {
+        const f = flightFor(phase), af = r.autoflight?.values;
+        return af ? { ...f, fma: af.fma, fmaArm: af.arm, ap: af.status } : f;
+      })(),
+      ...(() => {
+        const ev = r.engines?.values.e;
+        if (!ev) return { e1: engineFor(phase, e.eng1 && !hf.eng1), e2: engineFor(phase, e.eng2 && !hf.eng2) };
+        const base = (i) => engineFor(phase, ev[i].run);
+        return { e1: { ...base(0), n1: ev[0].n1, n2: ev[0].n2, egt: ev[0].egt, ff: ev[0].ff },
+          e2: { ...base(1), n1: ev[1].n1, n2: ev[1].n2, egt: ev[1].egt, ff: ev[1].ff } };
+      })(),
+      levers: { l1: stateOf('engines').sw.lever1, l2: stateOf('engines').sw.lever2 },
+      flapLever: stateOf('flightcontrols').sw.flap, gearLever: stateOf('gear').sw.lever, sb: stateOf('flightcontrols').sw.sb,
+      rev: phase === 'landing', fuel: r.fuel?.values, tai: r.antiice?.values.tai, warn: r.warnings?.values, dus: r.instruments?.values.du, capIas: r.instruments?.values.capIas, hyd: r.hydraulics?.values,
+      tat: { ground: 18, takeoff: 16, cruise: -32, landing: 12 }[phase], mcp: r.autoflight?.values.lit || new Set(MCP_LIT[phase]),
     };
   }
   /** The switch/failure context for one system (shared by schematic and cockpit). */
@@ -317,10 +359,16 @@ function init() {
       get fail() { return stateOf(id).fail; },
       set(k, v) { stateOf(id).sw[k] = v; refresh(); },
       toggleFail(k) { const f = stateOf(id).fail; f[k] = !f[k]; refresh(); },
-      action(k, label) { s.mod.action?.(stateOf(id), k, label, env()); refresh(); },
+      action(k, label) {
+        const e = env();
+        if (s.mod.needsOthers) e.resOf = (o) => (o !== id && sysOf(o)?.mod ? evaluate(o) : null);
+        s.mod.action?.(stateOf(id), k, label, e); refresh();
+      },
       onPart(pid) { selectPart(pid); },
       reset() { states.set(id, s.mod.normal(phase)); refresh(); },
       env,
+      ctxOf: (other) => ctxFor(other),
+      resOf: (other) => (sysOf(other)?.mod ? evaluate(other) : null),
     };
   }
   function showInfo(ev) {
@@ -357,7 +405,32 @@ function init() {
     if (sch) { if (v === 'schem') sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
     // Cockpit: built the first time it's opened (it renders every panel).
     if (v === 'cockpit') {
-      if (!cockpit) cockpit = createCockpit({ canvas: api.canvas, systems: READY, ctxFor, onControl: showInfo });
+      if (!cockpit) cockpit = createCockpit({
+        canvas: api.canvas, systems: READY, ctxFor, onControl: showInfo,
+        // Start levers in the cockpit work: they toggle CUTOFF / IDLE.
+        onLever(name) {
+          if (name === 'Flap lever' || name === 'Speed brake lever') {
+            const st = stateOf('flightcontrols');
+            const k = name === 'Flap lever' ? 'flap' : 'sb', n = k === 'flap' ? 9 : 4;
+            st.sw[k] = (st.sw[k] + 1) % n;
+            refresh();
+            return k === 'flap' ? (['UP', '1', '2', '5', '10', '15', '25', '30', '40'][st.sw.flap]) : ['DOWN', 'ARMED', 'FLIGHT DETENT', 'UP'][st.sw.sb];
+          }
+          if (name === 'Landing gear lever') {
+            const st = stateOf('gear');
+            st.sw.lever = st.sw.lever === 2 ? 0 : 2;
+            if (!env().air && st.sw.lever === 0) { st.sw.lever = 2; refresh(); return 'DN — lever lock (on the ground)'; }
+            refresh();
+            return ['UP', 'OFF', 'DN'][st.sw.lever];
+          }
+          const m = name.match(/^Start lever (\d)$/);
+          if (!m) return false;
+          const st = stateOf('engines');
+          st.sw[`lever${m[1]}`] = st.sw[`lever${m[1]}`] ? 0 : 1;
+          refresh();
+          return st.sw[`lever${m[1]}`] ? 'IDLE' : 'CUTOFF';
+        },
+      });
       sheet.hide();
       api.setMode('cockpit', cockpit);
       cockpit.enter();
@@ -394,6 +467,9 @@ function init() {
   // ── Frame loop pieces ──
   api.onFrame((dt) => {
     cockpit?.frame(dt);
+    const fcs = states.get('flightcontrols');
+    const gr = states.get('gear');
+    if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}) });
     anim.frame(dt);
     s3d.frame(dt);
     overlay.frame();
