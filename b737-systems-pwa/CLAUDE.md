@@ -242,6 +242,28 @@ labelled "not for operational use" on the CDU.
   pedestal; tapping one opens the keypad.
 - Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
 
+## FMA and ND rules (v19, FCOM 4.20 / 10)
+
+- Takeoff: F/Ds on, TO/GA → N1 | blank | TO/GA, FD; THR HLD at 84 kt; armed
+  LNAV at 50 ft, armed VNAV at 400 ft (A/T stays THR HLD); ARM at 800 ft
+  AFE; N1 at thrust reduction (1,500 ft) with VNAV; pitch V2 + 20. CMD in
+  the takeoff mode → LVL CHG (window V2 + 20) and HDG SEL.
+- Go-around (sys-autoflight `TOGA` in the air): only below 2,000 ft RA, or
+  above with flaps out / G/S captured. A/T GA (< 2,000 RA) or N1. A/P stays
+  only for a dual A/P with FLARE armed; else it disengages (F/D GA). Roll
+  blank (track hold) — no LNAV arm, since the FMC builds no missed
+  approach. IAS window blank. Leaving TO/GA: F/D → roll HDG SEL; A/P GA
+  pitch first → B drops, CWS R; ALT ACQ ends GA thrust (MCP SPD, window
+  reopens on the present speed) and levels single-channel.
+- ALT ACQ annunciates outside VNAV (inside VNAV it's silent); ALT ACQ /
+  ALT HOLD engage A/T MCP SPD. LVL CHG / VNAV idle descents: RETARD → ARM.
+  Leaving VNAV opens the IAS window on the present speed (`spdSync`).
+- PFD: mode-change boxes only for 10 s (`boxed`, incl. A/P status); speed
+  cursor = FMC target in VNAV / TO/GA, else MCP. ND MAP: heading pointer,
+  track line with half-range tick, selected heading bug always (dashed
+  line in HDG SEL), curved trend vector (1–3 × 30 s by range), green
+  altitude range arc to the MCP altitude.
+
 ## State bar (v18)
 
 Under the phase buttons, `statebar.js` shows the airplane's state for the

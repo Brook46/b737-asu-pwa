@@ -4,7 +4,7 @@
 // texture, by the 3D cockpit's CDUs. Page layouts are our own rendering of
 // the standard 737 CDU pages; numbers come from fmc.js (approximate).
 
-import { nav, geo } from './navdb.js?v=18';
+import { nav, geo } from './navdb.js?v=19';
 
 const W = 24, ROWS = 14;
 const COL = { w: '#f2f2f2', g: '#3df03d', m: '#ff5ad2', c: '#28e3f2', a: '#ffb21e' };

@@ -23,7 +23,7 @@ export function engineFor(phase, running) {
 export function flightFor(phase) {
   return {
     ground: { ias: 0, mach: 0, alt: 0, vs: 0, hdg: 90, gs: 0, tas: 0, pitch: 0, fma: ['', '', ''], ap: '' },
-    takeoff: { ias: 158, mach: 0.24, alt: 300, vs: 2400, hdg: 90, gs: 162, tas: 160, pitch: 15, fma: ['N1', 'LNAV', 'TO/GA'], ap: 'FD' },
+    takeoff: { ias: 158, mach: 0.24, alt: 300, vs: 2400, hdg: 90, gs: 162, tas: 160, pitch: 15, fma: ['THR HLD', 'LNAV', 'TO/GA'], ap: 'FD' },
     cruise: { ias: 268, mach: 0.785, alt: 37000, vs: 0, hdg: 93, gs: 468, tas: 452, pitch: 2.2, fma: ['MCP SPD', 'LNAV', 'VNAV PTH'], ap: 'CMD' },
     approach: { ias: 145, mach: 0.22, alt: 1500, vs: -750, hdg: 90, gs: 140, tas: 148, pitch: 2.5, fma: ['MCP SPD', 'VOR/LOC', 'G/S'], ap: 'CMD' },
     landing: { ias: 92, mach: 0.14, alt: 0, vs: 0, hdg: 90, gs: 90, tas: 92, pitch: 0, fma: ['', '', ''], ap: '' },
@@ -108,12 +108,20 @@ export function drawPFD(g, W, H, d) {
   if (f.mach > 0.4) text(g, `.${String(Math.round(f.mach * 1000)).padStart(3, '0')}`, 56, cy + 210, WHT, 22, 'center');
   // FMA.
   g.fillStyle = '#000'; g.fillRect(0, 0, W, 58);
+  // A/T | roll | pitch: engaged modes large green, armed modes small white;
+  // the white box marks a change for 10 s (FCOM 4.10 mode change highlight).
   f.fma.forEach((m, i) => {
     const x = 96 + i * 120;
-    if (m) { text(g, m, x, 28, GRN, 20, 'center'); box(g, x - 56, 6, 112, 28, GRN, 1.5); }
+    if (m) { text(g, m, x, 28, GRN, 20, 'center'); if (f.fmaBox?.[i]) box(g, x - 56, 6, 112, 28, WHT, 1.5); }
     if (f.fmaArm?.[i]) text(g, f.fmaArm[i], x, 52, WHT, 15, 'center');
   });
-  if (f.ap) text(g, f.ap, cx, 82, GRN, 24, 'center');
+  g.strokeStyle = '#555'; g.lineWidth = 1;
+  for (const x of [156, 276]) { g.beginPath(); g.moveTo(x, 6); g.lineTo(x, 56); g.stroke(); }
+  if (f.ap) {
+    const w = g.measureText ? (g.font = F(22), g.measureText(f.ap).width + 16) : 120;
+    text(g, f.ap, cx, 84, GRN, 22, 'center');
+    if (f.fmaBox?.[3]) box(g, cx - w / 2, 62, w, 28, WHT, 1.5);
+  }
   // GPWS / windshear on the attitude display.
   const w = d.warn;
   if (w?.pullUp) { g.fillStyle = '#000'; g.fillRect(cx - 62, cy + 58, 124, 34); text(g, 'PULL UP', cx, cy + 84, RED, 26, 'center'); }
@@ -170,11 +178,25 @@ export function drawND(g, W, H, d) {
   g.setLineDash([6, 8]); g.strokeStyle = '#9aa0a6'; g.lineWidth = 1.5;
   g.beginPath(); g.arc(cx, cy, R / 2, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); g.setLineDash([]);
   text(g, String(range / 2), cx - R / 2 * 0.86 - 4, cy - R / 2 * 0.5 + 6, WHT, 15, 'right');
-  // MCP heading bug in HDG SEL.
+  // Heading pointer (white triangle on the arc). No wind here, so heading = track.
+  {
+    const rad = -Math.PI / 2;
+    const px = cx + (R - 2) * Math.cos(rad), py = cy + (R - 2) * Math.sin(rad);
+    g.fillStyle = WHT; g.beginPath(); g.moveTo(px, py + 14); g.lineTo(px - 8, py); g.lineTo(px + 8, py); g.closePath(); g.fill();
+  }
+  // Track line from the airplane to the arc, with the half-range tick.
+  g.strokeStyle = WHT; g.lineWidth = 1.6;
+  g.beginPath(); g.moveTo(cx, cy - 24); g.lineTo(cx, cy - R + 16); g.stroke();
+  g.beginPath(); g.moveTo(cx - 7, cy - R / 2); g.lineTo(cx + 7, cy - R / 2); g.stroke();
+  // Selected heading bug (magenta, always shown); in HDG SEL a dashed line to it.
   if (d.mcpHdg != null) {
-    const rad = ((d.mcpHdg - trkM - 90) * Math.PI) / 180;
+    const off = ((d.mcpHdg - trkM + 540) % 360) - 180, a = Math.max(-62, Math.min(62, off));
+    const rad = ((a - 90) * Math.PI) / 180, bx = cx + R * Math.cos(rad), by = cy + R * Math.sin(rad);
+    g.save(); g.translate(bx, by); g.rotate(rad + Math.PI / 2);
     g.strokeStyle = MAG; g.lineWidth = 2.5;
-    g.beginPath(); g.moveTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad)); g.lineTo(cx + (R + 12) * Math.cos(rad), cy + (R + 12) * Math.sin(rad)); g.stroke();
+    g.beginPath(); g.moveTo(-10, 0); g.lineTo(-10, -12); g.lineTo(-4, -12); g.lineTo(0, -5); g.lineTo(4, -12); g.lineTo(10, -12); g.lineTo(10, 0); g.closePath(); g.stroke();
+    g.restore();
+    if (d.hdgSel && Math.abs(off) <= 62) { g.setLineDash([8, 7]); g.strokeStyle = MAG; g.lineWidth = 2; g.beginPath(); g.moveTo(cx, cy - 22); g.lineTo(bx, by); g.stroke(); g.setLineDash([]); }
   }
 
   if (n?.ac) {
@@ -256,6 +278,35 @@ export function drawND(g, W, H, d) {
     }
   } else text(g, 'NO ACTIVE ROUTE', cx, cy - R * 0.55, CYN, 20, 'center');
 
+  // Curved trend vector (green): where the turn takes us in 30 / 60 / 90 s —
+  // one segment at 10 NM range, two at 20, three above.
+  if (n?.ac && f.onGround === false && Math.abs(f.bank || 0) > 1 && f.gs > 60) {
+    const rate = (1091 * Math.tan(((f.bank || 0) * Math.PI) / 180)) / Math.max(100, f.tas || f.gs);   // °/s
+    const segs = range <= 10 ? 1 : range <= 20 ? 2 : 3;
+    g.strokeStyle = GRN; g.lineWidth = 2.5;
+    let x = cx, y = cy - 22, hdg = 0;
+    for (let sgm = 0; sgm < segs; sgm++) {
+      g.beginPath(); g.moveTo(x, y);
+      for (let t = 0; t < 30; t += 3) {
+        hdg += rate * 3;
+        const dnm = (f.gs * 3) / 3600;
+        x += Math.sin((hdg * Math.PI) / 180) * dnm * k; y -= Math.cos((hdg * Math.PI) / 180) * dnm * k;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+      // gaps between segments
+      const dnm = (f.gs * 2) / 3600; x += Math.sin((hdg * Math.PI) / 180) * dnm * k; y -= Math.cos((hdg * Math.PI) / 180) * dnm * k;
+    }
+  }
+  // Altitude range arc (green): where the MCP altitude will be reached at the
+  // present vertical speed and ground speed.
+  if (f.onGround === false && d.mcpAlt != null && Math.abs(f.vsRaw ?? f.vs ?? 0) > 200) {
+    const vs = f.vsRaw ?? f.vs, dAlt = d.mcpAlt - f.alt;
+    if (Math.sign(dAlt) === Math.sign(vs) && Math.abs(dAlt) > 50) {
+      const nm = (Math.abs(dAlt) / Math.abs(vs)) * (f.gs / 60), rr = nm * k;
+      if (rr > 26 && rr < R) { g.strokeStyle = GRN; g.lineWidth = 2.5; g.beginPath(); g.arc(cx, cy, rr, Math.PI * 1.42, Math.PI * 1.58); g.stroke(); }
+    }
+  }
   // Own ship.
   g.strokeStyle = WHT; g.lineWidth = 3;
   g.beginPath(); g.moveTo(cx, cy - 22); g.lineTo(cx - 13, cy + 10); g.lineTo(cx + 13, cy + 10); g.closePath(); g.stroke();

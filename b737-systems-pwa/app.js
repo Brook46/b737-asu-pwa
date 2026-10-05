@@ -4,33 +4,33 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=18';
-import { createOutside } from './modules/outside.js?v=18';
-import { createViewCube } from './modules/viewcube.js?v=18';
-import { createAirLink } from './modules/airlink.js?v=18';
-import { createQuickRef } from './modules/quickref.js?v=18';
-import { installResumeHardening } from './modules/resume.js?v=18';
-import { createScene } from './modules/scene.js?v=18';
-import { buildAirframe } from './modules/airframe.js?v=18';
-import { createSystems3D } from './modules/systems3d.js?v=18';
-import { createOverlay } from './modules/overlay.js?v=18';
-import { createSheet } from './modules/sheet.js?v=18';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=18';
-import { SYSTEMS, READY } from './modules/systems.js?v=18';
-import { createSearch } from './modules/search.js?v=18';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=18';
-import { createProgress } from './modules/progress.js?v=18';
-import { createLearn } from './modules/learn.js?v=18';
-import { explain } from './modules/cockpit-info.js?v=18';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=18';
-import { createCockpit } from './modules/cockpit.js?v=18';
-import { nav, geo, loadNav } from './modules/navdb.js?v=18';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=18';
-import { createCDU } from './modules/cdu.js?v=18';
-import { createCDUView } from './modules/cdu-view.js?v=18';
-import { createFlightSim } from './modules/flightsim.js?v=18';
-import { createStateBar } from './modules/statebar.js?v=18';
-import { engState } from './modules/sys-engines.js?v=18';
+import { makeEnv } from './modules/world.js?v=19';
+import { createOutside } from './modules/outside.js?v=19';
+import { createViewCube } from './modules/viewcube.js?v=19';
+import { createAirLink } from './modules/airlink.js?v=19';
+import { createQuickRef } from './modules/quickref.js?v=19';
+import { installResumeHardening } from './modules/resume.js?v=19';
+import { createScene } from './modules/scene.js?v=19';
+import { buildAirframe } from './modules/airframe.js?v=19';
+import { createSystems3D } from './modules/systems3d.js?v=19';
+import { createOverlay } from './modules/overlay.js?v=19';
+import { createSheet } from './modules/sheet.js?v=19';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=19';
+import { SYSTEMS, READY } from './modules/systems.js?v=19';
+import { createSearch } from './modules/search.js?v=19';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=19';
+import { createProgress } from './modules/progress.js?v=19';
+import { createLearn } from './modules/learn.js?v=19';
+import { explain } from './modules/cockpit-info.js?v=19';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=19';
+import { createCockpit } from './modules/cockpit.js?v=19';
+import { nav, geo, loadNav } from './modules/navdb.js?v=19';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=19';
+import { createCDU } from './modules/cdu.js?v=19';
+import { createCDUView } from './modules/cdu-view.js?v=19';
+import { createFlightSim } from './modules/flightsim.js?v=19';
+import { createStateBar } from './modules/statebar.js?v=19';
+import { engState } from './modules/sys-engines.js?v=19';
 
 const $ = (id) => document.getElementById(id);
 
@@ -482,18 +482,20 @@ function init() {
     const e = env();
     const hf = states.get('hydraulics')?.fail || {};
     return {
-      phase, env: e, nav: navData(), mcpHdg: r.autoflight?.values.fma?.[1] === 'HDG SEL' ? r.autoflight.values.hdg : null,
+      phase, env: e, nav: navData(), mcpHdg: r.autoflight?.values.hdg ?? null, hdgSel: r.autoflight?.values.fma?.[1] === 'HDG SEL', mcpAlt: r.autoflight?.values.alt,
       flight: (() => {
         const sf = sim.flying ? sim.flight() : null;
         const f = sf ? { ...flightFor('cruise'), ...sf } : phaseFlight(), af = r.autoflight?.values;
         if (sf && af) {
-          const vnav = af.fma[2]?.startsWith('VNAV');
-          f.spdTgt = vnav ? null : af.spd;
+          // Speed cursor: the FMC target in VNAV, the flap target speed in a
+          // go-around / V2 + 20 in the takeoff mode, otherwise the MCP speed.
+          const fmcTgt = af.fma[2]?.startsWith('VNAV') || af.fma[2] === 'TO/GA';
+          f.spdTgt = fmcTgt ? sf.tgt : af.spd;
           f.altTgt = af.alt;
           const v = fmc.vspeeds();
           if (sf.onGround && sf.stage !== 'rollout' && sf.stage !== 'stopped') f.vBugs = [['V1', fmc.S.tko.v1 ?? v?.v1], ['VR', fmc.S.tko.vr ?? v?.vr]].filter((b) => b[1]);
         }
-        return af ? { ...f, fma: af.fma, fmaArm: af.arm, ap: af.status } : f;
+        return af ? { ...f, fma: af.fma, fmaArm: af.arm, fmaBox: af.boxed, ap: af.status } : f;
       })(),
       ...(() => {
         const ev = r.engines?.values.e;
@@ -691,8 +693,11 @@ function init() {
       simStatus();
       moved = true;
     }
+    // Keep the FMA's 10-second change boxes honest in the cockpit.
+    if (!moved && view === 'cockpit' && now - lastFmaTick > 1000) { lastFmaTick = now; moved = true; }
     if (moved) refresh();
   }, 100);
+  let lastFmaTick = 0;
   function softPhase(p) {
     phase = p;
     for (const b of document.querySelectorAll('#phases [data-phase]')) b.classList.toggle('on', b.dataset.phase === p);
@@ -787,7 +792,7 @@ function init() {
   api.start();
   window.__booted = true;
   // Debug handle for local development only.
-  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d, states, fmc, sim, cdu, get cockpit() { return cockpit; } };
+  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__app = { api, airframe, anim, s3d, states, fmc, sim, cdu, ctxFor, get cockpit() { return cockpit; } };
 
   if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

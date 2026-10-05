@@ -3,14 +3,14 @@
 // the way the FMA shows them, the autopilots follow hydraulics, and an
 // approach can be stepped through capture, dual channel, flare and retard.
 
-import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=18';
+import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=19';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 const BANKS = [10, 15, 20, 25, 30];
 
 const PH = {
   ground: { at: 'ARM', lat: '', latArm: 'LNAV', pit: '', pitArm: 'VNAV', cmdA: false, spd: 150, hdg: 90, alt: 6000, vs: 0 },
-  takeoff: { at: 'N1', lat: 'LNAV', latArm: '', pit: 'TO/GA', pitArm: 'VNAV', cmdA: false, spd: 150, hdg: 90, alt: 6000, vs: 0 },
+  takeoff: { at: 'THR HLD', lat: 'LNAV', latArm: '', pit: 'TO/GA', pitArm: 'VNAV', cmdA: false, spd: 150, hdg: 90, alt: 6000, vs: 0 },
   cruise: { at: 'FMC SPD', lat: 'LNAV', latArm: '', pit: 'VNAV PTH', pitArm: '', cmdA: true, spd: 280, hdg: 93, alt: 37000, vs: 0 },
   approach: { at: 'MCP SPD', lat: 'VOR/LOC', latArm: '', pit: 'G/S', pitArm: 'FLARE', cmdA: true, spd: 145, hdg: 90, alt: 3000, vs: 0 },
   landing: { at: '', lat: '', latArm: '', pit: '', pitArm: '', cmdA: false, spd: 140, hdg: 90, alt: 5000, vs: 0 },
@@ -125,7 +125,7 @@ export default {
     return {
       sw: { atArm: phase === 'landing' ? 0 : 1, fdL: phase === 'landing' ? 0 : 1, fdR: phase === 'landing' ? 0 : 1, bank: 3, dis: 0 },
       fail: {},
-      mem: { ...p, cmdB: phase === 'approach', cws: false, app: phase === 'approach', step: phase === 'approach' ? 1 : -1, apDisc: false, atDisc: false, changed: {} },
+      mem: { ...p, cmdB: phase === 'approach', cws: false, app: phase === 'approach', step: phase === 'approach' ? 1 : -1, to: phase === 'takeoff', ga: false, spdBlank: false, cwsR: false, apDisc: false, atDisc: false, changed: {} },
     };
   },
 
@@ -146,24 +146,38 @@ export default {
     const set = (k, v) => { if (m[k] !== v) { m[k] = v; m.changed[k] = Date.now(); } };
     const at = (v) => { if (sw.atArm) set('at', v); };
     const ap = m.cmdA || m.cmdB;
+    // Leaving TO/GA by selecting another pitch mode (FCOM 4.20, takeoff and
+    // go-around mode termination): the IAS window comes back; with the F/D
+    // only, roll goes to HDG SEL; in an A/P go-around the second A/P drops
+    // and roll goes to CWS R.
+    const leaveToga = () => {
+      // Out of VNAV (window blank) the IAS/MACH window opens on the present speed.
+      if (air && (m.pit.startsWith('VNAV') || m.spdBlank)) m.spdSync = true;
+      if (!(air && m.pit === 'TO/GA')) return;
+      m.spdBlank = false;
+      if (m.ga && m.cmdA && m.cmdB) { m.cmdB = false; set('lat', ''); m.cwsR = true; }
+      else if (!m.lat) set('lat', 'HDG SEL');
+      m.ga = false; m.to = false;
+    };
     switch (key) {
       case 'N1': at(m.at === 'N1' ? 'ARM' : 'N1'); break;
       case 'SPEED': at(m.at === 'MCP SPD' ? 'ARM' : 'MCP SPD'); break;
       case 'VNAV':
         if (!air) { set('pitArm', m.pitArm === 'VNAV' ? '' : 'VNAV'); break; }
         if (m.pit.startsWith('VNAV')) set('pit', ap ? 'CWS P' : '');
-        else { set('pit', env.phase === 'cruise' ? 'VNAV PTH' : 'VNAV SPD'); at(env.phase === 'cruise' ? 'FMC SPD' : 'N1'); }
+        else { leaveToga(); set('pit', env.phase === 'cruise' ? 'VNAV PTH' : 'VNAV SPD'); at(env.phase === 'cruise' ? 'FMC SPD' : 'N1'); }
         break;
-      case 'LVL CHG': if (air) { set('pit', 'MCP SPD'); at(m.alt > env.alt ? 'N1' : 'ARM'); } break;
-      case 'HDG SEL': if (air || sw.fdL || sw.fdR) set('lat', m.lat === 'HDG SEL' ? '' : 'HDG SEL'); break;
-      case 'LNAV': if (!air) set('latArm', m.latArm === 'LNAV' ? '' : 'LNAV'); else set('lat', m.lat === 'LNAV' ? '' : 'LNAV'); break;
+      // LVL CHG: N1 for a climb; for a descent RETARD to idle, then ARM.
+      case 'LVL CHG': if (air) { leaveToga(); set('pit', 'MCP SPD'); at(m.alt > env.alt ? 'N1' : 'RETARD'); } break;
+      case 'HDG SEL': if (air || sw.fdL || sw.fdR) { m.cwsR = false; set('lat', m.lat === 'HDG SEL' ? '' : 'HDG SEL'); } break;
+      case 'LNAV': if (!air) set('latArm', m.latArm === 'LNAV' ? '' : 'LNAV'); else { m.cwsR = false; set('lat', m.lat === 'LNAV' ? '' : 'LNAV'); } break;
       case 'VOR LOC': set('latArm', m.latArm === 'VOR/LOC' ? '' : 'VOR/LOC'); break;
       case 'APP':
         if (m.app && m.step < 0) { m.app = false; set('latArm', ''); set('pitArm', ''); }
         else if (air) { m.app = true; m.step = -1; set('latArm', 'VOR/LOC'); set('pitArm', 'G/S'); }
         break;
-      case 'ALT HLD': if (air) { set('pit', 'ALT HOLD'); if (m.at && m.at !== 'ARM') at('MCP SPD'); } break;
-      case 'V/S': if (air) { set('pit', 'V/S'); at('MCP SPD'); } break;
+      case 'ALT HLD': if (air) { leaveToga(); set('pit', 'ALT HOLD'); if (m.at && m.at !== 'ARM') at('MCP SPD'); } break;
+      case 'V/S': if (air) { leaveToga(); set('pit', 'V/S'); at('MCP SPD'); } break;
       case 'CMD A': case 'CMD B': case 'CWS A': case 'CWS B': {
         const me = key.endsWith('A') ? 'cmdA' : 'cmdB', other = me === 'cmdA' ? 'cmdB' : 'cmdA';
         const hyd = me === 'cmdA' ? env.hydA : env.hydB;
@@ -173,6 +187,15 @@ export default {
         if (key.startsWith('CWS')) { m.cws = key.slice(-1); m.cmdA = m.cmdB = false; break; }
         m.cws = false;
         if (m[other] && !m.app) m[other] = false;
+        // CMD during the takeoff mode or an F/D go-around: A/P and F/Ds go to
+        // LVL CHG (IAS window V2 + 20 after takeoff) and HDG SEL unless
+        // another roll mode is engaged (FCOM 4.20).
+        if (air && m.pit === 'TO/GA' && !(m.ga && m[other])) {
+          if (m.to) m.spd += 20;
+          m.spdBlank = false; m.to = false; m.ga = false;
+          set('pit', 'MCP SPD');
+          if (!m.lat) set('lat', 'HDG SEL');
+        }
         m[me] = true; m.changed.status = Date.now();
         if (!m.pit && air) set('pit', 'CWS P');
         break;
@@ -180,8 +203,24 @@ export default {
       case 'APDISC': if (m.cmdA || m.cmdB || m.cws) { m.cmdA = m.cmdB = m.cws = false; m.apDisc = true; } else m.apDisc = false; break;
       case 'ATDISC': if (m.at) { set('at', ''); sw.atArm = 0; m.atDisc = true; } else m.atDisc = false; break;
       case 'TOGA':
-        if (!air) { if (sw.fdL || sw.fdR) { set('pit', 'TO/GA'); at('N1'); } }
-        else { set('pit', 'TO/GA'); set('lat', ''); set('latArm', 'LNAV'); at('GA'); if (!(m.cmdA && m.cmdB)) { if (ap) m.apDisc = true; m.cmdA = m.cmdB = false; } m.app = false; m.step = -1; }
+        // Takeoff: both F/Ds on, A/T N1, pitch TO/GA, roll blank (wings level).
+        if (!air) { if (sw.fdL || sw.fdR) { set('pit', 'TO/GA'); at('N1'); m.to = true; m.ga = false; } break; }
+        {
+          // Go-around (FCOM 4.20): below 2,000 ft RA, or above it with flaps
+          // out or G/S captured. A/T GA (reduced thrust) below 2,000 ft RA,
+          // N1 above. The A/P stays only for a dual A/P go-around (FLARE
+          // armed); otherwise it disengages and the F/Ds fly it. Roll holds
+          // the ground track (blank); LNAV would arm only with a missed
+          // approach in the route, which this FMC doesn't build. The IAS
+          // window blanks; the speed cursor goes to the flap target speed.
+          const ra = env.ra ?? env.alt;
+          if (ra >= 2000 && !(env.flaps > 0 || m.pit === 'G/S')) break;
+          const apGA = m.cmdA && m.cmdB && m.step >= 1 && m.step < 4;
+          if (!apGA) { if (ap || m.cws) { m.apDisc = true; m.changed.status = Date.now(); } m.cmdA = m.cmdB = false; m.cws = false; }
+          set('pit', 'TO/GA'); set('lat', ''); set('latArm', ''); set('pitArm', '');
+          at(ra < 2000 ? 'GA' : 'N1');
+          m.ga = true; m.to = false; m.spdBlank = true; m.cwsR = false; m.app = false; m.step = -1;
+        }
         break;
       case 'spd': m.spd = Math.max(100, Math.min(340, m.spd + (label === 'INC' ? 5 : -5))); break;
       case 'hdg': m.hdg = (m.hdg + (label === 'INC' ? 5 : -5) + 360) % 360; break;
@@ -208,7 +247,7 @@ export default {
     const { sw, mem: m, fail: f } = st;
     const dual = m.cmdA && m.cmdB;
     const fd = sw.fdL || sw.fdR;
-    let status = m.cws ? 'CWS P  CWS R' : dual || m.cmdA || m.cmdB ? 'CMD' : fd ? 'FD' : '';
+    let status = m.cws ? 'CWS P  CWS R' : m.cwsR && (m.cmdA || m.cmdB) ? 'CMD  CWS R' : dual || m.cmdA || m.cmdB ? 'CMD' : fd ? 'FD' : '';
     const single = m.app && m.step >= 0 && m.step < 4 && !(dual && m.step >= 1) && (m.cmdA || m.cmdB);
     const lit = new Set();
     if (m.at === 'N1') lit.add('N1');
@@ -225,7 +264,7 @@ export default {
     if (m.cmdB) lit.add('CMD B');
     if (m.cws) lit.add(`CWS ${m.cws}`);
     const fma = [m.at === 'ARM' ? 'ARM' : m.at, m.lat, m.pit], arm = ['', m.latArm, m.pitArm];
-    const now = Date.now(), boxed = ['at', 'lat', 'pit'].map((k) => now - (m.changed[k] || 0) < 10000);
+    const now = Date.now(), boxed = ['at', 'lat', 'pit', 'status'].map((k) => now - (m.changed[k] || 0) < 10000);
     return {
       flows: { apA: m.cmdA || (m.cws && env.hydA !== false), apB: m.cmdB, at: !!m.at && m.at !== 'ARM' },
       units: {
@@ -238,7 +277,9 @@ export default {
         ...Object.fromEntries(['N1', 'SPEED', 'VNAV', 'LVL CHG', 'HDG SEL', 'LNAV', 'VOR LOC', 'APP', 'ALT HLD', 'V/S', 'CMD A', 'CMD B', 'CWS A', 'CWS B'].map((k) => ['mcp_' + k, lit.has(k)])),
       },
       values: {
-        fma, arm, boxed, status: single ? `${status}  SINGLE CH` : status, lit, spd: m.spd, hdg: m.hdg, alt: m.alt, vs: m.vs,
+        fma, arm, boxed, status: single ? `${status}  SINGLE CH` : status, lit, spd: m.spd,
+        // MCP IAS/MACH window: blank in VNAV and in a go-around.
+        spdWin: m.spdBlank || m.pit.startsWith('VNAV') ? '' : String(m.spd), ga: !!m.ga, to: !!m.to, hdg: m.hdg, alt: m.alt, vs: m.vs,
         bank: BANKS[sw.bank], step: m.step, stepName: STEPS[m.step + 1] || '', dual,
       },
       note: [m.apDisc && 'A/P disengaged — push the red light to reset', m.atDisc && 'A/T disengaged',

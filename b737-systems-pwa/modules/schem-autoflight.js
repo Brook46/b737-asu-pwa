@@ -1,9 +1,9 @@
 // schem-autoflight.js — AFDS / autothrottle schematic with a live FMA, and
 // the MCP as three operable panels (also placed on the 3D glareshield).
 
-import { createSchematic, createPanel } from './schem-kit.js?v=18';
-import { createOverhead } from './overhead.js?v=18';
-import { STEPS } from './sys-autoflight.js?v=18';
+import { createSchematic, createPanel } from './schem-kit.js?v=19';
+import { createOverhead } from './overhead.js?v=19';
+import { STEPS } from './sys-autoflight.js?v=19';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 
@@ -66,7 +66,7 @@ export function panels(O, ctx) {
   S.toggle(112, 50, 'atArm', ['ARM', 'OFF'], { invert: true, noLabels: true });
   S.text(112, 80, 'OFF', { size: 5.5 });
   S.text(176, 10, 'IAS/MACH', { size: 6.5 });
-  S.lcd(140, 14, 72, (r) => String(r.values.spd), { h: 16, size: 12 });
+  S.lcd(140, 14, 72, (r) => r.values.spdWin ?? String(r.values.spd), { h: 16, size: 12 });
   S.push(146, 40, null, { name: 'C/O (IAS / Mach changeover)' }); S.text(146, 53, 'C/O', { size: 5 });
   S.knob(176, 42, 'spd', ['', ''], [0, 0], { action: true, noLabels: true, r: 10 });
   S.push(206, 40, null, { name: 'SPD INTV' }); S.text(206, 53, 'SPD INTV', { size: 4.6 });

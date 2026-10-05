@@ -1,8 +1,8 @@
 // schem-fire.js — fire detection / extinguishing schematic + the fire
 // protection panel (aft pedestal) and the cargo fire panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=18';
-import { createOverhead } from './overhead.js?v=18';
+import { createSchematic, createPanel } from './schem-kit.js?v=19';
+import { createOverhead } from './overhead.js?v=19';
 
 const R = '#d62828', DET = '#ff8787', AG = '#dee2e6';
 

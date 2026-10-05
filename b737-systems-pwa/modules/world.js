@@ -13,7 +13,8 @@ export function makeEnv({ PHASES, phase, stateOf, sysOf, flight, tweak }) {
   if (tweak?.alt != null && e.air) e.alt = tweak.alt;
   if (tweak?.ias != null) { if (e.air) e.ias = tweak.ias; else e.wheel = tweak.ias; }
   // The flight sim (FMC route flying) says where the airplane really is.
-  if (flight) { e.air = !flight.onGround; e.alt = flight.alt; e.wheel = flight.onGround ? Math.round(flight.ias) : 0; e.ias = flight.ias; e.sim = true; }
+  if (flight) { e.air = !flight.onGround; e.alt = flight.alt; e.wheel = flight.onGround ? Math.round(flight.ias) : 0; e.ias = flight.ias; e.ra = flight.ra; e.sim = true; }
+  if (e.ra == null) e.ra = e.alt;            // phases: altitude above the field
   const ev = (id) => sysOf(id).mod.evaluate(e, stateOf(id));
   // Fire switches pulled cut the fuel (engines) or shut the APU down.
   const fire = stateOf('fire');

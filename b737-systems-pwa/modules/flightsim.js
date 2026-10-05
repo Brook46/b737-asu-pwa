@@ -8,8 +8,8 @@
 // No wind, ISA, no aerodynamics: speeds and rates are rough 737-800 numbers
 // for study only.
 
-import { nav, geo } from './navdb.js?v=18';
-import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=18';
+import { nav, geo } from './navdb.js?v=19';
+import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=19';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const roc = (alt) => Math.max(1000, 3000 - alt * 0.055);
@@ -62,9 +62,11 @@ export function createFlightSim(hooks) {
     const r = fmc.S.route;
     const o = r.origin && nav.airport(r.origin), d = r.dest && nav.airport(r.dest);
     const rwA = r.dest && r.arrRwy && nav.runway(r.dest, r.arrRwy);
-    if (!d) return o?.elev ?? 0;
+    const rwD = r.origin && r.depRwy && nav.runway(r.origin, r.depRwy);
+    const oe = rwD?.elev ?? o?.elev ?? 0;
+    if (!d) return oe;
     if (!o) return rwA?.elev ?? d.elev;
-    return geo.dist(ac, o) < geo.dist(ac, d) ? o.elev : (rwA?.elev ?? d.elev);
+    return geo.dist(ac, o) < geo.dist(ac, d) ? oe : (rwA?.elev ?? d.elev);
   }
 
   function arrRunway() {
@@ -102,6 +104,7 @@ export function createFlightSim(hooks) {
   // ── One time step (seconds of sim time) ──
   function step(dt) {
     const m = mem();
+    if (m.spdSync) { m.spd = Math.round(ac.ias); m.spdSync = false; modesChanged = true; }
     const S = fmc.S;
     const elev = groundElev();
     ac.ra = ac.alt - elev;
@@ -132,12 +135,27 @@ export function createFlightSim(hooks) {
     }
 
     if (!ac.onGround) {
-      // Mode transitions on the way up.
-      if (ac.ra > 50 && ac.ra < 2000 && !once.has('ga') && m.latArm === 'LNAV') { setMode('lat', 'LNAV'); setMode('latArm', ''); }
-      if (ac.ra > 400 && m.pitArm === 'VNAV' && m.pit === 'TO/GA') { setMode('pit', 'VNAV SPD'); setMode('pitArm', ''); at('N1'); }
+      // Takeoff (FCOM 4.20): armed LNAV engages at 50 ft, armed VNAV at
+      // 400 ft (the A/T stays in THR HLD); THR HLD → ARM at 800 ft above the
+      // field; with VNAV, N1 (climb thrust) at the thrust reduction altitude.
+      if (ac.ra > 50 && m.latArm === 'LNAV') { setMode('lat', 'LNAV'); setMode('latArm', ''); }
+      if (ac.ra > 400 && m.pitArm === 'VNAV' && m.pit === 'TO/GA') { setMode('pit', 'VNAV SPD'); setMode('pitArm', ''); m.to = false; }
       if (m.at === 'THR HLD' && ac.ra > 800) at('ARM');
+      // Go-around: the TO/GA switch in flight (or the sim, if the runway is overflown).
+      if (m.pit === 'TO/GA' && m.ga && !ac.inGA) {
+        ac.inGA = true; once.add('ga');
+        ac.stage = 'climb'; ac.vnav = 'climb';
+        if (hooks.flaps() > DETENTS.indexOf(15)) hooks.setFlap(DETENTS.indexOf(15));     // "flaps 15"
+        // Missed approach altitude: the MCP if it is above us, else 3,000 ft above the field.
+        const fa = Math.ceil((elev + 3000) / 100) * 100;
+        if (m.alt < ac.alt + 500) { m.alt = fa > ac.alt + 500 ? fa : Math.ceil((ac.alt + 1500) / 1000) * 1000; modesChanged = true; }
+        fmc.msg('GO-AROUND');
+      }
+      if (ac.inGA && m.pit !== 'TO/GA' && m.pit !== 'ALT ACQ') ac.inGA = false;
+      // RETARD runs the levers to idle, then ARM (not in the landing flare).
+      if (m.at === 'RETARD' && m.step < 0) { ac.retT = (ac.retT || 0) + dt; if (ac.retT > 3) at('ARM'); } else ac.retT = 0;
       // Gear up after lift-off, OFF once well clear.
-      if (ac.stage === 'climb' && ac.ra > 100 && ac.vs > 0 && hooks.gearLever() === 2) hooks.setGear(0);
+      if (ac.stage === 'climb' && ac.ra > 100 && ac.vs > 300 && hooks.gearLever() === 2) hooks.setGear(0);
       if (ac.stage === 'climb' && ac.ra > 1500 && hooks.gearLever() === 0) hooks.setGear(1);
     }
 
@@ -191,29 +209,55 @@ export function createFlightSim(hooks) {
     }
 
     // ── Vertical modes ──
-    const capture = (target, mode) => {
-      if ((ac.vs > 0 && ac.alt >= target - Math.abs(ac.vs) / 60 * 0.3) || (ac.vs < 0 && ac.alt <= target + Math.abs(ac.vs) / 60 * 0.3) || Math.abs(ac.alt - target) < 20) {
+    // Altitude capture: ALT ACQ (not annunciated inside VNAV) as the
+    // airplane rounds out toward the target, then the hold mode.
+    const capture = (target, mode, acq = true) => {
+      const d = target - ac.alt;
+      const crossed = ac.prevAlt != null && (ac.prevAlt - target) * (ac.alt - target) < 0;
+      if (Math.abs(d) < 20 || crossed) {
         ac.alt = target; ac.holdAlt = target; vsCmd = 0;
         setMode('pit', mode);
         return true;
       }
+      const band = Math.max(150, (Math.abs(ac.vs) / 60) * 10);
+      if (Math.abs(d) < band && Math.sign(d) === Math.sign(ac.vs || d)) {
+        vsCmd = clamp(d * 6, -Math.abs(ac.vs), Math.abs(ac.vs));
+        if (acq) { setMode('pit', 'ALT ACQ'); acqDone(); }
+      }
       return false;
+    };
+    // ALT ACQ outside VNAV: A/T to MCP SPD; a go-around's GA thrust ends and the IAS window returns.
+    const acqDone = () => {
+      if (m.to) { m.spd += 20; m.to = false; }            // takeoff mode ends: IAS window V2 + 20
+      // Levelling off from an A/P go-around is single-channel: B drops, roll CWS R.
+      if (m.ga && m.cmdA && m.cmdB) { m.cmdB = false; m.cwsR = true; setMode('lat', ''); }
+      if (m.ga || m.pit === 'ALT ACQ') { if (m.spdBlank) { m.spd = Math.round(ac.ias); m.spdBlank = false; } m.ga = false; }
+      if (m.at && m.at !== 'MCP SPD') at('MCP SPD');   // FCOM 4.20: ALT ACQ / ALT HOLD outside VNAV engage MCP SPD
     };
     const flapCap = FLAP_MAX[flapDet] - 10;
     if (!ac.onGround) {
       const p = m.pit;
       if (p === 'TO/GA') {
-        tgtSpd = v2 + 15; vsCmd = m.alt > ac.alt ? 2600 : 0;
+        if (m.ga) {
+          // Go-around: reduced GA thrust for 1,000–2,000 fpm, speed for the flap setting.
+          tgtSpd = Math.max(vref + 20, Math.min(FLAP_MAX[flapDet] - 15, vref + 40)); vsCmd = m.alt > ac.alt ? 1800 : 0;
+        } else {
+          // Takeoff: 15° nose up, then MCP speed (V2) + 20.
+          tgtSpd = (m.spd || v2) + 20; vsCmd = m.alt > ac.alt ? 2600 : 0;
+        }
         if (m.alt > ac.alt) capture(m.alt, 'ALT HOLD');
         else if (!ac.holdAlt || Math.abs(ac.holdAlt - ac.alt) > 200) ac.holdAlt = ac.alt;
+      } else if (p === 'ALT ACQ') {
+        tgtSpd = m.spd; vsCmd = clamp((m.alt - ac.alt) * 6, -2000, 2000);
+        if (Math.abs(m.alt - ac.alt) < 20) { ac.alt = m.alt; ac.holdAlt = m.alt; vsCmd = 0; setMode('pit', 'ALT HOLD'); }
       } else if (p.startsWith('VNAV')) {
         if (ac.vnav === 'climb') {
           const lim = Math.min(m.alt, crz);
-          tgtSpd = ac.ra < 1000 ? v2 + 15 : targetIas(fmcSpeed('climb', ac.alt), ac.alt);
+          tgtSpd = ac.ra < 1000 ? v2 + 20 : targetIas(fmcSpeed('climb', ac.alt), ac.alt);
           vsCmd = ac.ias < tgtSpd - 8 && ac.ra > 1000 ? 900 : roc(ac.alt);
           if (p !== 'VNAV ALT' || m.alt > ac.alt + 100) setMode('pit', 'VNAV SPD');
-          if (m.at !== 'N1' && m.at !== 'THR HLD' && ac.ra > 800 && p !== 'VNAV ALT') at('N1');
-          if (lim < crz - 50) { if (capture(lim, 'VNAV ALT')) at('FMC SPD'); }
+          if (m.at !== 'N1' && m.at !== 'THR HLD' && ac.ra > 1500 && p !== 'VNAV ALT') at('N1');   // thrust reduction
+          if (lim < crz - 50) { if (capture(lim, 'VNAV ALT', false)) at('FMC SPD'); }
           else if (ac.alt >= crz - 50) { ac.alt = crz; vsCmd = 0; setMode('pit', 'VNAV PTH'); at('FMC SPD'); ac.vnav = 'cruise'; }
           if (m.pit === 'VNAV ALT') { vsCmd = 0; ac.alt = ac.holdAlt ?? ac.alt; }
         } else if (ac.vnav === 'cruise') {
@@ -228,19 +272,22 @@ export function createFlightSim(hooks) {
           const rate = -(ac.gs / 60) * FT_PER_NM_3DEG;     // fpm down the path
           vsCmd = clamp(rate + (path - ac.alt) * 2, -4500, 300);
           if (m.alt > path + 100 && m.alt <= ac.alt + 50 && ac.ra > 1500) {
-            if (p !== 'VNAV ALT') { if (capture(m.alt, 'VNAV ALT')) at('FMC SPD'); } else { vsCmd = 0; ac.alt = ac.holdAlt ?? m.alt; }
+            if (p !== 'VNAV ALT') { if (capture(m.alt, 'VNAV ALT', false)) at('FMC SPD'); } else { vsCmd = 0; ac.alt = ac.holdAlt ?? m.alt; }
           } else {
             setMode('pit', 'VNAV PTH');
-            at(ac.alt - path > 300 ? 'RETARD' : 'FMC SPD');
-            if (m.at === 'RETARD' && ac.alt - path <= 300) at('FMC SPD');
+            // Idle path descent: RETARD, then ARM; thrust (FMC SPD) when low on the
+            // path or slowing and configuring for the approach.
+            const needThrust = ac.alt - path < -300 || ac.stage === 'approach';
+            if (needThrust) at('FMC SPD');
+            else if (m.at !== 'RETARD' && m.at !== 'ARM') at('RETARD');
           }
         }
       } else if (p === 'MCP SPD') {
         tgtSpd = m.spd;
         const up = m.alt > ac.alt;
         vsCmd = up ? roc(ac.alt) : -2400;
-        at(up ? 'N1' : 'RETARD');
-        if (capture(m.alt, 'ALT HOLD')) at('MCP SPD');
+        if (up) at('N1'); else if (m.at !== 'RETARD' && m.at !== 'ARM') at('RETARD');
+        capture(m.alt, 'ALT HOLD');
       } else if (p === 'V/S') {
         tgtSpd = m.spd; vsCmd = m.vs;
         if ((m.vs > 0 && m.alt > ac.alt) || (m.vs < 0 && m.alt < ac.alt)) capture(m.alt, 'ALT HOLD');
@@ -255,6 +302,7 @@ export function createFlightSim(hooks) {
       }
       if (m.at === 'MCP SPD' && !p.startsWith('VNAV')) tgtSpd = m.spd;
       tgtSpd = Math.min(tgtSpd, flapCap, ac.alt < 10000 + 300 && ac.vnav !== 'cruise' ? 250 : 999);
+      ac.tgt = Math.round(tgtSpd);
       if (glide || ac.stage === 'approach') tgtSpd = Math.min(tgtSpd, FLAP_MAX[flapDet] - 5);
 
       // ── Approach steps: 1,500 ft, flare, retard, touchdown ──
@@ -267,15 +315,7 @@ export function createFlightSim(hooks) {
       // Overflew the runway still airborne: go around.
       const onFinal = m.lat === 'VOR/LOC' || glide || (fmc.S.active && fmc.S.activeIdx >= fmc.activeLegs().length - 1);
       if (rw && onFinal && !once.has('ga') && ac.ra > 100 && Math.abs(geo.diff(geo.brg(ac, rw), rw.hdgT)) > 90 && geo.dist(ac, rw) < 3) {
-        once.add('ga');
         hooks.af().action('TOGA');
-        // Runway track until the pilot picks HDG SEL / LNAV again.
-        setMode('latArm', ''); setMode('pitArm', '');
-        // Missed approach altitude: the MCP if it is above us, else 3,000 ft above the field.
-        if (m.alt < ac.alt + 500) m.alt = Math.ceil((rw.elev + 3000) / 100) * 100 > ac.alt + 500 ? Math.ceil((rw.elev + 3000) / 100) * 100 : Math.ceil((ac.alt + 1500) / 1000) * 1000;
-        hooks.setFlap(DETENTS.indexOf(15));
-        ac.stage = 'climb'; ac.vnav = 'climb';
-        fmc.msg('GO-AROUND');
         modesChanged = true;
       }
       // Flare: whatever the modes, the airplane lands when it gets low on approach.
@@ -287,6 +327,7 @@ export function createFlightSim(hooks) {
       const d = tgtSpd - ac.ias;
       ac.ias += clamp(d, -1.1 * dt, 1.4 * dt);
       ac.vs += clamp(vsCmd - ac.vs, -500 * dt, 500 * dt);
+      ac.prevAlt = ac.alt;
       ac.alt += (ac.vs / 60) * dt;
       ac.pitch += clamp((ac.stage === 'climb' && ac.ra < 1500 ? 15 : clamp(2 + ac.vs * 0.0025 + flapDet * 0.08, -4, 17)) - ac.pitch, -2 * dt, 2 * dt);
       ac.n1 = clamp(m.at === 'RETARD' || m.at === 'ARM' && ac.vs < -500 ? 32 : ac.vs > 500 ? 93 : 60 + (ac.alt / 1000) * 0.7 + flapDet * 0.6, 22, 96);
@@ -310,7 +351,7 @@ export function createFlightSim(hooks) {
     const cmd = lateralCmd(m);
     if (!ac.onGround) {
       const diff = geo.diff(ac.trk, cmd);
-      const maxBank = m.lat === 'HDG SEL' ? (hooks.af().bank || 25) : 25;
+      const maxBank = m.lat === 'HDG SEL' ? (hooks.af().bank || 25) : m.lat === 'LNAV' && ac.ra < 200 ? 15 : 25;
       const want = clamp(diff * 2.2, -maxBank, maxBank);
       ac.bank += clamp(want - ac.bank, -5 * dt, 5 * dt);
       const tas = Math.max(100, ac.tas);
@@ -348,7 +389,7 @@ export function createFlightSim(hooks) {
       return {
         ias: Math.max(0, ac.ias), mach: ac.mach, alt: Math.round(ac.alt), vs: Math.round(ac.vs / 50) * 50,
         hdg: (Math.round(ac.trk - mv) + 360) % 360 || 360, trk: ac.trk, mv, gs: ac.gs, tas: ac.tas,
-        pitch: ac.pitch, bank: ac.bank, ra: ac.ra, onGround: ac.onGround, stage: ac.stage,
+        pitch: ac.pitch, bank: ac.bank, ra: ac.ra, onGround: ac.onGround, stage: ac.stage, tgt: ac.tgt, vsRaw: ac.vs,
       };
     },
     /** For the CDU's ACT page titles. */
