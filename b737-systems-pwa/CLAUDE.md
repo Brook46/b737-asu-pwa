@@ -5,7 +5,7 @@ inside a see-through 3D airplane, tap any part for its page, and switch to an
 **operable schematic** with an overhead-panel replica. Visual language is
 borrowed from lab.patrickheintzmann.com/demo/demoBee: white studio floor with
 a fine grid and vignette, thin leader lines to ring hotspots, black mono tag
-chips, phase buttons along the bottom (Ground · Takeoff · Cruise · Landing).
+chips, phase buttons along the bottom (Ground · Takeoff · Cruise · Approach · Landing).
 
 ## Content rules (read before writing any system text)
 
@@ -73,7 +73,7 @@ modules/
   overlay.js      hotspot rings + leaders + chips; avoids HUD and sheet;
                   number-only chips under 760 px
   sheet.js        part / system / overview pages
-  phases.js       the four phases: pose, attitude, environment (env)
+  phases.js       the five phases: pose, attitude, environment (env)
   schem-kit.js    schematic SVG pieces (pipe, valve, unit, tank, bus) + the
                   HTML "instructor station" (readouts, failures, sim buttons)
   overhead.js     SVG overhead-panel kit drawn to look like the airplane:

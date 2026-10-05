@@ -8,7 +8,7 @@
 // Lever angles are in degrees, + = forward. pose(d) drives them from the
 // switch states (and the flight sim's thrust).
 
-import * as THREE from '../vendor/three.module.min.js?v=16';
+import * as THREE from '../vendor/three.module.min.js?v=17';
 
 const D2R = Math.PI / 180;
 // Top surface of the stand: y = TOP(x), sloping up toward the front.
@@ -201,8 +201,8 @@ export function buildStand(add, M, pickables) {
     const ph = d.phase;
     // Thrust: from N1 when known (idle ~ −22°, full ~ +28°), else by phase.
     const n1 = (e) => (e && e.n1 > 0 ? -22 + Math.max(0, Math.min(1, (e.n1 - 20) / 76)) * 50 : -22);
-    ang('Thrust lever 1', d.e1 ? n1(d.e1) : { ground: -22, takeoff: 26, cruise: 12, landing: -22 }[ph]);
-    ang('Thrust lever 2', d.e2 ? n1(d.e2) : { ground: -22, takeoff: 26, cruise: 12, landing: -22 }[ph]);
+    ang('Thrust lever 1', d.e1 ? n1(d.e1) : { ground: -22, takeoff: 26, cruise: 12, approach: 2, landing: -22 }[ph]);
+    ang('Thrust lever 2', d.e2 ? n1(d.e2) : { ground: -22, takeoff: 26, cruise: 12, approach: 2, landing: -22 }[ph]);
     for (const i of [1, 2]) revs[i].rotation.z = d.rev ? 1.1 : 0;
     ang('Speed brake lever', SB_ANG[d.sb ?? (ph === 'landing' ? 3 : 0)]);
     ang('Flap lever', FLAP_ANG[d.flapLever ?? 0]);

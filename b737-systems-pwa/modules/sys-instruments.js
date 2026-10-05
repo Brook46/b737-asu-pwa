@@ -2,12 +2,12 @@
 // our own words. Display switching is live: fail a DU or a DEU, or turn a
 // selector, and the six screens in the 3D cockpit change format.
 
-import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=16';
+import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=17';
 
 const C = '#8338ec', AIRC = '#4dabf7';
 export const DUS = ['capOut', 'capIn', 'upper', 'lower', 'foIn', 'foOut'];
 const DU_NAME = { capOut: 'CAPT OUTBD', capIn: 'CAPT INBD', upper: 'UPPER', lower: 'LOWER', foIn: 'F/O INBD', foOut: 'F/O OUTBD' };
-const IAS = { ground: 0, takeoff: 158, cruise: 268, landing: 92 };
+const IAS = { ground: 0, takeoff: 158, cruise: 268, approach: 145, landing: 92 };
 
 export default {
   id: 'instruments', num: 10, title: 'Flight Instruments', fcom: 'FCOM 10', color: C,

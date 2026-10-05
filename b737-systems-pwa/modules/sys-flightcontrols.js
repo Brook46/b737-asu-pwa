@@ -2,7 +2,7 @@
 // speedbrake state here drives the 3D airplane: move the FLAP lever and the
 // flaps run (on system B, or electrically with alternate flaps).
 
-import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=16';
+import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=17';
 
 const C = '#3a86ff', CAB = '#adb5bd', DRV = '#fab005';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -163,9 +163,9 @@ export default {
   },
 
   normal(phase) {
-    const lever = { ground: 0, takeoff: 3, cruise: 0, landing: 7 }[phase];
+    const lever = { ground: 0, takeoff: 3, cruise: 0, approach: 7, landing: 7 }[phase];
     return {
-      sw: { flap: lever, sb: phase === 'landing' ? 3 : 0, yd: 1, spA: 1, spB: 1, altPos: 1, stabMain: 0, stabAp: 0 },
+      sw: { flap: lever, sb: phase === 'landing' ? 3 : phase === 'approach' ? 1 : 0, yd: 1, spA: 1, spB: 1, altPos: 1, stabMain: 0, stabAp: 0 },
       fail: {},
       mem: { flap: DETENTS[lever], le: lever === 0 ? 0 : lever <= 3 ? 1 : 2 },
     };

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=16">
+  <link rel="stylesheet" href="app.css?v=17">
 </head>
 <body>
   <div id="stage">
@@ -33,7 +33,6 @@
   </section>
 
   <header class="hud hud-tl">
-    <a class="tag tag-btn" href="../flight-card-pwa/" id="suite-link" aria-label="Back to Flight Card">&lt; SUITE</a>
     <div class="tag tag-title">737 NG&nbsp;INSIDE</div>
     <button class="tag tag-btn" id="sys-current" aria-expanded="false" aria-controls="sys-list">[00] OVERVIEW ▾</button>
     <div class="tag-row">
@@ -72,7 +71,7 @@
 
   <div class="hud hud-bottom">
     <div class="seg" id="phases" role="tablist" aria-label="Phase of flight">
-      <button class="tag tag-btn on" data-phase="ground">Ground</button><button class="tag tag-btn" data-phase="takeoff">Takeoff</button><button class="tag tag-btn" data-phase="cruise">Cruise</button><button class="tag tag-btn" data-phase="landing">Landing</button>
+      <button class="tag tag-btn on" data-phase="ground">Ground</button><button class="tag tag-btn" data-phase="takeoff">Takeoff</button><button class="tag tag-btn" data-phase="cruise">Cruise</button><button class="tag tag-btn" data-phase="approach">Approach</button><button class="tag tag-btn" data-phase="landing">Landing</button>
     </div>
     <div id="phase-note" class="phase-note"></div>
   </div>
@@ -141,7 +140,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=16"></script>
+  <script type="module" src="app.js?v=17"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

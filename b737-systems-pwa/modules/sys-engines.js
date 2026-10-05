@@ -6,7 +6,7 @@
 // (app.js env() reads them), so a started engine drives its hydraulic pump,
 // generator and bleed like the real one.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, APU, YC } from './airframe.js?v=16';
+import { ENG, engPoint, wingLE, wingChord, wingY, APU, YC } from './airframe.js?v=17';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#f5a300', APUC = '#e8590c';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -16,6 +16,7 @@ const RUN = {
   ground: { n1: 20.6, n2: 59.8, egt: 420, ff: 0.27 },
   takeoff: { n1: 95.4, n2: 98.2, egt: 878, ff: 3.18 },
   cruise: { n1: 87.6, n2: 93.1, egt: 742, ff: 1.24 },
+  approach: { n1: 58.0, n2: 80.5, egt: 560, ff: 0.62 },
   landing: { n1: 76.0, n2: 86.0, egt: 655, ff: 0.95 },
 };
 const IDLE_N2 = 59.5, CUTOUT_N2 = 56, LEVER_N2 = 25;

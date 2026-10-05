@@ -1,7 +1,7 @@
 // sys-fuel.js — FCOM chapter 12 (fuel) in our own words, with tank layout,
 // feed logic, alerts and a fuel burn you can watch (and fast-forward).
 
-import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=16';
+import { ENG, engPoint, wingLE, wingChord, wingY, wingTC, loft, APU, YC } from './airframe.js?v=17';
 
 const F = '#d6336c', CTR = '#9c36b5', APUC = '#e8590c';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -12,7 +12,7 @@ const MAIN_IN = 3.5, MAIN_OUT = 15.4; // main tank span (each wing)
 export const CAP = { main: 3915, center: 13066 };
 
 // Engine burn by phase, kg/h per engine (illustrative round numbers), APU kg/h.
-const BURN = { ground: 0, takeoff: 3200, cruise: 1250, landing: 450 };
+const BURN = { ground: 0, takeoff: 3200, cruise: 1250, approach: 900, landing: 450 };
 const APU_BURN = 115;
 
 export default {
@@ -224,6 +224,7 @@ export default {
       ground: { m1: 3915, m2: 3915, c: 6000 },
       takeoff: { m1: 3880, m2: 3880, c: 5600 },
       cruise: { m1: 3880, m2: 3880, c: 1500 },
+      approach: { m1: 2250, m2: 2220, c: 0 },
       landing: { m1: 2150, m2: 2120, c: 0 },
     }[phase];
     const ctrOn = q.c > 453 ? 1 : 0;
@@ -357,7 +358,7 @@ export default {
       engValve2: open2 ? false : 'dim', sparValve2: open2 ? false : 'dim',
       filter1: !!f.filter1, filter2: false,
     };
-    const temp = { ground: 18, takeoff: 16, cruise: -22, landing: -6 }[env.phase] ?? 10;
+    const temp = { ground: 18, takeoff: 16, cruise: -22, approach: -4, landing: -6 }[env.phase] ?? 10;
     return {
       flows, units, lights,
       values: {

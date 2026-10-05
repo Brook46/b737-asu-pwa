@@ -1,7 +1,7 @@
 // sys-gear.js — FCOM chapter 14, landing gear, brakes and steering, in our
 // own words. The gear position here drives the 3D gear.
 
-import { MLG, NLG, FLOOR_Y } from './airframe.js?v=16';
+import { MLG, NLG, FLOOR_Y } from './airframe.js?v=17';
 
 const G = '#495057', A = '#2f7cf6', B = '#12a874', BR = '#e8590c';
 
@@ -122,7 +122,7 @@ export default {
   normal(phase) {
     const lever = phase === 'cruise' ? 1 : 2;            // OFF after retraction, DN otherwise
     return {
-      sw: { lever, ab: phase === 'landing' ? 3 : phase === 'ground' || phase === 'takeoff' ? 1 : 0, nws: 1, park: phase === 'ground' ? 1 : 0, door: 0 },
+      sw: { lever, ab: phase === 'landing' || phase === 'approach' ? 3 : phase === 'ground' || phase === 'takeoff' ? 1 : 0, nws: 1, park: phase === 'ground' ? 1 : 0, door: 0 },
       fail: {},
       mem: { pos: phase === 'cruise' ? 0 : 1, acc: 3000, lgtv: false },
     };

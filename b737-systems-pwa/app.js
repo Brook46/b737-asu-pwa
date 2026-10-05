@@ -4,31 +4,31 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=16';
-import { createOutside } from './modules/outside.js?v=16';
-import { createViewCube } from './modules/viewcube.js?v=16';
-import { createAirLink } from './modules/airlink.js?v=16';
-import { createQuickRef } from './modules/quickref.js?v=16';
-import { installResumeHardening } from './modules/resume.js?v=16';
-import { createScene } from './modules/scene.js?v=16';
-import { buildAirframe } from './modules/airframe.js?v=16';
-import { createSystems3D } from './modules/systems3d.js?v=16';
-import { createOverlay } from './modules/overlay.js?v=16';
-import { createSheet } from './modules/sheet.js?v=16';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=16';
-import { SYSTEMS, READY } from './modules/systems.js?v=16';
-import { createSearch } from './modules/search.js?v=16';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=16';
-import { createProgress } from './modules/progress.js?v=16';
-import { createLearn } from './modules/learn.js?v=16';
-import { explain } from './modules/cockpit-info.js?v=16';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=16';
-import { createCockpit } from './modules/cockpit.js?v=16';
-import { nav, geo, loadNav } from './modules/navdb.js?v=16';
-import { createFMC } from './modules/fmc.js?v=16';
-import { createCDU } from './modules/cdu.js?v=16';
-import { createCDUView } from './modules/cdu-view.js?v=16';
-import { createFlightSim } from './modules/flightsim.js?v=16';
+import { makeEnv } from './modules/world.js?v=17';
+import { createOutside } from './modules/outside.js?v=17';
+import { createViewCube } from './modules/viewcube.js?v=17';
+import { createAirLink } from './modules/airlink.js?v=17';
+import { createQuickRef } from './modules/quickref.js?v=17';
+import { installResumeHardening } from './modules/resume.js?v=17';
+import { createScene } from './modules/scene.js?v=17';
+import { buildAirframe } from './modules/airframe.js?v=17';
+import { createSystems3D } from './modules/systems3d.js?v=17';
+import { createOverlay } from './modules/overlay.js?v=17';
+import { createSheet } from './modules/sheet.js?v=17';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=17';
+import { SYSTEMS, READY } from './modules/systems.js?v=17';
+import { createSearch } from './modules/search.js?v=17';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=17';
+import { createProgress } from './modules/progress.js?v=17';
+import { createLearn } from './modules/learn.js?v=17';
+import { explain } from './modules/cockpit-info.js?v=17';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=17';
+import { createCockpit } from './modules/cockpit.js?v=17';
+import { nav, geo, loadNav } from './modules/navdb.js?v=17';
+import { createFMC } from './modules/fmc.js?v=17';
+import { createCDU } from './modules/cdu.js?v=17';
+import { createCDUView } from './modules/cdu-view.js?v=17';
+import { createFlightSim } from './modules/flightsim.js?v=17';
 
 const $ = (id) => document.getElementById(id);
 
@@ -307,7 +307,7 @@ function init() {
     partId = null;
     s3d.show(id);
     s3d.select(null);
-    api.setXray(id ? 1 : 0);
+    api.setXray(1);            // see-through skin everywhere, the overview included
     overlay.set(hotspotsFor(id));
     const s = id && sysOf(id);
     $('sys-current').textContent = id ? `[${pad(s.num)}] ${s.title.toUpperCase()} ▾` : '[00] OVERVIEW ▾';
@@ -364,7 +364,7 @@ function init() {
   // ── 3D / Schematic ──
   // ── Views: Airplane · Schematic · Split · Cockpit ──
   let cockpit = null;
-  const MCP_LIT = { ground: [], takeoff: ['N1'], cruise: ['LNAV', 'VNAV', 'CMD A'], landing: [] };
+  const MCP_LIT = { ground: [], takeoff: ['N1'], cruise: ['LNAV', 'VNAV', 'CMD A'], approach: ['SPEED', 'CMD A', 'CMD B'], landing: [] };
   /** What the ND MAP draws: the airplane, the FMC route, runways, T/C, T/D. */
   function navData() {
     if (!nav.ready) return null;
@@ -447,7 +447,7 @@ function init() {
       levers: { l1: stateOf('engines').sw.lever1, l2: stateOf('engines').sw.lever2 },
       flapLever: stateOf('flightcontrols').sw.flap, gearLever: stateOf('gear').sw.lever, park: !!stateOf('gear').sw.park, sb: stateOf('flightcontrols').sw.sb,
       rev: phase === 'landing', fuel: r.fuel?.values, tai: r.antiice?.values.tai, warn: r.warnings?.values, dus: r.instruments?.values.du, capIas: r.instruments?.values.capIas, hyd: r.hydraulics?.values,
-      tat: { ground: 18, takeoff: 16, cruise: -32, landing: 12 }[phase], mcp: r.autoflight?.values.lit || new Set(MCP_LIT[phase]),
+      tat: { ground: 18, takeoff: 16, cruise: -32, approach: 13, landing: 12 }[phase], mcp: r.autoflight?.values.lit || new Set(MCP_LIT[phase]),
     };
   }
   /** The switch/failure context for one system (shared by schematic and cockpit). */
@@ -622,7 +622,7 @@ function init() {
       sim.tick(dt);
       // The phase follows the flight without resetting any switch.
       const a = sim.ac, flaps = stateOf('flightcontrols').sw.flap;
-      const want = a.stage === 'rollout' || a.stage === 'stopped' ? 'landing' : a.onGround || flaps > 0 && a.vnav === 'climb' ? 'takeoff' : 'cruise';
+      const want = a.stage === 'rollout' || a.stage === 'stopped' ? 'landing' : a.onGround || flaps > 0 && a.vnav === 'climb' ? 'takeoff' : a.stage === 'approach' ? 'approach' : 'cruise';
       if (want !== phase) softPhase(want);
       simStatus();
       moved = true;

@@ -14,6 +14,7 @@ export function engineFor(phase, running) {
     ground: { n1: 20.6, n2: 59.8, egt: 420, ff: 0.27, oilP: 34, oilT: 70, oilQ: 16, vib: 0.2 },
     takeoff: { n1: 95.4, n2: 98.2, egt: 878, ff: 3.18, oilP: 62, oilT: 115, oilQ: 15, vib: 0.6 },
     cruise: { n1: 87.6, n2: 93.1, egt: 742, ff: 1.24, oilP: 55, oilT: 108, oilQ: 15, vib: 0.4 },
+    approach: { n1: 58.0, n2: 80.5, egt: 560, ff: 0.62, oilP: 46, oilT: 98, oilQ: 15, vib: 0.4 },
     landing: { n1: 76.0, n2: 86.0, egt: 655, ff: 0.95, oilP: 50, oilT: 104, oilQ: 15, vib: 0.5 },
   }[phase];
 }
@@ -24,6 +25,7 @@ export function flightFor(phase) {
     ground: { ias: 0, mach: 0, alt: 0, vs: 0, hdg: 90, gs: 0, tas: 0, pitch: 0, fma: ['', '', ''], ap: '' },
     takeoff: { ias: 158, mach: 0.24, alt: 300, vs: 2400, hdg: 90, gs: 162, tas: 160, pitch: 15, fma: ['N1', 'LNAV', 'TO/GA'], ap: 'FD' },
     cruise: { ias: 268, mach: 0.785, alt: 37000, vs: 0, hdg: 93, gs: 468, tas: 452, pitch: 2.2, fma: ['MCP SPD', 'LNAV', 'VNAV PTH'], ap: 'CMD' },
+    approach: { ias: 145, mach: 0.22, alt: 1500, vs: -750, hdg: 90, gs: 140, tas: 148, pitch: 2.5, fma: ['MCP SPD', 'VOR/LOC', 'G/S'], ap: 'CMD' },
     landing: { ias: 92, mach: 0.14, alt: 0, vs: 0, hdg: 90, gs: 90, tas: 92, pitch: 0, fma: ['', '', ''], ap: '' },
   }[phase];
 }

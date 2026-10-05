@@ -2,7 +2,7 @@
 // signs, emergency lighting, doors, oxygen and the flight deck door, in our
 // own words. Exterior lights show on the 3D airplane.
 
-import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=16';
+import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=17';
 
 const C = '#6b7280';
 const FD_DOOR_X = 15.0;      // flight deck door, just aft of the flight deck
@@ -124,7 +124,7 @@ export default {
   },
 
   normal(phase) {
-    const g = phase === 'ground', t = phase === 'takeoff', l = phase === 'landing';
+    const g = phase === 'ground', t = phase === 'takeoff', l = phase === 'landing' || phase === 'approach';
     return {
       sw: {
         llL: t || l ? 1 : 0, llR: t || l ? 1 : 0, rtoL: t || l ? 1 : 0, rtoR: t || l ? 1 : 0, taxi: t || l ? 1 : 0, logo: phase === 'cruise' ? 0 : 1,

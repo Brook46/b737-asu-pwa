@@ -3,7 +3,7 @@
 // the way the FMA shows them, the autopilots follow hydraulics, and an
 // approach can be stepped through capture, dual channel, flare and retard.
 
-import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=16';
+import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=17';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 const BANKS = [10, 15, 20, 25, 30];
@@ -12,6 +12,7 @@ const PH = {
   ground: { at: 'ARM', lat: '', latArm: 'LNAV', pit: '', pitArm: 'VNAV', cmdA: false, spd: 150, hdg: 90, alt: 6000, vs: 0 },
   takeoff: { at: 'N1', lat: 'LNAV', latArm: '', pit: 'TO/GA', pitArm: 'VNAV', cmdA: false, spd: 150, hdg: 90, alt: 6000, vs: 0 },
   cruise: { at: 'FMC SPD', lat: 'LNAV', latArm: '', pit: 'VNAV PTH', pitArm: '', cmdA: true, spd: 280, hdg: 93, alt: 37000, vs: 0 },
+  approach: { at: 'MCP SPD', lat: 'VOR/LOC', latArm: '', pit: 'G/S', pitArm: 'FLARE', cmdA: true, spd: 145, hdg: 90, alt: 3000, vs: 0 },
   landing: { at: '', lat: '', latArm: '', pit: '', pitArm: '', cmdA: false, spd: 140, hdg: 90, alt: 5000, vs: 0 },
 };
 const STEPS = ['LOC + G/S capture', 'Below 1,500 ft RA', '50 ft — flare', '27 ft — retard', 'Touchdown'];
@@ -124,7 +125,7 @@ export default {
     return {
       sw: { atArm: phase === 'landing' ? 0 : 1, fdL: phase === 'landing' ? 0 : 1, fdR: phase === 'landing' ? 0 : 1, bank: 3, dis: 0 },
       fail: {},
-      mem: { ...p, cmdB: false, cws: false, app: false, step: -1, apDisc: false, atDisc: false, changed: {} },
+      mem: { ...p, cmdB: phase === 'approach', cws: false, app: phase === 'approach', step: phase === 'approach' ? 1 : -1, apDisc: false, atDisc: false, changed: {} },
     };
   },
 

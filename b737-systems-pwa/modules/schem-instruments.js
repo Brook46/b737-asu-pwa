@@ -1,9 +1,9 @@
 // schem-instruments.js — air data → ADIRUs → DEUs → six DUs, with the
 // DISPLAYS source panel and both display select panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=16';
-import { createOverhead } from './overhead.js?v=16';
-import { DUS } from './sys-instruments.js?v=16';
+import { createSchematic, createPanel } from './schem-kit.js?v=17';
+import { createOverhead } from './overhead.js?v=17';
+import { DUS } from './sys-instruments.js?v=17';
 
 const C = '#8338ec', AIRC = '#4dabf7', SB = '#fab005';
 

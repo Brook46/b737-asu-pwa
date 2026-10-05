@@ -24,6 +24,13 @@ export const PHASES = {
     att: { y: 5, pitch: 2.2 }, fan: 13,
     env: { eng1: true, eng2: true, apu: false, gpu: false, air: true, flaps: 0, alt: 37000, wheel: 0, gearDown: false },
   },
+  approach: {
+    label: 'Approach',
+    note: 'ILS final · 1,500 ft · gear down · flaps 30 · speedbrake armed · A/P dual channel',
+    pose: { flaps: 30, slats: 2, gear: 1, speedbrake: 0, reverser: 0 },
+    att: { y: 3.6, pitch: 2.5 }, fan: 9,
+    env: { eng1: true, eng2: true, apu: false, gpu: false, air: true, flaps: 30, alt: 1500, wheel: 0, gearDown: true },
+  },
   landing: {
     label: 'Landing',
     note: 'Rollout · flaps 30 · speedbrakes up · reversers deployed',
@@ -33,7 +40,7 @@ export const PHASES = {
   },
 };
 
-export const PHASE_ORDER = ['ground', 'takeoff', 'cruise', 'landing'];
+export const PHASE_ORDER = ['ground', 'takeoff', 'cruise', 'approach', 'landing'];
 
 // Per-parameter timing [delay, duration] in seconds, so things happen in a
 // believable order: attitude first, gear before flaps on the way up, brakes

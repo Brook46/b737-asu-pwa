@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=16';
-import { createOverhead } from './overhead.js?v=16';
-import * as CAB from './cockpit-cab.js?v=16';
-import { buildStand } from './cockpit-stand.js?v=16';
-import * as D from './cockpit-displays.js?v=16';
-import { drawCDUScreen } from './cdu.js?v=16';
+import * as THREE from '../vendor/three.module.min.js?v=17';
+import { createOverhead } from './overhead.js?v=17';
+import * as CAB from './cockpit-cab.js?v=17';
+import { buildStand } from './cockpit-stand.js?v=17';
+import * as D from './cockpit-displays.js?v=17';
+import { drawCDUScreen } from './cdu.js?v=17';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -679,7 +679,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     const air = d.env.alt > 2000;
     ground.visible = !air;
     clouds.visible = air;
-    ground.position.y = -3.3 - (ph === 'takeoff' ? 90 : 0);
+    ground.position.y = -3.3 - (ph === 'takeoff' ? 90 : ph === 'approach' ? 450 : 0);
     scene.fog.far = air ? 9000 : 3500;
   }
 
