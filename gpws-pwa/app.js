@@ -1,4 +1,4 @@
-/* B737NG GPWS/EGPWS simulator — logic & indications per FCOM D6-27370-858-ELA
+/* B737NG GPWS/EGPWS simulator — logic & indications per FCOM D6-27370-858
    (Ch.10 PFD/ND, Ch.15 Warning Systems). Simplified envelopes for training. */
 (function () {
   'use strict';

@@ -1,7 +1,7 @@
 // sys-gear.js — FCOM chapter 14, landing gear, brakes and steering, in our
 // own words. The gear position here drives the 3D gear.
 
-import { MLG, NLG, FLOOR_Y } from './airframe.js?v=15';
+import { MLG, NLG, FLOOR_Y } from './airframe.js?v=16';
 
 const G = '#495057', A = '#2f7cf6', B = '#12a874', BR = '#e8590c';
 

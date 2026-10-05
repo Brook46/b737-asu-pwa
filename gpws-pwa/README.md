@@ -27,7 +27,7 @@ ARMED / ACTIVE (caution/warning) / INHIBITED with the reason.
 
 ## Accuracy
 Alert envelopes, aural phrases, and PFD/ND indications follow the 737 FCOM
-**D6-27370-858-ELA**, chapters 10 (PFD/ND – Displays) and 15 (Warning
+**D6-27370-858**, chapters 10 (PFD/ND – Displays) and 15 (Warning
 Systems). Notable details taken from the FCOM: bank-angle schedule
 (10° at 5–30 ft rising to 35° at 130 ft), approach callouts (2500/1000/500/
 100/50/40/30/20/10 — no 400/300/200), the ND terrain colour scheme

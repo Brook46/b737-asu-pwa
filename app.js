@@ -1,5 +1,5 @@
 /* Airspeed Unreliable — B737NG PWA (v2)
- * Source: D6-27370-858-ELA Rev.57 · PI-QRH §10 (4X-EK fleet)
+ * Source: D6-27370-858 Rev.57 · PI-QRH §10 (4X-EK fleet)
  *
  * Architecture:
  *  - `state` holds all user selections, persisted to localStorage.

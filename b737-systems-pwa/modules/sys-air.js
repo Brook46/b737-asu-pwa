@@ -6,7 +6,7 @@
 // differential at 9.1 psi. AUTO/ALTN close the loop on the outflow valve to
 // follow the FCOM differential schedule; MAN hands the valve to you.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=15';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE, FLOOR_Y } from './airframe.js?v=16';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];

@@ -1,8 +1,8 @@
 // schem-air.js — operable bleed / packs / pressurisation schematic + panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=15';
-import { createOverhead } from './overhead.js?v=15';
-import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=15';
+import { createSchematic, createPanel } from './schem-kit.js?v=16';
+import { createOverhead } from './overhead.js?v=16';
+import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=16';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse Boeing 737 QRH 'Flight With Unreliable Airspeed' tables into JSON.
 
-Source: D6-27370-858-ELA Rev.57 (4X-EK fleet). Covers 737-800W CFM56-7B26 and
+Source: D6-27370-858 Rev.57 (4X-EK fleet). Covers 737-800W CFM56-7B26 and
 737-900ERW CFM56-7B27 variants. Output: data/qrh-800.json and data/qrh-900.json.
 """
 from __future__ import annotations
@@ -220,7 +220,7 @@ def build_variant(tag: str) -> dict:
     return {
         "variant": "737-800W" if tag == "800" else "737-900ERW",
         "engine": "CFM56-7B26" if tag == "800" else "CFM56-7B27",
-        "source": "D6-27370-858-ELA Rev.57 · PI-QRH §10 (fleet 4X-EK)",
+        "source": "D6-27370-858 Rev.57 · PI-QRH §10 (fleet 4X-EK)",
         "weights_t": WEIGHTS,
         "notes": {
             "climb": "Flaps Up · Max Climb Thrust · 280 kt / M.76",

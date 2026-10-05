@@ -9,7 +9,7 @@ chips, phase buttons along the bottom (Ground · Takeoff · Cruise · Landing).
 
 ## Content rules (read before writing any system text)
 
-- **Source:** the 737 FCOM, `~/Downloads/FCOM.pdf` — D6-27370-858-ELA,
+- **Source:** the 737 FCOM, `~/Downloads/FCOM.pdf` — D6-27370-858,
   **Rev 57, 30 Sep 2025** (`FCOM_737_20220213.pdf` is the older Rev 48; don't
   use it). Systems Description starts at PDF page ~1254; Limitations at 114.
   FCTM: `~/Downloads/FCTM 737 Eff. 14092021.pdf`.

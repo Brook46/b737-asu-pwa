@@ -65,7 +65,7 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
       ${limitsHtml(p.limits)}
       ${failsHtml(p.fails)}
       ${rel.length ? `<h3>Related</h3><div class="chips">${rel.map((r) => `<button class="tag tag-btn" data-rel="${r.id}">${esc(r.name)}</button>`).join('')}</div>` : ''}
-      <p class="note-src">Written for study from the 737 FCOM (D6-27370-858-ELA, rev. Sep 2025). Explanations are paraphrased; figures cite the FCOM section. The FCOM and QRH govern.</p>
+      <p class="note-src">Written for study from the 737 FCOM (D6-27370-858, rev. Sep 2025). Explanations are paraphrased; figures cite the FCOM section. The FCOM and QRH govern.</p>
     `, `${sys.id}/${p.id}`);
   }
 

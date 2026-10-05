@@ -56,4 +56,4 @@ Regenerate root QRH data: `python3 scripts/parse_qrh.py path/to/QRH.pdf data/` (
 - **Calendar is pull-only.** The pilot's duty roster comes from secret read-only iCal URLs. Never write to Google Calendar or El Al systems. Calendar sync prunes only *future* legs; past flown legs are the logbook and are kept forever.
 - **iOS is the primary target.** Apps run as Home-Screen PWAs on iPad/iPhone Safari. Motion/GPS sensors need a user gesture and a secure context (https or localhost); over plain LAN http use an ngrok tunnel.
 - **A boot-time TDZ/ReferenceError in any ES module halts all evaluation past it** — symptom is "some buttons frozen, others work". All apps carry resume-hardening (bfcache reload, long-away reload, freeze detector) except thermals-pwa, which uses a reduced variant (no forced reloads — it must preserve live in-flight map state).
-- GPWS logic/displays follow the 737 FCOM (D6-27370-858-ELA); don't invent warning behavior — check the FCOM before changing callout logic.
+- GPWS logic/displays follow the 737 FCOM (D6-27370-858); don't invent warning behavior — check the FCOM before changing callout logic.

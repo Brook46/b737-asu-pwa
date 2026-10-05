@@ -4,7 +4,7 @@ A Progressive Web App (PWA) quick-reference for the Boeing 737NG **Airspeed Unre
 
 Runs installable on iPad (Add to Home Screen) and works fully offline after the first load.
 
-> **Reference only.** This app is for training and personal reference. Always follow your current approved QRH and operator procedures. Data source: `D6-27370-858-ELA Rev.57` (4X-EK fleet).
+> **Reference only.** This app is for training and personal reference. Always follow your current approved QRH and operator procedures. Data source: `D6-27370-858 Rev.57` (4X-EK fleet).
 
 ## Features
 
@@ -101,4 +101,4 @@ This is an unofficial training tool. It is not a replacement for the approved QR
 
 ## License
 
-Personal / training use. Boeing QRH content is the intellectual property of The Boeing Company; extracted numeric data is included here solely for reference by the fleet covered by `D6-27370-858-ELA Rev.57`.
+Personal / training use. Boeing QRH content is the intellectual property of The Boeing Company; extracted numeric data is included here solely for reference by the fleet covered by `D6-27370-858 Rev.57`.
