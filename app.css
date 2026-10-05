@@ -575,15 +575,33 @@ button { cursor: pointer; }
 /* Gear down: "GD" always in green. */
 .qrh-table .gd { color: var(--ok); font-weight: 800; }
 
-/* Tap-to-mark cells (purple, distinct from the amber gear-down row and the
- * blue airport-altitude row). Beats both row backgrounds. */
+/* Tap-to-mark cells — soft purple, distinct from the amber gear-down row
+ * and the blue airport-altitude row. Marked cell's row + column get a tint. */
 .qrh-table tbody td:not(.row-label) { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .qrh-table tbody td.cell-mark {
-  background: rgba(191, 90, 242, 0.28) !important;
-  box-shadow: inset 0 0 0 2.5px #bf5af2;
+  background: rgba(175, 110, 230, 0.16) !important;
+  box-shadow: inset 0 0 0 2px rgba(175, 110, 230, 0.75);
   border-radius: 6px;
-  font-weight: 800;
+  font-weight: 700;
 }
+/* Go-Around stack: three <td>s drawn as one box */
+.qrh-table tbody td.cell-mark.mark-top { border-radius: 6px 6px 0 0;
+  box-shadow: inset 2px 0 0 rgba(175,110,230,.75), inset -2px 0 0 rgba(175,110,230,.75), inset 0 2px 0 rgba(175,110,230,.75); }
+.qrh-table tbody td.cell-mark.mark-mid { border-radius: 0;
+  box-shadow: inset 2px 0 0 rgba(175,110,230,.75), inset -2px 0 0 rgba(175,110,230,.75); }
+.qrh-table tbody td.cell-mark.mark-bot { border-radius: 0 0 6px 6px;
+  box-shadow: inset 2px 0 0 rgba(175,110,230,.75), inset -2px 0 0 rgba(175,110,230,.75), inset 0 -2px 0 rgba(175,110,230,.75); }
+/* Specificity (0,3,3) + !important so the tint also shows on the amber
+ * gear-down row and the blue Go-Around altitude row. */
+.qrh-table tbody tr > td.row-hl:not(.cell-mark),
+.qrh-table tbody tr > td.col-hl:not(.cell-mark),
+.qrh-table th.col-hl {
+  background-image: linear-gradient(rgba(175, 110, 230, 0.09), rgba(175, 110, 230, 0.09)) !important;
+}
+.qrh-table tbody tr > td.row-hl.col-hl:not(.cell-mark) {
+  background-image: linear-gradient(rgba(175, 110, 230, 0.14), rgba(175, 110, 230, 0.14)) !important;
+}
+.qrh-table th.col-hl { color: rgb(150, 90, 205); }
 
 /* Go-Around: highlight the altitude row matching the selected airport altitude. */
 .qrh-table tr.apt-match td:not(.row-label) {

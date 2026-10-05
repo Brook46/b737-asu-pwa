@@ -456,25 +456,62 @@ function render() {
 /* ─── Tap-to-mark table cells ──────────────────────────────────────
  * Tap any value cell to mark it; tap again to clear. Several can be marked
  * at once. Marks live in memory only, so a refresh or reopening the app
- * clears them. Keyed by variant + phase + row + column, so they survive
- * re-renders (weight / airport-altitude changes) and switching phases. */
+ * clears them. Go-Around stacks pitch / V/S / KIAS in three <tr>s per
+ * altitude — those three count as ONE cell. The marked cell's row and
+ * column get a light tint. */
 const cellMarks = new Set();
-function cellKey(td) {
+
+// Logical position of a value <td>: { table, group, col, part }.
+//   group — row index, or for stacked tables the index of the stack-start row
+//   col   — index among value cells (row-label excluded; it may be rowspan'd)
+//   part  — 'top' | 'mid' | 'bot' within a stack, or null
+function cellPos(td) {
   const tr = td.parentElement;
-  const rows = Array.from(tr.parentElement.children);
-  return `${state.variant}|${state.phase}|${rows.indexOf(tr)}|${Array.from(tr.children).indexOf(td)}`;
+  const tbody = tr.parentElement;
+  const rows = Array.from(tbody.children);
+  let group = rows.indexOf(tr), part = null;
+  if (tr.classList.contains('stack-start') || tr.classList.contains('stack-mid') || tr.classList.contains('stack-end')) {
+    while (group > 0 && !rows[group].classList.contains('stack-start')) group--;
+    part = tr.classList.contains('stack-start') ? 'top' : tr.classList.contains('stack-mid') ? 'mid' : 'bot';
+  }
+  const col = Array.from(tr.children).filter(c => !c.classList.contains('row-label')).indexOf(td);
+  const table = $$('.qrh-table', resultEl).indexOf(tbody.closest('.qrh-table'));
+  return { table, group, col, part };
 }
+const markKey = (p) => `${state.variant}|${state.phase}|${p.table}|${p.group}|${p.col}`;
+
 function applyCellMarks() {
-  $$('.qrh-table tbody td:not(.row-label)', resultEl).forEach(td => {
-    td.classList.toggle('cell-mark', cellMarks.has(cellKey(td)));
+  const tds = $$('.qrh-table tbody td:not(.row-label)', resultEl);
+  const pos = new Map(tds.map(td => [td, cellPos(td)]));
+  const rowsHit = new Set(), colsHit = new Set();
+  for (const p of pos.values()) {
+    if (cellMarks.has(markKey(p))) { rowsHit.add(`${p.table}|${p.group}`); colsHit.add(`${p.table}|${p.col}`); }
+  }
+  for (const [td, p] of pos) {
+    const marked = cellMarks.has(markKey(p));
+    td.classList.toggle('cell-mark', marked);
+    td.classList.remove('mark-top', 'mark-mid', 'mark-bot');
+    if (marked && p.part) td.classList.add('mark-' + p.part);
+    td.classList.toggle('row-hl', !marked && rowsHit.has(`${p.table}|${p.group}`));
+    td.classList.toggle('col-hl', !marked && colsHit.has(`${p.table}|${p.col}`));
+  }
+  // Row labels and column headers get the tint too.
+  $$('.qrh-table', resultEl).forEach((tbl, ti) => {
+    const rows = Array.from(tbl.tBodies[0]?.children || []);
+    rows.forEach((tr, ri) => {
+      const lbl = tr.querySelector('td.row-label');
+      if (lbl) lbl.classList.toggle('row-hl', rowsHit.has(`${ti}|${ri}`));
+    });
+    Array.from(tbl.tHead?.rows[0]?.cells || []).filter(th => !th.classList.contains('row-label'))
+      .forEach((th, ci) => th.classList.toggle('col-hl', colsHit.has(`${ti}|${ci}`)));
   });
 }
 resultEl.addEventListener('click', (e) => {
   const td = e.target.closest('.qrh-table tbody td');
   if (!td || td.classList.contains('row-label')) return;
-  const k = cellKey(td);
+  const k = markKey(cellPos(td));
   if (cellMarks.has(k)) cellMarks.delete(k); else cellMarks.add(k);
-  td.classList.toggle('cell-mark', cellMarks.has(k));
+  applyCellMarks();
 });
 
 /* Render: altitude × (pitch + metric) — climb / cruise / descent */
