@@ -6,11 +6,11 @@
 //               wheel with grips, chart clip, trim switches, A/P disconnect
 //               and mic switches (each pickable with its own name);
 //   pedals(s)   rudder pedals with toe brakes;
-//   breakers()  circuit breaker panels on the aft side walls (P18 captain
+//   breakers()  circuit breaker panels on the aft bulkhead behind the seats (P18 captain
 //               side, P6 first officer side), drawn as textures.
 // Cockpit frame: metres, +x forward, +y up, +z right; captain at z −0.52.
 
-import * as THREE from '../vendor/three.module.min.js?v=13';
+import * as THREE from '../vendor/three.module.min.js?v=14';
 
 const V = (a) => new THREE.Vector3(...a);
 
@@ -199,43 +199,56 @@ export function seat(add, M, z) {
   for (const dz of [-0.27, 0.27]) box(0.36, 0.04, 0.06, [-0.03, 0.64, dz], M.column);
 }
 
-/** Circuit breaker panels on the aft side walls (P18 left, P6 right). */
+/**
+ * Circuit breaker panels on the aft bulkhead, behind the pilots' seats (FCOM
+ * 1.20 aft flight deck overview): P6 behind the first officer — a tall bank
+ * from the floor nearly to the ceiling (P6-1 nav / inst / comm at the top,
+ * P6-2 systems, P6-3 fuel / lighting / gear, P6-4 air cond & electrical, P6-11
+ * and P6-12 window heat low down) — and P18 behind the captain, at shoulder
+ * height (P18-1 nav, P18-2 inst & comm, P18-3 anti-ice & lighting).
+ */
 export function breakers(add, M, pickables) {
-  const groups = [
-    ['ELECTRICAL', 'HYDRAULICS', 'FUEL', 'FLIGHT CONTROLS'],
-    ['ANTI-ICE', 'AIR CONDITIONING', 'LANDING GEAR', 'LIGHTING'],
+  const BANKS = [
+    { title: 'P6', z: 0.735, w: 0.54, y0: 0.08, y1: 1.86, rows: [
+      ['P6-1', 'NAV · INST · COMM', 5], ['P6-2', 'SYSTEMS', 5], ['P6-3', 'FUEL · LIGHTING · LANDING GEAR', 5],
+      ['P6-4', 'AIR CONDITIONING · ELECTRICAL', 6], ['P6-11 · P6-12', 'WINDOW HEAT', 3]] },
+    { title: 'P18', z: -0.66, w: 0.6, y0: 1.12, y1: 1.82, rows: [
+      ['P18-1', 'NAV', 3], ['P18-2', 'INST & COMM', 3], ['P18-3', 'ANTI-ICE · LIGHTING', 3]] },
   ];
   const panels = [];
-  for (const [s, title, list] of [[-1, 'P18', groups[0]], [1, 'P6', groups[1]]]) {
+  for (const B of BANKS) {
+    const H = B.y1 - B.y0, PX = 900;                           // canvas px per metre
     const c = document.createElement('canvas');
-    c.width = 1024; c.height = 768;
+    c.width = Math.round(B.w * PX); c.height = Math.round(H * PX);
     const g = c.getContext('2d');
-    g.fillStyle = '#5d666d'; g.fillRect(0, 0, 1024, 768);
-    g.fillStyle = '#e9ecef'; g.font = '700 26px Helvetica, Arial'; g.textAlign = 'left';
-    g.fillText(`${title}  CIRCUIT BREAKER PANEL`, 24, 40);
-    const cols = 16, rows = 5;
-    list.forEach((grp, gi) => {
-      const y0 = 70 + gi * 172;
-      g.fillStyle = '#4a5258'; g.fillRect(16, y0, 992, 160);
-      g.fillStyle = '#f1f3f5'; g.font = '700 18px Helvetica, Arial';
-      g.fillText(grp, 28, y0 + 22);
-      for (let r = 0; r < rows - 1; r++) for (let k = 0; k < cols; k++) {
-        const x = 52 + k * 60, y = y0 + 48 + r * 30;
+    g.fillStyle = '#5d666d'; g.fillRect(0, 0, c.width, c.height);
+    const total = B.rows.reduce((a, r) => a + r[2] + 1.6, 0);
+    let y = 8;
+    const unit = (c.height - 8 - B.rows.length * 8) / total;
+    for (const [id, name, n] of B.rows) {
+      const h = unit * (n + 1.6);
+      g.fillStyle = '#4a5258'; g.fillRect(8, y, c.width - 16, h);
+      g.fillStyle = '#f1f3f5'; g.font = '700 15px Helvetica, Arial'; g.textAlign = 'left';
+      g.fillText(`${id}  ${name}`, 16, y + 19);
+      const cols = Math.floor((c.width - 40) / 34);
+      for (let r = 0; r < n; r++) for (let k = 0; k < cols; k++) {
+        const x = 30 + k * 34, yy = y + 38 + r * unit;
         // White collar, black button; a few with coloured collars (essential).
-        g.fillStyle = (k + r * 3 + gi) % 11 === 0 ? '#e8b11a' : '#f3f3f3';
-        g.beginPath(); g.arc(x, y, 11, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#111'; g.beginPath(); g.arc(x, y, 7.5, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#c9cfd4'; g.fillRect(x - 20, y + 12, 40, 3);
+        g.fillStyle = (k + r * 3 + id.length) % 11 === 0 ? '#e8b11a' : '#f3f3f3';
+        g.beginPath(); g.arc(x, yy, 9, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#111'; g.beginPath(); g.arc(x, yy, 6, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#c9cfd4'; g.fillRect(x - 13, yy + 11, 26, 2);
       }
-    });
+      y += h + 8;
+    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    const W = 0.8, H = 0.6;
-    const m = add(new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 })));
-    m.position.set(-0.52, 0.86, s * 1.025);
-    m.rotation.y = s < 0 ? 0 : Math.PI;
-    m.userData.pick = { kind: 'static', name: `${title} circuit breaker panel` };
+    // On the bulkhead face (x ≈ −0.98), facing forward.
+    const m = add(new THREE.Mesh(new THREE.PlaneGeometry(B.w, H), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 })));
+    m.position.set(-0.975, (B.y0 + B.y1) / 2, B.z);
+    m.rotation.y = Math.PI / 2;
+    m.userData.pick = { kind: 'static', name: `${B.title} circuit breaker panel` };
     pickables.push(m);
     panels.push(m);
   }

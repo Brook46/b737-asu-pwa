@@ -2,7 +2,7 @@
 // signs, emergency lighting, doors, oxygen and the flight deck door, in our
 // own words. Exterior lights show on the 3D airplane.
 
-import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=13';
+import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=14';
 
 const C = '#6b7280';
 const FD_DOOR_X = 15.0;      // flight deck door, just aft of the flight deck

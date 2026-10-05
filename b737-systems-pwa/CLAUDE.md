@@ -185,8 +185,13 @@ with the lights / ENGINE START row at the front; centre forward panel strip
 (N1 SET, SPD REF, FUEL FLOW, MFD, AUTO BRAKE, flap gauge, LE FLAPS); gear
 lights over the 3D gear lever; HYD BRAKE PRESS on the F/O panel; A/P-A/T-FMC
 lights, speedbrake lights and display select across the top of each forward
-panel; parking brake and STAB TRIM cutouts on the control stand; fire panel
-and cargo fire on the aft electronic panel. Placement is in cockpit.js
+panel; parking brake and STAB TRIM cutouts flush on the control stand. Aft
+electronic panel per the FCOM figure: fire panel across the front (behind the
+CDUs), then left VHF 1 / ACP / nav radios / door lock, centre cargo fire /
+transponder, right VHF 2 / ACP. Aft overhead behind the forward overhead:
+IRS mode select, oxygen, warning tests. Circuit breakers on the aft bulkhead
+behind the seats: P6 floor-to-ceiling behind the F/O, P18 at shoulder height
+behind the captain (`breakers()` in cockpit-cab.js). Placement is in cockpit.js
 (`onMip`, `AFT`, `COLUMNS`, `FRONT_ROW`). Exterior light switches: OFF up.
 Kit extras in overhead.js: `knob({grey})`, `fireHandle()`, `placard()`,
 `panel(..., {bg})`, `toggle({noLabels})`.
@@ -225,7 +230,7 @@ labelled "not for operational use" on the CDU.
   up with the route, waypoints, runways, T/C, T/D, VNAV deviation; PFD has
   bank, speed / altitude bugs, V1/VR, RA. Cockpit bar: CDU · LINE UP ·
   TO/GA · pause · 1–64× · ND range. The 3D CDUs sit at the front of the aft
-  pedestal (the aft panels moved 0.23 m aft); tapping one opens the keypad.
+  pedestal; tapping one opens the keypad.
 - Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
 
 ## Voice
@@ -267,7 +272,7 @@ Dev server: `.claude/launch.json` → "737 NG Inside" (port 8101).
 - **M2 (done, v7):** Flight Controls, Landing Gear, Engines/APU, Fire Protection, Anti-Ice.
 - **M3 (done, v7):** Auto Flight, Instruments, FMS/Nav, Warnings (GPWS phrasing
   matches gpws-pwa), Comms, Airplane General.
-- Not modelled in 3D cockpit: the aft overhead (IRS mode select, oxygen,
-  door lights, warning tests) — those panels live in the schematic view.
+- Not modelled in 3D cockpit: the door lights panel (not on this fleet's
+  overhead figures) — it lives in the schematic view.
 - New systems need quiz questions in quizbank.js too, or their pages only
   count as learned by listening.

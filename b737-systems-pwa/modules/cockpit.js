@@ -7,11 +7,11 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=13';
-import { createOverhead } from './overhead.js?v=13';
-import * as CAB from './cockpit-cab.js?v=13';
-import * as D from './cockpit-displays.js?v=13';
-import { drawCDUScreen } from './cdu.js?v=13';
+import * as THREE from '../vendor/three.module.min.js?v=14';
+import { createOverhead } from './overhead.js?v=14';
+import * as CAB from './cockpit-cab.js?v=14';
+import * as D from './cockpit-displays.js?v=14';
+import { drawCDUScreen } from './cdu.js?v=14';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -330,6 +330,16 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     const h = (P.h * w) / 300;
     texPanel(P, sys, w, h, OV_FRONT.clone().addScaledVector(OV_T, 0.015 + rowH - h / 2).add(new THREE.Vector3(0, 0, z)));
   }
+  // Aft overhead (FCOM 1.20 aft overhead figure), continuing the slope aft
+  // of the forward overhead: IRS mode select left, crew oxygen centre, the
+  // stall / Mach warning tests right.
+  const AFT_OV = [['fms', 'IRS mode select', -0.21], ['general', 'Oxygen', 0], ['warnings', 'Warning tests', 0.21]];
+  for (const [sys, title, z] of AFT_OV) {
+    const P = byTitle(sys, title);
+    if (!P) continue;
+    const h = P.h * U;
+    texPanel(P, sys, 0.2, h, OV_FRONT.clone().addScaledVector(OV_T, OV_LEN + 0.03 + h / 2).add(new THREE.Vector3(0, 0, z)));
+  }
   // Panels that live elsewhere: the fire protection panel on the aft pedestal.
   function placePanel(sys, title, pos, normal, up, w = 0.2) {
     const P = byTitle(sys, title);
@@ -368,21 +378,34 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.93], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
   const MCP_UP = [0.32, 1, 0];
   ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.238));
-  // Control stand: parking brake (left), stab trim cutouts (right).
-  placePanel('gear', 'Parking brake', [0.34, 0.716, -0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
-  placePanel('flightcontrols', 'Stabilizer trim', [0.34, 0.716, 0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
-  // Aft electronic panel, forward to aft: door lock, nav radios, transponder, VHF, cargo fire, fire protection.
-  // (The two CDUs sit forward of them, at the front of the aft pedestal.)
-  const AFT = (sys, title, x, w = 0.2) => placePanel(sys, title, [x - 0.23, 0.713, 0], [0, 1, 0], [1, 0, 0], w);
-  AFT('general', 'Flight deck door', 0.245, 0.16);
-  AFT('fms', 'Nav radios', 0.205);
-  AFT('warnings', 'Transponder', 0.158);
-  AFT('comms', 'VHF comm', 0.11);
-  AFT('fire', 'Cargo fire', 0.058);
-  AFT('fire', 'Fire protection', -0.06, 0.3);
-  // Audio control panels on the side consoles, CDUs on the forward pedestal.
-  placePanel('comms', 'Audio control panel', [0.33, 0.70, -0.62], [0, 1, 0], [1, 0, 0], 0.17);
-  placePanel('comms', 'Audio control panel', [0.33, 0.70, 0.62], [0, 1, 0], [1, 0, 0], 0.17);
+  // Control stand (FCOM 1.20 control stand figure): parking brake aft-left,
+  // STAB TRIM cutouts aft-right — flush on the stand's sloped top.
+  const STAND_Y = (x) => 0.71 + 0.25 * (x - 0.47) + 0.003;
+  placePanel('gear', 'Parking brake', [0.34, STAND_Y(0.34), -0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
+  placePanel('flightcontrols', 'Stabilizer trim', [0.34, STAND_Y(0.34), 0.125], [-0.25, 1, 0], [1, 0.25, 0], 0.1);
+  // Aft electronic panel (FCOM 1.20 aft electronic panel figure), behind the
+  // CDUs: the engine & APU fire panel across the front, then three columns —
+  // left: VHF comm 1, captain's audio control panel, nav radios, flight deck
+  // door lock; centre: cargo fire, transponder; right: VHF comm 2, the first
+  // officer's audio control panel. Every panel is flush with the panel face.
+  const AFT_Y = 0.708, AFT_FRONT = 0.055;
+  const aftAt = (sys, title, xTop, z, w) => {
+    const P = byTitle(sys, title);
+    if (!P) return xTop;
+    const h = (P.h * w) / 300;
+    placePanel(sys, title, [xTop - h / 2, AFT_Y, z], [0, 1, 0], [1, 0, 0], w);
+    return xTop - h - 0.005;
+  };
+  const colTop = aftAt('fire', 'Fire protection', AFT_FRONT, 0, 0.345);
+  const AFT_COLS = [
+    [-0.118, [['comms', 'VHF comm'], ['comms', 'Audio control panel'], ['fms', 'Nav radios'], ['general', 'Flight deck door']]],
+    [0, [['fire', 'Cargo fire'], ['warnings', 'Transponder']]],
+    [0.118, [['comms', 'VHF comm'], ['comms', 'Audio control panel']]],
+  ];
+  for (const [z, list] of AFT_COLS) {
+    let x = colTop;
+    for (const [sys, title] of list) x = aftAt(sys, title, x, z, 0.112);
+  }
   function markDirty(sys) { for (const t of texPanels) if (t.sys === sys) t.dirty = true; }
 
   // Render a panel's SVG into its texture (only when its markup changed).
@@ -409,8 +432,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   }
 
   // ── Pedestal ──
-  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(1.09, 0.7, 0.36), M.shell));
-  ped.position.set(0.085, 0.35, 0);
+  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(0.89, 0.7, 0.36), M.shell));
+  ped.position.set(0.185, 0.35, 0);
   const fwdPed = add(plate(0.36, 0.36, M.dark, [0.47, 0.71, 0], [-0.25, 1, 0]));
   fwdPed.userData.pick = { kind: 'static', name: 'Control stand' };
   {
@@ -419,7 +442,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     g.fillStyle = '#5f666c'; g.fillRect(0, 0, 512, 640);
     // Every unit on the aft electronic panel is a real panel now (placePanel below).
     ct.t.needsUpdate = true;
-    const aft = add(plate(0.34, 0.655, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.7 }), [-0.055, 0.705, 0], [0, 1, 0], [1, 0, 0]));
+    const aft = add(plate(0.36, 0.31, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.7 }), [-0.09, 0.705, 0], [0, 1, 0], [1, 0, 0]));
     aft.userData.pick = { kind: 'aftpedestal', name: 'Aft electronic panel' };
     pickables.push(aft);
   }
@@ -427,7 +450,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   const cdus = [];
   for (const s of [-1, 1]) {
     const ct = canvasTex(360, 500);
-    const m = add(plate(0.165, 0.229, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.175, 0.711, s * 0.088], [0, 1, 0], [1, 0, 0]));
+    const m = add(plate(0.165, 0.229, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.175, 0.708, s * 0.088], [0, 1, 0], [1, 0, 0]));
     m.userData.pick = { kind: 'cdu', name: `CDU (${s < 0 ? 'left' : 'right'})` };
     pickables.push(m);
     cdus.push(ct);
