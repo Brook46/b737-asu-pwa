@@ -450,7 +450,32 @@ function render() {
 
   resultEl.innerHTML = body;
   sourceEl.textContent = source;
+  applyCellMarks();
 }
+
+/* ─── Tap-to-mark table cells ──────────────────────────────────────
+ * Tap any value cell to mark it; tap again to clear. Several can be marked
+ * at once. Marks live in memory only, so a refresh or reopening the app
+ * clears them. Keyed by variant + phase + row + column, so they survive
+ * re-renders (weight / airport-altitude changes) and switching phases. */
+const cellMarks = new Set();
+function cellKey(td) {
+  const tr = td.parentElement;
+  const rows = Array.from(tr.parentElement.children);
+  return `${state.variant}|${state.phase}|${rows.indexOf(tr)}|${Array.from(tr.children).indexOf(td)}`;
+}
+function applyCellMarks() {
+  $$('.qrh-table tbody td:not(.row-label)', resultEl).forEach(td => {
+    td.classList.toggle('cell-mark', cellMarks.has(cellKey(td)));
+  });
+}
+resultEl.addEventListener('click', (e) => {
+  const td = e.target.closest('.qrh-table tbody td');
+  if (!td || td.classList.contains('row-label')) return;
+  const k = cellKey(td);
+  if (cellMarks.has(k)) cellMarks.delete(k); else cellMarks.add(k);
+  td.classList.toggle('cell-mark', cellMarks.has(k));
+});
 
 /* Render: altitude × (pitch + metric) — climb / cruise / descent */
 function renderAltPitchMetric(rows, w, metricKey, metricLabel) {
@@ -510,7 +535,7 @@ function renderConfig(flaps, w, opts = {}) {
     const n = interpWeight(f.n1,    w);
     const k = interpWeight(f.kias,  w);
     const isGD = f.gear === 'DOWN';
-    const gearTag = isGD ? ' · GD'
+    const gearTag = isGD ? ' · <span class="gd">GD</span>'
                   : f.gear === 'UP' ? ' · GU'
                   : '';
     const label = `Flaps ${f.flap}${gearTag}` +

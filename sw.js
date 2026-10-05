@@ -16,8 +16,8 @@ const APP_SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-1024.png',
-  './images/stick-shaker-cb-p6.svg?v=16',
-  './images/stick-shaker-cb-p18.svg?v=16',
+  './images/stick-shaker-cb-p6.svg?v=17',
+  './images/stick-shaker-cb-p18.svg?v=17',
   './data/qrh-800.json',
   './data/qrh-900.json'
 ];
