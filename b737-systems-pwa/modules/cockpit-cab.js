@@ -10,7 +10,7 @@
 //               side, P6 first officer side), drawn as textures.
 // Cockpit frame: metres, +x forward, +y up, +z right; captain at z −0.52.
 
-import * as THREE from '../vendor/three.module.min.js?v=14';
+import * as THREE from '../vendor/three.module.min.js?v=15';
 
 const V = (a) => new THREE.Vector3(...a);
 
@@ -125,66 +125,146 @@ export function windows(add, M) {
   return { parts: out, compass: [box, face] };
 }
 
-/** The 737 control column and wheel. Returns the group (rotate .rotation.z to pitch). */
+/**
+ * A solid, bevelled band along a 2D centre line (s = lateral, t = up), with a
+ * width that can vary along it — used for the control wheel's U.
+ */
+function band(pts, width, depth) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(([x, y]) => V([x, y, 0])));
+  const N = 60, L = [], R = [];
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, p = curve.getPoint(u), tg = curve.getTangent(u);
+    const w = width(u) / 2;
+    L.push([p.x - tg.y * w, p.y + tg.x * w]);
+    R.push([p.x + tg.y * w, p.y - tg.x * w]);
+  }
+  const sh = new THREE.Shape();
+  sh.moveTo(...L[0]);
+  for (const q of L.slice(1)) sh.lineTo(...q);
+  // Round the far tip, back along the other edge, round the start tip.
+  const tip = (a, b) => { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; return m; };
+  const e1 = curve.getTangent(1), t1 = tip(L[N], R[N]);
+  sh.quadraticCurveTo(t1[0] + e1.x * 0.025, t1[1] + e1.y * 0.025, ...R[N]);
+  for (const q of R.slice(0, N).reverse()) sh.lineTo(...q);
+  const e0 = curve.getTangent(0), t0 = tip(L[0], R[0]);
+  sh.quadraticCurveTo(t0[0] - e0.x * 0.025, t0[1] - e0.y * 0.025, ...L[0]);
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.006, bevelSegments: 3, curveSegments: 6 });
+  g.translate(0, 0, -depth / 2);
+  return g;
+}
+
+/**
+ * The 737 NG control column and wheel (FCOM 1.20 captain control wheel
+ * detail): a column from the floor to a hub at the bottom of a U-shaped
+ * wheel whose horns rise and splay out to the grips; a writing pad / checklist
+ * clip on the centre; stab trim switch on top of the outboard horn, A/P
+ * disengage switch just below it, push-to-talk on the back of the outboard
+ * horn, the memory device on the inboard horn.
+ * Returns the group (rotate .rotation.z to pitch, the wheel group to roll).
+ */
 export function yoke(add, M, z, pickables) {
   const g = new THREE.Group();
   g.position.set(0.62, 0.02, z);        // pivot near the floor
   add(g);
   const name = (n) => ({ kind: 'lever', name: n });
-  const mk = (geo, mat, pick, pos) => { const m = new THREE.Mesh(geo, mat); if (pos) m.position.set(...pos); m.userData.pick = pick; g.add(m); pickables.push(m); return m; };
+  const reg = (m, pick) => { m.userData.pick = pick; pickables.push(m); return m; };
+  const mk = (geo, mat, pick, pos, parent = g) => { const m = new THREE.Mesh(geo, mat); if (pos) m.position.set(...pos); reg(m, pick); parent.add(m); return m; };
   const colPick = name('Control column');
-  // Floor boot.
-  mk(new THREE.CylinderGeometry(0.06, 0.085, 0.12, 20), M.boot, colPick, [0, 0.06, 0]);
-  // Column: straight up, then a bend back toward the pilot.
-  const colCurve = new THREE.CatmullRomCurve3([V([0, 0.1, 0]), V([-0.005, 0.42, 0]), V([-0.03, 0.6, 0]), V([-0.09, 0.7, 0]), V([-0.14, 0.73, 0])]);
-  mk(new THREE.TubeGeometry(colCurve, 30, 0.026, 14), M.column, colPick);
-  // Hub facing the pilot (−x), with the column's end cap.
-  const hubPick = name('Control wheel');
-  const hub = mk(new THREE.CylinderGeometry(0.045, 0.05, 0.05, 24), M.column, hubPick, [-0.165, 0.735, 0]);
-  hub.rotation.z = Math.PI / 2;
-  const cap = mk(new THREE.CircleGeometry(0.036, 24), M.logo, hubPick, [-0.191, 0.735, 0]);
-  cap.rotation.y = -Math.PI / 2;
-  // Ram's-horn wheel: a flat top bar whose ends turn down into grips that splay out.
-  const half = (sz) => new THREE.CatmullRomCurve3([
-    V([-0.175, 0.765, 0]), V([-0.178, 0.775, sz * 0.06]), V([-0.18, 0.775, sz * 0.12]),
-    V([-0.18, 0.76, sz * 0.155]), V([-0.178, 0.72, sz * 0.172]), V([-0.175, 0.665, sz * 0.19]), V([-0.172, 0.62, sz * 0.2]),
-  ]);
+  const colMat = new THREE.MeshStandardMaterial({ color: 0x34383c, roughness: 0.5, metalness: 0.25 });
+  // Floor boot (leather gaiter) and the column: square-ish, tapering, leaning a little aft.
+  mk(new THREE.CylinderGeometry(0.055, 0.09, 0.14, 4, 1).rotateY(Math.PI / 4), M.boot, colPick, [0, 0.07, 0]);
+  const colGeo = new THREE.CylinderGeometry(0.026, 0.036, 0.58, 4, 1).rotateY(Math.PI / 4);
+  const col = mk(colGeo, colMat, colPick, [-0.022, 0.42, 0]);
+  col.rotation.z = 0.08;
+  // Column head and the shaft to the wheel hub.
+  mk(new THREE.BoxGeometry(0.075, 0.07, 0.07), colMat, colPick, [-0.047, 0.705, 0]);
+  const shaft = mk(new THREE.CylinderGeometry(0.02, 0.02, 0.09, 16), M.metal, colPick, [-0.1, 0.695, 0]);
+  shaft.rotation.z = Math.PI / 2;
+
+  // The wheel: its own group so it can roll; plane faces the pilot (−x).
+  const W = new THREE.Group();
+  W.position.set(-0.15, 0.695, 0);
+  g.add(W);
+  const wheelPick = name('Control wheel');
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.45, metalness: 0.1 });
+  const hubMat = new THREE.MeshStandardMaterial({ color: 0x3b3f44, roughness: 0.4, metalness: 0.2 });
+  const inWheel = (geo, mat, pick, pos) => { const m = new THREE.Mesh(geo, mat); m.rotation.y = -Math.PI / 2; if (pos) m.position.set(...pos); reg(m, pick); W.add(m); return m; };
+  // U centre line, left horn tip → bottom → right horn tip (s, t in metres).
+  const U = [[-0.165, 0.2], [-0.19, 0.12], [-0.175, 0.04], [-0.12, -0.02], [0, -0.04], [0.12, -0.02], [0.175, 0.04], [0.19, 0.12], [0.165, 0.2]];
+  inWheel(band(U, (u) => 0.036 + 0.018 * Math.sin(Math.PI * u) ** 8 + 0.012 * (1 - Math.abs(2 * u - 1)), 0.026), wheelMat, wheelPick);
+  // Rubber grips on the upper horns.
   for (const sz of [-1, 1]) {
-    mk(new THREE.TubeGeometry(half(sz), 40, 0.015, 12), M.wheel, hubPick);
-    // Spoke from hub to the bar.
-    mk(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V([-0.17, 0.735, sz * 0.03]), V([-0.175, 0.755, sz * 0.07]), V([-0.178, 0.77, sz * 0.1])]), 10, 0.011, 8), M.wheel, hubPick);
-    // Grip (thicker, textured rubber) on the lower horn.
-    const grip = new THREE.CatmullRomCurve3([V([-0.178, 0.735, sz * 0.165]), V([-0.175, 0.68, sz * 0.185]), V([-0.172, 0.625, sz * 0.199])]);
-    mk(new THREE.TubeGeometry(grip, 14, 0.021, 12), M.grip, name('Control wheel grip'));
+    const GP = [[sz * 0.188, 0.06], [sz * 0.19, 0.12], [sz * 0.168, 0.19]];
+    inWheel(band(GP, () => 0.046, 0.034), M.grip, name('Control wheel grip'));
   }
-  // Chart clip on the top bar, with a checklist card.
-  mk(new THREE.BoxGeometry(0.012, 0.05, 0.16), M.column, name('Chart clip'), [-0.17, 0.8, 0]);
-  const card = mk(new THREE.PlaneGeometry(0.15, 0.04), M.card, name('Chart clip'), [-0.177, 0.8, 0]);
-  card.rotation.y = -Math.PI / 2;
-  // Captain's wheel: trim switches on the left horn; A/P disconnect on the outboard grip; mic on the inboard.
-  const left = z < 0 ? -1 : -1;    // both wheels carry the trim switches on the left horn
-  for (const dz of [-0.012, 0.012]) {
-    mk(new THREE.BoxGeometry(0.014, 0.022, 0.01), M.knob, name('Stabilizer trim switches'), [-0.19, 0.775, left * 0.135 + dz]);
+  // Hub at the bottom centre, with the Boeing cap facing the pilot.
+  const hub = mk(new THREE.CylinderGeometry(0.042, 0.046, 0.05, 28), hubMat, wheelPick, [0.01, -0.025, 0], W);
+  hub.rotation.z = Math.PI / 2;
+  const cap = mk(new THREE.CircleGeometry(0.03, 24), M.logo, wheelPick, [-0.017, -0.025, 0], W);
+  cap.rotation.y = -Math.PI / 2;
+  // Writing pad holder / checklist clip on the centre, rising from the hub.
+  mk(new THREE.BoxGeometry(0.014, 0.19, 0.082), hubMat, name('Chart clip'), [-0.012, 0.075, 0], W);
+  {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 300;
+    const q = c.getContext('2d');
+    q.fillStyle = '#f2efe6'; q.fillRect(0, 0, 128, 300);
+    q.fillStyle = '#222'; q.font = '700 13px Helvetica, Arial'; q.textAlign = 'center';
+    q.fillText('NORMAL', 64, 22); q.fillText('CHECKLIST', 64, 38);
+    q.font = '500 9px Helvetica, Arial'; q.textAlign = 'left';
+    for (let i = 0; i < 18; i++) { q.fillRect(10, 56 + i * 13, 60, 1.2); q.fillRect(80, 56 + i * 13, 38, 1.2); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const card = mk(new THREE.PlaneGeometry(0.068, 0.16), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }), name('Chart clip'), [-0.0205, 0.075, 0], W);
+    card.rotation.y = -Math.PI / 2;
+    mk(new THREE.BoxGeometry(0.01, 0.014, 0.07), M.metal, name('Chart clip'), [-0.024, 0.16, 0], W);
   }
-  const outboard = z < 0 ? -1 : 1;
-  const ap = mk(new THREE.CylinderGeometry(0.011, 0.011, 0.012, 14), M.red, name('Autopilot disconnect switch'), [-0.19, 0.73, outboard * 0.17]);
+  // Switches. Outboard horn: stab trim (two thumb rockers on top), A/P disengage
+  // (red, inner face near the top), push-to-talk (back of the horn). Inboard
+  // horn: the memory device.
+  const ob = z < 0 ? -1 : 1;
+  for (const dz of [-0.008, 0.008]) mk(new THREE.BoxGeometry(0.016, 0.02, 0.009), M.knob, name('Stabilizer trim switches'), [-0.012, 0.215, ob * 0.165 + dz], W);
+  const ap = mk(new THREE.CylinderGeometry(0.009, 0.009, 0.01, 14), M.red, name('Autopilot disconnect switch'), [-0.02, 0.16, ob * 0.163], W);
   ap.rotation.z = Math.PI / 2;
-  const mic = mk(new THREE.BoxGeometry(0.012, 0.016, 0.02), M.knob, name('Microphone switch'), [-0.19, 0.73, -outboard * 0.17]);
-  void mic;
+  mk(new THREE.BoxGeometry(0.01, 0.022, 0.018), M.knob, name('Microphone switch'), [0.022, 0.07, ob * 0.188], W);
+  const mem = mk(new THREE.CylinderGeometry(0.013, 0.013, 0.02, 16), M.metal, name('Memory device'), [-0.005, 0.205, -ob * 0.168], W);
+  void mem;
+  g.userData.wheel = W;
   return g;
 }
 
-/** Rudder pedals with toe brakes. */
+/**
+ * Rudder pedals with toe brakes: Boeing pedals hang from pivots under the
+ * main panel; each pedal is a tall plate with a ribbed rubber face (push the
+ * top for the brakes). A footrest bar sits between them.
+ */
 export function pedals(add, M, z, pickables) {
-  for (const dz of [-0.1, 0.1]) {
-    const arm = add(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.03), M.column));
-    arm.position.set(0.86, 0.22, z + dz); arm.rotation.z = -0.25;
-    const pad = add(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.09), M.boot));
-    pad.position.set(0.82, 0.17, z + dz); pad.rotation.z = 0.55;
-    const toe = add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.09), M.grip));
-    toe.position.set(0.79, 0.24, z + dz); toe.rotation.z = 0.55;
-    for (const m of [arm, pad, toe]) { m.userData.pick = { kind: 'lever', name: 'Rudder pedals and brakes' }; pickables.push(m); }
+  const pick = { kind: 'lever', name: 'Rudder pedals and brakes' };
+  const reg = (m) => { m.userData.pick = pick; pickables.push(m); return m; };
+  const c = document.createElement('canvas'); c.width = 64; c.height = 160;
+  const q = c.getContext('2d');
+  q.fillStyle = '#1b1c1e'; q.fillRect(0, 0, 64, 160);
+  q.fillStyle = '#2f3134';
+  for (let y = 6; y < 154; y += 10) q.fillRect(6, y, 52, 5);
+  const tread = new THREE.CanvasTexture(c); tread.colorSpace = THREE.SRGBColorSpace;
+  const face = new THREE.MeshStandardMaterial({ map: tread, roughness: 0.95 });
+  for (const dz of [-0.11, 0.11]) {
+    const g = add(new THREE.Group());
+    g.position.set(0.86, 0.5, z + dz);              // pivot under the panel
+    // Hanger arm down and slightly aft, then the pedal plate leaning back.
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.3, 0.02), M.column);
+    arm.position.set(-0.03, -0.15, 0); arm.rotation.z = -0.2;
+    const plateM = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.2, 0.1), M.column);
+    plateM.position.set(-0.075, -0.33, 0); plateM.rotation.z = -0.35;
+    const rubber = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.19), face);
+    rubber.position.set(-0.0855, -0.326, 0); rubber.rotation.set(0, -Math.PI / 2, 0); rubber.rotateX(-0.35);
+    g.add(arm, plateM, rubber);
+    for (const m of [arm, plateM, rubber]) reg(m);
   }
+  // Footwell front (kick panel) the pedal hangers disappear into.
+  const kick = add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.6, 0.68), M.shell));
+  kick.position.set(0.93, 0.3, z + (z < 0 ? -0.03 : 0.03));
+  // Footrest bar below the panel.
+  const bar = add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.42, 12), M.metal));
+  bar.rotation.x = Math.PI / 2; bar.position.set(0.845, 0.08, z);
 }
 
 /** Pilot seat: cushion, back, headrest, armrests. */

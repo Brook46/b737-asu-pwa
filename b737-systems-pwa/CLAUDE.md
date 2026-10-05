@@ -45,10 +45,19 @@ modules/
                   colour; MOTION moves them while the page is open (aileron
                   rolls, rudder sweeps, doors open…). Add new links there
   cockpit-cab.js  flight deck cab: moulded window frames (per-edge margins —
-                  deep at the top so frames merge into the crown), 737 control
-                  column (ram's-horn wheel, trim / A/P disconnect / mic
-                  switches), rudder pedals, seats, P18 / P6 circuit breaker
-                  panels, flight deck door
+                  deep at the top so frames merge into the crown), 737 NG
+                  control column (U-shaped wheel from the FCOM wheel detail:
+                  horns rise from a bottom hub, checklist clip in the centre,
+                  trim / A/P disengage / PTT on the outboard horn, memory
+                  device inboard; the wheel group rolls with bank), hanging
+                  rudder pedals with ribbed faces and kick panels, seats,
+                  P6 / P18 circuit breakers on the aft bulkhead, door
+  cockpit-stand.js control stand: body, top plate with slots and scales,
+                  thrust levers (ivory knobs, TO/GA, A/T disengage, reverse
+                  levers), speed brake, flap lever (airfoil knob, gates 1 & 15),
+                  start levers, parking brake, trim wheels + indicators.
+                  Lever angles in degrees, + = forward (SB_ANG, FLAP_ANG);
+                  pose(d) follows the switches and the engines' N1
   viewcube.js     Fusion 360-style navigation cube (CSS 3D, matrix3d from the
                   camera each frame): 3×3 hit zones per face → face / edge /
                   corner views, swung round the target (slerp, never through

@@ -4,31 +4,31 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=14';
-import { createOutside } from './modules/outside.js?v=14';
-import { createViewCube } from './modules/viewcube.js?v=14';
-import { createAirLink } from './modules/airlink.js?v=14';
-import { createQuickRef } from './modules/quickref.js?v=14';
-import { installResumeHardening } from './modules/resume.js?v=14';
-import { createScene } from './modules/scene.js?v=14';
-import { buildAirframe } from './modules/airframe.js?v=14';
-import { createSystems3D } from './modules/systems3d.js?v=14';
-import { createOverlay } from './modules/overlay.js?v=14';
-import { createSheet } from './modules/sheet.js?v=14';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=14';
-import { SYSTEMS, READY } from './modules/systems.js?v=14';
-import { createSearch } from './modules/search.js?v=14';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=14';
-import { createProgress } from './modules/progress.js?v=14';
-import { createLearn } from './modules/learn.js?v=14';
-import { explain } from './modules/cockpit-info.js?v=14';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=14';
-import { createCockpit } from './modules/cockpit.js?v=14';
-import { nav, geo, loadNav } from './modules/navdb.js?v=14';
-import { createFMC } from './modules/fmc.js?v=14';
-import { createCDU } from './modules/cdu.js?v=14';
-import { createCDUView } from './modules/cdu-view.js?v=14';
-import { createFlightSim } from './modules/flightsim.js?v=14';
+import { makeEnv } from './modules/world.js?v=15';
+import { createOutside } from './modules/outside.js?v=15';
+import { createViewCube } from './modules/viewcube.js?v=15';
+import { createAirLink } from './modules/airlink.js?v=15';
+import { createQuickRef } from './modules/quickref.js?v=15';
+import { installResumeHardening } from './modules/resume.js?v=15';
+import { createScene } from './modules/scene.js?v=15';
+import { buildAirframe } from './modules/airframe.js?v=15';
+import { createSystems3D } from './modules/systems3d.js?v=15';
+import { createOverlay } from './modules/overlay.js?v=15';
+import { createSheet } from './modules/sheet.js?v=15';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=15';
+import { SYSTEMS, READY } from './modules/systems.js?v=15';
+import { createSearch } from './modules/search.js?v=15';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=15';
+import { createProgress } from './modules/progress.js?v=15';
+import { createLearn } from './modules/learn.js?v=15';
+import { explain } from './modules/cockpit-info.js?v=15';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=15';
+import { createCockpit } from './modules/cockpit.js?v=15';
+import { nav, geo, loadNav } from './modules/navdb.js?v=15';
+import { createFMC } from './modules/fmc.js?v=15';
+import { createCDU } from './modules/cdu.js?v=15';
+import { createCDUView } from './modules/cdu-view.js?v=15';
+import { createFlightSim } from './modules/flightsim.js?v=15';
 
 const $ = (id) => document.getElementById(id);
 
@@ -445,7 +445,7 @@ function init() {
         return out;
       })(),
       levers: { l1: stateOf('engines').sw.lever1, l2: stateOf('engines').sw.lever2 },
-      flapLever: stateOf('flightcontrols').sw.flap, gearLever: stateOf('gear').sw.lever, sb: stateOf('flightcontrols').sw.sb,
+      flapLever: stateOf('flightcontrols').sw.flap, gearLever: stateOf('gear').sw.lever, park: !!stateOf('gear').sw.park, sb: stateOf('flightcontrols').sw.sb,
       rev: phase === 'landing', fuel: r.fuel?.values, tai: r.antiice?.values.tai, warn: r.warnings?.values, dus: r.instruments?.values.du, capIas: r.instruments?.values.capIas, hyd: r.hydraulics?.values,
       tat: { ground: 18, takeoff: 16, cruise: -32, landing: 12 }[phase], mcp: r.autoflight?.values.lit || new Set(MCP_LIT[phase]),
     };

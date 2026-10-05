@@ -7,11 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=14';
-import { createOverhead } from './overhead.js?v=14';
-import * as CAB from './cockpit-cab.js?v=14';
-import * as D from './cockpit-displays.js?v=14';
-import { drawCDUScreen } from './cdu.js?v=14';
+import * as THREE from '../vendor/three.module.min.js?v=15';
+import { createOverhead } from './overhead.js?v=15';
+import * as CAB from './cockpit-cab.js?v=15';
+import { buildStand } from './cockpit-stand.js?v=15';
+import * as D from './cockpit-displays.js?v=15';
+import { drawCDUScreen } from './cdu.js?v=15';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -229,19 +230,42 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     pickables.push(m);
     screens[id] = { ...ct, draw: drawClock };
   }
-  // Gear lever to the right of the upper DU.
-  const gearBase = add(plate(0.08, 0.16, M.dark, [0.87 + 0.22 * (0.80 - 0.82) - 0.006, 0.80, 0.21], MIP_N));
-  gearBase.userData.pick = { kind: 'lever', name: 'Landing gear lever' };
+  // Gear lever to the right of the upper DU: placard with UP / OFF / DN,
+  // the override trigger, and the wheel-shaped knob on its arm.
+  const gearPick = { kind: 'lever', name: 'Landing gear lever' };
+  {
+    const ct = canvasTex(160, 320), g = ct.g;
+    g.fillStyle = '#26292c'; g.fillRect(0, 0, 160, 320);
+    g.fillStyle = '#0b0c0d'; g.fillRect(70, 70, 20, 180);                 // slot
+    g.fillStyle = '#f0f0f0'; g.font = '700 22px Helvetica, Arial'; g.textAlign = 'right';
+    g.fillText('UP', 62, 160 - 54 + 8); g.fillText('OFF', 62, 160 + 8); g.fillText('DN', 62, 160 + 54 + 8);
+    g.font = '700 13px Helvetica, Arial'; g.textAlign = 'center';
+    g.fillText('LANDING', 80, 30); g.fillText('GEAR', 80, 46);
+    g.textAlign = 'left'; g.fillText('OVRD', 100, 110);
+    g.fillStyle = '#f0f0f0';
+    for (const y of [106, 160, 214]) g.fillRect(64, y - 1, 6, 2);
+    ct.t.needsUpdate = true;
+    const gearBase = add(plate(0.08, 0.16, new THREE.MeshStandardMaterial({ map: ct.t, roughness: 0.7 }), [0.87 + 0.22 * (0.80 - 0.82) - 0.006, 0.80, 0.21], MIP_N));
+    gearBase.userData.pick = gearPick;
+    pickables.push(gearBase);
+  }
   const gearLever = new THREE.Group();
-  gearLever.position.set(0.84, 0.80, 0.21);
+  gearLever.position.set(0.86, 0.80, 0.21);
   add(gearLever);
-  const gstem = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.012), M.metal);
-  gstem.position.x = -0.025;
-  const gwheel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.016, 20), new THREE.MeshStandardMaterial({ color: 0xe9e9e9, roughness: 0.4 }));
-  gwheel.rotation.x = Math.PI / 2; gwheel.position.x = -0.055;
-  gearLever.add(gstem, gwheel);
-  for (const m of [gstem, gwheel]) m.userData.pick = gearBase.userData.pick;
-  pickables.push(gearBase, gstem, gwheel);
+  {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.012, 0.014), M.metal);
+    arm.position.x = -0.045;
+    const white = new THREE.MeshStandardMaterial({ color: 0xececec, roughness: 0.35 });
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.022, 28), white);
+    knob.rotation.x = Math.PI / 2; knob.position.x = -0.095;
+    const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.006, 10, 28), white);
+    tyre.position.x = -0.095;
+    // Override trigger under the arm.
+    const trig = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.008), M.knob);
+    trig.position.set(-0.03, -0.012, 0);
+    gearLever.add(arm, knob, tyre, trig);
+    for (const m of [arm, knob, tyre, trig]) { m.userData.pick = gearPick; pickables.push(m); }
+  }
 
   // ── MCP and EFIS panels on the glareshield ──
   const MCP_N = [-1, 0.32, 0];
@@ -256,16 +280,34 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       screens.mcp = { ...ct, draw: D.drawMCP };
     }
     for (const s of [-1, 1]) {
-      const e = canvasTex(256, 96);
-      e.g.fillStyle = '#c4c8cb'; e.g.fillRect(0, 0, 256, 96);
-      e.g.fillStyle = '#1e1f20'; e.g.font = '700 13px Helvetica, Arial'; e.g.textAlign = 'center';
-      ['MINS', 'MODE', 'CTR', 'RANGE', 'BARO'].forEach((t, i) => {
-        const x = 26 + i * 51;
-        e.g.fillText(t, x, 18);
-        e.g.fillStyle = '#151617'; e.g.beginPath(); e.g.arc(x, 54, 17, 0, 7); e.g.fill(); e.g.fillStyle = '#1e1f20';
-      });
+      // EFIS control panel (FCOM 1.20 glareshield figure): MINS (RADIO /
+      // BARO) with RST, FPV, MTRS, BARO (IN / HPA) with STD, the MODE
+      // selector with CTR, the RANGE selector with TFC, and the map buttons.
+      const e = canvasTex(560, 208), q = e.g;
+      q.fillStyle = '#2b2f33'; q.fillRect(0, 0, 560, 208);
+      q.strokeStyle = '#4a5157'; q.lineWidth = 3; q.strokeRect(3, 3, 554, 202);
+      q.fillStyle = '#f0f0f0'; q.textAlign = 'center';
+      const knob = (x, y, r, outer) => {
+        if (outer) { q.fillStyle = '#4b5258'; q.beginPath(); q.arc(x, y, r + 9, 0, 7); q.fill(); }
+        q.fillStyle = '#121314'; q.beginPath(); q.arc(x, y, r, 0, 7); q.fill();
+        q.fillStyle = '#d0d0d0'; q.fillRect(x - 1.5, y - r, 3, r * 0.6);
+        q.fillStyle = '#f0f0f0';
+      };
+      const btn = (x, y, t) => { q.fillStyle = '#16181a'; q.fillRect(x - 22, y - 11, 44, 22); q.fillStyle = '#f0f0f0'; q.font = '700 11px Helvetica, Arial'; q.fillText(t, x, y + 4); };
+      q.font = '700 13px Helvetica, Arial';
+      q.fillText('MINS', 60, 22); q.fillText('RADIO', 28, 46); q.fillText('BARO', 92, 46); knob(60, 92, 22, true); btn(60, 150, 'RST');
+      q.font = '700 13px Helvetica, Arial'; q.fillText('BARO', 175, 22); q.fillText('IN', 145, 46); q.fillText('HPA', 205, 46); knob(175, 92, 22, true); btn(175, 150, 'STD');
+      btn(118, 186, 'FPV'); btn(232, 186, 'MTRS');
+      q.font = '700 13px Helvetica, Arial'; q.fillText('MODE', 295, 22);
+      q.font = '700 10px Helvetica, Arial'; q.fillText('APP', 262, 52); q.fillText('VOR', 285, 44); q.fillText('MAP', 307, 44); q.fillText('PLN', 330, 52);
+      knob(295, 92, 22, true); btn(295, 150, 'CTR');
+      q.font = '700 13px Helvetica, Arial'; q.fillText('RANGE', 400, 22);
+      q.font = '700 10px Helvetica, Arial'; ['5', '10', '20', '40', '80', '160', '320', '640'].forEach((t, i) => { const a = (-150 + i * 43) * Math.PI / 180; q.fillText(t, 400 + Math.sin(a) * 44, 92 - Math.cos(a) * 44 + 4); });
+      knob(400, 92, 22, true); btn(400, 150, 'TFC');
+      ['WXR', 'STA', 'WPT', 'ARPT'].forEach((t, i) => btn(482 + (i % 2) * 50, 40 + Math.floor(i / 2) * 32, t));
+      ['DATA', 'POS', 'TERR'].forEach((t, i) => btn(482 + (i % 2) * 50, 104 + Math.floor(i / 2) * 32, t));
       e.t.needsUpdate = true;
-      const em = add(plate(0.22, 0.082, new THREE.MeshBasicMaterial({ map: e.t }), [0.745, 1.08, s * 0.74], MCP_N));
+      const em = add(plate(0.22, 0.0817, new THREE.MeshBasicMaterial({ map: e.t }), [0.745, 1.08, s * 0.6], MCP_N));
       em.userData.pick = { kind: 'static', name: `EFIS control panel (${s < 0 ? 'captain' : 'first officer'})` };
       pickables.push(em);
     }
@@ -374,8 +416,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   onMip('instruments', 'Display select (first officer)', 0.99, 0.62, 0.11);
   onMip('warnings', 'GPWS', 0.655, 0.44, 0.13);
   // Glareshield: annunciators outboard, the MCP across the middle.
-  placePanel('warnings', 'Annunciator L', [0.75, 1.08, -0.93], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
-  placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.93], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
+  placePanel('warnings', 'Annunciator L', [0.75, 1.08, -0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
+  placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
   const MCP_UP = [0.32, 1, 0];
   ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.238));
   // Control stand (FCOM 1.20 control stand figure): parking brake aft-left,
@@ -432,10 +474,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   }
 
   // ── Pedestal ──
-  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(0.89, 0.7, 0.36), M.shell));
-  ped.position.set(0.185, 0.35, 0);
-  const fwdPed = add(plate(0.36, 0.36, M.dark, [0.47, 0.71, 0], [-0.25, 1, 0]));
-  fwdPed.userData.pick = { kind: 'static', name: 'Control stand' };
+  const ped = add(new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.7, 0.36), M.shell));
+  ped.position.set(0.01, 0.35, 0);
   {
     const ct = canvasTex(512, 640);
     const g = ct.g;
@@ -482,35 +522,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       ct.t.needsUpdate = true;
     }
   }
-  const levers = {};
-  const leverAt = (name, x, z, len, color, info) => {
-    const piv = new THREE.Group();
-    piv.position.set(x, 0.74, z);
-    add(piv);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.014, len, 0.012), M.metal);
-    arm.position.y = len / 2;
-    const knob = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.06), new THREE.MeshStandardMaterial({ color, roughness: 0.4 }));
-    knob.position.y = len;
-    piv.add(arm, knob);
-    for (const m of [arm, knob]) { m.userData.pick = { kind: 'lever', name, info }; pickables.push(m); }
-    levers[name] = piv;
-    return piv;
-  };
-  leverAt('Thrust lever 1', 0.5, -0.045, 0.2, 0x222222);
-  leverAt('Thrust lever 2', 0.5, 0.045, 0.2, 0x222222);
-  leverAt('Speed brake lever', 0.42, -0.14, 0.16, 0x1d1d1d);
-  leverAt('Flap lever', 0.42, 0.14, 0.16, 0xd9d9d9);
-  leverAt('Start lever 1', 0.31, -0.03, 0.08, 0x1d1d1d);
-  leverAt('Start lever 2', 0.31, 0.03, 0.08, 0x1d1d1d);
-  for (const s of [-1, 1]) {
-    const wheel = add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.04, 36), M.knob));
-    wheel.rotation.x = Math.PI / 2;
-    wheel.position.set(0.44, 0.66, s * 0.2);
-    const stripe = add(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.045), new THREE.MeshBasicMaterial({ color: 0xffffff })));
-    stripe.position.set(0.44, 0.79, s * 0.2);
-    wheel.userData.pick = stripe.userData.pick = { kind: 'lever', name: 'Stabilizer trim wheel' };
-    pickables.push(wheel, stripe);
-  }
+  // Control stand: thrust, speed brake, flap and start levers, trim wheels.
+  const stand = buildStand(add, M, pickables);
 
   // ── Control columns, rudder pedals, seats, circuit breakers ──
   const yokes = [];
@@ -655,15 +668,13 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   /** Levers, yokes and the outside world follow the phase. */
   function pose(d) {
     const ph = d.phase;
-    const tl = { ground: -0.35, takeoff: 0.45, cruise: 0.25, landing: -0.4 }[ph];
-    levers['Thrust lever 1'].rotation.z = tl; levers['Thrust lever 2'].rotation.z = tl;
-    levers['Speed brake lever'].rotation.z = d.sb != null ? [0.25, 0.15, -0.2, -0.6][d.sb] : ph === 'landing' ? -0.6 : 0.25;
-    levers['Flap lever'].rotation.z = d.flapLever != null ? 0.35 - d.flapLever * 0.09 : 0.35;
-    const l1 = d.levers ? d.levers.l1 : d.env.eng1, l2 = d.levers ? d.levers.l2 : d.env.eng2;
-    levers['Start lever 1'].rotation.z = l1 ? 0.3 : -0.4;
-    levers['Start lever 2'].rotation.z = l2 ? 0.3 : -0.4;
-    gearLever.rotation.z = d.gearLever != null ? [0.5, 0, -0.5][d.gearLever] : d.env.gearDown ? -0.5 : 0.5;
-    for (const y of yokes) y.rotation.z = ph === 'takeoff' ? 0.09 : 0;   // pulled back for rotation
+    stand.pose(d);
+    // UP raises the knob, DN lowers it (lever 0 UP · 1 OFF · 2 DN).
+    gearLever.rotation.z = d.gearLever != null ? [-0.31, 0, 0.31][d.gearLever] : d.env.gearDown ? 0.31 : -0.31;
+    // Columns: back for rotation / climb, wheels turned with the bank.
+    const f = d.flight || {};
+    const pull = f.onGround === false ? Math.max(-0.03, Math.min(0.09, (f.pitch - 2) * 0.008)) : ph === 'takeoff' ? 0.09 : 0;
+    for (const y of yokes) { y.rotation.z = pull; y.userData.wheel.rotation.x = ((f.bank || 0) * 0.9 * Math.PI) / 180; }
     // Outside: apron at the gate and on the runway, clouds at altitude.
     const air = d.env.alt > 2000;
     ground.visible = !air;
