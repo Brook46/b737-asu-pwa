@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=17">
+  <link rel="stylesheet" href="app.css?v=18">
 </head>
 <body>
   <div id="stage">
@@ -70,10 +70,27 @@
   </div>
 
   <div class="hud hud-bottom">
+    <div class="cp-sim" id="cp-sim" hidden>
+        <button class="tag tag-btn" id="sim-cdu" title="Open the CDU">CDU</button>
+        <button class="tag tag-btn" id="sim-lineup" title="Line up on the FMC departure runway">LINE UP</button>
+        <button class="tag tag-btn" id="sim-toga" title="TO/GA: start the takeoff">TO/GA</button>
+        <button class="tag tag-btn" id="sim-pause" title="Pause / run">❚❚</button>
+        <span class="seg" id="sim-rate"><button class="tag tag-btn on" data-rate="1">1×</button><button class="tag tag-btn" data-rate="4">4×</button><button class="tag tag-btn" data-rate="16">16×</button><button class="tag tag-btn" data-rate="64">64×</button></span>
+        <span class="seg"><button class="tag tag-btn" id="nd-rng-dn" title="ND range">RNG −</button><button class="tag tag-btn" id="nd-rng-up" title="ND range">RNG +</button></span>
+        <output id="sim-state"></output>
+    </div>
     <div class="seg" id="phases" role="tablist" aria-label="Phase of flight">
       <button class="tag tag-btn on" data-phase="ground">Ground</button><button class="tag tag-btn" data-phase="takeoff">Takeoff</button><button class="tag tag-btn" data-phase="cruise">Cruise</button><button class="tag tag-btn" data-phase="approach">Approach</button><button class="tag tag-btn" data-phase="landing">Landing</button>
     </div>
+    <div id="state-bar" class="state-bar" role="group" aria-label="Airplane state"></div>
     <div id="phase-note" class="phase-note"></div>
+  </div>
+  <div id="cp-info" class="cp-info" hidden>
+    <button class="cp-x" id="cp-info-x" aria-label="Close">✕</button>
+    <div class="cp-t" id="cp-info-t"></div>
+    <div class="cp-pos" id="cp-info-pos"></div>
+    <p id="cp-info-text"></p>
+    <button class="tag tag-btn" id="cp-info-go" hidden>Open page ›</button>
   </div>
 
   <aside id="sheet" class="sheet" aria-live="polite" hidden>
@@ -120,27 +137,11 @@
     </div>
     <div class="cp-hint">Drag to look around · pinch to zoom · tap any switch, light or screen</div>
   </div>
-  <div class="cp-sim" id="cp-sim" hidden>
-      <button class="tag tag-btn" id="sim-cdu" title="Open the CDU">CDU</button>
-      <button class="tag tag-btn" id="sim-lineup" title="Line up on the FMC departure runway">LINE UP</button>
-      <button class="tag tag-btn" id="sim-toga" title="TO/GA: start the takeoff">TO/GA</button>
-      <button class="tag tag-btn" id="sim-pause" title="Pause / run">❚❚</button>
-      <span class="seg" id="sim-rate"><button class="tag tag-btn on" data-rate="1">1×</button><button class="tag tag-btn" data-rate="4">4×</button><button class="tag tag-btn" data-rate="16">16×</button><button class="tag tag-btn" data-rate="64">64×</button></span>
-      <span class="seg"><button class="tag tag-btn" id="nd-rng-dn" title="ND range">RNG −</button><button class="tag tag-btn" id="nd-rng-up" title="ND range">RNG +</button></span>
-      <output id="sim-state"></output>
-    </div>
-  <div id="cp-info" class="cp-info" hidden>
-    <button class="cp-x" id="cp-info-x" aria-label="Close">✕</button>
-    <div class="cp-t" id="cp-info-t"></div>
-    <div class="cp-pos" id="cp-info-pos"></div>
-    <p id="cp-info-text"></p>
-    <button class="tag tag-btn" id="cp-info-go" hidden>Open page ›</button>
-  </div>
 
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=18"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

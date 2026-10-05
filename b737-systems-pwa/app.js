@@ -4,36 +4,40 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=17';
-import { createOutside } from './modules/outside.js?v=17';
-import { createViewCube } from './modules/viewcube.js?v=17';
-import { createAirLink } from './modules/airlink.js?v=17';
-import { createQuickRef } from './modules/quickref.js?v=17';
-import { installResumeHardening } from './modules/resume.js?v=17';
-import { createScene } from './modules/scene.js?v=17';
-import { buildAirframe } from './modules/airframe.js?v=17';
-import { createSystems3D } from './modules/systems3d.js?v=17';
-import { createOverlay } from './modules/overlay.js?v=17';
-import { createSheet } from './modules/sheet.js?v=17';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=17';
-import { SYSTEMS, READY } from './modules/systems.js?v=17';
-import { createSearch } from './modules/search.js?v=17';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=17';
-import { createProgress } from './modules/progress.js?v=17';
-import { createLearn } from './modules/learn.js?v=17';
-import { explain } from './modules/cockpit-info.js?v=17';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=17';
-import { createCockpit } from './modules/cockpit.js?v=17';
-import { nav, geo, loadNav } from './modules/navdb.js?v=17';
-import { createFMC } from './modules/fmc.js?v=17';
-import { createCDU } from './modules/cdu.js?v=17';
-import { createCDUView } from './modules/cdu-view.js?v=17';
-import { createFlightSim } from './modules/flightsim.js?v=17';
+import { makeEnv } from './modules/world.js?v=18';
+import { createOutside } from './modules/outside.js?v=18';
+import { createViewCube } from './modules/viewcube.js?v=18';
+import { createAirLink } from './modules/airlink.js?v=18';
+import { createQuickRef } from './modules/quickref.js?v=18';
+import { installResumeHardening } from './modules/resume.js?v=18';
+import { createScene } from './modules/scene.js?v=18';
+import { buildAirframe } from './modules/airframe.js?v=18';
+import { createSystems3D } from './modules/systems3d.js?v=18';
+import { createOverlay } from './modules/overlay.js?v=18';
+import { createSheet } from './modules/sheet.js?v=18';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=18';
+import { SYSTEMS, READY } from './modules/systems.js?v=18';
+import { createSearch } from './modules/search.js?v=18';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=18';
+import { createProgress } from './modules/progress.js?v=18';
+import { createLearn } from './modules/learn.js?v=18';
+import { explain } from './modules/cockpit-info.js?v=18';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=18';
+import { createCockpit } from './modules/cockpit.js?v=18';
+import { nav, geo, loadNav } from './modules/navdb.js?v=18';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=18';
+import { createCDU } from './modules/cdu.js?v=18';
+import { createCDUView } from './modules/cdu-view.js?v=18';
+import { createFlightSim } from './modules/flightsim.js?v=18';
+import { createStateBar } from './modules/statebar.js?v=18';
+import { engState } from './modules/sys-engines.js?v=18';
 
 const $ = (id) => document.getElementById(id);
 
 // Early module state lives up here, before anything reads it.
 let phase = 'ground';
+let tweak = {};             // state bar: { alt, ias } for the current phase
+let stateBar = null;
 let sysId = null;
 let partId = null;
 let view = '3d';
@@ -212,7 +216,7 @@ function init() {
   const sysOf = (id) => SYSTEMS.find((s) => s.id === id);
   // The phase sets the scene; the real models (engines, electrical,
   // hydraulics, flaps, gear…) say what is actually running — see world.js.
-  const env = () => makeEnv({ PHASES, phase, stateOf, sysOf, flight: sim?.flying ? sim.flight() : null });
+  const env = () => makeEnv({ PHASES, phase, stateOf, sysOf, tweak, flight: sim?.flying ? sim.flight() : null });
   function stateOf(id) {
     if (!states.has(id)) states.set(id, sysOf(id).mod.normal(phase));
     return states.get(id);
@@ -246,6 +250,51 @@ function init() {
     engines: () => { const e = stateOf('engines').mem.e; return e[0].run && e[1].run; },
   });
   let ndRange = 40;
+
+  // ── State bar: the airplane's state for this phase, editable ──
+  const AIR = (e) => e.air, GND = (e) => !e.air;
+  const speedNow = () => tweak.ias ?? (PHASES[phase].env.air ? flightFor(phase).ias : PHASES[phase].env.wheel);
+  const fmtAlt = (a) => (a >= 18000 ? `FL${Math.round(a / 100)}` : `${Math.round(a).toLocaleString('en-US')} FT`);
+  stateBar = createStateBar($('state-bar'), [
+    { key: 'alt', label: 'ALT', kind: 'range', show: AIR, locked: () => sim.flying,
+      range: () => [100, 41000, 100], get: () => (sim.flying ? sim.ac.alt : env().alt), set: (v) => { tweak.alt = v; }, text: (v) => fmtAlt(v) },
+    { key: 'spd', label: 'SPD', kind: 'range', locked: () => sim.flying,
+      range: (e) => (e.air ? [100, 340, 1] : [0, 180, 1]), get: () => (sim.flying ? sim.ac.ias : speedNow()), set: (v) => { tweak.ias = v; },
+      text: (v, e) => {
+        if (!e.air) return `${Math.round(v)} KT GS`;
+        const alt = e.alt || 0, m = tasOf(v, alt) / soundKt(alt);
+        return m > 0.4 ? `${Math.round(v)} KT · M.${String(Math.round(m * 1000)).padStart(3, '0')}` : `${Math.round(v)} KT`;
+      } },
+    { key: 'flap', label: 'FLAPS', kind: 'step', opts: ['UP', '1', '2', '5', '10', '15', '25', '30', '40'],
+      get: () => stateOf('flightcontrols').sw.flap, set: (v) => { stateOf('flightcontrols').sw.flap = v; } },
+    { key: 'gear', label: 'GEAR', kind: 'cycle', opts: ['UP', 'OFF', 'DN'],
+      get: () => stateOf('gear').sw.lever,
+      set: (v) => { if (!env().air && v === 0) v = 1; stateOf('gear').sw.lever = v; } },   // lever lock: no UP on the ground
+    { key: 'sb', label: 'SPEEDBRAKE', kind: 'cycle', opts: ['DOWN', 'ARMED', 'FLT DET', 'UP'],
+      get: () => stateOf('flightcontrols').sw.sb, set: (v) => { stateOf('flightcontrols').sw.sb = v; } },
+    { key: 'ab', label: 'AUTOBRAKE', kind: 'cycle', opts: ['OFF', 'RTO', '1', '2', '3', 'MAX'],
+      get: () => stateOf('gear').sw.ab, set: (v) => { stateOf('gear').sw.ab = v; } },
+    { key: 'park', label: 'PARK BRK', kind: 'toggle', show: GND, text: (v) => (v ? 'SET' : 'OFF'),
+      get: () => !!stateOf('gear').sw.park, set: (v) => { stateOf('gear').sw.park = v ? 1 : 0; } },
+    ...[1, 2].map((i) => ({ key: `eng${i}`, label: `ENG ${i}`, kind: 'toggle', text: (v) => (v ? 'RUN' : 'OFF'),
+      get: () => stateOf('engines').mem.e[i - 1].run,
+      set: (v) => {
+        const st = stateOf('engines');
+        st.sw[`lever${i}`] = v ? 1 : 0;
+        st.mem.e[i - 1] = engState(v, env().air ? phase : 'ground');
+      } })),
+    { key: 'apu', label: 'APU', kind: 'toggle', text: (v) => (v ? 'ON' : 'OFF'),
+      get: () => { const a = stateOf('engines').mem.apu.st; return a === 'running' || a === 'starting'; },
+      set: (v) => {
+        const st = stateOf('engines');
+        st.sw.apu = v ? 1 : 0;
+        if (v) st.mem.apu = { st: 'running', rpm: 100, egt: 400, t: 999 };
+      } },
+    { key: 'gpu', label: 'EXT PWR', kind: 'toggle', show: GND, text: (v) => (v ? 'CONNECTED' : 'OFF'),
+      get: () => !!stateOf('general').sw.gpuCart, set: (v) => { stateOf('general').sw.gpuCart = v ? 1 : 0; } },
+    { key: 'air', label: 'EXT AIR', kind: 'toggle', show: GND, text: (v) => (v ? 'CONNECTED' : 'OFF'),
+      get: () => !!stateOf('general').sw.acCart, set: (v) => { stateOf('general').sw.acCart = v ? 1 : 0; } },
+  ], () => { tweak.edited = true; refresh(); });
   // Load the navigation database once the app is up (it is precached).
   setTimeout(() => loadNav('data/navdb.json').then(() => cduView.render()).catch(() => {}), 1200);
 
@@ -265,8 +314,9 @@ function init() {
       if (inCockpit) cockpit.update(s.id, res);
     }
     if (inCockpit) cockpit.setData(cockpitData(results));
-    const pn = sim.flying ? `${fmc.S.route.origin || ''}–${fmc.S.route.dest || ''} · ${sim.ac.stage} · ${Math.round(sim.ac.ias)} kt · ${Math.round(sim.ac.alt)} ft` : PHASES[phase].note;
+    const pn = sim.flying ? `${fmc.S.route.origin || ''}–${fmc.S.route.dest || ''} · ${sim.ac.stage} · ${Math.round(sim.ac.ias)} kt · ${Math.round(sim.ac.alt)} ft` : PHASES[phase].note + (tweak.edited ? ' · edited' : '');
     $('phase-note').textContent = pn.toUpperCase() + (note ? ' — ' + note : '');
+    stateBar?.update(env());
   }
 
   // ── Systems list / prev-next ──
@@ -345,6 +395,7 @@ function init() {
   function setPhase(p, keepSim = false) {
     if (!keepSim) sim.stop();
     phase = p;
+    tweak = {};
     for (const b of document.querySelectorAll('#phases [data-phase]')) b.classList.toggle('on', b.dataset.phase === p);
     anim.go(p);
     // Each phase starts from its normal configuration; failures you set stay.
@@ -365,6 +416,19 @@ function init() {
   // ── Views: Airplane · Schematic · Split · Cockpit ──
   let cockpit = null;
   const MCP_LIT = { ground: [], takeoff: ['N1'], cruise: ['LNAV', 'VNAV', 'CMD A'], approach: ['SPEED', 'CMD A', 'CMD B'], landing: [] };
+  /** The phase's flight numbers with the state bar's altitude / speed applied. */
+  function phaseFlight() {
+    const f = { ...flightFor(phase) };
+    const air = PHASES[phase].env.air;
+    if (tweak.alt != null && air) f.alt = tweak.alt;
+    if (tweak.ias != null) {
+      f.ias = tweak.ias;
+      f.tas = air ? tasOf(f.ias, f.alt) : f.ias;
+      f.gs = f.tas;
+      f.mach = f.tas / soundKt(f.alt);
+    } else if (tweak.alt != null && air) { f.tas = tasOf(f.ias, f.alt); f.gs = f.tas; f.mach = f.tas / soundKt(f.alt); }
+    return f;
+  }
   /** What the ND MAP draws: the airplane, the FMC route, runways, T/C, T/D. */
   function navData() {
     if (!nav.ready) return null;
@@ -421,7 +485,7 @@ function init() {
       phase, env: e, nav: navData(), mcpHdg: r.autoflight?.values.fma?.[1] === 'HDG SEL' ? r.autoflight.values.hdg : null,
       flight: (() => {
         const sf = sim.flying ? sim.flight() : null;
-        const f = sf ? { ...flightFor('cruise'), ...sf } : flightFor(phase), af = r.autoflight?.values;
+        const f = sf ? { ...flightFor('cruise'), ...sf } : phaseFlight(), af = r.autoflight?.values;
         if (sf && af) {
           const vnav = af.fma[2]?.startsWith('VNAV');
           f.spdTgt = vnav ? null : af.spd;
@@ -599,7 +663,7 @@ function init() {
     {
       const gen = stateOf('general'), e = PHASES[phase].env;
       outside.update(dt, {
-        phase, air: sim.flying ? !sim.ac.onGround : e.air, tas: sim.flying ? sim.ac.tas : flightFor(phase).tas, lights: show.lights ? gen.sw : {}, gpu: gen.sw.gpuCart, pca: gen.sw.acCart,
+        phase, air: sim.flying ? !sim.ac.onGround : e.air, tas: sim.flying ? sim.ac.tas : phaseFlight().tas, lights: show.lights ? gen.sw : {}, gpu: gen.sw.gpuCart, pca: gen.sw.acCart,
         airflow: show.airflow, crew: show.crew,
         gearDown: (states.get('gear')?.mem.pos ?? 1) > 0.5,
       });

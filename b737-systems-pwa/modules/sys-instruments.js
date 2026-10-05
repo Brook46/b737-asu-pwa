@@ -2,7 +2,7 @@
 // our own words. Display switching is live: fail a DU or a DEU, or turn a
 // selector, and the six screens in the 3D cockpit change format.
 
-import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=17';
+import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=18';
 
 const C = '#8338ec', AIRC = '#4dabf7';
 export const DUS = ['capOut', 'capIn', 'upper', 'lower', 'foIn', 'foOut'];
@@ -135,7 +135,7 @@ export default {
     if (!deu1 && !deu2) for (const k of DUS) du[k] = 'X';
     const srcAnn = !single ? '' : deu1 ? 'DSPLY SOURCE 1' : deu2 ? 'DSPLY SOURCE 2' : '';
     // Air data: each side from its own pitot; standby from the auxiliary.
-    const ias = IAS[env.phase] || 0;
+    const ias = env.ias ?? (env.air ? IAS[env.phase] : env.wheel) ?? 0;
     const antiice = env.resOf?.('antiice');
     const iced = !!(antiice?.lights.captPitot && env.air && antiice.values.icing);
     const capBad = !!f.capPitot || iced;

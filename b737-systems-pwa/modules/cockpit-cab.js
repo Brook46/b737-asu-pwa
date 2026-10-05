@@ -10,7 +10,7 @@
 //               side, P6 first officer side), drawn as textures.
 // Cockpit frame: metres, +x forward, +y up, +z right; captain at z −0.52.
 
-import * as THREE from '../vendor/three.module.min.js?v=17';
+import * as THREE from '../vendor/three.module.min.js?v=18';
 
 const V = (a) => new THREE.Vector3(...a);
 

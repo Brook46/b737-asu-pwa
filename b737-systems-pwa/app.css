@@ -695,8 +695,32 @@ body.view-cockpit .vignette { display: none; }
 .cdu-k.al { border-radius: 4px; }
 .cdu-k.al.sm { font-size: 8px; }
 /* Flight sim controls in the cockpit bar. */
-.cp-sim { position: fixed; z-index: 21; left: 50%; transform: translateX(-50%); bottom: calc(76px + var(--safe-b));
+.cp-sim {
   display: flex; flex-wrap: wrap; gap: 3px; align-items: center; justify-content: center; max-width: 96vw; }
 .cp-sim[hidden] { display: none; }
 .cp-sim .tag { padding: 5px 7px; font-size: 11px; letter-spacing: .08em; }
 .cp-sim output { font: 600 10px var(--mono); letter-spacing: .08em; color: #fff; background: rgba(0,0,0,.55); padding: 4px 6px; }
+
+/* ── State bar under the phases: the airplane's state, editable ── */
+.state-bar {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: min(980px, 96vw);
+}
+.sb-item { display: inline-flex; align-items: center; gap: 4px; background: var(--tag-off); color: var(--tag-off-fg);
+  font: 500 10px/1 var(--mono); letter-spacing: .08em; padding: 3px 4px 3px 7px; }
+.sb-item[hidden] { display: none; }
+.sb-l { opacity: .7; }
+.sb-item output { min-width: 3.2em; text-align: center; font-weight: 700; color: var(--tag-fg-strong, inherit); }
+.sb-range output { min-width: 7.5em; }
+.sb-v, .sb-b { font: 700 10px/1 var(--mono); letter-spacing: .06em; border: 0; cursor: pointer; padding: 4px 6px;
+  background: var(--tag-bg); color: var(--tag-fg); }
+.sb-b { padding: 4px 7px; }
+.sb-item.on .sb-v { background: #2f9e44; color: #fff; }
+.sb-item input[type=range] { width: 110px; accent-color: var(--tag-bg); }
+.sb-item input[type=range]:disabled { opacity: .4; }
+@media (max-width: 760px) {
+  .state-bar { max-width: 98vw; gap: 2px; }
+  .sb-item { padding: 2px 3px 2px 5px; font-size: 9px; letter-spacing: .04em; }
+  .sb-v, .sb-b { font-size: 9px; padding: 3px 5px; }
+  .sb-range output { min-width: 5.6em; }
+  .sb-item input[type=range] { width: 64px; }
+}

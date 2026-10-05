@@ -242,6 +242,17 @@ labelled "not for operational use" on the CDU.
   pedestal; tapping one opens the keypad.
 - Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
 
+## State bar (v18)
+
+Under the phase buttons, `statebar.js` shows the airplane's state for the
+phase and lets you change it: ALT / SPD sliders (stored in app.js `tweak`,
+applied by `makeEnv({ tweak })` and `phaseFlight()` for the displays; reset
+on a phase change), flaps, gear (lever lock: no UP on the ground), speed
+brake, autobrake, parking brake, engines (instant RUN/OFF via `engState`),
+APU, external power and air carts — each writes the same system state the
+panels do. In the cockpit view the sim controls stack above it in the same
+bottom column. While the flight sim flies, ALT / SPD are read-only.
+
 ## Voice
 
 speech.js ranks installed voices (Premium / Natural / Enhanced first, novelty
