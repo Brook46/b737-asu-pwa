@@ -1,8 +1,8 @@
 // schem-engines.js — engine start / APU schematic, with the ENGINE START,
 // APU and engine (EEC) panels and the start levers.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=20';
-import { createOverhead } from './overhead.js?v=20';
+import { createSchematic, createPanel } from './schem-kit.js?v=21';
+import { createOverhead } from './overhead.js?v=21';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#f5a300', APUC = '#e8590c';
 
@@ -81,12 +81,16 @@ export function panels(O, ctx) {
   A.lamp(98, 18, 50, 18, 'LOW OIL\nPRESSURE', 'apuLowOil');
   A.lamp(150, 18, 50, 18, 'FAULT', 'apuFault');
   A.lamp(202, 18, 50, 18, 'OVER\nSPEED', 'apuOverspeed');
-  A.dial(110, 76, 30, {
+  A.dial(150, 76, 30, {
     scales: [{ pts: [[0, 125], [10, 360]], ticks: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => [v, v % 2 ? 0.1 : 0.18, v % 2 ? 0.8 : 1.3]),
       labels: [[0, '0'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], lr: 0.64, lfs: 7.5 }],
     texts: [[-0.05, 0.42, 'EGT', 6]], hub: 0.22, needles: [{ fn: (r) => r.values.apuEgt / 100, len: 0.82, w: 2.4 }],
   });
-  A.toggle(212, 78, 'apu', ['OFF', 'ON', 'START'], { momentary: [2], name: 'APU', nameBox: false });
+  // The APU switch itself sits in the lights row at the front of the
+  // overhead, between the landing lights and ENGINE START.
+  const AS = O.panel('APU switch', 104, { w: 100 });
+  AS.text(50, 14, 'APU', { size: 8 });
+  AS.toggle(50, 56, 'apu', ['OFF', 'ON', 'START'], { momentary: [2] });
 
   const E = O.panel('Engine panel', 104);
   E.text(150, 14, 'ENGINE', { size: 8.5 });

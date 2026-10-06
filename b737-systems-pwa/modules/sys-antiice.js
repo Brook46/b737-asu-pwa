@@ -1,6 +1,6 @@
 // sys-antiice.js — FCOM chapter 3, anti-ice and rain, in our own words.
 
-import { engPoint, wingLE, wingChord, wingY, ENG, YC } from './airframe.js?v=20';
+import { engPoint, wingLE, wingChord, wingY, ENG, YC } from './airframe.js?v=21';
 
 const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#f5a300';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];

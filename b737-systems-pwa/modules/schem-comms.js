@@ -2,9 +2,9 @@
 // radios, interphones, PA; with the audio control panel, radio tuning panel
 // and the calls / voice recorder panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=20';
-import { createOverhead } from './overhead.js?v=20';
-import { MICS, RXS } from './sys-comms.js?v=20';
+import { createSchematic, createPanel } from './schem-kit.js?v=21';
+import { createOverhead } from './overhead.js?v=21';
+import { MICS, RXS } from './sys-comms.js?v=21';
 
 const C = '#00a6a6', RX = '#66d9e8';
 
@@ -62,12 +62,20 @@ export function panels(O, ctx) {
   R.text(60, 50, 'ACTIVE', { size: 6.5 }); R.text(240, 50, 'STANDBY', { size: 6.5 });
   R.push(150, 30, () => ctx.action('tfr'), { name: 'TFR', bottom: 'TFR' });
   R.knob(270, 48, 'stbyTune', ['', ''], [0, 0], { action: true, noLabels: true, r: 7 });
-  const V = O.panel('Calls and voice recorder', 64);
-  V.lamp(14, 10, 44, 18, 'CALL', 'callFd', 'blue');
-  V.push(90, 22, () => ctx.action('attend'), { bottom: 'ATTEND', name: 'ATTEND' });
-  V.push(130, 22, () => ctx.action('grdCall'), { bottom: 'GRD CALL', name: 'GRD CALL' });
-  V.toggle(180, 32, 'cvr', ['AUTO', 'ON'], { name: 'VOICE REC', nameBox: false });
-  V.lamp(214, 10, 36, 14, 'STATUS', 'cvrStatus', 'green');
-  V.push(270, 22, () => ctx.action('cvrTest'), { bottom: 'TEST', name: 'CVR TEST' });
-  V.toggle(240, 48, 'svcInt', ['OFF', 'ON'], { horizontal: true, name: 'SERV INT' });
+  // Flight attendant / ground crew calls (narrow centre column of the overhead).
+  const V = O.panel('Calls', 70, { w: 150 });
+  V.lamp(53, 6, 44, 15, 'CALL', 'callFd', 'blue');
+  V.push(40, 42, () => ctx.action('attend'), { bottom: 'ATTEND', name: 'ATTEND' });
+  V.push(110, 42, () => ctx.action('grdCall'), { bottom: 'GRD CALL', name: 'GRD CALL' });
+  // Cockpit voice recorder (4th column of the forward overhead).
+  const CV = O.panel('Voice recorder', 70);
+  CV.text(150, 12, 'COCKPIT VOICE RECORDER', { size: 6.8 });
+  CV.lamp(30, 26, 44, 16, 'STATUS', 'cvrStatus', 'green');
+  CV.push(120, 34, null, { bottom: 'ERASE', name: 'CVR ERASE' });
+  CV.push(170, 34, () => ctx.action('cvrTest'), { bottom: 'TEST', name: 'CVR TEST' });
+  CV.toggle(240, 36, 'cvr', ['AUTO', 'ON'], { name: 'VOICE REC', nameBox: false });
+  // Service interphone (aft overhead).
+  const SI = O.panel('Service interphone', 76, { w: 150 });
+  SI.text(75, 14, 'SERVICE\nINTERPHONE', { size: 6.8 });
+  SI.toggle(75, 50, 'svcInt', ['OFF', 'ON'], {});
 }

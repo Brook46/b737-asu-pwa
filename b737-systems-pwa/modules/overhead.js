@@ -91,13 +91,17 @@ export function createOverhead(host, ctx) {
     const id = ++uid;
     const wrap = document.createElement('div');
     wrap.className = 'ovh-wrap';
-    const svg = el('svg', { viewBox: `0 0 300 ${h}`, class: 'ovh', role: 'group', 'aria-label': title });
+    // o.w: panel width in units (300 = a full overhead column; the narrow
+    // centre column of the forward overhead is 150).
+    const W = o.w || 300;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${h}`, class: 'ovh', role: 'group', 'aria-label': title });
+    if (W !== 300) svg.style.maxWidth = `${(W / 300) * 100}%`;
     wrap.append(svg);
     host.append(wrap);
     svg.setAttribute('xmlns', NS);
     defs(svg, id);
     el('style', {}, svg).textContent = STYLE;
-    const bgRect = el('rect', { x: 0, y: 0, width: 300, height: h, rx: o.seamless ? 0 : 3, class: 'ovh-bg' }, svg);
+    const bgRect = el('rect', { x: 0, y: 0, width: W, height: h, rx: o.seamless ? 0 : 3, class: 'ovh-bg' }, svg);
     // o.bg: panel colour (control-stand panels are black, the MCP darker grey).
     if (o.bg) bgRect.style.fill = o.bg;
     // o.seamless: sections of one long panel (the MCP) — no outline; screws
@@ -105,7 +109,7 @@ export function createOverhead(host, ctx) {
     if (o.seamless) bgRect.style.stroke = 'none';
     const controls = [];
     // Corner screws (Dzus fasteners).
-    const screws = o.screws === 'none' ? [] : o.screws === 'left' ? [[8, 8], [8, h - 8]] : o.screws === 'right' ? [[292, 8], [292, h - 8]] : [[8, 8], [292, 8], [8, h - 8], [292, h - 8]];
+    const screws = o.screws === 'none' ? [] : o.screws === 'left' ? [[8, 8], [8, h - 8]] : o.screws === 'right' ? [[W - 8, 8], [W - 8, h - 8]] : [[8, 8], [W - 8, 8], [8, h - 8], [W - 8, h - 8]];
     for (const [x, y] of screws) {
       el('circle', { cx: x, cy: y, r: 3, fill: '#4b5156', stroke: '#2b2f33' }, svg);
       el('line', { x1: x - 2, y1: y, x2: x + 2, y2: y, stroke: '#2b2f33', 'stroke-width': 1 }, svg);
@@ -113,8 +117,8 @@ export function createOverhead(host, ctx) {
     const layers = { base: el('g', {}, svg), lines: el('g', {}, svg), parts: el('g', {}, svg) };
 
     const P = {
-      svg, title, h, controls,
-      band(y, hh) { el('rect', { x: 0, y, width: 300, height: hh, class: 'ovh-band' }, layers.base); },
+      svg, title, h, w: W, controls,
+      band(y, hh) { el('rect', { x: 0, y, width: W, height: hh, class: 'ovh-band' }, layers.base); },
       /** White mimic line. */
       line(points, w = 2.4) {
         el('path', { d: 'M' + points.map((p) => p.join(',')).join(' L'), class: 'ovh-line', 'stroke-width': w }, layers.lines);

@@ -238,9 +238,28 @@ labelled "not for operational use" on the CDU.
   buttons stop the sim. ND MAP (`navData()` in app.js → `drawND`) is track
   up with the route, waypoints, runways, T/C, T/D, VNAV deviation; PFD has
   bank, speed / altitude bugs, V1/VR, RA. Cockpit bar: CDU · LINE UP ·
-  TO/GA · pause · 1–64× · ND range. The 3D CDUs sit at the front of the aft
-  pedestal; tapping one opens the keypad.
+  TO/GA · pause · 1–64× · ND range. The 3D CDUs sit on the forward electronic
+  panel beside the lower DU; tapping one opens the keypad.
 - Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
+
+## Layout true to the airplane (v21)
+
+Checked against the FCOM 1.20 panel figures and reference photos of a 737 NG
+flight deck (photos are reference only — never copy their artwork):
+- Forward overhead: five columns, the centre one narrow (panel `w: 150`,
+  0.11 m): panel lights, equip cooling, exit lights / signs, calls, wipers.
+  Door lights and the CVR in column 4. `null` in a COLUMNS list is the blank
+  plate that takes the slack, so each column's last panel sits at the front
+  edge. Front row: lights L · APU switch · ENGINE START · lights R.
+- Aft overhead (AFTOV_COLS, front → aft): blank (LE devices / ELT position),
+  IRS, service interphone, oxygen / ENGINE (reverser, EEC) / observer ACP,
+  warning tests.
+- CDUs on the forward electronic panel either side of the lower DU (FCOM
+  1.20.28); the control stand's nose slopes down under them. The aft
+  electronic panel starts right behind the stand with the fire panel; blank
+  units fill each column to its end.
+- Panel kit: `panel(title, h, { w })` for non-300-unit panels; cockpit maps
+  taps and textures with `P.w`.
 
 ## Look of the overhead / MCP, seats (v20)
 

@@ -1,9 +1,9 @@
 // schem-antiice.js — thermal (bleed) and electric anti-ice schematic, with
 // the window heat, probe heat, wing / engine anti-ice and wiper panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=20';
-import { createOverhead } from './overhead.js?v=20';
-import { PROBES } from './sys-antiice.js?v=20';
+import { createSchematic, createPanel } from './schem-kit.js?v=21';
+import { createOverhead } from './overhead.js?v=21';
+import { PROBES } from './sys-antiice.js?v=21';
 
 const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#f5a300';
 
@@ -93,10 +93,11 @@ export function panels(O, ctx) {
   AI.lamp(240, 32, 40, 14, 'COWL VALVE\nOPEN', 'cowlOpen2', 'blue');
   AI.toggle(190, 80, 'eng1', ['OFF', 'ON'], { name: '1', nameBox: false });
   AI.toggle(260, 80, 'eng2', ['OFF', 'ON'], { name: '2', nameBox: false });
-  const WP = O.panel('Wipers', 74);
-  WP.knob(60, 38, 'wiperL', ['PARK', 'INT', 'LOW', 'HIGH'], [-60, -20, 20, 60], { name: 'L WIPER' });
-  WP.knob(240, 38, 'wiperR', ['PARK', 'INT', 'LOW', 'HIGH'], [-60, -20, 20, 60], { name: 'R WIPER' });
-  WP.text(150, 44, 'WINDSHIELD', { size: 8 });
+  // Windshield wipers, bottom of the narrow centre column.
+  const WP = O.panel('Wipers', 150, { w: 150 });
+  WP.text(75, 12, 'WINDSHIELD WIPER', { size: 6.2 });
+  WP.knob(75, 50, 'wiperL', ['PARK', 'INT', 'LOW', 'HIGH'], [-60, -20, 20, 60], { name: 'L', nameDy: 18 });
+  WP.knob(75, 118, 'wiperR', ['PARK', 'INT', 'LOW', 'HIGH'], [-60, -20, 20, 60], { name: 'R', nameDy: 18 });
   // Icing advisory lights (left forward panel), press to cancel.
   const IC = O.panel('Icing advisory', 40);
   IC.lamp(60, 10, 70, 20, 'ICING', 'icing');

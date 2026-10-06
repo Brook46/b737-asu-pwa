@@ -8,12 +8,12 @@
 // Lever angles are in degrees, + = forward. pose(d) drives them from the
 // switch states (and the flight sim's thrust).
 
-import * as THREE from '../vendor/three.module.min.js?v=20';
+import * as THREE from '../vendor/three.module.min.js?v=21';
 
 const D2R = Math.PI / 180;
 // Top surface of the stand: y = TOP(x), sloping up toward the front.
 const TOP = (x) => 0.71 + 0.25 * (x - 0.47);
-const X0 = 0.28, X1 = 0.66, HALF = 0.17;            // aft, front, half width
+const X0 = 0.28, X1 = 0.6, HALF = 0.17;             // aft, front of the lever top, half width
 // Lever detents (degrees).
 export const SB_ANG = [26, 21, -6, -32];             // DOWN · ARMED · FLIGHT DETENT · UP
 export const FLAP_ANG = [28, 22, 16, 9, 2, -5, -13, -21, -29];   // UP 1 2 5 10 15 25 30 40
@@ -48,7 +48,9 @@ export function buildStand(add, M, pickables) {
   // ── Body: side profile extruded across ──
   const prof = new THREE.Shape();
   prof.moveTo(X0, 0); prof.lineTo(X0, TOP(X0) - 0.004); prof.lineTo(X1, TOP(X1) - 0.004);
-  prof.lineTo(X1 + 0.05, TOP(X1) - 0.03); prof.lineTo(X1 + 0.08, 0.45); prof.lineTo(X1 + 0.08, 0);
+  // The nose of the stand slopes down under the forward electronic panel,
+  // so the CDUs and the lower DU stay in view above it.
+  prof.lineTo(X1 + 0.14, 0.42); prof.lineTo(X1 + 0.14, 0);
   const bodyGeo = new THREE.ExtrudeGeometry(prof, { depth: HALF * 2, bevelEnabled: false });
   bodyGeo.translate(0, 0, -HALF);
   reg(add(new THREE.Mesh(bodyGeo, body)), standPick);
@@ -190,7 +192,7 @@ export function buildStand(add, M, pickables) {
     q.fillText('APL', 6, 14); q.fillText('NOSE DN', 2, 252);
     ind.t.needsUpdate = true;
     const im = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.12), new THREE.MeshStandardMaterial({ map: ind.t, roughness: 0.6 }));
-    im.position.set(0.6, TOP(0.6) - 0.075, s * (HALF + 0.001));
+    im.position.set(0.56, TOP(0.56) - 0.075, s * (HALF + 0.001));
     im.rotation.y = s < 0 ? Math.PI : 0;
     add(im); reg(im, { kind: 'static', name: 'Stabilizer trim indicator' });
   }

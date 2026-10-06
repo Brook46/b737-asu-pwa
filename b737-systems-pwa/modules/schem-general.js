@@ -1,9 +1,9 @@
 // schem-general.js — lights, signs, emergency lighting, doors and oxygen at
 // a glance, with the lights, signs, oxygen, door and flight deck door panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=20';
-import { createOverhead } from './overhead.js?v=20';
-import { DOORS } from './sys-general.js?v=20';
+import { createSchematic, createPanel } from './schem-kit.js?v=21';
+import { createOverhead } from './overhead.js?v=21';
+import { DOORS } from './sys-general.js?v=21';
 
 const C = '#6b7280', LT = '#fab005';
 const EXT = [['llL', 'L LANDING'], ['llR', 'R LANDING'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY TURNOFF'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLLISION'], ['wingLt', 'WING'], ['wwLt', 'WHEEL WELL']];
@@ -75,22 +75,34 @@ export function panels(O, ctx) {
   R.text(268, 12, 'WHEEL\nWELL', { size: 6 });
   R.toggle(268, 46, 'wwLt', ['OFF', 'ON'], {});
 
-  // Equipment cooling (centre column of the overhead).
-  const Q = O.panel('Equipment cooling', 80);
-  Q.text(150, 12, 'EQUIP COOLING', { size: 7.5 });
-  Q.toggle(100, 40, 'coolSup', ['NORMAL', 'ALTERNATE'], { labels: 'left' });
-  Q.toggle(200, 40, 'coolExh', ['NORMAL', 'ALTERNATE'], {});
-  Q.text(100, 76, 'SUPPLY', { size: 6 }); Q.text(200, 76, 'EXHAUST', { size: 6 });
-  Q.lamp(126, 30, 22, 12, 'OFF', 'coolOffSup'); Q.lamp(152, 30, 22, 12, 'OFF', 'coolOffExh');
+  // ── The narrow centre column of the forward overhead (150 units wide) ──
+  // Panel light dimmers at the top (circuit breaker and panel brightness).
+  const PL = O.panel('Panel lights', 118, { w: 150 });
+  PL.text(75, 14, 'CIRCUIT BREAKER', { size: 6.5 });
+  PL.knob(75, 40, 'cbLt', ['OFF', 'BRIGHT'], [-120, 120], { inert: true, inertPos: 1, r: 12, noLabels: true });
+  PL.text(36, 58, 'OFF', { size: 5.5 }); PL.text(110, 28, 'BRIGHT', { size: 5.5 });
+  PL.text(75, 74, 'PANEL', { size: 6.5 });
+  PL.knob(75, 98, 'panelLt', ['OFF', 'BRIGHT'], [-120, 120], { inert: true, inertPos: 1, r: 12, noLabels: true });
+  PL.text(36, 114, 'OFF', { size: 5.5 }); PL.text(110, 86, 'BRIGHT', { size: 5.5 });
+
+  // Equipment cooling.
+  const Q = O.panel('Equipment cooling', 96, { w: 150 });
+  Q.text(75, 12, 'EQUIP COOLING', { size: 7 });
+  Q.text(40, 24, 'SUPPLY', { size: 6 }); Q.text(110, 24, 'EXHAUST', { size: 6 });
+  Q.toggle(40, 50, 'coolSup', ['NORMAL', 'ALTERNATE'], { noLabels: true });
+  Q.toggle(110, 50, 'coolExh', ['NORMAL', 'ALTERNATE'], { noLabels: true });
+  Q.text(75, 38, 'NORMAL', { size: 5.5 }); Q.text(75, 66, 'ALTERNATE', { size: 5.5 });
+  Q.lamp(26, 76, 28, 13, 'OFF', 'coolOffSup'); Q.lamp(96, 76, 28, 13, 'OFF', 'coolOffExh');
 
   // Emergency exit lights and passenger signs.
-  const E = O.panel('Cabin signs and equipment cooling', 104);
-  E.text(150, 12, 'EMER EXIT LIGHTS', { size: 7.5 });
-  E.lamp(104, 20, 14, 38, 'N\nO\nT\n\nA\nR\nM\nE\nD', 'exitNotArmed');
-  E.toggle(150, 40, 'exitLt', ['OFF', 'ARMED', 'ON'], { guard: 'black', guardPos: 1 });
-  E.text(120, 72, 'NO\nSMOKING', { size: 6 }); E.text(180, 72, 'FASTEN\nBELTS', { size: 6 });
-  E.toggle(120, 92, 'smoke', ['OFF', 'AUTO', 'ON'], { labels: 'left' });
-  E.toggle(180, 92, 'belts', ['OFF', 'AUTO', 'ON'], {});
+  const E = O.panel('Cabin signs and equipment cooling', 132, { w: 150 });
+  E.text(75, 12, 'EMER EXIT LIGHTS', { size: 6.8 });
+  E.lamp(20, 20, 16, 44, 'N\nO\nT\n\nA\nR\nM\nE\nD', 'exitNotArmed');
+  E.toggle(70, 42, 'exitLt', ['OFF', 'ARMED', 'ON'], { guard: 'black', guardPos: 1 });
+  E.text(40, 84, 'NO\nSMOKING', { size: 5.8 }); E.text(110, 84, 'FASTEN\nBELTS', { size: 5.8 });
+  E.toggle(40, 112, 'smoke', ['OFF', 'AUTO', 'ON'], { noLabels: true });
+  E.toggle(110, 112, 'belts', ['OFF', 'AUTO', 'ON'], { noLabels: true });
+  E.text(75, 102, 'OFF', { size: 5.2 }); E.text(75, 114, 'AUTO', { size: 5.2 }); E.text(75, 126, 'ON', { size: 5.2 });
   const X = O.panel('Oxygen', 84);
   X.text(60, 10, 'CREW OXYGEN', { size: 6.5 }); X.text(230, 10, 'PASS OXYGEN', { size: 6.5 });
   X.dial(60, 46, 26, {
