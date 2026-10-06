@@ -2,7 +2,7 @@
 // signs, emergency lighting, doors, oxygen and the flight deck door, in our
 // own words. Exterior lights show on the 3D airplane.
 
-import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=24';
+import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=25';
 
 const C = '#6b7280';
 const FD_DOOR_X = 15.0;      // flight deck door, just aft of the flight deck
@@ -100,7 +100,7 @@ export default {
       related: ['doors'],
     },
     {
-      id: 'dimensions', name: 'Dimensions', at: [0, YC + 2.2, 0], zoom: 60,
+      id: 'dimensions', name: 'Dimensions', at: [0, 0, 0], zoom: 62, dir: [0.05, 1, 0.12],
       lead: 'The principal dimensions of the two models in the fleet, both with winglets. Wingspan, tailplane span, main gear track and height are the same; the -900ER is 2.64 m (8 ft 8 in) longer, most of it between the gears.',
       how: [
         '**737-800W:** overall length 39.47 m (129 ft 6 in), body 38.02 m (124 ft 9 in), wheelbase (nose gear to main gear) 15.60 m (51 ft 2 in).',
@@ -119,7 +119,7 @@ export default {
       related: ['turning', 'doors'],
     },
     {
-      id: 'turning', name: 'Turning radius & ground manoeuvring', at: [NLG.x, YC - 1.6, 0], zoom: 40,
+      id: 'turning', name: 'Turning radius & ground manoeuvring', at: [-2.9, 0, -4], zoom: 88, dir: [0.05, 1, 0.12],
       lead: 'In a tight turn the wingtip sweeps the widest arc and sets the obstacle clearance — everything else stays inside it. The figures assume the effective steering angle of 75°, a slow continuous turn on minimum thrust and no differential braking.',
       how: [
         '**Steering:** the tiller turns the nose wheel up to 78° each way; the rudder pedals up to 7°. The turning-radius figures use an effective steering angle of 75°.',

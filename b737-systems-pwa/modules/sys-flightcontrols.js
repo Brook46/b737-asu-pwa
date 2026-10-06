@@ -2,7 +2,7 @@
 // speedbrake state here drives the 3D airplane: move the FLAP lever and the
 // flaps run (on system B, or electrically with alternate flaps).
 
-import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=24';
+import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=25';
 
 const C = '#3a86ff', CAB = '#adb5bd', DRV = '#fab005';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];

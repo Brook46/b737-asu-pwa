@@ -1,9 +1,9 @@
 // schem-general.js — lights, signs, emergency lighting, doors and oxygen at
 // a glance, with the lights, signs, oxygen, door and flight deck door panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=24';
-import { createOverhead } from './overhead.js?v=24';
-import { DOORS } from './sys-general.js?v=24';
+import { createSchematic, createPanel } from './schem-kit.js?v=25';
+import { createOverhead } from './overhead.js?v=25';
+import { DOORS } from './sys-general.js?v=25';
 
 const C = '#6b7280', LT = '#fab005';
 const EXT = [['llL', 'L LANDING'], ['llR', 'R LANDING'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY TURNOFF'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLLISION'], ['wingLt', 'WING'], ['wwLt', 'WHEEL WELL']];

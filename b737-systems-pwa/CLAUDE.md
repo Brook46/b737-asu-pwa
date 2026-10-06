@@ -272,6 +272,21 @@ flight deck (photos are reference only — never copy their artwork):
   buttons, push-lights, MCP keys, caps and fire handles, a `bevel${id}` sheen
   on keys / caps / lamps, and a bezel round every annunciator.
 
+## Dimension drawings (v25)
+
+`dims.js`: drafting-style dimensions on the floor around the 3D airplane —
+length, wingspan, tailplane span, gear track, wheelbase (flat text, read from
+the top view) and the height as a standing dimension (sprite, read from the
+side view); a second drawing of the minimum-radius turn (FCOM 1.10:
+centre on the main gear axle line at 15.6 m ÷ tan 75° inside, circles with
+the FCOM nose / wingtip / tail radii, 180° pavement note). Extents come
+from `airframe.skin` only (light beams hang off the airframe root). Shown on
+the ground from the Show menu (Dimensions / Turning radius) or while the
+Airplane General Dimensions / Turning pages are open (those pages fly to a
+top view: part `dir`). Labels use the -800 figures. Note the model's gear
+sits ~2.9 m aft of the real one, so the turn drawing is built from the FCOM
+numbers, not the model's gear.
+
 ## 3D switches, system links (v24)
 
 - Every unguarded toggle, every knob and push button on a cockpit panel is

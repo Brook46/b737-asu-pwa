@@ -4,34 +4,35 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=24';
-import { createOutside } from './modules/outside.js?v=24';
-import { createViewCube } from './modules/viewcube.js?v=24';
-import { createAirLink } from './modules/airlink.js?v=24';
-import { createQuickRef } from './modules/quickref.js?v=24';
-import { installResumeHardening } from './modules/resume.js?v=24';
-import { createScene } from './modules/scene.js?v=24';
-import { buildAirframe } from './modules/airframe.js?v=24';
-import { createSystems3D } from './modules/systems3d.js?v=24';
-import { createOverlay } from './modules/overlay.js?v=24';
-import { createSheet } from './modules/sheet.js?v=24';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=24';
-import { SYSTEMS, READY } from './modules/systems.js?v=24';
-import { createSearch } from './modules/search.js?v=24';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=24';
-import { createProgress } from './modules/progress.js?v=24';
-import { createLearn } from './modules/learn.js?v=24';
-import { explain } from './modules/cockpit-info.js?v=24';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=24';
-import { createCockpit } from './modules/cockpit.js?v=24';
-import { nav, geo, loadNav } from './modules/navdb.js?v=24';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=24';
-import { createCDU } from './modules/cdu.js?v=24';
-import { createCDUView } from './modules/cdu-view.js?v=24';
-import { createFlightSim } from './modules/flightsim.js?v=24';
-import { createStateBar } from './modules/statebar.js?v=24';
-import { createPanelViewer } from './modules/panelview.js?v=24';
-import { engState } from './modules/sys-engines.js?v=24';
+import { makeEnv } from './modules/world.js?v=25';
+import { createOutside } from './modules/outside.js?v=25';
+import { createViewCube } from './modules/viewcube.js?v=25';
+import { createAirLink } from './modules/airlink.js?v=25';
+import { createQuickRef } from './modules/quickref.js?v=25';
+import { installResumeHardening } from './modules/resume.js?v=25';
+import { createScene } from './modules/scene.js?v=25';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=25';
+import { createDims } from './modules/dims.js?v=25';
+import { createSystems3D } from './modules/systems3d.js?v=25';
+import { createOverlay } from './modules/overlay.js?v=25';
+import { createSheet } from './modules/sheet.js?v=25';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=25';
+import { SYSTEMS, READY } from './modules/systems.js?v=25';
+import { createSearch } from './modules/search.js?v=25';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=25';
+import { createProgress } from './modules/progress.js?v=25';
+import { createLearn } from './modules/learn.js?v=25';
+import { explain } from './modules/cockpit-info.js?v=25';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=25';
+import { createCockpit } from './modules/cockpit.js?v=25';
+import { nav, geo, loadNav } from './modules/navdb.js?v=25';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=25';
+import { createCDU } from './modules/cdu.js?v=25';
+import { createCDUView } from './modules/cdu-view.js?v=25';
+import { createFlightSim } from './modules/flightsim.js?v=25';
+import { createStateBar } from './modules/statebar.js?v=25';
+import { createPanelViewer } from './modules/panelview.js?v=25';
+import { engState } from './modules/sys-engines.js?v=25';
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,9 +67,11 @@ function init() {
   const viewcube = createViewCube(document.body, api, { onHome: () => $('home-btn').click() });
   // Pages light up (and move) the real airframe pieces they describe.
   const airlink = createAirLink(airframe);
+  // Dimension drawings on the floor (principal dimensions, minimum-radius turn).
+  const dims = createDims(api.scene, airframe, NLG, MLG);
 
   // ── Show menu: what to draw around the airplane (remembered per device) ──
-  const SHOW_DEFAULT = { airflow: true, lights: true, crew: true, doors: false, evac: false, links: true };
+  const SHOW_DEFAULT = { airflow: true, lights: true, crew: true, doors: false, evac: false, links: true, dims: false, turn: false };
   const show = (() => { try { return { ...SHOW_DEFAULT, ...JSON.parse(localStorage.getItem('b737inside.show') || '{}') }; } catch { return { ...SHOW_DEFAULT }; } })();
   for (const cb of document.querySelectorAll('[data-show]')) {
     cb.checked = !!show[cb.dataset.show];
@@ -205,6 +208,7 @@ function init() {
     document.documentElement.dataset.theme = theme;
     document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0e1013' : '#efefed';
     api.applyTheme(theme);
+    dims.setTheme(theme);
   }
   applyTheme();
   $('theme-btn').addEventListener('click', () => {
@@ -383,7 +387,7 @@ function init() {
     if (view === '3d' && !noFly) {
       // Keep the part left of the sheet on wide screens by aiming a bit right of it.
       const t = api.worldOf(p.at);
-      api.flyTo(t, p.zoom ?? 15, null, 900);
+      api.flyTo(t, p.zoom ?? 15, p.dir ? new api.THREE.Vector3(...p.dir) : null, 900);
     }
   }
 
@@ -691,6 +695,12 @@ function init() {
       airframe.doorsFrame(dt);
     }
     anim.frame(dt);
+    // Dimension drawings: from the Show menu, or while their page is open — on the ground only.
+    {
+      const grounded = sim.flying ? sim.ac.onGround : !PHASES[phase].env.air;
+      const page = view !== 'cockpit' && sysId === 'general' ? partId : null;
+      dims.set({ principal: grounded && view !== 'cockpit' && (show.dims || page === 'dimensions'), turning: grounded && view !== 'cockpit' && (show.turn || page === 'turning') });
+    }
     {
       const gen = stateOf('general'), e = PHASES[phase].env;
       outside.update(dt, {
