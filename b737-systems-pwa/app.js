@@ -4,33 +4,34 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=22';
-import { createOutside } from './modules/outside.js?v=22';
-import { createViewCube } from './modules/viewcube.js?v=22';
-import { createAirLink } from './modules/airlink.js?v=22';
-import { createQuickRef } from './modules/quickref.js?v=22';
-import { installResumeHardening } from './modules/resume.js?v=22';
-import { createScene } from './modules/scene.js?v=22';
-import { buildAirframe } from './modules/airframe.js?v=22';
-import { createSystems3D } from './modules/systems3d.js?v=22';
-import { createOverlay } from './modules/overlay.js?v=22';
-import { createSheet } from './modules/sheet.js?v=22';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=22';
-import { SYSTEMS, READY } from './modules/systems.js?v=22';
-import { createSearch } from './modules/search.js?v=22';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=22';
-import { createProgress } from './modules/progress.js?v=22';
-import { createLearn } from './modules/learn.js?v=22';
-import { explain } from './modules/cockpit-info.js?v=22';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=22';
-import { createCockpit } from './modules/cockpit.js?v=22';
-import { nav, geo, loadNav } from './modules/navdb.js?v=22';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=22';
-import { createCDU } from './modules/cdu.js?v=22';
-import { createCDUView } from './modules/cdu-view.js?v=22';
-import { createFlightSim } from './modules/flightsim.js?v=22';
-import { createStateBar } from './modules/statebar.js?v=22';
-import { engState } from './modules/sys-engines.js?v=22';
+import { makeEnv } from './modules/world.js?v=23';
+import { createOutside } from './modules/outside.js?v=23';
+import { createViewCube } from './modules/viewcube.js?v=23';
+import { createAirLink } from './modules/airlink.js?v=23';
+import { createQuickRef } from './modules/quickref.js?v=23';
+import { installResumeHardening } from './modules/resume.js?v=23';
+import { createScene } from './modules/scene.js?v=23';
+import { buildAirframe } from './modules/airframe.js?v=23';
+import { createSystems3D } from './modules/systems3d.js?v=23';
+import { createOverlay } from './modules/overlay.js?v=23';
+import { createSheet } from './modules/sheet.js?v=23';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=23';
+import { SYSTEMS, READY } from './modules/systems.js?v=23';
+import { createSearch } from './modules/search.js?v=23';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=23';
+import { createProgress } from './modules/progress.js?v=23';
+import { createLearn } from './modules/learn.js?v=23';
+import { explain } from './modules/cockpit-info.js?v=23';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=23';
+import { createCockpit } from './modules/cockpit.js?v=23';
+import { nav, geo, loadNav } from './modules/navdb.js?v=23';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=23';
+import { createCDU } from './modules/cdu.js?v=23';
+import { createCDUView } from './modules/cdu-view.js?v=23';
+import { createFlightSim } from './modules/flightsim.js?v=23';
+import { createStateBar } from './modules/statebar.js?v=23';
+import { createPanelViewer } from './modules/panelview.js?v=23';
+import { engState } from './modules/sys-engines.js?v=23';
 
 const $ = (id) => document.getElementById(id);
 
@@ -547,8 +548,18 @@ function init() {
     go.hidden = !x.page;
     go.textContent = x.page ? `Open “${x.pageTitle}” ›` : '';
     go.dataset.page = x.page || '';
+    // Panels and screens can be opened full screen to play with.
+    const vw = $('cp-info-view');
+    const P = ev.sys && ev.panel && cockpit?.panelSets.get(ev.sys)?.panels.find((p) => p.title === ev.panel);
+    const sc = ev.screen && cockpit?.screens[ev.screen];
+    viewTarget = P ? { title: ev.panel, node: P.svg } : sc ? { title: ev.name, node: sc.c } : null;
+    vw.hidden = !viewTarget;
+    vw.textContent = sc ? '⤢ View screen' : '⤢ View panel';
     $('cp-info').hidden = false;
   }
+  let viewTarget = null;
+  const viewer = createPanelViewer();
+  $('cp-info-view').addEventListener('click', () => { if (viewTarget) { viewer.open(viewTarget.title, viewTarget.node); $('cp-info').hidden = true; } });
   $('cp-info-x').addEventListener('click', () => { $('cp-info').hidden = true; });
   $('cp-info-go').addEventListener('click', () => { const p = $('cp-info-go').dataset.page; if (p) goTo(p); });
   for (const b of document.querySelectorAll('[data-look]')) b.addEventListener('click', () => cockpit?.goView(b.dataset.look));
@@ -623,6 +634,7 @@ function init() {
       api.setMode('airplane');
       $('cp-bar').hidden = true;
       $('cp-sim').hidden = true;
+      viewer.close();
       $('cp-info').hidden = true;
     }
     relayout();

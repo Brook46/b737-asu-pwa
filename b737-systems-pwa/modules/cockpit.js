@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=22';
-import { createOverhead } from './overhead.js?v=22';
-import * as CAB from './cockpit-cab.js?v=22';
-import { buildStand } from './cockpit-stand.js?v=22';
-import * as D from './cockpit-displays.js?v=22';
-import { drawCDUScreen } from './cdu.js?v=22';
+import * as THREE from '../vendor/three.module.min.js?v=23';
+import { createOverhead } from './overhead.js?v=23';
+import * as CAB from './cockpit-cab.js?v=23';
+import { buildStand } from './cockpit-stand.js?v=23';
+import * as D from './cockpit-displays.js?v=23';
+import { drawCDUScreen } from './cdu.js?v=23';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -203,7 +203,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     const fx = 0.87 + 0.22 * (y - 0.82);
     const bez = add(plate(DU + 0.03, DU + 0.03, M.dark, [fx + off.x * 0.5, y + off.y * 0.5, z], MIP_N));
     const m = add(plate(DU, DU, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [fx + off.x, y + off.y, z], MIP_N));
-    m.userData.pick = { kind: 'screen', name: label };
+    m.userData.pick = { kind: 'screen', name: label, id };
     bez.userData.pick = m.userData.pick;
     pickables.push(m, bez);
     screens[id] = { ...ct, draw };
@@ -218,7 +218,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   {
     const ct = canvasTex(256, 256);
     const m = add(plate(0.085, 0.085, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.87 + 0.22 * (0.86 - 0.82) - 0.008, 0.86, -0.19], MIP_N));
-    m.userData.pick = { kind: 'screen', name: 'Integrated standby flight display (ISFD)' };
+    m.userData.pick = { kind: 'screen', name: 'Integrated standby flight display (ISFD)', id: 'isfd' };
     pickables.push(m);
     screens.isfd = { ...ct, draw: D.drawISFD };
   }
@@ -226,7 +226,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   for (const [id, z] of [['clockL', -0.9], ['clockR', 0.9]]) {
     const ct = canvasTex(256, 256);
     const m = add(plate(0.075, 0.075, new THREE.MeshBasicMaterial({ map: ct.t, toneMapped: false }), [0.87 + 0.22 * (0.87 - 0.82) - 0.008, 0.87, z], MIP_N));
-    m.userData.pick = { kind: 'screen', name: 'Clock' };
+    m.userData.pick = { kind: 'screen', name: 'Clock', id };
     pickables.push(m);
     screens[id] = { ...ct, draw: drawClock };
   }
@@ -704,7 +704,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       return;
     }
     const moved = info.kind === 'lever' && onLever?.(info.name);
-    onControl({ kind: info.kind, name: info.name, pos: moved || undefined });
+    onControl({ kind: info.kind, name: info.name, pos: moved || undefined, screen: info.id });
   }
 
   // ── Live data ──

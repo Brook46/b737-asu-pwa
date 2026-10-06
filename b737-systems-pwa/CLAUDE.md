@@ -261,6 +261,17 @@ flight deck (photos are reference only — never copy their artwork):
 - Panel kit: `panel(title, h, { w })` for non-300-unit panels; cockpit maps
   taps and textures with `P.w`.
 
+## Panel viewer and depth (v23)
+
+- Tapping a panel or screen in the cockpit shows its info card with
+  **⤢ View panel / View screen** (`panelview.js`): the panel's live SVG
+  (`P.svg`, the one rendered into the texture) is moved into a full-screen
+  overlay and put back on close; a screen shows its live canvas. Screen picks
+  carry `id` (`screens[id]`).
+- Depth: overhead.js adds a `drop${id}` shadow to toggles, knobs, push
+  buttons, push-lights, MCP keys, caps and fire handles, a `bevel${id}` sheen
+  on keys / caps / lamps, and a bezel round every annunciator.
+
 ## Look of the overhead / MCP, seats (v20)
 
 - Overhead: short columns are topped up with blank cover plates

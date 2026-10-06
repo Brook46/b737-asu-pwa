@@ -34,6 +34,12 @@ function defs(svg, id) {
     <radialGradient id="knob${id}" cx="40%" cy="30%" r="80%">
       <stop offset="0" stop-color="#4a4d50"/><stop offset=".6" stop-color="#1c1e20"/><stop offset="1" stop-color="#050505"/>
     </radialGradient>
+    <filter id="drop${id}" x="-40%" y="-40%" width="180%" height="190%">
+      <feDropShadow dx="0.7" dy="1.6" stdDeviation="1.1" flood-color="#000" flood-opacity=".6"/>
+    </filter>
+    <linearGradient id="bevel${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/><stop offset=".45" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/>
+    </linearGradient>
     <filter id="glow${id}" x="-40%" y="-40%" width="180%" height="180%">
       <feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>`;
@@ -154,7 +160,10 @@ export function createOverhead(host, ctx) {
       /** Annunciator. color: amber | blue | green. key: lights[key] or fn(res). */
       lamp(x, y, w, hh, legend, key, color = 'amber') {
         const g = el('g', { class: 'ovh-lamp ' + color }, layers.parts);
+        el('rect', { x: x - 1, y: y - 1, width: w + 2, height: hh + 2, rx: 2, fill: '#202326' }, g);      // bezel
         const r = el('rect', { x, y, width: w, height: hh, rx: 1.5, class: 'lens' }, g);
+        el('rect', { x, y, width: w, height: hh, rx: 1.5, fill: `url(#bevel${id})`, opacity: 0.6, 'pointer-events': 'none' }, g);
+        if (arguments[8]) g.setAttribute('filter', `url(#drop${id})`);      // push-lights stand proud
         const lines = String(legend).split('\n');
         const fs = Math.min(7.2, (w - 4) / (Math.max(...lines.map((l) => l.length)) * 0.6));
         const t = el('g', {}, g);
@@ -193,7 +202,7 @@ export function createOverhead(host, ctx) {
           get sw() { return new Proxy(ctx0.sw, { get: (o, k) => (k === key ? flip(o[k]) : o[k]) }); },
           set: (k, v) => ctx0.set(k, k === key ? flip(v) : v), action: (...a) => ctx0.action(...a), touched: () => ctx0.touched?.(),
         };
-        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-tg' + (o2.inert ? ' inert' : '') }, layers.parts);
+        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-tg' + (o2.inert ? ' inert' : '') }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         const inner = el('g', { transform: o2.horizontal ? 'rotate(-90)' : null }, g);
         if (o2.housing) el('rect', { x: -12, y: -26, width: 24, height: 52, rx: 3, fill: '#151719' }, inner);
         el('circle', { r: 10.5, fill: `url(#nut${id})`, stroke: '#2a2d30', 'stroke-width': 1 }, inner);
@@ -286,7 +295,7 @@ export function createOverhead(host, ctx) {
       /** Black selector knob. Tap the left half to turn left, right half right. */
       knob(x, y, key, positions, angles, o2 = {}) {
         const R = o2.r ?? 12;
-        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-knob' + (o2.inert ? ' inert' : '') }, layers.parts);
+        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-knob' + (o2.inert ? ' inert' : '') }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         if (o2.skirt) el('circle', { r: R + 4, fill: '#2d3135', stroke: '#1a1c1e' }, g);
         if (o2.grey) {
           // Light-grey bar knob (ENGINE START, AUTO BRAKE, IRS): round base, a
@@ -344,7 +353,7 @@ export function createOverhead(host, ctx) {
       },
       /** Round push button (TRIP RESET, OVHT TEST, MAINT, ALT HORN CUTOUT). */
       push(x, y, fn, o2 = {}) {
-        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-push' + (fn ? '' : ' inert') }, layers.parts);
+        const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-push' + (fn ? '' : ' inert') }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         el('circle', { r: 9.5, fill: '#b9bdc0', stroke: '#2b2e31' }, g);
         el('circle', { r: 7, fill: '#0e0f10', stroke: '#000' }, g);
         if (o2.top) P.text(x, y - 14, o2.top, { size: 6.8 });
@@ -449,7 +458,7 @@ export function createOverhead(host, ctx) {
        */
       fireHandle(x, y, w, hh, o2) {
         const c = o2.ctx || ctxRoot;
-        const g = el('g', { class: 'ovh-fire' }, layers.parts);
+        const g = el('g', { class: 'ovh-fire' }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         const slot = el('rect', { x: x - 2, y: y - 2, width: w + 4, height: hh + 4, rx: 4, fill: '#121314' }, g);
         void slot;
         const body = el('g', {}, g);
@@ -496,10 +505,10 @@ export function createOverhead(host, ctx) {
        * top half and the legend below (lit = mode selected / engaged).
        */
       mcpKey(x, y, w, hh, legend, key, press) {
-        const g = el('g', { class: 'ovh-mcpkey' }, layers.parts);
+        const g = el('g', { class: 'ovh-mcpkey' }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         el('rect', { x: x - 1.2, y: y - 1.2, width: w + 2.4, height: hh + 2.4, rx: 2.4, fill: '#121314' }, g);
         el('rect', { x, y, width: w, height: hh, rx: 1.8, class: 'face' }, g);
-        el('rect', { x: x + 1, y: y + 1, width: w - 2, height: 2.4, rx: 1, fill: 'rgba(255,255,255,.08)' }, g);
+        el('rect', { x, y, width: w, height: hh, rx: 1.8, fill: `url(#bevel${id})`, 'pointer-events': 'none' }, g);
         // Legend on the key, the green light bar under it.
         const bar = el('rect', { x: x + w * 0.2, y: y + hh * 0.66, width: w * 0.6, height: Math.max(2.6, hh * 0.13), rx: 1, class: 'bar' }, g);
         const fs = Math.min(8.5, (w - 4) / (legend.length * 0.58));
@@ -523,9 +532,10 @@ export function createOverhead(host, ctx) {
        * tinted when dark, bright with black legend when lit; small sub-legend.
        */
       capLight(x, y, w, hh, legend, sub, key, color, press) {
-        const g = el('g', { class: `ovh-cap ${color}` }, layers.parts);
+        const g = el('g', { class: `ovh-cap ${color}` }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         el('rect', { x: x - 2.5, y: y - 2.5, width: w + 5, height: hh + 5, rx: 3, fill: '#0b0c0d' }, g);
         const lens = el('rect', { x, y, width: w, height: hh, rx: 2, class: 'lens' }, g);
+        el('rect', { x, y, width: w, height: hh, rx: 2, fill: `url(#bevel${id})`, 'pointer-events': 'none' }, g);
         const lines = String(legend).split('\n');
         const fs = Math.min(hh * 0.3, (w - 4) / (Math.max(...lines.map((l) => l.length)) * 0.6));
         lines.forEach((ln, i) => {

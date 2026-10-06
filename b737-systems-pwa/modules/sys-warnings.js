@@ -4,7 +4,7 @@
 // parking brake, the cabin altitude warning reads the pressurisation model.
 // GPWS envelopes follow gpws-pwa (same FCOM chapter), simplified to scenarios.
 
-import { EE, YC, NOSE_X, FLIGHT_DECK_X, MLG } from './airframe.js?v=22';
+import { EE, YC, NOSE_X, FLIGHT_DECK_X, MLG } from './airframe.js?v=23';
 
 const C = '#e85d04', RED = '#e03131';
 

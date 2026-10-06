@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=22">
+  <link rel="stylesheet" href="app.css?v=23">
 </head>
 <body>
   <div id="stage">
@@ -90,7 +90,7 @@
     <div class="cp-t" id="cp-info-t"></div>
     <div class="cp-pos" id="cp-info-pos"></div>
     <p id="cp-info-text"></p>
-    <button class="tag tag-btn" id="cp-info-go" hidden>Open page ›</button>
+    <div class="cp-info-acts"><button class="tag tag-btn" id="cp-info-view" hidden>⤢ View panel</button><button class="tag tag-btn" id="cp-info-go" hidden>Open page ›</button></div>
   </div>
 
   <aside id="sheet" class="sheet" aria-live="polite" hidden>
@@ -146,7 +146,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {
