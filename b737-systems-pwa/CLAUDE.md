@@ -266,9 +266,12 @@ flight deck (photos are reference only — never copy their artwork):
 - Overhead: short columns are topped up with blank cover plates
   (`blankPlate` in cockpit.js) so the panel reads as one surface; the base
   is seam grey. Panel grey `.ovh-bg` #747c82.
-- MCP: four sections drawn seamless (`panel(..., { seamless, screws })`),
-  mode keys via `mcpKey()` in overhead.js (dark key, green light bar, legend
-  below); LCDs black with a bezel.
+- Glareshield (v22), outboard → in: FIRE WARN · MASTER CAUTION · six-pack
+  (`Annunciator L/R`, `capLight()` caps), EFIS control panel (canvas), MCP.
+  The MCP is ONE panel `MCP` (900 × 150 units ≈ 6 : 1, 0.58 m) laid out as
+  the FCOM 4.10 figure; `mcpKey()` keys with the green bar under the
+  legend; the bank limit is the outer ring behind the heading knob (the
+  cockpit picks the smallest control under a tap).
 - Seat: CAPT / F/O in the cockpit bar (`cockpit.setSeat`, remembered in
   localStorage `b737i.seat`). Views are defined from the left seat; the F/O
   seat mirrors z.

@@ -2,9 +2,9 @@
 // warnings and the GPWS / TCAS alerts; glareshield annunciators, GPWS panel,
 // transponder and the aft overhead warning tests.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=21';
-import { createOverhead } from './overhead.js?v=21';
-import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=21';
+import { createSchematic, createPanel } from './schem-kit.js?v=22';
+import { createOverhead } from './overhead.js?v=22';
+import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=22';
 
 const C = '#e85d04', AMB = '#fab005', RED = '#e03131';
 
@@ -71,16 +71,18 @@ export function panels(O, ctx) {
   // Glareshield: FIRE WARN, MASTER CAUTION and the six system annunciators, each side.
   const fire = () => ctx.resOf('fire')?.lights.fireWarn;
   for (const side of ['L', 'R']) {
-    const A = O.panel(`Annunciator ${side}`, 62);
-    const sx = side === 'L' ? 0 : 1;
-    const fx = sx ? 230 : 10, mx = sx ? 170 : 70;
-    A.lamp(fx, 8, 58, 46, 'FIRE\nWARN', fire, 'red', 'warnings', () => ctx.ctxOf('fire').action('bell'));
-    A.lamp(mx, 8, 58, 46, 'MASTER\nCAUTION', 'master', 'amber', 'warnings', () => ctx.action('mc'));
+    // Black end panel of the glareshield: FIRE WARN outboard, MASTER CAUTION,
+    // then the six-pack (two columns of three) toward the EFIS panel.
+    const A = O.panel(`Annunciator ${side}`, 110, { bg: '#16181a' });
+    const R = side === 'R';
+    const fx = R ? 238 : 8, mx = R ? 182 : 64;
+    A.capLight(fx, 22, 54, 54, 'FIRE\nWARN', 'BELL CUTOUT', fire, 'red', () => ctx.ctxOf('fire').action('bell'));
+    A.capLight(mx, 22, 54, 54, 'MASTER\nCAUTION', 'PUSH TO RESET', 'master', 'amber', () => ctx.action('mc'));
     const six = SIXPACK.filter((s) => s[1] === side);
     six.forEach(([label], i) => {
       // Column by column, as on the glareshield: FLT CONT / IRS / FUEL, then ELEC / APU / OVHT·DET.
-      const x = (sx ? 10 : 138) + Math.floor(i / 3) * 76, y = 8 + (i % 3) * 16;
-      A.lamp(x, y, 72, 14, label, 'sp_' + label, 'amber', 'warnings', () => ctx.action('recall'));
+      const x = (R ? 8 : 128) + Math.floor(i / 3) * 84, y = 22 + (i % 3) * 22;
+      A.lamp(x, y, 80, 19, label, 'sp_' + label, 'amber', 'warnings', () => ctx.action('recall'));
     });
   }
   const G = O.panel('GPWS', 92);

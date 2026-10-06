@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=21';
-import { createOverhead } from './overhead.js?v=21';
-import * as CAB from './cockpit-cab.js?v=21';
-import { buildStand } from './cockpit-stand.js?v=21';
-import * as D from './cockpit-displays.js?v=21';
-import { drawCDUScreen } from './cdu.js?v=21';
+import * as THREE from '../vendor/three.module.min.js?v=22';
+import { createOverhead } from './overhead.js?v=22';
+import * as CAB from './cockpit-cab.js?v=22';
+import { buildStand } from './cockpit-stand.js?v=22';
+import * as D from './cockpit-displays.js?v=22';
+import { drawCDUScreen } from './cdu.js?v=22';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -134,7 +134,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     shell: new THREE.MeshStandardMaterial({ color: 0x5c656d, roughness: 0.85 }),
     panel: new THREE.MeshStandardMaterial({ color: 0x6d747a, roughness: 0.75 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x1f2225, roughness: 0.7 }),
-    glare: new THREE.MeshStandardMaterial({ color: 0x2a2d30, roughness: 0.9 }),
+    glare: new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: 0.85 }),
     frame: new THREE.MeshStandardMaterial({ color: 0x4a5258, roughness: 0.6 }),
     metal: new THREE.MeshStandardMaterial({ color: 0xb8bdc1, roughness: 0.35, metalness: 0.6 }),
     knob: new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.5 }),
@@ -283,31 +283,36 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       // EFIS control panel (FCOM 1.20 glareshield figure): MINS (RADIO /
       // BARO) with RST, FPV, MTRS, BARO (IN / HPA) with STD, the MODE
       // selector with CTR, the RANGE selector with TFC, and the map buttons.
-      const e = canvasTex(560, 208), q = e.g;
-      q.fillStyle = '#2b2f33'; q.fillRect(0, 0, 560, 208);
-      q.strokeStyle = '#4a5157'; q.lineWidth = 3; q.strokeRect(3, 3, 554, 202);
-      q.fillStyle = '#f0f0f0'; q.textAlign = 'center';
-      const knob = (x, y, r, outer) => {
-        if (outer) { q.fillStyle = '#4b5258'; q.beginPath(); q.arc(x, y, r + 9, 0, 7); q.fill(); }
-        q.fillStyle = '#121314'; q.beginPath(); q.arc(x, y, r, 0, 7); q.fill();
-        q.fillStyle = '#d0d0d0'; q.fillRect(x - 1.5, y - r, 3, r * 0.6);
-        q.fillStyle = '#f0f0f0';
+      const e = canvasTex(420, 290), q = e.g;
+      q.fillStyle = '#4b535a'; q.fillRect(0, 0, 420, 290);
+      q.strokeStyle = '#2c3135'; q.lineWidth = 4; q.strokeRect(2, 2, 416, 286);
+      for (const [x, y] of [[12, 12], [408, 12], [12, 278], [408, 278]]) { q.fillStyle = '#353b40'; q.beginPath(); q.arc(x, y, 5, 0, 7); q.fill(); }
+      q.textAlign = 'center';
+      const T = (t, x, y, px = 15) => { q.fillStyle = '#f2f2f2'; q.font = `700 ${px}px Helvetica, Arial`; q.fillText(t, x, y); };
+      const knob = (x, y, r) => {
+        q.fillStyle = '#c9ccce'; q.beginPath(); q.arc(x, y, r + 9, 0, 7); q.fill();           // outer selector ring
+        q.fillStyle = '#16181a'; q.beginPath(); q.arc(x, y, r, 0, 7); q.fill();
+        q.fillStyle = '#2c3034'; q.beginPath(); q.arc(x, y, r * 0.55, 0, 7); q.fill();       // centre push button
       };
-      const btn = (x, y, t) => { q.fillStyle = '#16181a'; q.fillRect(x - 22, y - 11, 44, 22); q.fillStyle = '#f0f0f0'; q.font = '700 11px Helvetica, Arial'; q.fillText(t, x, y + 4); };
-      q.font = '700 13px Helvetica, Arial';
-      q.fillText('MINS', 60, 22); q.fillText('RADIO', 28, 46); q.fillText('BARO', 92, 46); knob(60, 92, 22, true); btn(60, 150, 'RST');
-      q.font = '700 13px Helvetica, Arial'; q.fillText('BARO', 175, 22); q.fillText('IN', 145, 46); q.fillText('HPA', 205, 46); knob(175, 92, 22, true); btn(175, 150, 'STD');
-      btn(118, 186, 'FPV'); btn(232, 186, 'MTRS');
-      q.font = '700 13px Helvetica, Arial'; q.fillText('MODE', 295, 22);
-      q.font = '700 10px Helvetica, Arial'; q.fillText('APP', 262, 52); q.fillText('VOR', 285, 44); q.fillText('MAP', 307, 44); q.fillText('PLN', 330, 52);
-      knob(295, 92, 22, true); btn(295, 150, 'CTR');
-      q.font = '700 13px Helvetica, Arial'; q.fillText('RANGE', 400, 22);
-      q.font = '700 10px Helvetica, Arial'; ['5', '10', '20', '40', '80', '160', '320', '640'].forEach((t, i) => { const a = (-150 + i * 43) * Math.PI / 180; q.fillText(t, 400 + Math.sin(a) * 44, 92 - Math.cos(a) * 44 + 4); });
-      knob(400, 92, 22, true); btn(400, 150, 'TFC');
-      ['WXR', 'STA', 'WPT', 'ARPT'].forEach((t, i) => btn(482 + (i % 2) * 50, 40 + Math.floor(i / 2) * 32, t));
-      ['DATA', 'POS', 'TERR'].forEach((t, i) => btn(482 + (i % 2) * 50, 104 + Math.floor(i / 2) * 32, t));
+      const btn = (x, y, t, w = 46) => { q.fillStyle = '#16181a'; q.fillRect(x - w / 2, y - 13, w, 26); q.fillStyle = '#e8e8e8'; q.font = '700 12px Helvetica, Arial'; q.fillText(t, x, y + 5); };
+      const tog = (x, y, a, b) => { T(a, x, y - 26, 11); T(b, x, y + 34, 11); q.fillStyle = '#9da2a6'; q.beginPath(); q.arc(x, y, 8, 0, 7); q.fill(); q.fillStyle = '#e8e8e8'; q.fillRect(x - 3, y - 18, 6, 18); };
+      // Top: MINS (RADIO / BARO, RST) · FPV · MTRS · BARO (IN / HPA, STD).
+      T('MINS', 72, 26); T('RADIO', 30, 50, 11); T('BARO', 114, 50, 11); knob(72, 78, 22); T('RST', 72, 83, 10);
+      btn(176, 70, 'FPV'); btn(244, 70, 'MTRS');
+      T('BARO', 348, 26); T('IN', 310, 50, 11); T('HPA', 388, 50, 11); knob(348, 78, 22); T('STD', 348, 83, 10);
+      // Middle: VOR / ADF 1 · MODE (APP VOR MAP PLN, CTR) · RANGE (TFC) · VOR / ADF 2.
+      tog(34, 162, 'VOR 1', 'ADF 1');
+      T('MODE', 132, 116, 13);
+      ['APP', 'VOR', 'MAP', 'PLN'].forEach((t, i) => { const a = ((-60 + i * 40) * Math.PI) / 180; T(t, 132 + Math.sin(a) * 50, 166 - Math.cos(a) * 50 + 4, 10); });
+      knob(132, 166, 22); T('CTR', 132, 171, 10);
+      T('RANGE', 288, 116, 13);
+      ['5', '10', '20', '40', '80', '160', '320', '640'].forEach((t, i) => { const a = ((-105 + i * 30) * Math.PI) / 180; T(t, 288 + Math.sin(a) * 50, 166 - Math.cos(a) * 50 + 4, 10); });
+      knob(288, 166, 22); T('TFC', 288, 171, 10);
+      tog(386, 162, 'VOR 2', 'ADF 2');
+      // Bottom: map buttons.
+      ['WXR', 'STA', 'WPT', 'ARPT', 'DATA', 'POS', 'TERR'].forEach((t, i) => btn(42 + i * 56, 252, t, 48));
       e.t.needsUpdate = true;
-      const em = add(plate(0.22, 0.0817, new THREE.MeshBasicMaterial({ map: e.t }), [0.745, 1.08, s * 0.6], MCP_N));
+      const em = add(plate(0.15, 0.1036, new THREE.MeshStandardMaterial({ map: e.t, roughness: 0.6 }), [0.746, 1.08, s * 0.372], MCP_N));
       em.userData.pick = { kind: 'static', name: `EFIS control panel (${s < 0 ? 'captain' : 'first officer'})` };
       pickables.push(em);
     }
@@ -474,10 +479,12 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   onMip('instruments', 'Display select (first officer)', 0.99, 0.62, 0.11);
   onMip('warnings', 'GPWS', 0.655, 0.44, 0.13);
   // Glareshield: annunciators outboard, the MCP across the middle.
-  placePanel('warnings', 'Annunciator L', [0.75, 1.08, -0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
-  placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
+  // Glareshield, outboard to inboard: FIRE WARN · MASTER CAUTION · six-pack,
+  // the EFIS control panel, then the MCP in the middle.
+  placePanel('warnings', 'Annunciator L', [0.747, 1.08, -0.532], [-1, 0.32, 0], [0.32, 1, 0], 0.15);
+  placePanel('warnings', 'Annunciator R', [0.747, 1.08, 0.532], [-1, 0.32, 0], [0.32, 1, 0], 0.15);
   const MCP_UP = [0.32, 1, 0];
-  ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.2402));
+  placePanel('autoflight', 'MCP', [0.744, 1.08, 0], [-1, 0.32, 0], MCP_UP, 0.58);
   // Control stand (FCOM 1.20 control stand figure): parking brake aft-left,
   // STAB TRIM cutouts aft-right — flush on the stand's sloped top.
   const STAND_Y = (x) => 0.71 + 0.25 * (x - 0.47) + 0.003;
@@ -686,7 +693,9 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     const info = hit.object.userData.pick;
     if (info.kind === 'panel') {
       const px = hit.uv.x * (info.P.w || 300), py = (1 - hit.uv.y) * info.P.h;
-      const c = info.P.controls.find((k) => px >= k.x0 && px <= k.x1 && py >= k.y0 && py <= k.y1);
+      // The smallest control under the finger wins (a knob inside a ring).
+      const c = info.P.controls.filter((k) => px >= k.x0 && px <= k.x1 && py >= k.y0 && py <= k.y1)
+        .sort((a, b) => (a.x1 - a.x0) * (a.y1 - a.y0) - (b.x1 - b.x0) * (b.y1 - b.y0))[0];
       if (!c) { onControl({ kind: 'panel', sys: info.sys, panel: info.P.title }); return; }
       const result = c.act(px, py);
       markDirty(info.sys);

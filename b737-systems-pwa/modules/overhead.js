@@ -48,6 +48,14 @@ const STYLE = `
   .ovh-mcpkey .face { fill: #26292c; stroke: #0d0e0f; stroke-width: .8; }
   .ovh-mcpkey .bar { fill: #1d2a22; }
   .ovh-mcpkey.on .bar { fill: #5cff8f; }
+  .ovh-cap .lens { stroke: #050505; stroke-width: 1; }
+  .ovh-cap.red .lens { fill: #3a1212; } .ovh-cap.red .legend, .ovh-cap.red .sub { fill: #9a4a44; }
+  .ovh-cap.amber .lens { fill: #3a2c0e; } .ovh-cap.amber .legend, .ovh-cap.amber .sub { fill: #a07a3a; }
+  .ovh-cap.red.on .lens { fill: #ff3b30; } .ovh-cap.amber.on .lens { fill: #ffb21e; }
+  .ovh-cap.on .legend, .ovh-cap.on .sub { fill: #1b0b05; }
+  .ovh-cap .legend { font-family: ${FONT}; font-weight: 800; letter-spacing: .03em; }
+  .ovh-cap .sub { font-family: ${FONT}; font-weight: 700; }
+  .ovh-cap.flash .lens { animation: ovhFlash 1s steps(2, jump-none) infinite; }
   .ovh-mcpkey .legend { fill: #eceeef; font-family: ${FONT}; font-weight: 700; letter-spacing: .03em; }
   .ovh-band { fill: #4f555a; }
   .ovh-line { fill: none; stroke: #eef0f1; stroke-linejoin: round; stroke-linecap: round; }
@@ -492,9 +500,10 @@ export function createOverhead(host, ctx) {
         el('rect', { x: x - 1.2, y: y - 1.2, width: w + 2.4, height: hh + 2.4, rx: 2.4, fill: '#121314' }, g);
         el('rect', { x, y, width: w, height: hh, rx: 1.8, class: 'face' }, g);
         el('rect', { x: x + 1, y: y + 1, width: w - 2, height: 2.4, rx: 1, fill: 'rgba(255,255,255,.08)' }, g);
-        const bar = el('rect', { x: x + w * 0.22, y: y + hh * 0.2, width: w * 0.56, height: Math.max(2.6, hh * 0.16), rx: 1, class: 'bar' }, g);
-        const fs = Math.min(6.4, (w - 4) / (legend.length * 0.58));
-        const t = el('text', { x: x + w / 2, y: y + hh * 0.78, 'text-anchor': 'middle', 'font-size': fs, class: 'legend' }, g);
+        // Legend on the key, the green light bar under it.
+        const bar = el('rect', { x: x + w * 0.2, y: y + hh * 0.66, width: w * 0.6, height: Math.max(2.6, hh * 0.13), rx: 1, class: 'bar' }, g);
+        const fs = Math.min(8.5, (w - 4) / (legend.length * 0.58));
+        const t = el('text', { x: x + w / 2, y: y + hh * 0.5, 'text-anchor': 'middle', 'font-size': fs, class: 'legend' }, g);
         t.textContent = legend;
         binds.push((res) => {
           const v = typeof key === 'function' ? key(res) : res.lights?.[key];
@@ -505,6 +514,34 @@ export function createOverhead(host, ctx) {
         g.addEventListener('click', press);
         controls.push({
           kind: 'push', name: legend, about: 'autoflight', x0: x, x1: x + w, y0: y, y1: y + hh,
+          pos: () => (g.classList.contains('on') ? 'ON' : 'OFF'), act() { press(); return 'pressed'; },
+        });
+        return g;
+      },
+      /**
+       * FIRE WARN / MASTER CAUTION: a square push-light cap on the glareshield,
+       * tinted when dark, bright with black legend when lit; small sub-legend.
+       */
+      capLight(x, y, w, hh, legend, sub, key, color, press) {
+        const g = el('g', { class: `ovh-cap ${color}` }, layers.parts);
+        el('rect', { x: x - 2.5, y: y - 2.5, width: w + 5, height: hh + 5, rx: 3, fill: '#0b0c0d' }, g);
+        const lens = el('rect', { x, y, width: w, height: hh, rx: 2, class: 'lens' }, g);
+        const lines = String(legend).split('\n');
+        const fs = Math.min(hh * 0.3, (w - 4) / (Math.max(...lines.map((l) => l.length)) * 0.6));
+        lines.forEach((ln, i) => {
+          const t = el('text', { x: x + w / 2, y: y + hh * 0.42 + (i - (lines.length - 1) / 2) * fs * 1.05, 'text-anchor': 'middle', 'font-size': fs, class: 'legend' }, g);
+          t.textContent = ln;
+        });
+        if (sub) { const t = el('text', { x: x + w / 2, y: y + hh * 0.86, 'text-anchor': 'middle', 'font-size': fs * 0.42, class: 'sub' }, g); t.textContent = sub; }
+        binds.push((res) => {
+          const v = typeof key === 'function' ? key(res) : res.lights?.[key];
+          g.classList.toggle('on', !!v); g.classList.toggle('flash', v === 'flash');
+          if (v) lens.setAttribute('filter', `url(#glow${id})`); else lens.removeAttribute('filter');
+        });
+        g.style.cursor = 'pointer';
+        g.addEventListener('click', press);
+        controls.push({
+          kind: 'push', name: lines.join(' '), about: 'warnings', x0: x, x1: x + w, y0: y, y1: y + hh,
           pos: () => (g.classList.contains('on') ? 'ON' : 'OFF'), act() { press(); return 'pressed'; },
         });
         return g;

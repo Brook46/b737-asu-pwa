@@ -8,7 +8,7 @@
 // Lever angles are in degrees, + = forward. pose(d) drives them from the
 // switch states (and the flight sim's thrust).
 
-import * as THREE from '../vendor/three.module.min.js?v=21';
+import * as THREE from '../vendor/three.module.min.js?v=22';
 
 const D2R = Math.PI / 180;
 // Top surface of the stand: y = TOP(x), sloping up toward the front.

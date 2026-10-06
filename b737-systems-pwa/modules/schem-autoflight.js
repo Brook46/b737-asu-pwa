@@ -1,9 +1,9 @@
 // schem-autoflight.js — AFDS / autothrottle schematic with a live FMA, and
 // the MCP as three operable panels (also placed on the 3D glareshield).
 
-import { createSchematic, createPanel } from './schem-kit.js?v=21';
-import { createOverhead } from './overhead.js?v=21';
-import { STEPS } from './sys-autoflight.js?v=21';
+import { createSchematic, createPanel } from './schem-kit.js?v=22';
+import { createOverhead } from './overhead.js?v=22';
+import { STEPS } from './sys-autoflight.js?v=22';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 
@@ -52,60 +52,68 @@ export function mount(svgHost, panelHost, ctx) {
 
 export function panels(O, ctx) {
   // The MCP, left to right as on the glareshield, in four sections.
-  // One long panel on the glareshield, drawn as four seamless sections.
-  const MCP = { bg: '#4d5358', seamless: true, screws: 'none' };
-  const btn = (P, x, y, label, w = 34) => P.mcpKey(x, y, w, 19, label, 'mcp_' + label, () => ctx.action(label));
-  const S = O.panel('MCP speed', 84, { ...MCP, screws: 'left' });
-  S.text(31, 10, 'COURSE', { size: 6.5 });
-  S.lcd(8, 14, 46, () => '093', { h: 16, size: 11 });
-  S.knob(31, 50, 'crsL', ['', ''], [0, 0], { action: true, noLabels: true, r: 10 });
-  S.lamp(60, 30, 20, 10, 'MA', 'maL', 'white');
-  S.toggle(70, 60, 'fdL', ['ON', 'OFF'], { invert: true, noLabels: true });
-  S.text(86, 50, 'ON', { size: 5.5 }); S.text(86, 76, 'OFF', { size: 5.5 }); S.text(62, 82, 'F/D', { size: 6 });
-  S.text(112, 10, 'A/T ARM', { size: 6.5 });
-  S.lamp(102, 14, 20, 9, 'ARM', 'atArmLt', 'green');
-  S.toggle(112, 50, 'atArm', ['ARM', 'OFF'], { invert: true, noLabels: true });
-  S.text(112, 80, 'OFF', { size: 5.5 });
-  S.text(176, 10, 'IAS/MACH', { size: 6.5 });
-  S.lcd(140, 14, 72, (r) => r.values.spdWin ?? String(r.values.spd), { h: 16, size: 12 });
-  S.push(146, 40, null, { name: 'C/O (IAS / Mach changeover)' }); S.text(146, 53, 'C/O', { size: 5 });
-  S.knob(176, 42, 'spd', ['', ''], [0, 0], { action: true, noLabels: true, r: 10 });
-  S.push(206, 40, null, { name: 'SPD INTV' }); S.text(206, 53, 'SPD INTV', { size: 4.6 });
-  btn(S, 136, 62, 'N1'); btn(S, 176, 62, 'SPEED');
-  btn(S, 236, 14, 'VNAV', 40); btn(S, 236, 60, 'LVL CHG', 40);
-
-  const H = O.panel('MCP heading', 84, MCP);
-  H.text(66, 10, 'HEADING', { size: 6.5 });
-  H.lcd(30, 14, 72, (r) => String(r.values.hdg).padStart(3, '0'), { h: 16, size: 12 });
-  H.knob(66, 50, 'hdg', ['', ''], [0, 0], { action: true, noLabels: true, r: 11 });
-  H.knob(112, 52, 'bank', ['10', '15', '20', '25', '30'], [-60, -30, 0, 30, 60], { r: 7, name: 'BANK', nameDy: 9 });
-  btn(H, 46, 66, 'HDG SEL', 40);
-  btn(H, 164, 14, 'LNAV', 40); btn(H, 164, 60, 'VOR LOC', 40); btn(H, 214, 60, 'APP', 40);
-
-  const V = O.panel('MCP altitude', 84, MCP);
-  V.text(46, 10, 'ALTITUDE', { size: 6.5 });
-  V.lcd(8, 14, 76, (r) => String(r.values.alt), { h: 16, size: 12 });
-  V.knob(46, 48, 'alt', ['', ''], [0, 0], { action: true, noLabels: true, r: 11 });
-  V.push(80, 42, null, { name: 'ALT INTV' }); V.text(80, 55, 'ALT INTV', { size: 4.6 });
-  btn(V, 28, 62, 'ALT HLD', 40);
-  V.text(176, 10, 'VERT SPEED', { size: 6.5 });
-  V.lcd(144, 14, 64, (r) => (r.values.vs ? (r.values.vs > 0 ? '+' : '') + r.values.vs : ''), { h: 16, size: 12 });
-  V.knob(226, 40, 'vs', ['', ''], [0, 0], { action: true, noLabels: true, r: 8 });
-  V.text(226, 24, 'DN', { size: 5 }); V.text(226, 62, 'UP', { size: 5 });
-  btn(V, 158, 60, 'V/S', 40);
-
-  const E = O.panel('MCP engage', 84, { ...MCP, screws: 'right' });
-  E.text(62, 9, 'A/P ENGAGE', { size: 6.5 });
-  btn(E, 22, 14, 'CMD A', 38); btn(E, 64, 14, 'CMD B', 38);
-  btn(E, 22, 36, 'CWS A', 38); btn(E, 64, 36, 'CWS B', 38);
-  // DISENGAGE bar: down shows its yellow background and disconnects both autopilots.
-  E.lamp(18, 60, 88, 16, 'DISENGAGE', () => !!ctx.sw.dis, 'amber', 'autoflight', () => ctx.set('dis', ctx.sw.dis ? 0 : 1));
-  E.text(196, 10, 'COURSE', { size: 6.5 });
-  E.lcd(172, 14, 48, () => '093', { h: 16, size: 11 });
-  E.knob(196, 50, 'crsR', ['', ''], [0, 0], { action: true, noLabels: true, r: 10 });
-  E.lamp(262, 30, 20, 10, 'MA', 'maR', 'white');
-  E.toggle(272, 60, 'fdR', ['ON', 'OFF'], { invert: true, noLabels: true });
-  E.text(256, 50, 'ON', { size: 5.5 }); E.text(256, 76, 'OFF', { size: 5.5 }); E.text(280, 82, 'F/D', { size: 6 });
+  // The MCP: one panel in the middle of the glareshield, about 6 : 1, laid
+  // out as on the airplane (FCOM 4.10 MCP figure): COURSE · F/D · A/T ARM ·
+  // IAS/MACH with N1 / SPEED · VNAV / LVL CHG · HEADING with bank limit and
+  // HDG SEL · LNAV / VOR LOC / APP · ALTITUDE with ALT HLD · V/S with its
+  // thumbwheel · A/P ENGAGE (CMD / CWS A·B, DISENGAGE) · COURSE · F/D.
+  const M = O.panel('MCP', 150, { w: 900, bg: '#566069' });
+  const key = (x, y, label, w = 42) => M.mcpKey(x, y, w, 28, label, 'mcp_' + label, () => ctx.action(label));
+  const lbl = (x, t) => M.text(x, 14, t, { size: 9 });
+  // Captain's course and F/D.
+  lbl(66, 'COURSE');
+  M.lcd(40, 20, 54, () => '093', { h: 26, size: 19 });
+  M.knob(58, 80, 'crsL', ['', ''], [0, 0], { action: true, noLabels: true, r: 15 });
+  M.lamp(96, 62, 24, 14, 'MA', 'maL', 'white');
+  M.toggle(108, 112, 'fdL', ['ON', 'OFF'], { invert: true, noLabels: true });
+  M.text(128, 104, 'ON', { size: 6.5 }); M.text(128, 130, 'OFF', { size: 6.5 }); M.text(84, 120, 'F/D', { size: 7.5 });
+  // A/T ARM.
+  lbl(160, 'A/T\nARM');
+  M.lamp(148, 34, 24, 12, 'ARM', 'atArmLt', 'green');
+  M.toggle(160, 70, 'atArm', ['ARM', 'OFF'], { invert: true, noLabels: true });
+  M.text(160, 96, 'OFF', { size: 6.5 });
+  // IAS / MACH.
+  lbl(232, 'IAS/MACH');
+  M.lcd(190, 20, 86, (r) => r.values.spdWin ?? String(r.values.spd), { h: 26, size: 19 });
+  M.push(200, 68, null, { name: 'C/O (IAS / Mach changeover)' }); M.text(200, 86, 'C/O', { size: 6.5 });
+  M.knob(238, 70, 'spd', ['', ''], [0, 0], { action: true, noLabels: true, r: 15 });
+  M.push(278, 68, null, { name: 'SPD INTV' }); M.text(278, 86, 'SPD\nINTV', { size: 6 });
+  key(150, 108, 'N1'); key(200, 108, 'SPEED');
+  key(302, 20, 'VNAV'); key(302, 108, 'LVL CHG');
+  // Heading.
+  lbl(392, 'HEADING');
+  M.lcd(360, 20, 64, (r) => String(r.values.hdg).padStart(3, '0'), { h: 26, size: 19 });
+  // Bank angle limit: the outer ring behind the heading knob.
+  M.knob(392, 74, 'bank', ['10', '15', '20', '25', '30'], [-60, -30, 0, 30, 60], { r: 21, noLabels: true, skirt: true });
+  M.knob(392, 74, 'hdg', ['', ''], [0, 0], { action: true, noLabels: true, r: 13 });
+  ['10', '15', '20', '25', '30'].forEach((t, i) => { const a = ((-60 + i * 30) * Math.PI) / 180; M.text(392 + Math.sin(a) * 32, 74 - Math.cos(a) * 32 + 2, t, { size: 5.5 }); });
+  M.text(352, 100, 'BANK', { size: 5.5 });
+  key(371, 108, 'HDG SEL');
+  key(436, 20, 'LNAV'); key(436, 64, 'VOR LOC'); key(436, 108, 'APP');
+  // Altitude.
+  lbl(530, 'ALTITUDE');
+  M.lcd(490, 20, 84, (r) => String(r.values.alt), { h: 26, size: 19 });
+  M.knob(518, 74, 'alt', ['', ''], [0, 0], { action: true, noLabels: true, r: 16 });
+  M.push(560, 72, null, { name: 'ALT INTV' }); M.text(560, 90, 'ALT\nINTV', { size: 6 });
+  key(497, 108, 'ALT HLD');
+  // Vertical speed.
+  lbl(640, 'VERT SPEED');
+  M.lcd(596, 20, 86, (r) => (r.values.vs ? (r.values.vs > 0 ? '+' : '') + r.values.vs : ''), { h: 26, size: 19 });
+  key(596, 108, 'V/S');
+  // Thumbwheel: a ribbed wheel set in a slot, DN at the top, UP at the bottom.
+  M.knob(668, 88, 'vs', ['', ''], [0, 0], { action: true, noLabels: true, r: 9, bar: true });
+  M.text(668, 62, 'DN', { size: 6 }); M.text(668, 118, 'UP', { size: 6 });
+  // A/P engage.
+  lbl(752, 'A/P ENGAGE');
+  key(706, 20, 'CMD A'); key(756, 20, 'CMD B'); key(706, 58, 'CWS A'); key(756, 58, 'CWS B');
+  M.lamp(706, 104, 92, 22, 'DISENGAGE', () => !!ctx.sw.dis, 'amber', 'autoflight', () => ctx.set('dis', ctx.sw.dis ? 0 : 1));
+  // First officer's course and F/D.
+  lbl(842, 'COURSE');
+  M.lcd(816, 20, 54, () => '093', { h: 26, size: 19 });
+  M.knob(852, 80, 'crsR', ['', ''], [0, 0], { action: true, noLabels: true, r: 15 });
+  M.lamp(814, 62, 24, 14, 'MA', 'maR', 'white');
+  M.toggle(826, 112, 'fdR', ['ON', 'OFF'], { invert: true, noLabels: true });
+  M.text(806, 104, 'ON', { size: 6.5 }); M.text(806, 130, 'OFF', { size: 6.5 }); M.text(850, 120, 'F/D', { size: 7.5 });
 
   // A/P, A/T and FMC disengage / alert lights with their TEST switch
   // (top of each forward panel); STAB OUT OF TRIM (captain's panel).
