@@ -1,9 +1,9 @@
 // schem-autoflight.js — AFDS / autothrottle schematic with a live FMA, and
 // the MCP as three operable panels (also placed on the 3D glareshield).
 
-import { createSchematic, createPanel } from './schem-kit.js?v=19';
-import { createOverhead } from './overhead.js?v=19';
-import { STEPS } from './sys-autoflight.js?v=19';
+import { createSchematic, createPanel } from './schem-kit.js?v=20';
+import { createOverhead } from './overhead.js?v=20';
+import { STEPS } from './sys-autoflight.js?v=20';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 
@@ -52,9 +52,10 @@ export function mount(svgHost, panelHost, ctx) {
 
 export function panels(O, ctx) {
   // The MCP, left to right as on the glareshield, in four sections.
-  const MCP = { bg: '#43484d' };
-  const btn = (P, x, y, label, w = 34) => P.lamp(x, y, w, 17, label, 'mcp_' + label, 'green', 'autoflight', () => ctx.action(label));
-  const S = O.panel('MCP speed', 84, MCP);
+  // One long panel on the glareshield, drawn as four seamless sections.
+  const MCP = { bg: '#4d5358', seamless: true, screws: 'none' };
+  const btn = (P, x, y, label, w = 34) => P.mcpKey(x, y, w, 19, label, 'mcp_' + label, () => ctx.action(label));
+  const S = O.panel('MCP speed', 84, { ...MCP, screws: 'left' });
   S.text(31, 10, 'COURSE', { size: 6.5 });
   S.lcd(8, 14, 46, () => '093', { h: 16, size: 11 });
   S.knob(31, 50, 'crsL', ['', ''], [0, 0], { action: true, noLabels: true, r: 10 });
@@ -93,7 +94,7 @@ export function panels(O, ctx) {
   V.text(226, 24, 'DN', { size: 5 }); V.text(226, 62, 'UP', { size: 5 });
   btn(V, 158, 60, 'V/S', 40);
 
-  const E = O.panel('MCP engage', 84, MCP);
+  const E = O.panel('MCP engage', 84, { ...MCP, screws: 'right' });
   E.text(62, 9, 'A/P ENGAGE', { size: 6.5 });
   btn(E, 22, 14, 'CMD A', 38); btn(E, 64, 14, 'CMD B', 38);
   btn(E, 22, 36, 'CWS A', 38); btn(E, 64, 36, 'CWS B', 38);

@@ -724,3 +724,5 @@ body.view-cockpit .vignette { display: none; }
   .sb-range output { min-width: 5.6em; }
   .sb-item input[type=range] { width: 64px; }
 }
+
+.cp-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }

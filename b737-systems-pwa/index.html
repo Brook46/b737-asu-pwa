@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=19">
+  <link rel="stylesheet" href="app.css?v=20">
 </head>
 <body>
   <div id="stage">
@@ -132,8 +132,13 @@
   <div id="quiz" class="quiz" hidden><div class="quiz-card" id="quiz-card" role="dialog" aria-label="Quiz"></div></div>
 
   <div id="cp-bar" class="cp-bar" hidden>
+    <div class="cp-row">
+    <div class="seg" id="seat-seg" role="tablist" aria-label="Seat">
+      <button class="tag tag-btn on" data-seat="capt" title="Captain's seat (left)">CAPT</button><button class="tag tag-btn" data-seat="fo" title="First officer's seat (right)">F/O</button>
+    </div>
     <div class="seg" role="tablist" aria-label="Look at">
       <button class="tag tag-btn" data-look="out">Out</button><button class="tag tag-btn" data-look="panel">Panel</button><button class="tag tag-btn" data-look="center">Center</button><button class="tag tag-btn" data-look="overhead">Overhead</button><button class="tag tag-btn" data-look="mcp">MCP</button><button class="tag tag-btn" data-look="pedestal">Pedestal</button><button class="tag tag-btn" data-look="aft">Aft · CBs</button>
+    </div>
     </div>
     <div class="cp-hint">Drag to look around · pinch to zoom · tap any switch, light or screen</div>
   </div>
@@ -141,7 +146,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=20"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

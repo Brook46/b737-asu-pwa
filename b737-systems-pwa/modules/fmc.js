@@ -7,7 +7,7 @@
 // Performance numbers (V-speeds, VREF, N1, fuel burn) are simple
 // approximations for study — NOT for operational use.
 
-import { nav, geo } from './navdb.js?v=19';
+import { nav, geo } from './navdb.js?v=20';
 
 export const FT_PER_NM_3DEG = 318;
 const clone = (o) => JSON.parse(JSON.stringify(o));

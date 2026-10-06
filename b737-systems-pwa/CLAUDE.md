@@ -242,6 +242,18 @@ labelled "not for operational use" on the CDU.
   pedestal; tapping one opens the keypad.
 - Debug: `__app.fmc`, `__app.sim`, `__app.cdu`; `__app.cockpit.screens`.
 
+## Look of the overhead / MCP, seats (v20)
+
+- Overhead: short columns are topped up with blank cover plates
+  (`blankPlate` in cockpit.js) so the panel reads as one surface; the base
+  is seam grey. Panel grey `.ovh-bg` #747c82.
+- MCP: four sections drawn seamless (`panel(..., { seamless, screws })`),
+  mode keys via `mcpKey()` in overhead.js (dark key, green light bar, legend
+  below); LCDs black with a bezel.
+- Seat: CAPT / F/O in the cockpit bar (`cockpit.setSeat`, remembered in
+  localStorage `b737i.seat`). Views are defined from the left seat; the F/O
+  seat mirrors z.
+
 ## FMA and ND rules (v19, FCOM 4.20 / 10)
 
 - Takeoff: F/Ds on, TO/GA → N1 | blank | TO/GA, FD; THR HLD at 84 kt; armed

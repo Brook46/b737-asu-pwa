@@ -44,7 +44,11 @@ function defs(svg, id) {
 // can't load web fonts, so the condensed system fonts come first there.
 const FONT = "'Barlow Condensed', 'Avenir Next Condensed', 'Arial Narrow', Arial, sans-serif";
 const STYLE = `
-  .ovh-bg { fill: #6d747a; stroke: #3b4044; stroke-width: 2; }
+  .ovh-bg { fill: #747c82; stroke: #464c51; stroke-width: 1.4; }
+  .ovh-mcpkey .face { fill: #26292c; stroke: #0d0e0f; stroke-width: .8; }
+  .ovh-mcpkey .bar { fill: #1d2a22; }
+  .ovh-mcpkey.on .bar { fill: #5cff8f; }
+  .ovh-mcpkey .legend { fill: #eceeef; font-family: ${FONT}; font-weight: 700; letter-spacing: .03em; }
   .ovh-band { fill: #4f555a; }
   .ovh-line { fill: none; stroke: #eef0f1; stroke-linejoin: round; stroke-linecap: round; }
   .ovh-frame { fill: none; stroke: #eef0f1; stroke-width: 1.5; }
@@ -93,12 +97,16 @@ export function createOverhead(host, ctx) {
     svg.setAttribute('xmlns', NS);
     defs(svg, id);
     el('style', {}, svg).textContent = STYLE;
-    const bgRect = el('rect', { x: 0, y: 0, width: 300, height: h, rx: 4, class: 'ovh-bg' }, svg);
+    const bgRect = el('rect', { x: 0, y: 0, width: 300, height: h, rx: o.seamless ? 0 : 3, class: 'ovh-bg' }, svg);
     // o.bg: panel colour (control-stand panels are black, the MCP darker grey).
     if (o.bg) bgRect.style.fill = o.bg;
+    // o.seamless: sections of one long panel (the MCP) — no outline; screws
+    // only where o.screws says ('left' / 'right' / 'none').
+    if (o.seamless) bgRect.style.stroke = 'none';
     const controls = [];
-    // Corner screws.
-    for (const [x, y] of [[8, 8], [292, 8], [8, h - 8], [292, h - 8]]) {
+    // Corner screws (Dzus fasteners).
+    const screws = o.screws === 'none' ? [] : o.screws === 'left' ? [[8, 8], [8, h - 8]] : o.screws === 'right' ? [[292, 8], [292, h - 8]] : [[8, 8], [292, 8], [8, h - 8], [292, h - 8]];
+    for (const [x, y] of screws) {
       el('circle', { cx: x, cy: y, r: 3, fill: '#4b5156', stroke: '#2b2f33' }, svg);
       el('line', { x1: x - 2, y1: y, x2: x + 2, y2: y, stroke: '#2b2f33', 'stroke-width': 1 }, svg);
     }
@@ -471,8 +479,35 @@ export function createOverhead(host, ctx) {
         });
       },
       /** LCD window (FLT ALT, LAND ALT, meters). */
+      /**
+       * MCP mode key: a dark square key with the green light bar across its
+       * top half and the legend below (lit = mode selected / engaged).
+       */
+      mcpKey(x, y, w, hh, legend, key, press) {
+        const g = el('g', { class: 'ovh-mcpkey' }, layers.parts);
+        el('rect', { x: x - 1.2, y: y - 1.2, width: w + 2.4, height: hh + 2.4, rx: 2.4, fill: '#121314' }, g);
+        el('rect', { x, y, width: w, height: hh, rx: 1.8, class: 'face' }, g);
+        el('rect', { x: x + 1, y: y + 1, width: w - 2, height: 2.4, rx: 1, fill: 'rgba(255,255,255,.08)' }, g);
+        const bar = el('rect', { x: x + w * 0.22, y: y + hh * 0.2, width: w * 0.56, height: Math.max(2.6, hh * 0.16), rx: 1, class: 'bar' }, g);
+        const fs = Math.min(6.4, (w - 4) / (legend.length * 0.58));
+        const t = el('text', { x: x + w / 2, y: y + hh * 0.78, 'text-anchor': 'middle', 'font-size': fs, class: 'legend' }, g);
+        t.textContent = legend;
+        binds.push((res) => {
+          const v = typeof key === 'function' ? key(res) : res.lights?.[key];
+          g.classList.toggle('on', !!v);
+          if (v) bar.setAttribute('filter', `url(#glow${id})`); else bar.removeAttribute('filter');
+        });
+        g.style.cursor = 'pointer';
+        g.addEventListener('click', press);
+        controls.push({
+          kind: 'push', name: legend, about: 'autoflight', x0: x, x1: x + w, y0: y, y1: y + hh,
+          pos: () => (g.classList.contains('on') ? 'ON' : 'OFF'), act() { press(); return 'pressed'; },
+        });
+        return g;
+      },
       lcd(x, y, w, fn, o2 = {}) {
-        el('rect', { x, y, width: w, height: o2.h ?? 15, rx: 1.5, fill: '#060708', stroke: '#33373a' }, layers.parts);
+        el('rect', { x: x - 1.5, y: y - 1.5, width: w + 3, height: (o2.h ?? 15) + 3, rx: 2, fill: '#2a2e31' }, layers.parts);
+        el('rect', { x, y, width: w, height: o2.h ?? 15, rx: 1, fill: '#030404', stroke: '#15171a' }, layers.parts);
         const t = el('text', { x: x + w - 4, y: y + (o2.h ?? 15) - 4, 'text-anchor': 'end', class: 'ovh-lcd', 'font-size': o2.size ?? 10.5 }, layers.parts);
         binds.push((res) => { t.textContent = fn(res); });
       },

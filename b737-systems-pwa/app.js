@@ -4,33 +4,33 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=19';
-import { createOutside } from './modules/outside.js?v=19';
-import { createViewCube } from './modules/viewcube.js?v=19';
-import { createAirLink } from './modules/airlink.js?v=19';
-import { createQuickRef } from './modules/quickref.js?v=19';
-import { installResumeHardening } from './modules/resume.js?v=19';
-import { createScene } from './modules/scene.js?v=19';
-import { buildAirframe } from './modules/airframe.js?v=19';
-import { createSystems3D } from './modules/systems3d.js?v=19';
-import { createOverlay } from './modules/overlay.js?v=19';
-import { createSheet } from './modules/sheet.js?v=19';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=19';
-import { SYSTEMS, READY } from './modules/systems.js?v=19';
-import { createSearch } from './modules/search.js?v=19';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=19';
-import { createProgress } from './modules/progress.js?v=19';
-import { createLearn } from './modules/learn.js?v=19';
-import { explain } from './modules/cockpit-info.js?v=19';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=19';
-import { createCockpit } from './modules/cockpit.js?v=19';
-import { nav, geo, loadNav } from './modules/navdb.js?v=19';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=19';
-import { createCDU } from './modules/cdu.js?v=19';
-import { createCDUView } from './modules/cdu-view.js?v=19';
-import { createFlightSim } from './modules/flightsim.js?v=19';
-import { createStateBar } from './modules/statebar.js?v=19';
-import { engState } from './modules/sys-engines.js?v=19';
+import { makeEnv } from './modules/world.js?v=20';
+import { createOutside } from './modules/outside.js?v=20';
+import { createViewCube } from './modules/viewcube.js?v=20';
+import { createAirLink } from './modules/airlink.js?v=20';
+import { createQuickRef } from './modules/quickref.js?v=20';
+import { installResumeHardening } from './modules/resume.js?v=20';
+import { createScene } from './modules/scene.js?v=20';
+import { buildAirframe } from './modules/airframe.js?v=20';
+import { createSystems3D } from './modules/systems3d.js?v=20';
+import { createOverlay } from './modules/overlay.js?v=20';
+import { createSheet } from './modules/sheet.js?v=20';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=20';
+import { SYSTEMS, READY } from './modules/systems.js?v=20';
+import { createSearch } from './modules/search.js?v=20';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=20';
+import { createProgress } from './modules/progress.js?v=20';
+import { createLearn } from './modules/learn.js?v=20';
+import { explain } from './modules/cockpit-info.js?v=20';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=20';
+import { createCockpit } from './modules/cockpit.js?v=20';
+import { nav, geo, loadNav } from './modules/navdb.js?v=20';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=20';
+import { createCDU } from './modules/cdu.js?v=20';
+import { createCDUView } from './modules/cdu-view.js?v=20';
+import { createFlightSim } from './modules/flightsim.js?v=20';
+import { createStateBar } from './modules/statebar.js?v=20';
+import { engState } from './modules/sys-engines.js?v=20';
 
 const $ = (id) => document.getElementById(id);
 
@@ -552,6 +552,14 @@ function init() {
   $('cp-info-x').addEventListener('click', () => { $('cp-info').hidden = true; });
   $('cp-info-go').addEventListener('click', () => { const p = $('cp-info-go').dataset.page; if (p) goTo(p); });
   for (const b of document.querySelectorAll('[data-look]')) b.addEventListener('click', () => cockpit?.goView(b.dataset.look));
+  // Seat: captain or first officer (remembered per device).
+  const seatBtns = document.querySelectorAll('[data-seat]');
+  const showSeat = (v) => { for (const x of seatBtns) x.classList.toggle('on', x.dataset.seat === v); };
+  showSeat(store.get('seat') || 'capt');
+  for (const b of seatBtns) b.addEventListener('click', () => {
+    store.set('seat', b.dataset.seat); showSeat(b.dataset.seat);
+    cockpit?.setSeat(b.dataset.seat);
+  });
 
   function setView(v) {
     const was = view;
@@ -604,6 +612,7 @@ function init() {
       sheet.hide();
       api.setMode('cockpit', cockpit);
       cockpit.enter();
+      if ((store.get('seat') || 'capt') === 'fo') cockpit.setSeat('fo');
       $('cp-bar').hidden = false;
       $('cp-sim').hidden = false;
       const h = document.querySelector('.cp-hint');

@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=19';
-import { createOverhead } from './overhead.js?v=19';
-import * as CAB from './cockpit-cab.js?v=19';
-import { buildStand } from './cockpit-stand.js?v=19';
-import * as D from './cockpit-displays.js?v=19';
-import { drawCDUScreen } from './cdu.js?v=19';
+import * as THREE from '../vendor/three.module.min.js?v=20';
+import { createOverhead } from './overhead.js?v=20';
+import * as CAB from './cockpit-cab.js?v=20';
+import { buildStand } from './cockpit-stand.js?v=20';
+import * as D from './cockpit-displays.js?v=20';
+import { drawCDUScreen } from './cdu.js?v=20';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -317,7 +317,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   const OV_FRONT = new THREE.Vector3(0.64, 1.6, 0);
   const OV_T = new THREE.Vector3(-0.95, 0.31, 0).normalize();        // along the slope, aft
   const OV_N = new THREE.Vector3(-0.31, -0.95, 0).normalize();       // facing down and aft
-  const ovBase = add(new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.04, 1.02), M.dark));
+  // The overhead's frame: seam grey between the panels, as on the airplane.
+  const ovBase = add(new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.04, 1.08), new THREE.MeshStandardMaterial({ color: 0x3f454a, roughness: 0.8 })));
   ovBase.position.copy(OV_FRONT).addScaledVector(OV_T, 0.45).addScaledVector(OV_N, -0.03);
   ovBase.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), OV_T);
   const panelSets = new Map();      // sysId → { O, panels }
@@ -356,6 +357,33 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     pickables.push(mesh);
     texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
   };
+  // Blank cover plates fill the short columns, so the overhead reads as one
+  // continuous surface of panels like the real one (no holes).
+  const blankTex = (() => {
+    const ct = canvasTex(300, 300), g = ct.g;
+    g.fillStyle = '#747c82'; g.fillRect(0, 0, 300, 300);
+    g.strokeStyle = '#464c51'; g.lineWidth = 3; g.strokeRect(1.5, 1.5, 297, 297);
+    ct.t.needsUpdate = true;
+    return ct.t;
+  })();
+  const screwTex = (() => {
+    const ct = canvasTex(64, 64), g = ct.g;
+    g.fillStyle = '#4b5156'; g.beginPath(); g.arc(32, 32, 26, 0, 7); g.fill();
+    g.strokeStyle = '#2b2f33'; g.lineWidth = 6; g.beginPath(); g.moveTo(14, 32); g.lineTo(50, 32); g.stroke();
+    ct.t.needsUpdate = true;
+    return ct.t;
+  })();
+  function blankPlate(w, h, center) {
+    const m = add(plate(w, h, new THREE.MeshStandardMaterial({ map: blankTex, roughness: 0.7 }), center.toArray(), OV_N.toArray(), OV_T.toArray()));
+    m.userData.pick = { kind: 'static', name: 'Blank panel' };
+    const sm = new THREE.MeshStandardMaterial({ map: screwTex, transparent: true, roughness: 0.5 });
+    const right = new THREE.Vector3().crossVectors(OV_T, OV_N).normalize();
+    for (const [a, b] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const sc = add(plate(0.008, 0.008, sm, center.clone().addScaledVector(OV_T, a * (h / 2 - 0.007)).addScaledVector(right, b * (w / 2 - 0.007)).addScaledVector(OV_N, 0.0005).toArray(), OV_N.toArray(), OV_T.toArray()));
+      void sc;
+    }
+  }
+  const colMax = Math.max(...COLUMNS.map(colLen));
   COLUMNS.forEach((col, ci) => {
     let along = 0.02;
     for (const [sys, title] of col) {
@@ -365,6 +393,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       texPanel(P, sys, w, h, OV_AFT.clone().addScaledVector(OV_T, -(along + h / 2)).add(new THREE.Vector3(0, 0, colZ[ci])));
       along += h + 0.006;
     }
+    const gap = colMax - along;
+    if (gap > 0.012) blankPlate(0.2, gap, OV_AFT.clone().addScaledVector(OV_T, -(along + gap / 2)).add(new THREE.Vector3(0, 0, colZ[ci])));
   });
   for (const [sys, title, z, w] of FRONT_ROW) {
     const P = byTitle(sys, title);
@@ -419,7 +449,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   placePanel('warnings', 'Annunciator L', [0.75, 1.08, -0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
   placePanel('warnings', 'Annunciator R', [0.75, 1.08, 0.785], [-1, 0.32, 0], [0.32, 1, 0], 0.13);
   const MCP_UP = [0.32, 1, 0];
-  ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.238));
+  ['MCP speed', 'MCP heading', 'MCP altitude', 'MCP engage'].forEach((t, i) => placePanel('autoflight', t, [0.743, 1.08, -0.36 + i * 0.24], [-1, 0.32, 0], MCP_UP, 0.2402));
   // Control stand (FCOM 1.20 control stand figure): parking brake aft-left,
   // STAB TRIM cutouts aft-right — flush on the stand's sloped top.
   const STAND_Y = (x) => 0.71 + 0.25 * (x - 0.47) + 0.003;
@@ -546,8 +576,15 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     camera.lookAt(look.eye.clone().add(dir));
     camera.fov = look.fov;
   }
+  // Which seat you sit in: the captain's (left, z < 0) or the first
+  // officer's (right). Views are defined from the left seat and mirrored.
+  let seat = 'capt', lastView = 'out';
+  const side = (p) => (seat === 'fo' ? [p[0], p[1], -p[2]] : p);
+  function setSeat(s) { seat = s === 'fo' ? 'fo' : 'capt'; goView(lastView); }
   function goView(name) {
-    const v = VIEWS[name];
+    lastView = name;
+    const v = { ...VIEWS[name] };
+    v.eye = side(v.eye); if (v.look) v.look = side(v.look);
     const eye = new THREE.Vector3(...v.eye);
     let yaw = v.yaw ?? 0, pitch = v.pitch ?? 0;
     if (v.look) {
@@ -684,8 +721,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   }
 
   return { get look() { return look; }, aim: () => aim(),
-    scene, camera, frame, update, setData, goView, texPanels, screens,
-    enter() { active = true; look.eye.copy(EYE); goView('out'); for (const tp of texPanels) tp.dirty = true; },
+    scene, camera, frame, update, setData, goView, setSeat, get seat() { return seat; }, texPanels, screens,
+    enter() { active = true; look.eye.set(...side(EYE.toArray())); goView('out'); for (const tp of texPanels) tp.dirty = true; },
     exit() { active = false; pointers.clear(); drag = null; },
     get active() { return active; },
     panelSets,
