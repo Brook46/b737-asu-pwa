@@ -8,8 +8,8 @@
 // No wind, ISA, no aerodynamics: speeds and rates are rough 737-800 numbers
 // for study only.
 
-import { nav, geo } from './navdb.js?v=25';
-import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=25';
+import { nav, geo } from './navdb.js?v=26';
+import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=26';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const roc = (alt) => Math.max(1000, 3000 - alt * 0.055);
@@ -41,16 +41,19 @@ export function createFlightSim(hooks) {
   function targetIas(sp, alt) { return sp.ias ?? tas2ias(sp.mach * soundKt(alt), alt); }
 
   // ── Line up on the departure runway ──
-  function lineUp() {
+  /** at: optional { lat, lon, hdgT, elev, v: { v1, vr, v2 } } — a runway of its own (the RTO drill). */
+  function lineUp(at) {
     const r = fmc.S.route;
-    const rw = r.origin && r.depRwy && nav.runway(r.origin, r.depRwy);
-    const apt = r.origin && nav.airport(r.origin);
-    if (!rw && !apt) return 'NO ORIGIN';
-    const p = rw || apt;
+    const rw = !at && r.origin && r.depRwy && nav.runway(r.origin, r.depRwy);
+    const apt = !at && r.origin && nav.airport(r.origin);
+    if (!at && !rw && !apt) return 'NO ORIGIN';
+    const p = at || rw || apt;
+    const elev = at ? at.elev : rw ? rw.elev : apt.elev;
     ac = {
-      lat: p.lat, lon: p.lon, elev: rw ? rw.elev : apt.elev, alt: rw ? rw.elev : apt.elev,
-      trk: rw ? rw.hdgT : 0, ias: 0, tas: 0, gs: 0, vs: 0, pitch: 0, bank: 0, mach: 0,
+      lat: p.lat, lon: p.lon, elev, alt: elev,
+      trk: at ? at.hdgT : rw ? rw.hdgT : 0, ias: 0, tas: 0, gs: 0, vs: 0, pitch: 0, bank: 0, mach: 0,
       onGround: true, stage: 'lineup', vnav: 'climb', ra: 0, holdAlt: null, n1: 22,
+      fixedElev: at ? at.elev : null, v: at?.v || null, run: 0, engOut: false,
     };
     once.clear();
     if (fmc.S.active) fmc.S.activeIdx = 1;
@@ -59,6 +62,7 @@ export function createFlightSim(hooks) {
 
   // Ground elevation under the airplane: the nearer of origin and destination.
   function groundElev() {
+    if (ac.fixedElev != null) return ac.fixedElev;
     const r = fmc.S.route;
     const o = r.origin && nav.airport(r.origin), d = r.dest && nav.airport(r.dest);
     const rwA = r.dest && r.arrRwy && nav.runway(r.dest, r.arrRwy);
@@ -109,7 +113,7 @@ export function createFlightSim(hooks) {
     const elev = groundElev();
     ac.ra = ac.alt - elev;
     const vs1 = fmc.vspeeds();
-    const v2 = S.tko.v2 ?? vs1?.v2 ?? 150, vr = S.tko.vr ?? vs1?.vr ?? 145;
+    const v2 = ac.v?.v2 ?? S.tko.v2 ?? vs1?.v2 ?? 150, vr = ac.v?.vr ?? S.tko.vr ?? vs1?.vr ?? 145;
     const vref = S.appr.vref ?? fmc.vref(S.appr.flaps || 30) ?? 140;
     const crz = S.perf.crzAlt || m.alt || 10000;
     const rw = arrRunway();
@@ -122,8 +126,14 @@ export function createFlightSim(hooks) {
       if (m.pit === 'TO/GA' && hooks.engines()) { ac.stage = 'roll'; at('N1'); }
       else return;
     }
+    // Rejected takeoff: thrust idle, reversers, maximum braking (autobrake RTO), speedbrakes up.
+    if (ac.stage === 'rto') {
+      ac.ias = Math.max(0, ac.ias - 6.5 * dt);
+      ac.n1 = ac.ias > 60 ? 72 : 24;
+      if (ac.ias <= 0) ac.stage = 'stopped';
+    }
     if (ac.stage === 'roll') {
-      ac.ias += 3.6 * dt;
+      ac.ias += (ac.engOut ? 1.9 : 3.6) * dt;
       ac.n1 = 95;
       if (ac.ias > 84 && m.at === 'N1') at('THR HLD');
       if (ac.ias >= vr) { ac.stage = 'rotate'; }
@@ -241,6 +251,9 @@ export function createFlightSim(hooks) {
         if (m.ga) {
           // Go-around: reduced GA thrust for 1,000–2,000 fpm, speed for the flap setting.
           tgtSpd = Math.max(vref + 20, Math.min(FLAP_MAX[flapDet] - 15, vref + 40)); vsCmd = m.alt > ac.alt ? 1800 : 0;
+        } else if (ac.engOut) {
+          // One engine: V2 to V2 + 20, a much flatter climb.
+          tgtSpd = v2 + 5; vsCmd = m.alt > ac.alt ? 1000 : 0;
         } else {
           // Takeoff: 15° nose up, then MCP speed (V2) + 20.
           tgtSpd = (m.spd || v2) + 20; vsCmd = m.alt > ac.alt ? 2600 : 0;
@@ -361,6 +374,7 @@ export function createFlightSim(hooks) {
     ac.tas = ias2tas(ac.ias, Math.max(0, ac.alt));
     ac.gs = ac.tas;
     ac.mach = ac.tas / soundKt(Math.max(0, ac.alt));
+    ac.run += (ac.gs * dt) / 3600;           // NM along the ground track (stopping distance)
     const p = geo.dest(ac, ac.trk, (ac.gs * dt) / 3600);
     ac.lat = p.lat; ac.lon = p.lon;
   }
@@ -374,6 +388,9 @@ export function createFlightSim(hooks) {
     set paused(v) { paused = !!v; },
     lineUp,
     stop() { ac = null; },
+    /** RTO: from the roll, stop on the runway. Returns the distance run so far (NM). */
+    reject() { if (ac && ac.onGround && (ac.stage === 'roll' || ac.stage === 'rotate')) { ac.stage = 'rto'; ac.pitch = 0; ac.rtoAt = ac.run; } },
+    failEngine() { if (ac) ac.engOut = true; },
     /** Advance real time dt (s). Returns true when an FMA mode changed. */
     tick(dt) {
       if (!ac || paused) return false;

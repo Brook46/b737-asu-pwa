@@ -743,3 +743,34 @@ canvas.pv-node { image-rendering: auto; background: #000; }
 @media (max-width: 760px) { .pv-hint { display: none; } }
 .pv-sys { background: #e9ebe8; color: #111316; border: 0; font: 700 11px var(--mono); letter-spacing: .1em; padding: 8px 10px; cursor: pointer; }
 .pv-sys[hidden] { display: none; }
+
+/* ── Takeoff malfunction (RTO) drill ── */
+.cp-sim .rto-start { background: #b42318; color: #fff; }
+body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.drill .cdu, body.drill #hint { display: none !important; }
+.rto { position: fixed; inset: 0; z-index: 44; pointer-events: none; }
+.rto[hidden] { display: none; }
+.rto > * { pointer-events: auto; }
+.rto-top { position: absolute; top: calc(10px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center;
+  background: rgba(10,11,12,.72); color: #e8eaec; font: 600 11px var(--mono); letter-spacing: .1em; padding: 6px 8px 6px 12px; }
+.rto-top button { background: none; border: 1px solid #555; color: #e8eaec; font-size: 14px; width: 30px; height: 28px; cursor: pointer; }
+.rto-btns { position: absolute; left: 0; right: 0; bottom: calc(18px + var(--safe-b)); display: flex; gap: 16px; justify-content: center; padding: 0 16px; }
+.rto-btns[hidden] { display: none; }
+.rto-b { font: 800 28px/1 var(--mono); letter-spacing: .14em; border: 0; border-radius: 10px; padding: 26px 0; width: min(42vw, 300px);
+  color: #fff; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.25); touch-action: manipulation; }
+.rto-b:active { transform: translateY(2px); }
+.rto-b.stop { background: linear-gradient(#e5483b, #b42318); }
+.rto-b.go { background: linear-gradient(#22a35a, #157a3f); }
+.rto-b:disabled { background: #3a3f44; color: #8b9298; box-shadow: none; cursor: default; }
+.rto-b.small { font-size: 14px; padding: 14px 0; width: auto; padding-inline: 22px; background: #2b3035; }
+.rto-b.small.go { background: linear-gradient(#22a35a, #157a3f); }
+.rto-res { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 28px)); max-height: calc(100vh - 24px - var(--safe-t) - var(--safe-b)); overflow: auto;
+  background: rgba(14,15,17,.94); color: #eef0f2; border: 1px solid #333; border-radius: 10px; padding: 18px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.rto-res[hidden] { display: none; }
+.rto-verdict { font: 800 22px var(--mono); letter-spacing: .06em; margin-bottom: 10px; }
+.rto-verdict.ok { color: #4ade80; } .rto-verdict.bad { color: #f87171; }
+.rto-t { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rto-t td { padding: 6px 4px; border-top: 1px solid #2a2d31; vertical-align: top; }
+.rto-t td:first-child { color: #9aa1a7; width: 34%; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.rto-why { font-size: 14px; line-height: 1.45; color: #d6dade; margin: 12px 0 4px; }
+.rto-ref { font: 500 10px var(--mono); color: #7d848a; letter-spacing: .08em; }
+.rto-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }

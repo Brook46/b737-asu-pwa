@@ -4,7 +4,7 @@
 // parking brake, the cabin altitude warning reads the pressurisation model.
 // GPWS envelopes follow gpws-pwa (same FCOM chapter), simplified to scenarios.
 
-import { EE, YC, NOSE_X, FLIGHT_DECK_X, MLG } from './airframe.js?v=25';
+import { EE, YC, NOSE_X, FLIGHT_DECK_X, MLG } from './airframe.js?v=26';
 
 const C = '#e85d04', RED = '#e03131';
 
@@ -218,6 +218,11 @@ export default {
       if (s === 'bank') gpws.push(['caution', 'BANK ANGLE, BANK ANGLE', 35, '']);
       if (s === 'pws') gpws.push(esc ? ['warning', 'GO AROUND, WINDSHEAR AHEAD', 85, 'pws'] : ['caution', 'MONITOR RADAR DISPLAY', 30, 'pws']);
     }
+    // Predictive windshear on the takeoff roll (FCOM 15.20): warning "WINDSHEAR
+    // AHEAD"; new warnings are inhibited from 100 kt to 50 ft RA — an alert that
+    // started before stays.
+    const pwsTakeoff = !env.air && s === 'pws' && (env.wheel || 0) > 0;
+    if (pwsTakeoff) gpws.push(['warning', 'WINDSHEAR AHEAD, WINDSHEAR AHEAD', 85, 'pws']);
     const gpwsWarn = gpws.some((a) => a[0] === 'warning');
     let tcas = '';
     if (s === 'traffic' && env.air && sw.xpdr >= 3 && !gpwsWarn) tcas = esc && sw.xpdr === 4 && env.alt > 1000 ? 'RA' : 'TA';
@@ -241,7 +246,7 @@ export default {
         toConfig, cabAlt, belowGs: gpws.some((a) => a[3] === 'gs'), gpwsInop: !!f.gpwsInop, pseu: !!f.pseu, irs: !!f.irs,
       },
       values: {
-        cautions, fresh: fresh.length, aurals, top: top ? top[1] : '', pullUp, windshear: s === 'windshear' ? 'red' : (s === 'pws' && env.air) ? (esc ? 'red' : 'amber') : '',
+        cautions, fresh: fresh.length, aurals, top: top ? top[1] : '', pullUp, windshear: s === 'windshear' || pwsTakeoff ? 'red' : (s === 'pws' && env.air) ? (esc ? 'red' : 'amber') : '',
         terrain: s === 'terrAhead' && env.air && !sw.terrInh ? (esc ? 'red' : 'amber') : '', tcas, toWhy, gearHorn, shaker: env.air && s === 'stall',
       },
       note: [top && `🔊 ${aurals.slice(0, 3).map((a) => a[1]).join(' + ')}`, toConfig && `TAKEOFF CONFIG: ${toWhy.join(', ')}`, cabAlt && 'CABIN ALTITUDE',

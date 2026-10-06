@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=25">
+  <link rel="stylesheet" href="app.css?v=26">
 </head>
 <body>
   <div id="stage">
@@ -76,6 +76,7 @@
         <button class="tag tag-btn" id="sim-cdu" title="Open the CDU">CDU</button>
         <button class="tag tag-btn" id="sim-lineup" title="Line up on the FMC departure runway">LINE UP</button>
         <button class="tag tag-btn" id="sim-toga" title="TO/GA: start the takeoff">TO/GA</button>
+        <button class="tag tag-btn rto-start" id="sim-rto" title="Takeoff roll with a random malfunction: stop or continue?">⚠ TAKEOFF MALFUNCTION</button>
         <button class="tag tag-btn" id="sim-pause" title="Pause / run">❚❚</button>
         <span class="seg" id="sim-rate"><button class="tag tag-btn on" data-rate="1">1×</button><button class="tag tag-btn" data-rate="4">4×</button><button class="tag tag-btn" data-rate="16">16×</button><button class="tag tag-btn" data-rate="64">64×</button></span>
         <span class="seg"><button class="tag tag-btn" id="nd-rng-dn" title="ND range">RNG −</button><button class="tag tag-btn" id="nd-rng-up" title="ND range">RNG +</button></span>
@@ -86,6 +87,14 @@
     </div>
     <div id="state-bar" class="state-bar" role="group" aria-label="Airplane state"></div>
     <div id="phase-note" class="phase-note"></div>
+  </div>
+  <div id="rto" class="rto" hidden>
+    <div class="rto-top"><span id="rto-tag">TAKEOFF</span><button id="rto-x" aria-label="End the drill">✕</button></div>
+    <div class="rto-btns" id="rto-btns">
+      <button class="rto-b stop" id="rto-stop">STOP</button>
+      <button class="rto-b go" id="rto-go" disabled>CONTINUE</button>
+    </div>
+    <div class="rto-res" id="rto-res" hidden></div>
   </div>
   <div id="cp-info" class="cp-info" hidden>
     <button class="cp-x" id="cp-info-x" aria-label="Close">✕</button>
@@ -148,7 +157,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=25"></script>
+  <script type="module" src="app.js?v=26"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

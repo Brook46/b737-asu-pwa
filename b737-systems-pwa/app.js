@@ -4,35 +4,36 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=25';
-import { createOutside } from './modules/outside.js?v=25';
-import { createViewCube } from './modules/viewcube.js?v=25';
-import { createAirLink } from './modules/airlink.js?v=25';
-import { createQuickRef } from './modules/quickref.js?v=25';
-import { installResumeHardening } from './modules/resume.js?v=25';
-import { createScene } from './modules/scene.js?v=25';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=25';
-import { createDims } from './modules/dims.js?v=25';
-import { createSystems3D } from './modules/systems3d.js?v=25';
-import { createOverlay } from './modules/overlay.js?v=25';
-import { createSheet } from './modules/sheet.js?v=25';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=25';
-import { SYSTEMS, READY } from './modules/systems.js?v=25';
-import { createSearch } from './modules/search.js?v=25';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=25';
-import { createProgress } from './modules/progress.js?v=25';
-import { createLearn } from './modules/learn.js?v=25';
-import { explain } from './modules/cockpit-info.js?v=25';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=25';
-import { createCockpit } from './modules/cockpit.js?v=25';
-import { nav, geo, loadNav } from './modules/navdb.js?v=25';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=25';
-import { createCDU } from './modules/cdu.js?v=25';
-import { createCDUView } from './modules/cdu-view.js?v=25';
-import { createFlightSim } from './modules/flightsim.js?v=25';
-import { createStateBar } from './modules/statebar.js?v=25';
-import { createPanelViewer } from './modules/panelview.js?v=25';
-import { engState } from './modules/sys-engines.js?v=25';
+import { makeEnv } from './modules/world.js?v=26';
+import { createOutside } from './modules/outside.js?v=26';
+import { createViewCube } from './modules/viewcube.js?v=26';
+import { createAirLink } from './modules/airlink.js?v=26';
+import { createQuickRef } from './modules/quickref.js?v=26';
+import { installResumeHardening } from './modules/resume.js?v=26';
+import { createScene } from './modules/scene.js?v=26';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=26';
+import { createDims } from './modules/dims.js?v=26';
+import { createSystems3D } from './modules/systems3d.js?v=26';
+import { createOverlay } from './modules/overlay.js?v=26';
+import { createSheet } from './modules/sheet.js?v=26';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=26';
+import { SYSTEMS, READY } from './modules/systems.js?v=26';
+import { createSearch } from './modules/search.js?v=26';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=26';
+import { createProgress } from './modules/progress.js?v=26';
+import { createLearn } from './modules/learn.js?v=26';
+import { explain } from './modules/cockpit-info.js?v=26';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=26';
+import { createCockpit } from './modules/cockpit.js?v=26';
+import { nav, geo, loadNav } from './modules/navdb.js?v=26';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=26';
+import { createCDU } from './modules/cdu.js?v=26';
+import { createCDUView } from './modules/cdu-view.js?v=26';
+import { createFlightSim } from './modules/flightsim.js?v=26';
+import { createStateBar } from './modules/statebar.js?v=26';
+import { createPanelViewer } from './modules/panelview.js?v=26';
+import { createRtoDrill } from './modules/rto.js?v=26';
+import { engState } from './modules/sys-engines.js?v=26';
 
 const $ = (id) => document.getElementById(id);
 
@@ -517,7 +518,7 @@ function init() {
       })(),
       levers: { l1: stateOf('engines').sw.lever1, l2: stateOf('engines').sw.lever2 },
       flapLever: stateOf('flightcontrols').sw.flap, gearLever: stateOf('gear').sw.lever, park: !!stateOf('gear').sw.park, sb: stateOf('flightcontrols').sw.sb,
-      rev: phase === 'landing', fuel: r.fuel?.values, tai: r.antiice?.values.tai, warn: r.warnings?.values, dus: r.instruments?.values.du, capIas: r.instruments?.values.capIas, hyd: r.hydraulics?.values,
+      rev: phase === 'landing' || (sim.ac?.stage === 'rto' && sim.ac.ias > 60), fuel: r.fuel?.values, tai: r.antiice?.values.tai, warn: r.warnings?.values, dus: r.instruments?.values.du, capIas: r.instruments?.values.capIas, hyd: r.hydraulics?.values,
       tat: { ground: 18, takeoff: 16, cruise: -32, approach: 13, landing: 12 }[phase], mcp: r.autoflight?.values.lit || new Set(MCP_LIT[phase]),
     };
   }
@@ -647,6 +648,7 @@ function init() {
       $('cp-bar').hidden = true;
       $('cp-sim').hidden = true;
       viewer.close();
+      if (rto.active) rto.end(true);
       $('cp-info').hidden = true;
     }
     relayout();
@@ -725,6 +727,7 @@ function init() {
     }
     if (sim.flying) {
       sim.tick(dt);
+      rto.tick();
       // The phase follows the flight without resetting any switch.
       const a = sim.ac, flaps = stateOf('flightcontrols').sw.flap;
       const want = a.stage === 'rollout' || a.stage === 'stopped' ? 'landing' : a.onGround || flaps > 0 && a.vnav === 'climb' ? 'takeoff' : a.stage === 'approach' ? 'approach' : 'cruise';
@@ -751,23 +754,37 @@ function init() {
   }
   // ── Flight controls in the cockpit bar ──
   $('sim-cdu').addEventListener('click', () => cduView.toggle());
-  $('sim-lineup').addEventListener('click', () => {
-    if (!fmc.S.active) { fmc.msg('ACTIVATE ROUTE'); cduView.show(); return; }
+  /** Line up ready for takeoff: on the FMC route's runway, or on `at` (the RTO drill, no route). */
+  function prepareTakeoff(at) {
     setPhase('takeoff');
-    const r = fmc.S.route, af = stateOf('autoflight'), fc = stateOf('flightcontrols');
-    const err = sim.lineUp();
-    if (err) { fmc.msg(err); cduView.show(); return; }
-    // Ready for takeoff: LNAV / VNAV armed, flaps set, MCP at the cruise altitude, V2 in the speed window.
-    Object.assign(af.mem, { at: 'ARM', lat: '', latArm: 'LNAV', pit: '', pitArm: 'VNAV', cmdA: false, cmdB: false, app: false, step: -1,
-      alt: fmc.S.perf.crzAlt || 10000, spd: fmc.S.tko.v2 || fmc.vspeeds()?.v2 || 150, hdg: Math.round(((sim.ac.trk - nav.magVar(sim.ac)) + 360) % 360) });
+    const af = stateOf('autoflight'), fc = stateOf('flightcontrols');
+    const err = sim.lineUp(at);
+    if (err) return err;
+    // Ready for takeoff: LNAV / VNAV armed (with a route), flaps set, V2 in the speed window, RTO autobrake.
+    Object.assign(af.mem, { at: 'ARM', lat: '', latArm: at ? '' : 'LNAV', pit: '', pitArm: at ? '' : 'VNAV', cmdA: false, cmdB: false, app: false, step: -1,
+      to: false, ga: false, spdBlank: false, cwsR: false,
+      alt: at ? 3000 : fmc.S.perf.crzAlt || 10000, spd: at?.v?.v2 || fmc.S.tko.v2 || fmc.vspeeds()?.v2 || 150, hdg: Math.round(((sim.ac.trk - nav.magVar(sim.ac)) + 360) % 360) });
     af.sw.atArm = 1; af.sw.fdL = 1; af.sw.fdR = 1;
     const det = [0, 1, 2, 5, 10, 15, 25, 30, 40].indexOf(fmc.S.tko.flaps);
-    fc.sw.flap = det < 0 ? 3 : det; fc.mem.flap = fmc.S.tko.flaps;
-    stateOf('gear').sw.lever = 2; stateOf('gear').sw.park = 0;
-    void r;
+    fc.sw.flap = det < 0 ? 3 : det; fc.mem.flap = fmc.S.tko.flaps; fc.sw.sb = 0;
+    const gr = stateOf('gear');
+    gr.sw.lever = 2; gr.sw.park = 0; gr.sw.ab = 1;
     softPhase('takeoff');
     simStatus(); refresh();
+    return null;
+  }
+  $('sim-lineup').addEventListener('click', () => {
+    if (!fmc.S.active) { fmc.msg('ACTIVATE ROUTE'); cduView.show(); return; }
+    const err = prepareTakeoff();
+    if (err) { fmc.msg(err); cduView.show(); }
   });
+  // ── Takeoff malfunction (RTO decision) drill ──
+  const rto = createRtoDrill({
+    sim, fmc, nav, ctxFor, stateOf, refresh, prepareTakeoff,
+    cockpit: () => cockpit,
+    exit: () => { setPhase('ground'); cockpit?.goView('out'); },
+  });
+  $('sim-rto').addEventListener('click', () => rto.start());
   $('sim-toga').addEventListener('click', () => {
     if (!sim.flying) $('sim-lineup').click();
     if (sim.flying) { ctxFor('autoflight').action('TOGA'); sim.paused = false; }

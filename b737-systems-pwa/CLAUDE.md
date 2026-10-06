@@ -272,6 +272,24 @@ flight deck (photos are reference only — never copy their artwork):
   buttons, push-lights, MCP keys, caps and fire handles, a `bevel${id}` sheen
   on keys / caps / lamps, and a bezel round every annunciator.
 
+## Takeoff malfunction drill (v26)
+
+`rto.js` (cockpit bar → ⚠ TAKEOFF MALFUNCTION): lines up via `prepareTakeoff(at)`
+(app.js — the same line-up as LINE UP, on the FMC origin runway or LLBG 26,
+no route needed), TO/GA, and at a random speed from ~5 kt to V2 injects one
+item from MALF into the real systems (fire / fire warning via sys-fire fails,
+engine failure = engines flameout + `sim.failEngine()`, predictive windshear
+= warnings scenario `pws` — only below 100 kt, the FCOM 15.20 inhibit —, a
+master-caution system failure, tire failure, or nothing). The HUD is hidden
+(`body.drill`); only STOP / CONTINUE remain. STOP → `sim.reject()` (idle,
+reversers, max braking, speedbrake UP, A/T off). No decision by VR =
+continue. Debrief: malfunction, speed introduced, V1/VR/V2, decision and
+reaction time, stopping distance, and the QRH MAN.1.2 decision (below 80 kt
+reject for any listed item; 80 kt–V1 only fire, engine failure, predictive
+windshear, unable to fly; above V1 continue). Cues: Web Audio fire bell /
+master caution chime / bang, speech "WINDSHEAR AHEAD". Failures are cleared
+on exit. sys-warnings now gives the takeoff PWS warning on the roll.
+
 ## Dimension drawings (v25)
 
 `dims.js`: drafting-style dimensions on the floor around the 3D airplane —
