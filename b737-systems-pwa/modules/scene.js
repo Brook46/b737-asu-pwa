@@ -1,8 +1,8 @@
 // scene.js — renderer, studio (grid floor, soft shadow, vignette lives in CSS),
 // camera + orbit controls, solid ↔ x-ray skin, picking, and the frame loop.
 
-import * as THREE from '../vendor/three.module.min.js?v=26';
-import { OrbitControls } from './orbit-controls.js?v=26';
+import * as THREE from '../vendor/three.module.min.js?v=27';
+import { OrbitControls } from './orbit-controls.js?v=27';
 
 const XRAY_VERT = /* glsl */`
   varying vec3 vN; varying vec3 vV;

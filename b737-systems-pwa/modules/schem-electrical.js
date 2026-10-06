@@ -1,7 +1,7 @@
 // schem-electrical.js — operable AC/DC/standby schematic + electrical panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=26';
-import { createOverhead } from './overhead.js?v=26';
+import { createSchematic, createPanel } from './schem-kit.js?v=27';
+import { createOverhead } from './overhead.js?v=27';
 
 const AC = '#f5a300', DC = '#7048e8', STBY = '#e03131', BAT = '#2f9e44', APUC = '#e8590c', GPU = '#1c7ed6';
 

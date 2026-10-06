@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=26">
+  <link rel="stylesheet" href="app.css?v=27">
 </head>
 <body>
   <div id="stage">
@@ -89,7 +89,7 @@
     <div id="phase-note" class="phase-note"></div>
   </div>
   <div id="rto" class="rto" hidden>
-    <div class="rto-top"><span id="rto-tag">TAKEOFF</span><button id="rto-x" aria-label="End the drill">✕</button></div>
+    <div class="rto-top"><span id="rto-tag">TAKEOFF</span><button id="rto-snd" aria-label="Sound">🔊</button><button id="rto-x" aria-label="End the drill">✕</button></div>
     <div class="rto-btns" id="rto-btns">
       <button class="rto-b stop" id="rto-stop">STOP</button>
       <button class="rto-b go" id="rto-go" disabled>CONTINUE</button>
@@ -157,7 +157,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {

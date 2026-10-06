@@ -1,7 +1,7 @@
 // rto.js — takeoff malfunction drill (rejected takeoff decision). A normal
 // takeoff roll; somewhere between the start of the roll and V2 one malfunction
 // is injected into the real systems (fire, engine failure, predictive
-// windshear, a master caution system failure, a tire failure — or nothing).
+// windshear, a master caution system failure — or nothing).
 // Only two big buttons are left on the screen: STOP and CONTINUE. The flight
 // sim then flies the RTO (idle, reversers, max braking, speedbrakes) or the
 // takeoff, and a debrief shows what failed, at what speed, the decision and
@@ -12,22 +12,30 @@
 //   above V1   — continue.
 // A study aid: the decision rules are simplified to the listed items.
 
+// Only malfunctions you can see in the cockpit: each one lights FIRE WARN or
+// MASTER CAUTION (with its annunciator), and an engine failure also shows
+// ENG FAIL and the N1 / N2 run-down. (Checked against the systems' logic.)
 const MALF = [
-  { id: 'fire1', name: 'Engine 1 fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'fire1' },
-  { id: 'fire2', name: 'Engine 2 fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'fire2' },
-  { id: 'apuFire', name: 'APU fire warning', cat: 'v1', cue: 'bell', sys: 'fire', key: 'apuFire' },
-  { id: 'wheelWell', name: 'Wheel well fire warning', cat: 'v1', cue: 'bell', sys: 'fire', key: 'wheelWell' },
-  { id: 'cargo', name: 'Forward cargo fire warning', cat: 'v1', cue: 'bell', sys: 'fire', key: 'cargoFwd' },
-  { id: 'eng1', name: 'Engine 1 failure', cat: 'v1', cue: 'bang', sys: 'engines', key: 'flameout1', engine: true },
-  { id: 'eng2', name: 'Engine 2 failure', cat: 'v1', cue: 'bang', sys: 'engines', key: 'flameout2', engine: true },
-  { id: 'pws', name: 'Predictive windshear warning (WINDSHEAR AHEAD)', cat: 'v1', cue: 'pws', max: 99 },
-  { id: 'hyd', name: 'Hydraulic ELEC 2 pump overheat (MASTER CAUTION · HYD)', cat: 'c', cue: 'chime', sys: 'hydraulics', key: 'ovhtA' },
-  { id: 'gen', name: 'Generator 1 trip (MASTER CAUTION · ELEC)', cat: 'c', cue: 'chime', sys: 'electrical', key: 'gen1' },
-  { id: 'bleed', name: 'Bleed trip off 1 (MASTER CAUTION · AIR COND)', cat: 'c', cue: 'chime', sys: 'air', key: 'trip1' },
-  { id: 'fuel', name: 'Fuel pump low pressure (MASTER CAUTION · FUEL)', cat: 'c', cue: 'chime', sys: 'fuel', key: 'p1fwd' },
-  { id: 'ovht', name: 'Engine 1 overheat (MASTER CAUTION · OVHT/DET)', cat: 'c', cue: 'chime', sys: 'fire', key: 'ovht1' },
-  { id: 'tire', name: 'Tire failure — loud bang and vibration', cat: 'c', cue: 'bang', shake: true },
-  { id: 'none', name: 'No malfunction', cat: 'none', weight: 0.6 },
+  { id: 'fire1', name: 'Engine 1 fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'fire1', shows: 'FIRE WARN · bell · ENG 1 fire switch' },
+  { id: 'fire2', name: 'Engine 2 fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'fire2', shows: 'FIRE WARN · bell · ENG 2 fire switch' },
+  { id: 'apuFire', name: 'APU fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'apuFire', shows: 'FIRE WARN · bell · APU fire switch' },
+  { id: 'wheelWell', name: 'Wheel well fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'wheelWell', shows: 'FIRE WARN · bell · WHEEL WELL' },
+  { id: 'cargo', name: 'Forward cargo fire', cat: 'v1', cue: 'bell', sys: 'fire', key: 'cargoFwd', shows: 'FIRE WARN · bell · cargo FWD light' },
+  { id: 'eng1', name: 'Engine 1 failure', cat: 'v1', sys: 'engines', key: 'flameout1', engine: true, shows: 'ENG FAIL · N1/N2 run down · MASTER CAUTION (ELEC, HYD)' },
+  { id: 'eng2', name: 'Engine 2 failure', cat: 'v1', sys: 'engines', key: 'flameout2', engine: true, shows: 'ENG FAIL · N1/N2 run down · MASTER CAUTION (ELEC, HYD)' },
+  { id: 'pws', name: 'Predictive windshear warning', cat: 'v1', cue: 'pws', max: 99, shows: 'WINDSHEAR AHEAD aural · red WINDSHEAR on PFD and ND' },
+  { id: 'hyd', name: 'Hydraulic ELEC 2 pump overheat', cat: 'c', sys: 'hydraulics', key: 'ovhtA', shows: 'MASTER CAUTION · HYD' },
+  { id: 'leakB', name: 'Hydraulic system B leak', cat: 'c', sys: 'hydraulics', key: 'leakB', shows: 'MASTER CAUTION · HYD, FLT CONT' },
+  { id: 'gen', name: 'Generator 1 trip', cat: 'c', sys: 'electrical', key: 'gen1', shows: 'MASTER CAUTION · ELEC' },
+  { id: 'tr1', name: 'TR 1 failure', cat: 'c', sys: 'electrical', key: 'tr1', shows: 'MASTER CAUTION · ELEC' },
+  { id: 'bleed', name: 'Engine 1 bleed trip off', cat: 'c', sys: 'air', key: 'trip1', shows: 'MASTER CAUTION · AIR COND' },
+  { id: 'pack', name: 'Left pack trip off', cat: 'c', sys: 'air', key: 'packL', shows: 'MASTER CAUTION · AIR COND' },
+  { id: 'wb', name: 'Left wing-body overheat', cat: 'c', sys: 'air', key: 'wbL', shows: 'MASTER CAUTION · AIR COND' },
+  { id: 'fuel', name: 'Fuel pump low pressure', cat: 'c', sys: 'fuel', key: 'p1fwd', shows: 'MASTER CAUTION · FUEL' },
+  { id: 'filter', name: 'Engine 1 fuel filter bypass', cat: 'c', sys: 'fuel', key: 'filter1', shows: 'MASTER CAUTION · FUEL' },
+  { id: 'ovht', name: 'Engine 1 overheat', cat: 'c', sys: 'fire', key: 'ovht1', shows: 'MASTER CAUTION · OVHT/DET · ENG 1 OVERHEAT' },
+  { id: 'irs', name: 'IRS fault', cat: 'c', sys: 'warnings', key: 'irs', shows: 'MASTER CAUTION · IRS' },
+  { id: 'none', name: 'No malfunction', cat: 'none', weight: 1.2 },
 ];
 
 export function createRtoDrill(h) {
@@ -37,6 +45,7 @@ export function createRtoDrill(h) {
   let audio = null;
 
   // ── Sounds ──
+  let sound = (() => { try { return localStorage.getItem('b737i.rtoSound') !== '0'; } catch { return true; } })();
   function ac() { audio ||= new (window.AudioContext || window.webkitAudioContext)(); return audio; }
   function tone(f, t0, dur, type = 'sine', gain = 0.18) {
     const a = ac(), o = a.createOscillator(), g = a.createGain();
@@ -48,19 +57,13 @@ export function createRtoDrill(h) {
   let bellTimer = 0;
   function bell(on) {
     clearInterval(bellTimer);
-    if (!on) return;
+    if (!on || !sound) return;
     const ring = () => { for (let i = 0; i < 3; i++) { tone(1150, i * 0.11, 0.1, 'triangle', 0.22); tone(2300, i * 0.11, 0.06, 'sine', 0.05); } };
     ring(); bellTimer = setInterval(ring, 420);
   }
-  function chime() { tone(880, 0, 0.35, 'sine', 0.2); tone(660, 0.38, 0.5, 'sine', 0.2); }
-  function bang() {
-    const a = ac(), n = a.sampleRate * 0.35, b = a.createBuffer(1, n, a.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
-    const s = a.createBufferSource(), g = a.createGain(); g.gain.value = 0.7;
-    s.buffer = b; s.connect(g).connect(a.destination); s.start();
-  }
-  function say(text) { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; speechSynthesis.speak(u); } catch { /* no speech */ } }
-  function quiet() { bell(false); try { speechSynthesis.cancel(); } catch { /* fine */ } }
+  // Callouts and aurals in the app's chosen voice (speech.js), only with sound on.
+  function say(text, cut = false) { if (!sound) return; try { if (cut) h.tts.cancel(); h.tts.speak(text); } catch { /* no speech */ } }
+  function quiet() { bell(false); try { h.tts.cancel(); } catch { /* fine */ } }
 
   // ── The runway ──
   function runway() {
@@ -69,10 +72,12 @@ export function createRtoDrill(h) {
     return rw ? { lat: rw.lat, lon: rw.lon, hdgT: rw.hdgT, elev: rw.elev, name: `${r.origin && r.depRwy ? r.origin + ' ' + r.depRwy : 'LLBG 26'}` }
       : { lat: 32.0005, lon: 34.8994, hdgT: 258, elev: 130, name: 'runway' };
   }
+  // A different takeoff each run: V2 140–165 kt, VR a few knots below, and V1
+  // anywhere from VR down to 12 kt below it (weight, runway and weather vary).
   function vspeeds() {
-    const v = h.fmc.vspeeds?.();
-    const t = h.fmc.S.tko;
-    const v1 = t.v1 ?? v?.v1 ?? 142, vr = t.vr ?? v?.vr ?? 146, v2 = t.v2 ?? v?.v2 ?? 152;
+    const v2 = Math.round(140 + Math.random() * 25);
+    const vr = v2 - Math.round(4 + Math.random() * 4);
+    const v1 = vr - Math.round(Math.random() * 12);
     return { v1, vr, v2 };
   }
   function pick(v2) {
@@ -105,10 +110,7 @@ export function createRtoDrill(h) {
     if (m.engine) h.sim.failEngine();
     if (m.id === 'pws') { h.ctxFor('warnings').action('scen', 'pws'); run.applied.push(['warnings:scen', 'pws']); }
     if (m.cue === 'bell') bell(true);
-    if (m.cue === 'chime') chime();
-    if (m.cue === 'bang') bang();
-    if (m.cue === 'pws') { say('Windshear ahead. Windshear ahead.'); }
-    if (m.shake) run.shake = 1.2;
+    if (m.cue === 'pws') say('Windshear ahead, windshear ahead.', true);
     $('rto-go').disabled = false;
     h.refresh();
   }
@@ -146,6 +148,7 @@ export function createRtoDrill(h) {
       <div class="rto-verdict ${ok ? 'ok' : 'bad'}">${ok ? '✓ Correct decision' : late ? '✗ Rejected above V1' : '✗ Not the QRH decision'}</div>
       <table class="rto-t">
         ${row('Malfunction', m.name)}
+        ${m.shows ? row('What showed', m.shows) : ''}
         ${row('Introduced at', inj ? `${inj.speed} kt${inj.air ? ' (airborne)' : ''}` : m.cat === 'none' ? '—' : 'not reached')}
         ${row('V1 · VR · V2', `${v.v1} · ${v.vr} · ${v.v2} kt`)}
         ${row('Your decision', d ? `${d.type === 'stop' ? 'STOP' : 'CONTINUE'} at ${d.speed} kt${d.auto ? ' (no decision by VR)' : ''}${react ? ` · ${react} s after the malfunction` : ''}` : '—')}
@@ -177,9 +180,15 @@ export function createRtoDrill(h) {
     const a = h.sim.ac;
     if (!a) return;
     if (!run.injected && run.malf.cat !== 'none' && a.ias >= run.trigger) inject();
+    // Pilot monitoring's callouts: 80 knots, V1, rotate (not after a reject).
+    if (run.decision?.type !== 'stop' && a.onGround !== false) {
+      run.called ||= {};
+      if (a.ias >= 80 && !run.called[80]) { run.called[80] = 1; say('Eighty knots'); }
+      if (a.ias >= run.v.v1 && !run.called.v1) { run.called.v1 = 1; say('V one'); }
+      if (a.ias >= run.v.vr && !run.called.vr) { run.called.vr = 1; say('Rotate'); }
+    }
     // No decision by VR: the takeoff continues.
     if (run.injected && !run.decision && a.ias >= run.v.vr) decide('continue', true);
-    if (run.shake && h.cockpit()) { run.shake = Math.max(0, run.shake - 0.1); h.cockpit().look.pitch += (Math.random() - 0.5) * run.shake; }
     const done = (run.decision?.type === 'stop' && a.stage === 'stopped') || (a.ra > 400 && !a.onGround);
     if (done && !run.shown) { run.shown = true; if (!run.decision) run.decision = { type: 'continue', speed: Math.round(a.ias), t: performance.now(), auto: true }; quiet(); $('rto-btns').hidden = true; debrief(); }
   }
@@ -187,5 +196,9 @@ export function createRtoDrill(h) {
   $('rto-stop').addEventListener('click', () => decide('stop'));
   $('rto-go').addEventListener('click', () => decide('continue'));
   $('rto-x').addEventListener('click', () => end(true));
+  const sb = $('rto-snd');
+  const paintSound = () => { sb.textContent = sound ? '🔊' : '🔇'; sb.setAttribute('aria-label', sound ? 'Sound on' : 'Sound off'); };
+  paintSound();
+  sb.addEventListener('click', () => { sound = !sound; try { localStorage.setItem('b737i.rtoSound', sound ? '1' : '0'); } catch { /* fine */ } if (!sound) quiet(); else if (run?.injected && !run.decision && run.malf.cue === 'bell') bell(true); paintSound(); });
   return { start, tick, end, get active() { return !!run; } };
 }

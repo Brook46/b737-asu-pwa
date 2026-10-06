@@ -351,6 +351,13 @@ export function drawUpper(g, W, H, d) {
   arcGauge(g, 300, 290, 56, e2.egt / 1000, String(Math.round(e2.egt)), 0.95);
   text(g, 'EGT', 210, 316, CYN, 20, 'center');
   if (d.rev) { text(g, 'REV', 120, 64, GRN, 18, 'center'); text(g, 'REV', 300, 64, GRN, 18, 'center'); }
+  // ENG FAIL (amber): the engine has run down below idle with its start lever in IDLE.
+  (d.engFail || []).forEach((on, i) => {
+    if (!on) return;
+    const x = i ? 300 : 120;
+    g.fillStyle = '#000'; g.fillRect(x - 46, 182, 92, 28); box(g, x - 46, 182, 92, 28, AMB, 2);
+    text(g, 'ENG FAIL', x, 204, AMB, 18, 'center');
+  });
   // Thermal anti-ice: green when the cowl valve is open, amber if it disagrees.
   (d.tai || []).forEach((t, i) => { if (t) text(g, 'TAI', i ? 300 : 120, 40, t === 'amber' ? AMB : GRN, 18, 'center'); });
   // Fuel quantity.

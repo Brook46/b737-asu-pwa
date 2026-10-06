@@ -1,7 +1,7 @@
 // sys-hydraulics.js — FCOM chapter 13. Content is written for study in our
 // own words; numbers cite the FCOM section they come from.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, MLG, NLG } from './airframe.js?v=26';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, MLG, NLG } from './airframe.js?v=27';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
