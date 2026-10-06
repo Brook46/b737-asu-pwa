@@ -51,6 +51,7 @@ function defs(svg, id) {
 const FONT = "'Barlow Condensed', 'Avenir Next Condensed', 'Arial Narrow', Arial, sans-serif";
 const STYLE = `
   .ovh-bg { fill: #747c82; stroke: #464c51; stroke-width: 1.4; }
+  svg.tex3d .tg-nut, svg.tex3d .tg-lever, svg.tex3d .tg-end, svg.tex3d .kn-body, svg.tex3d .kn-ptr, svg.tex3d .pb { display: none; }
   .ovh-mcpkey .face { fill: #26292c; stroke: #0d0e0f; stroke-width: .8; }
   .ovh-mcpkey .bar { fill: #1d2a22; }
   .ovh-mcpkey.on .bar { fill: #5cff8f; }
@@ -205,12 +206,14 @@ export function createOverhead(host, ctx) {
         const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-tg' + (o2.inert ? ' inert' : '') }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
         const inner = el('g', { transform: o2.horizontal ? 'rotate(-90)' : null }, g);
         if (o2.housing) el('rect', { x: -12, y: -26, width: 24, height: 52, rx: 3, fill: '#151719' }, inner);
-        el('circle', { r: 10.5, fill: `url(#nut${id})`, stroke: '#2a2d30', 'stroke-width': 1 }, inner);
-        el('polygon', { points: [0, 1, 2, 3, 4, 5].map((i) => pt(6.4, i * 60 + 30).join(',')).join(' '), fill: '#5d6267', stroke: '#2d3134' }, inner);
-        const lever = el('g', {}, inner);
+        const has3d = !o2.guard;      // the cockpit draws unguarded toggles in 3D
+        const c3 = has3d ? ' ' : ' keep';
+        el('circle', { r: 10.5, fill: `url(#nut${id})`, stroke: '#2a2d30', 'stroke-width': 1, class: 'tg-nut' + c3 }, inner);
+        el('polygon', { points: [0, 1, 2, 3, 4, 5].map((i) => pt(6.4, i * 60 + 30).join(',')).join(' '), fill: '#5d6267', stroke: '#2d3134', class: 'tg-nut' + c3 }, inner);
+        const lever = el('g', { class: 'tg-lever' + c3 }, inner);
         el('path', { d: 'M-2.6,0 L-3.6,-17 L3.6,-17 L2.6,0 Z', fill: `url(#chrome${id})`, stroke: '#55595d', 'stroke-width': .5 }, lever);
         el('ellipse', { cx: 0, cy: -19, rx: 5.2, ry: 6.2, fill: `url(#tip${id})`, stroke: '#5f6468', 'stroke-width': .6 }, lever);
-        const endOn = el('circle', { r: 5.4, fill: `url(#tip${id})`, stroke: '#5f6468', 'stroke-width': .6 }, inner);
+        const endOn = el('circle', { r: 5.4, fill: `url(#tip${id})`, stroke: '#5f6468', 'stroke-width': .6, class: 'tg-end' + c3 }, inner);
         // Position legends.
         const n = positions.length;
         const side = o2.labels === 'left' ? -1 : 1;
@@ -277,6 +280,7 @@ export function createOverhead(host, ctx) {
         const hz = !!o2.horizontal;
         controls.push({
           kind: 'toggle', key, positions, name: o2.name || o2.label || key, about: o2.about, inert: !!o2.inert,
+          cx: x, cy: y, hz, has3d, idx: () => thrown ?? (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0),
           x0: x - (hz ? 40 : 16), x1: x + (hz ? 30 : 16), y0: y - (hz ? 16 : 40), y1: y + (hz ? 16 : 30),
           pos: () => positions[thrown ?? (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0)],
           guarded: () => !!(o2.guard && !o2.inert && !guardOpen),
@@ -300,15 +304,15 @@ export function createOverhead(host, ctx) {
         if (o2.grey) {
           // Light-grey bar knob (ENGINE START, AUTO BRAKE, IRS): round base, a
           // raised grip bar along the pointer, a black index line on the bar.
-          el('circle', { r: R, fill: '#c9cdd0', stroke: '#5c6266', 'stroke-width': 1 }, g);
+          el('circle', { r: R, fill: '#c9cdd0', stroke: '#5c6266', 'stroke-width': 1, class: 'kn-body' }, g);
         } else if (o2.knurl) {
           // Grey knurled knob (FLT ALT / LAND ALT): a ring of grip bumps.
           const pts2 = [];
           for (let i = 0; i < 48; i++) { const rr = i % 2 ? R : R - 1.6; pts2.push(pt(rr, i * 7.5).join(',')); }
-          el('polygon', { points: pts2.join(' '), fill: '#9da2a6', stroke: '#41464a', 'stroke-width': .8 }, g);
-          el('circle', { r: R * 0.62, fill: '#b6babd', stroke: '#6b7074' }, g);
-        } else el('circle', { r: R, fill: `url(#knob${id})`, stroke: '#000', 'stroke-width': 1 }, g);
-        const ptr = el('g', {}, g);
+          el('polygon', { points: pts2.join(' '), fill: '#9da2a6', stroke: '#41464a', 'stroke-width': .8, class: 'kn-body' }, g);
+          el('circle', { r: R * 0.62, fill: '#b6babd', stroke: '#6b7074', class: 'kn-body' }, g);
+        } else el('circle', { r: R, fill: `url(#knob${id})`, stroke: '#000', 'stroke-width': 1, class: 'kn-body' }, g);
+        const ptr = el('g', { class: 'kn-ptr' }, g);
         if (o2.grey) {
           el('rect', { x: -R * 0.32, y: -R * 1.08, width: R * 0.64, height: R * 2.16, rx: R * 0.3, fill: '#dfe2e4', stroke: '#6b7175', 'stroke-width': .8 }, ptr);
           el('rect', { x: -0.9, y: -R * 1.02, width: 1.8, height: R * 0.95, fill: '#111' }, ptr);
@@ -344,6 +348,8 @@ export function createOverhead(host, ctx) {
         const idx = () => thrown ?? (o2.inert ? o2.inertPos ?? 0 : ctx.sw[key] ?? 0);
         controls.push({
           kind: 'knob', key, positions, name: o2.name || o2.label || key, about: o2.about, inert: !!o2.inert,
+          cx: x, cy: y, R, look: o2.grey ? 'grey' : o2.knurl ? 'knurl' : o2.bar ? 'bar' : 'black', has3d: true,
+          angle: () => (o2.action ? 0 : angles[idx()] ?? 0),
           x0: x - R - 6, x1: x + R + 6, y0: y - R - 6, y1: y + R + 6,
           pos: () => (o2.action ? '' : positions[idx()]),
           act(px) { if (o2.inert) return 'inert'; turn(px < x); return 'moved'; },
@@ -354,8 +360,8 @@ export function createOverhead(host, ctx) {
       /** Round push button (TRIP RESET, OVHT TEST, MAINT, ALT HORN CUTOUT). */
       push(x, y, fn, o2 = {}) {
         const g = el('g', { transform: `translate(${x},${y})`, class: 'ovh-push' + (fn ? '' : ' inert') }, layers.parts); g.setAttribute('filter', `url(#drop${id})`);
-        el('circle', { r: 9.5, fill: '#b9bdc0', stroke: '#2b2e31' }, g);
-        el('circle', { r: 7, fill: '#0e0f10', stroke: '#000' }, g);
+        el('circle', { r: 9.5, fill: '#b9bdc0', stroke: '#2b2e31', class: 'pb' }, g);
+        el('circle', { r: 7, fill: '#0e0f10', stroke: '#000', class: 'pb' }, g);
         if (o2.top) P.text(x, y - 14, o2.top, { size: 6.8 });
         if (o2.bottom) P.text(x, y + 19, o2.bottom, { size: 6.8 });
         const press = () => {
@@ -366,6 +372,7 @@ export function createOverhead(host, ctx) {
         if (fn) g.addEventListener('click', press);
         controls.push({
           kind: 'push', name: o2.name || [o2.top, o2.bottom].filter(Boolean).join(' '), about: o2.about, inert: !fn,
+          cx: x, cy: y, button: true, has3d: true, down: () => g.classList.contains('down'),
           x0: x - 12, x1: x + 12, y0: y - 12, y1: y + 12, pos: () => '',
           act() { if (!fn) return 'inert'; press(); return 'pressed'; },
         });

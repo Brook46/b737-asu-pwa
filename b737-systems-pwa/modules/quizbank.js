@@ -256,6 +256,11 @@ export const QUESTIONS = [
   cm('pa', 'interphone', 'Which has the highest PA priority?', ['Pre-recorded announcements', 'Cabin crew handset', 'Flight deck (ACP PA or hand mic)', 'Boarding music'], 2,
     'The flight deck pre-empts everything, then cabin crew handsets, then PRAM.', 'FCOM 5.20'),
   // ── Airplane general ──
+  g('dim1', 'dimensions', 'What is the wingspan of the 737-800 / -900ER with winglets?', ['28.9 m', '34.3 m', '35.8 m', '38.0 m'], 2, 'Both models span 35.79 m (117 ft 5 in) over the winglets.', 'FCOM 1.10'),
+  g('dim2', 'dimensions', 'How much longer is the -900ER than the -800?', ['about 1.0 m', 'about 2.6 m', 'about 4.3 m', 'about 6.0 m'], 1, '42.11 m against 39.47 m — 2.64 m, most of it between the gears (wheelbase 17.17 m vs 15.60 m).', 'FCOM 1.10'),
+  g('turn1', 'turning', 'Which part of the airplane sweeps the widest arc in a minimum-radius turn of the 737-800?', ['The nose', 'The tail', 'The wingtip', 'The main gear'], 2, 'The wingtip (23.0 m) — it sets the obstacle clearance; the tail is 22.8 m, the nose 20.1 m.', 'FCOM 1.10'),
+  g('turn2', 'turning', 'Minimum pavement width for a 180° turn in the 737-800?', ['18.3 m', '24.3 m', '30.0 m', '45.0 m'], 1, '24.3 m (79.7 ft); the -900ER needs 26.3 m (86.4 ft).', 'FCOM 1.10'),
+  g('turn3', 'turning', 'How far does the tiller turn the nose wheel, compared with the rudder pedals?', ['45° / 7°', '78° / 7°', '78° / 15°', '90° / 10°'], 1, 'Tiller up to 78° each way; pedals up to 7°. The radius figures use an effective 75°.', 'FCOM 14.10'),
   g('oxy', 'oxygen', 'The passenger oxygen masks drop automatically at a cabin altitude of…', ['10,000 ft', '12,000 ft', '14,000 ft', '18,000 ft'], 2,
     'At 14,000 ft cabin altitude, or with PASS OXY ON.', 'FCOM 1.40'),
   g('oxyt', 'oxygen', 'Once started, passenger chemical oxygen flows for about…', ['5 min', '12 min (some ~22 min)', '45 min', 'Until switched off'], 1,

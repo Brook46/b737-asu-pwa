@@ -3,7 +3,7 @@
 // the way the FMA shows them, the autopilots follow hydraulics, and an
 // approach can be stepped through capture, dual channel, flare and retard.
 
-import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=23';
+import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=24';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 const BANKS = [10, 15, 20, 25, 30];

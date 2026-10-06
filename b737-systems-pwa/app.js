@@ -4,34 +4,34 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=23';
-import { createOutside } from './modules/outside.js?v=23';
-import { createViewCube } from './modules/viewcube.js?v=23';
-import { createAirLink } from './modules/airlink.js?v=23';
-import { createQuickRef } from './modules/quickref.js?v=23';
-import { installResumeHardening } from './modules/resume.js?v=23';
-import { createScene } from './modules/scene.js?v=23';
-import { buildAirframe } from './modules/airframe.js?v=23';
-import { createSystems3D } from './modules/systems3d.js?v=23';
-import { createOverlay } from './modules/overlay.js?v=23';
-import { createSheet } from './modules/sheet.js?v=23';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=23';
-import { SYSTEMS, READY } from './modules/systems.js?v=23';
-import { createSearch } from './modules/search.js?v=23';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=23';
-import { createProgress } from './modules/progress.js?v=23';
-import { createLearn } from './modules/learn.js?v=23';
-import { explain } from './modules/cockpit-info.js?v=23';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=23';
-import { createCockpit } from './modules/cockpit.js?v=23';
-import { nav, geo, loadNav } from './modules/navdb.js?v=23';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=23';
-import { createCDU } from './modules/cdu.js?v=23';
-import { createCDUView } from './modules/cdu-view.js?v=23';
-import { createFlightSim } from './modules/flightsim.js?v=23';
-import { createStateBar } from './modules/statebar.js?v=23';
-import { createPanelViewer } from './modules/panelview.js?v=23';
-import { engState } from './modules/sys-engines.js?v=23';
+import { makeEnv } from './modules/world.js?v=24';
+import { createOutside } from './modules/outside.js?v=24';
+import { createViewCube } from './modules/viewcube.js?v=24';
+import { createAirLink } from './modules/airlink.js?v=24';
+import { createQuickRef } from './modules/quickref.js?v=24';
+import { installResumeHardening } from './modules/resume.js?v=24';
+import { createScene } from './modules/scene.js?v=24';
+import { buildAirframe } from './modules/airframe.js?v=24';
+import { createSystems3D } from './modules/systems3d.js?v=24';
+import { createOverlay } from './modules/overlay.js?v=24';
+import { createSheet } from './modules/sheet.js?v=24';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=24';
+import { SYSTEMS, READY } from './modules/systems.js?v=24';
+import { createSearch } from './modules/search.js?v=24';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=24';
+import { createProgress } from './modules/progress.js?v=24';
+import { createLearn } from './modules/learn.js?v=24';
+import { explain } from './modules/cockpit-info.js?v=24';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=24';
+import { createCockpit } from './modules/cockpit.js?v=24';
+import { nav, geo, loadNav } from './modules/navdb.js?v=24';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=24';
+import { createCDU } from './modules/cdu.js?v=24';
+import { createCDUView } from './modules/cdu-view.js?v=24';
+import { createFlightSim } from './modules/flightsim.js?v=24';
+import { createStateBar } from './modules/statebar.js?v=24';
+import { createPanelViewer } from './modules/panelview.js?v=24';
+import { engState } from './modules/sys-engines.js?v=24';
 
 const $ = (id) => document.getElementById(id);
 
@@ -555,11 +555,19 @@ function init() {
     viewTarget = P ? { title: ev.panel, node: P.svg } : sc ? { title: ev.name, node: sc.c } : null;
     vw.hidden = !viewTarget;
     vw.textContent = sc ? '⤢ View screen' : '⤢ View panel';
+    // The system this panel belongs to (Hydraulics, Electrical…).
+    const sysB = $('cp-info-sys');
+    const sysM = ev.sys && sysOf(ev.sys);
+    sysLink = sysM && sysM.ready ? { label: `⇢ ${sysM.title} system`, go: () => { selectSystem(ev.sys, true); setView('schem'); } } : null;
+    sysB.hidden = !sysLink;
+    if (sysLink) sysB.textContent = sysLink.label;
     $('cp-info').hidden = false;
   }
+  let sysLink = null;
+  $('cp-info-sys').addEventListener('click', () => { if (sysLink) { $('cp-info').hidden = true; sysLink.go(); } });
   let viewTarget = null;
   const viewer = createPanelViewer();
-  $('cp-info-view').addEventListener('click', () => { if (viewTarget) { viewer.open(viewTarget.title, viewTarget.node); $('cp-info').hidden = true; } });
+  $('cp-info-view').addEventListener('click', () => { if (viewTarget) { viewer.open(viewTarget.title, viewTarget.node, sysLink); $('cp-info').hidden = true; } });
   $('cp-info-x').addEventListener('click', () => { $('cp-info').hidden = true; });
   $('cp-info-go').addEventListener('click', () => { const p = $('cp-info-go').dataset.page; if (p) goTo(p); });
   for (const b of document.querySelectorAll('[data-look]')) b.addEventListener('click', () => cockpit?.goView(b.dataset.look));

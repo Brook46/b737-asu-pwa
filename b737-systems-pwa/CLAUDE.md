@@ -272,6 +272,20 @@ flight deck (photos are reference only — never copy their artwork):
   buttons, push-lights, MCP keys, caps and fire handles, a `bevel${id}` sheen
   on keys / caps / lamps, and a bezel round every annunciator.
 
+## 3D switches, system links (v24)
+
+- Every unguarded toggle, every knob and push button on a cockpit panel is
+  real geometry (`build3d` in cockpit.js: hex nut + chrome bat handle, knob
+  body + pointer / grey bar knob, button cap) parented to the panel mesh and
+  driven by the control's `idx()` / `angle()` / `down()` (overhead.js adds
+  `cx, cy` and those accessors to the control records). The textures are
+  serialized with class `tex3d`, which hides the flat versions of those
+  parts (`.tg-*`, `.kn-*`, `.pb`). Guarded switches stay flat (the guard
+  covers them).
+- Panel card and full-screen view have a "⇢ <system> system" button that
+  selects the system and opens its schematic.
+- Airplane General: Dimensions and Turning radius pages (FCOM 1.10).
+
 ## Look of the overhead / MCP, seats (v20)
 
 - Overhead: short columns are topped up with blank cover plates

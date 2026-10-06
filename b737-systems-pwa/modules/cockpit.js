@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=23';
-import { createOverhead } from './overhead.js?v=23';
-import * as CAB from './cockpit-cab.js?v=23';
-import { buildStand } from './cockpit-stand.js?v=23';
-import * as D from './cockpit-displays.js?v=23';
-import { drawCDUScreen } from './cdu.js?v=23';
+import * as THREE from '../vendor/three.module.min.js?v=24';
+import { createOverhead } from './overhead.js?v=24';
+import * as CAB from './cockpit-cab.js?v=24';
+import { buildStand } from './cockpit-stand.js?v=24';
+import * as D from './cockpit-displays.js?v=24';
+import { drawCDUScreen } from './cdu.js?v=24';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -318,6 +318,78 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     }
   }
 
+  // ── 3D switches on the panels ──
+  // The panel textures carry the legends, lights and mimics; every toggle,
+  // knob and push button is real geometry standing off the panel (hex nut
+  // and bat handle, knob body and pointer, button), following the switch
+  // state. The flat drawing of those parts is hidden in the textures (the
+  // 'tex3d' class while serializing) — the full-screen view keeps its own.
+  const parts3d = [];          // { sys, fn }
+  const M3 = {
+    chrome: new THREE.MeshStandardMaterial({ color: 0xe4e7ea, roughness: 0.22, metalness: 0.85 }),
+    nut: new THREE.MeshStandardMaterial({ color: 0x8e9499, roughness: 0.35, metalness: 0.7 }),
+    knob: new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.45, metalness: 0.15 }),
+    grey: new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.45 }),
+    knurl: new THREE.MeshStandardMaterial({ color: 0x9da2a6, roughness: 0.5, metalness: 0.2 }),
+    white: new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.4 }),
+    black: new THREE.MeshStandardMaterial({ color: 0x0e0f10, roughness: 0.5 }),
+    ring: new THREE.MeshStandardMaterial({ color: 0xb9bdc0, roughness: 0.4, metalness: 0.4 }),
+  };
+  const G3 = {
+    nut: new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2),
+    disc: new THREE.CylinderGeometry(1, 1, 1, 20).rotateX(Math.PI / 2),
+    lever: new THREE.CylinderGeometry(0.62, 1, 1, 10).translate(0, 0.5, 0).rotateX(Math.PI / 2),   // along +z, base at 0
+    ball: new THREE.SphereGeometry(1, 12, 10),
+    box: new THREE.BoxGeometry(1, 1, 1),
+  };
+  function build3d(P, sys, mesh, w, h) {
+    const k = w / (P.w || 300);            // metres per panel unit
+    for (const c of P.controls) {
+      if (!c.has3d || c.cx == null) continue;
+      const g = new THREE.Group();
+      g.position.set((c.cx / (P.w || 300) - 0.5) * w, (0.5 - c.cy / P.h) * h, 0);
+      mesh.add(g);
+      const part = (geo, mat, sx, sy, sz, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); g.add(m); return m; };
+      if (c.kind === 'toggle') {
+        part(G3.disc, M3.nut, 10 * k, 10 * k, 1.2 * k, 0, 0, 0.6 * k);              // bushing plate
+        part(G3.nut, M3.nut, 6.6 * k, 6.6 * k, 3 * k, 0, 0, 2.4 * k);               // hex nut
+        const pivot = new THREE.Group(); pivot.position.z = 3.6 * k; g.add(pivot);
+        const lev = new THREE.Mesh(G3.lever, M3.chrome); lev.scale.set(2.6 * k, 2.6 * k, 19 * k); pivot.add(lev);
+        const tip = new THREE.Mesh(G3.ball, M3.chrome); tip.scale.set(3.6 * k, 3.6 * k, 4.4 * k); tip.position.z = 20 * k; pivot.add(tip);
+        const n = c.positions.length;
+        parts3d.push({ sys, fn: () => {
+          const i = c.idx();
+          // −1 = first position (top / left), +1 = last; centre of three = straight out.
+          const t = n === 3 ? i - 1 : i === 0 ? -1 : 1;
+          const a = t * 0.62;
+          // Lever tips toward its position: up is +y (rotate about −x), left is −x (rotate about −y).
+          if (c.hz) pivot.rotation.set(0, a, 0); else pivot.rotation.set(a, 0, 0);
+        } });
+      } else if (c.kind === 'knob') {
+        const R = c.R * k;
+        const mat = c.look === 'grey' ? M3.grey : c.look === 'knurl' ? M3.knurl : M3.knob;
+        const hgt = (c.look === 'grey' ? 5 : 7) * k;
+        part(G3.disc, mat, R, R, hgt, 0, 0, hgt / 2);
+        const ptr = new THREE.Group(); ptr.position.z = hgt; g.add(ptr);
+        if (c.look === 'grey') {
+          // Raised grip bar across the knob, black index line along it.
+          const bar = new THREE.Mesh(G3.box, M3.grey); bar.scale.set(R * 0.62, R * 2.1, 4 * k); bar.position.z = 2 * k; ptr.add(bar);
+          const line = new THREE.Mesh(G3.box, M3.black); line.scale.set(R * 0.1, R * 0.95, 0.4 * k); line.position.set(0, R * 0.52, 4.1 * k); ptr.add(line);
+        } else if (c.look === 'bar') {
+          const bar = new THREE.Mesh(G3.box, M3.white); bar.scale.set(R * 0.35, R * 1.9, 1 * k); bar.position.z = 0.5 * k; ptr.add(bar);
+        } else if (c.look !== 'knurl') {
+          const line = new THREE.Mesh(G3.box, M3.white); line.scale.set(R * 0.22, R * 0.9, 0.6 * k); line.position.set(0, R * 0.5, 0.3 * k); ptr.add(line);
+        }
+        parts3d.push({ sys, fn: () => { ptr.rotation.z = (-c.angle() * Math.PI) / 180; } });
+      } else if (c.button) {
+        part(G3.disc, M3.ring, 9.5 * k, 9.5 * k, 1.5 * k, 0, 0, 0.75 * k);
+        const cap = part(G3.disc, M3.black, 7 * k, 7 * k, 3.5 * k, 0, 0, 2.6 * k);
+        parts3d.push({ sys, fn: () => { cap.position.z = (c.down() ? 1.4 : 2.6) * k; } });
+      }
+    }
+  }
+  const update3d = (sys) => { for (const p of parts3d) if (!sys || p.sys === sys) p.fn(); };
+
   // ── Forward overhead: system panels as textures, in four columns ──
   const OV_FRONT = new THREE.Vector3(0.64, 1.6, 0);
   const OV_T = new THREE.Vector3(-0.95, 0.31, 0).normalize();        // along the slope, aft
@@ -368,6 +440,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     mesh.userData.pick = { kind: 'panel', sys, P };
     pickables.push(mesh);
     texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
+    build3d(P, sys, mesh, w, h);
   };
   // Blank cover plates fill the short columns, so the overhead reads as one
   // continuous surface of panels like the real one (no holes).
@@ -455,6 +528,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     mesh.userData.pick = { kind: 'panel', sys, P };
     pickables.push(mesh);
     texPanels.push({ P, sys, mesh, ct, last: '', dirty: true, scale });
+    build3d(P, sys, mesh, w, h);
   }
   // ── Where each panel sits (FCOM 1.20 panel figures) ──
   const MIP = [-1, 0.22, 0], MIP_UP = [0.22, 1, 0];
@@ -526,7 +600,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     for (const [sys, title] of list) x = aftAt(sys, title, x, z, 0.112);
     pedBlank(x, AFT_END, z, 0.112);
   }
-  function markDirty(sys) { for (const t of texPanels) if (t.sys === sys) t.dirty = true; }
+  function markDirty(sys) { for (const t of texPanels) if (t.sys === sys) t.dirty = true; update3d(sys); }
 
   // Render a panel's SVG into its texture (only when its markup changed).
   const ser = new XMLSerializer();
@@ -535,7 +609,10 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     for (const t of texPanels) {
       if (!t.dirty || rendering > 3) continue;
       t.dirty = false;
+      // Serialize with the 3D-drawn parts hidden (the cockpit has them in 3D).
+      t.P.svg.classList.add('tex3d');
       const xml = ser.serializeToString(t.P.svg);
+      t.P.svg.classList.remove('tex3d');
       if (xml === t.last) continue;
       t.last = xml;
       const img = new Image();

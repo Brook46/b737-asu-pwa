@@ -741,3 +741,5 @@ body.view-cockpit .vignette { display: none; }
 canvas.pv-node { image-rendering: auto; background: #000; }
 .cp-info-acts { display: flex; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 760px) { .pv-hint { display: none; } }
+.pv-sys { background: #e9ebe8; color: #111316; border: 0; font: 700 11px var(--mono); letter-spacing: .1em; padding: 8px 10px; cursor: pointer; }
+.pv-sys[hidden] { display: none; }

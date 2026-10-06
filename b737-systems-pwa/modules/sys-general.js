@@ -2,7 +2,7 @@
 // signs, emergency lighting, doors, oxygen and the flight deck door, in our
 // own words. Exterior lights show on the 3D airplane.
 
-import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=23';
+import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=24';
 
 const C = '#6b7280';
 const FD_DOOR_X = 15.0;      // flight deck door, just aft of the flight deck
@@ -98,6 +98,48 @@ export default {
       ],
       deck: [['FLT DK DOOR (UNLKD · AUTO · DENY)', 'Push in to turn to UNLKD.'], ['LOCK FAIL (amber)', 'Lock failed.'], ['AUTO UNLK (amber)', 'Emergency code entered.']],
       related: ['doors'],
+    },
+    {
+      id: 'dimensions', name: 'Dimensions', at: [0, YC + 2.2, 0], zoom: 60,
+      lead: 'The principal dimensions of the two models in the fleet, both with winglets. Wingspan, tailplane span, main gear track and height are the same; the -900ER is 2.64 m (8 ft 8 in) longer, most of it between the gears.',
+      how: [
+        '**737-800W:** overall length 39.47 m (129 ft 6 in), body 38.02 m (124 ft 9 in), wheelbase (nose gear to main gear) 15.60 m (51 ft 2 in).',
+        '**737-900ER W:** overall length 42.11 m (138 ft 2 in), body 40.67 m (133 ft 5 in), wheelbase 17.17 m (56 ft 4 in).',
+        '**Both:** wingspan 35.79 m (117 ft 5 in) over the winglets, tailplane span 14.35 m (47 ft 1 in), main gear track 5.72 m (18 ft 9 in); height to the top of the fin about 12.62 m (41 ft 5 in) and to the tailplane about 6.76 m (22 ft 2 in).',
+        'Heights are for reference only — they change with weight, fuel and strut extension. For real clearance planning use the airport / facilities planning data.',
+      ],
+      limits: [
+        ['Wingspan (winglets)', '35.79 m · 117 ft 5 in', 'FCOM 1.10'],
+        ['Length -800 / -900ER', '39.47 m · 129 ft 6 in / 42.11 m · 138 ft 2 in', 'FCOM 1.10'],
+        ['Wheelbase -800 / -900ER', '15.60 m · 51 ft 2 in / 17.17 m · 56 ft 4 in', 'FCOM 1.10'],
+        ['Main gear track', '5.72 m · 18 ft 9 in', 'FCOM 1.10'],
+        ['Tailplane span', '14.35 m · 47 ft 1 in', 'FCOM 1.10'],
+        ['Height (fin top, reference)', '≈ 12.62 m · 41 ft 5 in', 'FCOM 1.10'],
+      ],
+      related: ['turning', 'doors'],
+    },
+    {
+      id: 'turning', name: 'Turning radius & ground manoeuvring', at: [NLG.x, YC - 1.6, 0], zoom: 40,
+      lead: 'In a tight turn the wingtip sweeps the widest arc and sets the obstacle clearance — everything else stays inside it. The figures assume the effective steering angle of 75°, a slow continuous turn on minimum thrust and no differential braking.',
+      how: [
+        '**Steering:** the tiller turns the nose wheel up to 78° each way; the rudder pedals up to 7°. The turning-radius figures use an effective steering angle of 75°.',
+        '**737-800W:** nose radius 20.1 m (66.0 ft), wingtip 23.0 m (75.3 ft), tail 22.8 m (74.8 ft); minimum pavement width for a 180° turn 24.3 m (79.7 ft).',
+        '**737-900ER W:** nose 21.8 m (71.4 ft), wingtip 23.4 m (76.7 ft), tail 23.9 m (78.6 ft); minimum pavement for a 180° turn 26.3 m (86.4 ft).',
+        '**Turning away from an obstacle:** the nose and wingtip swing outward, so don\'t start a turn away from something that is close — inside 5.4 m (17.8 ft) of the wingtip or 7.4 m (24.3 ft) of the nose on the -800, 5.0 m (16.4 ft) and 6.6 m (21.8 ft) on the -900ER.',
+        'For towing and pushback a lockout pin in the nose gear towing lever depressurises nose wheel steering, so the tug can turn the gear without the hydraulics fighting it.',
+      ],
+      deck: [['Nose wheel steering tiller', 'Up to 78° each way; overrides the pedals.'], ['Rudder pedals', 'Up to 7° of nose wheel steering.'], ['NOSE WHEEL STEERING switch', 'NORM: system A · ALT: system B.']],
+      limits: [
+        ['Nose wheel steering, tiller / pedals', '78° / 7° each way', 'FCOM 14.10'],
+        ['Effective steering angle (radius figures)', '75°', 'FCOM 1.10'],
+        ['180° turn, min pavement -800 / -900ER', '24.3 m · 79.7 ft / 26.3 m · 86.4 ft', 'FCOM 1.10'],
+        ['Wingtip radius -800 / -900ER', '23.0 m · 75.3 ft / 23.4 m · 76.7 ft', 'FCOM 1.10'],
+        ['Nose radius -800 / -900ER', '20.1 m · 66.0 ft / 21.8 m · 71.4 ft', 'FCOM 1.10'],
+        ['Tail radius -800 / -900ER', '22.8 m · 74.8 ft / 23.9 m · 78.6 ft', 'FCOM 1.10'],
+        ['No turn away from an obstacle within -800', 'wingtip 5.4 m · 17.8 ft / nose 7.4 m · 24.3 ft', 'FCOM 1.10'],
+        ['No turn away from an obstacle within -900ER', 'wingtip 5.0 m · 16.4 ft / nose 6.6 m · 21.8 ft', 'FCOM 1.10'],
+      ],
+      related: ['dimensions'],
     },
   ],
 

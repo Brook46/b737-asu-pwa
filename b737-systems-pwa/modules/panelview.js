@@ -9,7 +9,7 @@ export function createPanelViewer() {
   el.className = 'pv';
   el.hidden = true;
   el.innerHTML = `
-    <div class="pv-head"><span class="pv-t"></span><span class="pv-hint">switch: tap its top or bottom half · knob: left or right half · Esc to close</span><button class="pv-x" aria-label="Close">✕</button></div>
+    <div class="pv-head"><span class="pv-t"></span><button class="pv-sys" hidden></button><span class="pv-hint">switch: tap its top or bottom half · knob: left or right half · Esc to close</span><button class="pv-x" aria-label="Close">✕</button></div>
     <div class="pv-body"></div>`;
   document.body.append(el);
   const body = el.querySelector('.pv-body');
@@ -26,8 +26,12 @@ export function createPanelViewer() {
     n.style.height = `${w / aspect}px`;
     n.style.maxWidth = 'none';
   }
-  function open(title, node) {
+  /** link: { label, go() } — a button to the panel's system. */
+  function open(title, node, link) {
     close();
+    const b = el.querySelector('.pv-sys');
+    b.hidden = !link;
+    if (link) { b.textContent = link.label; b.onclick = () => { close(); link.go(); }; }
     cur = { node, parent: node.parentNode, next: node.nextSibling, style: node.getAttribute('style') || '' };
     el.querySelector('.pv-t').textContent = title;
     body.replaceChildren(node);
