@@ -2,48 +2,84 @@
 // warnings and the GPWS / TCAS alerts; glareshield annunciators, GPWS panel,
 // transponder and the aft overhead warning tests.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=28';
-import { createOverhead } from './overhead.js?v=28';
-import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=28';
+import { createSchematic, createPanel } from './schem-kit.js?v=29';
+import { createOverhead } from './overhead.js?v=29';
+import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=29';
 
 const C = '#e85d04', AMB = '#fab005', RED = '#e03131';
 
 export function mount(svgHost, panelHost, ctx) {
-  const X = createSchematic(svgHost, 1000, 640);
+  const X = createSchematic(svgHost, 1000, 660);
   X.onPart = ctx.onPart;
-  // Six-pack sources on the left, master caution in the middle.
-  X.text(30, 26, 'SYSTEM ANNUNCIATORS', 't-small t-dim');
-  SIXPACK.forEach(([label], i) => {
-    const y = 40 + i * 44;
-    X.unit(30, y, 150, 34, label, (r) => (r.lights['sp_' + label] ? 'fault' : 'off'), { color: AMB, part: 'master', small: true });
-    X.pipe([[180, y + 17], [260, y + 17], [260, 300]], (r) => !!r.lights['sp_' + label], { color: AMB, thin: true });
+  const fire = (r) => ctx.resOf('fire')?.lights.fireWarn;
+  const SRC = { hydraulics: 'HYD', flightcontrols: 'FLT CTRL', fms: 'IRS/NAV', warnings: 'WARN', fuel: 'FUEL', electrical: 'ELEC',
+    engines: 'ENG/APU', fire: 'FIRE', antiice: 'ANTI-ICE', general: 'GENERAL', air: 'AIR' };
+  // ── Glareshield, as the pilots see it: each pilot's FIRE WARN and MASTER
+  // CAUTION outboard, that side's six-pack inboard, EFIS + MCP between. ──
+  X.text(500, 22, 'GLARESHIELD', 't-small t-dim', 'middle');
+  const sideGroup = (R) => {
+    const x0 = R ? 640 : 20;
+    X.el('rect', { x: x0, y: 34, width: 340, height: 104, rx: 6, class: 'box' }, X.svg.firstChild);
+    X.text(x0 + 170, 154, R ? 'FIRST OFFICER' : 'CAPTAIN', 't-small t-dim', 'middle');
+    const fx = R ? x0 + 268 : x0 + 12, mx = R ? x0 + 196 : x0 + 84;
+    X.annun(fx, 50, 60, 60, 'FIRE\nWARN', fire, 'red', { part: 'master', big: true });
+    X.annun(mx, 50, 60, 60, 'MASTER\nCAUTION', 'master', 'amber', { part: 'master', big: true });
+    const six = SIXPACK.filter((p) => p[1] === (R ? 'R' : 'L'));
+    six.forEach(([label], i) => {
+      const x = (R ? x0 + 12 : x0 + 158) + Math.floor(i / 3) * 86, y = 50 + (i % 3) * 22;
+      X.annun(x, y, 80, 18, label, 'sp_' + label, 'amber', { part: 'master' });
+    });
+    return six;
+  };
+  const sixL = sideGroup(false), sixR = sideGroup(true);
+  // EFIS · MCP · EFIS between the two groups (shape only).
+  X.el('rect', { x: 372, y: 52, width: 256, height: 64, rx: 4, class: 'box' }, X.svg.firstChild);
+  X.text(500, 80, 'EFIS · MCP · EFIS', 't-small t-dim', 'middle');
+  X.value(500, 100, (r) => ({ text: r.values.fresh ? `${r.values.fresh} new caution${r.values.fresh > 1 ? 's' : ''}` : 'no new cautions', cls: 't-small' + (r.values.fresh ? ' warn' : ' t-dim') }), '', 'middle');
+  // ── What lights each annunciator: one line per light, its sources and
+  // which of their cautions is on now. ──
+  const feeds = (list, x0, R) => {
+    X.text(x0, 186, 'FED BY', 't-small t-dim');
+    list.forEach(([label, , srcs], i) => {
+      const y = 206 + i * 34;
+      X.annun(x0, y - 12, 74, 16, label, 'sp_' + label, 'amber', { part: 'master' });
+      X.text(x0 + 82, y, srcs.map(([s]) => SRC[s] || s).join(' · '), 't-small t-dim');
+      X.value(x0 + 82, y + 13, (r) => {
+        const on = r.values.cautions.filter((c) => c.group === label).map((c) => c.id.split('.')[1]);
+        return on.length ? { text: on.join(', ').slice(0, 30), cls: 't-small warn' } : '';
+      }, '', 'start');
+    });
+  };
+  feeds(sixL, 20, false);
+  feeds(sixR, 680, true);
+  // ── Configuration warnings (centre). ──
+  X.text(500, 186, 'CONFIGURATION WARNINGS', 't-small t-dim', 'middle');
+  X.unit(400, 196, 200, 30, 'PSEU', () => 'on', { color: C, part: 'config', small: true });
+  X.annun(400, 238, 96, 30, 'TAKEOFF\nCONFIG', 'toConfig', 'red', { part: 'config' });
+  X.annun(504, 238, 96, 30, 'CABIN\nALTITUDE', 'cabAlt', 'red', { part: 'config' });
+  X.value(500, 286, (r) => ({ text: r.values.toWhy.join(' · '), cls: 't-small warn' }), '', 'middle');
+  X.unit(400, 296, 200, 30, 'GEAR HORN', (r) => (r.values.gearHorn ? 'fault' : 'off'), { color: RED, part: 'config', small: true });
+  X.text(500, 350, 'ALERTING', 't-small t-dim', 'middle');
+  [['GPWS', 'gpws', 'gpws'], ['W/SHEAR', 'windshear', 'windshear'], ['TCAS', 'tcas', 'tcas'], ['STALL', 'stall', 'stall']].forEach(([n, u, part], i) => {
+    X.unit(400 + (i % 2) * 104, 360 + Math.floor(i / 2) * 32, 96, 26, n, (r) => r.units[u], { color: C, part, small: true });
   });
-  X.unit(270, 270, 160, 60, 'MASTER CAUTION', (r) => (r.lights.master ? 'fault' : 'off'), { color: AMB, part: 'master' });
-  X.value(350, 350, (r) => ({ text: r.values.fresh ? `${r.values.fresh} new caution${r.values.fresh > 1 ? 's' : ''}` : 'no new cautions', cls: 't-small' + (r.values.fresh ? ' warn' : '') }));
-  X.value(350, 372, (r) => ({ text: r.values.cautions.length ? `${r.values.cautions.length} active (recall shows all)` : '', cls: 't-small t-dim' }));
-  // Configuration warnings.
-  X.unit(480, 40, 220, 44, 'PSEU', () => 'on', { color: C, part: 'config' });
-  X.unit(480, 110, 220, 40, 'TAKEOFF CONFIG', (r) => (r.lights.toConfig ? 'fault' : 'off'), { color: RED, part: 'config', small: true });
-  X.value(590, 168, (r) => ({ text: r.values.toWhy.join(' · '), cls: 't-small warn' }));
-  X.unit(480, 180, 220, 40, 'CABIN ALTITUDE', (r) => (r.lights.cabAlt ? 'fault' : 'off'), { color: RED, part: 'config', small: true });
-  X.unit(480, 240, 220, 40, 'GEAR HORN', (r) => (r.values.gearHorn ? 'fault' : 'off'), { color: RED, part: 'config', small: true });
-  // GPWS / windshear / TCAS.
-  X.unit(760, 40, 200, 44, 'GPWS / EGPWS', (r) => r.units.gpws, { color: C, part: 'gpws' });
-  X.unit(760, 110, 200, 40, 'WINDSHEAR', (r) => r.units.windshear, { color: C, part: 'windshear', small: true });
-  X.unit(760, 170, 200, 40, 'TCAS', (r) => r.units.tcas, { color: C, part: 'tcas', small: true });
-  X.unit(760, 230, 200, 40, 'SMYD · CLACKER', (r) => r.units.stall, { color: C, part: 'stall', small: true });
-  // Aural priority list.
-  X.text(480, 330, 'AURALS (highest priority first)', 't-small t-dim');
-  for (let i = 0; i < 5; i++) {
-    X.value(480, 356 + i * 22, (r) => {
+  // ── What the pilots see and hear: PFD alerts and the aural queue. ──
+  X.el('rect', { x: 20, y: 430, width: 960, height: 210, rx: 6, class: 'box' }, X.svg.firstChild);
+  X.text(40, 452, 'PFD / ND ALERTS', 't-small t-dim');
+  X.annun(40, 466, 130, 34, 'PULL UP', (r) => r.values.pullUp, 'red', { part: 'gpws', big: true });
+  X.annun(180, 466, 130, 34, 'WINDSHEAR', (r) => r.values.windshear, 'red', { part: 'windshear', big: true });
+  X.annun(40, 510, 130, 34, 'TERRAIN', (r) => r.values.terrain === 'red', 'red', { part: 'gpws', big: true });
+  X.annun(180, 510, 130, 34, 'CAUTION\nTERRAIN', (r) => r.values.terrain && r.values.terrain !== 'red', 'amber', { part: 'gpws' });
+  X.annun(40, 554, 130, 34, 'TRAFFIC', (r) => r.values.tcas === 'TA', 'amber', { part: 'tcas', big: true });
+  X.annun(180, 554, 130, 34, 'TRAFFIC RA', (r) => r.values.tcas === 'RA', 'red', { part: 'tcas', big: true });
+  X.text(380, 452, 'AURALS — highest priority first', 't-small t-dim');
+  for (let i = 0; i < 6; i++) {
+    X.value(380, 482 + i * 24, (r) => {
       const a = r.values.aurals[i];
-      return a ? { text: `${i ? '' : '▶ '}${a[1]}`, cls: (i ? 't-small' : 't-big') + (a[0] === 'warning' ? ' warn' : '') } : '';
+      return a ? { text: `${i ? '  ' : '▶ '}${a[1]}`, cls: (i ? 't-small' : 't-big') + (a[0] === 'warning' ? ' warn' : '') } : (i ? '' : { text: 'silent', cls: 't-small t-dim' });
     }, '', 'start');
   }
-  X.value(500, 500, (r) => ({ text: r.values.pullUp ? 'PULL UP' : '', cls: 't-big warn' }));
-  X.value(700, 500, (r) => ({ text: r.values.windshear ? 'WINDSHEAR' : r.values.terrain ? (r.values.terrain === 'red' ? 'TERRAIN' : 'CAUTION TERRAIN') : '', cls: 't-big warn' }));
-  X.value(880, 500, (r) => ({ text: r.values.tcas ? (r.values.tcas === 'RA' ? 'TRAFFIC (RA)' : 'TRAFFIC') : '', cls: 't-big' + (r.values.tcas === 'RA' ? ' warn' : '') }));
-  X.text(500, 610, 'Red: act now · amber: timely attention · blue: information · green: in position', 't-small t-dim', 'middle');
+  X.text(500, 656, 'Red: act now · amber: timely attention · blue: information · green: in position', 't-small t-dim', 'middle');
 
   const O = createOverhead(panelHost, ctx);
   panels(O, ctx);

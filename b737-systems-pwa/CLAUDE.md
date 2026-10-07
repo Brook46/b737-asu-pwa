@@ -300,6 +300,33 @@ Cockpit runway (v28): while the sim flies near the departure, cockpitData
 threshold stripes, edge and end lights) that slides past at ground speed
 every frame; the ground drops to the real height after lift-off.
 
+## Schematics closer to the airplane (v29)
+
+- Kit (schem-kit.js): `annun(x, y, w, h, label, key, color, {part, big})` — an
+  annunciator drawn like the airplane's (dark lens, fills in its colour when
+  lit, `'flash'` blinks); `airplane(cx, top, scale)` — a to-scale 737-800 top
+  view, nose up, returning `P(fwdX, z)` (airplane metres → schematic units);
+  `bind(fn)` for custom drawings. Units tint their fill when on / fault;
+  valves show a bright ring open, dim shut. Text class `halo` keeps labels
+  readable over the drawing.
+- Colour rule: amber and red mean caution / warning only — normal-state flows
+  and units use other colours (electric heat teal, suction lime, …).
+- Warnings: the glareshield as seen from the seats — captain's FIRE WARN,
+  MASTER CAUTION and six-pack on the left, the F/O's mirrored on the right,
+  then what feeds each six-pack light, configuration warnings, alerting
+  units, PFD alerts and the aural queue.
+- Airplane General: every exterior light at its place on the top view, in its
+  colour, glowing from its switch (beams for landing / turnoff / taxi /
+  wing, blinking strobes and beacons, taxi only with the gear down — as in
+  outside.js); doors green / amber on the outline; switch list, signs,
+  emergency lights and oxygen as annunciators.
+- Fire: zones on the top view (nacelles, APU, wheel well, fwd / aft hold)
+  dashed when monitored, amber on overheat / loop fault, flashing red on fire;
+  each engine's loops and fire switch on its side. Cargo bottles in the mix
+  bay on the forward spar (FCOM 8.20); engine bottle position is schematic.
+- Anti-ice: a "heated now" plan inset (cowl lips, three inboard slats,
+  windows).
+
 ## Dimension drawings (v25)
 
 `dims.js`: drafting-style dimensions on the floor around the 3D airplane —

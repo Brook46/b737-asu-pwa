@@ -2,36 +2,36 @@
 // with `mod` are built; the rest are listed so the map of the airplane is
 // complete and show as "soon".
 
-import hydraulics from './sys-hydraulics.js?v=28';
-import * as schemHydraulics from './schem-hydraulics.js?v=28';
-import fuel from './sys-fuel.js?v=28';
-import * as schemFuel from './schem-fuel.js?v=28';
-import electrical from './sys-electrical.js?v=28';
-import * as schemElectrical from './schem-electrical.js?v=28';
-import air from './sys-air.js?v=28';
-import * as schemAir from './schem-air.js?v=28';
-import engines from './sys-engines.js?v=28';
-import * as schemEngines from './schem-engines.js?v=28';
-import fire from './sys-fire.js?v=28';
-import * as schemFire from './schem-fire.js?v=28';
-import flightcontrols from './sys-flightcontrols.js?v=28';
-import * as schemFlightcontrols from './schem-flightcontrols.js?v=28';
-import gear from './sys-gear.js?v=28';
-import antiice from './sys-antiice.js?v=28';
-import warnings from './sys-warnings.js?v=28';
-import autoflight from './sys-autoflight.js?v=28';
-import instruments from './sys-instruments.js?v=28';
-import fms from './sys-fms.js?v=28';
-import comms from './sys-comms.js?v=28';
-import general from './sys-general.js?v=28';
-import * as schemGeneral from './schem-general.js?v=28';
-import * as schemComms from './schem-comms.js?v=28';
-import * as schemFms from './schem-fms.js?v=28';
-import * as schemInstruments from './schem-instruments.js?v=28';
-import * as schemAutoflight from './schem-autoflight.js?v=28';
-import * as schemWarnings from './schem-warnings.js?v=28';
-import * as schemAntiice from './schem-antiice.js?v=28';
-import * as schemGear from './schem-gear.js?v=28';
+import hydraulics from './sys-hydraulics.js?v=29';
+import * as schemHydraulics from './schem-hydraulics.js?v=29';
+import fuel from './sys-fuel.js?v=29';
+import * as schemFuel from './schem-fuel.js?v=29';
+import electrical from './sys-electrical.js?v=29';
+import * as schemElectrical from './schem-electrical.js?v=29';
+import air from './sys-air.js?v=29';
+import * as schemAir from './schem-air.js?v=29';
+import engines from './sys-engines.js?v=29';
+import * as schemEngines from './schem-engines.js?v=29';
+import fire from './sys-fire.js?v=29';
+import * as schemFire from './schem-fire.js?v=29';
+import flightcontrols from './sys-flightcontrols.js?v=29';
+import * as schemFlightcontrols from './schem-flightcontrols.js?v=29';
+import gear from './sys-gear.js?v=29';
+import antiice from './sys-antiice.js?v=29';
+import warnings from './sys-warnings.js?v=29';
+import autoflight from './sys-autoflight.js?v=29';
+import instruments from './sys-instruments.js?v=29';
+import fms from './sys-fms.js?v=29';
+import comms from './sys-comms.js?v=29';
+import general from './sys-general.js?v=29';
+import * as schemGeneral from './schem-general.js?v=29';
+import * as schemComms from './schem-comms.js?v=29';
+import * as schemFms from './schem-fms.js?v=29';
+import * as schemInstruments from './schem-instruments.js?v=29';
+import * as schemAutoflight from './schem-autoflight.js?v=29';
+import * as schemWarnings from './schem-warnings.js?v=29';
+import * as schemAntiice from './schem-antiice.js?v=29';
+import * as schemGear from './schem-gear.js?v=29';
 
 export const SYSTEMS = [
   { id: 'general', num: 1, title: 'Airplane General', color: '#6b7280', mod: general, schem: schemGeneral },

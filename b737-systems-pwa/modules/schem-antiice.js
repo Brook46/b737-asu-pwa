@@ -1,11 +1,11 @@
 // schem-antiice.js — thermal (bleed) and electric anti-ice schematic, with
 // the window heat, probe heat, wing / engine anti-ice and wiper panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=28';
-import { createOverhead } from './overhead.js?v=28';
-import { PROBES } from './sys-antiice.js?v=28';
+import { createSchematic, createPanel } from './schem-kit.js?v=29';
+import { createOverhead } from './overhead.js?v=29';
+import { PROBES } from './sys-antiice.js?v=29';
 
-const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#f5a300';
+const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#63e6be';
 
 export function mount(svgHost, panelHost, ctx) {
   const X = createSchematic(svgHost, 1000, 640);
@@ -47,7 +47,26 @@ export function mount(svgHost, panelHost, ctx) {
   X.value(700, 402, (r) => ({ text: r.lights.icing ? 'ICING' : r.lights.noIce ? 'NO ICE' : '—', cls: 't-big' + (r.lights.icing ? ' warn' : '') }));
   X.unit(820, 340, 140, 44, 'WIPERS', (r) => r.units.wipers, { color: '#868e96', part: 'wipers', small: true });
   X.value(890, 402, (r) => ({ text: `L ${r.values.wiper[ctx.sw.wiperL]} · R ${r.values.wiper[ctx.sw.wiperR]}`, cls: 't-small' }));
-  X.value(780, 470, (r) => ({ text: r.values.stall ? 'STALL WARNING: ICING LOGIC' : 'stall warning: normal', cls: 't-small' + (r.values.stall ? ' warn' : '') }));
+  X.value(780, 432, (r) => ({ text: r.values.stall ? 'STALL WARNING: ICING LOGIC' : 'stall warning: normal', cls: 't-small' + (r.values.stall ? ' warn' : '') }));
+  // Where the heat goes, on the airplane: cowl lips, the three inboard slats
+  // (outboard of each engine), the flight deck windows.
+  const AP = X.airplane(800, 450, 4.5);
+  const heat = (pts, on, part) => {
+    const d = 'M' + pts.map(([X0, z]) => AP(X0, z).join(',')).join(' L');
+    const n = X.el('path', { d, class: 'heat' }, X.svg.children[1]);
+    X.bind((r) => n.classList.toggle('on', !!on(r)));
+    n.addEventListener('click', () => X.onPart?.(part));
+  };
+  const le = (z) => (z <= 7.3 ? 4.2 - ((z - 1.7) / 5.6) * 4.8 : -0.6 - ((z - 7.3) / 9.9) * 3.7);
+  for (const [n, s] of [[1, -1], [2, 1]]) {
+    heat([[6.4, s * 4.2], [6.7, s * 5.0], [6.4, s * 5.8]], (r) => r.flows[`cowl${n}`], 'cowl');
+    heat([6.4, 8.5, 10.5, 12.5].map((z) => [le(z) + 0.25, s * z]), (r) => r.flows[`wing${n}`], 'wingai');
+  }
+  ['wh1', 'wh2', 'wh3', 'wh4'].forEach((k, i) => {
+    const z0 = [-1.5, -0.7, 0.1, 0.9][i];
+    heat([[17.6 - Math.abs(z0) * 0.6, z0], [17.6 - Math.abs(z0 + 0.6) * 0.6, z0 + 0.6]], (r) => r.lights[`${k}on`], 'windows');
+  });
+  X.text(712, 470, 'HEATED NOW', 't-small t-dim', 'end');
 
   const O = createOverhead(panelHost, ctx);
   panels(O, ctx);

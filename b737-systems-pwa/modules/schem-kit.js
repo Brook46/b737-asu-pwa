@@ -45,13 +45,14 @@ export function createSchematic(host, w, h) {
     /** Valve symbol: bar along the line when open, across it when shut. */
     valve(x, y, key, o = {}) {
       const g = el('g', { transform: `translate(${x},${y})` }, layers.units);
-      el('circle', { r: o.r ?? 11, class: 'valve' }, g);
+      const ring = el('circle', { r: o.r ?? 11, class: 'valve' }, g);
       const bar = el('line', { x1: -(o.r ?? 11) + 2, y1: 0, x2: (o.r ?? 11) - 2, y2: 0, class: 'valve-bar' }, g);
       const base = o.vertical ? 90 : 0;
       if (o.label) S.text(x + (o.lx ?? 0), y + (o.ly ?? 24), o.label, 't-small t-dim', 'middle');
       binds.push((r) => {
         const open = typeof key === 'function' ? key(r) : !!r.valves?.[key];
         bar.setAttribute('transform', `rotate(${open ? base : base + 90})`);
+        ring.setAttribute('class', 'valve ' + (open ? 'open' : 'shut'));
       });
       if (o.part) hit(g, o.part);
       return g;
@@ -117,6 +118,53 @@ export function createSchematic(host, w, h) {
         else t.textContent = v ?? '';
       });
       return t;
+    },
+    /** Run fn(res) on every update (custom drawings). */
+    bind(fn) { binds.push(fn); },
+    /**
+     * Annunciator like the airplane's: dark lens with the legend dim when
+     * off, filled in its colour with a dark legend when lit ('flash' blinks).
+     */
+    annun(x, y, w, h, label, key, color = 'amber', o = {}) {
+      const g = el('g', { class: `annun ${color}` }, layers.units);
+      el('rect', { x: x - 2, y: y - 2, width: w + 4, height: h + 4, rx: 3, class: 'annun-bezel' }, g);
+      el('rect', { x, y, width: w, height: h, rx: 2, class: 'annun-lens' }, g);
+      const lines = String(label).split('\n');
+      lines.forEach((ln, i) => S.text(x + w / 2, y + h / 2 + 3.5 + (i - (lines.length - 1) / 2) * 11, ln, 'annun-t' + (o.big ? ' big' : ''), 'middle', g));
+      binds.push((res) => {
+        const v = typeof key === 'function' ? key(res) : res.lights?.[key];
+        g.classList.toggle('lit', !!v);
+        g.classList.toggle('flash', v === 'flash');
+      });
+      if (o.part) hit(g, o.part);
+      return g;
+    },
+    /**
+     * A 737-800 seen from above, nose up, drawn to scale: returns P(fwdX, z)
+     * mapping airplane metres (x forward, z right) to schematic units.
+     */
+    airplane(cx, top, scale, o = {}) {
+      const P = (X, z) => [cx + z * scale, top + (19.7 - X) * scale];
+      const poly = (pts) => 'M' + pts.map(([X, z]) => P(X, z).join(',')).join(' L') + ' Z';
+      const g = el('g', { class: 'plan' }, layers.pipes);
+      // Fuselage: rounded nose, parallel body, tail cone.
+      const body = [];
+      for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI; body.push([15.5 + 4.2 * Math.sin(a), -1.88 * Math.cos(a)]); }
+      const fus = [...body, [-12, 1.88], [-17.5, 1.1], [-19.8, 0.3], [-19.8, -0.3], [-17.5, -1.1], [-12, -1.88]];
+      // Wings (each side): root LE, kink, tip with winglet, TE back to the root.
+      const wing = (s) => [[4.2, 1.7 * s], [-0.6, 7.3 * s], [-4.3, 17.2 * s], [-4.9, 17.9 * s], [-6.1, 17.9 * s], [-5.6, 16.4 * s], [-4.8, 7.3 * s], [-6.4, 1.7 * s]];
+      const stab = (s) => [[-13.4, 1.1 * s], [-16.6, 7.18 * s], [-17.9, 7.18 * s], [-17.2, 1.1 * s]];
+      const nac = (s) => [[6.3, 4.2 * s], [6.6, 5.0 * s], [6.3, 5.8 * s], [2.2, 5.8 * s], [0.6, 5.3 * s], [0.6, 4.7 * s], [2.2, 4.2 * s]];
+      for (const s of [-1, 1]) {
+        el('path', { d: poly(wing(s)), class: 'plan-skin' }, g);
+        el('path', { d: poly(stab(s)), class: 'plan-skin' }, g);
+        el('path', { d: poly(nac(s)), class: 'plan-skin' }, g);
+      }
+      el('path', { d: poly(fus), class: 'plan-skin' }, g);
+      // Fin (seen edge on) along the centreline.
+      el('path', { d: poly([[-12.5, 0.12], [-19.4, 0.12], [-19.4, -0.12], [-12.5, -0.12]]), class: 'plan-fin' }, g);
+      if (o.label) S.text(cx, top - 10, o.label, 't-small t-dim', 'middle');
+      return P;
     },
     update(res) { for (const b of binds) b(res); },
     onPart: null,

@@ -1,39 +1,157 @@
 // schem-general.js — lights, signs, emergency lighting, doors and oxygen at
 // a glance, with the lights, signs, oxygen, door and flight deck door panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=28';
-import { createOverhead } from './overhead.js?v=28';
-import { DOORS } from './sys-general.js?v=28';
+import { createSchematic, createPanel } from './schem-kit.js?v=29';
+import { createOverhead } from './overhead.js?v=29';
+import { DOORS } from './sys-general.js?v=29';
 
-const C = '#6b7280', LT = '#fab005';
 const EXT = [['llL', 'L LANDING'], ['llR', 'R LANDING'], ['rtoL', 'L RWY TURNOFF'], ['rtoR', 'R RWY TURNOFF'], ['taxi', 'TAXI'], ['logo', 'LOGO'], ['beacon', 'ANTI COLLISION'], ['wingLt', 'WING'], ['wwLt', 'WHEEL WELL']];
 
 export function mount(svgHost, panelHost, ctx) {
-  const X = createSchematic(svgHost, 1000, 640);
+  const X = createSchematic(svgHost, 1000, 660);
   X.onPart = ctx.onPart;
-  X.text(30, 26, 'EXTERIOR LIGHTS', 't-small t-dim');
-  EXT.forEach(([k, n], i) => {
-    const x = 30 + (i % 5) * 190, y = 36 + Math.floor(i / 5) * 54;
-    X.unit(x, y, 170, 40, n, () => (ctx.sw[k] ? 'on' : 'off'), { color: LT, part: 'lights', small: true });
+  // ── The airplane from above, nose up, to scale: each exterior light where
+  // it is on the airplane, in its colour, lit or dark from its switch. ──
+  X.text(20, 22, 'EXTERIOR LIGHTS & DOORS — seen from above', 't-small t-dim');
+  const under = X.el('g', {}, X.svg.firstChild);            // beams, below the skin
+  const AP = X.airplane(300, 70, 14);
+  const top = X.el('g', {}, X.svg.children[1]);             // lights, above the skin
+  const RED_ = '#ff3b30', GRN = '#3ad07a', WHT = '#ffffff', WARM = '#ffe2a0';
+  const isOn = (k) => (k === 'pos' ? ctx.sw.pos === 0 || ctx.sw.pos === 2 : k === 'strobe' ? ctx.sw.pos === 0 : !!ctx.sw[k]);
+  const gearDown = () => (ctx.resOf('gear')?.values.pos ?? 1) > 0.999;
+  // A light: halo + dot; kind 'strobe' / 'beacon' blink.
+  const light = (X0, z, key, color, o = {}) => {
+    const [x, y] = AP(X0, z);
+    const g = X.el('g', { class: 'hit' }, top);
+    const halo = X.el('circle', { cx: x, cy: y, r: o.r ? o.r * 2.6 : 10, fill: color, opacity: 0 }, g);
+    const dot = X.el('circle', { cx: x, cy: y, r: o.r || 4, class: 'lt', fill: color }, g);
+    if (o.belly) dot.setAttribute('stroke-dasharray', '2 2');
+    if (o.blink) { halo.classList.add('blink'); dot.classList.add('blink'); if (o.delay) { halo.style.animationDelay = dot.style.animationDelay = o.delay; } }
+    g.addEventListener('click', () => X.onPart?.('lights'));
+    X.bind(() => {
+      const on = isOn(key) && (!o.gear || gearDown());
+      halo.setAttribute('opacity', on ? 0.35 : 0);
+      dot.setAttribute('class', on ? 'lt' + (o.blink ? ' blink' : '') : 'lt lt-off');
+      dot.setAttribute('fill', on ? color : '#2b3138');
+    });
+  };
+  // A beam: a wedge from the light out along dir (degrees from straight ahead, + = right).
+  const beam = (X0, z, key, deg, len, spread, o = {}) => {
+    const [x, y] = AP(X0, z);
+    const a = (deg * Math.PI) / 180, w = (spread * Math.PI) / 180;
+    const pt = (t) => [x + Math.sin(t) * len, y - Math.cos(t) * len];
+    const [x1, y1] = pt(a - w), [x2, y2] = pt(a + w);
+    const path = X.el('path', { d: `M${x},${y} L${x1},${y1} A${len},${len} 0 0 1 ${x2},${y2} Z`, fill: WARM, class: 'beam' }, under);
+    X.bind(() => path.classList.toggle('on', isOn(key) && (!o.gear || gearDown())));
+    if (o.label) {
+      const [lx, ly] = pt(a);
+      X.text(lx, ly + (o.dy || -4), o.label, 't-small t-dim halo', 'middle');
+    }
+  };
+  for (const s of [-1, 1]) {
+    // Fixed landing lights in the wing roots, straight ahead.
+    beam(3.0, s * 3.15, s < 0 ? 'llL' : 'llR', s * 2, 200, 6, { label: s < 0 ? 'L LANDING' : 'R LANDING', dy: -6 });
+    light(3.0, s * 3.15, s < 0 ? 'llL' : 'llR', WARM);
+    // Runway turnoff lights, angled out.
+    beam(3.4, s * 2.6, s < 0 ? 'rtoL' : 'rtoR', s * 42, 140, 9, { label: s < 0 ? 'L RWY TURNOFF' : 'R RWY TURNOFF' });
+    light(3.4, s * 2.6, s < 0 ? 'rtoL' : 'rtoR', WARM, { r: 3 });
+    // Wing (ice inspection) lights on the body, lighting the leading edge.
+    beam(5.6, s * 1.95, 'wingLt', s * 118, 70, 8);
+    light(5.6, s * 1.95, 'wingLt', WARM, { r: 3 });
+    // Position: red left, green right; white aft at each tip. Strobes outboard.
+    light(-4.4, s * 17.3, 'pos', s < 0 ? RED_ : GRN, { r: 4.5 });
+    light(-5.8, s * 17.6, 'pos', WHT, { r: 3 });
+    light(-5.0, s * 18.4, 'strobe', WHT, { r: 3.5, blink: true, delay: s < 0 ? '0s' : '.05s' });
+    // Logo lights on the stabiliser, lighting the fin.
+    light(-17.2, s * 2.4, 'logo', WARM, { r: 3 });
+    // Wheel well lights.
+    light(-2.6, s * 0.6, 'wwLt', WARM, { r: 3 });
+  }
+  // Tail: white position + strobe.
+  light(-19.5, 0, 'pos', WHT, { r: 3 });
+  light(-20.3, 0, 'strobe', WHT, { r: 3, blink: true, delay: '.1s' });
+  // Anti-collision: top (solid) and belly (dashed), alternating.
+  light(2.2, 0, 'beacon', RED_, { r: 4.5, blink: true });
+  light(-1.0, 0, 'beacon', RED_, { r: 4.5, blink: true, belly: true, delay: '.55s' });
+  // Taxi light on the nose gear strut — only with the gear down.
+  beam(13.3, 0, 'taxi', 0, 100, 7, { gear: true, label: 'TAXI', dy: -6 });
+  light(13.3, 0, 'taxi', WARM, { r: 3, gear: true });
+  // Labels for the lights on the airplane.
+  const lab = (X0, z, t, anchor = 'start') => { const [x, y] = AP(X0, z); X.text(x, y, t, 't-small t-dim halo', anchor); };
+  lab(-7.4, -17.5, 'POSITION · STROBE', 'middle'); lab(-7.4, 17.5, 'POSITION · STROBE', 'middle');
+  lab(2.2, 1.5, 'BEACON (top)'); lab(-1.0, 1.5, 'BEACON (belly)');
+  lab(6.6, -2.2, 'WING', 'end'); lab(-2.6, -2.4, 'WHEEL WELL', 'end');
+  lab(-16.7, 3.4, 'LOGO');
+  // Doors on the outline: green closed, amber open.
+  const half = (X0) => (X0 > -12 ? 1.88 : 1.88 - ((-12 - X0) / 5.5) * 0.78);
+  const DOOR_AT = { fwdEntry: [14.4, -1], fwdSvc: [14.4, 1], aftEntry: [-13.6, -1], aftSvc: [-13.6, 1], fwdCargo: [8.5, 0.6], aftCargo: [-7.5, 0.6], equip: [11.5, 0] };
+  for (const [k, n] of DOORS) {
+    const [X0, side] = DOOR_AT[k];
+    const g = X.el('g', { class: 'hit' }, top);
+    g.addEventListener('click', () => X.onPart?.('doors'));
+    let ln;
+    if (side === 0) {
+      const [x, y] = AP(X0, 0);
+      ln = X.el('rect', { x: x - 5, y: y - 5, width: 10, height: 10, class: 'door', fill: 'none', 'stroke-dasharray': '2 2' }, g);
+      X.text(x + 9, y + 3, n, 't-small t-dim halo', 'start', g);
+    } else {
+      const z = Math.sign(side) * (Math.abs(side) === 1 ? half(X0) : half(X0) * 0.6);
+      const len = Math.abs(side) === 1 ? 0.55 : 0.9;
+      const [x1, y1] = AP(X0 + len, z), [x2, y2] = AP(X0 - len, z);
+      ln = X.el('line', { x1, y1, x2, y2, class: 'door' }, g);
+      if (Math.abs(side) !== 1) ln.setAttribute('stroke-dasharray', '3 2');
+      const [tx, ty] = AP(X0, z + Math.sign(side) * (Math.abs(side) === 1 ? 0.9 : 2.2));
+      X.text(tx, ty + 3, n, 't-small t-dim halo', side < 0 ? 'end' : 'start', g);
+    }
+    X.bind((r) => ln.setAttribute('class', 'door ' + (r.values.open[k] ? 'open' : 'closed')));
+  }
+  // Overwing exits (two each side, over the wing), with their flight lock.
+  for (const s of [-1, 1]) for (const X0 of [0.4, -0.6]) {
+    const [x1, y1] = AP(X0 + 0.3, s * 1.88), [x2, y2] = AP(X0 - 0.3, s * 1.88);
+    const ln = X.el('line', { x1, y1, x2, y2, class: 'door' }, top);
+    X.bind((r) => ln.setAttribute('class', 'door ' + (r.lights['overwing' + (s < 0 ? 'L' : 'R')] ? 'open' : 'closed')));
+  }
+  // ── Right: the switches and what they do, signs, emergency, oxygen. ──
+  const RX = 640;
+  X.el('rect', { x: RX - 14, y: 34, width: 368, height: 250, rx: 6, class: 'box' }, X.svg.firstChild);
+  X.text(RX, 54, 'EXTERIOR LIGHT SWITCHES', 't-small t-dim');
+  const rows = [['L / R LANDING', () => [ctx.sw.llL, ctx.sw.llR]], ['L / R RWY TURNOFF', () => [ctx.sw.rtoL, ctx.sw.rtoR]], ['TAXI', () => [ctx.sw.taxi]],
+    ['LOGO', () => [ctx.sw.logo]], ['POSITION', () => [ctx.sw.pos !== 1]], ['STROBE', () => [ctx.sw.pos === 0]],
+    ['ANTI COLLISION', () => [ctx.sw.beacon]], ['WING', () => [ctx.sw.wingLt]], ['WHEEL WELL', () => [ctx.sw.wwLt]]];
+  rows.forEach(([n, f], i) => {
+    const y = 78 + i * 22;
+    X.text(RX, y, n, 't-small');
+    X.value(RX + 340, y, () => {
+      const v = f();
+      const t = v.map((x) => (x ? 'ON' : 'OFF')).join(' / ');
+      return { text: t + (n === 'TAXI' && v[0] && !gearDown() ? ' (gear up)' : ''), cls: 't-small' + (v.some(Boolean) ? '' : ' t-dim') };
+    }, '', 'end');
   });
-  X.unit(790, 90, 170, 40, 'POSITION / STROBE', () => (ctx.sw.pos === 1 ? 'off' : 'on'), { color: LT, part: 'lights', small: true });
-  X.value(875, 148, () => ({ text: ['STROBE & STEADY', 'OFF', 'STEADY'][ctx.sw.pos], cls: 't-small' }));
-  // Signs and emergency lights.
-  X.unit(30, 190, 280, 50, 'FASTEN BELTS', (r) => (r.values.belts ? 'on' : 'off'), { color: '#adb5bd', part: 'signs' });
-  X.value(170, 258, () => ({ text: `switch ${['OFF', 'AUTO', 'ON'][ctx.sw.belts]} — AUTO: flaps or gear out`, cls: 't-small' }));
-  X.unit(360, 190, 280, 50, 'EMERGENCY LIGHTS', (r) => r.units.emergency, { color: '#ffd43b', part: 'emergency' });
-  X.value(500, 258, (r) => ({ text: r.values.emerOn ? 'ON' : ['OFF — will NOT come on', 'ARMED', 'ON'][ctx.sw.exitLt], cls: 't-small' + (ctx.sw.exitLt !== 1 ? ' warn' : '') }));
-  X.unit(690, 190, 280, 50, 'PASSENGER OXYGEN', (r) => r.units.oxygen, { color: '#74c0fc', part: 'oxygen' });
-  X.value(830, 258, (r) => ({ text: r.values.dropped ? `MASKS DOWN · ~${r.values.oxyLeft} min` : `cabin ${Math.round(r.values.cab)} ft (drops at 14,000)`, cls: 't-small' + (r.values.dropped ? ' warn' : '') }));
-  // Doors.
-  X.text(30, 306, 'DOORS', 't-small t-dim');
+  X.value(RX, 276, () => ({ text: `POSITION switch: ${['STROBE & STEADY', 'OFF', 'STEADY'][ctx.sw.pos]}`, cls: 't-small t-dim' }), '', 'start');
+  // Signs and emergency lights, as the cabin shows them.
+  X.annun(RX, 304, 108, 34, 'FASTEN\nBELTS', (r) => r.values.belts, 'amber', { part: 'signs' });
+  X.annun(RX + 120, 304, 108, 34, 'EMERGENCY\nLIGHTS', (r) => r.values.emerOn, 'amber', { part: 'emergency' });
+  X.annun(RX + 240, 304, 108, 34, 'PASS\nOXYGEN', (r) => r.values.dropped, 'amber', { part: 'oxygen' });
+  X.value(RX + 54, 354, () => ({ text: `switch ${['OFF', 'AUTO', 'ON'][ctx.sw.belts]}`, cls: 't-small' }), '', 'middle');
+  X.value(RX + 174, 354, (r) => ({ text: r.values.emerOn ? 'ON' : ['OFF — will NOT come on', 'ARMED', 'ON'][ctx.sw.exitLt], cls: 't-small' + (ctx.sw.exitLt !== 1 ? ' warn' : '') }), '', 'middle');
+  X.value(RX + 294, 354, (r) => ({ text: r.values.dropped ? `MASKS DOWN ~${r.values.oxyLeft} min` : `cabin ${Math.round(r.values.cab)} ft`, cls: 't-small' + (r.values.dropped ? ' warn' : '') }), '', 'middle');
+  X.text(RX, 384, 'FASTEN BELTS in AUTO: on with flaps or gear out', 't-small t-dim');
+  X.text(RX, 400, 'Masks drop above about 14,000 ft cabin', 't-small t-dim');
+  // Door summary.
+  X.el('rect', { x: RX - 14, y: 420, width: 368, height: 120, rx: 6, class: 'box' }, X.svg.firstChild);
+  X.text(RX, 440, 'DOORS', 't-small t-dim');
+  X.value(RX + 340, 440, (r) => {
+    const open = DOORS.filter(([k]) => r.values.open[k]).map(([, n]) => n);
+    return { text: open.length ? `${open.length} open` : 'all closed', cls: 't-small' + (open.length ? ' warn' : '') };
+  }, '', 'end');
   DOORS.forEach(([k, n], i) => {
-    const x = 30 + (i % 4) * 240, y = 316 + Math.floor(i / 4) * 64;
-    X.unit(x, y, 220, 48, n, (r) => (r.values.open[k] ? 'fault' : 'on'), { color: C, part: 'doors', small: true });
-    X.value(x + 110, y + 62, (r) => ({ text: r.values.open[k] ? 'OPEN' : '', cls: 't-small warn' }));
+    const x = RX + (i % 2) * 176, y = 462 + Math.floor(i / 2) * 18;
+    X.value(x, y, (r) => ({ text: `${r.values.open[k] ? '■' : '□'} ${n}`, cls: 't-small' + (r.values.open[k] ? ' warn' : '') }), '', 'start');
   });
-  X.value(750, 400, (r) => ({ text: `overwing flight locks: ${r.values.flightLock ? 'LOCKED' : 'unlocked'}`, cls: 't-small' }));
-  X.text(500, 470, 'Overwing exits lock with 3 of 4 entry/service doors closed, an engine running, and airborne or thrust levers advanced', 't-small t-dim', 'middle');
+  X.value(RX, 560, (r) => ({ text: `Overwing exit flight locks: ${r.values.flightLock ? 'LOCKED' : 'unlocked'}`, cls: 't-small' }), '', 'start');
+  X.text(RX, 578, 'Lock with 3 of 4 entry/service doors closed, an engine', 't-small t-dim');
+  X.text(RX, 592, 'running, and airborne or thrust levers advanced', 't-small t-dim');
+  X.text(300, 652, 'Green: closed · amber: open · lights glow in their colour when on', 't-small t-dim', 'middle');
 
   const O = createOverhead(panelHost, ctx);
   panels(O, ctx);

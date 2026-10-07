@@ -1,40 +1,79 @@
 // schem-fire.js — fire detection / extinguishing schematic + the fire
 // protection panel (aft pedestal) and the cargo fire panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=28';
-import { createOverhead } from './overhead.js?v=28';
+import { createSchematic, createPanel } from './schem-kit.js?v=29';
+import { createOverhead } from './overhead.js?v=29';
 
 const R = '#d62828', DET = '#ff8787', AG = '#dee2e6';
 
 export function mount(svgHost, panelHost, ctx) {
-  const X = createSchematic(svgHost, 1000, 620);
+  const X = createSchematic(svgHost, 1000, 640);
   X.onPart = ctx.onPart;
-  // Engines with their two loops, the detection logic, and the fire switch.
-  for (const [i, x] of [[1, 150], [2, 850]]) {
-    X.unit(x - 90, 30, 180, 70, `ENGINE ${i}`, (r) => (r.lights[`fsw${i}`] ? 'fault' : 'on'), { color: R, part: `loops${i}` });
-    X.pipe([[x - 70, 112], [x - 70, 170]], `det${i}`, { color: DET, thin: true });
-    X.pipe([[x + 70, 112], [x + 70, 170]], `det${i}`, { color: DET, thin: true });
-    X.text(x - 70, 108, 'LOOP A', 't-small t-dim', 'middle');
-    X.text(x + 70, 108, 'LOOP B', 't-small t-dim', 'middle');
-    X.unit(x - 90, 170, 180, 40, 'BOTH LOOPS AGREE?', (r) => (r.units[`loops${i}`] === 'fault' ? 'fault' : 'on'), { color: DET, part: `loops${i}`, small: true });
-    X.value(x, 232, (r) => ({ text: r.lights[`fsw${i}`] ? 'FIRE' : r.lights[`engOvht${i}`] ? 'OVERHEAT' : 'NORMAL', cls: 't-big' + (r.lights[`fsw${i}`] || r.lights[`engOvht${i}`] ? ' warn' : '') }));
-    X.unit(x - 70, 250, 140, 40, `FIRE SWITCH ${i}`, (r) => (ctx.sw[`pull${i}`] ? 'fault' : 'on'), { color: R, part: 'fsw', small: true });
-    X.value(x, 310, (r) => (ctx.sw[`pull${i}`] ? { text: 'PULLED: fuel · bleed · hyd shut, GEN off, reverser off', cls: 't-small warn' } : { text: 'IN (locked unless fire / overheat)', cls: 't-small t-dim' }));
+  // The airplane from above with every fire zone where it is; detection
+  // logic and fire switches for each engine on its own side.
+  const AP = X.airplane(500, 36, 12.5);
+  const zones = X.el('g', {}, X.svg.children[1]);
+  const zone = (shape, attrs, state, part) => {
+    const n = X.el(shape, { ...attrs, class: 'zone' }, zones);
+    X.bind((r) => n.setAttribute('class', 'zone ' + (state(r) || '')));
+    n.addEventListener('click', () => X.onPart?.(part));
+    return n;
+  };
+  const rectZ = (X1, X2, z1, z2) => { const [x1, y1] = AP(X1, z1), [x2, y2] = AP(X2, z2); return { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1), rx: 4 }; };
+  const engState = (i) => (r) => (r.lights[`fsw${i}`] ? 'fire' : r.lights[`engOvht${i}`] ? 'ovht' : r.units[`loops${i}`] === 'fault' ? 'ovht' : 'mon');
+  for (const [i, s] of [[1, -1], [2, 1]]) {
+    const [cx, cy] = AP(3.5, s * 5.0);
+    zone('ellipse', { cx, cy, rx: 13, ry: 36 }, engState(i), `loops${i}`);
   }
-  // Bottles.
-  X.unit(390, 380, 90, 50, 'BOTTLE L', (r) => (r.lights.botL ? 'off' : 'on'), { color: AG, part: 'bottles' });
-  X.unit(520, 380, 90, 50, 'BOTTLE R', (r) => (r.lights.botR ? 'off' : 'on'), { color: AG, part: 'bottles' });
-  X.pipe([[435, 380], [435, 350], [150, 350], [150, 290]], 'agent1', { color: AG });
-  X.pipe([[565, 380], [565, 350], [850, 350], [850, 290]], 'agent2', { color: AG });
-  X.text(500, 340, 'either bottle → either engine (rotate the pulled switch L or R)', 't-small t-dim', 'middle');
-  // APU, wheel well, cargo.
-  X.unit(60, 470, 200, 50, 'APU', (r) => r.units.apufire, { color: R, part: 'apufire' });
-  X.value(160, 540, (r) => (r.lights.fswApu ? { text: 'APU FIRE', cls: 't-small warn' } : r.lights.botApu ? { text: 'APU BOTTLE DISCHARGED', cls: 't-small' } : ''));
-  X.unit(400, 470, 200, 50, 'MAIN WHEEL WELL', (r) => r.units.wheelwell, { color: R, part: 'wheelwell', small: true });
-  X.text(500, 540, 'detection only — no extinguisher', 't-small t-dim', 'middle');
-  X.unit(740, 470, 200, 50, 'CARGO FWD / AFT', (r) => r.units.cargo, { color: R, part: 'cargo', small: true });
-  X.value(840, 540, (r) => (r.lights.cargoDisch ? { text: 'DISCHARGED · 195 min suppression', cls: 't-small' } : ''));
-  X.value(500, 600, (r) => (r.lights.fireWarn ? { text: '■ FIRE WARN ■  bell', cls: 't-big warn' } : ''));
+  zone('rect', rectZ(-16.2, -19.4, -0.75, 0.75), (r) => (r.lights.fswApu ? 'fire' : 'mon'), 'apufire');
+  zone('rect', rectZ(-1.4, -4.4, -1.3, 1.3), (r) => (r.lights.wheelWell ? 'fire' : 'mon'), 'wheelwell');
+  zone('rect', rectZ(11.5, 5.0, -1.05, 1.05), (r) => (r.lights.cargoFwd ? 'fire' : 'mon'), 'cargo');
+  zone('rect', rectZ(-5.0, -11.5, -1.05, 1.05), (r) => (r.lights.cargoAft ? 'fire' : 'mon'), 'cargo');
+  const zl = (X0, z, t, anchor = 'middle') => { const [x, y] = AP(X0, z); X.text(x, y, t, 't-small t-dim halo', anchor); };
+  zl(8.3, 0, 'FWD'); zl(8.3 - 0.9, 0, 'CARGO');
+  zl(-8.2, 0, 'AFT'); zl(-8.2 - 0.9, 0, 'CARGO');
+  zl(-3.6, 0, 'WHEEL WELL'); zl(-17.6, 1.2, 'APU', 'start');
+  // Engine bottles (position schematic) piped to both engines; cargo bottles
+  // in the mix bay on the forward spar (FCOM 8.20).
+  const [bx, by] = AP(1.0, 0);
+  for (const [i, s, key, light] of [[1, -1, 'agent1', 'botL'], [2, 1, 'agent2', 'botR']]) {
+    const [ex, ey] = AP(3.5, s * 5.0);
+    X.pipe([[bx + s * 10, by], [ex, by], [ex, ey + 30]], key, { color: AG });
+    X.unit(bx + (s < 0 ? -24 : 4), by - 10, 20, 20, '', (r) => (r.lights[light] ? 'off' : 'on'), { color: AG, part: 'bottles', round: true });
+  }
+  X.text(bx - 30, by + 4, 'ENG BOTTLES', 't-small t-dim halo', 'end');
+  const [cbx, cby] = AP(4.4, 0);
+  X.unit(cbx - 16, cby - 7, 32, 14, '', (r) => (r.lights.cargoDisch ? 'off' : 'on'), { color: AG, part: 'cargo' });
+  X.text(cbx + 22, cby + 3, 'CARGO BOTTLES (mix bay)', 't-small t-dim halo', 'start');
+  // Each engine's detection and fire switch, on its side.
+  for (const [i, s] of [[1, -1], [2, 1]]) {
+    const x0 = s < 0 ? 24 : 776, w = 200, xc = x0 + w / 2;
+    const [ex, ey] = AP(3.5, s * 5.0);
+    X.el('path', { d: `M${s < 0 ? x0 + w : x0},${120} L${ex - s * 14},${ey - 20}`, class: 'lead' }, X.svg.firstChild);
+    X.unit(x0, 100, w, 40, `ENGINE ${i}`, (r) => (r.lights[`fsw${i}`] ? 'fault' : 'on'), { color: R, part: `loops${i}` });
+    X.pipe([[xc - 50, 140], [xc - 50, 184]], `det${i}`, { color: DET, thin: true });
+    X.pipe([[xc + 50, 140], [xc + 50, 184]], `det${i}`, { color: DET, thin: true });
+    X.text(xc - 54, 166, 'LOOP A', 't-small t-dim', 'end');
+    X.text(xc + 54, 166, 'LOOP B', 't-small t-dim', 'start');
+    X.unit(x0, 184, w, 32, 'BOTH LOOPS AGREE?', (r) => (r.units[`loops${i}`] === 'fault' ? 'fault' : 'on'), { color: DET, part: `loops${i}`, small: true });
+    X.value(xc, 238, (r) => ({ text: r.lights[`fsw${i}`] ? 'FIRE' : r.lights[`engOvht${i}`] ? 'OVERHEAT' : 'NORMAL', cls: 't-big' + (r.lights[`fsw${i}`] || r.lights[`engOvht${i}`] ? ' warn' : '') }));
+    X.annun(x0 + 30, 254, w - 60, 30, `ENGINE ${i} FIRE SWITCH`, (r) => r.lights[`fsw${i}`], 'red', { part: 'fsw' });
+    X.annun(x0 + 30, 292, w - 60, 20, 'ENG OVERHEAT', (r) => r.lights[`engOvht${i}`], 'amber', { part: `loops${i}` });
+    X.annun(x0 + 30, 318, w - 60, 20, `${s < 0 ? 'L' : 'R'} BOTTLE DISCHARGED`, (r) => r.lights[s < 0 ? 'botL' : 'botR'], 'amber', { part: 'bottles' });
+    X.value(xc, 360, () => (ctx.sw[`pull${i}`] ? { text: 'PULLED: fuel · bleed · hyd shut,', cls: 't-small warn' } : { text: 'IN — unlocks on fire / overheat', cls: 't-small t-dim' }));
+    X.value(xc, 374, () => (ctx.sw[`pull${i}`] ? { text: 'GEN off, reverser off', cls: 't-small warn' } : ''));
+  }
+  // APU, wheel well and cargo on the left / right low.
+  X.annun(24, 430, 200, 30, 'APU FIRE SWITCH', (r) => r.lights.fswApu, 'red', { part: 'apufire' });
+  X.annun(24, 468, 200, 20, 'APU BOTTLE DISCHARGED', (r) => r.lights.botApu, 'amber', { part: 'apufire' });
+  X.annun(24, 520, 200, 30, 'WHEEL WELL', (r) => r.lights.wheelWell, 'red', { part: 'wheelwell' });
+  X.text(124, 566, 'detection only — no extinguisher', 't-small t-dim', 'middle');
+  X.annun(776, 430, 96, 30, 'FWD\nCARGO', (r) => r.lights.cargoFwd, 'red', { part: 'cargo' });
+  X.annun(880, 430, 96, 30, 'AFT\nCARGO', (r) => r.lights.cargoAft, 'red', { part: 'cargo' });
+  X.annun(776, 468, 200, 20, 'CARGO DISCH', (r) => r.lights.cargoDisch, 'amber', { part: 'cargo' });
+  X.value(876, 504, (r) => (r.lights.cargoDisch ? { text: '195 min suppression', cls: 't-small' } : ''));
+  X.annun(400, 596, 200, 34, 'FIRE WARN', (r) => r.lights.fireWarn, 'red', { part: 'fsw', big: true });
+  X.text(500, 582, 'Red zone: fire · amber: overheat or loop fault · outline: monitored', 't-small t-dim', 'middle');
 
   const O = createOverhead(panelHost, ctx);
   panels(O, ctx);
