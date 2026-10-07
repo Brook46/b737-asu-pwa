@@ -5,7 +5,7 @@
 // round the turn centre). Labels carry the FCOM 1.10 figures (737-800W); the
 // lines are drawn to the model's geometry.
 
-import * as THREE from '../vendor/three.module.min.js?v=27';
+import * as THREE from '../vendor/three.module.min.js?v=28';
 
 const D2R = Math.PI / 180;
 

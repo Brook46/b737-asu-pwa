@@ -3,7 +3,7 @@
 // Calls arrive from the instructor station; whether you hear them depends on
 // what your audio control panel is set to.
 
-import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=27';
+import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=28';
 
 const C = '#00a6a6', RX = '#66d9e8';
 export const MICS = ['VHF 1', 'VHF 2', 'VHF 3', 'HF 1', 'PA', 'FLT', 'SVC'];

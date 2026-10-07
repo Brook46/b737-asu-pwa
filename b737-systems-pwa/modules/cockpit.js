@@ -7,19 +7,19 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=27';
-import { createOverhead } from './overhead.js?v=27';
-import * as CAB from './cockpit-cab.js?v=27';
-import { buildStand } from './cockpit-stand.js?v=27';
-import * as D from './cockpit-displays.js?v=27';
-import { drawCDUScreen } from './cdu.js?v=27';
+import * as THREE from '../vendor/three.module.min.js?v=28';
+import { createOverhead } from './overhead.js?v=28';
+import * as CAB from './cockpit-cab.js?v=28';
+import { buildStand } from './cockpit-stand.js?v=28';
+import * as D from './cockpit-displays.js?v=28';
+import { drawCDUScreen } from './cdu.js?v=28';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
 
 export const VIEWS = {
   out: { eye: [0.12, 1.24, -0.52], yaw: 0, pitch: -6, fov: 62 },
-  rto: { eye: [0.12, 1.24, -0.52], yaw: 6, pitch: -14, fov: 64 },      // windshield, glareshield lights, PFD
+  rto: { eye: [0.12, 1.26, -0.5], yaw: 22, pitch: -13, fov: 84 },    // captain's seat: both panels, glareshield and the runway
   panel: { eye: [0.3, 1.16, -0.28], look: [0.86, 0.86, -0.25], fov: 52 },
   center: { eye: [0.36, 1.12, 0], look: [0.86, 0.82, 0], fov: 46 },
   overhead: { eye: [0.12, 1.26, 0], look: [0.24, 1.75, 0], fov: 66 },
@@ -122,6 +122,56 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   const clouds = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshBasicMaterial({ map: cloudTex.t, color: 0xdfe8f1 }));
   clouds.rotation.x = -Math.PI / 2; clouds.position.y = -400; clouds.visible = false;
   scene.add(clouds);
+
+  // ── The runway (when the airplane is rolling on one) ──
+  // 45 m wide, 3,200 m long, starting at the threshold under the nose: asphalt
+  // with edge lines and the dashed centreline (one 60 m tile repeated),
+  // threshold stripes, and edge lights every 60 m. It moves past as the
+  // airplane rolls (moveRunway) and drops away after lift-off.
+  const RWY_LEN = 3200, RWY_W = 45;
+  const rwyGroup = new THREE.Group(); rwyGroup.visible = false; scene.add(rwyGroup);
+  const grass = new THREE.MeshStandardMaterial({ color: 0x6f8452, roughness: 1 });
+  const apronMat = ground.material;
+  {
+    const t = canvasTex(512, 384), g = t.g;              // u: 60 m along · v: 45 m across
+    g.fillStyle = '#3d4044'; g.fillRect(0, 0, 512, 384);
+    for (let i = 0; i < 1800; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${Math.random() * 0.06})`; g.fillRect(Math.random() * 512, Math.random() * 384, 3, 3); }
+    g.fillStyle = 'rgba(20,20,22,.35)'; g.fillRect(0, 150, 512, 84);         // rubber in the middle
+    g.fillStyle = '#e9e9e6';
+    g.fillRect(0, 4, 512, 8); g.fillRect(0, 372, 512, 8);                      // edge lines
+    g.fillRect(0, 188, 256, 8);                                                // centreline: 30 m dash, 30 m gap
+    t.t.wrapS = THREE.RepeatWrapping; t.t.repeat.set(RWY_LEN / 60, 1);
+    const asphalt = new THREE.Mesh(new THREE.PlaneGeometry(RWY_LEN, RWY_W), new THREE.MeshStandardMaterial({ map: t.t, roughness: 0.95 }));
+    asphalt.rotation.x = -Math.PI / 2; asphalt.position.set(RWY_LEN / 2 - 20, 0, 0);
+    rwyGroup.add(asphalt);
+    // Threshold stripes just ahead of the start, and a white threshold bar.
+    const th = canvasTex(256, 384), q = th.g;
+    q.clearRect(0, 0, 256, 384); q.fillStyle = '#ecece9';
+    q.fillRect(0, 0, 16, 384);
+    for (let i = 0; i < 16; i++) { if (i === 7 || i === 8) continue; q.fillRect(48, 16 + i * 22.5, 200, 12); }
+    th.t.needsUpdate = true;
+    const thr = new THREE.Mesh(new THREE.PlaneGeometry(40, RWY_W), new THREE.MeshBasicMaterial({ map: th.t, transparent: true, toneMapped: false }));
+    thr.rotation.x = -Math.PI / 2; thr.position.set(0, 0.03, 0);
+    rwyGroup.add(thr);
+    // Edge lights (white), and red end lights across the far end.
+    const n = Math.floor(RWY_LEN / 60) + 1;
+    const lights = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff6d8, toneMapped: false }), n * 2 + 9);
+    const mtx = new THREE.Matrix4();
+    let k = 0;
+    for (let i = 0; i < n; i++) for (const z of [-RWY_W / 2 - 1.5, RWY_W / 2 + 1.5]) { mtx.makeTranslation(i * 60, 0.35, z); lights.setMatrixAt(k++, mtx); }
+    for (let i = 0; i < 9; i++) { mtx.makeTranslation(RWY_LEN - 20, 0.35, -20 + i * 5); lights.setMatrixAt(k++, mtx); }
+    lights.instanceMatrix.needsUpdate = true;
+    rwyGroup.add(lights);
+  }
+  let rwyDist = 0, rwyGs = 0, rwyH = 0;
+  /** Where the airplane is on the runway: metres from the threshold, ground speed (m/s), height (m). */
+  function setRunway(o) {
+    rwyGroup.visible = !!o;
+    ground.material = o ? grass : apronMat;
+    if (!o) return;
+    if (Math.abs(o.dist - rwyDist) > 8) rwyDist = o.dist;      // resync; frames advance it in between
+    rwyGs = o.gs; rwyH = o.height;
+  }
   scene.add(new THREE.HemisphereLight(0xdbe8f5, 0x3a3f44, 0.95));
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.position.set(4, 6, -2);
@@ -810,6 +860,11 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
       look.eye.lerpVectors(tween.from.eye, tween.to.eye, k);
       if (tween.t >= 1) tween = null;
     }
+    // The runway slides past at ground speed between the sim's 10 Hz updates.
+    if (rwyGroup.visible) {
+      rwyDist += rwyGs * dt;
+      rwyGroup.position.set(-rwyDist, -3.3 - rwyH + 0.02, 0);
+    }
     aim();
     camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
     camera.updateProjectionMatrix();
@@ -844,10 +899,13 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     const pull = f.onGround === false ? Math.max(-0.03, Math.min(0.09, (f.pitch - 2) * 0.008)) : ph === 'takeoff' ? 0.09 : 0;
     for (const y of yokes) { y.rotation.z = pull; y.userData.wheel.rotation.x = ((f.bank || 0) * 0.9 * Math.PI) / 180; }
     // Outside: apron at the gate and on the runway, clouds at altitude.
-    const air = d.env.alt > 2000;
+    const air = d.out ? d.out.height > 600 : d.env.alt > 2000;
     ground.visible = !air;
     clouds.visible = air;
-    ground.position.y = -3.3 - (ph === 'takeoff' ? 90 : ph === 'approach' ? 450 : 0);
+    // Flying the sim: the ground is the real height below; otherwise by phase.
+    const simH = d.out ? d.out.height : null;
+    ground.position.y = -3.3 - (simH != null ? simH : ph === 'takeoff' ? 90 : ph === 'approach' ? 450 : 0);
+    setRunway(d.out && d.out.runway ? d.out : null);
     scene.fog.far = air ? 9000 : 3500;
   }
 

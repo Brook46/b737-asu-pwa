@@ -2,8 +2,8 @@
 // takeoff roll; somewhere between the start of the roll and V2 one malfunction
 // is injected into the real systems (fire, engine failure, predictive
 // windshear, a master caution system failure — or nothing).
-// Only two big buttons are left on the screen: STOP and CONTINUE. The flight
-// sim then flies the RTO (idle, reversers, max braking, speedbrakes) or the
+// Only one big button is left on the screen: STOP — doing nothing is
+// continuing the takeoff. The flight sim then flies the RTO (idle, reversers, max braking, speedbrakes) or the
 // takeoff, and a debrief shows what failed, at what speed, the decision and
 // whether it matches the rejected-takeoff maneuver (QRH MAN.1.2):
 //   below 80 kt — reject for any of the listed items;
@@ -97,8 +97,10 @@ export function createRtoDrill(h) {
     h.prepareTakeoff({ ...rw, v });
     document.body.classList.add('drill');
     $('rto').hidden = false; $('rto-res').hidden = true; $('rto-btns').hidden = false;
-    $('rto-go').disabled = true; $('rto-stop').disabled = false;
-    $('rto-tag').textContent = `TAKEOFF · ${rw.name} · V1 ${v.v1}  VR ${v.vr}  V2 ${v.v2}`;
+    $('rto-stop').disabled = false;
+    $('rto-tag').textContent = `V1 ${v.v1} · VR ${v.vr} · V2 ${v.v2}`;
+    // Always from the captain's seat, looking across both pilots' instruments and out.
+    h.cockpit()?.setSeat('capt');
     h.cockpit()?.goView('rto');
     // Advance the thrust levers a moment after line-up.
     setTimeout(() => { if (run) h.ctxFor('autoflight').action('TOGA'); }, 1200);
@@ -111,7 +113,6 @@ export function createRtoDrill(h) {
     if (m.id === 'pws') { h.ctxFor('warnings').action('scen', 'pws'); run.applied.push(['warnings:scen', 'pws']); }
     if (m.cue === 'bell') bell(true);
     if (m.cue === 'pws') say('Windshear ahead, windshear ahead.', true);
-    $('rto-go').disabled = false;
     h.refresh();
   }
   function decide(type, auto = false) {
@@ -151,7 +152,7 @@ export function createRtoDrill(h) {
         ${m.shows ? row('What showed', m.shows) : ''}
         ${row('Introduced at', inj ? `${inj.speed} kt${inj.air ? ' (airborne)' : ''}` : m.cat === 'none' ? '—' : 'not reached')}
         ${row('V1 · VR · V2', `${v.v1} · ${v.vr} · ${v.v2} kt`)}
-        ${row('Your decision', d ? `${d.type === 'stop' ? 'STOP' : 'CONTINUE'} at ${d.speed} kt${d.auto ? ' (no decision by VR)' : ''}${react ? ` · ${react} s after the malfunction` : ''}` : '—')}
+        ${row('Your decision', d ? (d.type === 'stop' ? `STOP at ${d.speed} kt${react ? ` · ${react} s after the malfunction` : ''}` : 'CONTINUE (no stop)') : '—')}
         ${row('QRH decision', expected === 'stop' ? 'STOP (reject)' : 'CONTINUE')}
         ${d?.type === 'stop' && a ? row('Stopped in', `${ft(a.run - (a.rtoAt ?? 0))} m from the reject (${ft(a.run)} m from brake release)`) : ''}
       </table>
@@ -194,7 +195,6 @@ export function createRtoDrill(h) {
   }
 
   $('rto-stop').addEventListener('click', () => decide('stop'));
-  $('rto-go').addEventListener('click', () => decide('continue'));
   $('rto-x').addEventListener('click', () => end(true));
   const sb = $('rto-snd');
   const paintSound = () => { sb.textContent = sound ? '🔊' : '🔇'; sb.setAttribute('aria-label', sound ? 'Sound on' : 'Sound off'); };

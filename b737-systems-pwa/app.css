@@ -755,7 +755,7 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .rto-top button { background: none; border: 1px solid #555; color: #e8eaec; font-size: 14px; width: 30px; height: 28px; cursor: pointer; }
 .rto-btns { position: absolute; left: 0; right: 0; bottom: calc(18px + var(--safe-b)); display: flex; gap: 16px; justify-content: center; padding: 0 16px; }
 .rto-btns[hidden] { display: none; }
-.rto-b { font: 800 28px/1 var(--mono); letter-spacing: .14em; border: 0; border-radius: 10px; padding: 26px 0; width: min(42vw, 300px);
+.rto-b { font: 800 30px/1 var(--mono); letter-spacing: .16em; border: 0; border-radius: 12px; padding: 24px 0; width: min(80vw, 380px);
   color: #fff; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.25); touch-action: manipulation; }
 .rto-b:active { transform: translateY(2px); }
 .rto-b.stop { background: linear-gradient(#e5483b, #b42318); }

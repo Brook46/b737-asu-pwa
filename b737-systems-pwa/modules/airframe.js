@@ -12,7 +12,7 @@
 // each system module can place its parts inside the real structure rather
 // than at hand-typed coordinates that drift when the airframe is tuned.
 
-import * as THREE from '../vendor/three.module.min.js?v=27';
+import * as THREE from '../vendor/three.module.min.js?v=28';
 
 // ── Fuselage ────────────────────────────────────────────────────────────────
 

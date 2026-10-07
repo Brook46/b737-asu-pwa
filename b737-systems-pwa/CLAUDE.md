@@ -286,13 +286,19 @@ per run (V2 140–165, VR 4–8 below, V1 up to 12 below VR) and drive the PFD
 bugs (`sim.ac.v`). Sound (🔊 toggle, `b737i.rtoSound`): fire bell, WINDSHEAR
 AHEAD, and the PM callouts 80 knots / V1 / rotate via speech.js `tts`. No
 aural for MASTER CAUTION (there is none on the 737). The HUD is hidden
-(`body.drill`); only STOP / CONTINUE remain. STOP → `sim.reject()` (idle,
+(`body.drill`); only one big STOP button remains — doing nothing is continuing. The drill always uses the captain's seat (view `rto`: both panels, glareshield, runway) and restores the stored seat on exit. STOP → `sim.reject()` (idle,
 reversers, max braking, speedbrake UP, A/T off). No decision by VR =
 continue. Debrief: malfunction, speed introduced, V1/VR/V2, decision and
 reaction time, stopping distance, and the QRH MAN.1.2 decision (below 80 kt
 reject for any listed item; 80 kt–V1 only fire, engine failure, predictive
 windshear, unable to fly; above V1 continue). Failures are cleared
 on exit. sys-warnings now gives the takeoff PWS warning on the roll.
+
+Cockpit runway (v28): while the sim flies near the departure, cockpitData
+`out` = { dist, gs, height, runway } → `setRunway` in cockpit.js draws a 45 ×
+3,200 m runway (asphalt tile with edge lines and the dashed centreline,
+threshold stripes, edge and end lights) that slides past at ground speed
+every frame; the ground drops to the real height after lift-off.
 
 ## Dimension drawings (v25)
 

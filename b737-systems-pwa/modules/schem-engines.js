@@ -1,8 +1,8 @@
 // schem-engines.js — engine start / APU schematic, with the ENGINE START,
 // APU and engine (EEC) panels and the start levers.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=27';
-import { createOverhead } from './overhead.js?v=27';
+import { createSchematic, createPanel } from './schem-kit.js?v=28';
+import { createOverhead } from './overhead.js?v=28';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#f5a300', APUC = '#e8590c';
 
