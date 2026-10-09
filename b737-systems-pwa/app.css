@@ -808,3 +808,5 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .sx .zone.ovht { fill: rgba(255,178,30,.4); stroke: #ffb21e; stroke-dasharray: none; }
 .sx .heat { fill: none; stroke: #3b4652; stroke-width: 4; stroke-linecap: round; cursor: pointer; }
 .sx .heat.on { stroke: #ff922b; }
+.sx .fma-frame { fill: none; stroke: #f4f4f4; stroke-width: 1.5; opacity: 0; }
+.sx .fma-frame.on { opacity: 1; }

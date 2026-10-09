@@ -1,9 +1,9 @@
 // schem-autoflight.js — AFDS / autothrottle schematic with a live FMA, and
 // the MCP as three operable panels (also placed on the 3D glareshield).
 
-import { createSchematic, createPanel } from './schem-kit.js?v=30';
-import { createOverhead } from './overhead.js?v=30';
-import { STEPS } from './sys-autoflight.js?v=30';
+import { createSchematic, createPanel } from './schem-kit.js?v=31';
+import { createOverhead } from './overhead.js?v=31';
+import { STEPS } from './sys-autoflight.js?v=31';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 
@@ -11,11 +11,17 @@ export function mount(svgHost, panelHost, ctx) {
   const X = createSchematic(svgHost, 1000, 640);
   X.onPart = ctx.onPart;
   // FMA strip.
-  X.el('rect', { x: 200, y: 20, width: 600, height: 84, rx: 4, fill: '#000' }, X.svg);
+  // The strip's black ground goes first in the SVG so the text paints over it.
+  const strip = X.el('rect', { x: 200, y: 20, width: 600, height: 84, rx: 4, fill: '#000' });
+  X.svg.insertBefore(strip, X.svg.firstChild);
   ['A/T', 'ROLL', 'PITCH'].forEach((n, i) => {
-    X.text(300 + i * 200, 16, n, 't-small t-dim', 'middle');
-    X.value(300 + i * 200, 56, (r) => ({ text: r.values.fma[i] || '', cls: 't-big fma-on' + (r.values.boxed[i] ? ' fma-box' : '') }));
-    X.value(300 + i * 200, 88, (r) => ({ text: r.values.arm[i] || '', cls: 't-small fma-arm' }));
+    const x = 300 + i * 200;
+    X.text(x, 34, n, 't-small t-dim', 'middle');
+    // A mode changed in the last 10 s is boxed, as on the PFD.
+    const box = X.el('rect', { x: x - 64, y: 42, width: 128, height: 26, rx: 2, class: 'fma-frame' }, X.svg);
+    X.bind((r) => box.classList.toggle('on', !!r.values.boxed?.[i] && !!r.values.fma[i]));
+    X.value(x, 62, (r) => ({ text: r.values.fma[i] || '', cls: 't-big fma-on' }));
+    X.value(x, 96, (r) => ({ text: r.values.arm[i] || '', cls: 't-small fma-arm' }));
   });
   X.value(500, 128, (r) => ({ text: r.values.status, cls: 't-big' }));
   // MCP → FCCs → servos / F/D bars; A/T.
