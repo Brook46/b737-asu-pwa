@@ -4,7 +4,7 @@
 // texture, by the 3D cockpit's CDUs. Page layouts are our own rendering of
 // the standard 737 CDU pages; numbers come from fmc.js (approximate).
 
-import { nav, geo } from './navdb.js?v=29';
+import { nav, geo } from './navdb.js?v=30';
 
 const W = 24, ROWS = 14;
 const COL = { w: '#f2f2f2', g: '#3df03d', m: '#ff5ad2', c: '#28e3f2', a: '#ffb21e' };
@@ -63,7 +63,7 @@ export function createCDU(fmc, hooks) {
         put(g, 1, 1, 'MODEL', 'w', true); putR(g, 1, 'ENG RATING', 'w', true);
         put(g, 2, 0, '737-800W'); putR(g, 2, '26K');
         put(g, 3, 1, 'NAV DATA', 'w', true); putR(g, 3, 'ACTIVE', 'w', true);
-        put(g, 4, 0, nav.ready ? 'OURAIRPORTS' : 'LOADING'); putR(g, 4, 'PUBLIC DOMAIN', 'w', true);
+        put(g, 4, 0, nav.ready ? 'OURAIRPORTS' : 'LOADING'); put(g, 5, 1, 'PUBLIC DOMAIN DATA', 'w', true);
         put(g, 7, 1, 'OP PROGRAM', 'w', true); put(g, 8, 0, 'STUDY FMC - NOT FOR OPS', 'w', true);
         put(g, 11, 0, '------------------------', 'w', true);
         put(g, 12, 0, '<INDEX'); putR(g, 12, 'POS INIT>');

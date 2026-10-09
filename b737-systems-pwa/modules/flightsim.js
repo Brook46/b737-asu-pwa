@@ -8,8 +8,8 @@
 // No wind, ISA, no aerodynamics: speeds and rates are rough 737-800 numbers
 // for study only.
 
-import { nav, geo } from './navdb.js?v=29';
-import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=29';
+import { nav, geo } from './navdb.js?v=30';
+import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=30';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const roc = (alt) => Math.max(1000, 3000 - alt * 0.055);
@@ -349,7 +349,9 @@ export function createFlightSim(hooks) {
         ac.alt = elev; ac.onGround = true; ac.stage = 'rollout'; ac.vs = 0;
         if (m.app && m.step === 3) hooks.af().action('step');
         if (m.at && m.at !== 'ARM') at('ARM');
-        setMode('pit', ''); setMode('lat', '');
+        // Autoland touchdown: the roll channel annunciates ROLLOUT until the
+        // aircraft stops; without an approach it is simply blank.
+        setMode('pit', ''); setMode('lat', mem().app ? 'ROLLOUT' : '');
         const fc = hooks.speedbrakeUp?.(); void fc;
       }
     } else if (ac.stage === 'rollout') {

@@ -3,7 +3,7 @@
 // the way the FMA shows them, the autopilots follow hydraulics, and an
 // approach can be stepped through capture, dual channel, flare and retard.
 
-import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=29';
+import { EE, YC, FLIGHT_DECK_X, MLG } from './airframe.js?v=30';
 
 const C = '#9b5de5', A = '#2f7cf6', B = '#12a874';
 const BANKS = [10, 15, 20, 25, 30];
@@ -125,7 +125,7 @@ export default {
     return {
       sw: { atArm: phase === 'landing' ? 0 : 1, fdL: phase === 'landing' ? 0 : 1, fdR: phase === 'landing' ? 0 : 1, bank: 3, dis: 0 },
       fail: {},
-      mem: { ...p, cmdB: phase === 'approach', cws: false, app: phase === 'approach', step: phase === 'approach' ? 1 : -1, to: phase === 'takeoff', ga: false, spdBlank: false, cwsR: false, apDisc: false, atDisc: false, changed: {} },
+      mem: { ...p, lat: phase === 'landing' ? 'ROLLOUT' : p.lat, cmdB: phase === 'approach', cws: false, app: phase === 'approach', step: phase === 'approach' ? 1 : -1, to: phase === 'takeoff', ga: false, spdBlank: false, cwsR: false, apDisc: false, atDisc: false, changed: {} },
     };
   },
 

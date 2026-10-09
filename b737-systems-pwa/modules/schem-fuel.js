@@ -1,8 +1,8 @@
 // schem-fuel.js — operable fuel schematic + fuel panel replica.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=29';
-import { createOverhead } from './overhead.js?v=29';
-import { fuelTemp } from './gauges.js?v=29';
+import { createSchematic, createPanel } from './schem-kit.js?v=30';
+import { createOverhead } from './overhead.js?v=30';
+import { fuelTemp } from './gauges.js?v=30';
 
 const F = '#d6336c', CTR = '#9c36b5', SUC = '#c0eb75', APUC = '#e8590c';
 
