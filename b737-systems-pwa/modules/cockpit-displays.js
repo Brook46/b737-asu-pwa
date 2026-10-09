@@ -378,33 +378,62 @@ export function drawUpper(g, W, H, d) {
   text(g, `TAT ${d.tat > 0 ? '+' : ''}${d.tat}c`, 16, 30, WHT, 16);
 }
 
-// ── Lower DU: N2, FF, oil, vibration + hydraulic SYS ────────────────────────
+// ── Lower DU: the SYS page — hydraulics, fuel and electrical at a glance ────
+// Values come from the systems themselves (hydraulics, fuel, electrical);
+// the page only formats them. Amber marks a value outside its normal range.
 export function drawLower(g, W, H, d) {
   clear(g, W, H);
-  const { e1, e2 } = d;
-  const row = (label, a, b, y, unit = '') => {
-    text(g, a, 150, y, WHT, 24, 'right'); text(g, b, 360, y, WHT, 24, 'right');
-    text(g, label, 256, y, CYN, 16, 'center'); if (unit) text(g, unit, 256, y + 16, CYN, 12, 'center');
-  };
-  row('N2', e1.n2.toFixed(1), e2.n2.toFixed(1), 46);
-  row('FF', e1.ff.toFixed(2), e2.ff.toFixed(2), 96, 'KG/H X1000');
-  row('OIL P', String(Math.round(e1.oilP)), String(Math.round(e2.oilP)), 150);
-  row('OIL T', String(Math.round(e1.oilT)), String(Math.round(e2.oilT)), 196);
-  row('OIL Q %', String(e1.oilQ * 5), String(e2.oilQ * 5), 242);
-  row('VIB', e1.vib.toFixed(1), e2.vib.toFixed(1), 288);
-  // Hydraulic page strip.
-  const h = d.hyd;
-  if (h) {
-    g.strokeStyle = '#555'; g.beginPath(); g.moveTo(16, 318); g.lineTo(W - 16, 318); g.stroke();
-    text(g, 'HYDRAULIC', W / 2, 346, WHT, 18, 'center');
-    text(g, 'A', 160, 376, WHT, 20, 'center'); text(g, 'B', 352, 376, WHT, 20, 'center');
-    text(g, 'PRESS', W / 2, 410, CYN, 15, 'center'); text(g, 'QTY %', W / 2, 456, CYN, 15, 'center');
-    const pc = (p) => (p < 1500 ? AMB : WHT);
-    text(g, String(h.pressA), 160, 412, pc(h.pressA), 24, 'center'); text(g, String(h.pressB), 352, 412, pc(h.pressB), 24, 'center');
-    text(g, String(h.qtyA), 160, 458, WHT, 24, 'center'); text(g, String(h.qtyB), 352, 458, WHT, 24, 'center');
-    if (h.rfA) text(g, 'RF', 210, 458, WHT, 16, 'center');
-    if (h.rfB) text(g, 'RF', 402, 458, WHT, 16, 'center');
+  const h = d.hyd || {}, fu = d.fuel || {}, el = d.elec || {};
+  text(g, 'SYS', W / 2, 34, CYN, 22, 'center');
+  g.strokeStyle = '#444'; g.lineWidth = 1;
+  const rule = (y) => { g.beginPath(); g.moveTo(24, y); g.lineTo(W - 24, y); g.stroke(); };
+  // ── Hydraulics: three columns, A · B · STBY ──
+  rule(52);
+  text(g, 'HYDRAULIC', 24, 74, CYN, 15, 'left');
+  const cols = [[140, 'A'], [276, 'B'], [412, 'STBY']];
+  for (const [x, n] of cols) text(g, n, x, 74, WHT, 18, 'center');
+  const press = (p) => (p == null ? '—' : String(p));
+  const lo = (p) => p != null && p < 1500;
+  text(g, 'PSI', 24, 104, CYN, 13, 'left');
+  text(g, press(h.pressA), 140, 104, lo(h.pressA) ? AMB : WHT, 22, 'center');
+  text(g, press(h.pressB), 276, 104, lo(h.pressB) ? AMB : WHT, 22, 'center');
+  text(g, '—', 412, 104, WHT, 22, 'center');
+  text(g, 'QTY %', 24, 140, CYN, 13, 'left');
+  text(g, String(h.qtyA ?? '—'), 140, 140, h.qtyA < 40 ? AMB : WHT, 22, 'center');
+  text(g, String(h.qtyB ?? '—'), 276, 140, h.qtyB < 40 ? AMB : WHT, 22, 'center');
+  text(g, String(h.qtyS ?? '—'), 412, 140, WHT, 22, 'center');
+  text(g, 'RESERVOIR', 24, 172, CYN, 13, 'left');
+  text(g, h.rfA ? 'RF LOW' : 'OK', 140, 172, h.rfA ? AMB : CYN, 14, 'center');
+  text(g, h.rfB ? 'RF LOW' : 'OK', 276, 172, h.rfB ? AMB : CYN, 14, 'center');
+  text(g, 'OK', 412, 172, CYN, 14, 'center');
+  // ── Fuel: tanks in kg ──
+  rule(196);
+  text(g, 'FUEL KG', 24, 220, CYN, 15, 'left');
+  const tanks = [[160, 'L MAIN', fu.m1, fu.low1], [288, 'CTR', fu.c, false], [416, 'R MAIN', fu.m2, fu.low2]];
+  for (const [x, n, v, low] of tanks) {
+    text(g, n, x, 220, CYN, 13, 'center');
+    text(g, v == null ? '—' : String(v), x, 252, low ? AMB : WHT, 22, 'center');
   }
+  text(g, 'TOTAL', 24, 290, CYN, 13, 'left');
+  text(g, fu.total != null ? String(fu.total) : '—', 256, 290, WHT, 22, 'center');
+  // ── Electrical: sources and battery ──
+  rule(308);
+  text(g, 'ELECTRICAL', 24, 336, CYN, 15, 'left');
+  const src = (s) => (!s || s === 'UNPOWERED' ? AMB : WHT);
+  text(g, 'SOURCE 1', 24, 364, CYN, 13, 'left');
+  text(g, el.src1 ?? '—', 170, 364, src(el.src1), 16, 'left');
+  text(g, 'SOURCE 2', 24, 390, CYN, 13, 'left');
+  text(g, el.src2 ?? '—', 170, 390, src(el.src2), 16, 'left');
+  text(g, 'BATTERY', 24, 416, CYN, 13, 'left');
+  text(g, el.batV != null ? `${el.batV} V` : '—', 170, 416, el.batV != null && el.batV < 25 ? AMB : WHT, 16, 'left');
+  // ── Alerts: anything outside the normal range, in amber. ──
+  const notes = [];
+  if (lo(h.pressA)) notes.push('HYD A LOW PRESS');
+  if (lo(h.pressB)) notes.push('HYD B LOW PRESS');
+  if (fu.low1 || fu.low2) notes.push('FUEL LOW PRESS');
+  if (el.src1 === 'UNPOWERED' || el.src2 === 'UNPOWERED') notes.push('AC BUS UNPOWERED');
+  if (notes.length) text(g, notes.join('   '), W / 2, 462, AMB, 15, 'center');
+  else text(g, 'NO SYSTEM ALERTS', W / 2, 462, CYN, 14, 'center');
 }
 
 // ── MCP ─────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 // transfer switches, nav radios and the FMC. Alignment runs fast (one
 // "minute" every 2 s) so it can be watched.
 
-import { EE, YC, FLIGHT_DECK_X, NOSE_X } from './airframe.js?v=31';
+import { EE, YC, FLIGHT_DECK_X, NOSE_X } from './airframe.js?v=32';
 
 const C = '#06d6a0', IRS = '#20c997', RAD = '#74c0fc';
 export const IRS_POS = ['OFF', 'ALIGN', 'NAV', 'ATT'];

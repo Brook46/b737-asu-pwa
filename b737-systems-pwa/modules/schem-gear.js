@@ -1,8 +1,8 @@
 // schem-gear.js — gear actuation, brakes and steering schematic, with the
 // landing gear, autobrake and nose wheel steering panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=31';
-import { createOverhead } from './overhead.js?v=31';
+import { createSchematic, createPanel } from './schem-kit.js?v=32';
+import { createOverhead } from './overhead.js?v=32';
 
 const A = '#2f7cf6', B = '#12a874', G = '#868e96', BR = '#e8590c';
 
