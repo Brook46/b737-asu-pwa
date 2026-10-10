@@ -2,56 +2,67 @@
 // (done from memory), the limitations a pilot must know by heart (#) and the
 // other key numbers, plus every number cited on the system pages.
 //
-// Source: 737 QRH and FCOM D6-27370-858, Rev 57 (30 Sep 2025).
-// Memory items are the steps above the dashed separator line in each Quick
-// Action Index checklist — kept as short action lines, because the exact
-// action matters. A study aid only: the QRH in the airplane governs.
+// Source: 737 QRH (Quick Action Index, Rev 57, 30 Sep 2025), QRH.pdf. A memory
+// item is every step above the dashed separator in its checklist, worded as
+// printed, with its Condition. Markup: **bold** as printed; `red` / `amber`
+// boxes are the QRH Warning! / Caution! boxes; `fire` tags the fire items.
+// A study aid only: the QRH in the airplane governs.
+
+// Step builders: n = step number, a = action, m = middle ("Confirm"), v = value,
+// sub = indented lines (strings, or [action, value] rows), go = ►► instruction.
+const R = (n, a, v, m, sub = []) => ({ k: 'row', n, a, v, m, sub });
+const P = (n, a, sub = []) => ({ k: 'txt', n, a, sub });
+const GO = (a) => ({ k: 'go', a });
+const BOX = (a, lvl = 'caution') => ({ k: 'box', a, lvl });
 
 export const MEMORY = [
-  { t: 'Aborted Engine Start', ref: 'QRH 7.1', when: 'On the ground, the start must be aborted.',
-    steps: [['Engine start lever (affected engine)', 'CUTOFF']] },
-  { t: 'Airspeed Unreliable', ref: 'QRH 10.1', when: 'Airspeed or Mach suspected unreliable.',
-    steps: [['Autopilot (if engaged)', 'Disengage'], ['Autothrottle (if engaged)', 'Disengage'], ['F/D switches (both)', 'OFF'],
-      ['Gear-up pitch and thrust, flaps extended', '10° and 80 % N1'], ['Gear-up pitch and thrust, flaps up', '4° and 75 % N1']] },
-  { t: 'APU FIRE', ref: 'QRH 8.1', when: 'Fire detected in the APU.',
-    steps: [['APU fire switch', 'Confirm · pull, rotate to the stop, hold 1 s'], ['APU switch', 'OFF']] },
-  { t: 'CABIN ALTITUDE WARNING or Rapid Depressurization', ref: 'QRH 2.1', when: 'Cabin altitude exceedance; in flight the intermittent horn or CABIN ALTITUDE light.',
-    steps: [['Oxygen masks', 'Don, regulators 100 %'], ['Crew communications', 'Establish'], ['Pressurization mode selector', 'MAN'],
-      ['Outflow VALVE switch', 'Hold CLOSE until the valve shows fully closed'],
-      ['If cabin altitude is uncontrollable', 'Passenger signs ON · PASS OXYGEN ON · Emergency Descent']] },
-  { t: 'Emergency Descent', ref: 'QRH 0.1', when: 'Cabin altitude can\'t be controlled, or a rapid descent is needed.',
-    steps: [['Announce the emergency descent', 'PF: cabin on the PA · PM: ATC, area altimeter setting'], ['Passenger signs', 'ON'],
-      ['Descend without delay', 'Lowest safe altitude or 10,000 ft, whichever is higher'], ['ENGINE START switches (both)', 'CONT'],
-      ['Thrust levers (both)', 'Reduce thrust to minimum, or as needed for anti-ice'], ['Speedbrake', 'FLIGHT DETENT'],
-      ['Caution: if structural integrity is in doubt', 'Limit speed as much as possible and avoid high maneuvering loads'],
-      ['Target speed', 'Set to Mmo / Vmo']] },
-  { t: 'CARGO FIRE (MAIN)', ref: 'QRH 8.2', when: 'Fire detected in the main deck cargo compartment (main-deck cargo airplanes only).',
-    steps: [['Oxygen masks', 'Don, regulators 100 %, as needed'], ['Smoke goggles', 'Don, as needed'],
-      ['Flight deck door', 'Close (keeps smoke and fumes out of the other compartments)'], ['Crew and cabin communications', 'Establish']] },
-  { t: 'ENGINE FIRE or Engine Severe Damage or Separation', ref: 'QRH 8.8', when: 'Engine fire warning, airframe vibration with abnormal engine indications, or separation.',
-    steps: [['Autothrottle (if engaged)', 'Disengage'], ['Thrust lever (affected engine)', 'Confirm · Close'], ['Engine start lever (affected engine)', 'Confirm · CUTOFF'],
-      ['Engine fire switch (affected engine)', 'Confirm · Pull (override to unlock manually)'],
-      ['If the fire switch or ENG OVERHEAT light is lit', 'Fire switch: rotate to the stop, hold 1 s']] },
-  { t: 'Engine Limit or Surge or Stall', ref: 'QRH 7.2', when: 'Indications abnormal or near / beyond limits, abnormal noise, no or abnormal thrust response, flames reported.',
-    steps: [['Autothrottle (if engaged)', 'Disengage'], ['Thrust lever (affected engine)', 'Confirm · Retard until indications stay within limits or the lever is closed']] },
-  { t: 'ENGINE OVERHEAT', ref: 'QRH 8.12', when: 'Engine overheat detected.',
-    steps: [['Autothrottle (if engaged)', 'Disengage'], ['Thrust lever (affected engine)', 'Confirm · Close'],
-      ['If ENG OVERHEAT stays lit', 'Go to ENGINE FIRE or Engine Severe Damage or Separation']] },
-  { t: 'Loss Of Thrust On Both Engines', ref: 'QRH 7.6', when: 'Both engines lose thrust; both ENG FAIL alerts.',
-    steps: [['ENGINE START switches (both)', 'FLT'], ['Engine start levers (both)', 'CUTOFF'], ['When EGT decreases', 'Start levers (both) IDLE detent'],
-      ['EGT at redline, or no EGT rise within 30 s', 'Start lever (affected) confirm CUTOFF, then IDLE detent — repeat as needed']] },
-  { t: 'Runaway Stabilizer', ref: 'QRH 9.1', when: 'Uncommanded stabilizer trim, continuous or inappropriate.',
-    steps: [['Control column', 'Hold firmly'], ['Autopilot (if engaged)', 'Disengage'], ['Autothrottle (if engaged)', 'Disengage'],
-      ['Control column and thrust levers', 'Control pitch attitude and airspeed'], ['Main electric stabilizer trim', 'Reduce control column forces'],
-      ['If the runaway stops after A/P disengage', 'Do not re-engage the A/P or A/T'],
-      ['If the runaway continues', 'STAB TRIM cutout switches (both) CUTOUT'], ['If it still continues', 'Stabilizer trim wheel: grasp and hold']] },
-  { t: 'LANDING CONFIGURATION', ref: 'QRH 15.1', when: 'In flight, the steady warning horn sounds.',
-    steps: [['Landing configuration', 'Assure correct']] },
-  { t: 'TAKEOFF CONFIGURATION', ref: 'QRH 15.1', when: 'On the ground, horn or TAKEOFF CONFIG light when advancing to takeoff thrust.',
-    steps: [['Takeoff configuration', 'Assure correct']] },
-  { t: 'WARNING HORN (INTERMITTENT) or CABIN ALTITUDE / TAKEOFF CONFIG light', ref: 'QRH 15.2', when: 'The intermittent horn or either light.',
-    steps: [['In flight above 10,000 ft MSL', 'Don oxygen masks, 100 % · establish crew communications · go to the CABIN ALTITUDE WARNING checklist'],
-      ['On the ground, advancing thrust', 'Assure correct takeoff configuration']] },
+  { t: 'Aborted Engine Start', ref: 'QRH 7.1', cond: ['On the ground, an aborted engine start is needed.'],
+    steps: [R(1, 'Engine start lever (affected engine)', 'CUTOFF')] },
+  { t: 'Airspeed Unreliable', ref: 'QRH 10.1', cond: ['Airspeed or Mach indications are suspected to be unreliable.'],
+    steps: [R(1, 'Autopilot (if engaged)', 'Disengage'), R(2, 'Autothrottle (if engaged)', 'Disengage'), R(3, 'F/D switches (both)', 'OFF'),
+      P(4, 'Set the following gear up pitch attitude and thrust:', [['Flaps extended', '10° and 80% N1'], ['Flaps up', '4° and 75% N1']])] },
+  { t: 'APU FIRE', ref: 'QRH 8.1', fire: true, cond: ['Fire is detected in the APU.'],
+    steps: [R(1, 'APU fire switch', 'Pull, rotate to the stop, and hold for 1 second', 'Confirm'), R(2, 'APU switch', 'OFF')] },
+  { t: 'CABIN ALTITUDE WARNING or Rapid Depressurization', ref: 'QRH 2.1', tag: ['CABIN ALTITUDE', 'red'],
+    cond: ['One or more of these occur:', ['A cabin altitude exceedance', 'In flight, the intermittent cabin altitude/configuration warning horn sounds or a **CABIN ALTITUDE** light (if installed and operative) illuminates.']],
+    steps: [P(1, 'Don oxygen masks and set regulators to 100%.'), P(2, 'Establish crew communications.'),
+      R(3, 'Pressurization mode selector', 'MAN'), R(4, 'Outflow VALVE switch', 'Hold in CLOSE until the outflow VALVE indication shows fully closed'),
+      P(5, '**If** cabin altitude is **uncontrollable**:', [['Passenger signs', 'ON'], ['PASS OXYGEN switch', 'ON'], GO('Go to the Emergency Descent checklist on page 0.1')])] },
+  { t: 'Emergency Descent', ref: 'QRH 0.1', cond: ['One or more of these occur:', ['Cabin altitude cannot be controlled', 'A rapid descent is needed.']],
+    steps: [P(1, 'Announce the emergency descent. The pilot flying will advise the cabin crew, on the PA system, of impending rapid descent. The pilot monitoring will advise ATC and obtain the area altimeter setting.'),
+      R(2, 'Passenger signs', 'ON'), P(3, '**Without delay**, descend to the lowest safe altitude or 10,000 feet, whichever is higher.'),
+      R(4, 'ENGINE START switches (both)', 'CONT'), R(5, 'Thrust levers (both)', 'Reduce thrust to minimum or as needed for anti-ice'),
+      R(6, 'Speedbrake', 'FLIGHT DETENT'), BOX('If structural integrity is in doubt, limit speed as much as possible and avoid high maneuvering loads.', 'caution'),
+      P(7, 'Set target speed to Mmo/Vmo.')] },
+  { t: 'CARGO FIRE (MAIN)', ref: 'QRH 8.2', fire: true, tag: ['MAIN', 'red'], cond: ['Fire is detected in the main deck cargo compartment.'],
+    steps: [P(1, 'Don oxygen masks and set regulators to 100%, as needed.'), P(2, 'Don smoke goggles, as needed.'),
+      P(3, 'Close the flight deck door. This step prevents smoke or fumes contamination from other compartments.'), P(4, 'Establish crew and cabin communications.')] },
+  { t: 'ENGINE FIRE or Engine Severe Damage or Separation', ref: 'QRH 8.8', fire: true, cond: ['One or more of these occur:', ['Engine fire warning', 'Airframe vibrations with abnormal engine indications', 'Engine separation.']],
+    steps: [R(1, 'Autothrottle (if engaged)', 'Disengage'), R(2, 'Thrust lever (affected engine)', 'Close', 'Confirm'),
+      R(3, 'Engine start lever (affected engine)', 'CUTOFF', 'Confirm'), R(4, 'Engine fire switch (affected engine)', 'Pull', 'Confirm', ['To manually unlock the engine fire switch, press the override and pull.']),
+      P(5, '**If** the engine fire switch or ENG OVERHEAT light is illuminated:', [['Engine fire switch (affected engine)', 'Rotate to the stop and hold for 1 second']])] },
+  { t: 'Engine Limit or Surge or Stall', ref: 'QRH 7.2', cond: ['One or more of these occur:', ['Engine indications are abnormal', 'Engine indications are rapidly approaching or exceeding limits', 'Abnormal engine noises are heard, possibly with airframe vibration', 'There is no response to thrust lever movement or the response is abnormal', 'Flames in the engine inlet or exhaust are reported.']],
+    steps: [R(1, 'Autothrottle (if engaged)', 'Disengage'), R(2, 'Thrust lever (affected engine)', 'Retard until engine indications stay within limits or the thrust lever is closed', 'Confirm')] },
+  { t: 'ENGINE OVERHEAT', ref: 'QRH 8.12', fire: true, tag: ['ENG 1 / ENG 2 OVERHEAT', 'amber'], cond: ['An overheat is detected in the engine.'],
+    steps: [R(1, 'Autothrottle (if engaged)', 'Disengage'), R(2, 'Thrust lever (affected engine)', 'Close', 'Confirm'),
+      P(3, '**If** the ENG OVERHEAT light **stays illuminated**:', [GO('Go to the ENGINE FIRE or Engine Severe Damage or Separation checklist on page 8.8')])] },
+  { t: 'Loss Of Thrust On Both Engines', ref: 'QRH 7.6', cond: ['Both of these occur:', ['Both engines have a loss of thrust', 'Both ENG FAIL alerts show.']],
+    steps: [R(1, 'ENGINE START switches (both)', 'FLT'), R(2, 'Engine start levers (both)', 'CUTOFF'),
+      P(3, '**When** EGT decreases:', [['Engine start levers (both)', 'IDLE detent']]),
+      P(4, '**If** EGT reaches a redline or there is no increase in EGT within 30 seconds:', [['Engine start lever (affected engine) · Confirm', 'CUTOFF, then IDLE detent'], '**If** EGT again reaches a redline or there is no increase in EGT within 30 seconds, repeat as needed.'])] },
+  { t: 'Runaway Stabilizer', ref: 'QRH 9.1', cond: ['Uncommanded stabilizer trim movement occurs continuously or in a manner not appropriate for flight conditions.'],
+    steps: [R(1, 'Control column', 'Hold firmly'), R(2, 'Autopilot (if engaged)', 'Disengage'), R(3, 'Autothrottle (if engaged)', 'Disengage'),
+      R(4, 'Control column and thrust levers', 'Control airplane pitch attitude and airspeed'), R(5, 'Main Electric Stabilizer trim', 'Reduce control column forces'),
+      P(6, '**If** the runaway **stops** after the autopilot is disengaged:', ['Do **not** re-engage the autopilot or autothrottle.']),
+      P(7, '**If** the runaway **continues** after the autopilot is disengaged:', [['STAB TRIM cutout switches (both)', 'CUTOUT'], ['**If** the runaway **continues**: Stabilizer trim wheel', 'Grasp and hold']])] },
+  { t: 'LANDING CONFIGURATION', ref: 'QRH 15.1', cond: ['In flight, the steady warning horn sounds.'],
+    steps: [P(1, 'Assure correct airplane landing configuration.')] },
+  { t: 'TAKEOFF CONFIGURATION', ref: 'QRH 15.1', tag: ['TAKEOFF CONFIG', 'red'], cond: ['On the ground, the intermittent cabin altitude/configuration warning horn sounds or a TAKEOFF CONFIG light (if installed and operative) illuminates when advancing the thrust levers to takeoff thrust.'],
+    steps: [P(1, 'Assure correct airplane takeoff configuration.')] },
+  { t: 'WARNING HORN (INTERMITTENT) or WARNING LIGHT - CABIN ALTITUDE OR TAKEOFF CONFIGURATION', ref: 'QRH 15.2', tag: ['CABIN ALTITUDE / TAKEOFF CONFIG', 'red'],
+    cond: ['One of these occurs:', ['In flight, at an airplane flight altitude above 10,000 feet MSL, the intermittent warning horn sounds or a CABIN ALTITUDE light (if installed and operative) illuminates', 'On the ground, the intermittent warning horn sounds or a TAKEOFF CONFIG light illuminates when advancing the thrust levers to takeoff thrust.']],
+    steps: [P(1, '**If** the intermittent warning horn sounds or a CABIN ALTITUDE light illuminates **in flight** at an airplane flight altitude above 10,000 feet MSL:', ['Don the oxygen masks and set the regulators to 100%.', 'Establish crew communications.', GO('Go to the CABIN ALTITUDE WARNING checklist on page 2.1')]),
+      P(2, '**If** the intermittent warning horn sounds or a TAKEOFF CONFIG light illuminates **on the ground** when advancing the thrust levers to takeoff thrust:', ['Assure correct airplane takeoff configuration.'])] },
 ];
 
 // Quick Action Index checklists done by reading (not memory), and the back cover.
@@ -182,8 +193,31 @@ export function createQuickRef(sheet, systems) {
   }).join('')}</ol>`;
   const card = (c, mem) => `<section class="qr-card${mem ? ' mem' : ''}"><h3>${esc(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>${c.when ? `<p class="qr-when">${esc(c.when)}</p>` : ''}${steps(c.steps)}</section>`;
   const table = (title, rows) => `<section class="qr-card"><h3>${esc(title)}</h3><table class="qr-num">${rows.map(([a, b, r]) => `<tr><td>${esc(a)}</td><td>${esc(b)}${r ? ` <span class="qr-ref">${esc(r)}</span>` : ''}</td></tr>`).join('')}</table></section>`;
+  // Memory items as printed: numbered steps with leader dots, sub-lines,
+  // ►► instructions, boxed Caution / Warning, Condition panel with tags.
+  const md = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const line = (a, v, m) => `<div class="qr-line${v && v.length > 28 ? ' long' : ''}"><span class="qr-a">${md(a)}</span>${m ? `<span class="qr-m">${md(m)}</span>` : ''}<span class="qr-dots"></span>${v ? `<span class="qr-b">${md(v)}</span>` : ''}</div>`;
+  const subHtml = (x) => {
+    if (typeof x === 'string') return `<div class="qr-sub">${md(x)}</div>`;
+    if (Array.isArray(x)) return `<div class="qr-sub">${line(x[0], x[1])}</div>`;
+    return `<div class="qr-go">►► ${md(x.a)}</div>`;
+  };
+  const stepHtml = (st) => {
+    if (st.k === 'row') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill">${line(st.a, st.v, st.m)}${st.sub.map(subHtml).join('')}</div></div>`;
+    if (st.k === 'txt') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill"><div class="qr-t">${md(st.a)}</div>${st.sub.map(subHtml).join('')}</div></div>`;
+    if (st.k === 'box') return `<div class="qr-box ${st.lvl}">${st.lvl === 'caution' ? '⚠ ' : ''}${md(st.a)}</div>`;
+    return '';
+  };
+  const condHtml = (list) => list.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${md(li)}</li>`).join('')}</ul>` : `<p>${md(x)}</p>`)).join('');
+  const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}">
+    <h3>${md(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>
+    ${c.tag ? `<span class="qr-tag ${c.tag[1]}">${esc(c.tag[0])}</span>` : ''}
+    <div class="qr-cond"><span class="qr-lbl">Condition:</span><div>${condHtml(c.cond)}</div></div>
+    ${c.steps.map(stepHtml).join('')}
+    <div class="qr-sep"></div>
+  </section>`;
   function body() {
-    if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map((c) => card(c, true)).join('')}
+    if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows]) => table(t, rows)).join('');

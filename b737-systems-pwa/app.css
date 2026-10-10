@@ -810,3 +810,33 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .sx .heat.on { stroke: #ff922b; }
 .sx .fma-frame { fill: none; stroke: #f4f4f4; stroke-width: 1.5; opacity: 0; }
 .sx .fma-frame.on { opacity: 1; }
+
+/* ── Memory items, as printed in the QRH ─────────────────────────────── */
+.qr-card.mem { border-left: 4px solid var(--ink-3); }
+.qr-card.mem.fire { border-left-color: #d62828; }
+.qr-card.mem h3 { font: 700 15px/1.25 var(--sans); }
+.qr-tag { display: inline-block; font: 700 11px/1 var(--mono); letter-spacing: .04em; padding: 5px 7px; margin: 0 0 8px; border-radius: 2px; background: #000; }
+.qr-tag.red { color: #ff3b30; }
+.qr-tag.amber { color: #ffb21e; }
+.qr-cond { display: flex; gap: 8px; background: rgba(127,127,127,.12); padding: 7px 9px; border-radius: 3px; margin: 0 0 10px; font-size: 13px; line-height: 1.35; }
+.qr-cond .qr-lbl { font: 600 11.5px/1.6 var(--sans); color: var(--ink-2); white-space: nowrap; }
+.qr-cond.fire .qr-lbl, .qr-card.fire .qr-cond .qr-lbl { color: #d62828; }
+.qr-cond p { margin: 0 0 3px; }
+.qr-cond ul { margin: 0 0 3px; padding-left: 16px; }
+.qr-row { display: flex; gap: 8px; margin: 0 0 8px; font-size: 13.5px; line-height: 1.35; }
+.qr-n { font: 700 12.5px/1.45 var(--mono); min-width: 16px; }
+.qr-fill { flex: 1 1 auto; min-width: 0; }
+.qr-line { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.qr-line .qr-a { flex: 0 1 auto; }
+.qr-line .qr-m { font: 600 12px var(--mono); color: var(--ink-2); }
+.qr-line .qr-dots { flex: 1 1 14px; min-width: 10px; border-bottom: 1px dotted var(--ink-3); transform: translateY(-3px); }
+.qr-line .qr-b { font: 700 13px/1.35 var(--mono); text-align: right; max-width: 60%; }
+.qr-t { margin-bottom: 2px; }
+.qr-sub { margin: 3px 0 0 10px; padding-left: 8px; border-left: 2px solid var(--line); }
+.qr-go { margin: 4px 0 0 10px; font-weight: 700; }
+.qr-box { font-size: 13px; line-height: 1.35; font-weight: 700; padding: 7px 9px; margin: 2px 0 10px; border: 2px solid; border-radius: 3px; }
+.qr-box.caution { border-color: #f08c00; background: rgba(240,140,0,.12); }
+.qr-box.warn { border-color: #d62828; background: rgba(214,40,40,.12); color: #ff8a80; }
+.qr-sep { border-top: 2px dashed var(--ink-3); margin: 12px 0 0; opacity: .7; }
+.qr-line.long .qr-dots { display: none; }
+.qr-line.long .qr-b { flex-basis: 100%; max-width: none; text-align: left; }
