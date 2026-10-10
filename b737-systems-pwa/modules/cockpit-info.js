@@ -3,8 +3,6 @@
 // entry) that describes them; everything else gets a short note in our own
 // words. Nothing here is copied from the FCOM.
 
-import { effectsOf } from './control-links.js?v=34';
-
 // switch key → [part page, words that identify its flight-deck entry]
 const KEYS = {
   hydraulics: {
@@ -146,7 +144,5 @@ export function explain(systems, ev) {
   const part = partId && sysMod.parts.find((p) => p.id === partId);
   const entry = part && words ? (part.deck || []).find(([n]) => n.toUpperCase().includes(words.toUpperCase())) : null;
   const text = [how, entry ? entry[1] : part?.lead || sysMod.overview.lead].filter(Boolean).join(' ').replace(/\*\*/g, '');
-  // What the control does in the airplane, when we have it written.
-  const fx = effectsOf(ev.sys, c.key);
-  return { title, pos: ev.pos, text, fx, page: part ? `${ev.sys}/${part.id}` : ev.sys, pageTitle: part?.name || sysMod.title };
+  return { title, pos: ev.pos, text, page: part ? `${ev.sys}/${part.id}` : ev.sys, pageTitle: part?.name || sysMod.title };
 }

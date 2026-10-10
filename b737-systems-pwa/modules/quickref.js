@@ -8,8 +8,6 @@
 // boxes are the QRH Warning! / Caution! boxes; `fire` tags the fire items.
 // A study aid only: the QRH in the airplane governs.
 
-import { MEMORY_LINKS, NUMBER_LINKS, EFFECTS } from './control-links.js?v=34';
-
 // Step builders: n = step number, a = action, m = middle ("Confirm"), v = value,
 // sub = indented lines (strings, or [action, value] rows), go = ►► instruction.
 const R = (n, a, v, m, sub = []) => ({ k: 'row', n, a, v, m, sub });
@@ -184,7 +182,7 @@ export const NUMBERS = [
 ];
 
 /** HTML for the sheet. `systems` adds every number cited on the system pages. */
-export function createQuickRef(sheet, systems, nav = {}) {
+export function createQuickRef(sheet, systems) {
   let tab = 'memory';
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   // Short actions read like the QRH ("item ……… ACTION"); long ones wrap below the item.
@@ -194,18 +192,10 @@ export function createQuickRef(sheet, systems, nav = {}) {
     return `<li><span class="qr-a">${esc(a)}</span><span class="qr-dots"></span><span class="qr-b">${esc(b)}</span></li>`;
   }).join('')}</ol>`;
   const card = (c, mem) => `<section class="qr-card${mem ? ' mem' : ''}"><h3>${esc(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>${c.when ? `<p class="qr-when">${esc(c.when)}</p>` : ''}${steps(c.steps)}</section>`;
-  const table = (title, rows) => `<section class="qr-card"><h3>${esc(title)}</h3><table class="qr-num">${rows.map(([a, b, r]) => `<tr><td>${esc(a)}</td><td>${esc(b)}${r ? ` <span class="qr-ref">${esc(r)}</span>` : ''}${links(NUMBER_LINKS[a] || [])}</td></tr>`).join('')}</table></section>`;
+  const table = (title, rows) => `<section class="qr-card"><h3>${esc(title)}</h3><table class="qr-num">${rows.map(([a, b, r]) => `<tr><td>${esc(a)}</td><td>${esc(b)}${r ? ` <span class="qr-ref">${esc(r)}</span>` : ''}</td></tr>`).join('')}</table></section>`;
   // Memory items as printed: numbered steps with leader dots, sub-lines,
   // ►► instructions, boxed Caution / Warning, Condition panel with tags.
   const md = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  // "Show where" buttons: the system's schematic, and the control in the cockpit.
-  const sysName = (id) => systems.find((x) => x.id === id)?.mod?.title || id;
-  const links = (pairs) => {
-    const seen = new Set();
-    const out = pairs.filter(([sys, key]) => (seen.has(sys + key) ? false : seen.add(sys + key)));
-    if (!out.length) return '';
-    return `<div class="qr-links">${out.map(([sys, key]) => `<button class="tag tag-btn qr-lk" data-qr-sys="${esc(sys)}">⇢ ${esc(sysName(sys))}</button>${key ? `<button class="tag tag-btn qr-lk" data-qr-cock="${esc(sys)}" data-qr-key="${esc(key)}">◉ ${esc(EFFECTS[sys]?.[key]?.name || 'In the cockpit')}</button>` : ''}`).join('')}</div>`;
-  };
   const line = (a, v, m) => `<div class="qr-line${v && v.length > 28 ? ' long' : ''}"><span class="qr-a">${md(a)}</span>${m ? `<span class="qr-m">${md(m)}</span>` : ''}<span class="qr-dots"></span>${v ? `<span class="qr-b">${md(v)}</span>` : ''}</div>`;
   const subHtml = (x) => {
     if (typeof x === 'string') return `<div class="qr-sub">${md(x)}</div>`;
@@ -213,19 +203,19 @@ export function createQuickRef(sheet, systems, nav = {}) {
     return `<div class="qr-go">►► ${md(x.a)}</div>`;
   };
   const stepHtml = (st) => {
-    if (st.k === 'row') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill">${line(st.a, st.v, st.m)}${st.sub.map(subHtml).join('')}${links(st.links || [])}</div></div>`;
-    if (st.k === 'txt') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill"><div class="qr-t">${md(st.a)}</div>${st.sub.map(subHtml).join('')}${links(st.links || [])}</div></div>`;
+    if (st.k === 'row') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill">${line(st.a, st.v, st.m)}${st.sub.map(subHtml).join('')}</div></div>`;
+    if (st.k === 'txt') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill"><div class="qr-t">${md(st.a)}</div>${st.sub.map(subHtml).join('')}</div></div>`;
     if (st.k === 'box') return `<div class="qr-box ${st.lvl}">${st.lvl === 'caution' ? '⚠ ' : ''}${md(st.a)}</div>`;
     return '';
   };
   const condHtml = (list) => list.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${md(li)}</li>`).join('')}</ul>` : `<p>${md(x)}</p>`)).join('');
-  const memCard = (c) => { const map = MEMORY_LINKS[c.t] || {}; c.steps.forEach((st) => { st.links = map[st.n] || []; }); return `<section class="qr-card mem${c.fire ? ' fire' : ''}">
+  const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}">
     <h3>${md(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>
     ${c.tag ? `<span class="qr-tag ${c.tag[1]}">${esc(c.tag[0])}</span>` : ''}
     <div class="qr-cond"><span class="qr-lbl">Condition:</span><div>${condHtml(c.cond)}</div></div>
     ${c.steps.map(stepHtml).join('')}
     <div class="qr-sep"></div>
-  </section>`; };
+  </section>`;
   function body() {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
@@ -251,10 +241,6 @@ export function createQuickRef(sheet, systems, nav = {}) {
   function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); }
   // Tab clicks inside the sheet.
   document.addEventListener('click', (e) => {
-    const sb = e.target.closest('[data-qr-sys]');
-    if (sb) { nav.system?.(sb.dataset.qrSys); return; }
-    const cb = e.target.closest('[data-qr-cock]');
-    if (cb) { nav.cockpit?.(cb.dataset.qrCock, cb.dataset.qrKey); return; }
     const b = e.target.closest('[data-qr-tab]');
     if (!b) return;
     tab = b.dataset.qrTab;

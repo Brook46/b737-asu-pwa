@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=34';
-import { createOverhead } from './overhead.js?v=34';
-import * as CAB from './cockpit-cab.js?v=34';
-import { buildStand } from './cockpit-stand.js?v=34';
-import * as D from './cockpit-displays.js?v=34';
-import { drawCDUScreen } from './cdu.js?v=34';
+import * as THREE from '../vendor/three.module.min.js?v=33';
+import { createOverhead } from './overhead.js?v=33';
+import * as CAB from './cockpit-cab.js?v=33';
+import { buildStand } from './cockpit-stand.js?v=33';
+import * as D from './cockpit-displays.js?v=33';
+import { drawCDUScreen } from './cdu.js?v=33';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
@@ -849,7 +849,6 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   function frame(dt) {
     if (!active) return;
     t += dt;
-    tickPulses(dt);
     if (tween) {
       tween.t = Math.min(1, tween.t + dt / 0.8);
       const k = tween.t < 0.5 ? 2 * tween.t * tween.t : 1 - Math.pow(-2 * tween.t + 2, 2) / 2;
@@ -910,40 +909,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     scene.fog.far = air ? 9000 : 3500;
   }
 
-  // ── Focus a control (from the QRH, or a link): turn to it, ring it for a
-  // few seconds and open its card. Returns false if no panel carries it.
-  const pulses = [];
-  const RING = new THREE.RingGeometry(0.5, 0.62, 48);
-  function focusControl(sys, key) {
-    // Centre of a control: its own centre, or of its hit box (fire handles).
-    const ctr = (k) => ({ x: k.cx ?? (k.x0 + k.x1) / 2, y: k.cy ?? (k.y0 + k.y1) / 2 });
-    const tp = texPanels.find((q) => q.sys === sys && q.P.controls.some((c) => c.key === key && c.x0 != null));
-    if (!tp) return false;
-    const c = tp.P.controls.find((k) => k.key === key && k.x0 != null);
-    const { width: w, height: h } = tp.mesh.geometry.parameters;
-    const at = ctr(c);
-    const local = new THREE.Vector3((at.x / (tp.P.w || 300) - 0.5) * w, (0.5 - at.y / tp.P.h) * h, 0);
-    const target = tp.mesh.localToWorld(local.clone());
-    const d = target.clone().sub(look.eye).normalize();
-    const yaw = (Math.atan2(d.z, d.x) * 180) / Math.PI, pitch = (Math.asin(d.y) * 180) / Math.PI;
-    tween = { from: { ...look, eye: look.eye.clone() }, to: { yaw, pitch, fov: 46, eye: look.eye.clone() }, t: 0 };
-    const ring = new THREE.Mesh(RING, new THREE.MeshBasicMaterial({ color: 0xffb21e, transparent: true, opacity: 1, depthTest: false }));
-    ring.position.set(local.x, local.y, 0.006);
-    tp.mesh.add(ring);
-    pulses.push({ ring, life: 6 });
-    onControl({ kind: c.kind, sys, panel: tp.P.title, control: c, pos: c.pos?.() });
-    return true;
-  }
-  function tickPulses(dt) {
-    for (const p of [...pulses]) {
-      p.life -= dt;
-      p.ring.material.opacity = Math.max(0, Math.min(1, p.life));
-      p.ring.scale.setScalar(1 + 0.08 * Math.sin(p.life * 8));
-      if (p.life <= 0) { p.ring.removeFromParent(); pulses.splice(pulses.indexOf(p), 1); }
-    }
-  }
-
-  return { get look() { return look; }, aim: () => aim(), focusControl,
+  return { get look() { return look; }, aim: () => aim(),
     scene, camera, frame, update, setData, goView, setSeat, get seat() { return seat; }, texPanels, screens,
     enter() { active = true; look.eye.set(...side(EYE.toArray())); goView('out'); for (const tp of texPanels) tp.dirty = true; },
     exit() { active = false; pointers.clear(); drag = null; },
