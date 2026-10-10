@@ -7,13 +7,13 @@
 // it on the selected date. A date picker jumps to any date; Play advances that
 // date over time instead of looping a fixed animation.
 
-import { SUN, MOON, PLANETS } from './catalog.js?v=23';
-import { moonPhase, moonDistanceKm } from './astro.js?v=23';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=23';
-import { say } from './speech.js?v=23';
-import { spot, isSpotted, isBadgeBody } from './badges.js?v=23';
-import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, setAutoRotate } from './orrery3d.js?v=23';
-import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=23';
+import { SUN, MOON, PLANETS } from './catalog.js?v=24';
+import { moonPhase, moonDistanceKm } from './astro.js?v=24';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=24';
+import { say } from './speech.js?v=24';
+import { spot, isSpotted, isBadgeBody } from './badges.js?v=24';
+import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, toggleEarthMoon, setAutoRotate } from './orrery3d.js?v=24';
+import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=24';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
@@ -88,6 +88,13 @@ function wireControls() {
   const viewBtn = document.getElementById('view-btn');
   const scaleBtn = document.getElementById('scale-btn');
   viewBtn.addEventListener('click', () => flashViewLabel(`${cycleView()} view`));
+  const emBtn = document.getElementById('em-btn');
+  emBtn.addEventListener('click', () => {
+    const on = toggleEarthMoon();
+    emBtn.setAttribute('aria-pressed', String(on));
+    flashViewLabel(on ? 'Earth & Moon' : 'Whole solar system');
+    say(on ? 'This is the Earth, and the Moon going round it. The Moon takes about a month.' : 'Back to the whole solar system.');
+  });
   scaleBtn.addEventListener('click', () => {
     const on = toggleTrueScale();
     scaleBtn.setAttribute('aria-pressed', String(on));

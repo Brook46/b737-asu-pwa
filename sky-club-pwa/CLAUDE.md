@@ -2,7 +2,80 @@
 
 "Sky Club": a solar-system + real-sky explorer for a toddler (age 2–5) — near-zero reading, big taps, spoken narration. Four screens: a **Home** landing screen (rocket hero, shown once per load) plus **Explore**/**Sky**/**Badges**, switched by a 3-tab bottom nav.
 
+## Discover tab: why things look the way they do
+
+A fourth tab. Four lessons, each a short true explanation with a live picture
+driven by the same ephemeris and catalogue as the rest of the app. Every number
+on these screens is computed, never typed in — keep it that way.
+
+- **Why the Moon changes shape** (`learn.js::buildMoon`): a top-down view with
+  the Sun on the left (its lit side always faces the Sun) and an Earth-view disc
+  from `moonphase.js`. The slider runs through the synodic month (29.53 days).
+- **Why days are longer in summer** (`buildSeasons`): Earth's orbit seen from a
+  little above, with its real tilt; daylight hours and midday height at the
+  user's latitude from the Sun's real declination (`astro.js::sunDeclinationDeg`)
+  and the standard sunrise equation (−0.83° for refraction). The year's
+  daylight curve marks today. The text says which half leans toward the Sun,
+  and notes Earth is closest to the Sun in January, so distance isn't the cause.
+- **How big things are** (`buildSizes`, rebuilt twice for children): one picture at a time. Earth is drawn next to the chosen thing, both at the same scale, with a bracket under each so widths compare by eye. Arrows step from the smallest (Moon) to the biggest (Betelgeuse). Where the big thing is far bigger than Earth, Earth is drawn as a dot you can see and the note says so. The Sun is a ball beside Earth. Betelgeuse (about 800 Suns across) gets its own picture: a huge star running off both edges, with the Sun and Earth as small dots beside it. It must never look the same size as the Sun. The rows of tiny Earths and the tile grid were both removed as hard to read.
+- **From the universe to you** (`zoom.js`): one continuous log zoom, Z = log10 of
+  the metres across the screen. Each scene is drawn at its real scale and fades
+  in and out over ~0.9 of a step, so the zoom reads as one journey: the universe →
+  the Local Group → the Milky Way → stars within 60 light-years (`data/stars.json`,
+  real distances and directions) → the solar system (ephemeris) → Earth and the
+  Moon (ephemeris) → Earth, centred on the user with a pin at their real
+  latitude and longitude (sidereal time sets the spin). It stops at about
+  10,000 km across: the globe's texture is the limit, and there are no street
+  maps in the app. **The universe and the galaxies are illustrative in shape and
+  count** — their captions say so.
+
+Copy and layout for children: short sentences, one idea each, 18–30px text,
+52px+ buttons, big slider thumbs, and a Listen button on every lesson that reads it
+aloud (\`speech.js::say\`). If you change the words, keep them readable by a
+five-year-old with a grown-up.
+
+Zoom handover (fixed bug): scenes change over at fixed boundaries, and each pair
+of neighbours cross-fades over the same window, so the visible amounts always add
+up to one. The old per-scene fades left a gap between the solar system and the
+Earth and Moon where both were faint, and the picture went transparent.
+
+Notes from building it:
+- A canvas's default size is 300×150. Sizing a square canvas by checking only its
+  width left the height at 150 and squashed the Moon disc — check both axes.
+- A scene that reads a snapshot filled by another scene crashes when shown alone;
+  every scene refreshes what it reads.
+- Labels are skipped when they would overprint one already placed in the frame.
+- The lesson screen sits below the same status bar as the other screens
+  (`.lesson-top` clears `safe-top + 62px`).
+
 ## Explore: a 3-D solar system (current architecture)
+
+**Earth & Moon (added after the first 3-D pass).** The Moon's orbit is the
+real one: `astro.js::moonOrbitSamples()` samples the ephemeris over a sidereal
+month and the ring is drawn from those points (364,000–405,000 km, tilted 5.1°
+to the ecliptic — checked). Its position is the real geocentric vector at the
+orbit's display scale, so its phase, the lit side and the live distance are all
+real. The Earth & Moon button eases the camera onto Earth and zooms so the
+Moon's orbit fills FOCUS_PX (36%) of the screen; the other planets fade out and
+the Sun becomes an edge marker, since it's too far off to draw but still lights
+the pair. The caption (`#em-chip`) gives today's phase, lit share and
+distance. **The Moon is drawn closer than to scale** (real: ~60 Earth radii away;
+drawn at 2.2 so both fit) — that's a deliberate compression, same as the
+planets' orbits.
+
+**Graphics and motion added to the orrery:**
+- **Trails** — each planet leaves a fading arc of its own recent path (the last
+  8% of its orbit), so the motion reads at a glance. Hidden in the Earth & Moon
+  close-up (a trail across the globe reads as a streak).
+- **Asteroid belt** — 520 rocks between Mars and Jupiter (2.2–3.3 AU), each moving
+  at its own Keplerian rate from the selected date, so the belt churns at the
+  right pace and stays correct as you scrub the date.
+- **Orbit halos** — each ellipse has a faint wide stroke under its hairline.
+- The Moon's own orbit stays bright in the close-up; the planets' orbits fade.
+
+Taps: `setPointerCapture` is guarded — it throws for synthetic pointers, which
+silently swallowed every tap in testing. Real touches were never affected.
+
 
 Rebuilt on request ("give it 3-D options, really elliptic orbits, real-looking
 planets, fire and solar storms on the Sun"). **Read this before touching

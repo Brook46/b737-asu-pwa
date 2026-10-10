@@ -3,7 +3,7 @@
 // DeviceOrientationEvent.requestPermission() is only ever called inside a real tap,
 // and iOS remembers "granted" per-origin so later launches need no dialog at all.
 
-import { declination } from './geomag.js?v=23';
+import { declination } from './geomag.js?v=24';
 
 const ORIENT_PERM_KEY = 'skyclub.orientPerm';
 const LAST_FIX_KEY = 'skyclub.lastFix';

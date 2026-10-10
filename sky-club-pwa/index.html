@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <link rel="stylesheet" href="app.css?v=23">
+  <link rel="stylesheet" href="app.css?v=24">
 </head>
 <body>
 
@@ -73,9 +73,11 @@
       </div>
       <div class="view-controls">
         <button id="view-btn" class="ctrl-btn view-btn" aria-label="Change 3-D view" title="3-D view"><i class="ph-fill ph-cube"></i></button>
+        <button id="em-btn" class="ctrl-btn view-btn" aria-label="Earth and Moon close-up" aria-pressed="false" title="Earth and Moon"><i class="ph-fill ph-moon"></i></button>
         <button id="scale-btn" class="ctrl-btn view-btn" aria-label="Real distances" aria-pressed="false" title="Real distances"><i class="ph-fill ph-ruler"></i></button>
       </div>
       <div id="view-flash" class="view-flash" aria-live="polite"></div>
+      <div id="em-chip" class="em-chip" aria-live="polite"></div>
       <div id="clean-hint" class="clean-hint" aria-hidden="true">Tap anywhere to bring the buttons back</div>
       <!-- One dock, two rows. These used to be two separately-positioned floating
            bars; once the controls grew to a 52px touch target they collided, and
@@ -128,6 +130,44 @@
       </div>
     </section>
 
+    <section id="discover-screen" class="screen" aria-label="Discover">
+      <div class="discover-header">
+        <h1 class="screen-title"><i class="ph-fill ph-compass"></i> Discover</h1>
+        <p class="screen-subtitle">Tap a picture to find out why.</p>
+      </div>
+      <div class="discover-grid">
+        <button class="discover-card tone-1" data-lesson="moon">
+          <span class="discover-tile"><i class="ph-fill ph-moon"></i></span>
+          <span class="discover-text"><span class="discover-title">Why the Moon changes shape</span><span class="discover-sub">The Sun lights up half of it</span></span>
+          <i class="ph-fill ph-caret-right discover-go"></i>
+        </button>
+        <button class="discover-card tone-2" data-lesson="seasons">
+          <span class="discover-tile"><i class="ph-fill ph-sun-horizon"></i></span>
+          <span class="discover-text"><span class="discover-title">Why days are longer in summer</span><span class="discover-sub">Earth leans, so the seasons change</span></span>
+          <i class="ph-fill ph-caret-right discover-go"></i>
+        </button>
+        <button class="discover-card tone-3" data-lesson="sizes">
+          <span class="discover-tile"><i class="ph-fill ph-ruler"></i></span>
+          <span class="discover-text"><span class="discover-title">How big things are</span><span class="discover-sub">How many Earths fit across it?</span></span>
+          <i class="ph-fill ph-caret-right discover-go"></i>
+        </button>
+        <button class="discover-card tone-4" data-lesson="zoom">
+          <span class="discover-tile"><i class="ph-fill ph-magnifying-glass-plus"></i></span>
+          <span class="discover-text"><span class="discover-title">From the universe to you</span><span class="discover-sub">Zoom from space all the way to you</span></span>
+          <i class="ph-fill ph-caret-right discover-go"></i>
+        </button>
+      </div>
+    </section>
+
+    <section id="lesson-screen" class="screen" aria-label="Lesson">
+      <div class="lesson-top">
+        <button id="lesson-back" class="icon-btn" aria-label="Back to Discover"><i class="ph-fill ph-caret-left"></i></button>
+        <span id="lesson-kicker" class="lesson-kicker"></span>
+        <button id="lesson-listen" class="icon-btn lesson-listen" aria-label="Read this page to me"><i class="ph-fill ph-speaker-high"></i></button>
+      </div>
+      <div id="lesson-body" class="lesson-body"></div>
+    </section>
+
     <section id="badges-screen" class="screen" aria-label="Your badges">
       <div class="badges-header">
         <h1 class="badges-title"><i class="ph-fill ph-medal"></i> Badges</h1>
@@ -147,6 +187,9 @@
     </button>
     <button id="nav-sky" class="nav-tab" aria-pressed="false">
       <i class="ph-fill ph-binoculars nav-icon"></i><span class="nav-label">Sky</span>
+    </button>
+    <button id="nav-discover" class="nav-tab" aria-pressed="false">
+      <i class="ph-fill ph-compass nav-icon"></i><span class="nav-label">Discover</span>
     </button>
     <button id="nav-badges" class="nav-tab" aria-pressed="false">
       <i class="ph-fill ph-medal nav-icon"></i><span class="nav-label">Badges</span>
@@ -201,6 +244,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=23"></script>
+  <script type="module" src="app.js?v=24"></script>
 </body>
 </html>

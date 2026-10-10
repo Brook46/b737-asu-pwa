@@ -5,8 +5,8 @@
 import {
   Body, Observer, Equator, Horizon, EclipticLongitude, MoonPhase, Libration,
   SearchMoonQuarter, NextMoonQuarter, SearchLunarEclipse, SearchLocalSolarEclipse,
-  Rotation_EQJ_HOR, Illumination, HelioVector, GeoMoon,
-} from '../vendor/astronomy-engine.js?v=23';
+  Rotation_EQJ_HOR, Illumination, HelioVector, GeoMoon, SiderealTime,
+} from '../vendor/astronomy-engine.js?v=24';
 
 const PLANET_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
 const ORBIT_BODIES = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
@@ -130,6 +130,24 @@ export function helioEcliptic(name, date) {
 /** The Moon's geocentric ecliptic position, in AU. */
 export function moonEcliptic(date) {
   return eqjToEcl(GeoMoon(date));
+}
+
+/** The Sun's declination (its height north or south of the celestial equator), in degrees. */
+export function sunDeclinationDeg(date) {
+  return Equator(Body.Sun, date, new Observer(0, 0, 0), true, true).dec;
+}
+
+/** Greenwich sidereal time in hours: where the Greenwich meridian points, in RA. */
+export function siderealHours(date) {
+  return SiderealTime(date);
+}
+
+/** The Moon's real geocentric orbit: n ecliptic AU vectors over one sidereal month. */
+export function moonOrbitSamples(date, n = 120) {
+  const pts = [];
+  const t0 = date.getTime();
+  for (let k = 0; k < n; k++) pts.push(moonEcliptic(new Date(t0 + (k / n) * 27.321661 * 86400000)));
+  return pts;
 }
 
 /** One full real orbit, sampled from the ephemeris itself (n points). */

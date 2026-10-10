@@ -19,11 +19,12 @@
 //     and each spins about its real pole (Uranus on its side, Venus backwards).
 //   • The Sun is alive (sunfx.js).
 
-import { helioEcliptic, moonEcliptic, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=23';
-import { SUN, MOON, PLANETS } from './catalog.js?v=23';
-import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=23';
-import { SunFX } from './sunfx.js?v=23';
-import { isSpotted } from './badges.js?v=23';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=24';
+import { SUN, MOON, PLANETS } from './catalog.js?v=24';
+import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=24';
+import { SunFX } from './sunfx.js?v=24';
+import { isSpotted } from './badges.js?v=24';
+import { describePhase } from './moonphase.js?v=24';
 
 const DEG = Math.PI / 180;
 
@@ -70,6 +71,10 @@ const ZOOM_MIN = 0.5, ZOOM_MAX = 6;
 const PLANET_BOOST = 1.6;
 // Perspective makes the near half of an orbit a little wider than its radius.
 const PERSPECTIVE_SPREAD = 1.12;
+// Earth & Moon close-up: the Moon's real orbit fills this fraction of the screen.
+const FOCUS_PX = 0.36;
+// Each planet leaves a short fading trail: the last TRAIL_FRAC of its orbit.
+const TRAIL_N = 10, TRAIL_FRAC = 0.08;
 
 let cloudMap = null;
 export function earthClouds() {
@@ -98,6 +103,9 @@ let trueMix = 0, trueTarget = 0;
 let autoRotate = false;
 let started = false, lastFrame = 0;
 let dirtyPositions = true;
+let focusK = 0, focusTarget = 0;   // 0 = whole system, 1 = Earth & Moon close-up (eased)
+let moonPath = [], moonA = 1;      // the Moon's real geocentric orbit, and its mean radius (AU)
+let belt = null, beltRef = null;   // the main asteroid belt
 const hits = [];
 
 export function initOrrery(el, onTap) {
@@ -107,6 +115,7 @@ export function initOrrery(el, onTap) {
   sunfx = new SunFX('lite');
   ringTex = saturnRingTexture();
   buildWorlds();
+  buildBelt();
   wireGestures();
   new ResizeObserver(resize).observe(canvas);
   resize();
@@ -153,7 +162,9 @@ function buildWorlds() {
   const outer = worlds[worlds.length - 1];
   const kTrue = outer.A / outer.a;
   for (const w of worlds) w.Atrue = w.a * kTrue;
-  moon = { id: 'moon', look: LOOKS.moon, tex: loadTexture(MOON.texture), globe: new Globe(8), size: 3, pos: [0, 0, 0] };
+  moon = { id: 'moon', look: LOOKS.moon, tex: loadTexture(MOON.texture), globe: new Globe(8), size: 3, pos: [0, 0, 0], vec: [0, 0, 0] };
+  moonPath = moonOrbitSamples(now, 120);
+  moonA = moonPath.reduce((sum, q) => sum + Math.hypot(q[0], q[1], q[2]), 0) / moonPath.length;
   earthClouds();
 }
 
@@ -209,26 +220,51 @@ export function toggleTrueScale() {
   return !!trueTarget;
 }
 export function setAutoRotate(on) { autoRotate = on; }
+// Earth & Moon close-up: the camera eases onto Earth and the Moon's orbit fills the screen.
+export function toggleEarthMoon() {
+  focusTarget = focusTarget ? 0 : 1;
+  targetPitch = focusTarget ? 24 : VIEWS[viewIdx].pitch;
+  return !!focusTarget;
+}
 
 // ---- positions ----
 function updatePositions() {
   if (!dirtyPositions) return;
   dirtyPositions = false;
-  for (const w of worlds) w.helio = helioEcliptic(WORLDS[w.id].body, date);
-  moon.geo = v3.norm(moonEcliptic(date));
+  for (const w of worlds) {
+    const body = WORLDS[w.id].body;
+    w.helio = helioEcliptic(body, date);
+    // Where it has been: a short arc of its real path behind it, so the motion reads.
+    const span = TRAIL_FRAC * WORLDS[w.id].period * 86400000;
+    w.trail = [];
+    for (let k = TRAIL_N - 1; k >= 0; k--) w.trail.push(helioEcliptic(body, new Date(date.getTime() - (k / (TRAIL_N - 1)) * span)));
+  }
+  moon.vec = moonEcliptic(date);
+  updateChip();
+}
+
+// The Earth & Moon caption: the Moon's real phase, lit share and distance today.
+let chipEl = null, chipShown = false;
+function updateChip() {
+  chipEl = chipEl || document.getElementById('em-chip');
+  if (!chipEl) return;
+  const { name, lit } = describePhase(moonPhase(date));
+  const km = Math.round(moonDistanceKm(date) / 1000) * 1000;
+  chipEl.textContent = `${name} · ${lit}% lit · ${km.toLocaleString('en-US')} km`;
 }
 
 // ---- camera ----
-function camera() {
+// Orbits the point T. k is the screen scale (px per world unit at unit depth).
+function camera(T, k) {
   const R = outerExtent();
   const D = R * 2.1;
   const cp = Math.cos(pitch * DEG), sp = Math.sin(pitch * DEG);
   const cy = Math.cos(yaw * DEG), sy = Math.sin(yaw * DEG);
-  const C = [D * cp * sy, -D * cp * cy, D * sp];
-  const fwd = v3.norm(v3.scale(C, -1));
+  const C = v3.add(T, [D * cp * sy, -D * cp * cy, D * sp]);
+  const fwd = v3.norm(v3.sub(T, C));
   const right = v3.norm(v3.cross(fwd, [0, 0, 1]));
   const up = v3.cross(right, fwd);
-  return { C, D, fwd, right, up, k: fit * zoom, cx: W / 2, cy: H * 0.46 };
+  return { C, D, fwd, right, up, k, cx: W / 2, cy: H * 0.46 };
 }
 
 function project(cam, p) {
@@ -257,6 +293,9 @@ function frame(now) {
   // Camera easing, inertia, clean-view drift.
   pitch += (targetPitch - pitch) * Math.min(1, dt * 4);
   trueMix += (trueTarget - trueMix) * Math.min(1, dt * 3);
+  focusK += (focusTarget - focusK) * Math.min(1, dt * 2.5);
+  const chipOn = focusTarget === 1 && focusK > 0.5;
+  if (chipOn !== chipShown) { chipShown = chipOn; chipEl?.classList.toggle('show', chipOn); }
   if (!dragging) {
     yaw += yawVel * dt;
     yawVel *= Math.pow(0.08, dt);
@@ -271,7 +310,6 @@ function render(t) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   hits.length = 0;
-  const cam = camera();
   const mix = trueMix;
   const sizeK = 1 - 0.65 * mix;
 
@@ -285,12 +323,28 @@ function render(t) {
   }
   const earth = worlds.find((w) => w.id === 'earth');
   moon.r = moon.size * PLANET_BOOST * sizeK;
-  moon.pos = v3.add(earth.pos, v3.scale(moon.geo, earth.r * MOON_OFFSET));
+  // The Moon's REAL geocentric position, at the display scale of its orbit.
+  const moonK = (earth.r * MOON_OFFSET) / moonA;
+  moon.pos = v3.add(earth.pos, v3.scale(moon.vec, moonK));
+
+  // The camera orbits the Sun, or — as the Earth & Moon close-up eases in — the
+  // Earth. Zoom blends geometrically so the step from the whole system to the
+  // pair feels even, and lands with the Moon's orbit at FOCUS_PX of the screen.
+  const base = fit * zoom;
+  const m = (Math.min(W, H) * FOCUS_PX) / (earth.r * MOON_OFFSET * base);
+  const cam = camera(v3.scale(earth.pos, focusK), base * Math.pow(m, focusK));
 
   const sunP = project(cam, [0, 0, 0]);
   const sunR = (SUN_R - (SUN_R - 7) * mix) * sunP.s;
+  const sunOn = sunP.x > -sunR * 3 && sunP.x < W + sunR * 3 && sunP.y > -sunR * 3 && sunP.y < H + sunR * 3;
+
+  // In the close-up only Earth and the Moon stay; the rest of the system is
+  // far off-screen, and a planet wandering past the Earth reads as clutter.
+  const solo = (b) => focusK < 0.6 || b.id === 'earth' || b.id === 'moon';
 
   drawPlane(cam);
+  drawBelt(cam, t, mix);
+  if (focusK < 0.3) for (const w of worlds) drawTrail(cam, w); // a trail across the close-up reads as a streak
 
   // Orbit lines, split at the Sun's depth.
   const behind = new Path2D(), front = new Path2D();
@@ -306,15 +360,20 @@ function render(t) {
       prev = p;
     }
   }
-  // Earth's Moon's orbit, as a small ring round Earth.
+  // The Moon's real orbit round Earth — an ellipse, tilted 5°, traced from the ephemeris.
   const moonRing = new Path2D();
-  const er = earth.r * MOON_OFFSET;
-  for (let k = 0; k <= 48; k++) {
-    const a = (k / 48) * Math.PI * 2;
-    const p = project(cam, v3.add(earth.pos, [Math.cos(a) * er, Math.sin(a) * er, 0]));
+  for (let k = 0; k <= moonPath.length; k++) {
+    const q = moonPath[k % moonPath.length];
+    const p = project(cam, v3.add(earth.pos, v3.scale(q, moonK)));
     if (k) moonRing.lineTo(p.x, p.y); else moonRing.moveTo(p.x, p.y);
   }
 
+  // Each orbit gets a soft halo under its hairline, so the ellipses read as light.
+  // The planets' orbits fade out in the close-up; the Moon's own orbit stays.
+  ctx.globalAlpha = 1 - 0.85 * focusK;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(210,215,240,0.045)';
+  ctx.stroke(behind);
   ctx.lineWidth = 1;
   ctx.strokeStyle = 'rgba(210,215,240,0.13)';
   ctx.stroke(behind);
@@ -323,16 +382,104 @@ function render(t) {
   bodies.sort((a, b) => b.p.z - a.p.z);
   const drawBody = ({ b, p }) => drawWorld(cam, b, p, t);
 
-  for (const it of bodies) if (it.p.z > sunP.z) drawBody(it);
-  sunfx.draw(ctx, sunP.x, sunP.y, sunR, t, dpr);
-  hits.push({ id: 'sun', x: sunP.x, y: sunP.y, r: Math.max(26, sunR + 6), z: sunP.z });
+  for (const it of bodies) if (it.p.z > sunP.z && solo(it.b)) drawBody(it);
+  if (sunOn && focusK < 0.5) {
+    sunfx.draw(ctx, sunP.x, sunP.y, sunR, t, dpr);
+    hits.push({ id: 'sun', x: sunP.x, y: sunP.y, r: Math.max(26, sunR + 6), z: sunP.z });
+  }
+  if (focusK > 0.4) drawSunMarker(sunP, Math.min(1, (focusK - 0.4) / 0.4));
   ctx.lineWidth = 1;
   ctx.strokeStyle = 'rgba(210,215,240,0.2)';
   ctx.stroke(front);
-  ctx.strokeStyle = 'rgba(210,215,240,0.12)';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = `rgba(200,212,242,${(0.12 + 0.2 * focusK).toFixed(3)})`;
   ctx.stroke(moonRing);
-  for (const it of bodies) if (it.p.z <= sunP.z) drawBody(it);
+  for (const it of bodies) if (it.p.z <= sunP.z && solo(it.b)) drawBody(it);
   drawLabels();
+}
+
+// In the Earth & Moon close-up the Sun is too far off to draw, but it is what
+// lights the pair. A glow marker, held inside the frame, shows where it is.
+function drawSunMarker(sunP, a) {
+  const dx = sunP.x - W / 2, dy = sunP.y - H / 2;
+  const x0 = 34, x1 = W - 34, y0 = 190, y1 = H - 250;
+  let t = Infinity;
+  if (dx > 0) t = Math.min(t, (x1 - W / 2) / dx);
+  if (dx < 0) t = Math.min(t, (x0 - W / 2) / dx);
+  if (dy > 0) t = Math.min(t, (y1 - H / 2) / dy);
+  if (dy < 0) t = Math.min(t, (y0 - H / 2) / dy);
+  const k = Math.min(1, t);
+  const mx = W / 2 + dx * k, my = H / 2 + dy * k;
+  const g = ctx.createRadialGradient(mx, my, 0, mx, my, 30);
+  g.addColorStop(0, `rgba(255,240,205,${(0.95 * a).toFixed(3)})`);
+  g.addColorStop(0.22, `rgba(255,180,90,${(0.5 * a).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(255,140,60,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(mx - 30, my - 30, 60, 60);
+  ctx.font = '700 10px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(255,226,180,${a.toFixed(3)})`;
+  ctx.fillText('SUN', mx, my + 26);
+  hits.push({ id: 'sun', x: mx, y: my, r: 30, z: sunP.z });
+}
+
+// ---- Asteroid belt: real main-belt orbits (2.2–3.3 AU), each rock moving at its
+// own Keplerian rate from the selected date, so the belt churns at the right pace.
+function buildBelt() {
+  beltRef = { mars: worlds.find((w) => w.id === 'mars'), jup: worlds.find((w) => w.id === 'jupiter') };
+  belt = Array.from({ length: 520 }, () => ({
+    a: 2.2 + Math.random() * 1.1,
+    ph: Math.random() * Math.PI * 2,
+    inc: Math.random() * 0.16,
+    size: 0.6 + Math.random() * 0.8,
+    al: 0.22 + Math.random() * 0.4,
+  }));
+}
+
+// Display radius of a belt rock at semi-major axis a, between the compressed
+// layout (fitted into the gap between Mars and Jupiter) and true distances.
+function beltRadius(a, mix) {
+  const { mars, jup } = beltRef;
+  const comp = mars.A + (a - mars.a) * (jup.A - mars.A) / (jup.a - mars.a);
+  const tru = a * (jup.Atrue / jup.a);
+  return comp + (tru - comp) * mix;
+}
+
+function drawBelt(cam, t, mix) {
+  if (!belt || focusK > 0.95) return;
+  const days = date.getTime() / 86400000 - 10957.5; // days since J2000
+  ctx.fillStyle = 'rgb(222,208,186)';
+  for (const q of belt) {
+    const R = beltRadius(q.a, mix);
+    const th = q.ph + (2 * Math.PI * days) / (365.25 * Math.pow(q.a, 1.5));
+    const p = project(cam, [R * Math.cos(th), R * Math.sin(th), R * Math.sin(q.inc) * Math.sin(th)]);
+    ctx.globalAlpha = q.al;
+    ctx.fillRect(p.x, p.y, q.size, q.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A planet's recent path: a tail that fades from nothing to a soft glow.
+function drawTrail(cam, w) {
+  const [r, g, b] = hexRgb(w.cat.light || '#ffffff');
+  const n = w.trail.length;
+  let prev = null;
+  for (let k = 0; k < n; k++) {
+    const p = project(cam, v3.scale(w.trail[k], w.scale));
+    if (prev) {
+      const f = k / (n - 1);
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(0.6 * Math.pow(f, 1.7)).toFixed(3)})`;
+      ctx.lineWidth = 0.6 + 1.1 * f;
+      ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    }
+    prev = p;
+  }
+}
+
+function hexRgb(h) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h);
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [255, 255, 255];
 }
 
 // A faint glow in the plane of the planets — enough to read as a disc in 3-D.
@@ -418,6 +565,7 @@ function drawWorld(cam, b, p, t) {
   }
   hits.push({ id, x: p.x, y: p.y, r: Math.max(20, r + 8), z: p.z });
   if (id !== 'moon') labels.push({ text: b.cat.name.toUpperCase(), x: p.x, y: p.y + r + 11, z: p.z });
+  else if (focusK > 0.3) labels.push({ text: 'MOON', x: p.x, y: p.y + r + 11, z: p.z });
 }
 
 // Small names under the worlds, nearest first, skipping any that would collide.
@@ -451,7 +599,7 @@ function wireGestures() {
   let start = null, pinch = null, lastMove = 0;
   canvas.addEventListener('pointerdown', (e) => {
     if (document.body.classList.contains('clean-view')) return;
-    canvas.setPointerCapture?.(e.pointerId);
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* not an active pointer (synthetic input) */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: performance.now() }; yawVel = 0; }
     if (pts.size === 2) {

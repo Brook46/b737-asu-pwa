@@ -1,18 +1,21 @@
-import { initExplore } from './modules/orbits.js?v=23';
-import { initSky } from './modules/sky.js?v=23';
-import { initStarfield } from './modules/starfield.js?v=23';
-import { initBadges } from './modules/badges.js?v=23';
-import { installResumeHardening } from './modules/resume.js?v=23';
-import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=23';
+import { initExplore } from './modules/orbits.js?v=24';
+import { initSky } from './modules/sky.js?v=24';
+import { initStarfield } from './modules/starfield.js?v=24';
+import { initBadges } from './modules/badges.js?v=24';
+import { initLearn } from './modules/learn.js?v=24';
+import { installResumeHardening } from './modules/resume.js?v=24';
+import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=24';
 
-const NAV_SCREENS = ['explore', 'sky', 'badges'];
+const NAV_SCREENS = ['explore', 'sky', 'discover', 'badges'];
 
 function switchScreen(name) {
   document.querySelectorAll('.screen').forEach((el) => el.classList.toggle('active', el.id === `${name}-screen`));
+  // A lesson lives under the Discover tab, so that tab stays lit while you read it.
+  const tabName = name === 'lesson' ? 'discover' : name;
   for (const s of NAV_SCREENS) {
     const tab = document.getElementById(`nav-${s}`);
-    tab.classList.toggle('active', name === s);
-    tab.setAttribute('aria-pressed', String(name === s));
+    tab.classList.toggle('active', tabName === s);
+    tab.setAttribute('aria-pressed', String(tabName === s));
   }
   stopSpeech();
   // Home is now the default screen, so #starfield's canvas sizes itself from a
@@ -45,7 +48,9 @@ function init() {
   initMute();
   document.getElementById('nav-explore').addEventListener('click', () => switchScreen('explore'));
   document.getElementById('nav-sky').addEventListener('click', () => switchScreen('sky'));
+  document.getElementById('nav-discover').addEventListener('click', () => switchScreen('discover'));
   document.getElementById('nav-badges').addEventListener('click', () => switchScreen('badges'));
+  initLearn({ go: switchScreen });
   document.getElementById('home-blastoff').addEventListener('click', () => switchScreen('explore'));
   document.getElementById('home-lookoutside').addEventListener('click', () => switchScreen('sky'));
   installResumeHardening();
