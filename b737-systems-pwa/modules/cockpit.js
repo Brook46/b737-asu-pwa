@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=35';
-import { createOverhead } from './overhead.js?v=35';
-import * as CAB from './cockpit-cab.js?v=35';
-import { buildStand } from './cockpit-stand.js?v=35';
-import * as D from './cockpit-displays.js?v=35';
-import { drawCDUScreen } from './cdu.js?v=35';
+import * as THREE from '../vendor/three.module.min.js?v=36';
+import { createOverhead } from './overhead.js?v=36';
+import * as CAB from './cockpit-cab.js?v=36';
+import { buildStand } from './cockpit-stand.js?v=36';
+import * as D from './cockpit-displays.js?v=36';
+import { drawCDUScreen } from './cdu.js?v=36';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.24, -0.52);

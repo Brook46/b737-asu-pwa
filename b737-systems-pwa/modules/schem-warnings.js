@@ -2,9 +2,9 @@
 // warnings and the GPWS / TCAS alerts; glareshield annunciators, GPWS panel,
 // transponder and the aft overhead warning tests.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=35';
-import { createOverhead } from './overhead.js?v=35';
-import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=35';
+import { createSchematic, createPanel } from './schem-kit.js?v=36';
+import { createOverhead } from './overhead.js?v=36';
+import { SIXPACK, SCENARIOS } from './sys-warnings.js?v=36';
 
 const C = '#e85d04', AMB = '#fab005', RED = '#e03131';
 

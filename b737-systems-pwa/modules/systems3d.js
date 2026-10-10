@@ -4,8 +4,8 @@
 // units (pumps, reservoirs, generators…) glow when running, grey when off,
 // amber when failed. Tapping any of them opens its page.
 
-import * as THREE from '../vendor/three.module.min.js?v=35';
-import { loft, wingChord, wingLE, wingTC, wingY } from './airframe.js?v=35';
+import * as THREE from '../vendor/three.module.min.js?v=36';
+import { loft, wingChord, wingLE, wingTC, wingY } from './airframe.js?v=36';
 
 const FLOW_VERT = /* glsl */`
   varying vec2 vUv; varying vec3 vN; varying vec3 vV;

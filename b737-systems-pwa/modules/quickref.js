@@ -115,27 +115,27 @@ export const MANEUVERS = [
 // The limitations marked # (must be memorized), then other key numbers.
 export const NUMBERS = [
   ['Memorize (FCOM L.10, marked #)', [
-    ['Max takeoff / landing tailwind', '15 kt'],
-    ['Severe turbulence penetration (climb & descent)', '280 KIAS / M.76, whichever lower'],
-    ['Do not operate HF radios', 'during refuelling'],
-    ['Aileron trim with A/P engaged', 'prohibited'],
-    ['A/P engagement after takeoff', 'not below 400 ft AGL'],
-    ['Single-channel A/P on approach', 'off by 50 ft AGL'],
-    ['Autoland winds', 'head 25 · cross 20 · tail 15 kt'],
-    ['Autoland glideslope', '2.5° – 3.25°'],
-    ['Autoland', 'flaps 30 or 40, both engines'],
-    ['LVL CHG on final approach', 'not below 1,000 ft AFE'],
-    ['Reverse thrust in flight', 'prohibited'],
-    ['APU bleed + electrics (in flight)', 'max 10,000 ft'],
-    ['APU bleed + electrics (ground only)', 'max 15,000 ft'],
-    ['APU bleed', 'max 17,000 ft'],
-    ['APU electrical load', 'max 41,000 ft'],
-    ['Max altitude, flaps extended', '20,000 ft'],
-    ['Holding in icing with flaps extended', 'prohibited'],
-    ['Rapid large alternating control inputs', 'avoid — structural failure possible even below VA'],
-    ['Speedbrakes in flight', 'not below 1,000 ft RA'],
-    ['Weather radar', 'not in a hangar'],
-  ]],
+    ['Maximum takeoff and landing tailwind component', '15 kt (takeoff and manual landing with tailwind)'],
+    ['Severe turbulent air penetration speed (climb and descent only)', '280 KIAS / M.76, whichever is lower'],
+    ['HF radios', 'do not operate during refuelling'],
+    ['Aileron trim with the autopilot engaged', 'prohibited'],
+    ['Autopilot engagement for takeoff', 'do not engage below 400 ft AGL'],
+    ['Single-channel autopilot on approach', 'must not stay engaged below 50 ft AGL'],
+    ['Autoland wind limits (steady wind, landing minima on autoland)', 'headwind 25 kt · crosswind 20 kt · tailwind 15 kt'],
+    ['Autoland glideslope angle', '2.5° to 3.25°'],
+    ['Autoland configuration', 'flaps 30 or 40, both engines operative'],
+    ['LVL CHG on final approach', 'do not use below 1,000 ft AFE'],
+    ['Reverse thrust in flight', 'intentional selection prohibited'],
+    ['APU bleed + electrical load, in flight', 'max altitude 10,000 ft'],
+    ['APU bleed + electrical load, ground only', 'max altitude 15,000 ft'],
+    ['APU bleed (alone)', 'max altitude 17,000 ft'],
+    ['APU electrical load (alone)', 'max altitude 41,000 ft'],
+    ['Maximum altitude with flaps extended', '20,000 ft'],
+    ['Holding in icing conditions with flaps extended', 'prohibited'],
+    ['Rapid and large alternating control inputs', 'avoid: structural failure possible at any speed, including below VA'],
+    ['SPEED BRAKE lever in flight', 'do not deploy the speed brakes below 1,000 ft radio altitude'],
+    ['Weather radar operation in a hangar', 'avoid; also avoid when personnel are within the radome area'],
+  ], true],
   ['Airplane (FCOM L.10)', [
     ['Max operating altitude', '41,000 ft pressure altitude'],
     ['Max takeoff / landing altitude', '8,400 ft pressure altitude'],
@@ -143,7 +143,7 @@ export const NUMBERS = [
     ['Max differential pressure (relief valves)', '9.1 psi'],
     ['RVSM: Capt vs F/O altitude in flight', '200 ft'],
     ['RVSM on the ground (SL–5,000 / 5,001–10,000 ft)', 'Capt–F/O 50 / 60 ft · either vs field 75 ft'],
-    ['Speedbrake in flight', 'not beyond FLIGHT DETENT'],
+    ['SPEED BRAKE lever in flight', 'do not move beyond the FLIGHT DETENT'],
     ['Alternate flaps', '15 s between selections · 5 min after 0→15→0'],
     ['ADIRU alignment', 'not above 78°15′ latitude'],
     ['Brakes', 'not before touchdown'],
@@ -192,7 +192,7 @@ export function createQuickRef(sheet, systems) {
     return `<li><span class="qr-a">${esc(a)}</span><span class="qr-dots"></span><span class="qr-b">${esc(b)}</span></li>`;
   }).join('')}</ol>`;
   const card = (c, mem) => `<section class="qr-card${mem ? ' mem' : ''}"><h3>${esc(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>${c.when ? `<p class="qr-when">${esc(c.when)}</p>` : ''}${steps(c.steps)}</section>`;
-  const table = (title, rows) => `<section class="qr-card"><h3>${esc(title)}</h3><table class="qr-num">${rows.map(([a, b, r]) => `<tr><td>${esc(a)}</td><td>${esc(b)}${r ? ` <span class="qr-ref">${esc(r)}</span>` : ''}</td></tr>`).join('')}</table></section>`;
+  const table = (title, rows, mem = false) => `<section class="qr-card"><h3>${esc(title)}</h3><table class="qr-num">${rows.map(([a, b, r]) => `<tr><td>${mem ? '<span class="qr-hash">#</span>' : ''}${esc(a)}</td><td>${esc(b)}${r ? ` <span class="qr-ref">${esc(r)}</span>` : ''}</td></tr>`).join('')}</table></section>`;
   // Memory items as printed: numbered steps with leader dots, sub-lines,
   // ►► instructions, boxed Caution / Warning, Condition panel with tags.
   const md = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
@@ -220,7 +220,7 @@ export function createQuickRef(sheet, systems) {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
-    if (tab === 'numbers') return NUMBERS.map(([t, rows]) => table(t, rows)).join('');
+    if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
     return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
       const rows = [...s.mod.overview.limits];

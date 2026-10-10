@@ -840,3 +840,4 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .qr-sep { border-top: 2px dashed var(--ink-3); margin: 12px 0 0; opacity: .7; }
 .qr-line.long .qr-dots { display: none; }
 .qr-line.long .qr-b { flex-basis: 100%; max-width: none; text-align: left; }
+.qr-hash { color: #d62828; font-weight: 800; margin-right: 5px; }
