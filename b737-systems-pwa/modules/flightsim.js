@@ -8,8 +8,8 @@
 // No wind, ISA, no aerodynamics: speeds and rates are rough 737-800 numbers
 // for study only.
 
-import { nav, geo } from './navdb.js?v=33';
-import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=33';
+import { nav, geo } from './navdb.js?v=35';
+import { tasOf, soundKt, fmcSpeed, FT_PER_NM_3DEG } from './fmc.js?v=35';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const roc = (alt) => Math.max(1000, 3000 - alt * 0.055);
