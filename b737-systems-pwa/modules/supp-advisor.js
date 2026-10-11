@@ -4,7 +4,7 @@
 // de-icing, anti-ice, run-up, flaps, performance — then the few things to
 // know. Each answer links to its SP.16 topic. Study aid: the FCOM governs.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=42';
+import { SUPPLEMENTARY } from './supplementary.js?v=43';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 
@@ -351,25 +351,26 @@ export function wizardKey(e) {
 }
 
 // ── Cold temperature altitude correction (worked) ──
+// The same table for every altitude: height above the altimeter reference
+// source (the airport the QNH is from), temperature row, height column.
 const NUM = (s) => Number(String(s).replace('−', '-').replace('°C', '').trim());
 
 /**
- * The correction for one minimum altitude, worked as steps. unit: 'ft' | 'm'.
- * Temperature takes the next colder table row, height the next higher column
- * (the conservative reading of the table).
+ * One altitude, corrected. Temperature takes the next colder table row,
+ * height the next higher column (the conservative reading of the table).
+ * unit: 'ft' | 'm'. Returns steps, the correction and the corrected altitude.
  */
 export function coldCorrection({ temp, minAlt, refElev, unit }) {
   const tb = SUPPLEMENTARY[0].tables[unit === 'm' ? 1 : 0];
   const heads = tb.head.map(Number);
   const rows = tb.rows.map(([lbl, vals]) => ({ t: NUM(lbl), vals }));
   const steps = [];
-  if ([temp, minAlt, refElev].some((x) => x == null || Number.isNaN(x))) return { steps, error: 'Enter the temperature, the minimum altitude and the reference elevation.' };
   const u = unit === 'm' ? 'm' : 'ft';
-  if (temp >= 0) return { steps: ['Above 0 °C: no correction needed.'], corr: 0 };
+  if (temp >= 0) return { steps: ['Above 0 °C: no correction.'], corr: 0, corrected: minAlt };
   if (temp < -50) return { steps, error: 'Below −50 °C is outside the table: use the FCOM table.' };
   const h = minAlt - refElev;
   steps.push(`Height above the reference source: ${minAlt} − ${refElev} = ${h} ${u}`);
-  if (h <= 0) return { steps, corr: 0, corrected: minAlt, mcp: roundUp100(minAlt, unit) };
+  if (h <= 0) return { steps, corr: 0, corrected: minAlt };
   const row = rows.filter((r) => r.t <= temp).sort((a, b) => b.t - a.t)[0] || rows[rows.length - 1];
   steps.push(`Temperature row: ${row.t} °C (next colder)`);
   const last = heads[heads.length - 1];
@@ -380,40 +381,63 @@ export function coldCorrection({ temp, minAlt, refElev, unit }) {
   } else {
     const ci = heads.findIndex((x) => x >= h);
     corr = row.vals[ci];
-    steps.push(`Height column: ${heads[ci]} ${u} (next higher) → correction ${corr} ${u}`);
+    steps.push(`Height column: ${heads[ci]} ${u} (next higher) → correction ${Math.round(corr)} ${u}`);
   }
   corr = Math.round(corr);
   const corrected = minAlt + corr;
-  steps.push(`Corrected altitude: ${minAlt} + ${corr} = ${corrected} ${u}`);
-  return { steps, corr, corrected, mcp: roundUp100(corrected, unit) };
+  steps.push(`Corrected: ${minAlt} + ${corr} = ${corrected} ${u}`);
+  return { steps, corr, corrected };
 }
 
-// The MCP altitude is always in feet: metres convert, then round up to 100 ft.
-function roundUp100(v, unit) {
-  const ft = unit === 'm' ? v * 3.28084 : v;
-  return Math.ceil(ft / 100) * 100;
+// MCP altitudes are set in feet, to the next 100 ft above the corrected value.
+const mcpFt = (v, unit) => Math.ceil((unit === 'm' ? v * 3.28084 : v) / 100) * 100;
+
+/** Every altitude the approach needs, corrected, and where it is set. */
+export function coldSet({ temp, refElev, unit, minAlt, mda, missed }) {
+  const out = [];
+  const add = (label, pub, where, mode) => {
+    if (pub == null || Number.isNaN(pub)) return;
+    const cc = coldCorrection({ temp, minAlt: pub, refElev, unit });
+    if (cc.error) { out.push({ label, error: cc.error }); return; }
+    const value = mode === 'mcp' ? mcpFt(cc.corrected, unit) : cc.corrected;
+    out.push({ label, pub, corr: cc.corr, corrected: cc.corrected, value, where, unit, steps: cc.steps, mode });
+  };
+  add('Minimum altitude (segment, en route or departure)', minAlt, 'MCP ALT (next 100 ft above)', 'mcp');
+  add('MDA / DA (approach minimum)', mda, 'FMC approach minimums, and the altimeter minimum', 'exact');
+  add('Missed approach altitude', missed, 'FMC missed approach altitude and MCP ALT (next 100 ft above)', 'mcp');
+  return out;
 }
 
 export function coldHtml() {
   return `<details class="wz-cold" id="wz-cold"><summary>Cold temperature altitude correction <span class="qr-ref">SP.16.13–14</span></summary>
     <div class="wz-cold-in">
       <label class="wz-q">Airport temperature, °C<input id="ct-t" type="number" step="1" class="wz-in"></label>
-      <label class="wz-q">Published minimum altitude<input id="ct-min" type="number" step="10" class="wz-in"></label>
-      <label class="wz-q">Reference source elevation<input id="ct-ref" type="number" step="10" class="wz-in"></label>
+      <label class="wz-q">Altimeter reference elevation (the airport the QNH is from)<input id="ct-ref" type="number" step="10" class="wz-in"></label>
       <label class="wz-q">Units<select id="ct-u" class="wz-in"><option value="ft">feet</option><option value="m">metres</option></select></label>
+      <div class="wz-cold-alt"><div class="wz-g">Published altitudes (fill in what applies)</div>
+        <label class="wz-q">Minimum altitude for the segment<input id="ct-min" type="number" step="10" class="wz-in"></label>
+        <label class="wz-q">MDA / DA<input id="ct-mda" type="number" step="10" class="wz-in"></label>
+        <label class="wz-q">Missed approach altitude<input id="ct-missed" type="number" step="10" class="wz-in"></label>
+      </div>
       <div id="ct-out" class="wz-res"></div>
-      <details class="wz-work"><summary>Working</summary><ol id="ct-steps"></ol></details>
+      <details class="wz-work"><summary>Working</summary><div id="ct-steps"></div></details>
     </div></details>`;
 }
 
 export function refreshCold() {
   const g = (id) => document.getElementById(id)?.value ?? '';
   const num = (s) => (s === '' ? null : Number(s));
-  const cc = coldCorrection({ temp: num(g('ct-t')), minAlt: num(g('ct-min')), refElev: num(g('ct-ref')), unit: g('ct-u') });
-  const out = document.getElementById('ct-out');
+  const out = document.getElementById('ct-out'), work = document.getElementById('ct-steps');
   if (!out) return;
-  const steps = document.getElementById('ct-steps');
-  if (cc.error) { out.innerHTML = `<span class="wz-none">${esc(cc.error)}</span>`; steps.innerHTML = ''; return; }
-  steps.innerHTML = cc.steps.map((s) => `<li>${esc(s)}</li>`).join('');
-  out.innerHTML = cc.mcp != null ? `Set MCP altitude <b>${cc.mcp} ft</b>${cc.corr ? ` · correction +${cc.corr} ${g('ct-u')}` : ''}` : '';
+  const unit = g('ct-u');
+  const lines = coldSet({ temp: num(g('ct-t')), refElev: num(g('ct-ref')), unit, minAlt: num(g('ct-min')), mda: num(g('ct-mda')), missed: num(g('ct-missed')) });
+  if (num(g('ct-t')) == null || num(g('ct-ref')) == null) { out.innerHTML = '<span class="wz-none">Enter the airport temperature and the reference elevation.</span>'; work.innerHTML = ''; return; }
+  if (!lines.length) { out.innerHTML = '<span class="wz-none">Enter at least one published altitude.</span>'; work.innerHTML = ''; return; }
+  out.innerHTML = lines.map((l) => l.error
+    ? `<div class="wz-set"><span class="wz-none">${esc(l.label)}: ${esc(l.error)}</span></div>`
+    : `<div class="wz-set"><div class="wz-sl">${esc(l.label)}</div>
+        <div class="wz-sv">${l.corr ? `${l.pub} → <b>${l.value} ${l.mode === 'mcp' ? 'ft' : unit}</b>` : `<b>${l.value} ${l.mode === 'mcp' ? 'ft' : unit}</b> (no correction)`}</div>
+        <div class="wz-sw">Set: ${esc(l.where)}</div></div>`).join('') +
+    '<div class="wz-none">Do not correct the altimeter setting. Advise ATC of the corrections.</div>';
+  work.innerHTML = lines.filter((l) => !l.error).map((l) => `<div class="wz-wk"><b>${esc(l.label)}</b><ol>${l.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></div>`).join('');
 }

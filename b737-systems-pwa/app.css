@@ -912,3 +912,10 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .wz-hint { font-size: 11.5px; color: var(--ink-2); }
 .wz-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .wz-btns .tag { font-size: 12px; padding: 7px 10px; }
+.wz-cold-alt { display: grid; gap: 8px; }
+.wz-set { border-left: 4px solid #3df03d; padding: 6px 9px; margin: 6px 0; background: rgba(61,240,61,.08); border-radius: 3px; }
+.wz-sl { font: 700 12.5px/1.3 var(--sans); }
+.wz-sv { font: 800 15px/1.3 var(--mono); margin: 2px 0; }
+.wz-sw { font-size: 12px; color: var(--ink-2); }
+.wz-wk { margin: 6px 0; font-size: 12.5px; }
+.wz-wk ol { margin: 2px 0 0; padding-left: 20px; }
