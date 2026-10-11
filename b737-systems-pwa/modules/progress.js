@@ -9,7 +9,7 @@
 //             for a page with no questions, listened to all the way through
 // A learned page comes back as "review" after REVIEW_DAYS.
 
-import { QUESTIONS } from './quizbank.js?v=36';
+import { QUESTIONS } from './quizbank.js?v=37';
 
 const KEY = 'b737i.progress';
 const REVIEW_DAYS = 14;

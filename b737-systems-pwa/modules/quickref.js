@@ -1,3 +1,5 @@
+import { SUPPLEMENTARY } from './supplementary.js?v=37';
+
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
 // other key numbers, plus every number cited on the system pages.
@@ -216,10 +218,23 @@ export function createQuickRef(sheet, systems) {
     ${c.steps.map(stepHtml).join('')}
     <div class="qr-sep"></div>
   </section>`;
+  // Supplementary procedures: each topic a collapsed card (open it, or jump
+  // from the chips); warnings and cautions carry their word, not only colour.
+  const spLine = (x) => {
+    if (Array.isArray(x)) return `<li class="${x[0] === '!' ? 'sp-w' : 'sp-c'}"><b>${x[0] === '!' ? 'WARNING' : 'CAUTION'}</b> ${md(x[1])}</li>`;
+    return `<li>${md(x)}</li>`;
+  };
+  const spTable = (tb) => `<div class="sp-tab"><div class="sp-tt">${esc(tb.t)}</div><table class="qr-num sp-num"><tr><th>OAT · height</th>${tb.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>${tb.rows.map(([t, vals]) => `<tr><td>${esc(t)}</td>${vals.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</table><div class="sp-unit">Correction in ${tb.unit}, added to the published minimum</div></div>`;
+  const suppHtml = () => SUPPLEMENTARY.map((sec) => `
+    <h2 class="qr-h2">Supplementary ${sec.n} · ${esc(sec.t)}</h2>
+    <nav class="sp-idx">${sec.topics.map((tp, i) => `<button class="tag tag-btn sp-chip" data-sp-go="${sec.n}-${i}">${esc(tp.t)}</button>`).join('')}</nav>
+    <div class="sp-tools"><button class="tag tag-btn" data-sp-all="open">Open all</button><button class="tag tag-btn" data-sp-all="close">Close all</button></div>
+    ${sec.topics.map((tp, i) => `<details class="sp-topic" id="sp-${sec.n}-${i}"><summary><span>${esc(tp.t)}</span><span class="qr-ref">${esc(tp.ref)}</span></summary><ul class="sp-list">${tp.pts.map(spLine).join('')}</ul>${(tp.tab || []).map((k) => spTable(sec.tables[k])).join('')}</details>`).join('')}`).join('');
   function body() {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
+    if (tab === 'supp') return `<p class="qr-note">Condensed from the FCOM Supplementary Procedures. The FCOM governs; check it for the full procedure.</p>${suppHtml()}`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
     return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
@@ -229,7 +244,7 @@ export function createQuickRef(sheet, systems) {
     }).join('');
   }
   function html() {
-    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['systems', 'By system']];
+    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['supp', 'Supplementary'], ['systems', 'By system']];
     return `<div class="qr">
       <div class="kicker">QUICK REFERENCE · QRH / FCOM REV 57</div>
       <h2>Quick reference</h2>
@@ -241,6 +256,10 @@ export function createQuickRef(sheet, systems) {
   function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); }
   // Tab clicks inside the sheet.
   document.addEventListener('click', (e) => {
+    const sg = e.target.closest('[data-sp-go]');
+    if (sg) { const d = document.getElementById('sp-' + sg.dataset.spGo); if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
+    const sa = e.target.closest('[data-sp-all]');
+    if (sa) { document.querySelectorAll('.sp-topic').forEach((d) => { d.open = sa.dataset.spAll === 'open'; }); return; }
     const b = e.target.closest('[data-qr-tab]');
     if (!b) return;
     tab = b.dataset.qrTab;

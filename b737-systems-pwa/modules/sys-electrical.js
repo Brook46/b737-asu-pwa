@@ -7,7 +7,7 @@
 // selection is picked up through the bus-tie breakers from the other side
 // while BUS TRANSFER is in AUTO.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE } from './airframe.js?v=36';
+import { ENG, engPoint, wingLE, wingChord, wingY, YC, APU, EE } from './airframe.js?v=37';
 
 const AC = '#f5a300', DC = '#7048e8', STBY = '#e03131', BAT = '#2f9e44', APUC = '#e8590c', GPU = '#1c7ed6';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
