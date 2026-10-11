@@ -1,4 +1,5 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=37';
+import { SUPPLEMENTARY } from './supplementary.js?v=38';
+import { advisorHtml, refreshAdvisor } from './supp-advisor.js?v=38';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -234,6 +235,7 @@ export function createQuickRef(sheet, systems) {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
+    if (tab === 'adv') return advisorHtml();
     if (tab === 'supp') return `<p class="qr-note">Condensed from the FCOM Supplementary Procedures. The FCOM governs; check it for the full procedure.</p>${suppHtml()}`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
@@ -244,7 +246,7 @@ export function createQuickRef(sheet, systems) {
     }).join('');
   }
   function html() {
-    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['supp', 'Supplementary'], ['systems', 'By system']];
+    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['adv', 'Adverse weather'], ['supp', 'Supplementary'], ['systems', 'By system']];
     return `<div class="qr">
       <div class="kicker">QUICK REFERENCE · QRH / FCOM REV 57</div>
       <h2>Quick reference</h2>
@@ -253,8 +255,10 @@ export function createQuickRef(sheet, systems) {
       <p class="qr-foot">Study aid in our own layout. The QRH and FCOM on board govern — check effectivity for your tail.</p>
     </div>`;
   }
-  function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); }
+  function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); if (tab === 'adv') refreshAdvisor(); }
   // Tab clicks inside the sheet.
+  // The advisor re-reads its form on every change.
+  for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => { if (e.target.closest?.('#adv')) refreshAdvisor(); });
   document.addEventListener('click', (e) => {
     const sg = e.target.closest('[data-sp-go]');
     if (sg) { const d = document.getElementById('sp-' + sg.dataset.spGo); if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }

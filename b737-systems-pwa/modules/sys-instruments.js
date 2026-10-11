@@ -2,7 +2,7 @@
 // our own words. Display switching is live: fail a DU or a DEU, or turn a
 // selector, and the six screens in the 3D cockpit change format.
 
-import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=37';
+import { EE, YC, FLIGHT_DECK_X } from './airframe.js?v=38';
 
 const C = '#8338ec', AIRC = '#4dabf7';
 export const DUS = ['capOut', 'capIn', 'upper', 'lower', 'foIn', 'foOut'];

@@ -2,7 +2,7 @@
 // Pulling an engine fire switch here really shuts that engine's fuel off —
 // app.js passes it to the engines model through env (cut1 / cut2).
 
-import { ENG, engPoint, APU, YC, MLG, FLOOR_Y } from './airframe.js?v=37';
+import { ENG, engPoint, APU, YC, MLG, FLOOR_Y } from './airframe.js?v=38';
 
 const R = '#d62828', DET = '#ff8787', BOT = '#adb5bd';
 
