@@ -1,155 +1,207 @@
-// supp-advisor.js — adverse weather, step by step (SP.16): temperature, then
-// conditions, then phase of flight. Shows one short line per action that
-// applies; the full text is the SP.16 topic it links to. Plus the cold
-// temperature altitude correction, worked step by step. Study aid: the FCOM governs.
+// supp-advisor.js — adverse weather for the decision you actually make.
+// Step 1: where are you (on the ground, in flight, or arriving). Step 2: only
+// the conditions for that place, and the temperature. Step 3: the answers —
+// de-icing, anti-ice, run-up, flaps, performance — then the few things to
+// know. Each answer links to its SP.16 topic. Study aid: the FCOM governs.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=39';
+import { SUPPLEMENTARY } from './supplementary.js?v=40';
 
-const PHASES = [['preflight', 'Preflight'], ['taxi', 'Taxi & de-ice'], ['takeoff', 'Takeoff'], ['flight', 'Flight'],
-  ['approach', 'Approach'], ['landing', 'Landing'], ['secure', 'Secure']];
+const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 
-const CONDS = [
-  ['Ground', [
-    ['moist', 'Visible moisture (cloud, fog, rain, snow, sleet, ice crystals)'],
-    ['surf', 'Ice, snow, slush or standing water on the surface'],
-    ['wetRwy', 'Wet runway'],
-    ['rwyC', 'Contaminated runway (slush, snow, standing water, ice)'],
-    ['deepSlush', 'Deep slush, wet snow, standing water or dry snow'],
-    ['freezeRain', 'Freezing rain, drizzle, fog or heavy snow'],
-    ['deice', 'De-icing or anti-icing in progress'],
-    ['fluid', 'Protected by Type II / IV fluid'],
-    ['sand', 'Sand or dust'],
-    ['unatt', 'Left unattended or overnight'],
-  ]],
-  ['Flight', [
-    ['rainHeavy', 'Moderate to heavy rain, hail or sleet'],
-    ['thunder', 'Thunderstorm on the route'],
-    ['windshear', 'Windshear suspected or reported'],
-    ['iceSevere', 'Severe icing that cannot be avoided'],
-    ['ici', 'Ice crystal conditions suspected'],
-    ['atOff', 'Autothrottle off or going off before landing'],
-    ['turb', 'Turbulence (light, or severe)'],
-  ]],
+const PLACES = [
+  ['ground', 'On the ground, before takeoff', [['parked', 'Parked: before engine start or de-icing'], ['taxi', 'Taxi out'], ['takeoff', 'Holding for takeoff']]],
+  ['flight', 'In flight', []],
+  ['arrival', 'Arriving: the landing destination', []],
 ];
 
-const SOAK = [['none', 'No'], ['1', '1 h or more below −40 °C'], ['3', '3 h or more below −40 °C']];
+// ── Step 2 inputs per place ──
+const GROUND_C = [
+  ['moist', 'Visible moisture now (cloud, fog, rain, snow, sleet)'],
+  ['surf', 'Snow, ice or frost on the wing, LE devices or control surfaces'],
+  ['frz', 'Freezing rain, freezing drizzle, freezing fog or heavy snow'],
+  ['deep', 'Deep slush or standing water (over 13 mm), or dry snow over 102 mm'],
+  ['fluid', 'Already protected by de-icing fluid'],
+  ['sand', 'Sand or dust'],
+];
+const FLIGHT_C = [
+  ['moist', 'Visible moisture in cloud or precipitation (icing possible)'],
+  ['iceSevere', 'Moderate to severe icing that cannot be avoided'],
+  ['ici', 'Ice crystal conditions suspected'],
+  ['thunder', 'Thunderstorm or convective weather on the route'],
+  ['rainHeavy', 'Heavy rain, hail or sleet'],
+  ['windshear', 'Windshear reported or suspected'],
+];
+const ARR_C = [
+  ['moist', 'Visible moisture at the destination (icing possible)'],
+  ['windshear', 'Windshear reported at the destination'],
+  ['sand', 'Sand or dust at the destination'],
+  ['atOff', 'Autothrottle off or going off before landing'],
+];
 
-// Each rule: phases, level, the short line, and the SP.16 topic it links to.
-// A rule can carry a test (c) to run on the inputs.
-function rules(i) {
-  const t = i.oat, c = i.c, soak = i.soak, turb = i.turb;
-  const icing = t <= 10 && (c.moist || c.surf);      // SP.16.2
-  const aiOk = t <= 10;                               // SP.16.5
-  const aiNeeded = icing && aiOk;
-  const frz = t < 0;
-  const hot = t > 40;
-  const R = [];
-  const r = (ph, lvl, s, sp) => R.push({ ph, lvl, s, sp });
-  // Preflight
-  if (icing || c.surf) r(['preflight'], 'warn', 'Clear snow, ice and frost from leading edges, controls and upper wing', 'SP.16.2');
-  if (icing || c.surf) r(['preflight'], 'warn', 'Pitot probes and static ports clear of snow and ice', 'SP.16.2');
-  if (icing) r(['preflight'], 'warn', 'PROBE HEAT ON (F/O); probe heat lights out', 'SP.16.3');
-  if (t > 10 && (c.moist || c.surf || c.deice)) r(['preflight', 'taxi'], 'caution', 'Above 10 °C: no engine or wing anti-ice', 'SP.16.5');
-  if (c.sand) r(['preflight'], 'info', 'Sand: clean the windshield (no wipers); clear probes, ram inlets and outflow valve', 'SP.16.21');
-  if (soak === '1') r(['preflight'], 'warn', 'Cold soaked: do not start or motor the engine (maintenance first)', 'SP.16.4');
-  if (soak === '3') r(['preflight'], 'warn', 'Cold soaked 3 h or more: do not start or motor; starter needs service', 'SP.16.4');
-  if (t < -35) r(['preflight'], 'caution', 'Below −35 °C: idle 2 min before moving the thrust levers', 'SP.16.4');
-  if (c.sand) r(['preflight'], 'info', 'Sand: start on GRD and motor 2 min to clear contaminants', 'SP.16.21');
-  if (hot) r(['preflight'], 'info', 'Above 40 °C: packs or cooling air while electrically powered', 'SP.16.19');
-  // Taxi & de-ice
-  if (aiNeeded) r(['taxi'], 'warn', 'ENGINE ANTI-ICE ON after both engines start; keep on for ground ops', 'SP.16.5');
-  if (icing && aiOk) r(['taxi'], 'warn', 'WING ANTI-ICE ON from engine start to takeoff (not a substitute for de-icing)', 'SP.16.5');
-  if (c.surf || icing) r(['taxi'], 'info', 'Generators: allow up to 5 min for steady power in cold oil', 'SP.16.6');
-  if (frz && (c.surf || c.freezeRain || c.moist)) r(['taxi'], 'caution', 'Flight controls: higher forces; watch flaps and LE devices move', 'SP.16.6');
-  if (frz && (c.surf || c.freezeRain || c.moist)) r(['taxi'], 'info', 'Flaps: check full travel UP → 40 → UP', 'SP.16.6');
-  if (frz && (c.surf || c.freezeRain || c.moist)) r(['taxi'], 'warn', 'Taxi out with flaps UP (slush and ice in flap cavities)', 'SP.16.6');
-  if (icing || c.surf) r(['taxi'], 'caution', 'Taxi slowly; minimum thrust; differential thrust for turns', 'SP.16.6');
-  if (c.deice) r(['taxi'], 'caution', 'Deep de-icing fluid: minimum thrust (compressor stall)', 'SP.16.6');
-  if (aiNeeded && t <= 3) r(['taxi'], 'warn', 'Run-up to 70 % N1 for about 30 s, at least every 30 min', 'SP.16.6');
-  if (c.freezeRain && aiNeeded) r(['taxi'], 'warn', 'Run-up to 70 % N1 for about 1 s, at least every 10 min', 'SP.16.6');
-  if (c.deice) r(['taxi'], 'warn', 'De-icing: FLAPS UP, IDLE, stab in green band, engine and APU BLEED OFF', 'SP.16.8');
-  if (c.deice) r(['taxi'], 'info', 'After de-icing: wait 1 min, engine BLEED ON; recheck flaps and controls', 'SP.16.8');
-  if (hot) r(['taxi'], 'caution', 'Cabin hot: AUTO COOL; PACKS HIGH if still hot', 'SP.16.19');
-  if (c.sand) r(['taxi'], 'caution', 'Sand: 10 kt ground speed, below 40 % N1, no heavy braking', 'SP.16.23');
-  // Takeoff
-  if (c.rwyC) r(['takeoff'], 'warn', 'Contaminated runway: fixed derate only, no assumed temperature', 'SP.16.1');
-  else if (c.wetRwy) r(['takeoff'], 'caution', 'Wet runway: reduced thrust allowed, longer stopping distance', 'SP.16.1');
-  if (c.deepSlush) r(['takeoff'], 'warn', 'Takeoff not recommended: slush or standing water over 13 mm, dry snow over 102 mm', 'SP.16.1');
-  if (c.deice || icing) r(['takeoff'], 'caution', 'Takeoff flaps set; extend now if held for ice or de-icing (LE FLAPS EXT lit)', 'SP.16.9');
-  if (aiNeeded) r(['takeoff'], 'warn', 'Static run-up to 70 % N1 and stable before the roll', 'SP.16.10');
-  if (c.thunder || c.windshear) r(['takeoff'], 'caution', 'Windshear precautions: full thrust, flaps 5/10/15, longest clear runway', 'SP.16.29');
-  if (c.windshear) r(['takeoff'], 'warn', 'Windshear confirmed: delay the takeoff', 'SP.16.29');
-  // Flight
-  if (icing) r(['flight'], 'warn', 'Engine anti-ice ON before entering icing; not above TAT 10 °C', 'SP.16.10');
-  if (icing) r(['flight'], 'caution', 'Wing anti-ice: let ice build first, or ON early only when holding', 'SP.16.12');
-  if (icing) r(['flight', 'approach'], 'warn', 'Holding in icing with flaps extended is prohibited', 'SP.16.12');
-  if (icing) r(['flight'], 'caution', 'Above about FL350 wing anti-ice can trip the bleed', 'SP.16.12');
-  if (c.iceSevere) r(['flight'], 'warn', 'Fan ice: each engine, 80 % N1 for 1 s, then wait 15 s', 'SP.16.11');
-  if (c.iceSevere) r(['flight'], 'warn', 'Vibration 4.0 or more after reducing thrust: High Vibration checklist', 'SP.16.11');
-  if (c.ici) r(['flight'], 'warn', 'Ice crystals: avoid amber and red returns; Ice Crystal Icing checklist', 'SP.16.31');
-  if (turb === 'light') r(['flight'], 'info', 'Light to moderate turbulence: belts on, signs ON', 'SP.16.27');
-  if (turb === 'severe') r(['flight'], 'warn', 'Severe turbulence: YAW DAMPER ON, autothrottle off, CWS, ENGINE START FLT', 'SP.16.28');
-  if (turb === 'severe') r(['flight'], 'caution', 'Severe turbulence speeds: climb 280 kt / .76 M; descent .76 M / 280 / 250 kt', 'SP.16.28');
-  if (c.rainHeavy) r(['flight'], 'warn', 'Heavy rain, hail or sleet: ENGINE START CONT, autothrottle off, slow thrust changes', 'SP.16.20');
-  if (c.thunder) r(['flight'], 'caution', 'Stay clear of thunderstorm cells and tops with visible moisture', 'SP.16.20');
-  if (c.windshear) r(['flight', 'approach'], 'warn', 'Windshear: if the warning comes on, fly the Windshear Escape Maneuver', 'SP.16.29');
-  if (frz) r(['flight', 'approach'], 'caution', 'Cold: correct the minimum altitudes (cold correction below)', 'SP.16.13');
-  // Approach
-  if (c.thunder || c.windshear) r(['approach'], 'caution', 'Windshear: flaps 30, stable by 1,000 ft, clear runway', 'SP.16.30');
-  if (c.windshear && c.atOff) r(['approach'], 'caution', 'Autothrottle off: add up to 15 kt airspeed correction', 'SP.16.30');
-  if (c.sand) r(['approach'], 'info', 'Sand: no-engine-bleed landing if operations permit', 'SP.16.25');
-  if (frz) r(['approach'], 'info', 'Cold: set MDA / DA at the corrected minimums', 'SP.16.13');
-  // Landing
-  if (icing || c.surf || c.rwyC) r(['landing'], 'info', 'Normal procedures and reference speeds', 'SP.16.14');
-  if (c.sand) r(['landing'], 'caution', 'Sand: autobrakes; reverse thrust sparingly', 'SP.16.25');
-  if (hot) r(['landing'], 'caution', 'Brakes overheat: extend the gear early; Brake Cooling Schedule', 'SP.16.19');
-  if (icing || c.surf || c.rwyC) r(['landing'], 'warn', 'Icing or contamination: do not retract flaps below 15 until clear', 'SP.16.14');
-  if (icing || c.surf || c.rwyC) r(['landing'], 'warn', 'After landing in icing: stabiliser trim 5 units', 'SP.16.15');
-  if (aiOk && (icing || c.surf)) r(['landing'], 'warn', 'Engine anti-ice ON on taxi-in while icing exists', 'SP.16.15');
-  // Secure
-  if (frz || c.rwyC) r(['secure'], 'caution', 'Attended, warm air wanted: APU, PACKS AUTO, ISOLATION OPEN, MAN, outflow OPEN', 'SP.16.17');
-  if (c.unatt) r(['secure'], 'warn', 'Unattended or overnight: MAN, outflow valve CLOSE; chocks; parking brake off', 'SP.16.17');
-  if (t < -18) r(['secure'], 'caution', 'Below −18 °C: remove batteries and store them above −18 °C', 'SP.16.18');
-  if (c.sand) r(['secure'], 'caution', 'Sand: PACKS OFF, MAN, outflow valve CLOSE', 'SP.16.25');
-  return R;
+// ── The decisions ──
+/** Ground: de-icing, anti-ice, run-up, flaps, performance. */
+function gIcing(i) {
+  return i.oat <= 10 && (i.c.moist || i.c.surf || i.c.contam);   // SP.16.2
 }
 
-/** The short lines that apply to this phase, most urgent first. */
-export function advise(i) {
-  if (i.oat == null || Number.isNaN(i.oat)) return [];
-  const order = { warn: 0, caution: 1, info: 2 };
-  return rules(i).filter((x) => x.ph.includes(i.phase)).sort((a, b) => order[a.lvl] - order[b.lvl]);
+function groundDecisions(i) {
+  const t = i.oat, c = i.c;
+  const icing = gIcing(i);
+  const dec = [];
+  const d = (k, v, s, sp, cls) => dec.push({ k, v, s, sp, cls });
+  // De-icing: any snow, ice or frost on the critical surfaces must go first.
+  if (c.surf) d('De-icing', 'YES', c.fluid ? 'Snow, ice or frost on the wing: de-ice. Fluid is on, so check the holdover time.' : 'Snow, ice or frost on the wing: de-ice before takeoff.', 'SP.16.2', 'yes');
+  else d('De-icing', 'NO', icing ? 'Surfaces clear. Anti-ice is still needed (below).' : t > 10 ? 'Above 10 °C and clear. Nothing to remove.' : 'Surfaces clear. Nothing to remove.', 'SP.16.2', 'no');
+  // Engine anti-ice
+  if (t > 10) d('Engine anti-ice', 'OFF', 'Above 10 °C: never on.', 'SP.16.5', 'no');
+  else if (icing) d('Engine anti-ice', 'ON', 'Switch on as soon as both engines are started. Keep it on for all ground operations.', 'SP.16.5', 'on');
+  else d('Engine anti-ice', 'OFF', 'No icing conditions.', 'SP.16.5', 'no');
+  // Wing anti-ice
+  if (icing && !c.fluid) d('Wing anti-ice', 'ON', 'From engine start until takeoff. It is not a substitute for de-icing.', 'SP.16.5', 'on');
+  else if (icing && c.fluid) d('Wing anti-ice', 'NOT NEEDED', 'Fluid protects the wing. Check the holdover time.', 'SP.16.5', 'no');
+  else d('Wing anti-ice', 'OFF', 'No icing conditions.', 'SP.16.5', 'no');
+  return dec;
+}
+
+/** Run-up needed on the ground (for the timer) and the one-line rule. */
+function runupRule(i) {
+  const t = i.oat, c = i.c;
+  if (i.sub === 'parked' || !gIcing(i)) return null;      // run-ups are done taxiing out
+  if (c.frz) return { every: 10, text: 'Run-up to 70 % N1 for about 1 s', sp: 'SP.16.6' };
+  if (t <= 3) return { every: 30, text: 'Run-up to 70 % N1 for about 30 s', sp: 'SP.16.6' };
+  return null;
+}
+
+/** The short lines: flaps, takeoff performance, engine start, takeoff run-up. */
+function groundItems(i) {
+  const t = i.oat, c = i.c, sub = i.sub, out = [];
+  const icing = gIcing(i);
+  const L = (lvl, s, sp, phases) => { if (!phases || phases.includes(sub)) out.push({ lvl, s, sp }); };
+  if (c.soak === '1') L('warn', 'Cold soaked 1 h or more below −40 °C: do not start or motor. Maintenance first.', 'SP.16.4', ['parked']);
+  if (c.soak === '3') L('warn', 'Cold soaked 3 h or more below −40 °C: do not start or motor. Starter needs service.', 'SP.16.4', ['parked']);
+  if (t < -35) L('caution', 'Below −35 °C: idle 2 min before moving the thrust levers.', 'SP.16.4', ['parked', 'taxi']);
+  if (c.sand) L('info', 'Sand: start on GRD and motor 2 min. Taxi at 10 kt, below 40 % N1.', 'SP.16.21', ['parked', 'taxi']);
+  if (t > 40) L('caution', 'Above 40 °C: packs or cooling air while powered. Cabin: AUTO COOL, PACKS HIGH.', 'SP.16.19', ['parked', 'taxi']);
+  if (c.frz || c.surf || c.deep) L('info', 'Generators: allow up to 5 min for steady power in cold oil.', 'SP.16.6', ['taxi']);
+  if (t < 0 && (c.contam || c.deep || c.frz || c.moist || c.surf)) L('warn', 'Taxi out with flaps UP (slush and ice in the flap cavities).', 'SP.16.6', ['taxi']);
+  if (c.frz || c.deep) L('info', 'Flaps: check full travel UP → 40 → UP before taxi.', 'SP.16.6', ['taxi']);
+  if (icing) L('caution', 'Taxi slowly; minimum thrust; differential thrust to help turns.', 'SP.16.6', ['taxi']);
+  if (c.deep) L('warn', 'Deep slush, standing water or dry snow: takeoff not recommended. Wait for the runway to clear.', 'SP.16.1', ['takeoff']);
+  else if (c.contam) L('caution', 'Contaminated runway: fixed derate only, no assumed temperature.', 'SP.16.1', ['takeoff']);
+  else if (c.wetRwy) L('info', 'Wet runway: reduced thrust allowed; the stopping distance is longer.', 'SP.16.1', ['takeoff']);
+  if (icing && !c.deep) L('warn', 'Static run-up before the takeoff roll: 70 % N1, stable.', 'SP.16.10', ['takeoff']);
+  if (icing && t <= 3) L('info', 'A 30 s static run-up is strongly recommended at 3 °C or below.', 'SP.16.10', ['takeoff']);
+  if (icing && c.deice) L('caution', 'Before de-icing: flaps UP, thrust IDLE, engine and APU BLEED OFF.', 'SP.16.8', ['parked', 'taxi']);
+  return out;
+}
+
+/** Flight: anti-ice, turbulence, windshear, storms, ICI. */
+function flightItems(i) {
+  const t = i.oat, c = i.c, turb = i.turb, out = [];
+  const L = (lvl, s, sp) => out.push({ lvl, s, sp });
+  const icing = t <= 10 && c.moist;
+  if (icing) {
+    L('warn', 'Engine anti-ice ON before entering icing (not above TAT 10 °C). Exception: climb and cruise below −40 °C SAT.', 'SP.16.10');
+    L('caution', 'Wing anti-ice: let ice build, then switch ON. Early ON only when holding.', 'SP.16.12');
+    L('warn', 'Holding in icing with flaps extended is prohibited.', 'SP.16.12');
+  }
+  if (c.iceSevere) {
+    L('warn', 'Fan ice: each engine, 80 % N1 for 1 s, then wait 15 s. Vibration 4.0 or more: High Vibration checklist.', 'SP.16.11');
+  }
+  if (c.ici) L('warn', 'Ice crystals: avoid amber and red returns. If suspected: Ice Crystal Icing checklist.', 'SP.16.31');
+  if (turb === 'light') L('info', 'Light to moderate turbulence: belts on, signs ON. Autopilot and autothrottle may stay on.', 'SP.16.27');
+  if (turb === 'severe') {
+    L('warn', 'Severe turbulence: YAW DAMPER ON, autothrottle off, CWS, ENGINE START FLT.', 'SP.16.28');
+    L('caution', 'Speeds: climb 280 kt or .76 M; descent .76 M / 280 / 250 kt, whichever is lower.', 'SP.16.28');
+  }
+  if (c.rainHeavy) L('warn', 'Heavy rain, hail or sleet: ENGINE START CONT, autothrottle off, slow thrust changes, slower speed.', 'SP.16.20');
+  if (c.thunder) L('caution', 'Stay clear of thunderstorm cells and tops with visible moisture.', 'SP.16.20');
+  if (c.windshear) L('warn', 'Windshear: if the warning comes on, fly the Windshear Escape Maneuver.', 'SP.16.29');
+  return out;
+}
+
+/** Arrival: the destination runway and the landing. */
+function arrivalItems(i) {
+  const t = i.oat, c = i.c, out = [];
+  const L = (lvl, s, sp) => out.push({ lvl, s, sp });
+  const icing = t <= 10 && (c.moist || c.contam);
+  if (c.contam) L('warn', 'Contaminated runway: check the landing performance for the reported surface before committing.', 'Performance');
+  else if (c.wetRwy) L('info', 'Wet runway: check landing distance for the wet surface.', 'Performance');
+  if (c.windshear) {
+    L('warn', 'Windshear: flaps 30, stabilised by 1,000 ft, pick a runway clear of windshear.', 'SP.16.30');
+    if (c.atOff) L('caution', 'Autothrottle off: add up to 15 kt airspeed correction.', 'SP.16.30');
+  }
+  if (icing) {
+    L('warn', 'Engine anti-ice ON on taxi-in while icing exists.', 'SP.16.15');
+    L('warn', 'After landing in icing: stabiliser trim 5 units.', 'SP.16.15');
+    L('warn', 'Flaps not below 15 until the flap areas are checked clear.', 'SP.16.14');
+  }
+  if (c.sand) L('caution', 'Sand: autobrakes; use reverse thrust sparingly; APU bleed rather than engine bleed on taxi-in.', 'SP.16.25');
+  if (t < 0) L('caution', 'Cold: set MDA / DA at the corrected minimums (cold correction below).', 'SP.16.13');
+  return out;
+}
+
+const SPQ = (sp) => (sp && sp.startsWith('SP.') ? sp : '');
+
+/** Everything for the current answers. */
+export function decide(i) {
+  if (i.oat == null || Number.isNaN(i.oat)) return null;
+  if (i.grp === 'ground') {
+    const runup = runupRule(i);
+    return { decisions: groundDecisions(i), runup, items: groundItems(i) };
+  }
+  if (i.grp === 'flight') return { decisions: [], runup: null, items: flightItems(i) };
+  return { decisions: [], runup: null, items: arrivalItems(i) };
 }
 
 // ── Wizard state ──
-const W = { step: 1, oat: null, c: {}, soak: 'none', turb: 'none', phase: 'preflight' };
+const DEF = { step: 1, grp: 'ground', sub: 'parked', oat: null, c: {}, soak: 'none', turb: 'none', lastRunup: null };
+const W = { ...DEF };
 
 function topicIndex(sp) {
   return SUPPLEMENTARY[0].topics.findIndex((tp) => tp.ref.includes(sp));
 }
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const LVL = { warn: 'WARNING', caution: 'CAUTION', info: 'NOTE' };
+const condList = (list, name) => list.map(([k, n]) => `<label class="wz-c"><input type="checkbox" name="${name}" value="${k}"> ${esc(n)}</label>`).join('');
 
 export function wizardHtml() {
-  Object.assign(W, { step: 1, oat: null, c: {}, soak: 'none', turb: 'none', phase: 'preflight' });
+  Object.assign(W, DEF, { c: {}, lastRunup: null });
   return `<section class="wz" id="wz">
     <div class="wz-top"><span class="wz-title">Adverse weather</span><span class="wz-count" id="wz-count">Step 1 of 3</span></div>
     <div class="wz-step" data-step="1">
-      <label class="wz-q">Temperature, °C<span class="qr-ref">OAT on the ground · TAT in flight</span>
-        <input id="wz-t" type="number" step="1" inputmode="numeric" class="wz-in" placeholder="e.g. 2"></label>
+      <div class="wz-g">Where are you?</div>
+      ${PLACES.map(([k, n]) => `<label class="wz-c wz-big"><input type="radio" name="grp" value="${k}"${k === 'ground' ? ' checked' : ''}> ${esc(n)}</label>`).join('')}
+      <div id="wz-sub" class="wz-sub"><div class="wz-g">Which ground phase?</div>
+        ${PLACES[0][2].map(([k, n]) => `<label class="wz-c"><input type="radio" name="sub" value="${k}"${k === 'parked' ? ' checked' : ''}> ${esc(n)}</label>`).join('')}
+      </div>
       <div class="wz-nav"><button class="tag tag-btn" data-wz="next">Next ›</button></div>
     </div>
     <div class="wz-step" data-step="2" hidden>
-      <details class="wz-drop"><summary>Conditions <span id="wz-nc" class="qr-ref">none</span></summary>
-        ${CONDS.map(([g, list]) => `<div class="wz-g">${g}</div>${list.map(([k, n]) => `<label class="wz-c"><input type="checkbox" name="wc" value="${k}"> ${esc(n)}</label>`).join('')}`).join('')}
-        <div class="wz-g">Engine start</div>${SOAK.map(([k, n]) => `<label class="wz-c"><input type="radio" name="wsoak" value="${k}"${k === 'none' ? ' checked' : ''}> ${esc(n)}</label>`).join('')}
-        <div class="wz-g">Turbulence</div>${[['none', 'None'], ['light', 'Light to moderate'], ['severe', 'Severe']].map(([k, n]) => `<label class="wz-c"><input type="radio" name="wturb" value="${k}"${k === 'none' ? ' checked' : ''}> ${n}</label>`).join('')}
-      </details>
+      <label class="wz-q">Temperature, °C<span class="qr-ref">OAT on the ground · TAT in flight · at the destination when arriving</span>
+        <input id="wz-t" type="number" step="1" inputmode="numeric" class="wz-in" placeholder="e.g. -3"></label>
+      <div class="wz-g" data-for="ground">Ground conditions now</div>
+      <div class="wz-cs" data-for="ground">${condList(GROUND_C, 'wcg')}
+        <div class="wz-g">Runway and taxiway</div>
+        <label class="wz-c"><input type="radio" name="rwy" value="dry" checked> Dry</label>
+        <label class="wz-c"><input type="radio" name="rwy" value="wet"> Wet</label>
+        <label class="wz-c"><input type="radio" name="rwy" value="contam"> Contaminated: slush, snow, standing water or ice</label>
+        <div class="wz-g">Engine cold soak</div>
+        ${[['none', 'None'], ['1', '1 h or more below −40 °C'], ['3', '3 h or more below −40 °C']].map(([k, n]) => `<label class="wz-c"><input type="radio" name="soak" value="${k}"${k === 'none' ? ' checked' : ''}> ${n}</label>`).join('')}
+      </div>
+      <div class="wz-cs" data-for="flight" hidden>${condList(FLIGHT_C, 'wcf')}
+        <div class="wz-g">Turbulence</div>
+        ${[['none', 'None'], ['light', 'Light to moderate'], ['severe', 'Severe']].map(([k, n]) => `<label class="wz-c"><input type="radio" name="turb" value="${k}"${k === 'none' ? ' checked' : ''}> ${n}</label>`).join('')}
+      </div>
+      <div class="wz-cs" data-for="arrival" hidden>${condList(ARR_C, 'wca')}
+        <div class="wz-g">Destination runway</div>
+        <label class="wz-c"><input type="radio" name="rwyA" value="dry" checked> Dry</label>
+        <label class="wz-c"><input type="radio" name="rwyA" value="wet"> Wet</label>
+        <label class="wz-c"><input type="radio" name="rwyA" value="contam"> Contaminated: slush, snow, standing water or ice</label>
+      </div>
       <div class="wz-nav"><button class="tag tag-btn" data-wz="back">‹ Back</button><button class="tag tag-btn" data-wz="next">Next ›</button></div>
     </div>
     <div class="wz-step" data-step="3" hidden>
-      <label class="wz-q">Phase of flight<select id="wz-ph" class="wz-in">${PHASES.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
       <div id="wz-res" class="wz-res"></div>
       <div class="wz-nav"><button class="tag tag-btn" data-wz="back">‹ Back</button><button class="tag tag-btn" data-wz="reset">Start over</button></div>
     </div>
@@ -164,58 +216,81 @@ function show(step) {
   root.querySelector('#wz-count').textContent = `Step ${step} of 3`;
 }
 
-/** Buttons: next / back / reset. */
+function readAll(root) {
+  W.grp = root.querySelector('input[name=grp]:checked')?.value || 'ground';
+  W.sub = root.querySelector('input[name=sub]:checked')?.value || 'parked';
+  root.querySelector('#wz-sub').hidden = W.grp !== 'ground';
+  root.querySelectorAll('.wz-cs, [data-for]').forEach((el) => { if (el.dataset.for) el.hidden = el.dataset.for !== W.grp; });
+  const v = root.querySelector('#wz-t').value;
+  W.oat = v === '' ? null : Number(v);
+  const grpName = { ground: 'wcg', flight: 'wcf', arrival: 'wca' }[W.grp];
+  W.c = {};
+  for (const i of root.querySelectorAll(`input[name=${grpName}]`)) if (i.checked) W.c[i.value] = true;
+  const rwyName = W.grp === 'arrival' ? 'rwyA' : 'rwy';
+  W.rwy = root.querySelector(`input[name=${rwyName}]:checked`)?.value || 'dry';
+  W.c.contam = W.grp !== 'flight' && W.rwy === 'contam';
+  W.c.wetRwy = W.grp !== 'flight' && W.rwy === 'wet';
+  W.soak = root.querySelector('input[name=soak]:checked')?.value || 'none';
+  W.turb = root.querySelector('input[name=turb]:checked')?.value || 'none';
+  W.c.soak = W.soak;
+}
+
+/** Buttons: next / back / reset / runup. */
 export function wizardAct(action) {
   const root = document.getElementById('wz');
   if (!root) return;
   if (action === 'next') {
-    if (W.step === 1) {
-      const v = root.querySelector('#wz-t').value;
-      if (v === '') { root.querySelector('#wz-t').focus(); return; }
-      W.oat = Number(v);
+    readAll(root);
+    if (W.step === 1) { show(2); return; }
+    if (W.step === 2) {
+      if (W.oat == null) { root.querySelector('#wz-t').focus(); return; }
+      show(3); refreshWizard(); return;
     }
-    if (W.step === 2) readConds(root);
-    if (W.step < 3) show(W.step + 1);
-    if (W.step === 3) refreshWizard();
   } else if (action === 'back') {
     show(Math.max(1, W.step - 1));
   } else if (action === 'reset') {
-    Object.assign(W, { oat: null, c: {}, soak: 'none', turb: 'none', phase: 'preflight' });
+    Object.assign(W, { ...DEF, c: {}, lastRunup: null });
     root.querySelector('#wz-t').value = '';
-    root.querySelectorAll('input[name=wc]').forEach((i) => { i.checked = false; });
-    root.querySelector('#wz-ph').value = 'preflight';
-    root.querySelector('#wz-nc').textContent = 'none';
+    root.querySelectorAll('input[type=checkbox]').forEach((i) => { i.checked = false; });
+    root.querySelector('input[name=grp][value=ground]').checked = true;
+    root.querySelector('input[name=sub][value=parked]').checked = true;
     show(1);
+  } else if (action === 'runup') {
+    W.lastRunup = Date.now();
+    refreshWizard();
   }
 }
 
-function readConds(root) {
-  W.c = Object.fromEntries([...root.querySelectorAll('input[name=wc]')].map((i) => [i.value, i.checked]));
-  W.soak = root.querySelector('input[name=wsoak]:checked')?.value || 'none';
-  W.turb = root.querySelector('input[name=wturb]:checked')?.value || 'none';
-  const n = Object.values(W.c).filter(Boolean).length;
-  root.querySelector('#wz-nc').textContent = n ? `${n} selected` : 'none';
-}
+const clock = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
-/** The result for the current phase: short lines, each linked to its SP.16 topic. */
+/** The answers for the current inputs, with the run-up timer. */
 export function refreshWizard() {
   const root = document.getElementById('wz');
   if (!root) return;
-  readConds(root);
-  W.phase = root.querySelector('#wz-ph').value;
-  const acts = advise({ oat: W.oat, phase: W.phase, c: W.c, soak: W.soak, turb: W.turb });
-  const name = PHASES.find((p) => p[0] === W.phase)?.[1] || W.phase;
-  const head = `<div class="wz-h">${esc(name)} · ${W.oat} °C</div>`;
-  const list = acts.length
-    ? `<ul class="wz-list">${acts.map((a) => {
-        const k = topicIndex(a.sp);
-        return `<li class="wz-r ${a.lvl}"><span class="wz-l">${LVL[a.lvl]}</span> ${esc(a.s)} ${k >= 0 ? `<button class="wz-sp" data-sp-go="16-${k}">${esc(a.sp)}</button>` : `<span class="qr-ref">${esc(a.sp)}</span>`}</li>`;
-      }).join('')}</ul>`
-    : '<p class="wz-none">Nothing extra for these conditions — normal procedures.</p>';
-  root.querySelector('#wz-res').innerHTML = head + list;
+  readAll(root);
+  const res = decide(W);
+  const out = root.querySelector('#wz-res');
+  if (!res) { out.innerHTML = '<p class="wz-none">Enter the temperature.</p>'; return; }
+  const place = { ground: 'On the ground', flight: 'In flight', arrival: 'Arriving' }[W.grp];
+  const ref = (sp) => { const k = topicIndex(SPQ(sp)); return sp ? (k >= 0 ? `<button class="wz-sp" data-sp-go="16-${k}">${esc(sp)}</button>` : `<span class="qr-ref">${esc(sp)}</span>`) : ''; };
+  let html = `<div class="wz-h">${place} · ${W.oat} °C</div>`;
+  if (res.decisions.length) {
+    html += `<div class="wz-dec">${res.decisions.map((x) => `<div class="wz-d ${x.cls}"><span class="wz-k">${esc(x.k)}</span><span class="wz-v">${esc(x.v)}</span><span class="wz-s">${esc(x.s)} ${ref(x.sp)}</span></div>`).join('')}</div>`;
+  }
+  if (res.runup) {
+    const due = W.lastRunup ? new Date(W.lastRunup + res.runup.every * 60000) : null;
+    html += `<div class="wz-d runup"><span class="wz-k">Run-up</span><span class="wz-v">${esc(res.runup.text)}</span><span class="wz-s">Repeat at least every ${res.runup.every} min. ${ref(res.runup.sp)}</span>
+      <div class="wz-rt"><button class="tag tag-btn" data-wz="runup">Run-up done now</button>${due ? ` <span class="wz-due">Done ${clock(W.lastRunup)} · next by <b>${clock(due.getTime())}</b></span>` : ' <span class="wz-due">Not done yet</span>'}</div></div>`;
+  }
+  if (res.items.length) {
+    html += `<div class="wz-g">Also</div><ul class="wz-list">${res.items.map((a) => `<li class="wz-r ${a.lvl}"><span class="wz-l">${LVL[a.lvl]}</span> ${esc(a.s)} ${ref(a.sp)}</li>`).join('')}</ul>`;
+  } else if (!res.decisions.length && !res.runup) {
+    html += '<p class="wz-none">Nothing extra for these conditions — normal procedures.</p>';
+  }
+  out.innerHTML = html;
 }
 
-// ── Cold temperature altitude correction ──
+// ── Cold temperature altitude correction (worked) ──
 const NUM = (s) => Number(String(s).replace('−', '-').replace('°C', '').trim());
 
 /**
@@ -230,7 +305,7 @@ export function coldCorrection({ temp, minAlt, refElev, unit }) {
   const steps = [];
   if ([temp, minAlt, refElev].some((x) => x == null || Number.isNaN(x))) return { steps, error: 'Enter the temperature, the minimum altitude and the reference elevation.' };
   const u = unit === 'm' ? 'm' : 'ft';
-  if (temp >= 0) return { steps: [`Above 0 °C: no correction needed.`], corr: 0 };
+  if (temp >= 0) return { steps: ['Above 0 °C: no correction needed.'], corr: 0 };
   if (temp < -50) return { steps, error: 'Below −50 °C is outside the table: use the FCOM table.' };
   const h = minAlt - refElev;
   steps.push(`Height above the reference source: ${minAlt} − ${refElev} = ${h} ${u}`);

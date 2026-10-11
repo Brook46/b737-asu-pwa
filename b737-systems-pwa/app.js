@@ -4,37 +4,37 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=39';
-import { createOutside } from './modules/outside.js?v=39';
-import { createViewCube } from './modules/viewcube.js?v=39';
-import { createAirLink } from './modules/airlink.js?v=39';
-import { createQuickRef } from './modules/quickref.js?v=39';
-import { installResumeHardening } from './modules/resume.js?v=39';
-import { createScene } from './modules/scene.js?v=39';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=39';
-import { createDims } from './modules/dims.js?v=39';
-import { createSystems3D } from './modules/systems3d.js?v=39';
-import { createOverlay } from './modules/overlay.js?v=39';
-import { createSheet } from './modules/sheet.js?v=39';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=39';
-import { SYSTEMS, READY } from './modules/systems.js?v=39';
-import { createSearch } from './modules/search.js?v=39';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=39';
-import { createProgress } from './modules/progress.js?v=39';
-import { createLearn } from './modules/learn.js?v=39';
-import { explain } from './modules/cockpit-info.js?v=39';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=39';
-import { createCockpit } from './modules/cockpit.js?v=39';
-import { nav, geo, loadNav } from './modules/navdb.js?v=39';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=39';
-import { createCDU } from './modules/cdu.js?v=39';
-import { createCDUView } from './modules/cdu-view.js?v=39';
-import { createFlightSim } from './modules/flightsim.js?v=39';
-import { createStateBar } from './modules/statebar.js?v=39';
-import { createPanelViewer } from './modules/panelview.js?v=39';
-import { createRtoDrill } from './modules/rto.js?v=39';
-import { tts } from './modules/speech.js?v=39';
-import { engState } from './modules/sys-engines.js?v=39';
+import { makeEnv } from './modules/world.js?v=40';
+import { createOutside } from './modules/outside.js?v=40';
+import { createViewCube } from './modules/viewcube.js?v=40';
+import { createAirLink } from './modules/airlink.js?v=40';
+import { createQuickRef } from './modules/quickref.js?v=40';
+import { installResumeHardening } from './modules/resume.js?v=40';
+import { createScene } from './modules/scene.js?v=40';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=40';
+import { createDims } from './modules/dims.js?v=40';
+import { createSystems3D } from './modules/systems3d.js?v=40';
+import { createOverlay } from './modules/overlay.js?v=40';
+import { createSheet } from './modules/sheet.js?v=40';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=40';
+import { SYSTEMS, READY } from './modules/systems.js?v=40';
+import { createSearch } from './modules/search.js?v=40';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=40';
+import { createProgress } from './modules/progress.js?v=40';
+import { createLearn } from './modules/learn.js?v=40';
+import { explain } from './modules/cockpit-info.js?v=40';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=40';
+import { createCockpit } from './modules/cockpit.js?v=40';
+import { nav, geo, loadNav } from './modules/navdb.js?v=40';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=40';
+import { createCDU } from './modules/cdu.js?v=40';
+import { createCDUView } from './modules/cdu-view.js?v=40';
+import { createFlightSim } from './modules/flightsim.js?v=40';
+import { createStateBar } from './modules/statebar.js?v=40';
+import { createPanelViewer } from './modules/panelview.js?v=40';
+import { createRtoDrill } from './modules/rto.js?v=40';
+import { tts } from './modules/speech.js?v=40';
+import { engState } from './modules/sys-engines.js?v=40';
 
 const $ = (id) => document.getElementById(id);
 

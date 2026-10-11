@@ -895,3 +895,15 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .wz-cold-in { display: grid; gap: 8px; margin-top: 10px; }
 .wz-work { font-size: 12.5px; }
 .wz-work ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.45; }
+.wz-big { font-weight: 700; font-size: 13.5px; }
+.wz-sub { margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--line); }
+.wz-dec { display: grid; gap: 6px; margin-bottom: 10px; }
+.wz-d { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 9px; border-radius: 4px; border-left: 4px solid var(--ink-3); background: rgba(127,127,127,.08); }
+.wz-d.yes, .wz-d.on { border-left-color: #d62828; background: rgba(214,40,40,.1); }
+.wz-d.no { border-left-color: #3df03d; }
+.wz-d.runup { border-left-color: #f08c00; background: rgba(240,140,0,.1); }
+.wz-k { font: 700 11px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.wz-v { font: 800 14px/1.2 var(--sans); text-align: right; }
+.wz-s { grid-column: 1 / -1; font-size: 12.5px; line-height: 1.35; color: var(--ink-2); }
+.wz-rt { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.wz-due { font-size: 12px; color: var(--ink-2); }
