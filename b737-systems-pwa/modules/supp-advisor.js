@@ -4,7 +4,7 @@
 // de-icing, anti-ice, run-up, flaps, performance — then the few things to
 // know. Each answer links to its SP.16 topic. Study aid: the FCOM governs.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=41';
+import { SUPPLEMENTARY } from './supplementary.js?v=42';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 
@@ -50,7 +50,7 @@ function groundDecisions(i) {
   const dec = [];
   const d = (k, v, s, sp, cls) => dec.push({ k, v, s, sp, cls });
   // De-icing: any snow, ice or frost on the critical surfaces must go first.
-  if (c.surf) d('De-icing', 'YES', c.fluid ? 'Snow, ice or frost on the wing: de-ice. Fluid is on, so check the holdover time.' : 'Snow, ice or frost on the wing: de-ice before takeoff.', 'SP.16.2', 'yes');
+  if (c.surf) d('De-icing', 'YES', c.fluid ? 'Snow, ice or frost on the wing: de-ice with Type II or IV fluid, then check the holdover time.' : 'Snow, ice or frost on the wing: de-ice before takeoff.', 'SP.16.2', 'yes');
   else if (c.wingFrost) d('De-icing', 'NO', 'Light frost (up to 3 mm) on the lower wing from cold fuel is allowed for takeoff. Upper surfaces must be clear.', 'SP.16.2', 'no');
   else d('De-icing', 'NO', icing ? 'Surfaces clear. Anti-ice is still needed (below).' : t > 10 ? 'Above 10 °C and clear. Nothing to remove.' : 'Surfaces clear. Nothing to remove.', 'SP.16.2', 'no');
   // Engine anti-ice
@@ -58,8 +58,9 @@ function groundDecisions(i) {
   else if (icing) d('Engine anti-ice', 'ON', 'Switch on as soon as both engines are started. Keep it on for all ground operations.', 'SP.16.5', 'on');
   else d('Engine anti-ice', 'OFF', 'No icing conditions.', 'SP.16.5', 'no');
   // Wing anti-ice
-  if (icing && !c.fluid) d('Wing anti-ice', 'ON', 'From engine start until takeoff. It is not a substitute for de-icing.', 'SP.16.5', 'on');
-  else if (icing && c.fluid) d('Wing anti-ice', 'NOT NEEDED', 'Fluid protects the wing. Check the holdover time.', 'SP.16.5', 'no');
+  // Wing anti-ice is for the ground unless Type II or IV fluid protects the airplane (SP.16.5).
+  if (c.fluid) d('Wing anti-ice', 'OFF', 'Type II or IV fluid protects the wing: wing anti-ice stays off. Check the holdover time.', 'SP.16.5', 'no');
+  else if (icing) d('Wing anti-ice', 'ON', 'From engine start until takeoff. It is not a substitute for de-icing.', 'SP.16.5', 'on');
   else d('Wing anti-ice', 'OFF', 'No icing conditions.', 'SP.16.5', 'no');
   return dec;
 }
@@ -166,7 +167,7 @@ const Q = {
   oat: { t: 'Temperature, °C', num: true, hint: 'OAT on the ground · TAT in flight · at the destination when arriving' },
   moist: { t: 'Visible moisture now? (cloud, fog, rain, snow, sleet)', yn: true },
   surf: { t: 'Snow, ice or frost on the upper wing, LE devices, controls or winglets?', yn: true },
-  fluid: { t: 'Is the airplane protected by de-icing fluid?', yn: true },
+  fluid: { t: 'Will the airplane be de-iced or anti-iced with Type II or IV fluid?', yn: true },
   rwy: { t: 'Runway and taxiway', opts: [['dry', 'Dry'], ['wet', 'Wet'], ['contam', 'Contaminated: slush, snow, standing water or ice']] },
   deep: { t: 'Deep slush or standing water over 13 mm, or dry snow over 102 mm?', yn: true },
   frz: { t: 'Freezing rain, freezing drizzle, freezing fog or heavy snow?', yn: true },
@@ -192,7 +193,7 @@ function nextKey() {
     if (A.oat == null) return 'oat';
     if (A.moist == null) return 'moist';
     if (A.surf == null) return 'surf';
-    if (A.surf && A.fluid == null) return 'fluid';
+    if ((A.surf || A.moist) && A.fluid == null) return 'fluid';
     if (A.rwy == null) return 'rwy';
     if (A.rwy === 'contam' && A.deep == null) return 'deep';
     if ((A.moist || A.rwy === 'contam') && A.frz == null) return 'frz';

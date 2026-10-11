@@ -1,7 +1,7 @@
 // schem-hydraulics.js — operable A / B / standby schematic + hydraulic panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=41';
-import { createOverhead } from './overhead.js?v=41';
+import { createSchematic, createPanel } from './schem-kit.js?v=42';
+import { createOverhead } from './overhead.js?v=42';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
