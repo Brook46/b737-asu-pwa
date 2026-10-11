@@ -1,9 +1,9 @@
 // schem-antiice.js — thermal (bleed) and electric anti-ice schematic, with
 // the window heat, probe heat, wing / engine anti-ice and wiper panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=38';
-import { createOverhead } from './overhead.js?v=38';
-import { PROBES } from './sys-antiice.js?v=38';
+import { createSchematic, createPanel } from './schem-kit.js?v=39';
+import { createOverhead } from './overhead.js?v=39';
+import { PROBES } from './sys-antiice.js?v=39';
 
 const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#63e6be';
 
