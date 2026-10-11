@@ -1,5 +1,5 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=40';
-import { wizardHtml, wizardAct, refreshWizard, coldHtml, refreshCold } from './supp-advisor.js?v=40';
+import { SUPPLEMENTARY } from './supplementary.js?v=41';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, coldHtml, refreshCold } from './supp-advisor.js?v=41';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -257,11 +257,11 @@ export function createQuickRef(sheet, systems) {
   function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); }
   // Tab clicks inside the sheet.
   // The advisor re-reads its form on every change.
-  for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => {
-    if (e.target.closest?.('#wz')) refreshWizard();
-    if (e.target.closest?.('#wz-cold')) refreshCold();
-  });
+  for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => { if (e.target.closest?.('#wz-cold')) refreshCold(); });
+  document.addEventListener('keydown', (e) => wizardKey(e));
   document.addEventListener('click', (e) => {
+    const wa = e.target.closest('[data-wz-ans],[data-wz-opt]');
+    if (wa && wizardClick(wa)) return;
     const wb = e.target.closest('[data-wz]');
     if (wb) { wizardAct(wb.dataset.wz); return; }
     const sg = e.target.closest('[data-sp-go]');

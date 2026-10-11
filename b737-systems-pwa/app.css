@@ -907,3 +907,8 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .wz-s { grid-column: 1 / -1; font-size: 12.5px; line-height: 1.35; color: var(--ink-2); }
 .wz-rt { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .wz-due { font-size: 12px; color: var(--ink-2); }
+.wz-qq { display: grid; gap: 8px; }
+.wz-qt { font: 800 14px/1.35 var(--sans); }
+.wz-hint { font-size: 11.5px; color: var(--ink-2); }
+.wz-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.wz-btns .tag { font-size: 12px; padding: 7px 10px; }
