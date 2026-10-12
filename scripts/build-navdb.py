@@ -5,7 +5,7 @@ Usage: python3 scripts/build-navdb.py <dir with airports.csv runways.csv navaids
 Data: https://davidmegginson.github.io/ourairports-data/
 
 Compact layout (arrays, not objects, to keep it small):
-  airports: { ICAO: [lat, lon, elevFt, name, [[rwy, lat, lon, trueHdg, lenFt, thrElevFt, dispThrFt], ...]] }
+  airports: { ICAO: [lat, lon, elevFt, name, [[rwy, lat, lon, trueHdg, lenFt, thrElevFt, dispThrFt], ...], IATA, city] }
   navaids:  { IDENT: [[type, lat, lon, freq, name, magVar], ...] }   (idents repeat worldwide)
 """
 import csv, json, os, sys
@@ -32,7 +32,7 @@ with open(os.path.join(src, 'airports.csv'), newline='', encoding='utf-8') as fh
         lat, lon = f(r['latitude_deg']), f(r['longitude_deg'])
         if lat is None or lon is None:
             continue
-        airports[icao] = [lat, lon, int(float(r['elevation_ft'] or 0)), r['name'][:40], []]
+        airports[icao] = [lat, lon, int(float(r['elevation_ft'] or 0)), r['name'][:40], [], (r.get('iata_code') or '').strip(), (r.get('municipality') or '').strip()[:28]]
 
 with open(os.path.join(src, 'runways.csv'), newline='', encoding='utf-8') as fh:
     for r in csv.DictReader(fh):

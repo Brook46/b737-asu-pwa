@@ -39,7 +39,7 @@ export const geo = {
   fmtLon(v) { const a = Math.abs(v), d = Math.floor(a); return `${v < 0 ? 'W' : 'E'}${String(d).padStart(3, '0')}°${((a - d) * 60).toFixed(1).padStart(4, '0')}`; },
 };
 
-let db = null, loading = null;
+let db = null, loading = null, iataIdx = null;
 export function loadNav(url) {
   loading ||= fetch(url).then((r) => r.json()).then((d) => { db = d; return d; }).catch((e) => { loading = null; throw e; });
   return loading;
@@ -52,20 +52,32 @@ export const nav = {
   get source() { return db?.source || ''; },
   airport(icao) {
     const a = db?.airports[icao];
-    return a ? { ident: icao, lat: a[0], lon: a[1], elev: a[2], name: a[3], type: 'apt', rwys: a[4] } : null;
+    return a ? { ident: icao, lat: a[0], lon: a[1], elev: a[2], name: a[3], type: 'apt', rwys: a[4], iata: a[5] || '', city: a[6] || '' } : null;
   },
-  /** Airports matching an ICAO code or part of the name: exact code first, then code prefix, then name. */
+  /**
+   * Airports for a typed query: exact ICAO, exact IATA (JFK), ICAO prefix,
+   * then a word of the name or city that starts with it (anywhere in the
+   * name or city for 4 letters or more).
+   */
   search(q, n = 6) {
     const s = String(q || '').trim().toUpperCase();
     if (!db || s.length < 2) return [];
+    if (!iataIdx) { iataIdx = {}; for (const k in db.airports) { const c = db.airports[k][5]; if (c && !iataIdx[c]) iataIdx[c] = k; } }
     const out = [];
-    const push = (k) => { if (!out.includes(k) && out.length < n) out.push(k); };
-    if (db.airports[s]) push(s);
+    const push = (k) => { if (k && !out.includes(k) && out.length < n) out.push(k); };
+    push(db.airports[s] ? s : null);
+    if (s.length === 3) push(iataIdx[s]);
     if (/^[A-Z0-9]{2,4}$/.test(s)) for (const k in db.airports) { if (out.length >= n) break; if (k.startsWith(s)) push(k); }
-    // Names: a word that starts with the query; anywhere in the name for 4+ letters.
-    const word = new RegExp(`(^|[\\s\\-(/'])${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
-    for (const k in db.airports) { if (out.length >= n) break; if (word.test(db.airports[k][3].toUpperCase())) push(k); }
-    if (s.length >= 4) for (const k in db.airports) { if (out.length >= n) break; if (db.airports[k][3].toUpperCase().includes(s)) push(k); }
+    const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const word = new RegExp(`(^|[\\s\\-(/'])${esc}`);
+    const text = (a) => `${a[3]} ${a[6] || ''}`.toUpperCase();
+    // Bigger airports (longest runway) first among name / city matches.
+    const size = (k) => db.airports[k][4].reduce((m, r) => Math.max(m, r[4]), 0);
+    const big = (list) => list.sort((x, y) => size(y) - size(x));
+    const hits = [];
+    for (const k in db.airports) if (word.test(text(db.airports[k]))) hits.push(k);
+    big(hits).forEach(push);
+    if (s.length >= 4) { const more = []; for (const k in db.airports) if (text(db.airports[k]).includes(s)) more.push(k); big(more).forEach(push); }
     return out.map((k) => nav.airport(k));
   },
   runways(icao) { return (db?.airports[icao]?.[4] || []).map((r) => ({ id: r[0], lat: r[1], lon: r[2], hdgT: r[3], len: r[4], elev: r[5], disp: r[6] })); },

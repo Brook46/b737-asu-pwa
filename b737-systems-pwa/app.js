@@ -4,37 +4,37 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=45';
-import { createOutside } from './modules/outside.js?v=45';
-import { createViewCube } from './modules/viewcube.js?v=45';
-import { createAirLink } from './modules/airlink.js?v=45';
-import { createQuickRef } from './modules/quickref.js?v=45';
-import { installResumeHardening } from './modules/resume.js?v=45';
-import { createScene } from './modules/scene.js?v=45';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=45';
-import { createDims } from './modules/dims.js?v=45';
-import { createSystems3D } from './modules/systems3d.js?v=45';
-import { createOverlay } from './modules/overlay.js?v=45';
-import { createSheet } from './modules/sheet.js?v=45';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=45';
-import { SYSTEMS, READY } from './modules/systems.js?v=45';
-import { createSearch } from './modules/search.js?v=45';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=45';
-import { createProgress } from './modules/progress.js?v=45';
-import { createLearn } from './modules/learn.js?v=45';
-import { explain } from './modules/cockpit-info.js?v=45';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=45';
-import { createCockpit } from './modules/cockpit.js?v=45';
-import { nav, geo, loadNav } from './modules/navdb.js?v=45';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=45';
-import { createCDU } from './modules/cdu.js?v=45';
-import { createCDUView } from './modules/cdu-view.js?v=45';
-import { createFlightSim } from './modules/flightsim.js?v=45';
-import { createStateBar } from './modules/statebar.js?v=45';
-import { createPanelViewer } from './modules/panelview.js?v=45';
-import { createRtoDrill } from './modules/rto.js?v=45';
-import { tts } from './modules/speech.js?v=45';
-import { engState } from './modules/sys-engines.js?v=45';
+import { makeEnv } from './modules/world.js?v=46';
+import { createOutside } from './modules/outside.js?v=46';
+import { createViewCube } from './modules/viewcube.js?v=46';
+import { createAirLink } from './modules/airlink.js?v=46';
+import { createQuickRef } from './modules/quickref.js?v=46';
+import { installResumeHardening } from './modules/resume.js?v=46';
+import { createScene } from './modules/scene.js?v=46';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=46';
+import { createDims } from './modules/dims.js?v=46';
+import { createSystems3D } from './modules/systems3d.js?v=46';
+import { createOverlay } from './modules/overlay.js?v=46';
+import { createSheet } from './modules/sheet.js?v=46';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=46';
+import { SYSTEMS, READY } from './modules/systems.js?v=46';
+import { createSearch } from './modules/search.js?v=46';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=46';
+import { createProgress } from './modules/progress.js?v=46';
+import { createLearn } from './modules/learn.js?v=46';
+import { explain } from './modules/cockpit-info.js?v=46';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=46';
+import { createCockpit } from './modules/cockpit.js?v=46';
+import { nav, geo, loadNav } from './modules/navdb.js?v=46';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=46';
+import { createCDU } from './modules/cdu.js?v=46';
+import { createCDUView } from './modules/cdu-view.js?v=46';
+import { createFlightSim } from './modules/flightsim.js?v=46';
+import { createStateBar } from './modules/statebar.js?v=46';
+import { createPanelViewer } from './modules/panelview.js?v=46';
+import { createRtoDrill } from './modules/rto.js?v=46';
+import { tts } from './modules/speech.js?v=46';
+import { engState } from './modules/sys-engines.js?v=46';
 
 const $ = (id) => document.getElementById(id);
 
@@ -152,9 +152,16 @@ function init() {
     notes,
     meta: () => describe(sheet.key || ''),
     onChange: () => {
-      // Re-render the page so the new mark (or its removal) shows.
+      // Show the new mark (or its removal). System pages re-render; other
+      // sheets (QRH, Supplementary, Learn…) keep their content, so the marks
+      // are redrawn in place.
       const key = sheet.key;
-      if (key) goTo(key, null, true);
+      if (!key) return;
+      if (sysOf(key.split('/')[0])) { goTo(key, null, true); return; }
+      const body = $('sheet-body');
+      for (const m of body.querySelectorAll('mark.hl')) m.replaceWith(...m.childNodes);
+      body.normalize();
+      applyHighlights(body, notes.hls(key));
     },
   });
 
@@ -163,6 +170,15 @@ function init() {
     favOpen = false;
     const [sid, pid] = key.split('/');
     const body = $('sheet-body');
+    // Saved from a sheet that is not a system page (QRH, Supplementary).
+    if (!sysOf(sid)) {
+      if (key === 'quickref') quickref.open();
+      else if (key === 'supp') quickref.openSupp();
+      else return;
+      const m = hl && body.querySelector(`mark[data-hl="${hl}"]`);
+      if (m) { m.scrollIntoView({ block: 'center', behavior: 'smooth' }); m.classList.add('flash'); }
+      return;
+    }
     const top = body.scrollTop;
     if (sysId !== sid) selectSystem(sid);
     if (pid) selectPart(pid, keepScroll); else sheet.system(sysOf(sid).mod);
@@ -686,7 +702,7 @@ function init() {
     const fcs = states.get('flightcontrols');
     const gr = states.get('gear');
     // The open page can move its piece of the airplane (aileron, rudder, doors…).
-    airlink.select(show.links && sysId && view !== 'cockpit' ? { sys: sysId, part: partId, color: sysOf(sysId).color } : null);
+    airlink.select(show.links && sysId && sysOf(sysId) && view !== 'cockpit' ? { sys: sysId, part: partId, color: sysOf(sysId).color } : null);
     const ex = airlink.frame(dt);
     const { doors: exDoors, ...exPose } = ex;
     const flying = sim.flying ? sim.ac : null;
@@ -824,6 +840,7 @@ function init() {
   // ── Quick reference (memory items, maneuvers, limits) ──
   const quickref = createQuickRef(sheet, SYSTEMS);
   $('qr-btn').addEventListener('click', () => (sheet.key === 'quickref' && !$('sheet').hidden ? sheet.hide() : quickref.open()));
+  $('sp-btn').addEventListener('click', () => (sheet.key === 'supp' && !$('sheet').hidden ? sheet.hide() : quickref.openSupp()));
 
   // ── Search ──
   const search = createSearch($('search'), READY, (sid, pid) => goTo(pid ? `${sid}/${pid}` : sid));

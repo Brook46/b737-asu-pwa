@@ -327,9 +327,22 @@ every frame; the ground drops to the real height after lift-off.
 - Anti-ice: a "heated now" plan inset (cowl lips, three inboard slats,
   windows).
 
+## Supplementary (v46)
+
+Its own toolbar button **SUPP** beside QRH (`quickref.openSupp()`, sheet key
+`supp`), one tab per chapter: SP.16 Adverse weather (advisor below) and
+SP.2 Air systems — `supp-procs.js` CHAPTERS: procedures run as checklists
+(pick one, steps by phase, tap to tick; notes, cautions and "when" lines in
+place; tests and less common folded). Add chapters there, step by step.
+Highlights work on these sheets: `onChange` in app.js redraws marks in place
+for non-system sheets, and `goTo` opens QRH / SUPP for saved highlights.
+Airport search (`nav.search`): ICAO, IATA (JFK), ICAO prefix, then a word of
+the name or city, biggest airport first; navdb airports carry
+`[…, IATA, city]` (scripts/build-navdb.py).
+
 ## Supplementary: adverse weather (v44)
 
-QRH sheet → **Supplementary** tab. `supp-advisor.js` is the everyday tool;
+SUPP sheet → **SP.16** tab. `supp-advisor.js` is the everyday tool;
 `supplementary.js` is the SP.16 summary (21 topics + the two altitude
 correction tables), shown folded as reference below the tools.
 - Advisor: Departure / In flight / Arrival. One question at a time
@@ -353,7 +366,8 @@ correction tables), shown folded as reference below the tools.
   MCP (next 100 ft); DA / MDA → EFIS MINS (BARO).
 - Topic links use the topic title (`topicIdx`), so keep titles in
   supplementary.js stable. SP page refs were checked against the FCOM pages.
-- Airport and weather (v45): Departure / Arrival first ask the airport
+- Airport and weather (v45): Departure / Arrival first ask how to fill the
+  weather — look up an airport, or enter it by hand — then the airport
   (ICAO or a word of the name — `nav.search` over the OurAirports list,
   which also gives the elevation). `metar.js` fetches the latest METAR from
   metar.vatsim.net (CORS, as Flight Card), falling back to the worker's

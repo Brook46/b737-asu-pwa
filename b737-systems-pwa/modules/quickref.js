@@ -1,5 +1,6 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=45';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=45';
+import { SUPPLEMENTARY } from './supplementary.js?v=46';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=46';
+import { procsHtml, procClick } from './supp-procs.js?v=46';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -234,7 +235,6 @@ export function createQuickRef(sheet, systems) {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
-    if (tab === 'supp') return `${wizardHtml()}${coldHtml()}<details class="sp-ref" id="sp-ref"><summary>SP.16 Adverse Weather — full summary <span class="qr-ref">reference</span></summary>${suppHtml()}</details><p class="qr-foot">Condensed from the FCOM Supplementary Procedures, Rev 57. The FCOM and your de-icing programme govern.</p>`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
     return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
@@ -244,7 +244,7 @@ export function createQuickRef(sheet, systems) {
     }).join('');
   }
   function html() {
-    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['supp', 'Supplementary'], ['systems', 'By system']];
+    const tabs = [['memory', 'Memory items'], ['maneuvers', 'Maneuvers'], ['numbers', 'Limits & numbers'], ['systems', 'By system']];
     return `<div class="qr">
       <div class="kicker">QUICK REFERENCE · QRH / FCOM REV 57</div>
       <h2>Quick reference</h2>
@@ -253,7 +253,31 @@ export function createQuickRef(sheet, systems) {
       <p class="qr-foot">Study aid in our own layout. The QRH and FCOM on board govern — check effectivity for your tail.</p>
     </div>`;
   }
-  function open(t) { if (t) tab = t; sheet.custom(html(), 'quickref'); }
+  function open(t) { if (t) tab = t; if (tab === 'supp') tab = 'memory'; sheet.custom(html(), 'quickref'); }
+
+  // ── Supplementary: its own sheet, one tab per chapter ──
+  let spCh = 16;
+  const SP_TABS = [[16, 'Adverse weather'], [2, 'Air systems']];
+  function suppPage() {
+    const body = spCh === 16
+      ? `${wizardHtml()}${coldHtml()}<details class="sp-ref" id="sp-ref"><summary>SP.16 Adverse Weather — full summary <span class="qr-ref">reference</span></summary>${suppHtml()}</details>`
+      : procsHtml(spCh);
+    return `<div class="qr">
+      <div class="kicker">SUPPLEMENTARY PROCEDURES · FCOM REV 57</div>
+      <h2>Supplementary</h2>
+      <div class="qr-tabs">${SP_TABS.map(([n, t]) => `<button class="tag tag-btn${n === spCh ? ' on' : ''}" data-sp-ch="${n}">SP.${n} ${t}</button>`).join('')}</div>
+      ${body}
+      <p class="qr-foot">Condensed from the FCOM Supplementary Procedures, Rev 57, in our own words. The FCOM${spCh === 16 ? ' and your de-icing programme' : ''} govern.</p>
+    </div>`;
+  }
+  function openSupp(n) { if (n) spCh = n; sheet.custom(suppPage(), 'supp'); }
+  function redrawProcs() {
+    const el = document.getElementById('pr-chap');
+    if (!el) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = procsHtml(spCh);
+    el.replaceWith(tmp.firstElementChild);
+  }
   // Tab clicks inside the sheet.
   // The advisor re-reads its form on every change.
   for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => { if (e.target.closest?.('#wz, #wz-cold')) wizardInput(e); });
@@ -261,6 +285,10 @@ export function createQuickRef(sheet, systems) {
   document.addEventListener('click', (e) => {
     const wa = e.target.closest('[data-wz-ans],[data-wz-edit],[data-wz-tog],[data-wz-x],[data-wz-apt],[data-ct-apt]');
     if (wa && wizardClick(wa)) return;
+    const ch = e.target.closest('[data-sp-ch]');
+    if (ch) { openSupp(Number(ch.dataset.spCh)); return; }
+    const pr = e.target.closest('[data-pr-open],[data-pr-tick],[data-pr-clear]');
+    if (pr && procClick(pr)) { redrawProcs(); return; }
     const wb = e.target.closest('[data-wz]');
     if (wb) { wizardAct(wb.dataset.wz); return; }
     const sg = e.target.closest('[data-sp-go]');
@@ -272,5 +300,5 @@ export function createQuickRef(sheet, systems) {
     tab = b.dataset.qrTab;
     open();
   });
-  return { open, get key() { return 'quickref'; } };
+  return { open, openSupp, get key() { return 'quickref'; } };
 }

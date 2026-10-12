@@ -11,9 +11,9 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=45';
-import { nav, loadNav } from './navdb.js?v=45';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=45';
+import { SUPPLEMENTARY } from './supplementary.js?v=46';
+import { nav, loadNav } from './navdb.js?v=46';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=46';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -22,6 +22,7 @@ const SP16 = SUPPLEMENTARY[0];
 // opts: [value, label, short label for the answer chip]
 const Q = {
   place: { t: 'Where are you?', opts: [['dep', 'Departure — on the ground', 'Departure'], ['flt', 'In flight', 'In flight'], ['arr', 'Arrival — planning the landing', 'Arrival']] },
+  wx: { t: 'Weather', opts: [['apt', 'Look up the airport — use its latest METAR', 'Airport METAR'], ['hand', 'Enter the weather myself', 'Weather by hand']] },
   apt: { t: 'Which airport?', apt: true },
   oat: { t: 'Outside air temperature, °C', num: true },
   precip: {
@@ -77,14 +78,14 @@ let WX = null;         // { apt, raw, m, error, loading } for the chosen airport
 
 function flow() {
   if (A.place === 'dep') {
-    const q = ['apt', 'oat'];
+    const q = ['wx', ...(A.wx === 'apt' ? ['apt'] : []), 'oat'];
     if (A.oat != null && A.oat <= 10) q.push('precip');      // visible moisture only matters at 10 °C or below
     q.push('airframe', 'surface');
     if (A.surface != null && needsFluidQ()) q.push('fluid');
     return q;
   }
   if (A.place === 'arr') {
-    const q = ['apt', 'oat'];
+    const q = ['wx', ...(A.wx === 'apt' ? ['apt'] : []), 'oat'];
     if (A.oat != null && A.oat <= 10) q.push('precip', 'arrIce');
     q.push('arrSurface', 'windshear');
     return q;
@@ -102,6 +103,7 @@ function nextKey() {
 
 function answer(key, v) {
   if (key === 'place') { reset(); A.place = v; H = ['place']; return; }
+  if (key === 'wx' && v === 'hand') { for (const k of Object.keys(SRC)) delete A[k]; SRC = {}; WX = null; }
   A[key] = v;
   delete SRC[key];                       // the user's answer, not the report's
   H = H.filter((k) => k !== key);
@@ -121,7 +123,7 @@ function prune() {
 // Change one answer: forget it and everything asked after it.
 function edit(key) {
   if (key === 'place') { reset(); return; }
-  if (key === 'apt') { const keep = A.place; reset(); A.place = keep; H = ['place']; return; }
+  if (key === 'apt' || key === 'wx') { const keep = A.place, w = A.wx; reset(); A.place = keep; H = ['place']; if (key === 'apt') { A.wx = w; H.push('wx'); } return; }
   delete A[key];
   delete SRC[key];
   H = H.filter((k) => k !== key);
@@ -291,8 +293,7 @@ function questionHtml(key) {
     return `<div class="wz-qq"><div class="wz-qt">${A.place === 'arr' ? 'Destination airport?' : 'Departure airport?'}</div>
       <div class="wz-numrow"><input id="wz-apt" type="text" class="wz-in" placeholder="ICAO or name, e.g. LLBG" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
       <div id="wz-sug" class="wz-sug"></div>
-      <div class="wz-hint">The latest METAR fills in temperature, precipitation and runway state. You can change any of them.</div>
-      <div class="wz-nav"><button class="tag tag-btn wz-mini" data-wz="apt-skip">Skip — answer by hand</button></div></div>`;
+      <div class="wz-hint">ICAO or IATA code, airport or city name. The METAR fills in temperature, precipitation and runway state — you can change any of them.</div></div>`;
   }
   if (q.num) {
     return `<div class="wz-qq"><div class="wz-qt">${esc(q.t)}</div>
@@ -335,7 +336,7 @@ function resultHtml(r) {
 
 export function wizardHtml() {
   reset();
-  return `<section class="wz" id="wz"><div class="wz-top"><span class="wz-title">Adverse weather</span>
+  return `<section class="wz no-hl" id="wz"><div class="wz-top"><span class="wz-title">Adverse weather</span>
     <span class="wz-act"><button class="tag tag-btn wz-mini" data-wz="back" id="wz-back" hidden>‹ Back</button><button class="tag tag-btn wz-mini" data-wz="reset" id="wz-reset" hidden>Start over</button></span></div>
     <div id="wz-chips" class="wz-chips"></div><div id="wz-wx"></div><div id="wz-body">${questionHtml('place')}</div></section>`;
 }
@@ -345,7 +346,7 @@ function draw() {
   if (!root) return;
   root.querySelector('#wz-back').hidden = !H.length;
   root.querySelector('#wz-reset').hidden = !H.length;
-  root.querySelector('#wz-chips').innerHTML = H.filter((k) => Q[k]).map((k) => `<button class="wz-chip${SRC[k] ? ' src' : ''}" data-wz-edit="${k}" title="Change this answer">${esc(chipText(k))}${SRC[k] ? '<sup>METAR</sup>' : ''}</button>`).join('')
+  root.querySelector('#wz-chips').innerHTML = H.filter((k) => Q[k] && !(k === 'wx' && A.apt)).map((k) => `<button class="wz-chip${SRC[k] ? ' src' : ''}" data-wz-edit="${k}" title="Change this answer">${esc(chipText(k))}${SRC[k] ? '<sup>METAR</sup>' : ''}</button>`).join('')
     + (A.place === 'flt' && fltShown ? `<button class="wz-chip" data-wz="flt-edit" title="Change">${F.size} selected</button>` : '');
   const body = root.querySelector('#wz-body');
   root.querySelector('#wz-wx').innerHTML = wxHtml();
@@ -438,7 +439,7 @@ const elevTxt = (a) => (a && a.elev != null ? `elevation ${a.elev} ft` : 'elevat
 
 function sugHtml(list, attr) {
   if (!nav.ready) return '<div class="wz-hint">Loading the airport list…</div>';
-  return list.map((a) => `<button class="wz-opt wz-sugi" data-${attr}="${a.ident}"><b>${a.ident}</b> ${esc(a.name)}</button>`).join('');
+  return list.map((a) => `<button class="wz-opt wz-sugi" data-${attr}="${a.ident}"><b>${a.ident}</b>${a.iata ? `<b class="iata">${a.iata}</b>` : ''} ${esc(a.name)}${a.city ? ` <span class="wz-city">${esc(a.city)}</span>` : ''}</button>`).join('');
 }
 
 function ensureNav() { if (!nav.ready) loadNav('data/navdb.json').then(() => { suggest('wz-apt', 'wz-sug', 'wz-apt'); suggest('ct-apt', 'ct-sug', 'ct-apt'); }).catch(() => {}); }
@@ -584,7 +585,7 @@ const ALTS = [
 ];
 
 export function coldHtml() {
-  return `<details class="wz wz-cold" id="wz-cold"><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
+  return `<details class="wz wz-cold no-hl" id="wz-cold"><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
     <div class="wz-cold-in">
       <label class="wz-q">Airport <span class="qr-ref">fills temperature and elevation</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
       <div id="ct-sug" class="wz-sug"></div>

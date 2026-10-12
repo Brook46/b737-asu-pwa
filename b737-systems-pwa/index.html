@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=45">
+  <link rel="stylesheet" href="app.css?v=46">
 </head>
 <body>
   <div id="stage">
@@ -48,6 +48,7 @@
     <div class="toolbar" role="toolbar" aria-label="Tools">
       <div class="tb-group">
         <button class="tag tag-btn tb" id="qr-btn" title="Quick reference: memory items, maneuvers, limits"><span class="ti">QRH</span></button>
+        <button class="tag tag-btn tb" id="sp-btn" title="Supplementary procedures: adverse weather, air systems"><span class="ti">SUPP</span></button>
         <button class="tag tag-btn tb" id="learn-btn" title="Learn by voice and progress"><span class="ti">🎧</span><span class="tl">Learn</span></button>
         <button class="tag tag-btn tb" id="search-btn" title="Search every page"><span class="ti">⌕</span><span class="tl">Search</span></button>
         <button class="tag tag-btn tb" id="fav-btn" title="Favorites and highlights"><span class="ti">★</span><span class="tl">Saved</span></button>
@@ -156,7 +157,7 @@
   <div id="hint" class="hint">Drag to orbit · pinch to zoom · two fingers to pan</div>
   <div id="boot-error" class="boot-error" hidden></div>
 
-  <script type="module" src="app.js?v=45"></script>
+  <script type="module" src="app.js?v=46"></script>
   <script>
     // If the module graph fails to evaluate, say so instead of a silent dead page.
     window.addEventListener('error', function (e) {
