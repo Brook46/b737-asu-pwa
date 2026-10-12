@@ -1,6 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=48';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=48';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=48';
+import { SUPPLEMENTARY } from './supplementary.js?v=49';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=49';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=49';
+import { CUES, cueHtml } from './cues.js?v=49';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -84,36 +85,54 @@ export const QUICK_ACTIONS = [
 ];
 
 // Non-normal maneuvers: "flight crews are expected to do them from memory" (QRH MAN.05).
+// Condensed in our own words, step for step against QRH MAN.1 (Rev 57):
+// WHO(role, lines) = one pilot's actions; BOX(…, 'warn') = a QRH WARNING.
+const WHO = (w, items) => ({ k: 'who', w, items });
 export const MANEUVERS = [
-  { t: 'Approach to Stall or Stall Recovery', ref: 'QRH MAN.1.1', when: 'First indication of stall: buffet or stick shaker. Treat it as a real stall; no flight director.',
-    steps: [['Initiate', 'Hold the column firmly · A/P and A/T off · nose down until buffet / shaker stops (nose-down trim if needed)'],
-      ['Continue', 'Roll the shortest way to wings level · thrust as needed · speedbrakes in · don\'t change gear or flaps (except: at lift-off with flaps up, call flaps 1)'],
-      ['Complete', 'Check speed, adjust thrust · establish pitch · back to the flight path · A/P and A/T if desired']] },
-  { t: 'Rejected Takeoff', ref: 'QRH MAN.1.2', when: 'Captain decides and calls "REJECT".',
-    steps: [['Below 80 kt — reject for', 'Master caution, system failure, unusual noise / vibration, tire failure, slow acceleration, takeoff config warning, fire, engine failure, predictive windshear warning, side window open, unsafe to fly'],
-      ['80 kt to V1 — reject only for', 'Fire or fire warning, engine failure, predictive windshear warning, unsafe or unable to fly'],
-      ['Captain', 'Thrust levers closed · A/T off · max manual braking or verify RTO · speedbrake UP · max reverse consistent with conditions · keep braking until stopping is certain'],
-      ['First officer', 'Verify actions; "SPEEDBRAKES UP / NOT UP", "REVERSERS NORMAL / NO REVERSER…" · call 60 kt · tell the tower']] },
-  { t: 'GPWS Warning (PULL UP / TERRAIN TERRAIN PULL UP)', ref: 'QRH MAN.1.5', when: 'A pull-up warning, or other unacceptable flight toward terrain. No flight director.',
-    steps: [['A/P and A/T', 'Disengage'], ['Thrust', 'Aggressively maximum'], ['Attitude', 'Wings level and rotate to 20° pitch together'],
-      ['Speedbrakes', 'Retract'], ['Terrain still a threat', 'Rotate up to the pitch limit indicator / stick shaker / initial buffet'],
-      ['Configuration', 'No gear or flap change until terrain separation is assured']] },
-  { t: 'GPWS Caution', ref: 'QRH MAN.1.4', when: 'SINK RATE, TERRAIN, DON\'T SINK, TOO LOW FLAPS / GEAR / TERRAIN, GLIDESLOPE, BANK ANGLE, AIRSPEED LOW, CAUTION TERRAIN / OBSTACLE.',
-    steps: [['Pilot flying', 'Correct the flight path, configuration or airspeed']] },
-  { t: 'Traffic Avoidance (TCAS)', ref: 'QRH MAN.1.7', when: 'Any TA or RA, by recall. Comply with the RA even if ATC says otherwise; no F/D until clear.',
-    steps: [['TA', 'Look for the traffic; don\'t maneuver on a TA alone'], ['RA', 'A/P and A/T off · smoothly fly pitch and thrust to the RA · keep the planned lateral path'],
-      ['Climb RA in landing configuration', 'Max thrust, flaps 15, positive rate → gear up'], ['Never', 'Follow a DESCEND RA below 1,000 ft AGL']] },
-  { t: 'Upset Recovery — Nose High', ref: 'QRH MAN.1.10', when: 'Upset: diverting from the intended state (historically > 25° nose up, > 10° nose down, > 45° bank, or wrong speed). Recover from a stall first.',
-    steps: [['A/P and A/T', 'Disengage'], ['Recover', 'Nose-down elevator for a nose-down pitch rate · nose-down trim if needed · reduce thrust · bank to get the nose down'],
-      ['Complete', 'Near the horizon roll wings level · check speed, adjust thrust · establish pitch']] },
-  { t: 'Upset Recovery — Nose Low', ref: 'QRH MAN.1.10', when: '',
-    steps: [['A/P and A/T', 'Disengage'], ['Recover', 'Recover from the stall if needed · roll the shortest way to wings level (beyond 90° bank: unload, then roll)'],
-      ['Complete', 'Nose-up elevator · nose-up trim if needed · adjust thrust and drag']] },
-  { t: 'Windshear Escape', ref: 'QRH MAN.1.13', when: 'Windshear warning, or unacceptable path deviations below 1,000 ft: ±15 kt, 500 fpm, 5° pitch, 1 dot G/S, odd thrust lever position.',
-    steps: [['Manual', 'A/P off · TO/GA · aggressively max thrust · A/T off · wings level, rotate toward 15° · speedbrakes in · follow TO/GA F/D'],
-      ['Automatic', 'TO/GA · verify TO/GA mode and GA thrust · speedbrakes in · monitor (be ready to fly manually)'],
-      ['Both', 'No flap or gear change until clear · wings level · don\'t chase lost airspeed until clear'],
-      ['Predictive warning', 'Takeoff roll: before V1 reject, after V1 escape · approach: escape or normal go-around']] },
+  { t: 'Approach to Stall or Stall Recovery', ref: 'QRH MAN.1.1', cond: ['First indication of a stall: buffet or stick shaker. Recover at once; do not use the flight director.'],
+    steps: [WHO('PF — initiate', ['Hold the control column firmly', 'Disengage the autopilot and the autothrottle', 'Smoothly apply nose-down elevator to reduce the angle of attack until the buffet or stick shaker stops — nose-down stabilizer trim may be needed']),
+      WHO('PF — continue', ['Roll the shortest way to wings level, if needed', 'Advance thrust as needed', 'Retract the speedbrakes', 'Do not change gear or flaps — except: stall at lift-off with flaps up → call for **flaps 1**']),
+      WHO('PF — complete', ['Check airspeed, adjust thrust', 'Establish pitch, return to the desired flight path', 'Re-engage the autopilot and autothrottle if desired']),
+      WHO('PM', ['Monitor altitude and airspeed', 'Verify the actions, call any omissions', 'Call any trend toward terrain', 'Set the FLAP lever as directed']),
+      BOX('**WARNING** Trim only if the column alone does not give the response needed. Excessive pitch trim or rudder can worsen the condition, or cause loss of control or high structural loads.', 'warn')] },
+  { t: 'Rejected Takeoff', ref: 'QRH MAN.1.2', cond: ['The captain decides to reject and calls **"REJECT"**.',
+      '**Below 80 kt** — reject for: master caution, system failure, unusual noise or vibration, tire failure, abnormally slow acceleration, takeoff configuration warning, fire or fire warning, engine failure, predictive windshear warning, side window open, unsafe or unable to fly.',
+      '**80 kt to V1** — reject only for: fire or fire warning, engine failure, predictive windshear warning, unsafe or unable to fly.'],
+    steps: [WHO('Captain', ['Close the thrust levers, disengage the autothrottle', 'Maximum manual braking, or verify the RTO autobrake (brake manually if AUTO BRAKE DISARM or deceleration is not enough)', 'Raise the SPEED BRAKE lever', 'Reverse thrust up to the maximum consistent with conditions', 'Keep braking until stopping is certain', 'Stop assured: reverse to idle by taxi speed, then down; tell the cabin']),
+      WHO('First officer', ['Verify the actions', 'Call **"SPEEDBRAKES UP"** or **"SPEEDBRAKES NOT UP"**', 'Call **"REVERSERS NORMAL"**, **"NO REVERSER ENGINE 1 / 2"** or **"NO REVERSERS"**', 'Call any omissions, then **"60 KNOTS"**', 'Tell the tower as soon as practical']),
+      WHO('After stopping', ['Brake cooling schedule; fuse plugs may melt', 'Consider: clear the runway or not, fire services, wind for a fire, parking brake only if evacuating, hot-brake warning to ground crew, passengers', 'Then the relevant non-normal checklist'])] },
+  { t: 'GPWS Caution', ref: 'QRH MAN.1.4', cond: ['One of these aurals: SINK RATE · TERRAIN · DON\'T SINK · TOO LOW FLAPS · TOO LOW GEAR · TOO LOW TERRAIN · GLIDESLOPE · BANK ANGLE · CAUTION TERRAIN (and where fitted AIRSPEED LOW, CAUTION OBSTACLE).'],
+    steps: [WHO('PF', ['Correct the flight path, the configuration or the airspeed']),
+      BOX('The BELOW G/S alert may be cancelled or inhibited for: a localizer or back-course approach, a circling approach from an ILS, a deliberate approach below the glideslope, or an unreliable glideslope signal.', 'note'),
+      BOX('Daylight VMC, with positive visual verification that there is no terrain or obstacle hazard: the alert may be regarded as cautionary and the approach continued.', 'note')] },
+  { t: 'GPWS Warning', ref: 'QRH MAN.1.5', cond: ['**PULL UP** · **TERRAIN TERRAIN PULL UP** · **OBSTACLE OBSTACLE PULL UP** (some airplanes), or any other unacceptable flight toward terrain. No flight director.'],
+    steps: [WHO('PF', ['Disengage the autopilot and the autothrottle', 'Aggressively apply **maximum thrust**', 'Wings level and rotate to **20°** pitch — together', 'Retract the speedbrakes', 'Terrain still a threat: keep rotating, up to the pitch limit indicator, stick shaker or initial buffet', 'Do not change gear or flaps until terrain separation is assured', 'Monitor the radio altimeter for terrain clearance', 'Clear: slowly lower pitch and accelerate']),
+      WHO('PM', ['Assure maximum thrust', 'Verify the actions, call any omissions', 'Monitor vertical speed and altitude; call any trend toward terrain']),
+      BOX('Intermittent stick shaker or initial buffet is the upper pitch limit — smooth, steady control to avoid overshoot. Maximum thrust: levers full forward with the EECs normal; if terrain contact is imminent, full forward regardless. A look-ahead warning in climb, cruise or descent, verified at once as above the MSA, may be considered unreliable. Daylight VMC with no hazard positively seen: may be regarded as cautionary.', 'note')] },
+  { t: 'Traffic Avoidance (TCAS)', ref: 'QRH MAN.1.7', cond: ['A traffic advisory (**TRAFFIC, TRAFFIC**) or a resolution advisory.'],
+    steps: [BOX('**WARNING** Comply with the RA, even against an ATC instruction. Do not change the vertical speed except to comply. Do not follow a **DESCEND** RA below 1,000 ft AGL.', 'warn'),
+      WHO('TA', ['Look for the traffic, call it out', 'Maneuver only if it is sighted and a maneuver is needed — never on a TA alone']),
+      WHO('RA (except a climb in landing configuration)', ['If a maneuver is needed: disengage the autopilot and the autothrottle', 'Smoothly adjust pitch and thrust to fly out of the red, into the green', 'Keep the planned lateral path unless visual contact says otherwise']),
+      WHO('Climb RA in landing configuration — PF', ['Disengage the autopilot and the autothrottle', 'Advance the thrust levers to maximum, call **"FLAPS 15"**', 'Smoothly adjust pitch to the RA', 'Keep the planned lateral path unless visual contact says otherwise']),
+      WHO('Climb RA in landing configuration — PM', ['Verify maximum thrust', 'Set the FLAP lever to **15**', 'Positive rate on the altimeter: PM **"POSITIVE RATE"** → PF **"GEAR UP"** → PM sets the gear lever UP']),
+      WHO('Both pilots', ['Try to see the traffic and call it out — the airplane in sight may not be the one causing the RA', 'Stick shaker: stall recovery first · high-speed buffet: relax the pitch force', 'No flight director until clear of conflict'])] },
+  { t: 'Upset Recovery — Nose High', ref: 'QRH MAN.1.9', cond: ['An unintended flight condition: the airplane diverts from what is expected (roughly beyond 25° nose up, 10° nose down, 45° bank, or speeds wrong for the conditions). Stalled (stick shaker, buffet, no pitch authority or roll control, can\'t stop a descent)? Recover from the stall first: nose-down elevator until the shaker stops.'],
+    steps: [WHO('PF', ['Recognise and confirm the developing situation', 'Disengage the autopilot and the autothrottle', 'Apply nose-down elevator — as much as needed for a nose-down pitch rate', 'Appropriate nose-down stabilizer trim', 'Reduce thrust', 'Roll (adjust bank) to get a nose-down pitch rate', 'Nearing the horizon: roll to wings level', 'Check airspeed, adjust thrust; establish pitch']),
+      WHO('PM', ['Call attitude, airspeed and altitude through the recovery', 'Verify the actions, call any continued deviation']),
+      BOX('**WARNING** Excessive pitch trim or rudder can worsen an upset, or cause loss of control or high structural loads.', 'warn')] },
+  { t: 'Upset Recovery — Nose Low', ref: 'QRH MAN.1.10', cond: ['Nose low, often in a steep bank with speed building.'],
+    steps: [WHO('PF', ['Recognise and confirm the developing situation', 'Disengage the autopilot and the autothrottle', 'Recover from the stall, if needed', 'Roll the shortest way to wings level — beyond 90° bank: unload, then roll', 'Nose-up elevator; nose-up trim if needed', 'Adjust thrust and drag as needed']),
+      WHO('PM', ['Call attitude, airspeed and altitude through the recovery', 'Verify the actions, call any continued deviation']),
+      BOX('**WARNING** Excessive pitch trim or rudder can worsen an upset, or cause loss of control or high structural loads.', 'warn')] },
+  { t: 'Windshear', ref: 'QRH MAN.1.11', cond: ['A windshear warning (siren, **WINDSHEAR** ×3), a predictive warning, or below 1,000 ft unacceptable deviations: ±15 kt, ±500 fpm, ±5° pitch, 1 dot glideslope, or unusual thrust lever position for a long time.'],
+    steps: [WHO('Predictive', ['**MONITOR RADAR DISPLAY** (caution): avoid the area', '**WINDSHEAR AHEAD** on the takeoff roll: before V1 reject, after V1 fly the escape', '**GO-AROUND, WINDSHEAR AHEAD** on approach: escape — or, at the pilot\'s discretion, a normal go-around']),
+      WHO('Windshear met on the takeoff roll', ['Before V1: an RTO at V1 may not stop in the runway left — at VR rotate at a normal rate toward 15°; once airborne, the escape maneuver', 'Near VR with airspeed suddenly dropping: not enough runway to stop → rotate normally at least 2,000 ft before the runway end, even at low speed; maximum thrust']),
+      WHO('Windshear met in flight', ['The escape maneuver']),
+      WHO('Escape — manual', ['Disengage the autopilot, push a TO/GA switch', 'Aggressively apply **maximum thrust**, disengage the autothrottle', 'Wings level, rotate toward **15°**', 'Retract the speedbrakes', 'Follow the TO/GA flight director (not beyond the pitch limit indicator)']),
+      WHO('Escape — automatic', ['Push a TO/GA switch (no TO/GA: disconnect and fly manually)', 'Verify the TO/GA mode and GA thrust', 'Retract the speedbrakes', 'Monitor — severe windshear may exceed the autopilot']),
+      WHO('Both', ['No flap or gear change until clear', 'Wings level unless a turn is needed for obstacles', 'Monitor vertical speed and altitude', 'Do not chase lost airspeed until clear']),
+      WHO('PM', ['Verify maximum (GA) thrust, call any omissions', 'Monitor vertical speed and altitude; call any trend toward terrain, a descending path or big airspeed changes']),
+      BOX('Intermittent stick shaker or initial buffet is the upper pitch limit; do not exceed the pitch limit indication. Smooth, steady control.', 'note')] },
 ];
 
 // The limitations marked # (must be memorized), then other key numbers.
@@ -186,7 +205,8 @@ export const NUMBERS = [
 ];
 
 /** HTML for the sheet. `systems` adds every number cited on the system pages. */
-export function createQuickRef(sheet, systems) {
+/** `nav.demo(cue, title)` shows a cue in the 3D cockpit (app.js). */
+export function createQuickRef(sheet, systems, nav = {}) {
   let tab = 'memory';
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   // Short actions read like the QRH ("item ……… ACTION"); long ones wrap below the item.
@@ -209,12 +229,14 @@ export function createQuickRef(sheet, systems) {
   const stepHtml = (st) => {
     if (st.k === 'row') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill">${line(st.a, st.v, st.m)}${st.sub.map(subHtml).join('')}</div></div>`;
     if (st.k === 'txt') return `<div class="qr-row"><span class="qr-n">${st.n}</span><div class="qr-fill"><div class="qr-t">${md(st.a)}</div>${st.sub.map(subHtml).join('')}</div></div>`;
+    if (st.k === 'who') return `<div class="qr-who"><span class="qr-w">${md(st.w)}</span><ul>${st.items.map((x) => `<li>${md(x)}</li>`).join('')}</ul></div>`;
     if (st.k === 'box') return `<div class="qr-box ${st.lvl}">${st.lvl === 'caution' ? '⚠ ' : ''}${md(st.a)}</div>`;
     return '';
   };
   const condHtml = (list) => list.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${md(li)}</li>`).join('')}</ul>` : `<p>${md(x)}</p>`)).join('');
-  const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}">
+  const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}"${CUES[c.t] ? ` data-cue="${esc(c.t).replace(/"/g, '&quot;')}"` : ''}>
     <h3>${md(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>
+    ${CUES[c.t] ? '<button class="qr-cue-b no-hl" data-cue-show>◉ How you recognise it</button>' : ''}
     ${c.tag ? `<span class="qr-tag ${c.tag[1]}">${esc(c.tag[0])}</span>` : ''}
     <div class="qr-cond"><span class="qr-lbl">Condition:</span><div>${condHtml(c.cond)}</div></div>
     ${c.steps.map(stepHtml).join('')}
@@ -234,7 +256,7 @@ export function createQuickRef(sheet, systems) {
   function body() {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
-    if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
+    if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map(memCard).join('')}`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
     return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
@@ -253,7 +275,40 @@ export function createQuickRef(sheet, systems) {
       <p class="qr-foot">Study aid in our own layout. The QRH and FCOM on board govern — check effectivity for your tail.</p>
     </div>`;
   }
-  function open(t) { if (t) tab = t; if (tab === 'supp') tab = 'memory'; sheet.custom(html(), 'quickref'); }
+  function open(t) { hideCue(); if (t) tab = t; if (tab === 'supp') tab = 'memory'; sheet.custom(html(), 'quickref'); }
+
+  // ── Recognition cue: a card on the left (inline on a phone) ──
+  let cueCard = null;
+  const wide = () => matchMedia('(min-width: 761px)').matches;
+  function cuePanel() {
+    let el = document.getElementById('cue-panel');
+    if (!el) { el = document.createElement('aside'); el.id = 'cue-panel'; el.className = 'cue-panel no-hl'; el.hidden = true; document.body.append(el); }
+    return el;
+  }
+  function hideCue() {
+    cuePanel().hidden = true;
+    document.querySelectorAll('.cue-inline').forEach((x) => x.remove());
+    cueCard?.classList.remove('cue-on');
+    cueCard = null;
+  }
+  function showCue(card) {
+    const title = card.dataset.cue;
+    if (cueCard === card) { hideCue(); return; }
+    hideCue();
+    cueCard = card;
+    card.classList.add('cue-on');
+    if (wide()) { const el = cuePanel(); el.innerHTML = cueHtml(title); el.hidden = false; el.scrollTop = 0; }
+    else {
+      const d = document.createElement('div');
+      d.className = 'cue-inline no-hl';
+      d.innerHTML = cueHtml(title);
+      (card.querySelector('[data-cue-show]') || card.querySelector('h3')).after(d);
+    }
+  }
+  // Close the cue when the sheet closes or shows another page.
+  const sheetEl = document.getElementById('sheet');
+  if (sheetEl) new MutationObserver(() => { if (cueCard && (sheetEl.hidden || !document.contains(cueCard))) hideCue(); })
+    .observe(sheetEl, { attributes: true, attributeFilter: ['hidden'], childList: true, subtree: true });
 
   // ── Supplementary: its own sheet, one tab per chapter ──
   let spCh = 16;
@@ -270,7 +325,7 @@ export function createQuickRef(sheet, systems) {
       <p class="qr-foot">Condensed from the FCOM Supplementary Procedures, Rev 57, in our own words. The FCOM${spCh === 16 ? ' and your de-icing programme' : ''} govern.</p>
     </div>`;
   }
-  function openSupp(n) { if (n) spCh = n; sheet.custom(suppPage(), 'supp'); }
+  function openSupp(n) { hideCue(); if (n) spCh = n; sheet.custom(suppPage(), 'supp'); }
   function redrawProcs() {
     const el = document.getElementById('pr-chap');
     if (!el) return;
@@ -283,6 +338,11 @@ export function createQuickRef(sheet, systems) {
   for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => { if (e.target.closest?.('#wz, #wz-cold')) wizardInput(e); });
   document.addEventListener('keydown', (e) => wizardKey(e));
   document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-cue-close]')) { hideCue(); return; }
+    const cc = e.target.closest('[data-cue-cockpit]');
+    if (cc) { const t = cc.dataset.cueCockpit; hideCue(); nav.demo?.(CUES[t], t); return; }
+    const cs = e.target.closest('[data-cue]');
+    if (cs && (e.target.closest('[data-cue-show]') || (!e.target.closest('button, a, input, .cue-inline') && !getSelection()?.toString()))) { showCue(cs); return; }
     const wa = e.target.closest('[data-wz-ans],[data-wz-edit],[data-wz-tog],[data-wz-x],[data-wz-apt],[data-ct-apt]');
     if (wa && wizardClick(wa)) return;
     const lk = e.target.closest('[data-sp-proc]');
@@ -309,5 +369,5 @@ export function createQuickRef(sheet, systems) {
     tab = b.dataset.qrTab;
     open();
   });
-  return { open, openSupp, get key() { return 'quickref'; } };
+  return { open, openSupp, hideCue, get key() { return 'quickref'; } };
 }

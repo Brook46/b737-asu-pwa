@@ -288,6 +288,23 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   buttons, push-lights, MCP keys, caps and fire handles, a `bevel${id}` sheen
   on keys / caps / lamps, and a bezel round every annunciator.
 
+## Recognition cues and maneuvers (v49)
+
+- **Maneuvers** (`quickref.js` MANEUVERS) use the memory-item card: `cond` plus
+  `WHO(role, lines)` blocks (PF / PM / Captain / F/O) and `BOX(…, 'warn' | 'caution' | 'note')`.
+  Condensed in our own words but checked line by line against QRH MAN.1.1–1.14
+  (e.g. climb RA in landing configuration: A/P + A/T off, max thrust, "FLAPS 15",
+  PM flaps 15, positive rate on the altimeter → "GEAR UP"). Recheck the QRH before editing.
+- **Cues** (`modules/cues.js`): `CUES[title]` — keyed by the exact card title —
+  lists what you see (drawn lamps, fire switches, PFD / ND / engine-display
+  sketches), hear and feel, a cockpit `view`, and optionally a `demo`
+  `{ fails: [[sys, key]], scen, phase, label }`. Tapping a card shows the cue on
+  the left (`#cue-panel`, > 760 px) or inline (phone). "See it in the cockpit"
+  calls `nav.demo` → `demoCue()` in app.js: sets the phase, failures and warning
+  scenario, switches to the cockpit (`goView`), and shows a Demo bar whose Clear
+  undoes them and restores the phase. View `capt` = captain's lights, PFD, ND,
+  engines and gear.
+
 ## Takeoff malfunction drill (v26)
 
 `rto.js` (cockpit bar → ⚠ TAKEOFF MALFUNCTION): lines up via `prepareTakeoff(at)`

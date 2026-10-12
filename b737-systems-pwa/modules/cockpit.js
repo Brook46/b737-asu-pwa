@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=48';
-import { createOverhead } from './overhead.js?v=48';
-import * as CAB from './cockpit-cab.js?v=48';
-import { buildStand } from './cockpit-stand.js?v=48';
-import * as D from './cockpit-displays.js?v=48';
-import { drawCDUScreen } from './cdu.js?v=48';
+import * as THREE from '../vendor/three.module.min.js?v=49';
+import { createOverhead } from './overhead.js?v=49';
+import * as CAB from './cockpit-cab.js?v=49';
+import { buildStand } from './cockpit-stand.js?v=49';
+import * as D from './cockpit-displays.js?v=49';
+import { drawCDUScreen } from './cdu.js?v=49';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.34, -0.52);
@@ -23,6 +23,7 @@ export const VIEWS = {
   out: { eye: [0.12, 1.34, -0.52], yaw: 0, pitch: -9, fov: 64 },
   rto: { eye: [0.12, 1.36, -0.5], yaw: 22, pitch: -15, fov: 84 },    // captain's seat: both panels, glareshield and the runway
   panel: { eye: [0.3, 1.2, -0.28], look: [0.86, 0.86, -0.25], fov: 52 },
+  capt: { eye: [0.28, 1.24, -0.42], look: [0.86, 0.9, -0.36], fov: 58 },   // captain's lights, PFD, ND, engines, gear
   center: { eye: [0.36, 1.16, 0], look: [0.86, 0.82, 0], fov: 46 },
   overhead: { eye: [0.12, 1.34, 0], look: [0.24, 1.82, 0], fov: 66 },
   mcp: { eye: [0.4, 1.2, 0], look: [0.745, 1.08, 0], fov: 46 },

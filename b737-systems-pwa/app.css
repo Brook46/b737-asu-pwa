@@ -836,7 +836,7 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .qr-go { margin: 4px 0 0 10px; font-weight: 700; }
 .qr-box { font-size: 13px; line-height: 1.35; font-weight: 700; padding: 7px 9px; margin: 2px 0 10px; border: 2px solid; border-radius: 3px; }
 .qr-box.caution { border-color: #f08c00; background: rgba(240,140,0,.12); }
-.qr-box.warn { border-color: #d62828; background: rgba(214,40,40,.12); color: #ff8a80; }
+.qr-box.warn { border-color: #d62828; background: rgba(214,40,40,.10); color: #b71c1c; }
 .qr-sep { border-top: 2px dashed var(--ink-3); margin: 12px 0 0; opacity: .7; }
 .qr-line.long .qr-dots { display: none; }
 .qr-line.long .qr-b { flex-basis: 100%; max-width: none; text-align: left; }
@@ -979,3 +979,50 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .wz-relb .pr-rel { padding: 0; }
 .wz-relb .wz-g { margin-top: 0; }
 .pr-head.static { cursor: default; }
+
+/* ── Recognition cues (QRH memory items / maneuvers) ── */
+.qr-who { margin: 0 0 8px; }
+.qr-who .qr-w { display: inline-block; font: 700 11px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); background: rgba(127,127,127,.14); padding: 1px 6px; border-radius: 3px; margin-bottom: 3px; }
+.qr-who ul { margin: 2px 0 0; padding-left: 18px; font-size: 13.5px; line-height: 1.4; }
+.qr-who li { margin: 2px 0; }
+.qr-box.note { border-color: var(--line); border-width: 1px; font-weight: 400; background: rgba(127,127,127,.08); }
+.qr-card[data-cue] { cursor: pointer; }
+.qr-card.cue-on { outline: 2px solid #28a0f2; outline-offset: -1px; }
+.qr-cue-b { display: inline-block; margin: 0 0 8px; font: 600 11.5px var(--sans); color: #1f8ad8; background: none; border: 1px solid currentColor; border-radius: 12px; padding: 3px 10px; cursor: pointer; }
+.cue-panel {
+  position: fixed; z-index: 31; top: calc(14px + var(--safe-t)); left: calc(14px + var(--safe-l, 0px)); bottom: calc(14px + var(--safe-b));
+  width: min(380px, calc(100vw - min(420px, 42vw) - 48px)); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: #101418; color: #e8edf1; border: 1px solid #2a3138; box-shadow: 0 18px 50px rgba(0,0,0,.3);
+  animation: sheet-in .28s cubic-bezier(.2,.8,.2,1);
+}
+.cue-panel[hidden] { display: none; }
+.cue-inline { background: #101418; color: #e8edf1; border-radius: 6px; margin: 4px 0 10px; cursor: default; }
+.cue-card { padding: 14px 16px 16px; font-size: 13px; line-height: 1.4; }
+.cue-top { display: flex; justify-content: space-between; align-items: center; }
+.cue-k { font: 500 10.5px var(--mono); letter-spacing: .16em; color: #8a96a0; }
+.cue-x { background: none; border: 0; color: #8a96a0; font-size: 16px; cursor: pointer; padding: 2px 4px; }
+.cue-t { font: 700 16px/1.25 var(--sans); margin: 4px 0 8px; }
+.cue-h { font: 600 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #8a96a0; margin: 10px 0 5px; }
+.cue-see { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.cue-l { margin: 0; padding-left: 16px; }
+.cue-l li { margin: 2px 0; }
+.cue-l.hear li { color: #ffd27a; }
+.cue-lamp { display: inline-flex; align-items: center; justify-content: center; text-align: center; min-width: 74px; min-height: 40px; padding: 4px 6px; font: 700 10.5px/1.15 var(--sans); letter-spacing: .04em; border-radius: 3px; background: #1d1d1d; border: 2px solid #000; }
+.cue-lamp.red { color: #fff; background: #d81e1e; box-shadow: 0 0 14px rgba(255,40,40,.7); }
+.cue-lamp.amber { color: #1a1000; background: #ffb21e; box-shadow: 0 0 12px rgba(255,178,30,.6); }
+.cue-fsw { display: inline-flex; flex-direction: column; align-items: center; gap: 3px; }
+.cue-fsw-h { display: flex; align-items: center; justify-content: center; width: 78px; height: 34px; border-radius: 6px; background: #e01b1b; color: #fff; font: 800 13px var(--sans); box-shadow: 0 0 16px rgba(255,40,40,.75), inset 0 -6px 0 rgba(0,0,0,.25); }
+.cue-fsw-l { font: 500 10px var(--mono); color: #8a96a0; }
+.cue-gear { display: inline-flex; gap: 4px; }
+.cue-gear .cue-lamp { min-width: 52px; }
+.cue-fig { margin: 0; width: calc(50% - 4px); }
+.cue-fig:only-of-type { width: 100%; max-width: 280px; }
+.cue-fig figcaption { font: 500 10px var(--mono); color: #8a96a0; text-align: center; margin-top: 2px; }
+.cue-svg { display: block; width: 100%; height: auto; border-radius: 4px; border: 1px solid #2a3138; }
+.cue-act { margin: 14px 0 4px; }
+.cue-act .tag-btn { display: block; width: 100%; height: auto; white-space: normal; line-height: 1.35; padding: 8px 10px; letter-spacing: .04em; text-align: center; color: #fff; background: #1f6fb8; border-color: #1f6fb8; }
+.cue-inline .cue-t { display: none; }
+.cue-foot { font-size: 11px; color: #6e7a84; margin: 8px 0 0; }
+.cue-demo { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); top: calc(10px + var(--safe-t)); display: flex; gap: 8px; align-items: center; padding: 6px 8px 6px 14px; background: #101418; color: #fff; border: 1px solid #d81e1e; border-radius: 20px; font: 600 12.5px var(--sans); box-shadow: 0 8px 24px rgba(0,0,0,.35); white-space: nowrap; }
+.cue-demo { max-width: calc(100vw - 20px); }
+.cue-demo > span { overflow: hidden; text-overflow: ellipsis; }

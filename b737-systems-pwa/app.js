@@ -4,37 +4,37 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=48';
-import { createOutside } from './modules/outside.js?v=48';
-import { createViewCube } from './modules/viewcube.js?v=48';
-import { createAirLink } from './modules/airlink.js?v=48';
-import { createQuickRef } from './modules/quickref.js?v=48';
-import { installResumeHardening } from './modules/resume.js?v=48';
-import { createScene } from './modules/scene.js?v=48';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=48';
-import { createDims } from './modules/dims.js?v=48';
-import { createSystems3D } from './modules/systems3d.js?v=48';
-import { createOverlay } from './modules/overlay.js?v=48';
-import { createSheet } from './modules/sheet.js?v=48';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=48';
-import { SYSTEMS, READY } from './modules/systems.js?v=48';
-import { createSearch } from './modules/search.js?v=48';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=48';
-import { createProgress } from './modules/progress.js?v=48';
-import { createLearn } from './modules/learn.js?v=48';
-import { explain } from './modules/cockpit-info.js?v=48';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=48';
-import { createCockpit } from './modules/cockpit.js?v=48';
-import { nav, geo, loadNav } from './modules/navdb.js?v=48';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=48';
-import { createCDU } from './modules/cdu.js?v=48';
-import { createCDUView } from './modules/cdu-view.js?v=48';
-import { createFlightSim } from './modules/flightsim.js?v=48';
-import { createStateBar } from './modules/statebar.js?v=48';
-import { createPanelViewer } from './modules/panelview.js?v=48';
-import { createRtoDrill } from './modules/rto.js?v=48';
-import { tts } from './modules/speech.js?v=48';
-import { engState } from './modules/sys-engines.js?v=48';
+import { makeEnv } from './modules/world.js?v=49';
+import { createOutside } from './modules/outside.js?v=49';
+import { createViewCube } from './modules/viewcube.js?v=49';
+import { createAirLink } from './modules/airlink.js?v=49';
+import { createQuickRef } from './modules/quickref.js?v=49';
+import { installResumeHardening } from './modules/resume.js?v=49';
+import { createScene } from './modules/scene.js?v=49';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=49';
+import { createDims } from './modules/dims.js?v=49';
+import { createSystems3D } from './modules/systems3d.js?v=49';
+import { createOverlay } from './modules/overlay.js?v=49';
+import { createSheet } from './modules/sheet.js?v=49';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=49';
+import { SYSTEMS, READY } from './modules/systems.js?v=49';
+import { createSearch } from './modules/search.js?v=49';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=49';
+import { createProgress } from './modules/progress.js?v=49';
+import { createLearn } from './modules/learn.js?v=49';
+import { explain } from './modules/cockpit-info.js?v=49';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=49';
+import { createCockpit } from './modules/cockpit.js?v=49';
+import { nav, geo, loadNav } from './modules/navdb.js?v=49';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=49';
+import { createCDU } from './modules/cdu.js?v=49';
+import { createCDUView } from './modules/cdu-view.js?v=49';
+import { createFlightSim } from './modules/flightsim.js?v=49';
+import { createStateBar } from './modules/statebar.js?v=49';
+import { createPanelViewer } from './modules/panelview.js?v=49';
+import { createRtoDrill } from './modules/rto.js?v=49';
+import { tts } from './modules/speech.js?v=49';
+import { engState } from './modules/sys-engines.js?v=49';
 
 const $ = (id) => document.getElementById(id);
 
@@ -838,7 +838,46 @@ function init() {
   $('learn-btn').addEventListener('click', () => (sheet.key === 'learn' && !$('sheet').hidden ? sheet.hide() : learn.dashboard()));
 
   // ── Quick reference (memory items, maneuvers, limits) ──
-  const quickref = createQuickRef(sheet, SYSTEMS);
+  // Recognition cue → the cockpit: set up the condition (failures, a warning
+  // scenario, a phase), sit in the right seat view, offer a way back.
+  let demoOn = null;
+  function clearDemo() {
+    if (!demoOn) return;
+    for (const [sys, k] of demoOn.fails || []) { const f = stateOf(sys)?.fail; if (f) f[k] = false; }
+    if (demoOn.scen && stateOf('warnings').mem?.scen === demoOn.scen) ctxFor('warnings').action('scen', demoOn.scen);
+    const back = demoOn.was;
+    demoOn = null;
+    $('cue-demo')?.remove();
+    if (back && back !== phase) setPhase(back); else refresh();
+  }
+  function demoCue(cue, title) {
+    if (!cue) return;
+    clearDemo();
+    sheet.hide();
+    const d = cue.demo;
+    if (d) {
+      const was = phase;
+      if (d.phase && d.phase !== phase) setPhase(d.phase);
+      for (const [sys, k] of d.fails || []) stateOf(sys).fail[k] = true;
+      if (d.scen && stateOf('warnings').mem?.scen !== d.scen) ctxFor('warnings').action('scen', d.scen);
+      demoOn = { ...d, was };
+      refresh();
+    }
+    if (view !== 'cockpit') setView('cockpit');
+    cockpit?.goView(cue.view || 'out');
+    const bar = document.createElement('div');
+    bar.id = 'cue-demo';
+    bar.className = 'cue-demo';
+    bar.innerHTML = `<span>${d ? `Demo · ${d.label}` : `Where to look · ${title}`}</span><button class="tag tag-btn" data-cd="back">‹ Card</button>${d ? '<button class="tag tag-btn" data-cd="clear">Clear</button>' : '<button class="tag tag-btn" data-cd="clear">✕</button>'}`;
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-cd]');
+      if (!b) return;
+      clearDemo(); bar.remove();
+      if (b.dataset.cd === 'back') quickref.open();
+    });
+    document.body.append(bar);
+  }
+  const quickref = createQuickRef(sheet, SYSTEMS, { demo: demoCue });
   $('qr-btn').addEventListener('click', () => (sheet.key === 'quickref' && !$('sheet').hidden ? sheet.hide() : quickref.open()));
   $('sp-btn').addEventListener('click', () => (sheet.key === 'supp' && !$('sheet').hidden ? sheet.hide() : quickref.openSupp()));
 
