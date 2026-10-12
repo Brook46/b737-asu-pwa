@@ -93,6 +93,25 @@ const pt = (r, deg) => [r * Math.sin((deg * Math.PI) / 180), -r * Math.cos((deg 
  * in panel units and an act(px, py) that does what a tap there would do —
  * the 3D cockpit uses that to operate panels drawn as textures.
  */
+// Where each panel sits on the flight deck (FCOM 1.20 panel figures, the same
+// layout the 3D cockpit uses). The panel list of a schematic groups by area,
+// with a dashed divider and the area's name wherever it changes.
+const AREA = {
+  'Forward overhead': ['Flight control', 'Instrument transfer', 'Displays', 'Fuel', 'Electrical', 'Generator drive and standby power',
+    'Ground power and bus switching', 'APU', 'Panel lights', 'Equipment cooling', 'Cabin signs and equipment cooling', 'Calls', 'Wipers',
+    'Window heat', 'Probe heat', 'Wing and engine anti-ice', 'Hydraulic pumps', 'Door lights', 'Voice recorder', 'Cabin altitude',
+    'Air temperature', 'Bleed air', 'Cabin pressurization', 'Lights L', 'APU switch', 'Engine start', 'Lights R'],
+  'Aft overhead': ['IRS mode select', 'Service interphone', 'Oxygen', 'Engine panel', 'Warning tests'],
+  'Glareshield': ['Annunciator L', 'Annunciator R', 'MCP'],
+  'Forward panels': ['Center panel', 'Landing gear', 'Display select (captain)', 'Display select (first officer)', 'Autoflight lights',
+    'Speedbrake lights L', 'Speedbrake lights R', 'Takeoff config and cabin altitude', 'Icing advisory', 'Nose wheel steering', 'Brake pressure', 'GPWS'],
+  'Forward electronic panel': ['CDU'],
+  'Control stand': ['Parking brake', 'Stabilizer trim', 'Flaps and speedbrake', 'Start levers'],
+  'Aft electronic panel': ['Fire protection', 'Cargo fire', 'VHF comm', 'Audio control panel', 'Nav radios', 'Flight deck door', 'Transponder'],
+};
+const AREA_OF = new Map(Object.entries(AREA).flatMap(([a, list]) => list.map((t) => [t, a])));
+export const areaOf = (title) => AREA_OF.get(title) || null;
+
 export function createOverhead(host, ctx) {
   const ctxRoot = ctx;
   host = host || document.createElement('div');
@@ -100,12 +119,22 @@ export function createOverhead(host, ctx) {
   const binds = [];
   const panels = [];
   const update = (res) => { for (const b of binds) b(res); };
+  let lastArea;      // undefined until the first panel with a known area
 
   /** Start a new panel drawing. */
   function panel(title, h, o = {}) {
     const id = ++uid;
     const wrap = document.createElement('div');
     wrap.className = 'ovh-wrap';
+    // A new flight-deck area: its name, and a dashed line if panels came before.
+    const area = o.area || areaOf(title);
+    if (area && area !== lastArea) {
+      const sep = document.createElement('div');
+      sep.className = 'ovh-area' + (lastArea !== undefined ? ' sep' : '');
+      sep.textContent = area;
+      host.append(sep);
+    }
+    if (area) lastArea = area;
     // o.w: panel width in units (300 = a full overhead column; the narrow
     // centre column of the forward overhead is 150).
     const W = o.w || 300;

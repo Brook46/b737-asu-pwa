@@ -1,7 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=53';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=53';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=53';
-import { CUES, cueHtml } from './cues.js?v=53';
+import { SUPPLEMENTARY } from './supplementary.js?v=54';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=54';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=54';
+import { CUES, cueHtml } from './cues.js?v=54';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -206,7 +206,12 @@ export function createQuickRef(sheet, systems, nav = {}) {
   // Memory items as printed: numbered steps with leader dots, sub-lines,
   // ►► instructions, boxed Caution / Warning, Condition panel with tags.
   const md = (x) => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  const line = (a, v, m) => `<div class="qr-line${v && v.length > 28 ? ' long' : ''}"><span class="qr-a">${md(a)}</span>${m ? `<span class="qr-m">${md(m)}</span>` : ''}<span class="qr-dots"></span>${v ? `<span class="qr-b">${md(v)}</span>` : ''}</div>`;
+  // Short value: item …… CONFIRM VALUE on one line (the item wraps, never the
+  // value). Long value: item and CONFIRM on the first line, the value below.
+  const chip = (m) => (m ? `<span class="qr-m">${md(m)}</span>` : '');
+  const line = (a, v, m) => (v && v.length > 28
+    ? `<div class="qr-line long"><span class="qr-a">${md(a)}</span>${chip(m)}${v ? `<span class="qr-b">${md(v)}</span>` : ''}</div>`
+    : `<div class="qr-line"><span class="qr-a">${md(a)}</span><span class="qr-dots"></span><span class="qr-r">${chip(m)}${v ? `<span class="qr-b">${md(v)}</span>` : ''}</span></div>`);
   const subHtml = (x) => {
     if (typeof x === 'string') return `<div class="qr-sub">${md(x)}</div>`;
     if (Array.isArray(x)) return `<div class="qr-sub">${line(x[0], x[1])}</div>`;

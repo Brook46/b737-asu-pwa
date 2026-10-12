@@ -44,6 +44,7 @@ export function createSheet(el, body, closeBtn, { onRelated, onClose, onStar, on
 
   function show(html, key = null) {
     current = key;
+    el.classList.toggle('wide', key === 'quickref' || key === 'supp');
     body.innerHTML = html;
     body.scrollTop = 0;
     el.hidden = false;

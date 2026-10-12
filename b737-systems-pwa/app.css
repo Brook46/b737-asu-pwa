@@ -332,6 +332,9 @@ button { font: inherit; color: inherit; }
 
 /* ── Overhead panels (overhead.js) ─────────────────────────────────────── */
 .ovh-wrap { margin: 0 0 8px; }
+/* Flight-deck area of the panels that follow (overhead, aft electronic panel…). */
+.ovh-area { font: 600 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #9aa4ad; margin: 2px 0 6px; }
+.ovh-area.sep { border-top: 1.5px dashed #6b747c; padding-top: 10px; margin-top: 12px; }
 .ovh { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; }
 .ovh-bg { fill: #6d747a; stroke: #3b4044; stroke-width: 2; }
 .ovh-band { fill: #4f555a; }
@@ -826,11 +829,13 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .qr-row { display: flex; gap: 8px; margin: 0 0 8px; font-size: 13.5px; line-height: 1.35; }
 .qr-n { font: 700 12.5px/1.45 var(--mono); min-width: 16px; }
 .qr-fill { flex: 1 1 auto; min-width: 0; }
-.qr-line { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.qr-line { display: flex; align-items: baseline; gap: 6px; }
+.qr-line.long { flex-wrap: wrap; }
+.qr-line .qr-r { flex: none; display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .qr-line .qr-a { flex: 0 1 auto; }
-.qr-line .qr-m { font: 700 11px/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: #5a3500; background: #ffd166; padding: 0 6px; border-radius: 3px; margin-left: 6px; white-space: nowrap; }
+.qr-line .qr-m { font: 700 10.5px/1.5 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: #5a3500; background: #ffd166; padding: 0 5px; border-radius: 3px; white-space: nowrap; }
 .qr-line .qr-dots { flex: 1 1 14px; min-width: 10px; border-bottom: 1px dotted var(--ink-3); transform: translateY(-3px); }
-.qr-line .qr-b { font: 700 13px/1.35 var(--mono); text-align: right; max-width: 60%; }
+.qr-line .qr-b { font: 700 13px/1.35 var(--mono); text-align: right; }
 .qr-t { margin-bottom: 2px; }
 .qr-sub { margin: 3px 0 0 10px; padding-left: 8px; border-left: 2px solid var(--line); }
 .qr-go { margin: 4px 0 0 10px; font-weight: 700; }
@@ -986,7 +991,7 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .qr-card.cue-on { outline: 2px solid #28a0f2; outline-offset: -1px; }
 .cue-panel {
   position: fixed; z-index: 31; top: calc(14px + var(--safe-t)); left: calc(14px + var(--safe-l, 0px)); bottom: calc(14px + var(--safe-b));
-  width: min(380px, calc(100vw - min(420px, 42vw) - 48px)); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  width: min(380px, calc(100vw - min(560px, 50vw) - 48px)); overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: #101418; color: #e8edf1; border: 1px solid #2a3138; box-shadow: 0 18px 50px rgba(0,0,0,.3);
   animation: sheet-in .28s cubic-bezier(.2,.8,.2,1);
 }
@@ -1039,3 +1044,7 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .cue-pop-fig.du { flex: 0 1 340px; }
 .cue-pop-fig > .cp-node { display: block; width: 100%; height: auto; border-radius: 4px; }
 .cue-pop-fig figcaption { font: 500 10.5px var(--mono); color: #8a96a0; text-align: center; margin-top: 4px; }
+
+/* QRH and Supplementary read better wider (fewer wrapped steps). */
+.sheet.wide { width: min(560px, 50vw); }
+@media (max-width: 760px) { .sheet.wide { width: auto; } }

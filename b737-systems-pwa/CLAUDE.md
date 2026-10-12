@@ -331,6 +331,16 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   text index puts a space between table cells so a label + value selection
   matches.
 
+## Panel lists by flight-deck area (v54)
+
+`overhead.js` `AREA` maps every panel title to its flight-deck area (forward /
+aft overhead, glareshield, forward panels, control stand, forward / aft
+electronic panel — the same layout cockpit.js places). `createOverhead` writes
+the area name before the first panel of each area, with a dashed line when it
+changes, so a schematic's panel list shows what sits where. New panel → add its
+title to `AREA`. QRH / Supplementary sheets open wider (`.sheet.wide`); a
+memory-item row keeps "CONFIRM value" on the item's line (`.qr-r`).
+
 ## Takeoff malfunction drill (v26)
 
 `rto.js` (cockpit bar → ⚠ TAKEOFF MALFUNCTION): lines up via `prepareTakeoff(at)`
