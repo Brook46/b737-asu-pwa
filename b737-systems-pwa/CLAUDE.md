@@ -261,6 +261,22 @@ flight deck (photos are reference only — never copy their artwork):
 - Panel kit: `panel(title, h, { w })` for non-300-unit panels; cockpit maps
   taps and textures with `P.w`.
 
+## Cab proportions (v48)
+
+Checked against a 360° panorama of a 737-800 flight deck (reference only —
+nothing copied): the design eye is 1.34 m (EYE, every VIEWS eye +0.1), so
+the glareshield top (1.14) sits ~17° below the horizon over the nose; the
+overhead front edge is at 1.66 (OV_FRONT) right behind the windshield top.
+Windows (cockpit-cab.js `windows`): No. 1 wide — each to z ±0.8 at the sill
+— so the No. 1 / No. 2 post is outboard of the pilot's eye (z ±0.52); No. 2
+and No. 3 from shoulder height (1.10) up to the lining; slim frame tops
+(`frameTop` 0.1). `lining()` closes the roof from the overhead's side edges
+(z ±0.54, following its slope) to the side walls, so no sky shows. Light
+grey sidewalls and frames, dark ceiling lining, black glareshield (the MCP
+sits on its front face — keep that face clear). `consoles()`: side consoles
+under the side windows with the captain's nose wheel steering tiller, an
+oxygen mask box each side and a map light (cockpit-info notes for both).
+
 ## Panel viewer and depth (v23)
 
 - Tapping a panel or screen in the cockpit shows its info card with

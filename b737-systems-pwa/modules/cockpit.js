@@ -7,25 +7,27 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=47';
-import { createOverhead } from './overhead.js?v=47';
-import * as CAB from './cockpit-cab.js?v=47';
-import { buildStand } from './cockpit-stand.js?v=47';
-import * as D from './cockpit-displays.js?v=47';
-import { drawCDUScreen } from './cdu.js?v=47';
+import * as THREE from '../vendor/three.module.min.js?v=48';
+import { createOverhead } from './overhead.js?v=48';
+import * as CAB from './cockpit-cab.js?v=48';
+import { buildStand } from './cockpit-stand.js?v=48';
+import * as D from './cockpit-displays.js?v=48';
+import { drawCDUScreen } from './cdu.js?v=48';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
-const EYE = new THREE.Vector3(0.12, 1.24, -0.52);
+const EYE = new THREE.Vector3(0.12, 1.34, -0.52);
 
 export const VIEWS = {
-  out: { eye: [0.12, 1.24, -0.52], yaw: 0, pitch: -6, fov: 62 },
-  rto: { eye: [0.12, 1.26, -0.5], yaw: 22, pitch: -13, fov: 84 },    // captain's seat: both panels, glareshield and the runway
-  panel: { eye: [0.3, 1.16, -0.28], look: [0.86, 0.86, -0.25], fov: 52 },
-  center: { eye: [0.36, 1.12, 0], look: [0.86, 0.82, 0], fov: 46 },
-  overhead: { eye: [0.12, 1.26, 0], look: [0.24, 1.75, 0], fov: 66 },
-  mcp: { eye: [0.4, 1.16, 0], look: [0.745, 1.08, 0], fov: 46 },
-  pedestal: { eye: [0.22, 1.26, -0.08], look: [0.38, 0.7, 0], fov: 52 },
-  aft: { eye: [0.25, 1.2, 0], look: [-0.6, 0.85, 0], fov: 78 },
+  // The design eye sits well above the glareshield (over-nose view) and the
+  // side window sills are at shoulder height, as on the airplane.
+  out: { eye: [0.12, 1.34, -0.52], yaw: 0, pitch: -9, fov: 64 },
+  rto: { eye: [0.12, 1.36, -0.5], yaw: 22, pitch: -15, fov: 84 },    // captain's seat: both panels, glareshield and the runway
+  panel: { eye: [0.3, 1.2, -0.28], look: [0.86, 0.86, -0.25], fov: 52 },
+  center: { eye: [0.36, 1.16, 0], look: [0.86, 0.82, 0], fov: 46 },
+  overhead: { eye: [0.12, 1.34, 0], look: [0.24, 1.82, 0], fov: 66 },
+  mcp: { eye: [0.4, 1.2, 0], look: [0.745, 1.08, 0], fov: 46 },
+  pedestal: { eye: [0.22, 1.34, -0.08], look: [0.38, 0.7, 0], fov: 52 },
+  aft: { eye: [0.25, 1.3, 0], look: [-0.6, 0.9, 0], fov: 78 },
 };
 
 function canvasTex(w, h) {
@@ -182,7 +184,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
 
   // ── Materials ──
   const M = {
-    shell: new THREE.MeshStandardMaterial({ color: 0x5c656d, roughness: 0.85 }),
+    shell: new THREE.MeshStandardMaterial({ color: 0x8c9398, roughness: 0.85 }),      // light grey lining, as on the airplane
     panel: new THREE.MeshStandardMaterial({ color: 0x6d747a, roughness: 0.75 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x1f2225, roughness: 0.7 }),
     glare: new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: 0.85 }),
@@ -192,8 +194,8 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     seat: new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.9 }),
     glass: new THREE.MeshBasicMaterial({ color: 0xa9cdee, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide }),
     // Flight deck lining and the control column.
-    trim: new THREE.MeshStandardMaterial({ color: 0x7d878f, roughness: 0.55 }),
-    trimSide: new THREE.MeshStandardMaterial({ color: 0x6b747b, roughness: 0.7, side: THREE.DoubleSide }),
+    trim: new THREE.MeshStandardMaterial({ color: 0xa3aaaf, roughness: 0.55 }),
+    trimSide: new THREE.MeshStandardMaterial({ color: 0x8a9196, roughness: 0.7, side: THREE.DoubleSide }),
     boot: new THREE.MeshStandardMaterial({ color: 0x121314, roughness: 0.95 }),
     column: new THREE.MeshStandardMaterial({ color: 0x2a2d30, roughness: 0.45, metalness: 0.2 }),
     wheel: new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.35, metalness: 0.15 }),
@@ -208,35 +210,29 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   const floor = add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.02, 2.2), M.dark));
   floor.position.set(0.2, -0.01, 0);
   for (const s of [-1, 1]) {
-    const wall = add(new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.08, 0.04), M.shell));
-    wall.position.set(0.1, 0.54, s * 1.06);
-    const sill = add(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 0.2), M.shell));
-    sill.position.set(0.3, 1.0, s * 0.96);
+    const wall = add(new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.04, 0.04), M.shell));
+    wall.position.set(0.1, 0.52, s * 1.06);
   }
+  CAB.consoles(add, M, pickables);
   const ceil = add(new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.04, 2.1), M.shell));
-  ceil.position.set(-0.55, 2.0, 0);
-  const bulk = add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.0, 2.1), M.shell));
-  bulk.position.set(-1.0, 1.0, 0);
+  ceil.position.set(-0.55, 2.3, 0);
+  const bulk = add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.3, 2.1), M.shell));
+  bulk.position.set(-1.0, 1.15, 0);
 
   // ── Windshield: No. 1 (front), No. 2 (sliding), No. 3 in moulded frames ──
   const cab = CAB.windows(add, M);
   for (const m of cab.compass) pickables.push(m);
   for (const s of [-1, 1]) {
     // Side wall from the sill up to the roof, aft of No. 3.
-    const up = add(new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.96, 0.04), M.shell));
-    up.position.set(-0.63, 1.54, s * 1.05);
+    const up = add(new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.26, 0.04), M.shell));
+    up.position.set(-0.63, 1.67, s * 1.05);
   }
-  // Roof skin over the windows.
-  const roofG = new THREE.BufferGeometry();
-  roofG.setAttribute('position', new THREE.Float32BufferAttribute([0.82, 1.6, -0.6, 0.82, 1.6, 0.6, 0.3, 1.86, 0.95, 0.3, 1.86, -0.95], 3));
-  roofG.setIndex([0, 1, 2, 0, 2, 3]); roofG.computeVertexNormals();
-  add(new THREE.Mesh(roofG, new THREE.MeshStandardMaterial({ color: 0x5c656d, roughness: 0.85, side: THREE.DoubleSide })));
 
   // ── Glareshield ──
   // Top of the glareshield, and its sloped front face that carries the MCP
   // and the two EFIS control panels.
-  const glare = add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 2.0), M.glare));
-  glare.position.set(0.9, 1.12, 0);
+  const glare = add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 2.0), M.glare));
+  glare.position.set(0.9, 1.11, 0);
   add(plate(2.0, 0.12, M.glare, [0.752, 1.08, 0], [-1, 0.32, 0]));
 
   // ── Main instrument panel ──
@@ -442,7 +438,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   const update3d = (sys) => { for (const p of parts3d) if (!sys || p.sys === sys) p.fn(); };
 
   // ── Forward overhead: system panels as textures, in four columns ──
-  const OV_FRONT = new THREE.Vector3(0.64, 1.6, 0);
+  const OV_FRONT = new THREE.Vector3(0.64, 1.66, 0);
   const OV_T = new THREE.Vector3(-0.95, 0.31, 0).normalize();        // along the slope, aft
   const OV_N = new THREE.Vector3(-0.31, -0.95, 0).normalize();       // facing down and aft
   // The overhead's frame: seam grey between the panels, as on the airplane.
@@ -568,6 +564,10 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     ovBase.geometry.dispose();
     ovBase.geometry = new THREE.BoxGeometry(to - from, 0.04, 1.08);
     ovBase.position.copy(OV_FRONT).addScaledVector(OV_T, (from + to) / 2).addScaledVector(OV_N, -0.03);
+    // Lining from the overhead's side edges out to the walls (no sky between).
+    const half = 0.54;
+    CAB.lining(add, (t, s) => OV_FRONT.clone().addScaledVector(OV_T, t).addScaledVector(OV_N, -0.05).add(new THREE.Vector3(0, 0, s * half)), from, to + 0.05,
+      (x) => (x > 0.35 ? 1.66 : x > 0.05 ? 1.6 : Math.min(2.2, 1.6 + (0.05 - x) * 0.45)));
   }
   // Panels that live elsewhere: the fire protection panel on the aft pedestal.
   function placePanel(sys, title, pos, normal, up, w = 0.2) {

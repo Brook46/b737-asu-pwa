@@ -10,7 +10,7 @@
 //               side, P6 first officer side), drawn as textures.
 // Cockpit frame: metres, +x forward, +y up, +z right; captain at z −0.52.
 
-import * as THREE from '../vendor/three.module.min.js?v=47';
+import * as THREE from '../vendor/three.module.min.js?v=48';
 
 const V = (a) => new THREE.Vector3(...a);
 
@@ -89,21 +89,25 @@ export function windows(add, M) {
   const out = [];
   for (const s of [-1, 1]) {
     // No. 1 (front), No. 2 (sliding), No. 3 (aft) — inner corners first.
-    const W1 = [[0.99, 1.135, s * 0.045], [0.905, 1.135, s * 0.585], [0.72, 1.515, s * 0.52], [0.8, 1.56, s * 0.045]];
-    const W2 = [[0.875, 1.14, s * 0.66], [0.47, 1.14, s * 0.955], [0.375, 1.49, s * 0.865], [0.695, 1.53, s * 0.585]];
-    const W3 = [[0.405, 1.15, s * 0.985], [0.05, 1.15, s * 1.035], [0.05, 1.42, s * 0.985], [0.31, 1.47, s * 0.9]];
-    for (const q of [W1, W2, W3]) out.push(windowFrame(add, q, { M, frame: q === W1 ? 0.04 : 0.05 }));
+    // Big panes, as on the airplane: No. 1 from the glareshield to the
+    // overhead, No. 2 and No. 3 from shoulder height up to the lining.
+    // No. 1 is wide: each pilot looks through its outboard part, with the
+    // No. 1 / No. 2 post well outboard of the eye (pilots sit at z ±0.52).
+    const W1 = [[0.99, 1.145, s * 0.03], [0.86, 1.145, s * 0.8], [0.64, 1.6, s * 0.7], [0.758, 1.665, s * 0.03]];
+    const W2 = [[0.83, 1.10, s * 0.85], [0.42, 1.10, s * 1.0], [0.33, 1.60, s * 0.92], [0.61, 1.62, s * 0.76]];
+    const W3 = [[0.38, 1.10, s * 1.01], [0.05, 1.10, s * 1.04], [0.05, 1.52, s * 0.98], [0.28, 1.56, s * 0.94]];
+    for (const q of [W1, W2, W3]) out.push(windowFrame(add, q, { M, frame: q === W1 ? 0.028 : 0.04, frameTop: 0.1 }));
     // Sill fairing under No. 2 / No. 3 down to the side wall.
     const sill = new THREE.BufferGeometry();
     sill.setAttribute('position', new THREE.Float32BufferAttribute([
-      0.9, 1.11, s * 0.62, 0.02, 1.11, s * 1.0, 0.02, 1.06, s * 1.06, 0.9, 1.06, s * 0.66,
+      0.86, 1.07, s * 0.84, 0.02, 1.07, s * 1.02, 0.02, 1.0, s * 1.06, 0.86, 1.0, s * 0.88,
     ], 3));
     sill.setIndex(s > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
     sill.computeVertexNormals();
     add(new THREE.Mesh(sill, M.trimSide));
     // No. 2 window crank handle, low and aft on the frame.
     const crank = add(new THREE.Group());
-    crank.position.set(0.5, 1.2, s * 0.93);
+    crank.position.set(0.47, 1.16, s * 0.975);
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.03, 16), M.metal);
     hub.rotation.x = Math.PI / 2;
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.012), M.metal);
@@ -116,13 +120,82 @@ export function windows(add, M) {
   }
   // Standby magnetic compass at the top of the centre post.
   const compass = add(new THREE.Group());
-  compass.position.set(0.78, 1.585, 0);
+  compass.position.set(0.745, 1.7, 0);
   const box = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.08), M.dark);
   const face = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.035), new THREE.MeshBasicMaterial({ color: 0xe9e2c8 }));
   face.position.set(-0.031, -0.004, 0); face.rotation.y = -Math.PI / 2;
   compass.add(box, face);
   box.userData.pick = face.userData.pick = { kind: 'static', name: 'Standby magnetic compass' };
   return { parts: out, compass: [box, face] };
+}
+
+/**
+ * Side consoles under the side windows: the captain's nose wheel steering
+ * tiller forward, an oxygen mask stowage box each side, a map light.
+ */
+export function consoles(add, M, pickables) {
+  for (const s of [-1, 1]) {
+    const box = add(new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.3, 0.26), M.shell));
+    box.position.set(0.42, 0.85, s * 0.92);
+    const top = add(new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.012, 0.26), M.trim));
+    top.position.set(0.42, 1.006, s * 0.92);
+    // Oxygen mask stowage box, aft on the console.
+    const mask = add(new THREE.Group());
+    mask.position.set(0.17, 1.05, s * 0.93);
+    const mb = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.08, 0.12), M.trim);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.004, 0.1), M.dark);
+    door.position.y = 0.041;
+    const tab = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.008, 0.02), M.red);
+    tab.position.set(0.04, 0.046, -s * 0.04);
+    mask.add(mb, door, tab);
+    const mp = { kind: 'static', name: 'Oxygen mask stowage box' };
+    for (const m of mask.children) { m.userData.pick = mp; pickables.push(m); }
+    // Map light on the console's inboard face.
+    const ml = add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.02, 14), M.metal));
+    ml.rotation.x = Math.PI / 2;
+    ml.position.set(0.7, 0.93, s * 0.79);
+  }
+  // Nose wheel steering tiller, forward on the captain's console.
+  const t = add(new THREE.Group());
+  t.position.set(0.66, 1.02, -0.88);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.075, 0.02, 24), M.dark);
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.009, 10, 32), M.wheel);
+  wheel.rotation.x = Math.PI / 2; wheel.position.y = 0.035;
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 12), M.wheel);
+  hub.position.y = 0.03;
+  const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.008, 0.012), M.wheel);
+  spoke.position.y = 0.035;
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.045, 12), M.knob);
+  knob.position.set(0.05, 0.06, 0.02);
+  t.add(base, wheel, hub, spoke, knob);
+  const tp = { kind: 'static', name: 'Nose wheel steering tiller' };
+  for (const m of t.children) { m.userData.pick = tp; pickables.push(m); }
+}
+
+/**
+ * The lining over the cabin: from the overhead panel's side edges out to the
+ * side walls, so no sky shows between the overhead and the windows.
+ * inner(t) gives a point on the overhead's side edge (t along its length).
+ */
+export function lining(add, inner, tFrom, tTo, outerY) {
+  const N = 18, pos = [], idx = [];
+  const mat = new THREE.MeshStandardMaterial({ color: 0x4e565c, roughness: 0.9, side: THREE.DoubleSide });
+  for (const s of [-1, 1]) {
+    const base = pos.length / 3;
+    for (let i = 0; i <= N; i++) {
+      const a = inner(tFrom + ((tTo - tFrom) * i) / N, s);
+      pos.push(a.x, a.y, a.z, a.x, outerY(a.x), s * 1.045);
+    }
+    for (let i = 0; i < N; i++) {
+      const k = base + i * 2;
+      idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return add(new THREE.Mesh(g, mat));
 }
 
 /**

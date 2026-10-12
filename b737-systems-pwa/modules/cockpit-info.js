@@ -102,6 +102,8 @@ const NOTES = {
   'Autopilot disconnect switch': 'First push disconnects both autopilots (red A/P light flashes, warning tone); a second push silences and resets.',
   'Microphone switch': 'Push-to-talk on the transmitter selected on the audio control panel (or interphone).',
   'Rudder pedals and brakes': 'Rudder (and up to 7° of nose wheel steering on the ground); press the tops for the wheel brakes. Both pedals fully down + the lever sets the parking brake.',
+  'Nose wheel steering tiller': 'Steers the nose wheel on the ground (system A hydraulics), up to 78° either way — far more than the rudder pedals give (7°). For taxiing and tight turns; the pedals take over for the takeoff and landing roll.',
+  'Oxygen mask stowage box': 'The quick-donning crew oxygen mask lives here. Squeeze the red release levers and pull: the harness inflates and oxygen flows. The regulator chooses normal (diluted) or 100 %; EMERGENCY gives positive pressure against smoke.',
   'No. 2 window handle': 'Opens the sliding No. 2 window — also an emergency exit for the flight crew, with an escape strap stowed above it.',
   'Standby magnetic compass': 'Liquid-damped compass with its correction card nearby; the last-resort heading reference (check the ISFD heading against it).',
   'P18 circuit breaker panel': 'Circuit breakers behind the captain. A tripped breaker is only reset on the ground after maintenance has said it is safe (FCOM NP.11).',
