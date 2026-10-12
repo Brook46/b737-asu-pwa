@@ -3,8 +3,8 @@
 // sharp at any size. Zip sits in the top bar on every screen, waves now and then,
 // and says something friendly when tapped. He also hops when you change screen.
 
-import { say } from './speech.js?v=25';
-import { playChime } from './sound.js?v=25';
+import { say } from './speech.js?v=26';
+import { playChime } from './sound.js?v=26';
 
 // What Zip says depends on the screen you're on, so he guides the journey.
 const LINES = {

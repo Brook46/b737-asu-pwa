@@ -1,4 +1,4 @@
-import { playWhoosh } from './sound.js?v=25';
+import { playWhoosh } from './sound.js?v=26';
 // starfield.js — animated twinkling-star background for the Explore screen, drawn
 // on a canvas (cheap: a couple hundred circles, no images). Nebula/galaxy blobs are
 // plain CSS (see app.css .galaxy) since a blurred gradient div is free to composite
@@ -34,18 +34,31 @@ export function initStarfield(canvas) {
         phase: Math.random() * Math.PI * 2,
         speed: Math.random() * 0.8 + 0.25,
         flare,
+        // Three depths: near stars drift more than far ones when the camera turns.
+        depth: flare ? 1 : [0.25, 0.5, 0.8][i % 3],
       };
     });
   }
 
+  // Parallax: the camera in Explore tells us how far it has turned (skyclub:view);
+  // each star shifts by that much, scaled by its depth, and wraps round the screen.
+  let offX = 0, offY = 0, tgtX = 0, tgtY = 0;
+  window.addEventListener('skyclub:view', (e) => {
+    tgtX = -(e.detail.yaw || 0) * 2.2;
+    tgtY = -((e.detail.pitch || 0) - 42) * 1.6;
+  });
+  const wrap = (v, m) => ((v % m) + m) % m;
+
   function drawStars(t) {
     ctx.clearRect(0, 0, w, h);
+    offX += (tgtX - offX) * 0.12; offY += (tgtY - offY) * 0.12;
     for (const s of stars) {
+      const sx = wrap(s.x + offX * s.depth, w), sy = wrap(s.y + offY * s.depth, h);
       const a = s.base * (0.55 + 0.45 * Math.sin((t / 1000) * s.speed + s.phase));
       ctx.globalAlpha = a;
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
       ctx.fill();
       if (s.flare) {
         const len = s.r * 9 + 3;
@@ -53,8 +66,8 @@ export function initStarfield(canvas) {
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.moveTo(s.x - len, s.y); ctx.lineTo(s.x + len, s.y);
-        ctx.moveTo(s.x, s.y - len); ctx.lineTo(s.x, s.y + len);
+        ctx.moveTo(sx - len, sy); ctx.lineTo(sx + len, sy);
+        ctx.moveTo(sx, sy - len); ctx.lineTo(sx, sy + len);
         ctx.stroke();
       }
     }
@@ -85,13 +98,17 @@ export function initStarfield(canvas) {
     };
   }
 
+  // Motion is per millisecond, not per frame, so a 120 Hz screen is not twice as fast.
+  let lastT = 0;
   function drawShootingStar(t) {
+    const step = lastT ? Math.min(50, t - lastT) : 16.67;
+    lastT = t;
     if (!shoot && t > shootAt && w > 0) { shoot = spawnShootingStar(); playWhoosh(); }
     if (!shoot) return;
 
-    shoot.life += 16;
-    shoot.x += shoot.vx;
-    shoot.y += shoot.vy;
+    shoot.life += step;
+    shoot.x += shoot.vx * (step / 16.67);
+    shoot.y += shoot.vy * (step / 16.67);
 
     // Fade in over the first fifth and out over the last third, so it never
     // pops into or out of existence mid-screen.

@@ -19,12 +19,12 @@
 //     and each spins about its real pole (Uranus on its side, Venus backwards).
 //   • The Sun is alive (sunfx.js).
 
-import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=25';
-import { SUN, MOON, PLANETS } from './catalog.js?v=25';
-import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=25';
-import { SunFX } from './sunfx.js?v=25';
-import { isSpotted } from './badges.js?v=25';
-import { describePhase } from './moonphase.js?v=25';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=26';
+import { SUN, MOON, PLANETS } from './catalog.js?v=26';
+import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=26';
+import { SunFX } from './sunfx.js?v=26';
+import { isSpotted } from './badges.js?v=26';
+import { describePhase } from './moonphase.js?v=26';
 
 const DEG = Math.PI / 180;
 
@@ -289,6 +289,8 @@ function frame(now) {
   const t = now / 1000;
   const dt = lastFrame ? Math.min(0.1, t - lastFrame) : 0;
   lastFrame = t;
+  press.k += (press.target - press.k) * Math.min(1, dt * 14);
+  if (press.target === 0 && press.k < 0.01) { press.k = 0; if (!press.id || press.target === 0) press.id = null; }
 
   // Camera easing, inertia, clean-view drift.
   pitch += (targetPitch - pitch) * Math.min(1, dt * 4);
@@ -389,6 +391,16 @@ function render(t) {
   for (const it of bodies) if (it.p.z > sunP.z && solo(it.b)) drawBody(it);
   if (sunOn && focusK < 0.5) {
     sunfx.draw(ctx, sunP.x, sunP.y, sunR, t, dpr);
+    // A wide, faint bloom: the Sun lights the space round it.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const bl = ctx.createRadialGradient(sunP.x, sunP.y, sunR * 0.8, sunP.x, sunP.y, sunR * 5.5);
+    bl.addColorStop(0, 'rgba(255,170,70,0.20)');
+    bl.addColorStop(0.4, 'rgba(255,120,40,0.07)');
+    bl.addColorStop(1, 'rgba(255,100,30,0)');
+    ctx.fillStyle = bl;
+    ctx.fillRect(sunP.x - sunR * 5.5, sunP.y - sunR * 5.5, sunR * 11, sunR * 11);
+    ctx.restore();
     hits.push({ id: 'sun', x: sunP.x, y: sunP.y, r: Math.max(26, sunR + 6), z: sunP.z });
   }
   if (focusK > 0.4) drawSunMarker(sunP, Math.min(1, (focusK - 0.4) / 0.4));
@@ -401,7 +413,13 @@ function render(t) {
   ctx.strokeStyle = `rgba(200,212,242,${(0.12 + 0.2 * focusK).toFixed(3)})`;
   ctx.stroke(moonRing);
   for (const it of bodies) if (it.p.z <= sunP.z && solo(it.b)) drawBody(it);
+  drawPressRing();
   drawLabels();
+  // Tell the background stars where the camera is, so they drift a little (parallax).
+  if (Math.abs(yaw - lastParX) > 0.05 || Math.abs(pitch - lastParY) > 0.05) {
+    lastParX = yaw; lastParY = pitch;
+    window.dispatchEvent(new CustomEvent('skyclub:view', { detail: { yaw, pitch } }));
+  }
 }
 
 // In the Earth & Moon close-up the Sun is too far off to draw, but it is what
@@ -576,6 +594,26 @@ function drawWorld(cam, b, p, t) {
 
 // Small names under the worlds, nearest first, skipping any that would collide.
 const labels = [];
+let lastParX = 1e9, lastParY = 1e9;
+function drawPressRing() {
+  if (!press.id || press.k < 0.01) return;
+  const h = hits.find((q) => q.id === press.id);
+  if (!h) return;
+  const base = Math.max(12, h.r - 8), k = press.k;
+  const R = base + 4 + 5 * k;
+  ctx.save();
+  const g = ctx.createRadialGradient(h.x, h.y, base * 0.6, h.x, h.y, R + 14);
+  g.addColorStop(0, 'rgba(190,180,255,0)');
+  g.addColorStop(0.6, 'rgba(190,180,255,' + (0.28 * k).toFixed(3) + ')');
+  g.addColorStop(1, 'rgba(190,180,255,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(h.x, h.y, R + 14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(214,206,255,' + (0.9 * k).toFixed(3) + ')';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(h.x, h.y, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 function drawLabels() {
   labels.sort((a, b) => a.z - b.z);
   ctx.font = '700 9.5px Inter, system-ui, sans-serif';
@@ -599,6 +637,9 @@ function drawLabels() {
 }
 
 // ---- gestures: drag to swing the camera, pinch to zoom, tap to open ----
+// A body under a finger glows and swells a little; the card opens a beat later, so a
+// tap is seen to land. k eases toward target in the frame loop.
+const press = { id: null, k: 0, target: 0 };
 let dragging = false;
 function wireGestures() {
   const pts = new Map();
@@ -607,7 +648,12 @@ function wireGestures() {
     if (document.body.classList.contains('clean-view')) return;
     try { canvas.setPointerCapture(e.pointerId); } catch { /* not an active pointer (synthetic input) */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 1) { start = { x: e.clientX, y: e.clientY, t: performance.now() }; yawVel = 0; }
+    if (pts.size === 1) {
+      start = { x: e.clientX, y: e.clientY, t: performance.now() }; yawVel = 0;
+      const rect = canvas.getBoundingClientRect();
+      const h = pick(e.clientX - rect.left, e.clientY - rect.top);
+      if (h) { press.id = h.id; press.k = 0; press.target = 1; }
+    }
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom };
@@ -625,7 +671,7 @@ function wireGestures() {
       if (d > 10) zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, pinch.zoom * d / pinch.d));
       return;
     }
-    if (start && !dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) dragging = true;
+    if (start && !dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) { dragging = true; press.target = 0; }
     if (dragging) {
       yaw -= dx * 0.4;
       targetPitch = pitch = Math.max(3, Math.min(89, pitch + dy * 0.35));
@@ -636,7 +682,7 @@ function wireGestures() {
     }
   });
   const end = (e) => {
-    if (start && !dragging && performance.now() - start.t < 500) tap(e);
+    if (start && !dragging && performance.now() - start.t < 500) tap(e); else press.target = 0;
     if (performance.now() - lastMove > 80) yawVel = 0;
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = null;
@@ -650,9 +696,7 @@ function wireGestures() {
   }, { passive: false });
 }
 
-function tap(e) {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+function pick(x, y) {
   let best = null, bestScore = Infinity;
   for (const h of hits) {
     const d = Math.hypot(h.x - x, h.y - y);
@@ -660,5 +704,14 @@ function tap(e) {
     const score = d - (h.id === 'sun' ? 0 : 6) + h.z * 1e-4; // nearer, and planets over the Sun
     if (score < bestScore) { bestScore = score; best = h; }
   }
-  if (best) onTapBody(best.id);
+  return best;
+}
+
+function tap(e) {
+  const rect = canvas.getBoundingClientRect();
+  const best = pick(e.clientX - rect.left, e.clientY - rect.top);
+  if (!best) { press.target = 0; return; }
+  if (press.id !== best.id) { press.id = best.id; press.k = 0; }
+  press.target = 1;
+  setTimeout(() => { onTapBody(best.id); press.target = 0; press.k = 0; press.id = null; }, 170);
 }

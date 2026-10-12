@@ -11,7 +11,7 @@
 // the listeners stay on every gesture kind, and any later tap also revives a
 // context iOS has suspended or interrupted (a call, the app going to background).
 
-import { isMuted } from './speech.js?v=25';
+import { isMuted } from './speech.js?v=26';
 
 const MUSIC_LEVEL = 0.16;   // the whole background: low on purpose
 const DUCKED = 0.35;        // share of that level while a voice is speaking

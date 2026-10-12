@@ -77,20 +77,33 @@ export class Globe {
 
   resize(size) {
     size = Math.max(4, Math.round(size));
-    if (size === this.size) return;
-    this.size = size;
-    this.canvas.width = this.canvas.height = size;
-    this.image = this.ctx.createImageData(size, size);
-    const n = size * size, r = size / 2;
+    this.configure(size, size, -1, 1, 2 / size);
+  }
+
+  /**
+   * A window onto the sphere: w×h pixels, whose top-left corner is the point
+   * (x0, y0) of the unit disc (y up) and whose pixels are `step` apart. A close-up
+   * renders only the part of the globe that is on screen, at screen resolution,
+   * instead of the whole sphere into a small square that then gets stretched.
+   */
+  configure(w, h, x0, y0, step) {
+    w = Math.max(4, Math.round(w)); h = Math.max(4, Math.round(h));
+    const key = [w, h, x0.toFixed(5), y0.toFixed(5), step.toFixed(7)].join(',');
+    if (key === this.winKey) return;
+    this.winKey = key;
+    this.size = w; // kept for callers that read it
+    this.canvas.width = w; this.canvas.height = h;
+    this.image = this.ctx.createImageData(w, h);
+    const n = w * h, pr = 1 / step; // pr = pixels per unit radius
     this.nx = new Float32Array(n); this.ny = new Float32Array(n); this.nz = new Float32Array(n);
     this.cover = new Float32Array(n); // edge antialiasing
     this.inside = [];
-    for (let j = 0; j < size; j++) {
-      for (let i = 0; i < size; i++) {
-        const x = (i + 0.5 - r) / r, y = (r - (j + 0.5)) / r;
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        const x = x0 + (i + 0.5) * step, y = y0 - (j + 0.5) * step;
         const d = Math.sqrt(x * x + y * y);
-        const cov = Math.max(0, Math.min(1, (1 - d) * r + 0.5));
-        const k = j * size + i;
+        const cov = Math.max(0, Math.min(1, (1 - d) * pr + 0.5));
+        const k = j * w + i;
         this.cover[k] = cov;
         if (cov <= 0) continue;
         const dd = Math.min(1, d);
@@ -156,6 +169,8 @@ export class Globe {
     const atmo = o.atmo;
     const clouds = o.clouds;
     const boil = o.boil;
+    const smooth = !!o.smooth;
+    const lift = o.oceanLift;
     // Half-vector for the ocean glint (viewer is +z).
     let hx = 0, hy = 0, hz = 1;
     if (L && o.ocean) {
@@ -168,8 +183,22 @@ export class Globe {
       let u = uTab[k] + spin;
       u -= Math.floor(u);
       const v = vTab[k];
-      const ti = ((Math.min(th - 1, (v * th) | 0) * tw) + ((u * tw) | 0)) * 4;
-      let r = td[ti], g = td[ti + 1], b = td[ti + 2];
+      let r, g, b;
+      if (smooth) {
+        // Bilinear: blend the four nearest texels, so magnifying never shows blocks.
+        const fx = u * tw - 0.5, fy = Math.max(0, Math.min(th - 1.001, v * th - 0.5));
+        const ix = Math.floor(fx), tx = fx - ix, iy = fy | 0, ty = fy - iy;
+        const xa = ((ix % tw) + tw) % tw, xb = (xa + 1) % tw;
+        const i00 = (iy * tw + xa) * 4, i10 = (iy * tw + xb) * 4;
+        const i01 = ((iy + 1) * tw + xa) * 4, i11 = ((iy + 1) * tw + xb) * 4;
+        const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+        r = td[i00] * w00 + td[i10] * w10 + td[i01] * w01 + td[i11] * w11;
+        g = td[i00 + 1] * w00 + td[i10 + 1] * w10 + td[i01 + 1] * w01 + td[i11 + 1] * w11;
+        b = td[i00 + 2] * w00 + td[i10 + 2] * w10 + td[i01 + 2] * w01 + td[i11 + 2] * w11;
+      } else {
+        const ti = ((Math.min(th - 1, (v * th) | 0) * tw) + ((u * tw) | 0)) * 4;
+        r = td[ti]; g = td[ti + 1]; b = td[ti + 2];
+      }
       const z = nz[k];
 
       if (wash) {
@@ -177,6 +206,8 @@ export class Globe {
       }
       let water = 0;
       if (o.ocean) water = b > r * 1.15 && b > g * 0.95 ? 1 : 0;
+      // Deep ocean in some maps is nearly black; lift it to a real ocean blue.
+      if (lift && water) { r += lift[0]; g += lift[1]; b += lift[2]; }
       if (clouds) {
         let cu = u + clouds.turns; cu -= Math.floor(cu);
         const m = clouds.map;

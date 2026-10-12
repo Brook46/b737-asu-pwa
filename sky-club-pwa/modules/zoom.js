@@ -17,11 +17,11 @@
 // are drawn to scale in size and distance, but their numbers of objects and
 // shapes are illustrative — the honest caption says so.
 
-import { helioEcliptic, moonEcliptic, moonOrbitSamples, orbitPath, siderealHours, eqjVecToEcl } from './astro.js?v=25';
-import { WORLDS, LOOKS, earthClouds, poleOf } from './orrery3d.js?v=25';
-import { Globe, loadTexture, frameFromPole, v3 } from './globe.js?v=25';
-import { SKY_BODIES } from './catalog.js?v=25';
-import { sensorState, primeLocation } from './sensors.js?v=25';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, orbitPath, siderealHours, eqjVecToEcl } from './astro.js?v=26';
+import { WORLDS, LOOKS, earthClouds, poleOf } from './orrery3d.js?v=26';
+import { Globe, loadTexture, frameFromPole, v3 } from './globe.js?v=26';
+import { SKY_BODIES } from './catalog.js?v=26';
+import { sensorState, primeLocation } from './sensors.js?v=26';
 
 const LY = 9.4607e15;          // metres in a light-year
 const AU = 1.495978707e11;     // metres in an astronomical unit
@@ -108,7 +108,8 @@ let Z = Z_MAX, target = Z_MAX; // start at the universe, and zoom in toward you
 let raf = 0, lastT = 0, labelKey = '';
 let uniPts = null, spiral = null, neighbours = null, planetOrbits = null;
 let snapshot = { t: 0, planets: null, moon: null, moonPath: null, earthHelio: null };
-let globeGL = null, earthTex = null;
+let globeGL = null, earthTex = null, earthHi = null;
+let earthRK = '', earthLastZ = NaN, earthStill = 0;
 let dragging = false, pinch = null;
 
 // ---- generated pictures (fixed, so the zoom is stable) ----
@@ -369,18 +370,42 @@ function drawEarth(cx, cy, ppm, a, now) {
   up = v3.norm(up);
   const right = v3.cross(up, P);
   const rows = [right, up, P];
-  const px = Math.min(300, Math.max(24, Math.round(2 * Math.min(r, 3000) * dpr)));
-  globeGL.resize(px);
+  // Draw only the part of the globe that is on screen, at screen resolution. (The
+  // old way drew the whole sphere into a 300 px square and stretched it up to 12
+  // times, which is what made a close view blocky.) While the zoom is moving, a
+  // lighter version keeps it smooth; once it stops, the sharp one is drawn.
+  const moving = Math.abs(Z - earthLastZ) > 1e-3;
+  earthLastZ = Z;
+  earthStill = moving ? 0 : earthStill + 1;
+  const sharp = earthStill > 12;
+  const x0 = Math.max(-1, -cx / r), x1 = Math.min(1, (W - cx) / r);
+  const yTop = Math.min(1, cy / r), yBot = Math.max(-1, (cy - H) / r);
+  if (x1 <= x0 || yTop <= yBot) return;
+  const winW = (x1 - x0) * r, winH = (yTop - yBot) * r;           // CSS pixels on screen
+  const budget = sharp ? 260000 : 45000;                         // canvas pixels
+  const k = Math.min(dpr, Math.sqrt(budget / Math.max(1, winW * winH)));
+  const wpx = Math.max(4, Math.round(winW * k));
+  const stepU = (x1 - x0) / wpx;                                   // unit-disc units per pixel
+  const hpx = Math.max(4, Math.round((yTop - yBot) / stepU));
+  globeGL.configure(wpx, hpx, x0, yTop, stepU);
   globeGL.setOrientation([right[0], up[0], P[0]], [right[1], up[1], P[1]], [right[2], up[2], P[2]]);
   const light = rows.map((row) => v3.dot(row, sunB));
   const ll = v3.norm(light);
-  globeGL.render({
-    tex: earthTex, light: ll, ambient: 0.13, atmo: LOOKS.earth.atmo, ocean: true,
-    clouds: { map: earthClouds(), turns: (now.getTime() / 1000 / 240) % 1, alpha: 0.8 },
-  });
+  const hi = earthHi.ready;
+  const rk = `${sharp ? 'S' : 'm'}|${hi ? 1 : 0}|${moving ? now.getTime() : Math.floor(now.getTime() / 4000)}|${wpx},${hpx},${x0.toFixed(4)},${yTop.toFixed(4)}`;
+  if (rk !== earthRK) {
+    earthRK = rk;
+    globeGL.render({
+      tex: hi ? earthHi : earthTex, light: ll, ambient: 0.13, atmo: LOOKS.earth.atmo, ocean: true,
+      smooth: true, oceanLift: hi ? [4, 16, 34] : null,
+      clouds: { map: earthClouds(), turns: (now.getTime() / 1000 / 240) % 1, alpha: 0.8 },
+    });
+  }
   const draw = Math.min(r, 4000);
   ctx.globalAlpha = a;
-  ctx.drawImage(globeGL.canvas, cx - draw, cy - draw, 2 * draw, 2 * draw);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(globeGL.canvas, cx + x0 * r, cy - yTop * r, wpx * stepU * r, hpx * stepU * r);
   // The air's blue edge all round, so the night side still reads as a planet.
   const halo = ctx.createRadialGradient(cx, cy, draw * 0.96, cx, cy, draw * 1.06);
   halo.addColorStop(0, 'rgba(120,180,255,0.0)');
@@ -543,6 +568,8 @@ export function mountZoom(container) {
   if (!planetOrbits) buildOrbits();
   if (!neighbours) loadNeighbours();
   if (!earthTex) earthTex = loadTexture(SKY_BODIES.earth.texture);
+  // The sharp 4K map, used for the close views (the small one stays as the fallback).
+  if (!earthHi) earthHi = loadTexture(SKY_BODIES.earth.texture.replace('earth.jpg', 'earth_4k.jpg'));
   if (!globeGL) globeGL = new Globe(64);
   if (!sensorState.hasLocation) primeLocation();
 

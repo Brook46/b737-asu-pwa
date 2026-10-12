@@ -27,9 +27,36 @@
   still hidden, which gave it a size of 0 and stretched one pixel across the disc.
   Show the card first, then render it.
 
+## Close-up Earth, tap feedback, parallax, and another world
+
+- **The Earth in the zoom is no longer blocky.** It was a 640 px texture, sampled
+  nearest-neighbour, drawn as the whole sphere into a 300 px square and stretched up
+  to 12×. Now `Globe.configure(w, h, x0, y0, step)` renders only the part of the globe
+  that is on screen, at screen resolution, with bilinear sampling (`smooth: true`) from
+  NASA's Blue Marble (July, public domain, `icons/textures/earth_4k.jpg`, 4096×2048,
+  about 1 MB, loaded when the zoom opens and runtime-cached by the service worker, not
+  precached). While the zoom moves it draws ~45k px for speed; after ~12 still frames it
+  draws ~260k px, cached and refreshed every 4 s. `oceanLift` brightens the map's
+  near-black ocean. The 4K map is the limit: Z_MIN stays at about 10,000 km across.
+- **Tap feedback (orrery3d.js)**: a body under the finger glows and swells a little
+  (`press`, eased in the frame loop); the card opens ~170 ms after release, so the
+  tap is seen to land. A drag cancels it. A press over 500 ms is not a tap (unchanged).
+- **Parallax**: the orrery dispatches `skyclub:view` ({yaw, pitch}) when the camera
+  turns; `starfield.js` shifts each star by its depth (3 layers) and wraps.
+- **Shooting stars are time-based** (they were per-frame, so a 120 Hz iPad ran them 2× fast).
+- The Sun has a soft additive bloom; the card sheet eases in with a gentler curve.
+- **Visit another world** (`surface.js`): stand on the Moon or on Mars, with Zip in a
+  helmet. Moon: black sky always (no air), stars that do not twinkle, Earth hung in the
+  sky with its REAL phase (opposite of the Moon's: New Moon from Earth = full Earth),
+  spinning once a day, drawn ~4× the Sun's width. Earthrise mode is a spacecraft view
+  with a curved horizon (the note says Earth never rises for someone standing on the near
+  side: the Moon always shows us the same face). Mars: butterscotch day sky, BLUE round the
+  Sun at sunrise and sunset, a 24 h 40 min day, Earth a bright star at dusk. The scenery
+  (rocks, craters, hills) is invented, and the lesson says so.
+
 ## Discover tab: why things look the way they do
 
-A fourth tab. Five lessons, each a short true explanation with a live picture
+A fourth tab. Six lessons, each a short true explanation with a live picture
 driven by the same ephemeris and catalogue as the rest of the app. Every number
 on these screens is computed, never typed in — keep it that way.
 

@@ -7,14 +7,15 @@
 //   • Why the sea goes in and out — the Moon and the Sun pull the oceans into bumps.
 // Every number on these screens is computed, never typed in.
 
-import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=25';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=25';
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=25';
-import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=25';
-import { SKY_BODIES } from './catalog.js?v=25';
-import { sensorState, primeLocation } from './sensors.js?v=25';
-import { mountZoom, unmountZoom } from './zoom.js?v=25';
-import { say } from './speech.js?v=25';
+import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=26';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=26';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=26';
+import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=26';
+import { SKY_BODIES } from './catalog.js?v=26';
+import { sensorState, primeLocation } from './sensors.js?v=26';
+import { mountZoom, unmountZoom } from './zoom.js?v=26';
+import { mountSurface } from './surface.js?v=26';
+import { say } from './speech.js?v=26';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588; // days from one New Moon to the next
@@ -964,6 +965,12 @@ const LESSONS = {
     title: 'From the universe to you',
     speak: 'Zoom in from the universe, through the galaxies, to our Sun, to Earth, and to where you are.',
     build: (root) => { mountZoom(root); return unmountZoom; },
+  },
+  surface: {
+    kicker: 'Discover · Another world',
+    title: 'Visit another world',
+    speak: 'Stand on the Moon. The sky is black, even in the day, because the Moon has no air. Earth hangs in the sky and never moves. Or visit Mars, where the sky is butterscotch, and the sunset is blue.',
+    build: (root) => mountSurface(root),
   },
   tides: {
     kicker: 'Discover · Tides',
