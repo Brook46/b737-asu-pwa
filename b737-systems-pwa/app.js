@@ -4,37 +4,37 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=49';
-import { createOutside } from './modules/outside.js?v=49';
-import { createViewCube } from './modules/viewcube.js?v=49';
-import { createAirLink } from './modules/airlink.js?v=49';
-import { createQuickRef } from './modules/quickref.js?v=49';
-import { installResumeHardening } from './modules/resume.js?v=49';
-import { createScene } from './modules/scene.js?v=49';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=49';
-import { createDims } from './modules/dims.js?v=49';
-import { createSystems3D } from './modules/systems3d.js?v=49';
-import { createOverlay } from './modules/overlay.js?v=49';
-import { createSheet } from './modules/sheet.js?v=49';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=49';
-import { SYSTEMS, READY } from './modules/systems.js?v=49';
-import { createSearch } from './modules/search.js?v=49';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=49';
-import { createProgress } from './modules/progress.js?v=49';
-import { createLearn } from './modules/learn.js?v=49';
-import { explain } from './modules/cockpit-info.js?v=49';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=49';
-import { createCockpit } from './modules/cockpit.js?v=49';
-import { nav, geo, loadNav } from './modules/navdb.js?v=49';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=49';
-import { createCDU } from './modules/cdu.js?v=49';
-import { createCDUView } from './modules/cdu-view.js?v=49';
-import { createFlightSim } from './modules/flightsim.js?v=49';
-import { createStateBar } from './modules/statebar.js?v=49';
-import { createPanelViewer } from './modules/panelview.js?v=49';
-import { createRtoDrill } from './modules/rto.js?v=49';
-import { tts } from './modules/speech.js?v=49';
-import { engState } from './modules/sys-engines.js?v=49';
+import { makeEnv } from './modules/world.js?v=50';
+import { createOutside } from './modules/outside.js?v=50';
+import { createViewCube } from './modules/viewcube.js?v=50';
+import { createAirLink } from './modules/airlink.js?v=50';
+import { createQuickRef } from './modules/quickref.js?v=50';
+import { installResumeHardening } from './modules/resume.js?v=50';
+import { createScene } from './modules/scene.js?v=50';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=50';
+import { createDims } from './modules/dims.js?v=50';
+import { createSystems3D } from './modules/systems3d.js?v=50';
+import { createOverlay } from './modules/overlay.js?v=50';
+import { createSheet } from './modules/sheet.js?v=50';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=50';
+import { SYSTEMS, READY } from './modules/systems.js?v=50';
+import { createSearch } from './modules/search.js?v=50';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=50';
+import { createProgress } from './modules/progress.js?v=50';
+import { createLearn } from './modules/learn.js?v=50';
+import { explain } from './modules/cockpit-info.js?v=50';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=50';
+import { createCockpit } from './modules/cockpit.js?v=50';
+import { nav, geo, loadNav } from './modules/navdb.js?v=50';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=50';
+import { createCDU } from './modules/cdu.js?v=50';
+import { createCDUView } from './modules/cdu-view.js?v=50';
+import { createFlightSim } from './modules/flightsim.js?v=50';
+import { createStateBar } from './modules/statebar.js?v=50';
+import { createPanelViewer } from './modules/panelview.js?v=50';
+import { createRtoDrill } from './modules/rto.js?v=50';
+import { tts } from './modules/speech.js?v=50';
+import { engState } from './modules/sys-engines.js?v=50';
 
 const $ = (id) => document.getElementById(id);
 
@@ -101,7 +101,7 @@ function init() {
   const describe = (key) => {
     const [sid, pid] = key.split('/');
     const m = SYSTEMS.find((x) => x.id === sid)?.mod;
-    if (!m) return { title: key };
+    if (!m) return { quickref: { title: 'Quick reference', sub: 'QRH' }, supp: { title: 'Supplementary', sub: 'FCOM SP' } }[key] || { title: key };
     const p = pid && m.parts.find((q) => q.id === pid);
     return p ? { title: p.name, sub: m.title } : { title: m.title, sub: 'System' };
   };
@@ -868,12 +868,12 @@ function init() {
     const bar = document.createElement('div');
     bar.id = 'cue-demo';
     bar.className = 'cue-demo';
-    bar.innerHTML = `<span>${d ? `Demo · ${d.label}` : `Where to look · ${title}`}</span><button class="tag tag-btn" data-cd="back">‹ Card</button>${d ? '<button class="tag tag-btn" data-cd="clear">Clear</button>' : '<button class="tag tag-btn" data-cd="clear">✕</button>'}`;
+    bar.innerHTML = `<span>${d ? `Demo · ${d.label}` : `Where to look · ${title}`}</span><button class="tag tag-btn" data-cd="back">‹ Back to QRH</button>${d ? '<button class="tag tag-btn" data-cd="clear">Clear</button>' : '<button class="tag tag-btn" data-cd="clear">✕</button>'}`;
     bar.addEventListener('click', (e) => {
       const b = e.target.closest('[data-cd]');
       if (!b) return;
       clearDemo(); bar.remove();
-      if (b.dataset.cd === 'back') quickref.open();
+      if (b.dataset.cd === 'back') quickref.backToCue(title);
     });
     document.body.append(bar);
   }

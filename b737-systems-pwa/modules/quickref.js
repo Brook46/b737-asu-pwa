@@ -1,7 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=49';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=49';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=49';
-import { CUES, cueHtml } from './cues.js?v=49';
+import { SUPPLEMENTARY } from './supplementary.js?v=50';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=50';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=50';
+import { CUES, cueHtml } from './cues.js?v=50';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -156,7 +156,7 @@ export const NUMBERS = [
     ['Maximum altitude with flaps extended', '20,000 ft'],
     ['Holding in icing conditions with flaps extended', 'prohibited'],
     ['Rapid and large alternating control inputs', 'avoid: structural failure possible at any speed, including below VA'],
-    ['SPEED BRAKE lever in flight', 'do not deploy the speed brakes below 1,000 ft radio altitude'],
+    ['Speed brakes in flight, height', 'do not deploy below 1,000 ft radio altitude'],
     ['Weather radar operation in a hangar', 'avoid; also avoid when personnel are within the radome area'],
   ], true],
   ['Airplane (FCOM L.10)', [
@@ -166,13 +166,18 @@ export const NUMBERS = [
     ['Max differential pressure (relief valves)', '9.1 psi'],
     ['RVSM: Capt vs F/O altitude in flight', '200 ft'],
     ['RVSM on the ground (SL–5,000 / 5,001–10,000 ft)', 'Capt–F/O 50 / 60 ft · either vs field 75 ft'],
-    ['SPEED BRAKE lever in flight', 'do not move beyond the FLIGHT DETENT'],
+    ['SPEED BRAKE lever in flight, position', 'do not move beyond the FLIGHT DETENT'],
     ['Alternate flaps', '15 s between selections · 5 min after 0→15→0'],
     ['ADIRU alignment', 'not above 78°15′ latitude'],
     ['Brakes', 'not before touchdown'],
     ['Engine ignition on for', 'takeoff, landing, heavy rain, anti-ice'],
     ['APU', '2 min running before bleed use · 15 min cooling after 3 aborted starts'],
     ['Packs HIGH with engine bleed', 'not for takeoff, approach or landing'],
+    ['APU bleed valve with ground air or an engine bleed feeding the same duct', 'close it: ground air + isolation valve open, engine 1 bleed open, or isolation + engine 2 bleed open'],
+    ['Engine limit display markings', 'maximum and minimum limits red · caution limits amber'],
+    ['Standby altimeters', 'do not meet RVSM accuracy'],
+    ['Terrain display', 'not for navigation'],
+    ['Look-ahead terrain alerting and display', 'not within 15 nm of an airport not in the terrain database'],
   ]],
   ['Fuel (FCOM L.10)', [
     ['Max tank fuel temperature', '49 °C'],
@@ -192,15 +197,9 @@ export const NUMBERS = [
     ['Sideslip-only landing not recommended above', '17 kt flaps 15 · 20 kt flaps 30 · 23 kt flaps 40'],
     ['¹', '36 kt with both blended winglets'],
   ]],
-  ['QRH numbers worth knowing', [
-    ['Airspeed unreliable, gear up', 'flaps out 10° / 80 % N1 · flaps up 4° / 75 % N1'],
-    ['Emergency descent to', 'lowest safe altitude or 10,000 ft, whichever higher'],
-    ['Dual engine failure airspeed', '≥ FL270: 275 kt · below: 300 kt'],
-    ['Aborted start', 'motor 60 s after N2 below 20 %'],
-    ['Fire switch rotate', 'to the stop, hold 1 s'],
-    ['Windshear path deviations (< 1,000 ft)', '15 kt · 500 fpm · 5° · 1 dot'],
-    ['GPWS pull-up initial pitch', '20° · windshear escape 15°'],
-    ['RTO: 80 kt', 'above it reject only for fire, engine failure, PWS warning, unsafe to fly'],
+  ['QRH numbers worth knowing (outside the memory items and maneuvers)', [
+    ['Dual engine failure, windmill restart airspeed', '≥ FL270: 275 kt · below: 300 kt'],
+    ['Aborted start: motoring', 'motor 60 s after N2 is below 20 %'],
   ]],
 ];
 
@@ -235,8 +234,7 @@ export function createQuickRef(sheet, systems, nav = {}) {
   };
   const condHtml = (list) => list.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${md(li)}</li>`).join('')}</ul>` : `<p>${md(x)}</p>`)).join('');
   const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}"${CUES[c.t] ? ` data-cue="${esc(c.t).replace(/"/g, '&quot;')}"` : ''}>
-    <h3>${md(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>
-    ${CUES[c.t] ? '<button class="qr-cue-b no-hl" data-cue-show>◉ How you recognise it</button>' : ''}
+    <h3>${md(c.t)}<span class="qr-h-r">${CUES[c.t] ? '<button class="qr-cue-b no-hl" data-cue-show>👁 Indications</button>' : ''}<span class="qr-ref">${esc(c.ref)}</span></span></h3>
     ${c.tag ? `<span class="qr-tag ${c.tag[1]}">${esc(c.tag[0])}</span>` : ''}
     <div class="qr-cond"><span class="qr-lbl">Condition:</span><div>${condHtml(c.cond)}</div></div>
     ${c.steps.map(stepHtml).join('')}
@@ -258,10 +256,34 @@ export function createQuickRef(sheet, systems, nav = {}) {
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map(memCard).join('')}`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
-    // Every number on the system pages, by chapter.
-    return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
-      const rows = [...s.mod.overview.limits];
-      for (const p of s.mod.parts) for (const l of p.limits || []) if (!rows.some((r) => r[0] === l[0])) rows.push(l);
+    // Every number on the system pages, by chapter — once. The FCOM L.10
+    // limitations are on the Limits tab; a row repeating one already shown
+    // (same reference, same numbers, a shared key word) is left out.
+    const STOP = new Set(['above', 'below', 'with', 'the', 'and', 'for', 'not', 'max', 'min', 'maximum', 'minimum', 'trim', 'altitude', 'each', 'way', 'after', 'from', 'run', 'units', 'psi', 'psid', 'per', 'hour', 'fcom']);
+    const words = (t) => new Set(t.toLowerCase().match(/[a-z]{3,}/g)?.filter((w) => !STOP.has(w)) || []);
+    const nums = (t) => (String(t).replace(/(\d),(\d{3})/g, '$1$2').match(/\d+(\.\d+)?/g) || []);
+    const kept = [];
+    // A repeat: the same numbers (or one row's numbers inside the other's,
+    // starting with the same one) and a shared key word — two shared words
+    // when the rows cite different FCOM sections.
+    const dup = (r) => kept.some((k) => {
+      const a = k.n, b = r.n;
+      const sameNums = a.length && b.length
+        ? a[0] === b[0] && (a.every((x) => b.includes(x)) || b.every((x) => a.includes(x)))
+        : !a.length && !b.length && k.ref === r.ref;
+      const shared = [...r.w].filter((w) => k.w.has(w)).length;
+      return sameNums && shared >= (k.ref === r.ref ? 1 : 2);
+    });
+    return `<p class="qr-note">Numbers cited on the system pages. The FCOM limitations (L.10) are under Limits &amp; numbers.</p>` + systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
+      const rows = [];
+      for (const l of [...s.mod.overview.limits, ...s.mod.parts.flatMap((p) => p.limits || [])]) {
+        const ref = l[2] || '';
+        if (/L\.10/.test(ref)) continue;
+        const r = { ref, n: nums(l[1]), w: words(`${l[0]} ${l[1]}`) };
+        const repeat = dup(r);
+        kept.push(r);           // dropped rows still catch their own repeats
+        if (!repeat) rows.push(l);
+      }
       return rows.length ? table(`${String(s.num).padStart(2, '0')} ${s.mod.title}`, rows) : '';
     }).join('');
   }
@@ -302,8 +324,15 @@ export function createQuickRef(sheet, systems, nav = {}) {
       const d = document.createElement('div');
       d.className = 'cue-inline no-hl';
       d.innerHTML = cueHtml(title);
-      (card.querySelector('[data-cue-show]') || card.querySelector('h3')).after(d);
+      card.querySelector('h3').after(d);
     }
+  }
+  /** Back from the cockpit: the QRH on the same tab, at the same card, cue open. */
+  function backToCue(title) {
+    if (MANEUVERS.some((m) => m.t === title)) tab = 'maneuvers'; else if (MEMORY.some((m) => m.t === title)) tab = 'memory';
+    open();
+    const card = [...document.querySelectorAll('[data-cue]')].find((c) => c.dataset.cue === title);
+    if (card) { card.scrollIntoView({ block: 'start' }); showCue(card); }
   }
   // Close the cue when the sheet closes or shows another page.
   const sheetEl = document.getElementById('sheet');
@@ -369,5 +398,5 @@ export function createQuickRef(sheet, systems, nav = {}) {
     tab = b.dataset.qrTab;
     open();
   });
-  return { open, openSupp, hideCue, get key() { return 'quickref'; } };
+  return { open, openSupp, hideCue, backToCue, get key() { return 'quickref'; } };
 }

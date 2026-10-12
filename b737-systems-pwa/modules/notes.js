@@ -28,7 +28,7 @@ export function createNotes() {
     },
     addHL(key, text, color, meta) {
       text = text.replace(/\s+/g, ' ').trim();
-      if (!text || hls.some((h) => h.key === key && h.text === text)) return;
+      if (!text || hls.some((h) => h.key === key && h.text === text && (h.occ || 0) === (meta?.occ || 0))) return;
       hls.unshift({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), key, text, color, ...meta, at: Date.now() });
       changed();
     },
@@ -39,34 +39,66 @@ export function createNotes() {
   };
 }
 
+// The page's text as one string: whitespace collapsed, a space between
+// blocks (table cells, list items, lines), and a map back to each text node.
+const BLOCK = 'td, th, li, p, div, h1, h2, h3, h4, tr, summary';
+function textIndex(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement.closest('.no-hl, button, mark') && !n.parentElement.closest('mark.hl') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const nodes = [];
+  let all = '', lastBlock = null;
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const blk = n.parentElement.closest(BLOCK);
+    if (lastBlock && blk !== lastBlock && !/\s$/.test(all)) all += ' ';
+    lastBlock = blk;
+    nodes.push({ n, at: all.length });
+    all += n.nodeValue;
+  }
+  const map = [];
+  let norm = '';
+  for (let i = 0; i < all.length; i++) {
+    const ws = /\s/.test(all[i]);
+    if (ws && (norm.endsWith(' ') || !norm.length)) continue;
+    norm += ws ? ' ' : all[i];
+    map.push(i);
+  }
+  return { nodes, norm, map };
+}
+
+/** Which occurrence of `text` a selection starting at (node, offset) is. */
+export function occurrenceOf(root, text, node, offset) {
+  const { nodes, norm, map } = textIndex(root);
+  const hit = nodes.find((x) => x.n === node);
+  if (!hit) return 0;
+  const raw = hit.at + offset;
+  let pos = map.findIndex((m) => m >= raw);
+  if (pos < 0) pos = norm.length;
+  let k = 0, i = norm.indexOf(text);
+  while (i >= 0 && i < pos - 1) { k++; i = norm.indexOf(text, i + 1); }
+  return i >= 0 ? k : Math.max(0, k - 1);
+}
+
 /**
  * Wrap each saved highlight's text in <mark> inside `root`. The text may
- * span several nodes (e.g. across a **bold** run), so we match against the
- * concatenated text and wrap each node's slice separately.
+ * span several nodes (a **bold** run, two table cells), so we match against
+ * the page's text and wrap each node's slice separately. `occ` picks which
+ * occurrence when the same words appear more than once.
  */
 export function applyHighlights(root, list) {
   for (const h of list) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.parentElement.closest('.no-hl, button, mark') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
-    });
-    const nodes = [];
-    let all = '';
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) { nodes.push({ n, at: all.length }); all += n.nodeValue; }
-    // Compare with whitespace collapsed, mapping back to raw offsets.
-    const map = [];
-    let norm = '';
-    for (let i = 0; i < all.length; i++) {
-      const ws = /\s/.test(all[i]);
-      if (ws && (norm.endsWith(' ') || !norm.length)) continue;
-      norm += ws ? ' ' : all[i];
-      map.push(i);
+    const { nodes, norm, map } = textIndex(root);
+    let idx = norm.indexOf(h.text);
+    for (let k = 0; k < (h.occ || 0) && idx >= 0; k++) {
+      const nx = norm.indexOf(h.text, idx + 1);
+      if (nx < 0) break;
+      idx = nx;
     }
-    const idx = norm.indexOf(h.text);
     if (idx < 0) continue;
     const start = map[idx], end = map[idx + h.text.length - 1] + 1;
     for (const { n, at } of nodes) {
       const a = Math.max(start, at), b = Math.min(end, at + n.nodeValue.length);
-      if (a >= b) continue;
+      if (a >= b || n.parentElement.closest('mark.hl')) continue;
       const r = document.createRange();
       r.setStart(n, a - at);
       r.setEnd(n, b - at);
@@ -89,9 +121,12 @@ export function attachSelection(body, pop, { getKey, notes, meta, onChange }) {
   function place(rect) {
     pop.hidden = false;
     const w = pop.offsetWidth, h = pop.offsetHeight;
-    // Below the selection: iOS puts its own Copy menu above it.
-    let x = rect.left + rect.width / 2 - w / 2, y = rect.bottom + 10;
-    if (y + h > window.innerHeight - 8) y = rect.top - h - 10;
+    // Above the selection, clear of the iOS Copy / Look Up menu (which sits
+    // just above it on a touch screen); below only when there is no room.
+    const touch = matchMedia('(pointer: coarse)').matches, gap = touch ? 62 : 10;
+    const top = touch ? 50 : 8;   // below the status bar
+    let x = rect.left + rect.width / 2 - w / 2, y = rect.top - h - gap;
+    if (y < top) y = Math.min(window.innerHeight - h - 8, rect.bottom + (touch ? 40 : 10));
     x = Math.max(8, Math.min(window.innerWidth - w - 8, x));
     pop.style.transform = `translate(${x}px, ${y}px)`;
   }
@@ -102,7 +137,7 @@ export function attachSelection(body, pop, { getKey, notes, meta, onChange }) {
     if (!body.contains(r.commonAncestorContainer)) return;
     const text = sel.toString().replace(/\s+/g, ' ').trim();
     if (text.length < 2) return;
-    pending = { type: 'sel', text };
+    pending = { type: 'sel', text, occ: occurrenceOf(body, text, r.startContainer, r.startOffset) };
     pop.innerHTML = `<span class="pop-l">Highlight</span>${Object.entries(COLORS).map(([k, c]) =>
       `<button data-c="${k}" style="background:${c}" aria-label="Highlight ${k}"></button>`).join('')}`;
     place(r.getBoundingClientRect());
@@ -121,7 +156,7 @@ export function attachSelection(body, pop, { getKey, notes, meta, onChange }) {
     const b = e.target.closest('button');
     if (!b || !pending) return;
     if (pending.type === 'sel' && b.dataset.c) {
-      notes.addHL(getKey(), pending.text, b.dataset.c, meta());
+      notes.addHL(getKey(), pending.text, b.dataset.c, { ...meta(), occ: pending.occ });
       window.getSelection().removeAllRanges();
     } else if (pending.type === 'mark') notes.removeHL(pending.id);
     hide();
