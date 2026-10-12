@@ -1,3 +1,4 @@
+import { playWhoosh } from './sound.js?v=25';
 // starfield.js — animated twinkling-star background for the Explore screen, drawn
 // on a canvas (cheap: a couple hundred circles, no images). Nebula/galaxy blobs are
 // plain CSS (see app.css .galaxy) since a blurred gradient div is free to composite
@@ -85,7 +86,7 @@ export function initStarfield(canvas) {
   }
 
   function drawShootingStar(t) {
-    if (!shoot && t > shootAt && w > 0) shoot = spawnShootingStar();
+    if (!shoot && t > shootAt && w > 0) { shoot = spawnShootingStar(); playWhoosh(); }
     if (!shoot) return;
 
     shoot.life += 16;

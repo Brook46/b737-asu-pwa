@@ -17,11 +17,11 @@
 // are drawn to scale in size and distance, but their numbers of objects and
 // shapes are illustrative — the honest caption says so.
 
-import { helioEcliptic, moonEcliptic, moonOrbitSamples, orbitPath, siderealHours, eqjVecToEcl } from './astro.js?v=24';
-import { WORLDS, LOOKS, earthClouds, poleOf } from './orrery3d.js?v=24';
-import { Globe, loadTexture, frameFromPole, v3 } from './globe.js?v=24';
-import { SKY_BODIES } from './catalog.js?v=24';
-import { sensorState, primeLocation } from './sensors.js?v=24';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, orbitPath, siderealHours, eqjVecToEcl } from './astro.js?v=25';
+import { WORLDS, LOOKS, earthClouds, poleOf } from './orrery3d.js?v=25';
+import { Globe, loadTexture, frameFromPole, v3 } from './globe.js?v=25';
+import { SKY_BODIES } from './catalog.js?v=25';
+import { sensorState, primeLocation } from './sensors.js?v=25';
 
 const LY = 9.4607e15;          // metres in a light-year
 const AU = 1.495978707e11;     // metres in an astronomical unit

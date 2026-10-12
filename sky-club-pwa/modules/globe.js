@@ -181,8 +181,11 @@ export class Globe {
         let cu = u + clouds.turns; cu -= Math.floor(cu);
         const m = clouds.map;
         const c = m.v[Math.min(m.h - 1, (v * m.h) | 0) * m.w + ((cu * m.w) | 0)];
-        const a = Math.max(0, Math.min(1, (c - 0.47) * 3.2)) * clouds.alpha;
-        r += (250 - r) * a; g += (252 - g) * a; b += (255 - b) * a;
+        // Patchy, soft cloud: most of the surface stays clear. (At the old setting,
+        // about a fifth of the surface was milky white, and the sunlit side looked
+        // washed out, as if you could see through it.)
+        const a = Math.max(0, Math.min(1, (c - 0.55) * 3)) * clouds.alpha * 0.7;
+        r += (238 - r) * a; g += (242 - g) * a; b += (248 - b) * a;
         water *= 1 - a;
       }
 

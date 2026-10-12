@@ -7,13 +7,13 @@
 // it on the selected date. A date picker jumps to any date; Play advances that
 // date over time instead of looping a fixed animation.
 
-import { SUN, MOON, PLANETS } from './catalog.js?v=24';
-import { moonPhase, moonDistanceKm } from './astro.js?v=24';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=24';
-import { say } from './speech.js?v=24';
-import { spot, isSpotted, isBadgeBody } from './badges.js?v=24';
-import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, toggleEarthMoon, setAutoRotate } from './orrery3d.js?v=24';
-import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=24';
+import { SUN, MOON, PLANETS } from './catalog.js?v=25';
+import { moonPhase, moonDistanceKm } from './astro.js?v=25';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=25';
+import { say } from './speech.js?v=25';
+import { spot, isSpotted, isBadgeBody } from './badges.js?v=25';
+import { initOrrery, setOrreryDate, zoomOrrery, cycleView, toggleTrueScale, toggleEarthMoon, setAutoRotate } from './orrery3d.js?v=25';
+import { startCardGlobe, stopCardGlobe } from './cardglobe.js?v=25';
 
 const NAV_ORDER = [SUN, ...PLANETS.slice(0, 3), MOON, ...PLANETS.slice(3)]; // Sun, Mercury, Venus, Earth, Moon, Mars..Neptune
 const DAYS_PER_SEC = 6; // simulated days advanced per real second while playing
@@ -246,9 +246,11 @@ let cardIndex = 0;
 export function openCard(id) {
   const idx = NAV_ORDER.findIndex((b) => b.id === id);
   cardIndex = idx >= 0 ? idx : 0;
+  // Show the card first: renderCard() measures the Moon's canvas, and a hidden
+  // card has no size, which left the Moon drawn at 1×1 and stretched.
   document.getElementById('planet-card').classList.remove('is-star');
-  renderCard();
   document.getElementById('planet-card').classList.remove('hidden');
+  renderCard();
 }
 
 const STAR_COLOR_NAMES = {

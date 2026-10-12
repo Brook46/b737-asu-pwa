@@ -19,12 +19,12 @@
 //     and each spins about its real pole (Uranus on its side, Venus backwards).
 //   • The Sun is alive (sunfx.js).
 
-import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=24';
-import { SUN, MOON, PLANETS } from './catalog.js?v=24';
-import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=24';
-import { SunFX } from './sunfx.js?v=24';
-import { isSpotted } from './badges.js?v=24';
-import { describePhase } from './moonphase.js?v=24';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=25';
+import { SUN, MOON, PLANETS } from './catalog.js?v=25';
+import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=25';
+import { SunFX } from './sunfx.js?v=25';
+import { isSpotted } from './badges.js?v=25';
+import { describePhase } from './moonphase.js?v=25';
 
 const DEG = Math.PI / 180;
 
@@ -370,6 +370,9 @@ function render(t) {
 
   // Each orbit gets a soft halo under its hairline, so the ellipses read as light.
   // The planets' orbits fade out in the close-up; the Moon's own orbit stays.
+  // save/restore: the fade belongs to the orbit lines only. Left set, it made
+  // every body drawn after them (the Earth and Moon in front of the Sun) see-through.
+  ctx.save();
   ctx.globalAlpha = 1 - 0.85 * focusK;
   ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(210,215,240,0.045)';
@@ -377,6 +380,7 @@ function render(t) {
   ctx.lineWidth = 1;
   ctx.strokeStyle = 'rgba(210,215,240,0.13)';
   ctx.stroke(behind);
+  ctx.restore();
 
   const bodies = [...worlds, moon].map((b) => ({ b, p: project(cam, b.pos) }));
   bodies.sort((a, b) => b.p.z - a.p.z);
@@ -388,10 +392,12 @@ function render(t) {
     hits.push({ id: 'sun', x: sunP.x, y: sunP.y, r: Math.max(26, sunR + 6), z: sunP.z });
   }
   if (focusK > 0.4) drawSunMarker(sunP, Math.min(1, (focusK - 0.4) / 0.4));
+  ctx.save();
+  ctx.globalAlpha = 1 - 0.85 * focusK;
   ctx.lineWidth = 1;
   ctx.strokeStyle = 'rgba(210,215,240,0.2)';
   ctx.stroke(front);
-  ctx.globalAlpha = 1;
+  ctx.restore();
   ctx.strokeStyle = `rgba(200,212,242,${(0.12 + 0.2 * focusK).toFixed(3)})`;
   ctx.stroke(moonRing);
   for (const it of bodies) if (it.p.z <= sunP.z && solo(it.b)) drawBody(it);

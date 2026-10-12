@@ -1,10 +1,12 @@
-import { initExplore } from './modules/orbits.js?v=24';
-import { initSky } from './modules/sky.js?v=24';
-import { initStarfield } from './modules/starfield.js?v=24';
-import { initBadges } from './modules/badges.js?v=24';
-import { initLearn } from './modules/learn.js?v=24';
-import { installResumeHardening } from './modules/resume.js?v=24';
-import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=24';
+import { initExplore } from './modules/orbits.js?v=25';
+import { initSky } from './modules/sky.js?v=25';
+import { initStarfield } from './modules/starfield.js?v=25';
+import { initBadges } from './modules/badges.js?v=25';
+import { initLearn } from './modules/learn.js?v=25';
+import { installResumeHardening } from './modules/resume.js?v=25';
+import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=25';
+import { initRobot, hopRobot } from './modules/robot.js?v=25';
+import { initSound, syncMute } from './modules/sound.js?v=25';
 
 const NAV_SCREENS = ['explore', 'sky', 'discover', 'badges'];
 
@@ -23,6 +25,7 @@ function switchScreen(name) {
   // starfield.js's own resize (window 'resize' listener) once the target screen's
   // layout is live, same fix any newly-visible canvas benefits from.
   window.dispatchEvent(new Event('resize'));
+  hopRobot(); // Zip hops whenever you change screen
 }
 
 function initMute() {
@@ -36,10 +39,13 @@ function initMute() {
     const muted = !isMuted();
     setMuted(muted);
     apply(muted);
+    syncMute();
   });
 }
 
 function init() {
+  initRobot();
+  initSound();
   initExplore();
   initSky();
   initBadges();

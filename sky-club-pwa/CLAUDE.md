@@ -2,9 +2,34 @@
 
 "Sky Club": a solar-system + real-sky explorer for a toddler (age 2–5) — near-zero reading, big taps, spoken narration. Four screens: a **Home** landing screen (rocket hero, shown once per load) plus **Explore**/**Sky**/**Badges**, switched by a 3-tab bottom nav.
 
+## Zip, the ship, sound, and the Earth's clouds
+
+- **Zip** (`robot.js`) is an SVG robot guide: in the top bar on every screen,
+  waving every few seconds, blinking, hopping whenever you change screen, and
+  saying a line for the screen you are on when tapped (`LINES` is keyed by screen
+  id), so he guides the journey. Every copy of the SVG gets its own gradient ids:
+  with shared ids, a copy whose twin is `display:none` can lose its colours. The
+  hop animates the drawing inside, so it never cancels the home Zip's bob. On the first screen he stands beside the
+  illustrated spaceship (`shipSVG()`), which replaced the rocket emoji.
+- **Sound** (`sound.js`) is synthesised with the Web Audio API, so there are no audio files. The background is a quiet music loop: a slow chord pattern under a sparse music-box melody, at about 16% of full level and warmed by a low-pass filter. It replaced an earlier hissing wind, which sounded harsh. Accents: a soft bell for a twinkle on the Sky screen, a gentle sine glide for a shooting star, and a two-note chime when you catch something. Sound starts after the first tap (browsers require it) and follows the mute button. Keep it quiet: it is for a child, and sits behind everything.
+  - **iOS start**: a touch's `pointerdown` is not a user activation for audio (only pointerup/touchend/click are), so the unlock listens on those, and every later tap revives a suspended or interrupted context.
+  - **No catch-up bursts**: timers throttle in the background while the audio clock runs; the scheduler skips ahead instead of playing every missed note at once. The context is suspended while hidden or muted.
+  - The music dips to 35% while a voice is speaking. The melody walks in small steps and lands on a chord note on each downbeat; the fourth chord is Gsus4 (the old Gmaj7's F♯ rubbed against the melody).
+- **The Earth's clouds were too strong** (`globe.js`): about a fifth of the surface
+  was milky white, so the sunlit side looked see-through. Now the clouds are patchy
+  (about 7% of the surface on average, rarely heavy). Check the Earth in daylight
+  after any change to the cloud settings.
+- **The Moon's surface** is now NASA's LROC colour map (public domain, 2048×1024,
+  shipped at 1024×512). Previously it was 480 pixels wide and looked soft.
+- **Bright stars** get thin diffraction spikes (`sky.js::drawStars`), as in a
+  telescope image. The Moon sprite is 192 px, not 128.
+- **Card bug fixed:** `openCard()` measured the Moon's canvas while the card was
+  still hidden, which gave it a size of 0 and stretched one pixel across the disc.
+  Show the card first, then render it.
+
 ## Discover tab: why things look the way they do
 
-A fourth tab. Four lessons, each a short true explanation with a live picture
+A fourth tab. Five lessons, each a short true explanation with a live picture
 driven by the same ephemeris and catalogue as the rest of the app. Every number
 on these screens is computed, never typed in — keep it that way.
 
@@ -29,6 +54,8 @@ on these screens is computed, never typed in — keep it that way.
   maps in the app. **The universe and the galaxies are illustrative in shape and
   count** — their captions say so.
 
+- **Why the sea goes in and out** (`buildTides`): top-down like the Moon lesson (Sun left, everything anticlockwise). The water is Earth's radius plus the Moon's two-bump tide and the Sun's (0.46× as strong), so New and Full Moon give big tides and Half Moon small ones. A red "You" flag turns with the time of day (facing the Sun at noon), and a beach side view shows the sea level. High and low are judged against that day's own range, not a fixed cut-off: at Half Moon the whole range is small, and a fixed threshold never called it high tide. The note says the bumps are exaggerated, real tides lag the Moon, and gives the Mediterranean (~30 cm) and Bay of Fundy (15 m+) for scale.
+
 Copy and layout for children: short sentences, one idea each, 18–30px text,
 52px+ buttons, big slider thumbs, and a Listen button on every lesson that reads it
 aloud (\`speech.js::say\`). If you change the words, keep them readable by a
@@ -40,6 +67,8 @@ up to one. The old per-scene fades left a gap between the solar system and the
 Earth and Moon where both were faint, and the picture went transparent.
 
 Notes from building it:
+- `.lesson-canvas` is `flex: none`: the lesson body is a scrolling flex column,
+  and a tall page squeezed every picture (a 290px canvas came out 168px tall).
 - A canvas's default size is 300×150. Sizing a square canvas by checking only its
   width left the height at 150 and squashed the Moon disc — check both axes.
 - A scene that reads a snapshot filled by another scene crashes when shown alone;
@@ -72,6 +101,8 @@ planets' orbits.
   right pace and stays correct as you scrub the date.
 - **Orbit halos** — each ellipse has a faint wide stroke under its hairline.
 - The Moon's own orbit stays bright in the close-up; the planets' orbits fade.
+
+Canvas transparency leaks: `ctx.globalAlpha` is state that stays set until changed. The close-up fades the planets' orbit lines; without a save/restore around those strokes, every body drawn after them (the Earth and Moon in front of the Sun) came out see-through. Wrap any fade in ctx.save()/ctx.restore().
 
 Taps: `setPointerCapture` is guarded — it throws for synthetic pointers, which
 silently swallowed every tap in testing. Real touches were never affected.

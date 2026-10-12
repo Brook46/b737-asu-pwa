@@ -4,16 +4,17 @@
 //   • Why days are longer in summer — Earth's tilt, and the real day length here.
 //   • How big things are — planets and stars, compared and to scale.
 //   • From the universe to you — one continuous zoom through real scales (zoom.js).
+//   • Why the sea goes in and out — the Moon and the Sun pull the oceans into bumps.
 // Every number on these screens is computed, never typed in.
 
-import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=24';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=24';
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=24';
-import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=24';
-import { SKY_BODIES } from './catalog.js?v=24';
-import { sensorState, primeLocation } from './sensors.js?v=24';
-import { mountZoom, unmountZoom } from './zoom.js?v=24';
-import { say } from './speech.js?v=24';
+import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=25';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=25';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=25';
+import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=25';
+import { SKY_BODIES } from './catalog.js?v=25';
+import { sensorState, primeLocation } from './sensors.js?v=25';
+import { mountZoom, unmountZoom } from './zoom.js?v=25';
+import { say } from './speech.js?v=25';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588; // days from one New Moon to the next
@@ -213,7 +214,7 @@ function buildSeasons(root) {
   const latTxt = `${Math.abs(lat).toFixed(1)}° ${lat >= 0 ? 'N' : 'S'}`;
   root.innerHTML = `
     <p class="lesson-lead">Earth leans over a little, like a spinning top. In <b>summer</b>, your half leans toward the Sun: the Sun climbs high and the days are long. In <b>winter</b>, your half leans away: the Sun stays low and the days are short.</p>
-    <canvas id="season-orbit" class="lesson-canvas" style="height:290px"></canvas>
+    <canvas id="season-orbit" class="lesson-canvas" style="height:250px"></canvas>
     <div class="lesson-cards">
       <div><div class="lesson-small">Daylight where you are (${latTxt})</div><div id="season-hours" class="lesson-big"></div></div>
       <div><div class="lesson-small">Sun at midday</div><div id="season-noon" class="lesson-big"></div></div>
@@ -247,7 +248,8 @@ function buildSeasons(root) {
   const drawOrbit = () => {
     const { ctx, w, h } = sizeCanvas(orbitC);
     const cx = w / 2, cy = h / 2 + 8;
-    const S = Math.min(w * 0.36, h * 0.36) / 1.05; // pixels per AU, with room for the labels
+    // The orbit is seen from 28° above, so it is a flat ellipse: the width limits it.
+    const S = Math.min(w * 0.36, h * 0.6) / 1.05; // pixels per AU, with room for the labels
 
     ctx.strokeStyle = 'rgba(210,215,240,0.35)';
     ctx.lineWidth = 1;
@@ -266,6 +268,10 @@ function buildSeasons(root) {
       { m: 11, d: 21, text: 'Dec: winter (N)', col: '#8fb8ff' },
       { m: 2, d: 20, text: 'March: equal', col: 'rgba(233,233,237,0.9)' },
     ];
+    const e = helioEcliptic('Earth', dateOf(day));
+    const ev = view(e);
+    const ex = cx + ev[0] * S, ey = cy - ev[1] * S;
+    const r = Math.max(9, Math.min(w, h) * 0.09);
     const year0 = new Date(start).getUTCFullYear();
     for (const k of keyDays) {
       const kd = Math.round((Date.UTC(year0, k.m, k.d, 12) - start) / 86400000);
@@ -282,6 +288,11 @@ function buildSeasons(root) {
       if (Math.sin(ang) > 0.5) { ctx.textAlign = 'center'; lx = kx; ly = ky + 16; }
       else if (Math.sin(ang) < -0.5) { ctx.textAlign = 'center'; lx = kx; ly = ky - 16; }
       else { lx = kx + Math.cos(ang) * 12; ly = ky; ctx.textAlign = Math.cos(ang) >= 0 ? 'left' : 'right'; }
+      // Earth is on this point today: move the name clear of the globe.
+      if (Math.hypot(kx - ex, ky - ey) < r + 26) {
+        ctx.textAlign = 'center'; lx = kx;
+        ly = Math.sin(ang) < -0.5 ? ky - r - 14 : ky + r + 16;
+      }
       if (ctx.textAlign === 'center') lx = Math.min(Math.max(lx, tw / 2 + 4), w - tw / 2 - 4);
       if (ctx.textAlign === 'left' && lx + tw > w - 4) ctx.textAlign = 'right';
       if (ctx.textAlign === 'right' && lx - tw < 4) ctx.textAlign = 'left';
@@ -301,11 +312,6 @@ function buildSeasons(root) {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,226,180,0.95)';
     ctx.fillText('Sun', cx, cy + 38);
-
-    const e = helioEcliptic('Earth', dateOf(day));
-    const ev = view(e);
-    const ex = cx + ev[0] * S, ey = cy - ev[1] * S;
-    const r = Math.max(9, Math.min(w, h) * 0.09);
 
     // Sunlight: an arrow from the Sun toward Earth, stopping short of it.
     {
@@ -633,6 +639,304 @@ function buildSizes(root) {
 }
 
 // ---------------------------------------------------------------------------
+// Lesson 5 — why the sea goes in and out (tides)
+// ---------------------------------------------------------------------------
+// The Moon pulls the oceans into two bumps: one under the Moon, one on the far
+// side. The Sun does the same, a bit less than half as strongly (0.46×). Earth
+// spins through the bumps, so a beach gets two high tides a day. When the Sun and
+// Moon line up (New and Full Moon) the bumps add up: big tides. At Half Moon they
+// pull across each other: small tides. The picture uses the same top-down layout
+// as the Moon lesson: the Sun on the left, everything turning anticlockwise.
+
+const SUN_TIDE = 0.46; // the Sun's tide-raising force compared with the Moon's
+const TIDE_MAX = 1 + SUN_TIDE;
+
+// Screen directions (y down): the Sun is to the left (angle π). The Moon's phase
+// angle a puts it at π − a, as in drawMoonTop. Your beach faces the Sun at noon
+// and turns anticlockwise, so at 6 pm it faces the First Quarter Moon.
+const moonDir = (phaseDeg) => Math.PI - phaseDeg * DEG;
+const beachDir = (hour) => Math.PI - ((hour - 12) / 24) * 2 * Math.PI;
+const tideAt = (dir, phaseDeg) =>
+  Math.cos(2 * (dir - moonDir(phaseDeg))) + SUN_TIDE * Math.cos(2 * (dir - Math.PI));
+
+function partOfDay(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  if (h < 5 || h >= 21) return 'night';
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+const clock = (hour) => {
+  const total = Math.round((((hour % 24) + 24) % 24) * 60) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+function buildTides(root) {
+  root.innerHTML = `
+    <p class="lesson-lead">The Moon <b>pulls</b> on the sea. The water piles up in two big bumps: one under the Moon, and one on the far side of Earth. As Earth spins, your beach goes through both bumps, so the sea comes in and goes out <b>twice a day</b>.</p>
+    <canvas id="tide-top" class="lesson-canvas" style="height:290px"></canvas>
+    <canvas id="tide-beach" class="lesson-canvas" style="height:160px"></canvas>
+    <div class="lesson-cards">
+      <div><div class="lesson-small">At your beach</div><div id="tide-now" class="lesson-big"></div></div>
+      <div><div class="lesson-small">Tides today</div><div id="tide-size" class="lesson-big"></div></div>
+    </div>
+    <label class="lesson-label">Time of day: <span id="tide-time"></span>
+      <input id="tide-hour" type="range" min="0" max="24" step="0.05"></label>
+    <div class="lesson-buttons">
+      <button id="tide-play" class="lesson-pill"><i class="ph-fill ph-play"></i> Play</button>
+      <button id="tide-full" class="lesson-pill"><i class="ph-fill ph-circle"></i> Full Moon</button>
+      <button id="tide-half" class="lesson-pill"><i class="ph-fill ph-circle-half"></i> Half Moon</button>
+      <button id="tide-today" class="lesson-pill"><i class="ph-fill ph-clock"></i> Now</button>
+    </div>
+    <ol class="lesson-steps">
+      <li><b>High tide:</b> your beach is in a bump. The sea comes up the sand.</li>
+      <li><b>Low tide:</b> your beach is between the bumps. The sea goes out.</li>
+      <li><b>Big tides</b> come at New Moon and Full Moon, when the Sun and the Moon pull in a line.</li>
+    </ol>
+    <p class="lesson-note">The bumps are drawn much bigger than they really are. Real tides also come a little later than the picture shows, because the water needs time to flow round the coasts. In the Mediterranean the sea only rises about 30 cm. In Canada's Bay of Fundy it can rise more than 15 metres!</p>`;
+
+  const top = $(root, '#tide-top');
+  const beach = $(root, '#tide-beach');
+  const slider = $(root, '#tide-hour');
+  const play = $(root, '#tide-play');
+  // State: the hour of the day, and the Moon's phase angle (0 = New, 180 = Full).
+  let hour = 12, phase = 0, playing = false, raf = 0, last = 0;
+
+  const fromNow = () => {
+    const now = new Date();
+    hour = now.getHours() + now.getMinutes() / 60;
+    phase = moonPhase(now);
+  };
+  fromNow();
+
+  function render(t = 0) {
+    const level = tideAt(beachDir(hour), phase) / TIDE_MAX;      // -1 low … +1 high
+    const soon = tideAt(beachDir(hour + 0.25), phase) / TIDE_MAX;
+    drawTideTop(top, hour, phase);
+    drawBeach(beach, level, t);
+    // High and low are judged against this day's own range: at Half Moon the
+    // bumps are small, but the top of a small tide is still high tide.
+    let hi = -Infinity, lo = Infinity;
+    for (let k = 0; k < 48; k++) {
+      const v = tideAt(beachDir(k / 2), phase) / TIDE_MAX;
+      hi = Math.max(hi, v); lo = Math.min(lo, v);
+    }
+    const frac = (level - lo) / (hi - lo);
+    let now;
+    if (frac > 0.85) now = 'High tide';
+    else if (frac < 0.15) now = 'Low tide';
+    else now = soon > level ? 'Coming in' : 'Going out';
+    $(root, '#tide-now').textContent = now;
+    const strength = 1 + SUN_TIDE * Math.cos(2 * (moonDir(phase) - Math.PI)); // 0.54 … 1.46
+    $(root, '#tide-size').textContent = strength > 1.25 ? 'Big' : strength < 0.75 ? 'Small' : 'Medium';
+    $(root, '#tide-time').textContent = `${clock(hour)}, ${partOfDay(hour)}`;
+    slider.value = ((hour % 24) + 24) % 24;
+  }
+
+  slider.addEventListener('input', () => { hour = parseFloat(slider.value); render(last); });
+  const setPhase = (p) => { phase = p; render(last); };
+  $(root, '#tide-full').addEventListener('click', () => setPhase(180));
+  $(root, '#tide-half').addEventListener('click', () => setPhase(90));
+  $(root, '#tide-today').addEventListener('click', () => { fromNow(); render(last); });
+  play.addEventListener('click', () => {
+    playing = !playing;
+    play.innerHTML = playing ? '<i class="ph-fill ph-pause"></i> Pause' : '<i class="ph-fill ph-play"></i> Play';
+  });
+
+  const tick = (now) => {
+    if (!isLessonOpen() || !root.isConnected) return;
+    raf = requestAnimationFrame(tick);
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    if (playing) {
+      const hours = dt * 3; // a whole day in about eight seconds
+      hour = (hour + hours) % 24;
+      phase = (phase + (hours / 24 / SYNODIC) * 360) % 360; // the Moon creeps on too
+    }
+    render(now); // every frame: the little waves on the beach move
+  };
+  render();
+  raf = requestAnimationFrame(tick);
+  const onResize = () => { if (isLessonOpen()) render(last); };
+  window.addEventListener('resize', onResize);
+  return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); };
+}
+
+// Top-down: the Sun on the left, Earth with its water bumps, the Moon on its orbit,
+// and a flag on your beach turning round with Earth.
+function drawTideTop(c, hour, phase) {
+  const { ctx, w, h } = sizeCanvas(c);
+  const cx = w * 0.56, cy = h / 2;
+  const E = Math.min(w * 0.15, h * 0.17);   // Earth's radius
+  const orbit = Math.min(w * 0.34, h * 0.43); // the Moon's orbit, clear of both edges
+  const font = (px) => `700 ${px}px Inter, system-ui, sans-serif`;
+
+  // Sunlight from the left.
+  ctx.strokeStyle = 'rgba(255,205,120,0.18)';
+  ctx.lineWidth = 1;
+  for (let k = -3; k <= 3; k++) {
+    const y = cy + k * h * 0.12;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(cx - orbit - 18, y); ctx.stroke();
+  }
+  const sg = ctx.createRadialGradient(8, cy, 0, 8, cy, 44);
+  sg.addColorStop(0, 'rgba(255,220,150,0.95)');
+  sg.addColorStop(0.35, 'rgba(255,180,90,0.4)');
+  sg.addColorStop(1, 'rgba(255,160,80,0)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(0, cy - 44, 60, 88);
+  ctx.font = font(14);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,226,180,0.95)';
+  ctx.fillText('Sun', 4, cy - 50);
+
+  // The Moon's orbit and the Moon, lit on its Sun side.
+  const md = moonDir(phase);
+  const mx = cx + orbit * Math.cos(md), my = cy + orbit * Math.sin(md);
+  ctx.setLineDash([3, 5]);
+  ctx.strokeStyle = 'rgba(210,215,240,0.3)';
+  ctx.beginPath(); ctx.arc(cx, cy, orbit, 0, Math.PI * 2); ctx.stroke();
+  // The pull: a soft arrow from the Moon toward Earth.
+  ctx.strokeStyle = 'rgba(190,210,255,0.45)';
+  ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(cx, cy); ctx.stroke();
+  ctx.setLineDash([]);
+  const mr = 13;
+  ctx.fillStyle = '#2b2f45';
+  ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#eceef6';
+  ctx.beginPath(); ctx.arc(mx, my, mr, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+  ctx.font = font(13);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(233,233,237,0.95)';
+  ctx.fillText('Moon', mx, my + (my > cy ? mr + 16 : -mr - 8));
+
+  // The water: a bump toward the Moon and one away from it, plus the Sun's smaller pair.
+  const water = (dir) => E * (1.1 + 0.2 * (tideAt(dir, phase) / TIDE_MAX));
+  ctx.beginPath();
+  for (let i = 0; i <= 120; i++) {
+    const d = (i / 120) * Math.PI * 2;
+    const r = water(d);
+    const x = cx + r * Math.cos(d), y = cy + r * Math.sin(d);
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+  const wg = ctx.createRadialGradient(cx, cy, E * 0.8, cx, cy, E * 1.35);
+  wg.addColorStop(0, '#2f7fd8');
+  wg.addColorStop(1, '#5fb4ff');
+  ctx.fillStyle = wg;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(200,230,255,0.8)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Earth's land, with the night half (away from the Sun) shaded.
+  const lg = ctx.createRadialGradient(cx - E * 0.35, cy - E * 0.35, E * 0.1, cx, cy, E);
+  lg.addColorStop(0, '#9fd38a');
+  lg.addColorStop(1, '#4d8a4a');
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.arc(cx, cy, E * 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(5,8,25,0.3)';
+  ctx.beginPath(); ctx.arc(cx, cy, E * 1.42, -Math.PI / 2, Math.PI / 2); ctx.fill();
+
+  // High-tide and low-tide labels at the bumps and the dips.
+  ctx.font = font(12);
+  const bd = beachDir(hour);
+  const tag = (dir, text, col) => {
+    // Leave the label out where the You flag would cover it.
+    if (Math.cos(dir - bd) > Math.cos(28 * DEG)) return;
+    const r = water(dir) + 16;
+    const x = cx + r * Math.cos(dir), y = cy + r * Math.sin(dir);
+    ctx.fillStyle = col;
+    ctx.fillText(text, x, y + 4);
+  };
+  tag(md, 'high', '#bfe3ff');
+  tag(md + Math.PI, 'high', '#bfe3ff');
+  tag(md + Math.PI / 2, 'low', 'rgba(233,233,237,0.7)');
+  tag(md - Math.PI / 2, 'low', 'rgba(233,233,237,0.7)');
+
+  // Your beach: a red flag on Earth's edge, turning with the day.
+  const bx = cx + E * 0.9 * Math.cos(bd), by = cy + E * 0.9 * Math.sin(bd);
+  const fx = cx + E * 1.55 * Math.cos(bd), fy = cy + E * 1.55 * Math.sin(bd);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(fx, fy); ctx.stroke();
+  ctx.fillStyle = '#ff6b5b';
+  ctx.beginPath(); ctx.arc(fx, fy, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.font = font(14);
+  ctx.fillStyle = '#ffd0c8';
+  const lx = cx + E * 1.55 * Math.cos(bd) + 14 * Math.cos(bd);
+  const ly = cy + E * 1.55 * Math.sin(bd) + 14 * Math.sin(bd);
+  ctx.textAlign = Math.cos(bd) > 0.3 ? 'left' : Math.cos(bd) < -0.3 ? 'right' : 'center';
+  ctx.fillText('You', lx, ly + (Math.sin(bd) > 0.3 ? 12 : Math.sin(bd) < -0.3 ? -4 : 5));
+}
+
+// Side view of your beach: the sea level goes up and down the sand.
+function drawBeach(c, level, t) {
+  const { ctx, w, h } = sizeCanvas(c);
+  // Sky.
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#1c2350');
+  sky.addColorStop(1, '#33407a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+
+  const sandY = (x) => h - ((x - w * 0.05) / (w * 0.95)) * h * 0.85; // the slope of the beach
+  const highY = h * 0.42, lowY = h * 0.84;
+  const seaY = (lowY + highY) / 2 - level * (lowY - highY) / 2;
+
+  // The sea, with small moving waves on top.
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  for (let x = 0; x <= w; x += 6) ctx.lineTo(x, seaY + Math.sin(x / 18 + t / 420) * 2.5);
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  const sea = ctx.createLinearGradient(0, seaY, 0, h);
+  sea.addColorStop(0, '#5fb4ff');
+  sea.addColorStop(1, '#1f5fae');
+  ctx.fillStyle = sea;
+  ctx.fill();
+
+  // The sand, drawn over the sea so the water stops where it meets the beach.
+  ctx.beginPath();
+  ctx.moveTo(w * 0.05, h);
+  ctx.lineTo(w, sandY(w));
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fillStyle = '#e8cf9a';
+  ctx.fill();
+  ctx.strokeStyle = '#f6e3b8';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(w * 0.05, h); ctx.lineTo(w, sandY(w)); ctx.stroke();
+
+  // A sandcastle just above the highest tide.
+  const castleX = w * 0.05 + ((h - (highY - 14)) / (h * 0.85)) * w * 0.95;
+  const cbase = sandY(castleX);
+  ctx.fillStyle = '#d9b46e';
+  ctx.fillRect(castleX - 14, cbase - 22, 28, 22);
+  ctx.fillRect(castleX - 18, cbase - 30, 9, 10);
+  ctx.fillRect(castleX + 9, cbase - 30, 9, 10);
+  ctx.fillStyle = '#ff6b5b';
+  ctx.beginPath(); ctx.moveTo(castleX, cbase - 40); ctx.lineTo(castleX + 10, cbase - 36); ctx.lineTo(castleX, cbase - 32); ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(castleX, cbase - 22); ctx.lineTo(castleX, cbase - 40); ctx.stroke();
+
+  // Marks for the highest and lowest water.
+  ctx.setLineDash([4, 5]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1;
+  for (const y of [highY, lowY]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w * 0.42, y); ctx.stroke(); }
+  ctx.setLineDash([]);
+  ctx.font = '700 12px Inter, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText('high tide', 6, highY - 6);
+  ctx.fillText('low tide', 6, lowY - 6);
+}
+
+// ---------------------------------------------------------------------------
 // Hub and routing
 // ---------------------------------------------------------------------------
 
@@ -660,6 +964,12 @@ const LESSONS = {
     title: 'From the universe to you',
     speak: 'Zoom in from the universe, through the galaxies, to our Sun, to Earth, and to where you are.',
     build: (root) => { mountZoom(root); return unmountZoom; },
+  },
+  tides: {
+    kicker: 'Discover · Tides',
+    title: 'Why the sea goes in and out',
+    speak: 'The Moon pulls on the sea. The water piles up in two big bumps, one under the Moon and one on the far side of Earth. As Earth spins, your beach goes through both bumps, so the sea comes in and goes out twice a day. When the Sun and the Moon pull in a line, at New Moon and Full Moon, the tides are big.',
+    build: buildTides,
   },
 };
 

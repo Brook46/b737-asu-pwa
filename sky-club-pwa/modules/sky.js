@@ -23,14 +23,15 @@
 // reticle on something to have it named and caught, edge arrows point the way
 // to Sun/Moon/planets that are up but off screen.
 
-import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=24';
-import { SKY_BODIES } from './catalog.js?v=24';
-import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=24';
-import { say } from './speech.js?v=24';
-import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=24';
-import { openCard, openStarCard } from './orbits.js?v=24';
-import { nextEventHeadline } from './events.js?v=24';
-import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=24';
+import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=25';
+import { SKY_BODIES } from './catalog.js?v=25';
+import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=25';
+import { say } from './speech.js?v=25';
+import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=25';
+import { openCard, openStarCard } from './orbits.js?v=25';
+import { nextEventHeadline } from './events.js?v=25';
+import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=25';
+import { playChime } from './sound.js?v=25';
 
 const DEG = Math.PI / 180;
 
@@ -326,7 +327,7 @@ function buildSprites() {
   sx.fillStyle = sg;
   sx.fillRect(0, 0, 160, 160);
 
-  moonCanvas = canvasOf(128, 128);
+  moonCanvas = canvasOf(192, 192); // sharper: the Moon is the one thing people look at closely
 
   // Planets: the real texture on a limb-darkened disc; Saturn with its ring
   // split into a back half (behind the globe) and a front half.
@@ -790,6 +791,9 @@ function drawStars(ctx, cam, t, labels) {
   const twinkleOn = dayness < 0.5;
   const tt = t / 1000;
   let bestCon = -1, bestD2 = 70 * 70;
+  // Diffraction spikes: the brightest stars show the four thin rays a telescope
+  // image gives them, which is most of what makes a star look like a star.
+  const spikes = new Path2D();
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < N; i++) {
     const m = starMag[i];
@@ -827,6 +831,11 @@ function drawStars(ctx, cam, t, labels) {
     }
     ctx.globalAlpha = a;
     ctx.drawImage(starSprites[starSprite[i]], sx - d / 2, sy - d / 2, d, d);
+    if (mEff < 1.2 && !hidden) {
+      const L = d * 2.6 + 6;
+      spikes.moveTo(sx - L, sy); spikes.lineTo(sx + L, sy);
+      spikes.moveTo(sx, sy - L); spikes.lineTo(sx, sy + L);
+    }
 
     if (starCon[i] >= 0 && m < 4.5 && !hidden) {
       const d2 = (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy);
@@ -838,6 +847,10 @@ function drawStars(ctx, cam, t, labels) {
       if (m <= LABEL_MAG && !hidden) labels.push({ kind: 'star', x: sx, y: sy + d * 0.18 + 11, text: starEntity(i)?.name, hit });
     }
   }
+  ctx.globalAlpha = 0.32 * starVis;
+  ctx.strokeStyle = 'rgba(225,235,255,1)';
+  ctx.lineWidth = 0.8;
+  ctx.stroke(spikes);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   currentCon = bestCon;
@@ -1197,6 +1210,7 @@ function updateLock(cam) {
 // throwing a full-screen sheet over the sky every time you rest on something
 // while panning would be unusable.
 function catchBody(entity, openSheet) {
+  playChime();
   flashes.set(entity.id, performance.now());
   if (openSheet) {
     if (entity.kind === 'star') openStarCard(entity, entity.conName);
