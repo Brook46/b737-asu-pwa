@@ -290,9 +290,7 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
 
 ## Recognition cues and maneuvers (v49)
 
-- **Maneuvers** (`quickref.js` MANEUVERS) use the memory-item card: `cond` plus
-  `WHO(role, lines)` blocks (PF / PM / Captain / F/O) and `BOX(…, 'warn' | 'caution' | 'note')`.
-  Condensed in our own words but checked line by line against QRH MAN.1.1–1.14
+- **Maneuvers** (`quickref.js` MANEUVERS): short `[label, text]` steps, checked against QRH MAN.1.1–1.14
   (e.g. climb RA in landing configuration: A/P + A/T off, max thrust, "FLAPS 15",
   PM flaps 15, positive rate on the altimeter → "GEAR UP"). Recheck the QRH before editing.
 - **Cues** (`modules/cues.js`): `CUES[title]` — keyed by the exact card title —
@@ -304,6 +302,17 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   scenario, switches to the cockpit (`goView`), and shows a Demo bar whose Clear
   undoes them and restores the phase. View `capt` = captain's lights, PFD, ND,
   engines and gear.
+- v52: the user did not want to leave for the cockpit view. "Show on the
+  panels" opens a **pop-up** (`demoCue` / `closeCuePop` in app.js) holding the
+  cockpit's own panel SVGs and DU canvases listed in `CUES[t].show`
+  (`['p', sys, panelTitle]` / `['du', screenId]`), reparented while open and
+  put back on close. The cockpit is built without entering it
+  (`ensureCockpit()`); `cuePop` makes `refresh()` feed it and a 400 ms tick
+  calls `cockpit.drawScreens()`. Maneuvers went back to the short
+  `[label, text]` card (the user preferred it) with the QRH fixes kept.
+- The cockpit's own upper DU (`arcGauge` in cockpit-displays.js) uses the same
+  FCOM 7.11 geometry. The PFD outlines the RA pitch area in red; the ND shows
+  the intruder (amber circle TA / red square RA, relative altitude, arrow).
 - Engine display copied from FCOM 7.11 (Primary Engine Indications): zero at
   3 o'clock, scale runs **clockwise** down and round to ~11 o'clock (N1 0–10
   marks, 100 % ≈ 200°; EGT no numbers, amber + red radials near the top end),

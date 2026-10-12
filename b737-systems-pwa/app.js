@@ -4,37 +4,37 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=51';
-import { createOutside } from './modules/outside.js?v=51';
-import { createViewCube } from './modules/viewcube.js?v=51';
-import { createAirLink } from './modules/airlink.js?v=51';
-import { createQuickRef } from './modules/quickref.js?v=51';
-import { installResumeHardening } from './modules/resume.js?v=51';
-import { createScene } from './modules/scene.js?v=51';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=51';
-import { createDims } from './modules/dims.js?v=51';
-import { createSystems3D } from './modules/systems3d.js?v=51';
-import { createOverlay } from './modules/overlay.js?v=51';
-import { createSheet } from './modules/sheet.js?v=51';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=51';
-import { SYSTEMS, READY } from './modules/systems.js?v=51';
-import { createSearch } from './modules/search.js?v=51';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=51';
-import { createProgress } from './modules/progress.js?v=51';
-import { createLearn } from './modules/learn.js?v=51';
-import { explain } from './modules/cockpit-info.js?v=51';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=51';
-import { createCockpit } from './modules/cockpit.js?v=51';
-import { nav, geo, loadNav } from './modules/navdb.js?v=51';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=51';
-import { createCDU } from './modules/cdu.js?v=51';
-import { createCDUView } from './modules/cdu-view.js?v=51';
-import { createFlightSim } from './modules/flightsim.js?v=51';
-import { createStateBar } from './modules/statebar.js?v=51';
-import { createPanelViewer } from './modules/panelview.js?v=51';
-import { createRtoDrill } from './modules/rto.js?v=51';
-import { tts } from './modules/speech.js?v=51';
-import { engState } from './modules/sys-engines.js?v=51';
+import { makeEnv } from './modules/world.js?v=52';
+import { createOutside } from './modules/outside.js?v=52';
+import { createViewCube } from './modules/viewcube.js?v=52';
+import { createAirLink } from './modules/airlink.js?v=52';
+import { createQuickRef } from './modules/quickref.js?v=52';
+import { installResumeHardening } from './modules/resume.js?v=52';
+import { createScene } from './modules/scene.js?v=52';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=52';
+import { createDims } from './modules/dims.js?v=52';
+import { createSystems3D } from './modules/systems3d.js?v=52';
+import { createOverlay } from './modules/overlay.js?v=52';
+import { createSheet } from './modules/sheet.js?v=52';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=52';
+import { SYSTEMS, READY } from './modules/systems.js?v=52';
+import { createSearch } from './modules/search.js?v=52';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=52';
+import { createProgress } from './modules/progress.js?v=52';
+import { createLearn } from './modules/learn.js?v=52';
+import { explain } from './modules/cockpit-info.js?v=52';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=52';
+import { createCockpit } from './modules/cockpit.js?v=52';
+import { nav, geo, loadNav } from './modules/navdb.js?v=52';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=52';
+import { createCDU } from './modules/cdu.js?v=52';
+import { createCDUView } from './modules/cdu-view.js?v=52';
+import { createFlightSim } from './modules/flightsim.js?v=52';
+import { createStateBar } from './modules/statebar.js?v=52';
+import { createPanelViewer } from './modules/panelview.js?v=52';
+import { createRtoDrill } from './modules/rto.js?v=52';
+import { tts } from './modules/speech.js?v=52';
+import { engState } from './modules/sys-engines.js?v=52';
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,6 +45,7 @@ let stateBar = null;
 let sysId = null;
 let partId = null;
 let view = '3d';
+let cuePop = null;      // the recognition pop-up (QRH) feeds the cockpit panels while open
 let schem = null;          // mounted schematic { update }
 let schemFor = null;
 const states = new Map();  // system id → { sw, fail, q, mem }
@@ -323,7 +324,7 @@ function init() {
 
   function refresh() {
     let note = '';
-    const inCockpit = view === 'cockpit' && cockpit;
+    const inCockpit = (view === 'cockpit' || cuePop) && cockpit;
     const results = {};
     for (const s of READY) {
       if (s.id !== sysId && !inCockpit) continue;
@@ -609,6 +610,39 @@ function init() {
     cockpit?.setSeat(b.dataset.seat);
   });
 
+  /** The cockpit is built once, the first time it's needed (it renders every panel). */
+  function ensureCockpit() {
+    if (!cockpit) cockpit = createCockpit({
+      canvas: api.canvas, systems: READY, ctxFor,
+      onControl: (ev) => (ev.kind === 'cdu' ? cduView.show() : showInfo(ev)),
+      cdu: { screen: () => cdu.render(), exec: () => fmc.execLit, msg: () => !!fmc.S.msg },
+      // Start levers in the cockpit work: they toggle CUTOFF / IDLE.
+      onLever(name) {
+        if (name === 'Flap lever' || name === 'Speed brake lever') {
+          const st = stateOf('flightcontrols');
+          const k = name === 'Flap lever' ? 'flap' : 'sb', n = k === 'flap' ? 9 : 4;
+          st.sw[k] = (st.sw[k] + 1) % n;
+          refresh();
+          return k === 'flap' ? (['UP', '1', '2', '5', '10', '15', '25', '30', '40'][st.sw.flap]) : ['DOWN', 'ARMED', 'FLIGHT DETENT', 'UP'][st.sw.sb];
+        }
+        if (name === 'Landing gear lever') {
+          const st = stateOf('gear');
+          st.sw.lever = st.sw.lever === 2 ? 0 : 2;
+          if (!env().air && st.sw.lever === 0) { st.sw.lever = 2; refresh(); return 'DN — lever lock (on the ground)'; }
+          refresh();
+          return ['UP', 'OFF', 'DN'][st.sw.lever];
+        }
+        const m = name.match(/^Start lever (\d)$/);
+        if (!m) return false;
+        const st = stateOf('engines');
+        st.sw[`lever${m[1]}`] = st.sw[`lever${m[1]}`] ? 0 : 1;
+        refresh();
+        return st.sw[`lever${m[1]}`] ? 'IDLE' : 'CUTOFF';
+      },
+    });
+    return cockpit;
+  }
+
   function setView(v) {
     const was = view;
     view = v;
@@ -629,34 +663,7 @@ function init() {
     if (sch) { if (v === 'schem') sheet.hide(); mountSchematic(); } else { schem = null; schemFor = null; }
     // Cockpit: built the first time it's opened (it renders every panel).
     if (v === 'cockpit') {
-      if (!cockpit) cockpit = createCockpit({
-        canvas: api.canvas, systems: READY, ctxFor,
-        onControl: (ev) => (ev.kind === 'cdu' ? cduView.show() : showInfo(ev)),
-        cdu: { screen: () => cdu.render(), exec: () => fmc.execLit, msg: () => !!fmc.S.msg },
-        // Start levers in the cockpit work: they toggle CUTOFF / IDLE.
-        onLever(name) {
-          if (name === 'Flap lever' || name === 'Speed brake lever') {
-            const st = stateOf('flightcontrols');
-            const k = name === 'Flap lever' ? 'flap' : 'sb', n = k === 'flap' ? 9 : 4;
-            st.sw[k] = (st.sw[k] + 1) % n;
-            refresh();
-            return k === 'flap' ? (['UP', '1', '2', '5', '10', '15', '25', '30', '40'][st.sw.flap]) : ['DOWN', 'ARMED', 'FLIGHT DETENT', 'UP'][st.sw.sb];
-          }
-          if (name === 'Landing gear lever') {
-            const st = stateOf('gear');
-            st.sw.lever = st.sw.lever === 2 ? 0 : 2;
-            if (!env().air && st.sw.lever === 0) { st.sw.lever = 2; refresh(); return 'DN — lever lock (on the ground)'; }
-            refresh();
-            return ['UP', 'OFF', 'DN'][st.sw.lever];
-          }
-          const m = name.match(/^Start lever (\d)$/);
-          if (!m) return false;
-          const st = stateOf('engines');
-          st.sw[`lever${m[1]}`] = st.sw[`lever${m[1]}`] ? 0 : 1;
-          refresh();
-          return st.sw[`lever${m[1]}`] ? 'IDLE' : 'CUTOFF';
-        },
-      });
+      ensureCockpit();
       sheet.hide();
       api.setMode('cockpit', cockpit);
       cockpit.enter();
@@ -838,8 +845,9 @@ function init() {
   $('learn-btn').addEventListener('click', () => (sheet.key === 'learn' && !$('sheet').hidden ? sheet.hide() : learn.dashboard()));
 
   // ── Quick reference (memory items, maneuvers, limits) ──
-  // Recognition cue → the cockpit: set up the condition (failures, a warning
-  // scenario, a phase), sit in the right seat view, offer a way back.
+  // Recognition cue → a pop-up with the cockpit's own panels and display
+  // screens, set to the condition (failures, a warning scenario, a phase).
+  // Closing it puts everything back; the view underneath never changes.
   let demoOn = null;
   function clearDemo() {
     if (!demoOn) return;
@@ -847,36 +855,61 @@ function init() {
     if (demoOn.scen && stateOf('warnings').mem?.scen === demoOn.scen) ctxFor('warnings').action('scen', demoOn.scen);
     const back = demoOn.was;
     demoOn = null;
-    $('cue-demo')?.remove();
     if (back && back !== phase) setPhase(back); else refresh();
+  }
+  const SCREEN_NAME = { pfdC: 'Captain PFD', ndC: 'Captain ND', upper: 'Upper display', lower: 'Lower display', isfd: 'Standby (ISFD)' };
+  function closeCuePop() {
+    if (!cuePop) return;
+    for (const { node, parent, next, style } of cuePop.moved) {
+      node.classList.remove('cp-node');
+      node.setAttribute('style', style);
+      if (parent) parent.insertBefore(node, next); else node.remove();
+    }
+    clearTimeout(cuePop.timer);
+    cuePop.el.remove();
+    cuePop = null;
+    clearDemo();
   }
   function demoCue(cue, title) {
     if (!cue) return;
-    clearDemo();
-    sheet.hide();
+    closeCuePop();
+    const c = ensureCockpit();
     const d = cue.demo;
+    const el = document.createElement('div');
+    el.className = 'cue-pop';
+    el.innerHTML = `<div class="cue-pop-box"><div class="cue-pop-head"><div><div class="cue-pop-k">${d ? 'DEMO · ' + d.label : 'WHERE TO LOOK'}</div><div class="cue-pop-t"></div></div><button class="cue-pop-x" aria-label="Close">✕</button></div><div class="cue-pop-grid"></div></div>`;
+    el.querySelector('.cue-pop-t').textContent = title;
+    cuePop = { el, moved: [] };
     if (d) {
       const was = phase;
       if (d.phase && d.phase !== phase) setPhase(d.phase);
       for (const [sys, k] of d.fails || []) stateOf(sys).fail[k] = true;
       if (d.scen && stateOf('warnings').mem?.scen !== d.scen) ctxFor('warnings').action('scen', d.scen);
       demoOn = { ...d, was };
-      refresh();
     }
-    if (view !== 'cockpit') setView('cockpit');
-    cockpit?.goView(cue.view || 'out');
-    const bar = document.createElement('div');
-    bar.id = 'cue-demo';
-    bar.className = 'cue-demo';
-    bar.innerHTML = `<span>${d ? `Demo · ${d.label}` : `Where to look · ${title}`}</span><button class="tag tag-btn" data-cd="back">‹ Back to QRH</button>${d ? '<button class="tag tag-btn" data-cd="clear">Clear</button>' : '<button class="tag tag-btn" data-cd="clear">✕</button>'}`;
-    bar.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-cd]');
-      if (!b) return;
-      clearDemo(); bar.remove();
-      if (b.dataset.cd === 'back') quickref.backToCue(title);
-    });
-    document.body.append(bar);
+    refresh();
+    const grid = el.querySelector('.cue-pop-grid');
+    for (const [kind, a, b] of cue.show || []) {
+      const node = kind === 'du' ? c.screens[a]?.c : c.panelSets.get(a)?.panels.find((p) => p.title === b)?.svg;
+      if (!node) continue;
+      const fig = document.createElement('figure');
+      fig.className = 'cue-pop-fig' + (kind === 'du' ? ' du' : '');
+      cuePop.moved.push({ node, parent: node.parentNode, next: node.nextSibling, style: node.getAttribute('style') || '' });
+      node.classList.add('cp-node');
+      node.removeAttribute('style');
+      fig.append(node);
+      const cap = document.createElement('figcaption');
+      cap.textContent = kind === 'du' ? SCREEN_NAME[a] || a : b;
+      fig.append(cap);
+      grid.append(fig);
+    }
+    // Screens redraw a few times a second (the scenario keeps evolving).
+    const tick = () => { if (cuePop?.el !== el) return; refresh(); c.drawScreens(); cuePop.timer = setTimeout(tick, 400); };
+    tick();
+    el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('.cue-pop-x')) closeCuePop(); });
+    document.body.append(el);
   }
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCuePop(); });
   const quickref = createQuickRef(sheet, SYSTEMS, { demo: demoCue });
   $('qr-btn').addEventListener('click', () => (sheet.key === 'quickref' && !$('sheet').hidden ? sheet.hide() : quickref.open()));
   $('sp-btn').addEventListener('click', () => (sheet.key === 'supp' && !$('sheet').hidden ? sheet.hide() : quickref.openSupp()));

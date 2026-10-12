@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=51';
-import { nav, loadNav } from './navdb.js?v=51';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=51';
-import { relatedFor, procLink } from './supp-procs.js?v=51';
+import { SUPPLEMENTARY } from './supplementary.js?v=52';
+import { nav, loadNav } from './navdb.js?v=52';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=52';
+import { relatedFor, procLink } from './supp-procs.js?v=52';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];

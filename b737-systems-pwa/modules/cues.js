@@ -38,10 +38,6 @@ function pfdSvg(kind) {
     extra += `<rect x="24" y="96" width="10" height="56" fill="${RED}"/><rect x="24" y="96" width="10" height="56" fill="url(#bp)"/><rect x="24" y="74" width="4" height="22" fill="${AMB}"/>`;
     extra += `<rect x="2" y="72" width="22" height="16" fill="#000" stroke="${WHT}"/><text x="13" y="84" fill="${WHT}" font-size="10" font-weight="700" text-anchor="middle">118</text>`;
   }
-  if (kind === 'upHigh' || kind === 'upLow') {
-    const dir = kind === 'upHigh' ? 1 : -1;     // chevrons point back to the horizon
-    for (const y of [40, 56]) extra += `<path d="M96 ${y} L110 ${y + dir * 10} L124 ${y}" fill="none" stroke="${RED}" stroke-width="3" transform="rotate(${-bank} 110 80)"/>`;
-  }
   return `<svg viewBox="0 0 220 160" class="cue-svg"><defs><pattern id="bp" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="4" height="8" fill="#000"/></pattern></defs>
     <rect width="220" height="160" fill="#000"/>
     <g clip-path="inset(0)"><svg x="40" y="0" width="140" height="160" viewBox="40 0 140 160"><g transform="rotate(${-bank} 110 80)"><rect x="-100" y="-300" width="420" height="${hy + 300}" fill="#2a7be4"/><rect x="-100" y="${hy}" width="420" height="400" fill="#8a5a2b"/><line x1="-100" y1="${hy}" x2="320" y2="${hy}" stroke="${WHT}" stroke-width="1.5"/></g></svg></g>
@@ -55,7 +51,10 @@ function ndSvg(kind) {
   if (kind === 'ra' || kind === 'ta') {
     const c = kind === 'ra' ? RED : AMB;
     extra += kind === 'ra' ? `<rect x="122" y="56" width="12" height="12" fill="${c}"/>` : `<circle cx="128" cy="62" r="6.5" fill="${c}"/>`;
-    extra += `<text x="128" y="50" fill="${c}" font-size="10" font-weight="700" text-anchor="middle">${kind === 'ra' ? '+02' : '-05'}</text><text x="141" y="67" fill="${c}" font-size="12" font-weight="700">${kind === 'ra' ? '↓' : '↑'}</text>`;
+    // Relative altitude in hundreds of feet: above the symbol for traffic above, below it for traffic below.
+    extra += kind === 'ra'
+      ? `<text x="128" y="82" fill="${c}" font-size="10" font-weight="700" text-anchor="middle">-02</text><text x="141" y="67" fill="${c}" font-size="12" font-weight="700">↑</text>`
+      : `<text x="128" y="50" fill="${c}" font-size="10" font-weight="700" text-anchor="middle">+05</text><text x="141" y="67" fill="${c}" font-size="12" font-weight="700">↓</text>`;
     extra += `<text x="214" y="152" fill="${c}" font-size="12" font-weight="700" text-anchor="end">TRAFFIC</text>`;
   }
   if (kind === 'terrain' || kind === 'cterrain') {
@@ -98,7 +97,7 @@ function duSvg(kind) {
     g += `<line x1="${cx}" y1="${cy}" x2="${xv}" y2="${yv}" stroke="${alarm ? RED : WHT}" stroke-width="2"/>`;
     g += `<rect x="${cx + 2}" y="${cy - 21}" width="${r + 4}" height="17" fill="${alarm ? RED : '#000'}" stroke="${alarm ? RED : WHT}" stroke-width="1.1"/>`;
     g += `<text x="${cx + r + 3}" y="${cy - 7.5}" fill="${WHT}" font-size="13" text-anchor="end" font-family="monospace">${txt}</text>`;
-    if (fail) g += `<text x="${cx - 2}" y="${cy + r * 0.55}" fill="${AMB}" font-size="8" font-weight="700" text-anchor="middle">ENG FAIL</text>`;
+    if (fail) g += `<text x="${cx}" y="${cy + r + 10}" fill="${AMB}" font-size="8" font-weight="700" text-anchor="middle">ENG FAIL</text>`;
     return g;
   };
   const T = [[0, '0'], [20, '2'], [40, '4'], [60, '6'], [80, '8'], [100, '10']];
@@ -134,29 +133,29 @@ function pieceHtml(p) {
 // see: pieces drawn; hear / feel / notes: short lines; view: cockpit view;
 // demo: the simulator state that shows it (fails, scenario, phase).
 export const CUES = {
-  'Aborted Engine Start': { see: [du('start')], notes: ['EGT rising fast toward the start limit', 'No EGT rise within 10 s of the start lever to IDLE', 'No N1 rotation, or N1 / N2 stop rising (hung start)', 'No oil pressure by the time the engine is at idle'], view: 'center' },
-  'Airspeed Unreliable': { see: [pfd('ias')], notes: ['IAS or ALT DISAGREE on the PFDs', 'Speed or altitude that do not fit pitch and thrust', 'Captain, F/O and standby speeds disagree'], hear: ['Stick shaker or overspeed clacker — possibly false'], view: 'capt', demo: { fails: [['instruments', 'capPitot']], phase: 'cruise', label: 'Captain pitot blocked' } },
-  'APU FIRE': { see: [fsw('APU'), FIREWARN], hear: ['Fire warning bell', 'On the ground: APU horn in the wheel well'], view: 'pedestal', demo: { fails: [['fire', 'apuFire']], label: 'APU fire' } },
-  'CABIN ALTITUDE WARNING or Rapid Depressurization': { see: [lamp('CABIN\nALTITUDE', 'red')], hear: ['Intermittent warning horn'], notes: ['Cabin altitude above 10,000 ft on the cabin altitude indicator'], feel: ['Rapid decompression: bang, fog, cold, ears', 'Passenger masks drop at about 14,000 ft cabin'], view: 'capt' },
-  'Emergency Descent': { see: [lamp('CABIN\nALTITUDE', 'red')], notes: ['Cabin altitude keeps climbing after the cabin altitude steps', 'Or any situation needing a rapid descent'], view: 'mcp' },
-  'CARGO FIRE (MAIN)': { see: [lamp('MAIN', 'red'), FIREWARN], hear: ['Fire warning bell'], notes: ['MAIN light on the cargo fire panel (main-deck cargo airplanes)'], view: 'pedestal' },
-  'ENGINE FIRE or Engine Severe Damage or Separation': { see: [fsw('1'), FIREWARN], hear: ['Fire warning bell'], notes: ['Severe damage: airframe vibration with abnormal engine indications', 'Separation: engine indications lost, airplane yaws'], view: 'pedestal', demo: { fails: [['fire', 'fire1']], label: 'Engine 1 fire' } },
-  'Engine Limit or Surge or Stall': { see: [du('egt')], notes: ['EGT, N1 or N2 near or past the red line', 'No or wrong response to the thrust lever'], hear: ['Bangs or abnormal engine noise'], feel: ['Possible airframe vibration; flames reported at the inlet or exhaust'], view: 'center' },
-  'ENGINE OVERHEAT': { see: [lamp('ENG 1\nOVERHEAT'), MC, lamp('OVHT/DET')], view: 'pedestal', demo: { fails: [['fire', 'ovht1']], label: 'Engine 1 overheat' } },
-  'Loss Of Thrust On Both Engines': { see: [du('engfail')], notes: ['ENG FAIL on both engines', 'Generators off: many lights, displays on standby power', 'No response to the thrust levers'], view: 'center', demo: { fails: [['engines', 'flameout1'], ['engines', 'flameout2']], phase: 'cruise', label: 'Both engines flamed out' } },
-  'Runaway Stabilizer': { see: [lamp('STAB OUT\nOF TRIM')], notes: ['Stabilizer trim wheels turning on their own — continuously, or when they should not', 'STAB OUT OF TRIM can light with the autopilot engaged'], feel: ['Column force building up'], view: 'pedestal' },
-  'LANDING CONFIGURATION': { see: [gear()], hear: ['Steady warning horn'], notes: ['Gear not down and locked when the flaps or thrust say landing'], view: 'capt' },
-  'TAKEOFF CONFIGURATION': { see: [lamp('TAKEOFF\nCONFIG', 'red')], hear: ['Intermittent warning horn as thrust is advanced'], notes: ['Flaps out of the takeoff range, speedbrake not down, parking brake set, or stabilizer trim out of the green band'], view: 'capt' },
-  'WARNING HORN (INTERMITTENT) or WARNING LIGHT - CABIN ALTITUDE OR TAKEOFF CONFIGURATION': { see: [lamp('TAKEOFF\nCONFIG', 'red'), lamp('CABIN\nALTITUDE', 'red')], hear: ['Intermittent warning horn'], notes: ['In flight above 10,000 ft: cabin altitude', 'On the ground with thrust advancing: takeoff configuration'], view: 'capt' },
+  'Aborted Engine Start': { see: [du('start')], notes: ['EGT quickly nears or exceeds the start limit', 'No EGT rise by 15 s after the start lever goes to IDLE', 'N1 or N2 not rising, or rising very slowly, after EGT rises', 'No oil pressure by the time the engine is stable at idle'], ref: 'FCOM NP.21', view: 'center', show: [['du', 'upper'], ['du', 'lower']] },
+  'Airspeed Unreliable': { see: [pfd('ias')], notes: ['IAS or ALT DISAGREE on the PFDs', 'Speed or altitude that do not fit pitch and thrust', 'Captain, F/O and standby speeds disagree'], hear: ['Stick shaker or overspeed clacker — possibly false'], view: 'capt', show: [['du', 'pfdC'], ['du', 'isfd']], demo: { fails: [['instruments', 'capPitot']], phase: 'cruise', label: 'Captain pitot blocked' } },
+  'APU FIRE': { see: [fsw('APU'), FIREWARN], hear: ['Fire warning bell', 'On the ground: APU horn in the wheel well'], view: 'pedestal', show: [['p', 'warnings', 'Annunciator L'], ['p', 'fire', 'Fire protection']], demo: { fails: [['fire', 'apuFire']], label: 'APU fire' } },
+  'CABIN ALTITUDE WARNING or Rapid Depressurization': { see: [lamp('CABIN\nALTITUDE', 'red')], hear: ['Intermittent warning horn'], notes: ['Cabin altitude above 10,000 ft on the cabin altitude indicator'], feel: ['Rapid decompression: bang, fog, cold, ears', 'Passenger masks drop at about 14,000 ft cabin'], view: 'capt', show: [['p', 'warnings', 'Takeoff config and cabin altitude'], ['p', 'air', 'Cabin altitude']] },
+  'Emergency Descent': { see: [lamp('CABIN\nALTITUDE', 'red')], notes: ['Cabin altitude cannot be controlled', 'Or any situation needing a rapid descent'], view: 'mcp', show: [['p', 'air', 'Cabin altitude'], ['p', 'air', 'Cabin pressurization']] },
+  'CARGO FIRE (MAIN)': { see: [lamp('MAIN', 'red'), FIREWARN], hear: ['Fire warning bell'], notes: ['MAIN light on the cargo fire panel (main-deck cargo airplanes)'], view: 'pedestal', show: [['p', 'warnings', 'Annunciator L'], ['p', 'fire', 'Cargo fire']] },
+  'ENGINE FIRE or Engine Severe Damage or Separation': { see: [fsw('1'), FIREWARN], hear: ['Fire warning bell'], notes: ['Severe damage: airframe vibration with abnormal engine indications', 'Separation: engine indications lost, airplane yaws'], view: 'pedestal', show: [['p', 'warnings', 'Annunciator L'], ['p', 'fire', 'Fire protection']], demo: { fails: [['fire', 'fire1']], label: 'Engine 1 fire' } },
+  'Engine Limit or Surge or Stall': { see: [du('egt')], notes: ['EGT, N1 or N2 near or past the red line', 'No or wrong response to the thrust lever'], hear: ['Bangs or abnormal engine noise'], feel: ['Possible airframe vibration; flames reported at the inlet or exhaust'], view: 'center', show: [['du', 'upper']] },
+  'ENGINE OVERHEAT': { see: [lamp('ENG 1\nOVERHEAT'), MC, lamp('OVHT/DET')], view: 'pedestal', show: [['p', 'warnings', 'Annunciator L'], ['p', 'fire', 'Fire protection']], demo: { fails: [['fire', 'ovht1']], label: 'Engine 1 overheat' } },
+  'Loss Of Thrust On Both Engines': { see: [du('engfail')], notes: ['ENG FAIL on both engines', 'Both generators drop off: electrical lights and MASTER CAUTION', 'No response to the thrust levers'], view: 'center', show: [['du', 'upper'], ['p', 'engines', 'Engine start']], demo: { fails: [['engines', 'flameout1'], ['engines', 'flameout2']], phase: 'cruise', label: 'Both engines flamed out' } },
+  'Runaway Stabilizer': { see: [], notes: ['Stabilizer trim wheels turning on their own — continuously, or in a way that does not fit the flight condition', 'Trim indicator moving without a trim command'], hear: ['Trim wheel clacking'], feel: ['Column force building up'], view: 'pedestal', show: [['p', 'flightcontrols', 'Stabilizer trim']] },
+  'LANDING CONFIGURATION': { see: [gear()], hear: ['Steady warning horn'], notes: ['Gear not down and locked when the flaps or thrust levers say landing'], view: 'capt', show: [['p', 'gear', 'Landing gear']] },
+  'TAKEOFF CONFIGURATION': { see: [lamp('TAKEOFF\nCONFIG', 'red')], hear: ['Intermittent warning horn as thrust is advanced'], notes: ['Trailing edge flaps not 1–25 (or skewed, asymmetric, moving uncommanded)', 'Leading edge devices not set for takeoff', 'Speed brake lever not DOWN', 'Parking brake set', 'Stabilizer trim not in the takeoff range'], ref: 'FCOM 15.20', view: 'capt', show: [['p', 'warnings', 'Takeoff config and cabin altitude']] },
+  'WARNING HORN (INTERMITTENT) or WARNING LIGHT - CABIN ALTITUDE OR TAKEOFF CONFIGURATION': { see: [lamp('TAKEOFF\nCONFIG', 'red'), lamp('CABIN\nALTITUDE', 'red')], hear: ['Intermittent warning horn'], notes: ['In flight above 10,000 ft: cabin altitude', 'On the ground with thrust advancing: takeoff configuration'], view: 'capt', show: [['p', 'warnings', 'Takeoff config and cabin altitude']] },
   // Maneuvers
-  'Approach to Stall or Stall Recovery': { see: [pfd('stall')], hear: ['Stick shaker'], feel: ['Buffet'], notes: ['Speed in the amber band, toward the red and black minimum speed'], view: 'capt', demo: { scen: 'stall', phase: 'cruise', label: 'Approach to stall' } },
-  'Rejected Takeoff': { see: [MC, FIREWARN, du('engfail')], notes: ['Below 80 kt: any item on the reject list', '80 kt to V1: fire or fire warning, engine failure, predictive windshear warning, unsafe or unable to fly', 'Practise it: Cockpit → TAKEOFF MALFUNCTION'], view: 'rto' },
-  'GPWS Caution': { see: [nd('cterrain'), lamp('BELOW G/S\nP-INHIBIT')], hear: ['SINK RATE · TERRAIN · DON\'T SINK · TOO LOW FLAPS / GEAR / TERRAIN · GLIDESLOPE · BANK ANGLE · CAUTION TERRAIN'], view: 'capt', demo: { scen: 'gs', phase: 'approach', label: 'Below glideslope' } },
-  'GPWS Warning': { see: [pfd('pullup'), nd('terrain')], hear: ['"PULL UP" · "TERRAIN TERRAIN PULL UP"'], view: 'capt', demo: { scen: 'closure', phase: 'cruise', label: 'Terrain closure' } },
-  'Traffic Avoidance (TCAS)': { see: [pfd('ra'), nd('ra'), nd('ta')], hear: ['TA: "TRAFFIC, TRAFFIC"', 'RA: "CLIMB, CLIMB" · "DESCEND, DESCEND" · "ADJUST VERTICAL SPEED, ADJUST" · "MONITOR VERTICAL SPEED"', 'End: "CLEAR OF CONFLICT"'], notes: ['RA: red pitch area to avoid on the attitude, red and green bands on the vertical speed', 'ND: amber circle (TA), red square (RA), relative altitude and an arrow if climbing or descending'], view: 'capt', demo: { scen: 'traffic', phase: 'cruise', label: 'Traffic (TA, then RA)' } },
-  'Upset Recovery — Nose High': { see: [pfd('upHigh')], notes: ['Pitch above about 25° nose up, or speed falling fast for the attitude', 'Red chevrons point back to the horizon'], view: 'capt' },
-  'Upset Recovery — Nose Low': { see: [pfd('upLow')], notes: ['Pitch below about 10° nose down or bank beyond 45°, speed building', 'Red chevrons point back to the horizon'], view: 'capt' },
-  'Windshear': { see: [pfd('windshear'), nd('pws')], hear: ['Two-tone siren, "WINDSHEAR, WINDSHEAR, WINDSHEAR"', 'Predictive: "MONITOR RADAR DISPLAY" (caution) · "WINDSHEAR AHEAD" (takeoff) · "GO-AROUND, WINDSHEAR AHEAD" (approach)'], notes: ['Below 1,000 ft: ±15 kt, ±500 fpm, ±5° pitch, 1 dot glideslope, or unusual thrust lever position for a long time'], view: 'capt', demo: { scen: 'windshear', phase: 'approach', label: 'Windshear' } },
+  'Approach to Stall or Stall Recovery': { see: [pfd('stall')], hear: ['Stick shaker'], feel: ['Buffet'], notes: ['Speed in the amber band, toward the red and black minimum speed'], view: 'capt', show: [['du', 'pfdC']], demo: { scen: 'stall', phase: 'cruise', label: 'Approach to stall' } },
+  'Rejected Takeoff': { see: [MC, FIREWARN, du('engfail')], notes: ['Below 80 kt: any item on the reject list', '80 kt to V1: fire or fire warning, engine failure, predictive windshear warning, unsafe or unable to fly', 'Practise it: Cockpit → TAKEOFF MALFUNCTION'], view: 'rto', show: [['p', 'warnings', 'Annunciator L'], ['du', 'upper']] },
+  'GPWS Caution': { see: [nd('cterrain'), lamp('BELOW G/S\nP-INHIBIT')], hear: ['SINK RATE · TERRAIN · DON\'T SINK · TOO LOW FLAPS / GEAR / TERRAIN · GLIDESLOPE · BANK ANGLE · CAUTION TERRAIN'], view: 'capt', show: [['du', 'pfdC'], ['du', 'ndC'], ['p', 'warnings', 'GPWS']], demo: { scen: 'gs', phase: 'approach', label: 'Below glideslope' } },
+  'GPWS Warning': { see: [pfd('pullup'), nd('terrain')], hear: ['"PULL UP" · "TERRAIN TERRAIN PULL UP"'], view: 'capt', show: [['du', 'pfdC'], ['du', 'ndC']], demo: { scen: 'closure', phase: 'cruise', label: 'Terrain closure' } },
+  'Traffic Avoidance (TCAS)': { see: [pfd('ra'), nd('ra'), nd('ta')], hear: ['TA: "TRAFFIC, TRAFFIC"', 'RA: "CLIMB, CLIMB" · "DESCEND, DESCEND" · "ADJUST VERTICAL SPEED, ADJUST" · "MONITOR VERTICAL SPEED"', 'End: "CLEAR OF CONFLICT"'], notes: ['RA: red pitch area to avoid on the attitude, red and green bands on the vertical speed', 'ND: amber circle (TA), red square (RA), relative altitude and an arrow if climbing or descending'], view: 'capt', show: [['du', 'pfdC'], ['du', 'ndC']], demo: { scen: 'traffic', phase: 'cruise', label: 'Traffic (TA, then RA)' } },
+  'Upset Recovery — Nose High': { see: [pfd('upHigh')], notes: ['Pitch beyond about 25° nose up, or an airspeed wrong for the conditions'], view: 'capt', show: [['du', 'pfdC']] },
+  'Upset Recovery — Nose Low': { see: [pfd('upLow')], notes: ['Pitch beyond about 10° nose down or bank beyond 45°, speed building'], view: 'capt', show: [['du', 'pfdC']] },
+  'Windshear': { see: [pfd('windshear'), nd('pws')], hear: ['Two-tone siren, "WINDSHEAR, WINDSHEAR, WINDSHEAR"', 'Predictive: "MONITOR RADAR DISPLAY" (caution) · "WINDSHEAR AHEAD" (takeoff) · "GO-AROUND, WINDSHEAR AHEAD" (approach)'], notes: ['Below 1,000 ft: ±15 kt, ±500 fpm, ±5° pitch, 1 dot glideslope, or unusual thrust lever position for a long time'], view: 'capt', show: [['du', 'pfdC'], ['du', 'ndC']], demo: { scen: 'windshear', phase: 'approach', label: 'Windshear' } },
 };
 
 /** The card for one item, or '' if none. */
@@ -169,7 +168,7 @@ export function cueHtml(title) {
     <div class="cue-t">${esc(title)}</div>
     ${c.see?.length ? `<div class="cue-h">See</div><div class="cue-see">${c.see.map(pieceHtml).join('')}</div>` : ''}
     ${list('Also', c.notes, '')}${list('Hear', c.hear, 'hear')}${list('Feel', c.feel, '')}
-    <div class="cue-act"><button class="cue-go" data-cue-cockpit="${esc(title)}">${c.demo ? 'Show in cockpit' : 'Where in cockpit'} ›</button></div>
+    <div class="cue-act">${c.show?.length ? `<button class="cue-go" data-cue-cockpit="${esc(title)}">${c.demo ? 'Show on the panels' : 'The panels'} ›</button>` : ''}</div>
     <p class="cue-foot">Sketches of the indications, not the real displays.</p>
   </div>`;
 }

@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=51';
-import { createOverhead } from './overhead.js?v=51';
-import * as CAB from './cockpit-cab.js?v=51';
-import { buildStand } from './cockpit-stand.js?v=51';
-import * as D from './cockpit-displays.js?v=51';
-import { drawCDUScreen } from './cdu.js?v=51';
+import * as THREE from '../vendor/three.module.min.js?v=52';
+import { createOverhead } from './overhead.js?v=52';
+import * as CAB from './cockpit-cab.js?v=52';
+import { buildStand } from './cockpit-stand.js?v=52';
+import * as D from './cockpit-displays.js?v=52';
+import { drawCDUScreen } from './cdu.js?v=52';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.34, -0.52);
@@ -873,20 +873,26 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     tDisp += dt;
     if (data && tDisp > 0.2) {
       tDisp = 0;
-      // Flight Instruments decides what each DU shows (failures, selectors).
-      const fmt = data.dus || {};
-      for (const [id, sc] of Object.entries(screens)) {
-        const f = fmt[DU_OF[id]];
-        const draw = f == null ? sc.draw : FORMAT[f] || blank;
-        // The captain's side reads the captain's air data.
-        const own = data.capIas != null && (id === 'pfdC' || id === 'ndC') ? { ...data, flight: { ...data.flight, ias: data.capIas } } : data;
-        draw(sc.g, sc.c.width, sc.c.height, own);
-        sc.t.needsUpdate = true;
-      }
+      drawScreens();
       pose(data);
     }
     tCdu += dt;
     if (tCdu > 0.5) { tCdu = 0; drawCDUs(); }
+  }
+
+  /** Redraw the display units from the latest data (also used outside the cockpit view). */
+  function drawScreens() {
+    if (!data) return;
+    // Flight Instruments decides what each DU shows (failures, selectors).
+    const fmt = data.dus || {};
+    for (const [id, sc] of Object.entries(screens)) {
+      const f = fmt[DU_OF[id]];
+      const draw = f == null ? sc.draw : FORMAT[f] || blank;
+      // The captain's side reads the captain's air data.
+      const own = data.capIas != null && (id === 'pfdC' || id === 'ndC') ? { ...data, flight: { ...data.flight, ias: data.capIas } } : data;
+      draw(sc.g, sc.c.width, sc.c.height, own);
+      sc.t.needsUpdate = true;
+    }
   }
 
   /** Levers, yokes and the outside world follow the phase. */
@@ -911,7 +917,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   }
 
   return { get look() { return look; }, aim: () => aim(),
-    scene, camera, frame, update, setData, goView, setSeat, get seat() { return seat; }, texPanels, screens,
+    scene, camera, frame, update, setData, drawScreens, goView, setSeat, get seat() { return seat; }, texPanels, screens,
     enter() { active = true; look.eye.set(...side(EYE.toArray())); goView('out'); for (const tp of texPanels) tp.dirty = true; },
     exit() { active = false; pointers.clear(); drag = null; },
     get active() { return active; },

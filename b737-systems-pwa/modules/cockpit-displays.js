@@ -126,6 +126,11 @@ export function drawPFD(g, W, H, d) {
   const w = d.warn;
   if (w?.pullUp) { g.fillStyle = '#000'; g.fillRect(cx - 62, cy + 58, 124, 34); text(g, 'PULL UP', cx, cy + 84, RED, 26, 'center'); }
   if (w?.windshear === 'red') { g.fillStyle = '#000'; g.fillRect(cx - 82, cy + 100, 164, 34); text(g, 'WINDSHEAR', cx, cy + 126, RED, 26, 'center'); }
+  // TCAS RA (climb): the pitch area to avoid, outlined red below the symbol.
+  if (w?.tcas === 'RA') {
+    g.strokeStyle = RED; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(cx - 70, cy + 18); g.lineTo(cx + 70, cy + 18); g.lineTo(cx + 90, cy + 92); g.lineTo(cx - 90, cy + 92); g.closePath(); g.stroke();
+  }
   // Heading at the bottom.
   g.fillStyle = '#4a4f55'; g.fillRect(cx - 150, H - 58, 300, 58);
   for (let k = -30; k <= 30; k += 5) {
@@ -317,49 +322,70 @@ export function drawND(g, W, H, d) {
   const w = d.warn;
   if (w?.windshear) text(g, 'WINDSHEAR', cx, H * 0.5, w.windshear === 'red' ? RED : AMB, 28, 'center');
   else if (w?.terrain) text(g, w.terrain === 'red' ? 'TERRAIN' : 'CAUTION TERRAIN', cx, H * 0.5, w.terrain === 'red' ? RED : AMB, 28, 'center');
-  if (w?.tcas) text(g, 'TRAFFIC', W - 70, H - 30, w.tcas === 'RA' ? RED : AMB, 22, 'center');
+  if (w?.tcas) {
+    const c = w.tcas === 'RA' ? RED : AMB, tx = cx + 34, ty = cy - 120;
+    g.fillStyle = c;
+    if (w.tcas === 'RA') g.fillRect(tx - 10, ty - 10, 20, 20); else { g.beginPath(); g.arc(tx, ty, 10, 0, Math.PI * 2); g.fill(); }
+    text(g, '-02', tx, ty + 30, c, 18, 'center');     // below the symbol: traffic 200 ft below
+    text(g, '↑', tx + 20, ty + 8, c, 22, 'center');
+    text(g, 'TRAFFIC', W - 70, H - 30, c, 22, 'center');
+  }
 }
 
 // ── Gauges for the engine displays ──────────────────────────────────────────
-function arcGauge(g, x, y, r, frac, val, redFrac = 1, label = '') {
-  const a0 = Math.PI, a1 = Math.PI * 1.0 + Math.PI * 1.17;
-  g.strokeStyle = WHT; g.lineWidth = 3;
-  g.beginPath(); g.arc(x, y, r, a0, a1); g.stroke();
-  g.strokeStyle = '#ff2a2a'; g.lineWidth = 4;
-  const ra = a0 + (a1 - a0) * redFrac;
-  g.beginPath(); g.moveTo(x + r * Math.cos(ra), y + r * Math.sin(ra)); g.lineTo(x + (r - 12) * Math.cos(ra), y + (r - 12) * Math.sin(ra)); g.stroke();
+// As drawn in FCOM 7.11: zero at 3 o'clock, the scale runs clockwise (down,
+// round the bottom, up to about 11 o'clock), the swept part shaded grey, the
+// readout boxed in the empty top-right quarter. frac 1 = 225° of scale; an
+// exceedance (past the red line) turns sweep, pointer and box red.
+function arcGauge(g, x, y, r, frac, val, redFrac = 1, { amber, ticks } = {}) {
+  const SW = (225 * Math.PI) / 180, ang = (f) => f * SW;
+  const over = frac > redFrac;
   if (frac > 0) {
-    g.fillStyle = 'rgba(200,200,200,.18)';
-    g.beginPath(); g.moveTo(x, y); g.arc(x, y, r - 2, a0, a0 + (a1 - a0) * frac); g.closePath(); g.fill();
+    g.fillStyle = over ? 'rgba(220,40,30,.85)' : 'rgba(140,140,140,.9)';
+    g.beginPath(); g.moveTo(x, y); g.arc(x, y, r - 1, 0, ang(Math.min(frac, 1.15))); g.closePath(); g.fill();
   }
-  const na = a0 + (a1 - a0) * frac;
   g.strokeStyle = WHT; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r - 4) * Math.cos(na), y + (r - 4) * Math.sin(na)); g.stroke();
-  g.fillStyle = '#000'; g.fillRect(x + 4, y - r - 6, r + 12, 30); box(g, x + 4, y - r - 6, r + 12, 30, WHT, 2);
-  text(g, val, x + r + 12, y - r + 17, WHT, 22, 'right');
-  if (label) text(g, label, x, y + r * 0.62, CYN, 15, 'center');
+  g.beginPath(); g.arc(x, y, r, 0, ang(Math.max(1, redFrac))); g.stroke();
+  for (const [f, lab] of ticks || []) {
+    const a = ang(f);
+    g.lineWidth = 2; g.beginPath(); g.moveTo(x + r * Math.cos(a), y + r * Math.sin(a)); g.lineTo(x + (r - 9) * Math.cos(a), y + (r - 9) * Math.sin(a)); g.stroke();
+    text(g, lab, x + (r - 19) * Math.cos(a), y + (r - 19) * Math.sin(a) + 6, WHT, 15, 'center');
+  }
+  for (const [f, c] of [[amber, AMB], [redFrac, '#ff2a2a']]) {
+    if (f == null) continue;
+    const a = ang(f);
+    g.strokeStyle = c; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(x + (r - 2) * Math.cos(a), y + (r - 2) * Math.sin(a)); g.lineTo(x + (r + 12) * Math.cos(a), y + (r + 12) * Math.sin(a)); g.stroke();
+  }
+  const na = ang(Math.min(frac, 1.15));
+  g.strokeStyle = over ? '#ff2a2a' : WHT; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r - 2) * Math.cos(na), y + (r - 2) * Math.sin(na)); g.stroke();
+  g.fillStyle = over ? '#ff2a2a' : '#000'; g.fillRect(x + 4, y - 40, r + 6, 34); box(g, x + 4, y - 40, r + 6, 34, over ? '#ff2a2a' : WHT, 2);
+  text(g, val, x + r + 6, y - 13, WHT, 26, 'right');
 }
 
 // ── Upper DU: N1, EGT, fuel ─────────────────────────────────────────────────
 export function drawUpper(g, W, H, d) {
   clear(g, W, H);
   const { e1, e2 } = d;
-  arcGauge(g, 120, 120, 64, e1.n1 / 110, e1.n1.toFixed(1), 104 / 110);
-  arcGauge(g, 300, 120, 64, e2.n1 / 110, e2.n1.toFixed(1), 104 / 110);
-  text(g, 'N1', 210, 150, CYN, 20, 'center');
-  arcGauge(g, 120, 290, 56, e1.egt / 1000, String(Math.round(e1.egt)), 0.95);
-  arcGauge(g, 300, 290, 56, e2.egt / 1000, String(Math.round(e2.egt)), 0.95);
-  text(g, 'EGT', 210, 316, CYN, 20, 'center');
-  if (d.rev) { text(g, 'REV', 120, 64, GRN, 18, 'center'); text(g, 'REV', 300, 64, GRN, 18, 'center'); }
+  // N1: 100 % at about 10 o'clock (0–10 marks, ×10 %); EGT: red line 950 °C near 11 o'clock.
+  const N1T = [0, 2, 4, 6, 8, 10].map((n) => [(n * 10) / 112, String(n)]);
+  const egtF = (t) => (t / 950) * (232 / 225);
+  arcGauge(g, 112, 128, 62, e1.n1 / 112, e1.n1.toFixed(1), 104 / 112, { ticks: N1T });
+  arcGauge(g, 292, 128, 62, e2.n1 / 112, e2.n1.toFixed(1), 104 / 112, { ticks: N1T });
+  text(g, 'N1', 205, 176, CYN, 20, 'center');
+  arcGauge(g, 112, 300, 54, egtF(e1.egt), String(Math.round(e1.egt)), egtF(950), { amber: egtF(925) });
+  arcGauge(g, 292, 300, 54, egtF(e2.egt), String(Math.round(e2.egt)), egtF(950), { amber: egtF(925) });
+  text(g, 'EGT', 205, 348, CYN, 20, 'center');
+  if (d.rev) { text(g, 'REV', 140, 64, GRN, 18, 'center'); text(g, 'REV', 320, 64, GRN, 18, 'center'); }
   // ENG FAIL (amber): the engine has run down below idle with its start lever in IDLE.
   (d.engFail || []).forEach((on, i) => {
     if (!on) return;
-    const x = i ? 300 : 120;
-    g.fillStyle = '#000'; g.fillRect(x - 46, 182, 92, 28); box(g, x - 46, 182, 92, 28, AMB, 2);
-    text(g, 'ENG FAIL', x, 204, AMB, 18, 'center');
+    const x = i ? 292 : 112;
+    text(g, 'ENG FAIL', x, 128 + 62 + 22, AMB, 18, 'center');   // just under the N1 dial
   });
   // Thermal anti-ice: green when the cowl valve is open, amber if it disagrees.
-  (d.tai || []).forEach((t, i) => { if (t) text(g, 'TAI', i ? 300 : 120, 40, t === 'amber' ? AMB : GRN, 18, 'center'); });
+  (d.tai || []).forEach((t, i) => { if (t) text(g, 'TAI', i ? 262 : 82, 74, t === 'amber' ? AMB : GRN, 18, 'center'); });
   // Fuel quantity.
   const fu = d.fuel;
   if (fu) {
