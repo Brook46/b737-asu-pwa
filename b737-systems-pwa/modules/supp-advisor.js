@@ -11,9 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=46';
-import { nav, loadNav } from './navdb.js?v=46';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=46';
+import { SUPPLEMENTARY } from './supplementary.js?v=47';
+import { nav, loadNav } from './navdb.js?v=47';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=47';
+import { relatedFor, procLink } from './supp-procs.js?v=47';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -32,9 +33,13 @@ const Q = {
   },
   airframe: {
     t: 'Wing, tail and control surfaces?',
-    opts: [['clean', 'Clean', 'Wing clean'], ['lower', 'Light frost (up to 3 mm) on the lower wing only, from cold fuel', 'Lower-wing frost'],
-      ['contam', 'Snow, ice or frost on the upper wing, leading edges, controls or tail', 'Wing contaminated']],
+    opts: [['clean', 'Clean', 'Wing clean'], ['lower', 'Frost under the wing only, from cold fuel (CSFF)', 'CSFF lower wing'],
+      ['upper', 'Frost on top of the wing over the fuel tank, from cold fuel (CSFF)', 'CSFF upper wing'],
+      ['contam', 'Snow, ice or frost on leading edges, controls, tail — or anything else', 'Wing contaminated']],
   },
+  fuelT: { t: 'Tank fuel temperature −16 °C or warmer?', yn: true, chip: ['Fuel −16 °C or warmer', 'Fuel colder than −16 °C'] },
+  thick: { t: 'Is the frost under the wing thicker than 3 mm?', yn: true, chip: ['Frost over 3 mm', 'Frost 3 mm or less'] },
+  csffArea: { t: 'Is all the upper-wing frost inside the marked CSFF lines? (No lines on this airplane: No.)', yn: true, chip: ['Inside the CSFF lines', 'Outside the lines / no lines'] },
   surface: {
     t: 'Ramp, taxiways and runway?',
     opts: [['dry', 'Dry', 'Runway dry'], ['wet', 'Wet', 'Runway wet'], ['contam', 'Slush, snow, standing water or ice', 'Runway contaminated'],
@@ -64,7 +69,7 @@ const FLIGHT = [
 ];
 
 // Departure extras: rare, so offered under "Other conditions" on the result.
-const EXTRAS = [['soak', 'Engine cold soaked below −40 °C'], ['sand', 'Sand or dust']];
+const EXTRAS = [['soak', 'Engine cold soaked below −40 °C'], ['sand', 'Sand or dust'], ['noApu', 'APU inoperative']];
 const isExtra = (k) => EXTRAS.some((e) => e[0] === k);
 
 // ── State ───────────────────────────────────────────────────────────────
@@ -79,8 +84,16 @@ let WX = null;         // { apt, raw, m, error, loading } for the chosen airport
 function flow() {
   if (A.place === 'dep') {
     const q = ['wx', ...(A.wx === 'apt' ? ['apt'] : []), 'oat'];
-    if (A.oat != null && A.oat <= 10) q.push('precip');      // visible moisture only matters at 10 °C or below
-    q.push('airframe', 'surface');
+    const csff = A.airframe === 'lower' || A.airframe === 'upper';
+    // Visible moisture decides icing at 10 °C or below, and CSFF at any temperature (SP.3.2).
+    if (A.oat != null && A.oat <= 10) q.push('precip');
+    q.push('airframe');
+    if (csff && !(A.oat != null && A.oat <= 10)) q.push('precip');
+    // CSFF: the extra conditions matter only when OAT and moisture allow it (SP.3.2).
+    if (csff && A.oat >= 4 && A.precip === 'none') q.push('fuelT');
+    if (A.airframe === 'lower' && !csffOk()) q.push('thick');
+    if (A.airframe === 'upper' && csffOk()) q.push('csffArea');
+    q.push('surface');
     if (A.surface != null && needsFluidQ()) q.push('fluid');
     return q;
   }
@@ -94,7 +107,18 @@ function flow() {
 }
 
 // Fluid only changes the answer when the wing must be de-iced or icing exists.
-function needsFluidQ() { return A.airframe === 'contam' || depIcing(); }
+function needsFluidQ() { return deiceNeeded() || depIcing(); }
+
+// CSFF conditions (SP.3.2): OAT +4 °C or warmer, no visible moisture, fuel −16 °C or warmer.
+function csffOk() { return A.oat != null && A.oat >= 4 && A.precip === 'none' && A.fuelT === true; }
+
+// De-icing (SP.16.2, SP.3.2): contamination, CSFF beyond what is allowed.
+function deiceNeeded() {
+  if (A.airframe === 'contam') return true;
+  if (A.airframe === 'lower') return !csffOk() && A.thick === true;
+  if (A.airframe === 'upper') return !(csffOk() && A.csffArea === true);
+  return false;
+}
 
 function nextKey() {
   if (A.place == null) return 'place';
@@ -109,6 +133,7 @@ function answer(key, v) {
   H = H.filter((k) => k !== key);
   H.push(key);
   prune();
+  if (WX?.m && A.precip == null && flow().includes('precip')) { A.precip = WX.m.precip; SRC.precip = 'METAR'; H.push('precip'); prune(); }
   const order = ['place', ...flow()];
   H.sort((x, y) => order.indexOf(x) - order.indexOf(y));
 }
@@ -148,14 +173,18 @@ const L = (s, sp, topic, lvl = '') => ({ s, sp, topic, lvl });
 
 function departure() {
   const t = A.oat, icing = depIcing();
-  const deice = A.airframe === 'contam';
+  const deice = deiceNeeded();
   const fluid = A.fluid || 'none';
   const falling = ['rain', 'snow', 'frz'].includes(A.precip);
   const dec = [];
   const D = (k, v, cls, s, sp, topic) => dec.push({ k, v, cls, s, sp, topic });
   // De-icing (SP.16.2)
-  if (deice) D('De-icing', 'YES', 'yes', 'Upper wing, leading edges, controls and tail must be free of snow, ice and frost.', 'SP.16.2', 'Icing conditions');
-  else if (A.airframe === 'lower') D('De-icing', 'NO', 'no', 'Light frost up to 3 mm on the lower wing from cold fuel is allowed for takeoff.', 'SP.16.2', 'Icing conditions');
+  if (A.airframe === 'contam') D('De-icing', 'YES', 'yes', 'Leading edges, controls, tabs, winglets, upper wing and tail must be free of snow, ice and frost.', 'SP.16.2', 'Icing conditions');
+  else if (A.airframe === 'lower' && csffOk()) D('De-icing', 'NO', 'no', 'CSFF under the wing allowed: OAT +4 °C or warmer, no visible moisture, fuel −16 °C or warmer, leading edges and controls clear.', 'SP.3.2', 'Icing conditions');
+  else if (A.airframe === 'lower' && A.thick) D('De-icing', 'YES', 'yes', 'Frost under the wing thicker than 3 mm: de-ice all the wings.', 'SP.3.2', 'Icing conditions');
+  else if (A.airframe === 'lower') D('De-icing', 'NO', 'no', 'Light frost up to 3 mm under the wing is allowed; leading edges and controls clear.', 'SP.3.2', 'Icing conditions');
+  else if (A.airframe === 'upper' && csffOk() && A.csffArea) D('De-icing', 'NO', 'no', 'Upper-wing CSFF inside the marked lines allowed: OAT +4 °C or warmer, no visible moisture, fuel −16 °C or warmer.', 'SP.3.2', 'Icing conditions');
+  else if (A.airframe === 'upper') D('De-icing', 'YES', 'yes', csffOk() ? 'Frost outside the marked CSFF lines (or no lines): de-ice the wings.' : 'Upper-wing CSFF needs OAT +4 °C or warmer, no visible moisture and fuel −16 °C or warmer: de-ice the wings.', 'SP.3.2', 'Icing conditions');
   else D('De-icing', 'NO', 'no', 'Wing and tail clean.', 'SP.16.2', 'Icing conditions');
   // Engine anti-ice (SP.16.4)
   if (t > 10) D('Engine anti-ice', 'OFF', 'no', 'Not above 10 °C OAT.', 'SP.16.4', 'Engine anti-ice on the ground');
@@ -179,7 +208,7 @@ function departure() {
 
   // The sequence: only what applies, in the order you meet it.
   const pre = [], start = [], taxi = [], tko = [];
-  const cold = t <= 0 || icing || deice || A.airframe === 'lower';
+  const cold = t <= 0 || icing || deice || A.airframe === 'lower' || A.airframe === 'upper';
   if (cold) {
     pre.push(L('Exterior: leading edges, controls, upper wing, winglets and tail clear; pitot probes and static ports clear.', 'SP.16.2', 'Icing conditions'));
     pre.push(L('PROBE HEAT switches ON; all probe heat lights out.', 'SP.16.3', 'Icing conditions'));
@@ -328,10 +357,30 @@ function resultHtml(r) {
   }
   if (!r.dec.length && !r.runup && !r.seq.length) h += '<p class="wz-none">Nothing extra in SP.16 for these conditions — normal procedures.</p>';
   if (r.more.length) h += `<details class="wz-more"><summary>More notes (${r.more.length})</summary><ul class="wz-list">${r.more.map((l) => `<li class="wz-r">${esc(l.s)} ${spLink(l)}</li>`).join('')}</ul></details>`;
+  const rel = relatedHtml();
+  if (rel) h += rel;
   if (A.place === 'dep') {
     h += `<div class="wz-other"><span class="wz-g">Other conditions</span>${EXTRAS.map(([k, n]) => `<button class="wz-chip${A[k] ? ' on' : ''}" data-wz-x="${k}" aria-pressed="${!!A[k]}">${A[k] ? '✓ ' : '+ '}${esc(n)}</button>`).join('')}</div>`;
   }
   return h;
+}
+
+// Procedures from other chapters that go with these answers.
+function relatedHtml() {
+  const tags = [];
+  if (A.place === 'dep') {
+    if (A.airframe === 'lower' || A.airframe === 'upper') tags.push('csff');
+    if (A.oat > 40) tags.push('hot');
+    if (A.sand) tags.push('sand');
+    if (A.noApu) tags.push('noApu');
+  } else if (A.place === 'arr') {
+    if (A.oat <= 0) tags.push('arrCold');
+  }
+  if (!tags.length) return '';
+  const list = relatedFor(tags);
+  if (!list.length) return '';
+  const why = A.place === 'arr' && tags.includes('arrCold') ? 'Cold at the destination: fuel left in the wing tanks cold-soaks on the ground and can frost the wing before the next flight.' : '';
+  return `<div class="wz-relb"><div class="wz-g">Related supplementary procedures</div>${why ? `<p class="wz-hint">${why}</p>` : ''}<div class="pr-rel">${list.map((r) => procLink(r.n, r.id)).join('')}</div></div>`;
 }
 
 export function wizardHtml() {

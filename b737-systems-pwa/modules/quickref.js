@@ -1,6 +1,6 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=46';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=46';
-import { procsHtml, procClick } from './supp-procs.js?v=46';
+import { SUPPLEMENTARY } from './supplementary.js?v=47';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=47';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=47';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -257,7 +257,7 @@ export function createQuickRef(sheet, systems) {
 
   // ── Supplementary: its own sheet, one tab per chapter ──
   let spCh = 16;
-  const SP_TABS = [[16, 'Adverse weather'], [2, 'Air systems']];
+  const SP_TABS = [[16, 'Adverse weather'], [2, 'Air systems'], [3, 'Anti-ice'], [7, 'Engines'], [12, 'Fuel']];
   function suppPage() {
     const body = spCh === 16
       ? `${wizardHtml()}${coldHtml()}<details class="sp-ref" id="sp-ref"><summary>SP.16 Adverse Weather — full summary <span class="qr-ref">reference</span></summary>${suppHtml()}</details>`
@@ -285,6 +285,15 @@ export function createQuickRef(sheet, systems) {
   document.addEventListener('click', (e) => {
     const wa = e.target.closest('[data-wz-ans],[data-wz-edit],[data-wz-tog],[data-wz-x],[data-wz-apt],[data-ct-apt]');
     if (wa && wizardClick(wa)) return;
+    const lk = e.target.closest('[data-sp-proc]');
+    if (lk) {
+      const [n, id] = lk.dataset.spProc.split(':');
+      openProc(id);
+      openSupp(Number(n));
+      const card = id && document.getElementById(`pr-${id}`);
+      if (card) { const d = card.closest('details'); if (d) d.open = true; card.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+      return;
+    }
     const ch = e.target.closest('[data-sp-ch]');
     if (ch) { openSupp(Number(ch.dataset.spCh)); return; }
     const pr = e.target.closest('[data-pr-open],[data-pr-tick],[data-pr-clear]');

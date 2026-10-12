@@ -339,6 +339,20 @@ for non-system sheets, and `goTo` opens QRH / SUPP for saved highlights.
 Airport search (`nav.search`): ICAO, IATA (JFK), ICAO prefix, then a word of
 the name or city, biggest airport first; navdb airports carry
 `[…, IATA, city]` (scripts/build-navdb.py).
+Chapters (v47): SP.2 Air systems, SP.3 Anti-ice (CSFF rules, window heat
+tests), SP.7 Engines (ground-air start, crossbleed start, battery start,
+manual N1 bugs), SP.12 Fuel (balancing, ground transfer, refueling, checks).
+Related procedures: each procedure has `tags` (csff, arrCold, hot, sand,
+noApu) and optional `rel` links; cards show "Related" chips across chapters
+(`relatedFor`, `procLink`, `data-sp-proc="n:id"`), and the adverse weather
+result lists the procedures its answers point to (CSFF → SP.3 + SP.12 ground
+transfer; cold arrival → the same; hot / sand → SP.2 no-engine-bleed;
+APU inoperative → SP.7 starts + SP.2 cart / unpressurized).
+CSFF in the advisor (SP.3.2): wing answer separates lower-wing CSFF,
+upper-wing CSFF and other contamination; lower CSFF is allowed at OAT
++4 °C or warmer, no visible moisture and fuel −16 °C or warmer, otherwise
+only up to 3 mm; upper CSFF only inside the marked lines under the same
+conditions. Visible moisture is asked at any temperature when there is CSFF.
 
 ## Supplementary: adverse weather (v44)
 

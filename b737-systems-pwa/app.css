@@ -972,3 +972,10 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .pr-c b { font: 800 10px/1 var(--mono); color: #f08c00; margin-right: 4px; }
 .pr .wz-nav { padding: 6px 12px 12px; justify-content: space-between; align-items: center; }
 .pr.minor .pr-t { font-weight: 700; }
+.pr-rel { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 4px 12px 8px; }
+.pr-rel .wz-g { margin: 0 4px 0 0; }
+.pr-link { font-size: 12px; }
+.wz-relb { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.wz-relb .pr-rel { padding: 0; }
+.wz-relb .wz-g { margin-top: 0; }
+.pr-head.static { cursor: default; }
