@@ -75,38 +75,49 @@ function ndSvg(kind) {
     <path d="M104 140 L110 126 L116 140 Z" fill="none" stroke="${WHT}" stroke-width="1.8"/></svg>`;
 }
 
-// Upper engine display as on the NG: per engine an N1 dial over an EGT dial,
-// each a 210° white scale with the swept part shaded, the digital readout
-// boxed above and to the right, amber caution and red limit radials, and the
-// N1 / EGT labels in cyan between the engines. An exceedance turns the
-// pointer, sweep and readout red; ENG FAIL shows amber in the N1 dial.
+// Upper engine display as drawn in FCOM 7.11: per engine an N1 dial over an
+// EGT dial. Zero is at 3 o'clock and the scale runs clockwise — down, round
+// the bottom and up to about 11 o'clock; the swept part is shaded grey, the
+// pointer is white, and the digital readout sits boxed in the empty top-right
+// quarter. N1 carries 0–10 (×10 %) marks; EGT has no numbers, only an amber
+// and a red radial near the top end. An exceedance turns the sweep, pointer
+// and readout red. N1 / EGT labels in cyan between the engines.
 function duSvg(kind) {
-  const P = (cx, cy, r, f) => { const a = (180 + 210 * f) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
-  const dial = (cx, cy, f, txt, { amber, red, alarm, fail } = {}) => {
-    const r = 23, [x0, y0] = P(cx, cy, r, 0), [x1, y1] = P(cx, cy, r, 1), [xv, yv] = P(cx, cy, r, f);
-    const col = alarm ? RED : WHT;
-    let g = `<path d="M${cx} ${cy} L${x0} ${y0} A${r} ${r} 0 ${210 * f > 180 ? 1 : 0} 1 ${xv} ${yv} Z" fill="${alarm ? 'rgba(255,59,48,.55)' : 'rgba(200,200,200,.28)'}"/>`;
-    g += `<path d="M${x0} ${y0} A${r} ${r} 0 1 1 ${x1} ${y1}" fill="none" stroke="${WHT}" stroke-width="1.6"/>`;
-    for (const [v, c] of [[amber, AMB], [red, RED]]) if (v != null) { const [a1, b1] = P(cx, cy, r - 3, v), [a2, b2] = P(cx, cy, r + 5, v); g += `<line x1="${a1}" y1="${b1}" x2="${a2}" y2="${b2}" stroke="${c}" stroke-width="2.4"/>`; }
-    g += `<line x1="${cx}" y1="${cy}" x2="${xv}" y2="${yv}" stroke="${col}" stroke-width="2.2"/>`;
-    g += `<rect x="${cx + 1}" y="${cy - r - 15}" width="38" height="14" fill="${alarm ? RED : '#000'}" stroke="${alarm ? RED : WHT}" stroke-width="1"/>`;
-    g += `<text x="${cx + 37}" y="${cy - r - 4}" fill="${WHT}" font-size="11" font-weight="700" text-anchor="end" font-family="monospace">${txt}</text>`;
-    if (fail) g += `<text x="${cx}" y="${cy + 15}" fill="${AMB}" font-size="8.5" font-weight="700" text-anchor="middle">ENG FAIL</text>`;
+  const R = Math.PI / 180;
+  const pt = (cx, cy, r, deg) => [cx + r * Math.cos(deg * R), cy + r * Math.sin(deg * R)];
+  const N1DEG = (n) => (n / 112) * 225, EGTDEG = (t) => (t / 950) * 232;
+  const dial = (cx, cy, r, deg, txt, { ticks, amber, red, alarm, fail } = {}) => {
+    const [x0, y0] = pt(cx, cy, r, 0), [xe, ye] = pt(cx, cy, r, red ?? 225), [xv, yv] = pt(cx, cy, r, deg);
+    let g = deg > 0.5 ? `<path d="M${cx} ${cy} L${x0} ${y0} A${r} ${r} 0 ${deg > 180 ? 1 : 0} 1 ${xv} ${yv} Z" fill="${alarm ? '#c8281e' : '#8a8a8a'}"/>` : '';
+    g += `<path d="M${x0} ${y0} A${r} ${r} 0 ${(red ?? 225) > 180 ? 1 : 0} 1 ${xe} ${ye}" fill="none" stroke="${WHT}" stroke-width="1.4"/>`;
+    for (const [n, lab] of ticks || []) {
+      const d = N1DEG(n), [a1, b1] = pt(cx, cy, r, d), [a2, b2] = pt(cx, cy, r - 4, d), [tx, ty] = pt(cx, cy, r - 9, d);
+      g += `<line x1="${a1}" y1="${b1}" x2="${a2}" y2="${b2}" stroke="${WHT}" stroke-width="1.2"/><text x="${tx}" y="${ty + 2.5}" fill="${WHT}" font-size="7" text-anchor="middle">${lab}</text>`;
+    }
+    for (const [d, c] of [[amber, AMB], [red, RED]]) if (d != null) { const [a1, b1] = pt(cx, cy, r - 1, d), [a2, b2] = pt(cx, cy, r + 6, d); g += `<line x1="${a1}" y1="${b1}" x2="${a2}" y2="${b2}" stroke="${c}" stroke-width="2.4"/>`; }
+    g += `<line x1="${cx}" y1="${cy}" x2="${xv}" y2="${yv}" stroke="${alarm ? RED : WHT}" stroke-width="2"/>`;
+    g += `<rect x="${cx + 2}" y="${cy - 21}" width="${r + 4}" height="17" fill="${alarm ? RED : '#000'}" stroke="${alarm ? RED : WHT}" stroke-width="1.1"/>`;
+    g += `<text x="${cx + r + 3}" y="${cy - 7.5}" fill="${WHT}" font-size="13" text-anchor="end" font-family="monospace">${txt}</text>`;
+    if (fail) g += `<text x="${cx - 2}" y="${cy + r * 0.55}" fill="${AMB}" font-size="8" font-weight="700" text-anchor="middle">ENG FAIL</text>`;
     return g;
   };
+  const T = [[0, '0'], [20, '2'], [40, '4'], [60, '6'], [80, '8'], [100, '10']];
+  // [N1 %, EGT °C, options] for engine 1 and engine 2, then a caption.
   const E = {
-    egt: [[0.58, '68.4', {}], [0.84, '84.1', {}], [0.97, '1004', { alarm: true }], [0.72, '842', {}], 'one engine past the EGT limit'],
-    engfail: [[0.17, '18.6', { fail: true }], [0.17, '17.9', { fail: true }], [0.3, '320', {}], [0.29, '311', {}], 'both N1 decaying — ENG FAIL on both'],
-    start: [[0.04, '4.2', {}], [0, '0.0', {}], [0.68, '702', {}], [0, '0', {}], 'start: EGT climbing to the start limit'],
+    egt: [[84.0, 1004, { alarm: true }], [87.7, 663, {}], 'Engine 1 past the EGT red line'],
+    engfail: [[17.9, 320, { fail: true }], [18.6, 311, { fail: true }], 'Both N1 winding down, ENG FAIL on both'],
+    start: [[4.2, 702, {}], [0, 0, {}], 'Start: EGT rising toward the start limit'],
   }[kind];
-  const [n1a, n1b, ea, eb, cap] = E;
-  const N1 = { red: 0.95 }, EG = kind === 'start' ? { red: 0.7 } : { amber: 0.82, red: 0.9 };
-  let g = `<text x="8" y="12" fill="${WHT}" font-size="8">TAT ${kind === 'egt' || kind === 'engfail' ? '−32' : '+12'}c</text><text x="212" y="12" fill="${GRN}" font-size="8" text-anchor="end">${kind === 'start' ? '' : 'CRZ'}</text>`;
-  g += dial(56, 52, n1a[0], n1a[1], { ...N1, ...n1a[2] }) + dial(150, 52, n1b[0], n1b[1], { ...N1, ...n1b[2] });
-  g += dial(56, 124, ea[0], ea[1], { ...EG, ...ea[2] }) + dial(150, 124, eb[0], eb[1], { ...EG, ...eb[2] });
-  g += `<text x="103" y="56" fill="${CYN}" font-size="10" text-anchor="middle">N1</text><text x="103" y="128" fill="${CYN}" font-size="10" text-anchor="middle">EGT</text>`;
-  g += `<text x="110" y="166" fill="#9aa4ad" font-size="8.5" text-anchor="middle">${cap}</text>`;
-  return `<svg viewBox="0 0 220 172" class="cue-svg"><rect width="220" height="172" fill="#000"/>${g}</svg>`;
+  const [e1, e2, cap] = E;
+  const egtLim = kind === 'start' ? { red: EGTDEG(725) } : { amber: EGTDEG(925), red: EGTDEG(950) };
+  const n1 = (cx, [n, , o]) => dial(cx, 60, 29, N1DEG(n), n.toFixed(1), { ticks: T, red: N1DEG(104), fail: o.fail });
+  const egt = (cx, [, t, o]) => dial(cx, 128, 26, Math.min(EGTDEG(t), 250), String(t), { ...egtLim, alarm: o.alarm });
+  let g = `<text x="8" y="13" fill="${CYN}" font-size="9">TAT <tspan fill="${WHT}">${kind === 'start' ? '+12' : '−12'}c</tspan></text>${kind === 'start' ? '' : `<text x="96" y="13" fill="${GRN}" font-size="10">CRZ</text>`}`;
+  g += n1(50, e1) + n1(148, e2);
+  g += egt(50, e1) + egt(148, e2);
+  g += `<text x="99" y="84" fill="${CYN}" font-size="9" text-anchor="middle">N1</text><text x="99" y="156" fill="${CYN}" font-size="9" text-anchor="middle">EGT</text>`;
+  g += `<text x="110" y="176" fill="#9aa4ad" font-size="8.5" text-anchor="middle">${cap}</text>`;
+  return `<svg viewBox="0 0 220 182" class="cue-svg"><rect width="220" height="182" fill="#000"/>${g}</svg>`;
 }
 
 function pieceHtml(p) {

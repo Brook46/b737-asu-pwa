@@ -304,12 +304,15 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   scenario, switches to the cockpit (`goView`), and shows a Demo bar whose Clear
   undoes them and restores the phase. View `capt` = captain's lights, PFD, ND,
   engines and gear.
-- v50: drawings follow the real flight deck — the NG engine display (N1 over
-  EGT, 210° scale, shaded sweep, boxed readout up-right, amber / red radials,
-  red box on exceedance, ENG FAIL amber in the N1 dial); lettered panel lights
-  vs solid master lenses (FIRE WARN, MASTER CAUTION, red gear lights); T-handle
-  fire switches. Small "👁 Indications" button at the card's top right;
-  "‹ Back to QRH" on the demo bar reopens the same card (`backToCue`).
+- Engine display copied from FCOM 7.11 (Primary Engine Indications): zero at
+  3 o'clock, scale runs **clockwise** down and round to ~11 o'clock (N1 0–10
+  marks, 100 % ≈ 200°; EGT no numbers, amber + red radials near the top end),
+  grey sweep, white pointer, readout boxed in the empty top-right quarter.
+  Lettered panel lights vs solid master lenses (FIRE WARN, MASTER CAUTION, red
+  gear lights); T-handle fire switches.
+- Tapping a card (anywhere but a button or highlight) shows its indications —
+  no separate button (the user removed it). "‹ Back to QRH" on the demo bar
+  reopens the same card (`backToCue`).
   "Confirm" in memory items is an amber chip.
 - Limits tab: the "QRH numbers" section holds only numbers that are NOT in the
   memory items or maneuvers. "By system" skips FCOM L.10 rows (they are on the

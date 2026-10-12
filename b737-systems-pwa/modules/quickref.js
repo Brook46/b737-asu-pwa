@@ -1,7 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=50';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=50';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=50';
-import { CUES, cueHtml } from './cues.js?v=50';
+import { SUPPLEMENTARY } from './supplementary.js?v=51';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=51';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=51';
+import { CUES, cueHtml } from './cues.js?v=51';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -234,7 +234,7 @@ export function createQuickRef(sheet, systems, nav = {}) {
   };
   const condHtml = (list) => list.map((x) => (Array.isArray(x) ? `<ul>${x.map((li) => `<li>${md(li)}</li>`).join('')}</ul>` : `<p>${md(x)}</p>`)).join('');
   const memCard = (c) => `<section class="qr-card mem${c.fire ? ' fire' : ''}"${CUES[c.t] ? ` data-cue="${esc(c.t).replace(/"/g, '&quot;')}"` : ''}>
-    <h3>${md(c.t)}<span class="qr-h-r">${CUES[c.t] ? '<button class="qr-cue-b no-hl" data-cue-show>👁 Indications</button>' : ''}<span class="qr-ref">${esc(c.ref)}</span></span></h3>
+    <h3>${md(c.t)}<span class="qr-ref">${esc(c.ref)}</span></h3>
     ${c.tag ? `<span class="qr-tag ${c.tag[1]}">${esc(c.tag[0])}</span>` : ''}
     <div class="qr-cond"><span class="qr-lbl">Condition:</span><div>${condHtml(c.cond)}</div></div>
     ${c.steps.map(stepHtml).join('')}
@@ -371,7 +371,7 @@ export function createQuickRef(sheet, systems, nav = {}) {
     const cc = e.target.closest('[data-cue-cockpit]');
     if (cc) { const t = cc.dataset.cueCockpit; hideCue(); nav.demo?.(CUES[t], t); return; }
     const cs = e.target.closest('[data-cue]');
-    if (cs && (e.target.closest('[data-cue-show]') || (!e.target.closest('button, a, input, .cue-inline') && !getSelection()?.toString()))) { showCue(cs); return; }
+    if (cs && !e.target.closest('button, a, input, .cue-inline, mark.hl') && !getSelection()?.toString()) { showCue(cs); return; }
     const wa = e.target.closest('[data-wz-ans],[data-wz-edit],[data-wz-tog],[data-wz-x],[data-wz-apt],[data-ct-apt]');
     if (wa && wizardClick(wa)) return;
     const lk = e.target.closest('[data-sp-proc]');

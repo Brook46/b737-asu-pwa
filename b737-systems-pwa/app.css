@@ -988,9 +988,6 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 .qr-box.note { border-color: var(--line); border-width: 1px; font-weight: 400; background: rgba(127,127,127,.08); }
 .qr-card[data-cue] { cursor: pointer; }
 .qr-card.cue-on { outline: 2px solid #28a0f2; outline-offset: -1px; }
-.qr-h-r { display: inline-flex; align-items: center; gap: 8px; flex: none; }
-.qr-cue-b { font: 600 11px var(--sans); color: #1f8ad8; background: none; border: 1px solid currentColor; border-radius: 10px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
-.qr-card.cue-on .qr-cue-b { color: #fff; background: #1f8ad8; border-color: #1f8ad8; }
 .cue-panel {
   position: fixed; z-index: 31; top: calc(14px + var(--safe-t)); left: calc(14px + var(--safe-l, 0px)); bottom: calc(14px + var(--safe-b));
   width: min(380px, calc(100vw - min(420px, 42vw) - 48px)); overflow-y: auto; -webkit-overflow-scrolling: touch;
