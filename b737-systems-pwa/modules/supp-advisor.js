@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=52';
-import { nav, loadNav } from './navdb.js?v=52';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=52';
-import { relatedFor, procLink } from './supp-procs.js?v=52';
+import { SUPPLEMENTARY } from './supplementary.js?v=53';
+import { nav, loadNav } from './navdb.js?v=53';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=53';
+import { relatedFor, procLink } from './supp-procs.js?v=53';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -208,11 +208,13 @@ function departure() {
 
   // The sequence: only what applies, in the order you meet it.
   const pre = [], start = [], taxi = [], tko = [];
-  const cold = t <= 0 || icing || deice || A.airframe === 'lower' || A.airframe === 'upper';
-  if (cold) {
-    pre.push(L('Exterior: leading edges, controls, upper wing, winglets and tail clear; pitot probes and static ports clear.', 'SP.16.2', 'Icing conditions'));
-    pre.push(L('PROBE HEAT switches ON; all probe heat lights out.', 'SP.16.3', 'Icing conditions'));
-  }
+  // Frost, snow or ice on the airplane (CSFF included): the extra exterior checks.
+  // Probe heat in the preflight is for cold weather only (freezing OAT or
+  // icing conditions) — otherwise the normal procedures switch it on as usual.
+  const frosted = deice || A.airframe === 'lower' || A.airframe === 'upper' || A.airframe === 'contam';
+  const cold = t <= 0 || icing;
+  if (frosted || cold) pre.push(L('Exterior: leading edges, controls, upper wing, winglets and tail clear; pitot probes and static ports clear.', 'SP.16.2', 'Icing conditions'));
+  if (cold) pre.push(L('PROBE HEAT switches ON; all probe heat lights out.', 'SP.16.3', 'Icing conditions'));
   if (deice) {
     pre.push(L('For de-icing: APU off unless needed · flaps UP · thrust levers idle · stabilizer trim set (green band) · engine and APU BLEED OFF.', 'SP.16.8', 'De-icing and anti-icing', 'warn'));
     pre.push(L('After de-icing: wait about 1 minute, then engine BLEED ON. Check flight controls and flaps full travel.', 'SP.16.8', 'De-icing and anti-icing'));
