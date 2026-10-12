@@ -11,7 +11,9 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=44';
+import { SUPPLEMENTARY } from './supplementary.js?v=45';
+import { nav, loadNav } from './navdb.js?v=45';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=45';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -20,6 +22,7 @@ const SP16 = SUPPLEMENTARY[0];
 // opts: [value, label, short label for the answer chip]
 const Q = {
   place: { t: 'Where are you?', opts: [['dep', 'Departure — on the ground', 'Departure'], ['flt', 'In flight', 'In flight'], ['arr', 'Arrival — planning the landing', 'Arrival']] },
+  apt: { t: 'Which airport?', apt: true },
   oat: { t: 'Outside air temperature, °C', num: true },
   precip: {
     t: 'Precipitation or visible moisture now?',
@@ -69,17 +72,19 @@ let H = [];            // answered keys, in order (answer chips, Back)
 let F = new Set();     // flight situations ticked
 let fltShown = false;  // flight result showing
 let runT = null;       // last taxi run-up (ms)
+let SRC = {};          // key → 'METAR' when the answer came from the report
+let WX = null;         // { apt, raw, m, error, loading } for the chosen airport
 
 function flow() {
   if (A.place === 'dep') {
-    const q = ['oat'];
+    const q = ['apt', 'oat'];
     if (A.oat != null && A.oat <= 10) q.push('precip');      // visible moisture only matters at 10 °C or below
     q.push('airframe', 'surface');
     if (A.surface != null && needsFluidQ()) q.push('fluid');
     return q;
   }
   if (A.place === 'arr') {
-    const q = ['oat'];
+    const q = ['apt', 'oat'];
     if (A.oat != null && A.oat <= 10) q.push('precip', 'arrIce');
     q.push('arrSurface', 'windshear');
     return q;
@@ -98,9 +103,12 @@ function nextKey() {
 function answer(key, v) {
   if (key === 'place') { reset(); A.place = v; H = ['place']; return; }
   A[key] = v;
+  delete SRC[key];                       // the user's answer, not the report's
   H = H.filter((k) => k !== key);
   H.push(key);
   prune();
+  const order = ['place', ...flow()];
+  H.sort((x, y) => order.indexOf(x) - order.indexOf(y));
 }
 
 // Drop answers to questions that no longer apply (e.g. the temperature changed).
@@ -113,16 +121,16 @@ function prune() {
 // Change one answer: forget it and everything asked after it.
 function edit(key) {
   if (key === 'place') { reset(); return; }
-  const i = H.indexOf(key);
-  if (i < 0) return;
-  for (const k of H.slice(i)) delete A[k];
-  H = H.slice(0, i);
+  if (key === 'apt') { const keep = A.place; reset(); A.place = keep; H = ['place']; return; }
+  delete A[key];
+  delete SRC[key];
+  H = H.filter((k) => k !== key);
   fltShown = false;
 }
 
 function reset() {
   for (const k of Object.keys(A)) delete A[k];
-  H = []; F = new Set(); fltShown = false; runT = null;
+  H = []; F = new Set(); fltShown = false; runT = null; SRC = {}; WX = null;
 }
 
 // ── Rules ───────────────────────────────────────────────────────────────
@@ -272,12 +280,20 @@ const spLink = (l) => { const k = topicIdx(l.topic); return k >= 0 ? `<button cl
 function chipText(key) {
   const v = A[key], q = Q[key];
   if (key === 'oat') return `${String(v).replace('-', '−')} °C`;
+  if (key === 'apt') return v ? v.ident : 'No airport';
   if (q.yn) return v ? q.chip[0] : q.chip[1];
   return q.opts.find((o) => o[0] === v)?.[2] ?? String(v);
 }
 
 function questionHtml(key) {
   const q = Q[key];
+  if (q.apt) {
+    return `<div class="wz-qq"><div class="wz-qt">${A.place === 'arr' ? 'Destination airport?' : 'Departure airport?'}</div>
+      <div class="wz-numrow"><input id="wz-apt" type="text" class="wz-in" placeholder="ICAO or name, e.g. LLBG" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+      <div id="wz-sug" class="wz-sug"></div>
+      <div class="wz-hint">The latest METAR fills in temperature, precipitation and runway state. You can change any of them.</div>
+      <div class="wz-nav"><button class="tag tag-btn wz-mini" data-wz="apt-skip">Skip — answer by hand</button></div></div>`;
+  }
   if (q.num) {
     return `<div class="wz-qq"><div class="wz-qt">${esc(q.t)}</div>
       <div class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="neg" aria-label="Plus or minus">±</button>
@@ -321,7 +337,7 @@ export function wizardHtml() {
   reset();
   return `<section class="wz" id="wz"><div class="wz-top"><span class="wz-title">Adverse weather</span>
     <span class="wz-act"><button class="tag tag-btn wz-mini" data-wz="back" id="wz-back" hidden>‹ Back</button><button class="tag tag-btn wz-mini" data-wz="reset" id="wz-reset" hidden>Start over</button></span></div>
-    <div id="wz-chips" class="wz-chips"></div><div id="wz-body">${questionHtml('place')}</div></section>`;
+    <div id="wz-chips" class="wz-chips"></div><div id="wz-wx"></div><div id="wz-body">${questionHtml('place')}</div></section>`;
 }
 
 function draw() {
@@ -329,14 +345,15 @@ function draw() {
   if (!root) return;
   root.querySelector('#wz-back').hidden = !H.length;
   root.querySelector('#wz-reset').hidden = !H.length;
-  root.querySelector('#wz-chips').innerHTML = H.filter((k) => Q[k]).map((k) => `<button class="wz-chip" data-wz-edit="${k}" title="Change this answer">${esc(chipText(k))}</button>`).join('')
+  root.querySelector('#wz-chips').innerHTML = H.filter((k) => Q[k]).map((k) => `<button class="wz-chip${SRC[k] ? ' src' : ''}" data-wz-edit="${k}" title="Change this answer">${esc(chipText(k))}${SRC[k] ? '<sup>METAR</sup>' : ''}</button>`).join('')
     + (A.place === 'flt' && fltShown ? `<button class="wz-chip" data-wz="flt-edit" title="Change">${F.size} selected</button>` : '');
   const body = root.querySelector('#wz-body');
+  root.querySelector('#wz-wx').innerHTML = wxHtml();
   if (A.place === 'flt') { body.innerHTML = fltShown ? resultHtml(flight()) : flightHtml(); return; }
   const key = nextKey();
   if (key) {
     body.innerHTML = questionHtml(key);
-    body.querySelector('#wz-t')?.focus();
+    (body.querySelector('#wz-t') || body.querySelector('#wz-apt'))?.focus();
     return;
   }
   body.innerHTML = resultHtml(A.place === 'dep' ? departure() : arrival());
@@ -375,6 +392,8 @@ export function wizardClick(el) {
     draw(); return true;
   }
   if (d.wzX) { A[d.wzX] = !A[d.wzX]; draw(); return true; }
+  if (d.wzApt) { pickAirport(d.wzApt); return true; }
+  if (d.ctApt) { pickColdAirport(d.ctApt); return true; }
   return false;
 }
 
@@ -384,6 +403,8 @@ export function wizardAct(action) {
   if (action === 'neg') { flipSign(document.getElementById('wz-t')); return; }
   if (action === 'ctneg') { flipSign(document.getElementById('ct-t')); refreshCold(); return; }
   if (action === 'reset') { reset(); draw(); return; }
+  if (action === 'apt-skip') { A.apt = false; H = H.filter((k) => k !== 'apt'); H.push('apt'); draw(); return; }
+  if (action === 'wx-refresh') { refreshWx(); return; }
   if (action === 'back') {
     if (A.place === 'flt' && fltShown) { fltShown = false; draw(); return; }
     const k = [...H].reverse()[0];
@@ -406,7 +427,114 @@ export function wizardAct(action) {
 
 /** Enter in the temperature box. */
 export function wizardKey(e) {
-  if (e.key === 'Enter' && e.target.id === 'wz-t') { e.preventDefault(); readTemp(); }
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'wz-t') { e.preventDefault(); readTemp(); return; }
+  const box = e.target.id === 'wz-apt' ? 'wz-sug' : e.target.id === 'ct-apt' ? 'ct-sug' : null;
+  if (box) { e.preventDefault(); document.querySelector(`#${box} [data-wz-apt], #${box} [data-ct-apt]`)?.click(); }
+}
+
+// ── Airport and METAR ───────────────────────────────────────────────────
+const elevTxt = (a) => (a && a.elev != null ? `elevation ${a.elev} ft` : 'elevation not in the database');
+
+function sugHtml(list, attr) {
+  if (!nav.ready) return '<div class="wz-hint">Loading the airport list…</div>';
+  return list.map((a) => `<button class="wz-opt wz-sugi" data-${attr}="${a.ident}"><b>${a.ident}</b> ${esc(a.name)}</button>`).join('');
+}
+
+function ensureNav() { if (!nav.ready) loadNav('data/navdb.json').then(() => { suggest('wz-apt', 'wz-sug', 'wz-apt'); suggest('ct-apt', 'ct-sug', 'ct-apt'); }).catch(() => {}); }
+
+function suggest(inputId, boxId, attr) {
+  const inp = document.getElementById(inputId), box = document.getElementById(boxId);
+  if (!inp || !box) return;
+  const q = inp.value.trim();
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  ensureNav();
+  const list = nav.search(q, 6);
+  box.innerHTML = list.length || !nav.ready ? sugHtml(list, attr) : (/^[A-Za-z]{4}$/.test(q) ? `<button class="wz-opt wz-sugi" data-${attr}="${q.toUpperCase()}"><b>${q.toUpperCase()}</b> not in the database — get its METAR</button>` : '<div class="wz-hint">No airport found.</div>');
+}
+
+function wxHtml() {
+  if (!WX) return '';
+  const a = WX.apt;
+  const head = `<b>${esc(a.ident)}</b>${a.name ? ` ${esc(a.name)}` : ''} · ${elevTxt(a)}`;
+  if (WX.loading) return `<div class="wz-wx"><div>${head}</div><div class="wz-hint">Getting the latest METAR…</div></div>`;
+  if (WX.error) return `<div class="wz-wx bad"><div>${head}</div><div class="wz-hint">No METAR available (${esc(WX.error)}). Answer by hand.</div></div>`;
+  const age = ageMin(WX.m.time);
+  return `<div class="wz-wx${age != null && age > 90 ? ' old' : ''}"><div class="wz-wxh">${head}<button class="tag tag-btn wz-mini" data-wz="wx-refresh">Refresh</button></div>
+    <div class="wz-raw">${esc(WX.raw)}</div>
+    <div class="wz-hint">Read: ${esc(summary(WX.m))}${age != null ? ` · ${age} min old${age > 90 ? ' — check for a newer report' : ''}` : ''}${A.place === 'arr' ? ' · This is the current report: check the TAF for your arrival time.' : ''}</div></div>`;
+}
+
+// Fill answers from the report, but never over an answer the user chose.
+function prefill(m) {
+  const put = (k, v) => {
+    if (v == null || (A[k] != null && !SRC[k])) return;
+    A[k] = v; SRC[k] = 'METAR';
+    H = H.filter((x) => x !== k); H.push(k);
+  };
+  if (m.tempC != null) put('oat', Math.round(m.tempC));
+  prune();
+  if (flow().includes('precip')) put('precip', m.precip);
+  if (A.place === 'dep' && m.surface) put('surface', m.surface);
+  if (A.place === 'arr' && m.surface) put('arrSurface', m.surface === 'deep' ? 'contam' : m.surface);
+  prune();
+  // Order the chips as the questions are asked.
+  const order = ['place', ...flow()];
+  H.sort((x, y) => order.indexOf(x) - order.indexOf(y));
+}
+
+async function pickAirport(ident) {
+  const a = nav.airport(ident) || { ident, name: '', elev: null };
+  A.apt = a; H = H.filter((k) => k !== 'apt'); H.push('apt');
+  WX = { apt: a, loading: true };
+  draw();
+  fillCold(a, null);
+  try {
+    const raw = await fetchMetar(ident);
+    const m = parseMetar(raw);
+    WX = { apt: a, raw, m };
+    prefill(m);
+    fillCold(a, m);
+  } catch (e) {
+    WX = { apt: a, error: e.message || 'not found' };
+  }
+  draw();
+}
+
+async function refreshWx() {
+  if (!A.apt) return;
+  for (const k of Object.keys(SRC)) { delete A[k]; H = H.filter((x) => x !== k); }
+  SRC = {};
+  await pickAirport(A.apt.ident);
+}
+
+// The cold correction takes the same airport unless the user typed their own.
+function fillCold(a, m) {
+  const t = document.getElementById('ct-t'), r = document.getElementById('ct-ref'), ap = document.getElementById('ct-apt');
+  if (!t || !r) return;
+  const unit = document.querySelector('input[name=ct-u]:checked')?.value || 'ft';
+  if (ap && (!ap.value || ap.dataset.auto)) { ap.value = a.ident; ap.dataset.auto = '1'; }
+  if (a.elev != null && (!r.value || r.dataset.auto)) { r.value = unit === 'm' ? Math.round(a.elev * 0.3048) : a.elev; r.dataset.auto = '1'; }
+  if (m && m.tempC != null && (!t.value || t.dataset.auto)) { t.value = Math.round(m.tempC); t.dataset.auto = '1'; }
+  const note = document.getElementById('ct-src');
+  if (note) note.textContent = `${a.ident} · ${elevTxt(a)}${m && m.tempC != null ? ` · ${String(Math.round(m.tempC)).replace('-', '−')} °C from METAR ${m.time || ''}` : ''} — edit any value to override.`;
+  refreshCold();
+}
+
+async function pickColdAirport(ident) {
+  const a = nav.airport(ident) || { ident, name: '', elev: null };
+  for (const id of ['ct-apt', 'ct-ref', 'ct-t']) { const el = document.getElementById(id); if (el) { el.dataset.auto = '1'; if (id !== 'ct-apt') el.value = ''; } }
+  document.getElementById('ct-sug').innerHTML = '';
+  fillCold(a, null);
+  try { fillCold(a, parseMetar(await fetchMetar(ident))); } catch { /* elevation still filled */ }
+}
+
+/** Typing in the airport boxes and the cold correction (from the sheet's input handler). */
+export function wizardInput(e) {
+  const id = e.target.id;
+  if (id === 'wz-apt') { suggest('wz-apt', 'wz-sug', 'wz-apt'); return; }
+  if (id === 'ct-apt') { delete e.target.dataset.auto; suggest('ct-apt', 'ct-sug', 'ct-apt'); return; }
+  if (e.target.closest?.('#wz-cold')) { if (e.type === 'input') delete e.target.dataset.auto; refreshCold(); }
 }
 
 // ── Cold temperature altitude correction (SP.16.13–14) ─────────────────
@@ -458,6 +586,9 @@ const ALTS = [
 export function coldHtml() {
   return `<details class="wz wz-cold" id="wz-cold"><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
     <div class="wz-cold-in">
+      <label class="wz-q">Airport <span class="qr-ref">fills temperature and elevation</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+      <div id="ct-sug" class="wz-sug"></div>
+      <div id="ct-src" class="wz-hint"></div>
       <div class="wz-row2">
         <label class="wz-q">Airport temperature, °C<span class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="ctneg" aria-label="Plus or minus">±</button><input id="ct-t" type="text" inputmode="numeric" class="wz-in" placeholder="15" autocomplete="off"></span></label>
         <label class="wz-q">Airport elevation<input id="ct-ref" type="number" inputmode="numeric" class="wz-in" placeholder="0"></label>

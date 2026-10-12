@@ -353,6 +353,18 @@ correction tables), shown folded as reference below the tools.
   MCP (next 100 ft); DA / MDA → EFIS MINS (BARO).
 - Topic links use the topic title (`topicIdx`), so keep titles in
   supplementary.js stable. SP page refs were checked against the FCOM pages.
+- Airport and weather (v45): Departure / Arrival first ask the airport
+  (ICAO or a word of the name — `nav.search` over the OurAirports list,
+  which also gives the elevation). `metar.js` fetches the latest METAR from
+  metar.vatsim.net (CORS, as Flight Card), falling back to the worker's
+  `/metar` (aviationweather.gov), and decodes only the observed part
+  (stops at TEMPO / BECMG / NOSIG / RMK): temperature, visibility,
+  precipitation in the SP.16.2 categories (fog only at 1,600 m or less;
+  FZ-anything or heavy snow = freezing) and the runway state group (deposit
+  and depth → dry / wet / contaminated / deep). Those answers are filled in
+  and marked METAR on their chips; changing one makes it the user's, and
+  Refresh re-reads only the METAR ones. The same airport fills the cold
+  correction (temperature, elevation) unless the user typed their own.
 
 ## Dimension drawings (v25)
 

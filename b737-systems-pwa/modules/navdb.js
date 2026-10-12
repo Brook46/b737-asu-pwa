@@ -54,6 +54,20 @@ export const nav = {
     const a = db?.airports[icao];
     return a ? { ident: icao, lat: a[0], lon: a[1], elev: a[2], name: a[3], type: 'apt', rwys: a[4] } : null;
   },
+  /** Airports matching an ICAO code or part of the name: exact code first, then code prefix, then name. */
+  search(q, n = 6) {
+    const s = String(q || '').trim().toUpperCase();
+    if (!db || s.length < 2) return [];
+    const out = [];
+    const push = (k) => { if (!out.includes(k) && out.length < n) out.push(k); };
+    if (db.airports[s]) push(s);
+    if (/^[A-Z0-9]{2,4}$/.test(s)) for (const k in db.airports) { if (out.length >= n) break; if (k.startsWith(s)) push(k); }
+    // Names: a word that starts with the query; anywhere in the name for 4+ letters.
+    const word = new RegExp(`(^|[\\s\\-(/'])${s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+    for (const k in db.airports) { if (out.length >= n) break; if (word.test(db.airports[k][3].toUpperCase())) push(k); }
+    if (s.length >= 4) for (const k in db.airports) { if (out.length >= n) break; if (db.airports[k][3].toUpperCase().includes(s)) push(k); }
+    return out.map((k) => nav.airport(k));
+  },
   runways(icao) { return (db?.airports[icao]?.[4] || []).map((r) => ({ id: r[0], lat: r[1], lon: r[2], hdgT: r[3], len: r[4], elev: r[5], disp: r[6] })); },
   runway(icao, id) { return nav.runways(icao).find((r) => r.id === id) || null; },
   /** Nearest navaid with this ident (idents repeat worldwide). */

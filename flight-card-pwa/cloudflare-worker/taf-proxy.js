@@ -119,6 +119,10 @@ export default {
       return handleTaf(url);
     }
 
+    if (url.pathname === '/metar') {
+      return handleMetar(url);
+    }
+
     if (url.pathname === '/ical') {
       return handleIcal(url, env);
     }
@@ -352,6 +356,28 @@ async function handleTaf(url) {
 
   const upstream =
     'https://aviationweather.gov/api/data/taf?ids=' + encodeURIComponent(icao) + '&format=raw';
+  try {
+    const res = await fetch(upstream, { cf: { cacheTtl: 60, cacheEverything: true } });
+    const body = await res.text();
+    return new Response(body, {
+      status: res.status,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=60',
+      },
+    });
+  } catch (err) {
+    return text('Upstream unreachable: ' + err.message, 502);
+  }
+}
+
+// ---------- /metar  (737 NG Inside's fallback when metar.vatsim.net is down) ---
+
+async function handleMetar(url) {
+  const icao = (url.searchParams.get('icao') || '').toUpperCase();
+  if (!/^[A-Z0-9]{4}$/.test(icao)) return text('Bad ICAO', 400);
+  const upstream = 'https://aviationweather.gov/api/data/metar?ids=' + encodeURIComponent(icao) + '&format=raw';
   try {
     const res = await fetch(upstream, { cf: { cacheTtl: 60, cacheEverything: true } });
     const body = await res.text();
