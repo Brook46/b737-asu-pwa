@@ -3,8 +3,8 @@
 // sharp at any size. Zip sits in the top bar on every screen, waves now and then,
 // and says something friendly when tapped. He also hops when you change screen.
 
-import { say } from './speech.js?v=26';
-import { playChime } from './sound.js?v=26';
+import { say } from './speech.js?v=27';
+import { playChime } from './sound.js?v=27';
 
 // What Zip says depends on the screen you're on, so he guides the journey.
 const LINES = {
@@ -162,6 +162,14 @@ export function initRobot() {
     pilot.innerHTML = robotSVG('blink');
     pilot.addEventListener('click', greet);
     stage.appendChild(pilot);
+  }
+
+  // On a lesson page, Zip is the "read this to me" button (it replaced a speaker icon).
+  const listen = document.getElementById('lesson-listen');
+  if (listen) {
+    listen.innerHTML = robotSVG('blink');
+    listen.classList.add('robot-listen');
+    listen.setAttribute('aria-label', 'Zip reads this page to you');
   }
 
   const status = document.querySelector('.topbar-status');

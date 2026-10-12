@@ -7,15 +7,16 @@
 //   • Why the sea goes in and out — the Moon and the Sun pull the oceans into bumps.
 // Every number on these screens is computed, never typed in.
 
-import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=26';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=26';
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=26';
-import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=26';
-import { SKY_BODIES } from './catalog.js?v=26';
-import { sensorState, primeLocation } from './sensors.js?v=26';
-import { mountZoom, unmountZoom } from './zoom.js?v=26';
-import { mountSurface } from './surface.js?v=26';
-import { say } from './speech.js?v=26';
+import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=27';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=27';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=27';
+import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=27';
+import { SKY_BODIES } from './catalog.js?v=27';
+import { sensorState, primeLocation } from './sensors.js?v=27';
+import { mountZoom, unmountZoom } from './zoom.js?v=27';
+import { mountSurface } from './surface.js?v=27';
+import { liftPlay } from './lessonui.js?v=27';
+import { say } from './speech.js?v=27';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588; // days from one New Moon to the next
@@ -93,6 +94,7 @@ function buildMoon(root) {
     </ol>
     <p class="lesson-note">The Moon goes all the way round us in about one month. Then the shapes start again.</p>`;
 
+  liftPlay(root, '#moon-play', { before: '#moon-top', also: ['#moon-today'] });
   const slider = $(root, '#moon-days');
   const top = $(root, '#moon-top');
   const disc = squareCanvas($(root, '#moon-disc'), 150);
@@ -468,6 +470,7 @@ function buildSeasons(root) {
 
   slider.addEventListener('input', () => { day = parseInt(slider.value, 10); render(); });
   $(root, '#season-today').addEventListener('click', () => { day = dayToday; render(); });
+  liftPlay(root, '#season-play', { before: '#season-orbit', also: ['#season-today'] });
   const play = $(root, '#season-play');
   let playing = false, raf = 0, last = 0, acc = 0;
   play.addEventListener('click', () => {
@@ -699,6 +702,7 @@ function buildTides(root) {
   const top = $(root, '#tide-top');
   const beach = $(root, '#tide-beach');
   const slider = $(root, '#tide-hour');
+  liftPlay(root, '#tide-play', { before: '#tide-top', also: ['#tide-full', '#tide-half', '#tide-today'] });
   const play = $(root, '#tide-play');
   // State: the hour of the day, and the Moon's phase angle (0 = New, 180 = Full).
   let hour = 12, phase = 0, playing = false, raf = 0, last = 0;

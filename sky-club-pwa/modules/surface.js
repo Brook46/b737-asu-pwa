@@ -14,11 +14,12 @@
 //     scatters red light away from the Sun's direction). A Mars day is 24 h 40 min.
 //   • The landscape (rocks, craters, hills) is invented scenery, not a real place.
 
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=26';
-import { moonPhase } from './astro.js?v=26';
-import { earthClouds } from './orrery3d.js?v=26';
-import { SKY_BODIES } from './catalog.js?v=26';
-import { robotSVG } from './robot.js?v=26';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=27';
+import { moonPhase } from './astro.js?v=27';
+import { earthClouds } from './orrery3d.js?v=27';
+import { SKY_BODIES } from './catalog.js?v=27';
+import { robotSVG } from './robot.js?v=27';
+import { liftPlay } from './lessonui.js?v=27';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588;
@@ -378,6 +379,7 @@ export function mountSurface(root) {
   if (!earthTex) earthTex = loadTexture(SKY_BODIES.earth.texture);
   root.querySelector('#surf-zip').innerHTML = zipWithHelmet();
   const q = (id) => root.querySelector(id);
+  liftPlay(root, '#surf-play', { before: '.surface-stage', also: ['#surf-rise', '#surf-now'] });
   const slider = q('#surf-slider');
   S.world = 'moon'; S.earthrise = false; S.age = todayAge(); S.hour = 15.5; S.rise = 0.4; S.scroll = 0; S.playing = false;
 

@@ -19,12 +19,12 @@
 //     and each spins about its real pole (Uranus on its side, Venus backwards).
 //   • The Sun is alive (sunfx.js).
 
-import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=26';
-import { SUN, MOON, PLANETS } from './catalog.js?v=26';
-import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=26';
-import { SunFX } from './sunfx.js?v=26';
-import { isSpotted } from './badges.js?v=26';
-import { describePhase } from './moonphase.js?v=26';
+import { helioEcliptic, moonEcliptic, moonOrbitSamples, moonPhase, moonDistanceKm, orbitPath, eqjVecToEcl, raDecToVec } from './astro.js?v=27';
+import { SUN, MOON, PLANETS } from './catalog.js?v=27';
+import { Globe, loadTexture, makeNoiseMap, v3, frameFromPole, saturnRingTexture, drawRingHalf, RING_OUTER } from './globe.js?v=27';
+import { SunFX } from './sunfx.js?v=27';
+import { isSpotted } from './badges.js?v=27';
+import { describePhase } from './moonphase.js?v=27';
 
 const DEG = Math.PI / 180;
 

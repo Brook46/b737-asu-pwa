@@ -1,38 +1,43 @@
-// sound.js — a quiet music loop, made with the Web Audio API (no audio files).
+// sound.js — quiet space music, made with the Web Audio API (no audio files).
 //
-// Background: a slow, soft chord pattern under a sparse music-box melody, played
-// very quietly through a warm filter, so it sits behind everything else. It dips
-// further while a voice is speaking. Accents: a soft bell for a twinkle, a gentle
-// glide for a shooting star, and a two-note chime when you catch something.
-// Everything follows the mute button.
+// In the spirit of the soundtrack of "2001: A Space Odyssey", but written for this
+// app and played by synthesis, not copied from any recording:
+//   • DAWN: a soft sunrise opening in the style of Strauss's "Also sprach
+//     Zarathustra" (1896): a rising fifth, then the octave, then a major chord
+//     that swells open. Played once, when the music first starts.
+//   • WALTZ: then a slow waltz in the spirit of Strauss's "The Blue Danube" (1866):
+//     a gentle "oom-pah-pah" under a rising arpeggio and a sparse music-box tune,
+//     with a big, quiet hall of reverb around it so it feels like floating.
+// Both pieces are public-domain compositions; the sound here is synthesised.
 //
-// Starting sound on iOS: only some gestures count. A touch's pointerdown does
-// NOT (the spec's activation events for touch are pointerup/touchend/click), so
-// the listeners stay on every gesture kind, and any later tap also revives a
-// context iOS has suspended or interrupted (a call, the app going to background).
+// Accents: a soft bell for a twinkle, a gentle glide for a shooting star, a
+// two-note chime when you catch something. Everything follows the mute button, and
+// the music ducks while a voice is speaking.
+//
+// Starting sound on iOS: a touch's pointerdown does NOT count as the gesture that
+// lets audio start (pointerup / touchend / click do), so the listeners cover all of
+// them, and any later tap also revives a context iOS has suspended or interrupted.
 
-import { isMuted } from './speech.js?v=26';
+import { isMuted } from './speech.js?v=27';
 
 const MUSIC_LEVEL = 0.16;   // the whole background: low on purpose
 const DUCKED = 0.35;        // share of that level while a voice is speaking
-const TEMPO = 66;           // beats per minute: slow and calm
-const BEAT = 60 / TEMPO;
+const BEAT = 60 / 72;       // a slow waltz: 72 quarter-note beats a minute, 3 to a bar
 
-// Chords as MIDI notes: Cmaj7, Am7, Fmaj7, Gsus4. Every melody note fits all of
-// them (the old G chord had an F♯ that rubbed against the melody's G and C).
+// Four chords in D major, two bars each: D, A, Bm, G (MIDI notes, low to high).
 const CHORDS = [
-  [48, 52, 55, 59],
-  [45, 48, 52, 55],
-  [41, 45, 48, 52],
-  [43, 48, 50, 55],
+  [50, 54, 57, 62],
+  [45, 52, 57, 61],
+  [47, 54, 59, 62],
+  [43, 50, 59, 62],
 ];
-// Melody: C major pentatonic, high, like a music box.
-const MELODY = [72, 74, 76, 79, 81, 84];
+// The tune: D major pentatonic, high, like a music box.
+const MELODY = [74, 76, 78, 81, 83, 86];
 
-let ctx = null, master = null, music = null;
-let started = false;
+let ctx = null, master = null, music = null, hall = null;
+let started = false, dawnDone = false;
 let nextTime = 0, beat = 0, melodyIdx = 2;
-let target = 0;             // the music level we are heading for
+let target = -1;            // the music level we are heading for
 
 const m2f = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -49,6 +54,20 @@ function ensureContext() {
   return ctx;
 }
 
+// A big, soft room: a burst of noise that fades over ~2.6 s, left and right
+// different, so sounds seem to float around you.
+function makeHall() {
+  const len = Math.floor(ctx.sampleRate * 2.6);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+  }
+  const conv = ctx.createConvolver();
+  conv.buffer = buf;
+  return conv;
+}
+
 function fadeMusicTo(level, seconds) {
   if (!music || level === target) return;
   target = level;
@@ -61,23 +80,41 @@ function fadeMusicTo(level, seconds) {
 const speaking = () => 'speechSynthesis' in window && speechSynthesis.speaking;
 const wantedLevel = () => (isMuted() ? 0 : speaking() ? MUSIC_LEVEL * DUCKED : MUSIC_LEVEL);
 
-// One soft pad note: a triangle wave, slow in and slow out.
-function padNote(midi, when, dur) {
-  const o = ctx.createOscillator();
-  o.type = 'triangle';
-  o.frequency.value = m2f(midi);
+// A soft held note that swells in and fades out, like strings or a distant horn.
+function swell(midi, when, dur, peak, attack = 0.7, wave = 'triangle') {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
-  g.gain.exponentialRampToValueAtTime(0.035, when + 1.2);
+  g.gain.exponentialRampToValueAtTime(peak, when + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-  o.connect(g);
   g.connect(music);
-  o.start(when);
-  o.stop(when + dur + 0.1);
+  for (const detune of [-5, 5]) {
+    const o = ctx.createOscillator();
+    o.type = wave;
+    o.frequency.value = m2f(midi);
+    o.detune.value = detune;
+    o.connect(g);
+    o.start(when);
+    o.stop(when + dur + 0.1);
+  }
 }
 
-// One music-box note: a sine with a faint octave, dying away.
-function boxNote(midi, when, peak = 0.06, decay = 1.8) {
+// A short, round note: the "oom" of the waltz (low) or its soft "pah" (higher).
+function pluck(midi, when, peak, decay) {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(peak, when + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+  g.connect(music);
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.value = m2f(midi);
+  o.connect(g);
+  o.start(when);
+  o.stop(when + decay + 0.1);
+}
+
+// A music-box note: a sine with a faint octave, dying away.
+function boxNote(midi, when, peak = 0.055, decay = 1.8) {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
   g.gain.exponentialRampToValueAtTime(peak, when + 0.012);
@@ -100,8 +137,7 @@ function boxNote(midi, when, peak = 0.06, decay = 1.8) {
   b.stop(when + decay + 0.1);
 }
 
-// The melody walks in small steps (a tune, not random notes), and on the first
-// beat of each chord it settles on a note of that chord.
+// The tune walks in small steps and lands on a note of the chord on each downbeat.
 function nextMelodyNote(chord, downbeat) {
   const step = [-2, -1, -1, 1, 1, 2][Math.floor(Math.random() * 6)];
   melodyIdx = Math.max(0, Math.min(MELODY.length - 1, melodyIdx + step));
@@ -115,22 +151,40 @@ function nextMelodyNote(chord, downbeat) {
   return MELODY[melodyIdx];
 }
 
-// Plays the music a little ahead of time, so the timing never wobbles.
+// The sunrise opening, in D: a rising fifth, then the octave, then a major chord
+// that opens slowly. Returns how long it lasts, in seconds.
+function playDawn(t0) {
+  swell(50, t0, 1.9, 0.07, 0.5);              // D
+  swell(57, t0 + 1.8, 1.9, 0.07, 0.5);        // A, a fifth up
+  swell(62, t0 + 3.6, 3.4, 0.08, 0.5);        // D, the octave
+  [50, 57, 62, 66, 69].forEach((n, i) => swell(n, t0 + 4.6, 5.2, 0.03, 2.2, i < 2 ? 'triangle' : 'sine'));
+  return 9.6;
+}
+
+// Plays the waltz a little ahead of time, so the timing never wobbles.
 function scheduleAhead() {
   if (!ctx || !started) return;
   setTimeout(scheduleAhead, 200);
   if (ctx.state !== 'running') return;
-  // After a pause (timers throttled in the background), skip ahead rather than
+  // After a pause (timers throttle in the background), skip ahead rather than
   // playing every missed note at once.
   if (nextTime < ctx.currentTime) nextTime = ctx.currentTime + 0.1;
   fadeMusicTo(wantedLevel(), 0.5);
   while (nextTime < ctx.currentTime + 0.6) {
-    const chord = CHORDS[Math.floor(beat / 4) % CHORDS.length];
-    const downbeat = beat % 4 === 0;
-    if (downbeat) chord.forEach((n) => padNote(n, nextTime, BEAT * 4 + 0.8));
-    // A melody note on most first beats and some others; rests make it breathe.
-    if (Math.random() < (downbeat ? 0.85 : 0.4)) {
-      boxNote(nextMelodyNote(chord, downbeat), nextTime + (!downbeat && Math.random() < 0.3 ? BEAT * 0.5 : 0));
+    const bar = Math.floor(beat / 3);
+    const chord = CHORDS[Math.floor(bar / 2) % CHORDS.length];
+    const inBar = beat % 3;
+    if (beat % 6 === 0) chord.forEach((n) => swell(n, nextTime, BEAT * 6 + 0.8, 0.03, 1.4));
+    if (inBar === 0) pluck(chord[0], nextTime, 0.07, 0.9);                       // oom
+    else pluck(chord[1 + (inBar % 2) * 2], nextTime, 0.022, 0.45);               // pah
+    // A gentle rising arpeggio at the start of each chord, like the Danube's own.
+    if (beat % 6 < 3 && Math.random() < 0.55) {
+      const arp = [chord[1] + 24, chord[2] + 24, chord[3] + 24][inBar];
+      boxNote(arp, nextTime, 0.04, 1.6);
+    } else if (inBar !== 0 && Math.random() < 0.3) {
+      boxNote(nextMelodyNote(chord, false), nextTime + (Math.random() < 0.3 ? BEAT * 0.5 : 0));
+    } else if (inBar === 0 && beat % 6 === 3 && Math.random() < 0.8) {
+      boxNote(nextMelodyNote(chord, true), nextTime);
     }
     nextTime += BEAT;
     beat++;
@@ -145,13 +199,24 @@ function startMusic() {
   // Warm it up: take off the harsh top end, so it stays soft in any room.
   const warm = ctx.createBiquadFilter();
   warm.type = 'lowpass';
-  warm.frequency.value = 2400;
+  warm.frequency.value = 2600;
   warm.Q.value = 0.5;
   music.connect(warm);
   warm.connect(master);
-  nextTime = ctx.currentTime + 0.3;
+  // ...and send some of it through the hall.
+  hall = makeHall();
+  const send = ctx.createGain();
+  send.gain.value = 0.55;
+  warm.connect(send);
+  send.connect(hall);
+  hall.connect(master);
+
+  let t0 = ctx.currentTime + 0.3;
+  if (!dawnDone && !isMuted()) { dawnDone = true; t0 += playDawn(t0) - 1.2; }
+  nextTime = t0;
+  beat = 0;
   target = -1;
-  fadeMusicTo(wantedLevel(), 4);
+  fadeMusicTo(wantedLevel(), 1.6);
   scheduleAhead();
 }
 
@@ -184,7 +249,7 @@ function bell(freq, peak = 0.05, decay = 1.4) {
   b.stop(t + decay + 0.1);
 }
 
-const TWINKLE_NOTES = [1046.5, 1174.66, 1318.5, 1567.98, 1760, 2093];
+const TWINKLE_NOTES = [1174.66, 1318.5, 1480, 1760, 1975.5, 2349.3]; // D major, high
 
 /** A star twinkling: one soft high bell. */
 export function playTwinkle() {

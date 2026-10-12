@@ -11,10 +11,9 @@
   with shared ids, a copy whose twin is `display:none` can lose its colours. The
   hop animates the drawing inside, so it never cancels the home Zip's bob. On the first screen he stands beside the
   illustrated spaceship (`shipSVG()`), which replaced the rocket emoji.
-- **Sound** (`sound.js`) is synthesised with the Web Audio API, so there are no audio files. The background is a quiet music loop: a slow chord pattern under a sparse music-box melody, at about 16% of full level and warmed by a low-pass filter. It replaced an earlier hissing wind, which sounded harsh. Accents: a soft bell for a twinkle on the Sky screen, a gentle sine glide for a shooting star, and a two-note chime when you catch something. Sound starts after the first tap (browsers require it) and follows the mute button. Keep it quiet: it is for a child, and sits behind everything.
+- **Sound** (`sound.js`) is synthesised with the Web Audio API (no audio files), in the spirit of the 2001: A Space Odyssey soundtrack but written for this app, not copied: a soft DAWN opening in the style of Strauss's Also sprach Zarathustra (D, a rising fifth to A, the octave D, then a D major chord that swells open; played once when the music first starts), then a slow WALTZ in the spirit of The Blue Danube (72 bpm, 3 beats to a bar; chords D–A–Bm–G, two bars each; a low "oom", soft "pah-pah", a rising music-box arpeggio and a sparse tune that lands on chord tones), with a generated 2.6 s reverb hall so it floats. Both pieces are public-domain compositions; never use an actual recording. It stays quiet on purpose (~16% level, warm low-pass, ducks to 35% while speaking): it is for a child and sits behind everything. Accents: a soft bell for a twinkle, a sine glide for a shooting star, a two-note chime when you catch something. An earlier hissing wind was removed as harsh.
   - **iOS start**: a touch's `pointerdown` is not a user activation for audio (only pointerup/touchend/click are), so the unlock listens on those, and every later tap revives a suspended or interrupted context.
   - **No catch-up bursts**: timers throttle in the background while the audio clock runs; the scheduler skips ahead instead of playing every missed note at once. The context is suspended while hidden or muted.
-  - The music dips to 35% while a voice is speaking. The melody walks in small steps and lands on a chord note on each downbeat; the fourth chord is Gsus4 (the old Gmaj7's F♯ rubbed against the melody).
 - **The Earth's clouds were too strong** (`globe.js`): about a fifth of the surface
   was milky white, so the sunlit side looked see-through. Now the clouds are patchy
   (about 7% of the surface on average, rarely heavy). Check the Earth in daylight
@@ -45,6 +44,7 @@
   turns; `starfield.js` shifts each star by its depth (3 layers) and wraps.
 - **Shooting stars are time-based** (they were per-frame, so a 120 Hz iPad ran them 2× fast).
 - The Sun has a soft additive bloom; the card sheet eases in with a gentler curve.
+- **Lesson header and Play**: the lesson page's "read to me" button is Zip (not a speaker icon), so the only speaker icon in the app is mute. The top-bar Zip hides on lesson pages (`body[data-screen="lesson"]`, set in `switchScreen`) so there is one Zip, not two. Each lesson's Play button, with the quick buttons that act on the same animation (Today, Full Moon, Half Moon, Now, Earthrise), is moved by `lessonui.js::liftPlay` into a slim row just above its picture, so you never scroll to the controls to play or pause; the same button element moves, so the lesson's handler is unchanged. Keep Play above the fold in any new lesson.
 - **Visit another world** (`surface.js`): stand on the Moon or on Mars, with Zip in a
   helmet. Moon: black sky always (no air), stars that do not twinkle, Earth hung in the
   sky with its REAL phase (opposite of the Moon's: New Moon from Earth = full Earth),

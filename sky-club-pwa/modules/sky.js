@@ -23,15 +23,15 @@
 // reticle on something to have it named and caught, edge arrows point the way
 // to Sun/Moon/planets that are up but off screen.
 
-import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=26';
-import { SKY_BODIES } from './catalog.js?v=26';
-import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=26';
-import { say } from './speech.js?v=26';
-import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=26';
-import { openCard, openStarCard } from './orbits.js?v=26';
-import { nextEventHeadline } from './events.js?v=26';
-import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=26';
-import { playChime } from './sound.js?v=26';
+import { skyBodies, eqjToEnu, raDecToVec, EQJ_TO_GAL, moonPhase } from './astro.js?v=27';
+import { SKY_BODIES } from './catalog.js?v=27';
+import { sensorState, geolocate, primeLocation, requestOrientationPermission, nudge, readView } from './sensors.js?v=27';
+import { say } from './speech.js?v=27';
+import { spot, isSpotted, isBadgeBody, showToast } from './badges.js?v=27';
+import { openCard, openStarCard } from './orbits.js?v=27';
+import { nextEventHeadline } from './events.js?v=27';
+import { drawMoonPhase, moonTextureReady } from './moonphase.js?v=27';
+import { playChime } from './sound.js?v=27';
 
 const DEG = Math.PI / 180;
 

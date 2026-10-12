@@ -1,4 +1,4 @@
-import { playWhoosh } from './sound.js?v=26';
+import { playWhoosh } from './sound.js?v=27';
 // starfield.js — animated twinkling-star background for the Explore screen, drawn
 // on a canvas (cheap: a couple hundred circles, no images). Nebula/galaxy blobs are
 // plain CSS (see app.css .galaxy) since a blurred gradient div is free to composite
