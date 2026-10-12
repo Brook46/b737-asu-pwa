@@ -327,6 +327,33 @@ every frame; the ground drops to the real height after lift-off.
 - Anti-ice: a "heated now" plan inset (cowl lips, three inboard slats,
   windows).
 
+## Supplementary: adverse weather (v44)
+
+QRH sheet → **Supplementary** tab. `supp-advisor.js` is the everyday tool;
+`supplementary.js` is the SP.16 summary (21 topics + the two altitude
+correction tables), shown folded as reference below the tools.
+- Advisor: Departure / In flight / Arrival. One question at a time
+  (`flow()` lists them; questions that cannot change the answer are skipped —
+  no precipitation question above 10 °C, no fluid question unless de-icing or
+  icing). Answers show as chips; tapping a chip re-asks from there. Result:
+  decisions first (de-icing, engine and wing anti-ice, takeoff thrust, taxi
+  run-up with a "run-up done" timer), then a short sequence by phase, then
+  "More notes" folded. Rare departure conditions (engine cold soak, sand)
+  are toggles under "Other conditions". In flight is one tick-list.
+- Rules (FCOM Rev 57): icing = OAT ≤ 10 °C with visible moisture or
+  contaminated ramp/taxiway/runway (SP.16.2) — wing contamination drives
+  de-icing, light lower-wing frost ≤ 3 mm is allowed; wing anti-ice on the
+  ground unless Type II/IV fluid (Type I does not count, SP.16.5); taxi
+  run-up only with engine anti-ice and OAT ≤ 3 °C (30 s / 30 min, plus 1 s /
+  10 min in freezing precipitation, SP.16.7); static run-up before takeoff
+  whenever engine anti-ice is on (SP.16.9).
+- Cold correction: every published altitude through the SP.16.14 table
+  (colder row, higher column, linear above 3,000 ft / 900 m), correction
+  from 0 °C down. Minimum and missed approach altitudes → FMC LEGS and the
+  MCP (next 100 ft); DA / MDA → EFIS MINS (BARO).
+- Topic links use the topic title (`topicIdx`), so keep titles in
+  supplementary.js stable. SP page refs were checked against the FCOM pages.
+
 ## Dimension drawings (v25)
 
 `dims.js`: drafting-style dimensions on the floor around the 3D airplane —

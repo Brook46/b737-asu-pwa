@@ -1,5 +1,5 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=43';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, coldHtml, refreshCold } from './supp-advisor.js?v=43';
+import { SUPPLEMENTARY } from './supplementary.js?v=44';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, coldHtml, refreshCold } from './supp-advisor.js?v=44';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -227,7 +227,6 @@ export function createQuickRef(sheet, systems) {
   };
   const spTable = (tb) => `<div class="sp-tab"><div class="sp-tt">${esc(tb.t)}</div><table class="qr-num sp-num"><tr><th>OAT · height</th>${tb.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>${tb.rows.map(([t, vals]) => `<tr><td>${esc(t)}</td>${vals.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</table><div class="sp-unit">Correction in ${tb.unit}, added to the published minimum</div></div>`;
   const suppHtml = () => SUPPLEMENTARY.map((sec) => `
-    <h2 class="qr-h2">Supplementary ${sec.n} · ${esc(sec.t)}</h2>
     <nav class="sp-idx">${sec.topics.map((tp, i) => `<button class="tag tag-btn sp-chip" data-sp-go="${sec.n}-${i}">${esc(tp.t)}</button>`).join('')}</nav>
     <div class="sp-tools"><button class="tag tag-btn" data-sp-all="open">Open all</button><button class="tag tag-btn" data-sp-all="close">Close all</button></div>
     ${sec.topics.map((tp, i) => `<details class="sp-topic" id="sp-${sec.n}-${i}"><summary><span>${esc(tp.t)}</span><span class="qr-ref">${esc(tp.ref)}</span></summary><ul class="sp-list">${tp.pts.map(spLine).join('')}</ul>${(tp.tab || []).map((k) => spTable(sec.tables[k])).join('')}</details>`).join('')}`).join('');
@@ -235,7 +234,7 @@ export function createQuickRef(sheet, systems) {
     if (tab === 'memory') return `<p class="qr-note">Steps above the dashed line in each Quick Action Index checklist — do them, then read the rest of the checklist.</p>${MEMORY.map(memCard).join('')}
       <h2 class="qr-h2">Quick actions (read and do)</h2>${QUICK_ACTIONS.map((c) => card(c)).join('')}`;
     if (tab === 'maneuvers') return `<p class="qr-note">Non-normal maneuvers are flown from memory. Callout first: "STALL", "WINDSHEAR", "UPSET"…</p>${MANEUVERS.map((c) => card(c, true)).join('')}`;
-    if (tab === 'supp') return `<p class="qr-note">Condensed from the FCOM Supplementary Procedures. The FCOM governs.</p>${wizardHtml()}${coldHtml()}${suppHtml()}`;
+    if (tab === 'supp') return `${wizardHtml()}${coldHtml()}<details class="sp-ref" id="sp-ref"><summary>SP.16 Adverse Weather — full summary <span class="qr-ref">reference</span></summary>${suppHtml()}</details><p class="qr-foot">Condensed from the FCOM Supplementary Procedures, Rev 57. The FCOM and your de-icing programme govern.</p>`;
     if (tab === 'numbers') return NUMBERS.map(([t, rows, mem]) => table(t, rows, mem)).join('');
     // Every number on the system pages, by chapter.
     return systems.filter((s) => s.mod).sort((a, b) => a.num - b.num).map((s) => {
@@ -260,12 +259,12 @@ export function createQuickRef(sheet, systems) {
   for (const ev of ['input', 'change']) document.addEventListener(ev, (e) => { if (e.target.closest?.('#wz-cold')) refreshCold(); });
   document.addEventListener('keydown', (e) => wizardKey(e));
   document.addEventListener('click', (e) => {
-    const wa = e.target.closest('[data-wz-ans],[data-wz-opt]');
+    const wa = e.target.closest('[data-wz-ans],[data-wz-edit],[data-wz-tog],[data-wz-x]');
     if (wa && wizardClick(wa)) return;
     const wb = e.target.closest('[data-wz]');
     if (wb) { wizardAct(wb.dataset.wz); return; }
     const sg = e.target.closest('[data-sp-go]');
-    if (sg) { const d = document.getElementById('sp-' + sg.dataset.spGo); if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
+    if (sg) { const d = document.getElementById('sp-' + sg.dataset.spGo); if (d) { const ref = d.closest('details.sp-ref'); if (ref) ref.open = true; d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
     const sa = e.target.closest('[data-sp-all]');
     if (sa) { document.querySelectorAll('.sp-topic').forEach((d) => { d.open = sa.dataset.spAll === 'open'; }); return; }
     const b = e.target.closest('[data-qr-tab]');
