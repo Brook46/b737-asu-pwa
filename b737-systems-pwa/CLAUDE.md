@@ -331,6 +331,20 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   text index puts a space between table cells so a label + value selection
   matches.
 
+## Engines schematic (v55)
+
+`schem-engines.js`: side-view nacelles (`nacelle()`) replace the boxes; the
+centre holds an engine display like the upper DU (N1 over EGT) and lower DU
+(N2), drawn with `duDial()` in the FCOM 7.11 geometry. `engineSide()` adds a
+second SVG below — the CFM56-7 cut away after the FCOM 7.20.7 power plant
+schematic (own drawing): N1 spool blue (fan, booster, LPT), N2 spool orange
+(9-stage HPC, HPT), 5th / 9th stage bleed (lit from the air system's
+`flows.b1/b2` and `values.highL/highR`), fan air, cowl anti-ice (antiice
+`values.tai`), fuel + igniters, and the N2-driven gearbox (starter, IDG, hyd
+pump, fuel and oil pumps). A rAF loop spins the spools at N1 / N2 and moves
+the air while the SVG is connected. The schematic host gets `schem-tall`
+(scrolls); `createSchematic` removes it for other systems.
+
 ## Panel lists by flight-deck area (v54)
 
 `overhead.js` `AREA` maps every panel title to its flight-deck area (forward /

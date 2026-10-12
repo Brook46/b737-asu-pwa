@@ -7,6 +7,7 @@ const NS = 'http://www.w3.org/2000/svg';
 
 export function createSchematic(host, w, h) {
   host.replaceChildren();
+  host.classList.remove('schem-tall');      // engines adds a second drawing below
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
   svg.setAttribute('class', 'sx');

@@ -1048,3 +1048,8 @@ body.drill .hud, body.drill #cp-bar, body.drill .vc, body.drill #cp-info, body.d
 /* QRH and Supplementary read better wider (fewer wrapped steps). */
 .sheet.wide { width: min(560px, 50vw); }
 @media (max-width: 760px) { .sheet.wide { width: auto; } }
+
+/* Engines: the schematic plus the side cutaway below it, scrolling. */
+.schem-svg.schem-tall { display: block; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.schem-svg.schem-tall svg { height: auto; max-height: none; display: block; }
+.schem-svg.schem-tall svg + svg { border-top: 1.5px dashed #3a4149; margin-top: 8px; padding-top: 4px; }
