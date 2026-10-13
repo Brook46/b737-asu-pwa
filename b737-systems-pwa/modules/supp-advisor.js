@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=57';
-import { nav, loadNav } from './navdb.js?v=57';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=57';
-import { relatedFor, procLink } from './supp-procs.js?v=57';
+import { SUPPLEMENTARY } from './supplementary.js?v=58';
+import { nav, loadNav } from './navdb.js?v=58';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=58';
+import { relatedFor, procLink } from './supp-procs.js?v=58';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -54,7 +54,15 @@ const Q = {
     opts: [['dry', 'Dry', 'Runway dry'], ['wet', 'Wet', 'Runway wet'], ['contam', 'Slush, snow, standing water or ice', 'Runway contaminated']],
   },
   arrIce: { t: 'Icing expected on the approach (flaps out in icing)?', yn: true, chip: ['Icing on approach', 'No icing on approach'] },
-  windshear: { t: 'Windshear reported or likely at the destination?', yn: true, chip: ['Windshear', 'No windshear'] },
+  // Windshear clues (SP.16.28): thunderstorms, virga, pilot reports, LLWAS warnings.
+  depWs: {
+    t: 'Windshear at departure? (thunderstorms, virga, pilot reports, LLWAS)',
+    opts: [['none', 'No sign of it', 'No windshear'], ['sus', 'Suspected — clues, not confirmed', 'Windshear suspected'], ['conf', 'Confirmed on the departure path', 'Windshear confirmed']],
+  },
+  windshear: {
+    t: 'Windshear at the destination? (thunderstorms, virga, pilot reports, LLWAS)',
+    opts: [['none', 'No sign of it', 'No windshear'], ['sus', 'Suspected — clues, not confirmed', 'Windshear suspected'], ['conf', 'Confirmed on the approach path', 'Windshear confirmed']],
+  },
 };
 
 // Flight: one screen, tick what applies.
@@ -66,6 +74,7 @@ const FLIGHT = [
   ['turbS', 'Turbulence — severe'],
   ['rain', 'Heavy rain, hail or sleet'],
   ['storm', 'Thunderstorms on the route'],
+  ['ws', 'Windshear — warning, or unacceptable deviations'],
 ];
 
 // Departure extras: rare, so offered under "Other conditions" on the result.
@@ -95,6 +104,7 @@ function flow() {
     if (A.airframe === 'upper' && csffOk()) q.push('csffArea');
     q.push('surface');
     if (A.surface != null && needsFluidQ()) q.push('fluid');
+    q.push('depWs');
     return q;
   }
   if (A.place === 'arr') {
@@ -195,7 +205,9 @@ function departure() {
   else if (icing) D('Wing anti-ice', 'ON', 'on', `From engine start to takeoff.${fluid === 't1' ? ' Type I fluid does not replace it.' : ''} It does not replace de-icing.`, 'SP.16.5', 'Wing anti-ice on the ground');
   else D('Wing anti-ice', 'OFF', 'no', t > 10 ? 'Not above 10 °C OAT.' : 'No icing conditions.', 'SP.16.5', 'Wing anti-ice on the ground');
   // Takeoff thrust (SP.16.1)
-  if (A.surface === 'deep') D('Takeoff', 'NOT RECOMMENDED', 'yes', 'Slush or standing water over 13 mm, or dry snow over 102 mm.', 'SP.16.1', 'Wet or contaminated runway takeoff');
+  if (A.depWs === 'conf') D('Takeoff', 'DELAY', 'yes', 'Windshear confirmed on the departure path: delay the takeoff.', 'SP.16.28', 'Windshear');
+  else if (A.surface === 'deep') D('Takeoff', 'NOT RECOMMENDED', 'yes', 'Slush or standing water over 13 mm, or dry snow over 102 mm.', 'SP.16.1', 'Wet or contaminated runway takeoff');
+  else if (A.depWs === 'sus') D('Takeoff thrust', 'FULL RATED', 'on', `Windshear suspected: full rated thrust, unless a fixed derate is needed for dispatch performance${A.surface === 'contam' ? ' (and the contaminated-runway performance)' : A.surface === 'wet' ? ' (wet-runway performance)' : ''}.`, 'SP.16.28', 'Windshear');
   else if (A.surface === 'contam') D('Takeoff thrust', 'FIXED DERATE ONLY', 'on', 'No assumed temperature, alone or combined. Performance for the runway condition.', 'SP.16.1', 'Wet or contaminated runway takeoff');
   else if (A.surface === 'wet') D('Takeoff thrust', 'REDUCED ALLOWED', 'no', 'Fixed derate, assumed temperature or both — with wet-runway performance.', 'SP.16.1', 'Wet or contaminated runway takeoff');
 
@@ -228,6 +240,13 @@ function departure() {
   if (A.sand) taxi.push(L('Sand or dust: 10 kt, below 40 % N1, no heavy braking, keep clear of other engines.', 'SP.16.23', 'Sandy or dusty environment'));
   if (icing && A.surface !== 'deep') tko.push(L(`Static run-up before the roll: 70 % N1, engines stable${t <= 3 ? ' — about 30 s strongly recommended' : ''}.`, 'SP.16.9', 'Takeoff after anti-ice', 'warn'));
   if (A.sand) tko.push(L('Sand or dust: maximum derate, rolling takeoff, never into a dust cloud.', 'SP.16.24', 'Sandy or dusty environment'));
+  if (A.depWs === 'sus') {
+    tko.push(L('Longest suitable runway clear of the windshear · flaps 5, 10 or 15 unless obstacles or climb gradient limit.', 'SP.16.28', 'Windshear'));
+    tko.push(L('Consider a higher Vr: up to the performance-limited Vr, not above actual-weight Vr + 20 kt (V speeds for the actual weight). Windshear at or after actual Vr: rotate at once.', 'SP.16.28', 'Windshear'));
+    tko.push(L('Watch the airspeed through rotation and initial climb — fluctuations may be the first sign. Rotate at the normal rate to the all-engine climb pitch; keep it until clear of terrain unless the stick shaker comes on.', 'SP.16.29', 'Windshear', 'caution'));
+    tko.push(L('PM: call any vertical-path deviation. Stick shaker: reduce pitch — never past the pitch limit indicator.', 'SP.16.29', 'Windshear'));
+    tko.push(L('Predictive warning on the roll: before V1 reject, after V1 escape. Windshear met: Windshear Escape Maneuver.', 'QRH MAN.1.11', 'Windshear', 'warn'));
+  }
   const seq = [['Preflight', pre], ['Engine start', start], ['Taxi', taxi], ['Takeoff', tko]].filter(([, l]) => l.length);
 
   // Folded notes.
@@ -251,10 +270,13 @@ function arrival() {
     app.push(L('Engine anti-ice ON before and during descent in icing — even below −40 °C SAT.', 'SP.16.10', 'Engine anti-ice in flight', 'warn'));
     app.push(L('Holding in icing with flaps extended is prohibited.', 'SP.16.12', 'Wing anti-ice in flight', 'warn'));
   }
-  if (A.windshear) {
-    app.push(L('Windshear: flaps 30 · stabilised by 1,000 ft · runway clear of the windshear.', 'SP.16.29', 'Windshear', 'caution'));
-    app.push(L('Autothrottle off or coming off: add up to 15 kt, applied as for gusts.', 'SP.16.29', 'Windshear'));
-    app.push(L('Warning or unacceptable deviation: Windshear Escape Maneuver.', 'SP.16.29', 'Windshear', 'warn'));
+  if (A.windshear === 'conf') app.push(L('Windshear confirmed on the approach: do not continue the approach — hold clear or divert.', 'SP.16.28', 'Windshear', 'warn'));
+  if (A.windshear === 'sus') {
+    app.push(L('Flaps 30 · stabilised by 1,000 ft above the airport · the most suitable runway clear of the windshear and within the wind limits.', 'SP.16.29', 'Windshear', 'caution'));
+    app.push(L('Use the glide path (electronic or visual) to see deviations early. Autopilot and autothrottle give more monitoring time.', 'SP.16.29', 'Windshear'));
+    app.push(L('Autothrottle off or coming off before landing: add up to 15 kt, applied as for gusts.', 'SP.16.29', 'Windshear'));
+    app.push(L('Sudden speed gain: no big thrust cut or trim change — a loss may follow. Crosscheck the flight director with vertical speed and altitude.', 'SP.16.29', 'Windshear'));
+    app.push(L('Warning, PWS "GO-AROUND, WINDSHEAR AHEAD", or below 1,000 ft ±15 kt / ±500 fpm / ±5° pitch / 1 dot G/S: Windshear Escape Maneuver.', 'QRH MAN.1.11', 'Windshear', 'warn'));
   }
   if (icing || A.arrSurface !== 'dry') land.push(L('Normal procedures and reference speeds.', 'SP.16.14', 'Approach, landing and after landing'));
   if (A.arrIce || A.arrSurface === 'contam') after.push(L('Flaps: not below 15 until the flap areas are checked clear.', 'SP.16.15', 'Approach, landing and after landing', 'warn'));
@@ -302,6 +324,12 @@ function flight() {
   if (F.has('storm')) add('Thunderstorms', [
     L('Avoid them. Do not overfly a cell that shows visible moisture up high.', 'SP.16.20', 'Moderate to heavy rain, hail or sleet'),
     L('Windshear is likely near storms — see Arrival for the approach.', 'SP.16.28', 'Windshear'),
+  ]);
+  if (F.has('ws')) add('Windshear — escape maneuver (QRH)', [
+    L('Manual: A/P off · TO/GA · aggressively maximum thrust · A/T off · wings level, rotate toward 15° · speedbrakes in · follow TO/GA F/D, never past the pitch limit.', 'QRH MAN.1.13', 'Windshear', 'warn'),
+    L('Automatic: TO/GA · verify TO/GA mode and GA thrust · speedbrakes in · monitor — be ready to fly by hand.', 'QRH MAN.1.13', 'Windshear', 'warn'),
+    L('No flap or gear change until clear · wings level unless obstacles · do not chase lost airspeed until clear.', 'QRH MAN.1.13', 'Windshear'),
+    L('Predictive "MONITOR RADAR DISPLAY": avoid · on the takeoff roll "WINDSHEAR AHEAD": before V1 reject, after V1 escape · approach "GO-AROUND, WINDSHEAR AHEAD": escape (or a normal go-around).', 'QRH MAN.1.11', 'Windshear'),
   ]);
   return { dec: [], runup: null, seq, more: [] };
 }
