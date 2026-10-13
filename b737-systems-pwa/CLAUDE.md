@@ -331,6 +331,26 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   text index puts a space between table cells so a label + value selection
   matches.
 
+## Plan-view schematics and highlights on the real parts (v56)
+
+- `schem-kit` `X.plan(cx, top, scale)`: the airplane from above on the 3D
+  model's geometry (`wingLE` / `wingChord` / `fusSection`), returning `P(x, z)`,
+  `W(z, u)` (wing point at chord fraction u), `wingQuad`, `stabQuad`. Flight
+  controls draws every surface at its real station (stations in the module
+  header, from airframe.js): TE flaps run aft with angle, Krueger flaps 1–4 and
+  slats 1–8 move forward, spoilers numbered 1–12 per FCOM 9.20 (ground: 1, 6,
+  7, 12). Fuel draws the tanks between the spars (main 3.5–15.4 m, surge,
+  center) with levels, pumps, manifold on the front spar, crossfeed, spar and
+  engine valves where they are.
+- `LE devices` annunciator panel (FCOM 9.10, aft overhead, first column of
+  `AFTOV_COLS`): solid-lens lights (`'amber solid'` / `'green solid'`).
+- `systems3d` `K.skin(part, targets, { color, key })`: tints a copy of the
+  airframe's own meshes (movers: flaps, slats, kruegers, ailerons, spoilers,
+  elevators, rudder, stab, doors, mains, nose, sleeves), riding on the same
+  hinge so it moves with the part; `key` = units key for its own state (each
+  door `door_<k>` amber when open). Use it instead of stand-in boxes whenever
+  the part exists in airframe.js.
+
 ## Engines schematic (v55)
 
 `schem-engines.js`: side-view nacelles (`nacelle()`) replace the boxes; the

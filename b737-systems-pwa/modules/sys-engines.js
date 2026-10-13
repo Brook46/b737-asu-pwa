@@ -6,7 +6,7 @@
 // (app.js env() reads them), so a started engine drives its hydraulic pump,
 // generator and bleed like the real one.
 
-import { ENG, engPoint, wingLE, wingChord, wingY, APU, YC } from './airframe.js?v=55';
+import { ENG, engPoint, wingLE, wingChord, wingY, APU, YC } from './airframe.js?v=56';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#f5a300', APUC = '#e8590c';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -158,7 +158,6 @@ export default {
       K.unit('oil', { cyl: [engPoint(n, 1.75, -0.55, side * 0.2), engPoint(n, 2.15, -0.55, side * 0.2)], r: 0.12 }, { color: '#fab005' });
       K.unit('fuelsys', { box: engPoint(n, 1.8, -0.6, -side * 0.4), size: [0.32, 0.12, 0.16] }, { color: FUELC });
       K.unit('ign', { sphere: engPoint(n, 2.0, -0.3, side * 0.75), r: 0.07 }, { color: IGN });
-      K.unit('rev', { cyl: [engPoint(n, 2.2, 0, 0), engPoint(n, 3.2, 0, 0)], r: 0.98, r2: 0.9 }, { color: '#868e96', glass: true });
       // Starter air from the bleed duct down the pylon.
       K.flow(`air${n}`, [spar(side * 2.4, 0.07, -0.05), spar(side * ENG.z, 0.06, 0), engPoint(n, 2.6, 1.0, 0),
         engPoint(n, 1.5, -0.65, side * 0.45)], { color: AIR, part: 'start', r: 0.07 });
@@ -172,6 +171,8 @@ export default {
       K.flow(`core${n}`, [engPoint(n, 0.9, 0, 0), engPoint(n, 3.6, 0, 0), engPoint(n, 5.6, 0, 0)], { color: '#ff922b', part: 'core', r: 0.16 });
     }
     // APU, its fuel and inlet.
+    // The reverser sleeves on the nacelles themselves.
+    K.skin('rev', 'sleeves', { color: '#868e96' });
     K.unit('apu', { box: [APU.x + 1.0, APU.y - 0.1, 0], size: [1.2, 0.55, 0.6] }, { color: APUC });
     K.unit('apuinlet', { box: [APU.x + 2.6, YC + 0.9, 0.55], size: [0.5, 0.06, 0.3] }, { color: '#adb5bd' });
     K.flow('apuAir', [[APU.x + 2.6, YC + 0.9, 0.55], [APU.x + 1.6, APU.y + 0.1, 0.2]], { color: '#74c0fc', part: 'apuinlet', r: 0.08 });

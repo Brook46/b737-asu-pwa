@@ -1,7 +1,7 @@
 // sys-gear.js — FCOM chapter 14, landing gear, brakes and steering, in our
 // own words. The gear position here drives the 3D gear.
 
-import { MLG, NLG, FLOOR_Y } from './airframe.js?v=55';
+import { MLG, NLG, FLOOR_Y } from './airframe.js?v=56';
 
 const G = '#495057', A = '#2f7cf6', B = '#12a874', BR = '#e8590c';
 
@@ -103,13 +103,14 @@ export default {
 
   build(K) {
     for (const side of [-1, 1]) {
-      K.unit('mlg', { cyl: [[MLG.x, 2.3, side * MLG.pivotZ], [MLG.x, 0.6, side * MLG.z]], r: 0.06 }, { color: G });
       K.flow('gearA', [[MLG.x + 0.5, 1.9, side * 0.4], [MLG.x, 2.3, side * MLG.pivotZ]], { color: A, part: 'mlg', r: 0.05 });
       K.flow('brakeB', [[MLG.x + 0.5, 1.9, side * 0.6], [MLG.x, 2.0, side * MLG.pivotZ], [MLG.x, 0.6, side * MLG.z]], { color: B, part: 'brakes', r: 0.035 });
       K.flow('brakeA', [[MLG.x + 0.5, 1.8, side * 0.5], [MLG.x - 0.1, 1.9, side * MLG.pivotZ], [MLG.x - 0.1, 0.65, side * MLG.z]], { color: A, part: 'brakes', r: 0.03 });
       K.unit('ag', { sphere: [MLG.x, 1.6, side * (MLG.z + 0.2)], r: 0.06 }, { color: '#adb5bd' });
     }
-    K.unit('nlg', { cyl: [[NLG.x, NLG.pivotY, 0], [NLG.x, 0.4, 0]], r: 0.05 }, { color: G });
+    // The gear legs and wheels themselves light up (and retract with the model).
+    K.skin('mlg', 'mains', { color: G });
+    K.skin('nlg', 'nose', { color: G });
     K.flow('steer', [[MLG.x + 0.5, 1.8, 0], [4, 1.35, 0.1], [NLG.x - 0.4, 1.4, 0.1], [NLG.x, 1.2, 0]], { color: A, part: 'nlg', r: 0.04 });
     K.flow('steerB', [[MLG.x + 0.5, 1.9, -0.2], [4, 1.45, -0.1], [NLG.x - 0.4, 1.5, -0.1], [NLG.x, 1.25, 0]], { color: B, part: 'nlg', r: 0.04 });
     K.unit('brakes', { cyl: [[MLG.x + 0.6, 1.6, 0.9], [MLG.x + 0.6, 2.0, 0.9]], r: 0.12 }, { color: B });

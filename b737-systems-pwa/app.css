@@ -355,6 +355,8 @@ button { font: inherit; color: inherit; }
 .ovh-lamp.blue.dim .legend { fill: #a9c2f2; }
 .ovh-lamp.green.on .lens { stroke: #46e584; }
 .ovh-lamp.green.on .legend { fill: #46e584; }
+.ovh-lamp.solid.green.on .lens { fill: #2fbf5b; }
+.ovh-lamp.solid.amber.on .lens { fill: #ffa31a; }
 .ovh-tg, .ovh-knob, .ovh-push, .ovh-guard { cursor: pointer; }
 .ovh-tg.inert, .ovh-knob.inert, .ovh-push.inert { cursor: default; }
 .ovh-push.down circle:last-child { fill: #3a3d40; }

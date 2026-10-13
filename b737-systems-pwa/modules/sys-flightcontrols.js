@@ -2,7 +2,7 @@
 // speedbrake state here drives the 3D airplane: move the FLAP lever and the
 // flaps run (on system B, or electrically with alternate flaps).
 
-import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=55';
+import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=56';
 
 const C = '#3a86ff', CAB = '#adb5bd', DRV = '#fab005';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -144,18 +144,20 @@ export default {
     K.flow('cables', [[15.4, FLOOR_Y - 0.2, -0.6], [8, FLOOR_Y - 0.3, -0.7], [-4, FLOOR_Y - 0.3, -0.7], [-12, 2.6, -0.4], [-16.4, 3.9, 0]], { color: CAB, part: 'pcu', r: 0.025 });
     K.flow('cables', [[15.4, FLOOR_Y - 0.2, 0.6], [8, FLOOR_Y - 0.3, 0.7], [-4, FLOOR_Y - 0.3, 0.7], [-12, 2.6, 0.4], [-16.9, 5.0, 0]], { color: CAB, part: 'rud', r: 0.025 });
     K.unit('pcu', { box: [MLG.x - 0.8, 2.0, 0.3], size: [0.4, 0.2, 0.25] }, { color: C });
-    K.unit('elev', { box: [-17.6, 3.9, 0], size: [0.5, 0.25, 0.6] }, { color: C });
-    K.unit('rud', { box: [-16.9, 5.2, 0], size: [0.6, 0.6, 0.2] }, { color: C });
-    K.unit('stab', { cyl: [[-16.6, 3.3, 0], [-16.6, 4.3, 0]], r: 0.09 }, { color: DRV });
+    // The surfaces themselves light up on the airplane (and move with it).
+    K.skin('flaps', 'flaps', { color: C });
+    K.skin('le', ['slats', 'kruegers'].flatMap((k) => K.movers?.[k] ?? []), { color: '#40c057' });
+    K.skin('ail', 'ailerons', { color: '#1f5fbf' });
+    K.skin('sb', 'spoilers', { color: '#4dabf7' });
+    K.skin('elev', 'elevators', { color: '#1f5fbf' });
+    K.skin('rud', 'rudder', { color: '#1f5fbf' });
+    K.skin('stab', 'stab', { color: DRV });
+    K.unit('stab', { cyl: [[-16.6, 3.3, 0], [-16.6, 4.3, 0]], r: 0.09 }, { color: DRV });     // jackscrew
     // Flap drive and torque tubes along the rear spar, to the flap tracks.
     K.unit('pdu', { box: [MLG.x - 0.3, 2.15, -0.4], size: [0.35, 0.25, 0.3] }, { color: DRV });
     for (const side of [-1, 1]) {
       K.flow('torque', [[MLG.x - 0.3, 2.15, side * 0.3], spar(side * 2.2, 0.72, -0.1), spar(side * 6.5, 0.72, -0.06), spar(side * 12.3, 0.72, -0.02)],
         { color: DRV, part: 'pdu', r: 0.04 });
-      K.unit('flaps', { box: spar(side * 8, 0.86, -0.1), size: [0.5, 0.06, 1.0] }, { color: C, glass: true });
-      K.unit('le', { box: spar(side * 12, 0.04, 0.05), size: [0.3, 0.05, 1.2] }, { color: C, glass: true });
-      K.unit('ail', { box: [-4.6, wingY(14) + 0.1, side * 14], size: [0.3, 0.06, 2.6] }, { color: C, glass: true });
-      K.unit('sb', { box: spar(side * 9, 0.66, 0.12), size: [0.5, 0.03, 4.2] }, { color: '#4dabf7', glass: true });
       K.flow('aileronCable', [[MLG.x - 0.8, 2.0, side * 0.3], spar(side * 4, 0.64, -0.1), spar(side * 13.5, 0.66, 0), [-4.6, wingY(14) + 0.1, side * 14]],
         { color: CAB, part: 'ail', r: 0.02 });
     }
@@ -216,7 +218,7 @@ export default {
         sbArmed: sw.sb === 1, sbExtended: sbExt && (air ? env.flaps > 0 || env.alt < 800 : true), sbDoNotArm: false,
         loadRelief: false,
       },
-      values: { flap: mem.flap, lever: DETENTS[sw.flap], le: ['RET', 'EXT', 'FULL EXT'][mem.le], sb: SB[sw.sb], sbFrac: [0, 0, 0.5, 1][sw.sb] },
+      values: { flap: mem.flap, lever: DETENTS[sw.flap], le: ['RET', 'EXT', 'FULL EXT'][mem.le], leIdx: mem.le, moving, sb: SB[sw.sb], sbFrac: [0, 0, 0.5, 1][sw.sb], air: !!air },
       pose: { flaps: mem.flap, slats: mem.le, speedbrake: [0, 0, 0.55, 1][sw.sb] },
       note: [moving && `Flaps running to ${target}`, !ydOn && 'YAW DAMPER off'].filter(Boolean).join(' · '),
     };

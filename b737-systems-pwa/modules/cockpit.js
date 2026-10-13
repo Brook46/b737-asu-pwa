@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=55';
-import { createOverhead } from './overhead.js?v=55';
-import * as CAB from './cockpit-cab.js?v=55';
-import { buildStand } from './cockpit-stand.js?v=55';
-import * as D from './cockpit-displays.js?v=55';
-import { drawCDUScreen } from './cdu.js?v=55';
+import * as THREE from '../vendor/three.module.min.js?v=56';
+import { createOverhead } from './overhead.js?v=56';
+import * as CAB from './cockpit-cab.js?v=56';
+import { buildStand } from './cockpit-stand.js?v=56';
+import * as D from './cockpit-displays.js?v=56';
+import { drawCDUScreen } from './cdu.js?v=56';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.34, -0.52);
@@ -551,7 +551,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   // audio panel with the ENGINE (reverser / EEC) and oxygen panels, and the
   // flight recorder / Mach and stall warning tests.
   const AFTOV_COLS = [
-    [0.2, []],
+    [0.2, [['flightcontrols', 'LE devices']]],
     [0.23, [['fms', 'IRS mode select']]],
     [0.1, [['comms', 'Service interphone']]],
     [0.23, [['general', 'Oxygen'], ['engines', 'Engine panel'], ['comms', 'Audio control panel']]],   // front → aft

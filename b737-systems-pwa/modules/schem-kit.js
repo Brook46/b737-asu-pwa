@@ -3,6 +3,8 @@
 // state by key, and overhead-panel controls (toggles, rotaries, lamps,
 // readouts) that write into the system's switch state.
 
+import { wingLE, wingChord, fusSection, TIP_Z, ENG, NOSE_X, TAIL_X } from './airframe.js?v=56';
+
 const NS = 'http://www.w3.org/2000/svg';
 
 export function createSchematic(host, w, h) {
@@ -166,6 +168,43 @@ export function createSchematic(host, w, h) {
       el('path', { d: poly([[-12.5, 0.12], [-19.4, 0.12], [-19.4, -0.12], [-12.5, -0.12]]), class: 'plan-fin' }, g);
       if (o.label) S.text(cx, top - 10, o.label, 't-small t-dim', 'middle');
       return P;
+    },
+    /**
+     * The airplane from above, nose up, on the 3D model's own geometry (so
+     * surfaces drawn with it sit where they are on the airplane). Returns
+     * P(x, z) → [sx, sy], W(z, u) → a wing point at chord fraction u, and
+     * wingQuad / stabQuad path builders for surfaces.
+     */
+    plan(cx, top, scale, o = {}) {
+      const P = (X, z) => [cx + z * scale, top + (NOSE_X - X) * scale];
+      const W = (z, u) => P(wingLE(z) - u * wingChord(z), z);
+      const path = (pts) => 'M' + pts.map((q) => q.join(',')).join(' L') + ' Z';
+      const g = el('g', { class: 'plan' + (o.faint ? ' faint' : '') }, o.layer === 'units' ? layers.units : layers.pipes);
+      // Fuselage outline from the cross-section half-widths.
+      const fus = [];
+      for (let i = 0; i <= 60; i++) { const X = NOSE_X - (i / 60) * (NOSE_X - TAIL_X); fus.push([X, fusSection(X).hw]); }
+      const fusPts = [...fus.map(([X, w]) => P(X, w)), ...fus.reverse().map(([X, w]) => P(X, -w))];
+      // Wings: LE and TE from the side of body to the tip, plus the winglet stub.
+      const wing = (sd) => {
+        const zs = [1.88, 4, 6.2, 9, 12, 15, TIP_Z];
+        return [...zs.map((z) => W(sd * z, 0)), P(-4.9, sd * 17.9), P(-6.0, sd * 17.9), ...zs.slice().reverse().map((z) => W(sd * z, 1))];
+      };
+      const stab = (sd) => [P(-14.4, sd * 0.5), P(-18.35, sd * 7.18), P(-19.7, sd * 7.18), P(-18.8, sd * 0.5)];
+      const nac = (sd) => { const x0 = ENG.x + ENG.len / 2 - 0.6, x1 = ENG.x - ENG.len / 2 - 0.4, z = ENG.z; return [P(x0, sd * (z - 0.95)), P(x0, sd * (z + 0.95)), P(x1, sd * (z + 0.75)), P(x1 - 0.8, sd * (z + 0.3)), P(x1 - 0.8, sd * (z - 0.3)), P(x1, sd * (z - 0.75))]; };
+      for (const sd of [-1, 1]) {
+        el('path', { d: path(wing(sd)), class: 'plan-skin' }, g);
+        el('path', { d: path(stab(sd)), class: 'plan-skin' }, g);
+      }
+      el('path', { d: path(fusPts), class: 'plan-skin' }, g);
+      for (const sd of [-1, 1]) el('path', { d: path(nac(sd)), class: 'plan-skin' }, g);
+      el('path', { d: path([P(-10.6, 0.12), P(-17.9, 0.12), P(-17.9, -0.12), P(-10.6, -0.12)]), class: 'plan-fin' }, g);
+      const wingQuad = (z0, z1, u0, u1, shift = 0) => path([W(z0, u0), W(z1, u0), W(z1, u1), W(z0, u1)].map(([x, y]) => [x, y + shift]));
+      // Elevator / stabilizer between chord fractions (root 0.5 m, tip 7.18 m).
+      const stabQuad = (sd, u0, u1) => {
+        const R = (u) => P(-14.4 - u * 4.4, sd * 0.5), T = (u) => P(-18.35 - u * 1.35, sd * 7.18);
+        return path([R(u0), T(u0), T(u1), R(u1)]);
+      };
+      return { P, W, wingQuad, stabQuad, g };
     },
     update(res) { for (const b of binds) b(res); },
     onPart: null,

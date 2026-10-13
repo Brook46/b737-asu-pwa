@@ -2,7 +2,7 @@
 // signs, emergency lighting, doors, oxygen and the flight deck door, in our
 // own words. Exterior lights show on the 3D airplane.
 
-import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE } from './airframe.js?v=55';
+import { YC, FUS_R, TIP_Z, wingLE, wingY, NLG, MLG, EE, fusSection } from './airframe.js?v=56';
 
 const C = '#6b7280';
 const FD_DOOR_X = 15.0;      // flight deck door, just aft of the flight deck
@@ -157,8 +157,12 @@ export default {
     glow('lights', [-19.6, 4.8, 0], '#f8f9fa', 0.1);
     K.unit('signs', { box: [0, YC + 1.25, 0], size: [22, 0.03, 0.5] }, { color: '#adb5bd', glass: true });
     K.unit('emergency', { box: [-1, YC - 0.55, 0], size: [26, 0.03, 0.12] }, { color: '#ffd43b' });
-    for (const [k, , p] of DOORS) K.unit('doors', { box: p, size: [0.9, 1.6, 0.06] }, { color: C });
-    for (const s of [-1, 1]) for (const x of [0.2, -0.8]) K.unit('doors', { box: [x, YC + 0.1, s * FUS_R], size: [0.5, 0.9, 0.06] }, { color: C });
+    // The doors themselves light up on the fuselage — each its own state (amber when open).
+    const dm = K.movers?.doors || {};
+    for (const [k] of DOORS) if (dm[k]) K.skin('doors', [dm[k]], { color: '#4dabf7', key: 'door_' + k });
+    K.skin('doors', ['owL1', 'owL2', 'owR1', 'owR2'].map((k) => dm[k]), { color: '#4dabf7', key: 'door_overwing' });
+    // E/E access hatch under the forward fuselage (not a moving part of the model).
+    K.unit('doors', { box: [11.5, fusSection(11.5).bot - 0.01, 0], size: [0.6, 0.03, 0.5] }, { color: '#4dabf7' });
     K.unit('oxygen', { box: [5, YC + 1.25, 0.9], size: [20, 0.06, 0.25] }, { color: '#74c0fc' });
     K.unit('oxygen', { cyl: [[EE.x0 + 0.2, EE.y, 0.75], [EE.x0 + 1.2, EE.y, 0.75]], r: 0.12 }, { color: '#40c057' });
     K.unit('fddoor', { box: [FD_DOOR_X, YC + 0.3, 0], size: [0.06, 1.9, 0.8] }, { color: C });
@@ -211,7 +215,7 @@ export default {
       flows: {},
       units: {
         lights: exterior ? 'on' : 'off', signs: belts ? 'on' : 'off', emergency: emerOn ? 'on' : sw.exitLt !== 1 ? 'fault' : 'off',
-        doors: anyOpen ? 'fault' : 'on', oxygen: m.dropped ? 'fault' : 'on', fddoor: f.lockFail ? 'fault' : 'on',
+        doors: anyOpen ? 'fault' : 'on', ...Object.fromEntries(DOORS.map(([k]) => ['door_' + k, m.open[k] ? 'fault' : 'on'])), door_overwing: owOpen ? 'fault' : 'on', oxygen: m.dropped ? 'fault' : 'on', fddoor: f.lockFail ? 'fault' : 'on',
       },
       lights: {
         exitNotArmed: sw.exitLt !== 1, coolOff: !!f.cool, coolOffSup: !!f.cool && sw.coolSup === 0, coolOffExh: false,

@@ -77,6 +77,7 @@ const STYLE = `
   .ovh-lamp.blue.on .lens { fill: #2a6dff; stroke: #9cc0ff; } .ovh-lamp.blue.on .legend { fill: #ffffff; }
   .ovh-lamp.blue.dim .lens { fill: #183a78; stroke: #2e4f8c; } .ovh-lamp.blue.dim .legend { fill: #a9c2f2; }
   .ovh-lamp.green.on .lens { stroke: #46e584; } .ovh-lamp.green.on .legend { fill: #46e584; }
+  .ovh-lamp.solid.green.on .lens { fill: #2fbf5b; } .ovh-lamp.solid.amber.on .lens { fill: #ffa31a; }
   .ovh-lamp.red .lens { fill: #3a0d0d; } .ovh-lamp.red .legend { fill: #6b2a2a; }
   .ovh-lamp.red.on .lens { fill: #e03131; stroke: #ff8787; } .ovh-lamp.red.on .legend { fill: #fff; }
   .ovh-lamp.white.on .lens { stroke: #f1f3f5; } .ovh-lamp.white.on .legend { fill: #f8f9fa; }
@@ -101,7 +102,7 @@ const AREA = {
     'Ground power and bus switching', 'APU', 'Panel lights', 'Equipment cooling', 'Cabin signs and equipment cooling', 'Calls', 'Wipers',
     'Window heat', 'Probe heat', 'Wing and engine anti-ice', 'Hydraulic pumps', 'Door lights', 'Voice recorder', 'Cabin altitude',
     'Air temperature', 'Bleed air', 'Cabin pressurization', 'Lights L', 'APU switch', 'Engine start', 'Lights R'],
-  'Aft overhead': ['IRS mode select', 'Service interphone', 'Oxygen', 'Engine panel', 'Warning tests'],
+  'Aft overhead': ['LE devices', 'IRS mode select', 'Service interphone', 'Oxygen', 'Engine panel', 'Warning tests'],
   'Glareshield': ['Annunciator L', 'Annunciator R', 'MCP'],
   'Forward panels': ['Center panel', 'Landing gear', 'Display select (captain)', 'Display select (first officer)', 'Autoflight lights',
     'Speedbrake lights L', 'Speedbrake lights R', 'Takeoff config and cabin altitude', 'Icing advisory', 'Nose wheel steering', 'Brake pressure', 'GPWS'],

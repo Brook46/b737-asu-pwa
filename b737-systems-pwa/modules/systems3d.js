@@ -4,8 +4,8 @@
 // units (pumps, reservoirs, generators…) glow when running, grey when off,
 // amber when failed. Tapping any of them opens its page.
 
-import * as THREE from '../vendor/three.module.min.js?v=55';
-import { loft, wingChord, wingLE, wingTC, wingY } from './airframe.js?v=55';
+import * as THREE from '../vendor/three.module.min.js?v=56';
+import { loft, wingChord, wingLE, wingTC, wingY } from './airframe.js?v=56';
 
 const FLOW_VERT = /* glsl */`
   varying vec2 vUv; varying vec3 vN; varying vec3 vV;
@@ -36,7 +36,7 @@ const FLOW_FRAG = /* glsl */`
 const GREY = new THREE.Color(0x7d858d);
 const AMBER = new THREE.Color(0xffa31a);
 
-export function createSystems3D(api, airframeRoot) {
+export function createSystems3D(api, airframeRoot, movers = {}) {
   const systems = new Map();
   let current = null, selected = null, time = 0;
 
@@ -45,7 +45,7 @@ export function createSystems3D(api, airframeRoot) {
     group.name = 'sys-' + sys.id;
     group.visible = false;
     airframeRoot.add(group);
-    const entry = { sys, group, flows: [], units: [], byPart: new Map(), reveal: 0 };
+    const entry = { sys, group, flows: [], units: [], byPart: new Map(), reveal: 0, skins: [] };
     const color = new THREE.Color(sys.color);
 
     const track = (part, mesh) => {
@@ -123,6 +123,34 @@ export function createSystems3D(api, airframeRoot) {
         }));
         return K.unit(part, { geometry: loft(secs, 10) }, { glass: true, ...o });
       },
+      /**
+       * Highlight the airframe's own parts (flaps, doors, gear…): a tinted
+       * copy of each mesh rides on the same hinge, so it moves with the part.
+       * targets: airframe movers (groups or meshes), or a movers key.
+       */
+      skin(part, targets, o = {}) {
+        const list = (typeof targets === 'string' ? [].concat(movers[targets] ?? []) : [].concat(targets)).filter(Boolean)
+          .map((t) => t.pivot || t.group || t);
+        const c = new THREE.Color(o.color ?? sys.color);
+        const mat = new THREE.MeshStandardMaterial({
+          color: c, emissive: c.clone(), emissiveIntensity: 0.3, roughness: 0.5, transparent: true, opacity: 0.8,
+          depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+        });
+        const meshes = [];
+        for (const t of list) t.traverse((m) => { if (m.isMesh && !m.userData.skinCopy && !m.material?.isShaderMaterial) meshes.push(m); });   // not the x-ray twins
+        for (const m of meshes) {
+          const copy = new THREE.Mesh(m.geometry, mat);
+          copy.userData.skinCopy = true;
+          copy.position.copy(m.position); copy.quaternion.copy(m.quaternion); copy.scale.copy(m.scale);
+          copy.renderOrder = 4;
+          copy.visible = false;
+          m.parent.add(copy);
+          entry.skins.push(copy);
+          track(part, copy);
+        }
+        entry.units.push({ part, key: o.key, mesh: null, mat, base: c, glass: true, op: 0.8, skin: true, state: 'on' });
+      },
+      movers,
       label: null,
     };
 
@@ -136,6 +164,7 @@ export function createSystems3D(api, airframeRoot) {
       const on = sid === id;
       if (on && !e.group.visible) e.reveal = 0;
       e.group.visible = on;
+      for (const m of e.skins) m.visible = on;
     }
     current = id ? systems.get(id) : null;
   }
@@ -145,7 +174,7 @@ export function createSystems3D(api, airframeRoot) {
     const e = systems.get(id);
     if (!e || !result) return;
     for (const f of e.flows) f.target = result.flows?.[f.key] ? 1 : 0;
-    for (const u of e.units) u.state = result.units?.[u.part] ?? 'on';
+    for (const u of e.units) u.state = result.units?.[u.key ?? u.part] ?? 'on';
   }
 
   function select(part) { selected = part; }
@@ -169,10 +198,10 @@ export function createSystems3D(api, airframeRoot) {
       const m = u.mat;
       const sel = selected && u.part === selected;
       if (u.state === 'fault') { m.color.copy(AMBER); m.emissive.copy(AMBER); m.emissiveIntensity = 0.5; }
-      else if (u.state === 'off') { m.color.copy(u.base).lerp(GREY, 0.75); m.emissive.copy(m.color); m.emissiveIntensity = 0.05; }
+      else if (u.state === 'off') { m.color.copy(u.base).lerp(GREY, u.skin ? 0.4 : 0.75); m.emissive.copy(m.color); m.emissiveIntensity = u.skin ? 0.12 : 0.05; }
       else { m.color.copy(u.base); m.emissive.copy(u.base); m.emissiveIntensity = 0.28; }
       if (sel) m.emissiveIntensity += 0.35 + 0.35 * pulse;
-      m.opacity = (u.glass ? 0.4 : 1) * rv;
+      m.opacity = (u.op ?? (u.glass ? 0.4 : 1)) * rv;
       const tr = u.glass || rv < 1;
       if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; }
     }
