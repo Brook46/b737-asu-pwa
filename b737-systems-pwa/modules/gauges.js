@@ -103,3 +103,23 @@ export function valvePosition(P, x, y, r, fn) {
     needles: [{ fn, len: 0.84, w: 2, tail: 0.1 }],
   });
 }
+
+/**
+ * FLAPS position indicator (centre forward panel, FCOM 9.10): UP at 9
+ * o'clock, then clockwise 1, 2, 5 across the top, 10 and 15 at 3 o'clock,
+ * 25, 30 and 40 down to 6 o'clock. Thick arc marks with the numbers outside
+ * them, L and R needles.
+ */
+export function flapGauge(P, x, y, r, fnL, fnR = fnL) {
+  const pts = [[0, -90], [1, -42], [2, -8], [5, 28], [10, 68], [15, 90], [25, 124], [30, 150], [40, 180]];
+  return P.dial(x, y, r, {
+    hub: 0.34, hubRing: true,
+    scales: [{
+      pts, r0: 0.66,
+      ticks: [0, 1, 2, 5, 10, 15, 25, 30, 40].map((v) => [v, 0.13, r * 0.12]),
+      labels: [[0, 'UP'], [1, '1'], [2, '2'], [5, '5'], [10, '10'], [15, '15'], [25, '25'], [30, '30'], [40, '40']], lr: 0.86, lfs: r * 0.2,
+    }],
+    texts: [[-0.36, 0.5, 'FLAPS', r * 0.15]],
+    needles: [{ fn: fnL, len: 0.62, w: r * 0.07, tag: 'L', tail: 0.05 }, { fn: fnR, len: 0.62, w: r * 0.07, tag: 'R', tail: 0.05 }],
+  });
+}

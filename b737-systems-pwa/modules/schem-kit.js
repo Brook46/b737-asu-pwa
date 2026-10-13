@@ -3,9 +3,12 @@
 // state by key, and overhead-panel controls (toggles, rotaries, lamps,
 // readouts) that write into the system's switch state.
 
-import { wingLE, wingChord, fusSection, TIP_Z, ENG, NOSE_X, TAIL_X } from './airframe.js?v=56';
+import { wingLE, wingChord, fusSection, TIP_Z, ENG, NOSE_X, TAIL_X } from './airframe.js?v=57';
 
 const NS = 'http://www.w3.org/2000/svg';
+
+/** 'system:key' → the instructor's name for a failure (filled as pages are built). */
+export const FAIL_LABELS = new Map();
 
 export function createSchematic(host, w, h) {
   host.replaceChildren();
@@ -122,6 +125,16 @@ export function createSchematic(host, w, h) {
       });
       return t;
     },
+    /** Where a leak is: a dripping marker and its label, shown only while on(res). */
+    leak(x, y, on, label, anchor = 'start') {
+      const g = el('g', { class: 'leak', transform: `translate(${x},${y})` }, layers.text);
+      el('circle', { r: 13, class: 'leak-ring' }, g);
+      el('path', { d: 'M0,-8 C4,-2 6,1 6,4 A6,6 0 0 1 -6,4 C-6,1 -4,-2 0,-8 Z', class: 'leak-drop' }, g);
+      el('path', { d: 'M0,10 C2,13 3,14 3,16 A3,3 0 0 1 -3,16 C-3,14 -2,13 0,10 Z', class: 'leak-drop falling' }, g);
+      const t = S.text(anchor === 'end' ? -18 : 18, 4, label, 'leak-t halo', anchor, g);
+      binds.push((res) => g.classList.toggle('on', !!on(res)));
+      return t;
+    },
     /** Run fn(res) on every update (custom drawings). */
     bind(fn) { binds.push(fn); },
     /**
@@ -147,27 +160,10 @@ export function createSchematic(host, w, h) {
      * mapping airplane metres (x forward, z right) to schematic units.
      */
     airplane(cx, top, scale, o = {}) {
-      const P = (X, z) => [cx + z * scale, top + (19.7 - X) * scale];
-      const poly = (pts) => 'M' + pts.map(([X, z]) => P(X, z).join(',')).join(' L') + ' Z';
-      const g = el('g', { class: 'plan' }, layers.pipes);
-      // Fuselage: rounded nose, parallel body, tail cone.
-      const body = [];
-      for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI; body.push([15.5 + 4.2 * Math.sin(a), -1.88 * Math.cos(a)]); }
-      const fus = [...body, [-12, 1.88], [-17.5, 1.1], [-19.8, 0.3], [-19.8, -0.3], [-17.5, -1.1], [-12, -1.88]];
-      // Wings (each side): root LE, kink, tip with winglet, TE back to the root.
-      const wing = (s) => [[4.2, 1.7 * s], [-0.6, 7.3 * s], [-4.3, 17.2 * s], [-4.9, 17.9 * s], [-6.1, 17.9 * s], [-5.6, 16.4 * s], [-4.8, 7.3 * s], [-6.4, 1.7 * s]];
-      const stab = (s) => [[-13.4, 1.1 * s], [-16.6, 7.18 * s], [-17.9, 7.18 * s], [-17.2, 1.1 * s]];
-      const nac = (s) => [[6.3, 4.2 * s], [6.6, 5.0 * s], [6.3, 5.8 * s], [2.2, 5.8 * s], [0.6, 5.3 * s], [0.6, 4.7 * s], [2.2, 4.2 * s]];
-      for (const s of [-1, 1]) {
-        el('path', { d: poly(wing(s)), class: 'plan-skin' }, g);
-        el('path', { d: poly(stab(s)), class: 'plan-skin' }, g);
-        el('path', { d: poly(nac(s)), class: 'plan-skin' }, g);
-      }
-      el('path', { d: poly(fus), class: 'plan-skin' }, g);
-      // Fin (seen edge on) along the centreline.
-      el('path', { d: poly([[-12.5, 0.12], [-19.4, 0.12], [-19.4, -0.12], [-12.5, -0.12]]), class: 'plan-fin' }, g);
+      // The same plan as X.plan (the 3D model's geometry); P(x, z) as before.
+      const A = S.plan(cx, top, scale, o);
       if (o.label) S.text(cx, top - 10, o.label, 't-small t-dim', 'middle');
-      return P;
+      return A.P;
     },
     /**
      * The airplane from above, nose up, on the 3D model's own geometry (so
@@ -321,12 +317,18 @@ export function createPanel(host, ctx) {
       binds.push((res) => { d.innerHTML = fn(res); });
       return wrap;
     },
-    fail(label, key) {
+    fail(label, key, other) {
+      // other: a system id — the failure lives there (e.g. an engine failure
+      // set from the fuel page is the Engines system's flameout), so it shows
+      // and resets the same from every page.
+      const c = other ? ctx.ctxOf?.(other) : ctx;
+      if (!c) return document.createElement('span');
+      FAIL_LABELS.set(`${other || ctx.id}:${key}`, label);
       const b = document.createElement('button');
       b.className = 'fail-btn';
       b.textContent = label;
-      b.addEventListener('click', () => ctx.toggleFail(key));
-      binds.push(() => b.classList.toggle('on', !!ctx.fail[key]));
+      b.addEventListener('click', () => c.toggleFail(key));
+      binds.push(() => b.classList.toggle('on', !!c.fail[key]));
       return b;
     },
     actions(...nodes) { const d = document.createElement('div'); d.className = 'pnl-actions'; d.append(...nodes); host.append(d); return d; },

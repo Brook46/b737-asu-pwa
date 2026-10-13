@@ -1,8 +1,8 @@
 // schem-engines.js — engine start / APU schematic, with the ENGINE START,
 // APU and engine (EEC) panels and the start levers.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
 
 const C = '#e63946', AIR = '#ff6a3d', FUELC = '#d6336c', IGN = '#ffec99', APUC = '#e8590c';
 
@@ -119,7 +119,7 @@ export function mount(svgHost, panelHost, ctx) {
   panelHost.append(ih);
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · FAILURES');
-  P.actions(P.fail('ENG 1 flameout', 'flameout1'), P.fail('ENG 2 flameout', 'flameout2'), P.fail('APU start fault', 'apuFault'));
+  P.actions(P.fail('ENG 1 failure', 'flameout1'), P.fail('ENG 2 failure', 'flameout2'), P.fail('APU start fault', 'apuFault'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('Try an engine start: Ground phase (APU running) → ENGINE START 2 to <b>GRD</b> → wait for ~25 % N2 → start lever 2 <b>IDLE</b>. Watch the starter cut out and the switch spring back to AUTO. Started engines feed hydraulics, electrics and bleed in the other systems too.');
 

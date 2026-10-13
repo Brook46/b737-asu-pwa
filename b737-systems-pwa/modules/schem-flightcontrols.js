@@ -1,9 +1,10 @@
 // schem-flightcontrols.js — high-lift / speedbrake / primary-surface power
 // schematic, with the flap & speedbrake panel and stab trim cutouts.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
-import { DETENTS } from './sys-flightcontrols.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { DETENTS } from './sys-flightcontrols.js?v=57';
+import { flapGauge } from './gauges.js?v=57';
 
 const C = '#3a86ff', B = '#12a874', A = '#2f7cf6', S = '#f2711c', DRV = '#e599f7', EL = '#63e6be';
 
@@ -133,7 +134,7 @@ export function mount(svgHost, panelHost, ctx) {
   P.actions(P.fail('Flap drive fail', 'flapDrive'), P.fail('Yaw damper fault', 'yd'), P.fail('Feel computer', 'feel'),
     P.fail('Speed trim', 'sts'), P.fail('Mach trim', 'mach'), P.fail('Autoslat', 'autoslat'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Move the FLAP lever and watch the flaps run on the airplane. Then Hydraulics → <b>B leak</b>: the lever no longer moves them — arm ALTERNATE FLAPS and hold the position switch DOWN (slow, electric, LE devices on standby, extend only).');
+  P.note('Move the FLAP lever and watch the LE devices go first, then the TE flaps. <b>Alternate extension:</b> Hydraulics B leak (or not), then ALTERNATE FLAPS master <b>ARM</b> and the position switch <b>DOWN</b>: LE devices go fully out on standby hydraulics, the TE flaps creep out electrically — about 2 minutes to 15, LE FLAPS TRANSIT until near 15. Flap load relief: lever 30 or 40 with the speed above the placard (state bar SPD).');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }
 
@@ -146,37 +147,59 @@ export function panels(O, ctx) {
   F.lamp(238, 32, 48, 18, 'SPEEDBRAKES\nEXTENDED', 'sbExtended');
   F.lamp(238, 52, 48, 18, 'SPEED BRAKE\nDO NOT ARM', 'sbDoNotArm');
   F.lamp(14, 52, 48, 18, 'LOAD\nRELIEF', 'loadRelief');
-  // Flap position indicator: the 737's non-linear dial, L and R needles.
-  const pts = [[0, -135], [1, -105], [2, -78], [5, -45], [10, -10], [15, 25], [25, 65], [30, 100], [40, 135]];
-  F.dial(150, 52, 40, {
-    scales: [{ pts, ticks: DETENTS.map((v) => [v, 0.2, 1.4]), labels: DETENTS.map((v) => [v, v ? String(v) : 'UP']), lr: 0.62, lfs: 8 }],
-    texts: [[0, 0.5, 'FLAPS', 6.5]], hub: 0.18,
-    needles: [{ fn: (r) => r.values.flap, len: 0.82, w: 2, tag: 'L' }, { fn: (r) => r.values.flap, len: 0.6, w: 2, tag: 'R' }],
-  });
+  // Flap position indicator (FCOM 9.10), L and R needles.
+  flapGauge(F, 150, 56, 42, (r) => r.values.flap);
   F.knob(70, 150, 'flap', DETENTS.map((v) => (v ? String(v) : 'UP')), [-120, -90, -60, -30, 0, 30, 60, 90, 120], { name: 'FLAP LEVER', r: 14 });
   F.knob(230, 150, 'sb', ['DOWN', 'ARMED', 'FLT DET', 'UP'], [-75, -25, 25, 75], { name: 'SPEED BRAKE', r: 14 });
-  // LE DEVICES annunciator (aft overhead, FCOM 9.10): a light column per LE
-  // device, swept like the wings — slats 1–4 and flaps 1–2 on the left, flaps
-  // 3–4 and slats 5–8 on the right. TRANSIT amber; EXT and FULL EXT green
-  // (the Krueger flaps have no FULL EXT: they are fully out when EXT).
-  const LE = O.panel('LE devices', 112);
+  // LE DEVICES annunciator (aft overhead, FCOM 9.10): two swept blocks of
+  // lights, high at the wing tips and sloping down toward the middle like
+  // the wings seen from behind. Columns, left to right: slats 1–4, Krueger
+  // flaps 1–2 · flaps 3–4, slats 5–8. Rows: TRANSIT (amber), EXT, FULL EXT
+  // (green); a Krueger flap has one tall EXT cell (it is fully out when EXT).
+  const LE = O.panel('LE devices', 116);
   LE.text(150, 13, 'LE DEVICES', { size: 8 });
-  const tr = (r) => !!r.lights.leTransit, ext = (r) => !r.lights.leTransit && r.values.leIdx === 1, full = (r) => !r.lights.leTransit && r.values.leIdx === 2;
-  const flapExt = (r) => !r.lights.leTransit && r.values.leIdx >= 1;
-  const col = (x, dy, krueger) => {
-    LE.lamp(x, 24 + dy, 14, 11, '', tr, 'amber solid');
-    LE.lamp(x, 37 + dy, 14, 11, '', krueger ? flapExt : ext, 'green solid');
-    if (!krueger) LE.lamp(x, 50 + dy, 14, 11, '', full, 'green solid');
+  // TEST lights every cell for a couple of seconds.
+  let testUntil = 0;
+  const testing = () => Date.now() < testUntil;
+  const v = (r) => r.values, moving = (r) => !!v(r).leTransit;
+  const tr = (r) => testing() || moving(r);
+  const ext = (r) => testing() || (!moving(r) && v(r).leIdx === 1), full = (r) => testing() || (!moving(r) && v(r).leIdx === 2), kExt = (r) => testing() || (!moving(r) && v(r).leIdx >= 1);
+  const CW = 16, RH = 11, SLOPE = 0.28;
+  const block = (x0, cols, dir) => {
+    // dir +1: left block (drops to the right); -1: right block (rises to the right).
+    const yTop = (x) => 26 + (dir > 0 ? (x - x0) : (x0 + cols.length * CW - x)) * SLOPE;
+    cols.forEach((kind, k) => {
+      const xa = x0 + k * CW, xb = xa + CW;
+      const cell = (r0, r1, key, on) => LE.shape(`M${xa},${yTop(xa) + r0 * RH} L${xb},${yTop(xb) + r0 * RH} L${xb},${yTop(xb) + r1 * RH} L${xa},${yTop(xa) + r1 * RH} Z`, key, on);
+      cell(0, 1, tr, '#ffb000');
+      if (kind === 'F') cell(1, 3, kExt, '#2fd24f');
+      else { cell(1, 2, ext, '#2fd24f'); cell(2, 3, full, '#2fd24f'); }
+    });
+    return yTop;
   };
-  // Left wing: outboard slat 1 … inboard flap 2; right wing mirrored.
-  ['S1', 'S2', 'S3', 'S4', 'F1', 'F2'].forEach((d, k) => col(14 + k * 17 + (k > 3 ? 4 : 0), (5 - k) * 3, d[0] === 'F'));
-  ['F3', 'F4', 'S5', 'S6', 'S7', 'S8'].forEach((d, k) => col(186 + k * 17 + (k > 1 ? 4 : 0), k * 3, d[0] === 'F'));
-  LE.text(97, 22, '1  2', { size: 6 }); LE.text(195, 22, '3  4', { size: 6 });
-  LE.text(150, 32, 'FLAPS', { size: 6 });
-  LE.text(150, 45, 'TRANSIT', { size: 6 }); LE.text(150, 56, 'EXT', { size: 6 }); LE.text(150, 67, 'FULL EXT', { size: 6 });
-  LE.text(50, 88, '1   2   3   4', { size: 6 }); LE.text(250, 88, '5   6   7   8', { size: 6 });
-  LE.text(50, 99, 'SLATS', { size: 6 }); LE.text(250, 99, 'SLATS', { size: 6 });
-  LE.text(150, 99, 'TEST', { size: 6 });
+  const yl = block(16, ['S', 'S', 'S', 'S', 'F', 'F'], 1);
+  const yr = block(188, ['F', 'F', 'S', 'S', 'S', 'S'], -1);
+  // Numbers: Krueger flaps above their columns, slats below.
+  [[16 + 4.5 * CW, '1'], [16 + 5.5 * CW, '2']].forEach(([x, t]) => LE.text(x, yl(x) - 3, t, { size: 6 }));
+  [[188 + 0.5 * CW, '3'], [188 + 1.5 * CW, '4']].forEach(([x, t]) => LE.text(x, yr(x) - 3, t, { size: 6 }));
+  [0, 1, 2, 3].forEach((k) => { const x = 16 + (k + 0.5) * CW; LE.text(x, yl(x) + 3 * RH + 8, String(k + 1), { size: 6 }); });
+  [2, 3, 4, 5].forEach((k) => { const x = 188 + (k + 0.5) * CW; LE.text(x, yr(x) + 3 * RH + 8, String(k + 3), { size: 6 }); });
+  LE.text(150, 30, 'FLAPS', { size: 6.5 });
+  LE.text(150, 52, 'TRANSIT', { size: 6.5 }); LE.text(150, 64, 'EXT', { size: 6.5 }); LE.text(150, 76, 'FULL EXT', { size: 6.5 });
+  LE.text(48, 106, 'SLATS', { size: 6.5 }); LE.text(252, 106, 'SLATS', { size: 6.5 });
+  LE.push(150, 95, () => { testUntil = Date.now() + 2500; ctx.action?.('leTest'); setTimeout(() => ctx.action?.('leTest'), 2600); }, { name: 'LE DEVICES TEST', bottom: 'TEST' });
+
+  // ALTERNATE FLAPS (forward overhead, flight control panel): the guarded
+  // master switch (OFF / ARM) and the position switch (UP / OFF / DOWN —
+  // hold DOWN to extend). The same switches as on the Hydraulics page.
+  const hy = ctx.ctxOf?.('hydraulics');
+  if (hy) {
+    const AF = O.panel('Alternate flaps', 86, { area: 'Forward overhead' });
+    AF.text(150, 13, 'ALTERNATE FLAPS', { size: 8 });
+    AF.toggle(110, 50, 'altFlaps', ['OFF', 'ARM'], { guard: 'red', guardPos: 0, labels: 'left', ctx: hy });
+    AF.toggle(190, 50, 'altPos', ['UP', 'OFF', 'DOWN'], {});
+    AF.text(110, 80, 'MASTER', { size: 6 }); AF.text(190, 80, 'POSITION (hold DOWN)', { size: 6 });
+  }
 
   // STAB TRIM cutout switches: a black control-stand panel, both guarded.
   const T = O.panel('Stabilizer trim', 70, { bg: '#17191b' });

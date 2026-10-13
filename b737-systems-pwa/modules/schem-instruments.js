@@ -1,9 +1,9 @@
 // schem-instruments.js — air data → ADIRUs → DEUs → six DUs, with the
 // DISPLAYS source panel and both display select panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
-import { DUS } from './sys-instruments.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { DUS } from './sys-instruments.js?v=57';
 
 const C = '#8338ec', AIRC = '#4dabf7', SB = '#ced4da';
 
@@ -48,6 +48,7 @@ export function mount(svgHost, panelHost, ctx) {
   P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('Capt outboard DU', 'capOut'), P.fail('Capt inboard DU', 'capIn'), P.fail('Upper DU', 'upper'), P.fail('F/O outboard DU', 'foOut'),
     P.fail('DEU 1', 'deu1'), P.fail('DEU 2', 'deu2'), P.fail('Capt pitot blocked', 'capPitot'), P.fail('AOA vane', 'aoa'), P.fail('ISFD', 'isfd'));
+  P.actions(P.fail('Lower DU', 'lower'), P.fail('F/O inboard DU', 'foIn'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('Fail the <b>captain outboard DU</b>: the PFD jumps inboard. Fail the <b>upper DU</b>: engines go to the lower. In <b>Cruise</b> block the captain\'s pitot and compare the three airspeeds. Open the cockpit to see the screens change.');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };

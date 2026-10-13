@@ -1,8 +1,8 @@
 // schem-fire.js — fire detection / extinguishing schematic + the fire
 // protection panel (aft pedestal) and the cargo fire panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
 
 const R = '#d62828', DET = '#ff8787', AG = '#dee2e6';
 
@@ -84,6 +84,7 @@ export function mount(svgHost, panelHost, ctx) {
   P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('ENG 1 fire', 'fire1'), P.fail('ENG 2 fire', 'fire2'), P.fail('ENG 1 overheat', 'ovht1'), P.fail('ENG 1 loop A', 'loopA1'),
     P.fail('ENG 1 loop B', 'loopB1'), P.fail('APU fire', 'apuFire'), P.fail('Wheel well fire', 'wheelWell'), P.fail('Fwd cargo smoke', 'cargoFwd'));
+  P.actions(P.fail('ENG 2 overheat', 'ovht2'), P.fail('ENG 2 loop A', 'loopA2'), P.fail('ENG 2 loop B', 'loopB2'), P.fail('Aft cargo smoke', 'cargoAft'), P.fail('APU detection loop', 'apuLoop'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('Try: <b>ENG 1 fire</b> → silence the bell (FIRE WARN) → pull fire switch 1 (it shuts engine 1 down) → rotate it to discharge a bottle. Or fail loop A only: with OVHT DET in NORMAL there\'s no indication; select A and FAULT lights.');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };

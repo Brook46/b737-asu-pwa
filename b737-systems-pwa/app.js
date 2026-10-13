@@ -4,37 +4,38 @@
 // One state object per system ({ sw, fail, q, mem }) is the single source of
 // truth: the 3D flows and the schematic both draw from the same evaluate().
 
-import { makeEnv } from './modules/world.js?v=56';
-import { createOutside } from './modules/outside.js?v=56';
-import { createViewCube } from './modules/viewcube.js?v=56';
-import { createAirLink } from './modules/airlink.js?v=56';
-import { createQuickRef } from './modules/quickref.js?v=56';
-import { installResumeHardening } from './modules/resume.js?v=56';
-import { createScene } from './modules/scene.js?v=56';
-import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=56';
-import { createDims } from './modules/dims.js?v=56';
-import { createSystems3D } from './modules/systems3d.js?v=56';
-import { createOverlay } from './modules/overlay.js?v=56';
-import { createSheet } from './modules/sheet.js?v=56';
-import { PHASES, createPhaseAnimator } from './modules/phases.js?v=56';
-import { SYSTEMS, READY } from './modules/systems.js?v=56';
-import { createSearch } from './modules/search.js?v=56';
-import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=56';
-import { createProgress } from './modules/progress.js?v=56';
-import { createLearn } from './modules/learn.js?v=56';
-import { explain } from './modules/cockpit-info.js?v=56';
-import { engineFor, flightFor } from './modules/cockpit-displays.js?v=56';
-import { createCockpit } from './modules/cockpit.js?v=56';
-import { nav, geo, loadNav } from './modules/navdb.js?v=56';
-import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=56';
-import { createCDU } from './modules/cdu.js?v=56';
-import { createCDUView } from './modules/cdu-view.js?v=56';
-import { createFlightSim } from './modules/flightsim.js?v=56';
-import { createStateBar } from './modules/statebar.js?v=56';
-import { createPanelViewer } from './modules/panelview.js?v=56';
-import { createRtoDrill } from './modules/rto.js?v=56';
-import { tts } from './modules/speech.js?v=56';
-import { engState } from './modules/sys-engines.js?v=56';
+import { makeEnv } from './modules/world.js?v=57';
+import { createOutside } from './modules/outside.js?v=57';
+import { createViewCube } from './modules/viewcube.js?v=57';
+import { createAirLink } from './modules/airlink.js?v=57';
+import { createQuickRef } from './modules/quickref.js?v=57';
+import { FAIL_LABELS } from './modules/schem-kit.js?v=57';
+import { installResumeHardening } from './modules/resume.js?v=57';
+import { createScene } from './modules/scene.js?v=57';
+import { buildAirframe, NLG, MLG } from './modules/airframe.js?v=57';
+import { createDims } from './modules/dims.js?v=57';
+import { createSystems3D } from './modules/systems3d.js?v=57';
+import { createOverlay } from './modules/overlay.js?v=57';
+import { createSheet } from './modules/sheet.js?v=57';
+import { PHASES, createPhaseAnimator } from './modules/phases.js?v=57';
+import { SYSTEMS, READY } from './modules/systems.js?v=57';
+import { createSearch } from './modules/search.js?v=57';
+import { createNotes, applyHighlights, attachSelection } from './modules/notes.js?v=57';
+import { createProgress } from './modules/progress.js?v=57';
+import { createLearn } from './modules/learn.js?v=57';
+import { explain } from './modules/cockpit-info.js?v=57';
+import { engineFor, flightFor } from './modules/cockpit-displays.js?v=57';
+import { createCockpit } from './modules/cockpit.js?v=57';
+import { nav, geo, loadNav } from './modules/navdb.js?v=57';
+import { createFMC, tasOf, soundKt } from './modules/fmc.js?v=57';
+import { createCDU } from './modules/cdu.js?v=57';
+import { createCDUView } from './modules/cdu-view.js?v=57';
+import { createFlightSim } from './modules/flightsim.js?v=57';
+import { createStateBar } from './modules/statebar.js?v=57';
+import { createPanelViewer } from './modules/panelview.js?v=57';
+import { createRtoDrill } from './modules/rto.js?v=57';
+import { tts } from './modules/speech.js?v=57';
+import { engState } from './modules/sys-engines.js?v=57';
 
 const $ = (id) => document.getElementById(id);
 
@@ -341,7 +342,40 @@ function init() {
     const pn = sim.flying ? `${fmc.S.route.origin || ''}–${fmc.S.route.dest || ''} · ${sim.ac.stage} · ${Math.round(sim.ac.ias)} kt · ${Math.round(sim.ac.alt)} ft` : PHASES[phase].note + (tweak.edited ? ' · edited' : '');
     $('phase-note').textContent = pn.toUpperCase() + (note ? ' — ' + note : '');
     stateBar?.update(env());
+    renderFailBar();
   }
+
+  // ── Active failures, whichever page set them: one list, clear one or all ──
+  function renderFailBar() {
+    const bar = $('fail-bar');
+    if (!bar) return;
+    const list = [];
+    for (const s of READY) for (const [k, on] of Object.entries(stateOf(s.id).fail || {})) if (on) list.push([s.id, k]);
+    const sig = list.map((x) => x.join(':')).join(',');
+    if (bar.dataset.sig === sig) return;
+    bar.dataset.sig = sig;
+    bar.hidden = !list.length;
+    if (!list.length) { bar.replaceChildren(); return; }
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const name = (id, k) => FAIL_LABELS.get(`${id}:${k}`) || k.replace(/([a-z])([A-Z0-9])/g, '$1 $2');
+    bar.innerHTML = `<span class="fb-h">⚠ ${list.length} failure${list.length > 1 ? 's' : ''}</span>`
+      + list.map(([id, k]) => `<button class="fb-chip" data-fb="${id}:${k}" title="Clear this failure"><b>${esc(sysOf(id).title)}</b> ${esc(name(id, k))} ✕</button>`).join('')
+      + '<button class="fb-all" data-fb="all">Reset all</button>';
+  }
+  $('fail-bar')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fb]');
+    if (!b) return;
+    if (b.dataset.fb === 'all') {
+      // Every system with a failure back to normal for this phase (an engine that failed restarts).
+      for (const s of READY) if (Object.values(stateOf(s.id).fail || {}).some(Boolean)) states.set(s.id, s.mod.normal(phase));
+    } else {
+      const [id, k] = b.dataset.fb.split(':');
+      stateOf(id).fail[k] = false;
+      // A failed engine comes back running after its failure is cleared.
+      if (id === 'engines' && /^flameout/.test(k)) { const st = stateOf('engines'), fresh = sysOf('engines').mod.normal(phase); const i = Number(k.slice(-1)) - 1; st.mem.e[i] = fresh.mem.e[i]; }
+    }
+    refresh();
+  });
 
   // ── Systems list / prev-next ──
   const list = $('sys-list');
@@ -551,6 +585,7 @@ function init() {
   function ctxFor(id) {
     const s = sysOf(id);
     return {
+      id,
       get sw() { return stateOf(id).sw; },
       get fail() { return stateOf(id).fail; },
       set(k, v) { stateOf(id).sw[k] = v; refresh(); },
@@ -704,6 +739,7 @@ function init() {
 
   // ── Frame loop pieces ──
   api.onFrame((dt) => {
+    document.body.classList.toggle('sim-flying', !!sim.flying);
     cockpit?.frame(dt);
     viewcube.frame(dt);
     const fcs = states.get('flightcontrols');
@@ -714,7 +750,7 @@ function init() {
     const { doors: exDoors, ...exPose } = ex;
     const flying = sim.flying ? sim.ac : null;
     const simPose = flying ? { y: flying.onGround ? 0 : Math.min(5, 1 + flying.ra / 400), pitch: flying.pitch, bank: flying.bank } : {};
-    if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}), ...exPose, ...simPose });
+    if (fcs) anim.setOverride({ flaps: fcs.mem.flap, slats: fcs.mem.leT ?? fcs.mem.le, speedbrake: [0, 0, 0.55, 1][fcs.sw.sb], ...(gr ? { gear: gr.mem.pos } : {}), ...exPose, ...simPose });
     // Doors: open in Airplane General (instructor), from the Show menu, or for the Doors page.
     {
       const gen = stateOf('general'), open = gen.mem.open || {}, all = show.doors || show.evac || !!exDoors;

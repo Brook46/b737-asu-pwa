@@ -1,7 +1,7 @@
 // sys-gear.js — FCOM chapter 14, landing gear, brakes and steering, in our
 // own words. The gear position here drives the 3D gear.
 
-import { MLG, NLG, FLOOR_Y } from './airframe.js?v=56';
+import { MLG, NLG, FLOOR_Y } from './airframe.js?v=57';
 
 const G = '#495057', A = '#2f7cf6', B = '#12a874', BR = '#e8590c';
 
@@ -122,40 +122,66 @@ export default {
 
   normal(phase) {
     const lever = phase === 'cruise' ? 1 : 2;            // OFF after retraction, DN otherwise
+    const pos = phase === 'cruise' ? 0 : 1;
     return {
-      sw: { lever, ab: phase === 'landing' || phase === 'approach' ? 3 : phase === 'ground' || phase === 'takeoff' ? 1 : 0, nws: 1, park: phase === 'ground' ? 1 : 0, door: 0 },
+      sw: { lever, ab: phase === 'landing' || phase === 'approach' ? 3 : phase === 'ground' || phase === 'takeoff' ? 1 : 0, nws: 1, park: phase === 'ground' ? 1 : 0, door: 0, manL: 0, manN: 0, manR: 0 },
       fail: {},
-      mem: { pos: phase === 'cruise' ? 0 : 1, acc: 3000, lgtv: false },
+      mem: { pos, p: { L: pos, N: pos, R: pos }, rel: {}, acc: 3000, lgtv: false },
     };
   },
 
+  /**
+   * Each gear on its own (FCOM 14.20): system A drives all three; the manual
+   * extension handles (under an access door in the flight deck floor) each
+   * release one gear's uplock, and that gear free-falls and locks down — no
+   * hydraulics needed. mem.pos is the least-extended gear (3D model, env).
+   */
   tick(dt, st, env) {
-    const { sw, mem } = st;
-    const before = mem.pos, lv = sw.lever;
+    const { sw, mem, fail: f } = st;
+    if (!mem.p) mem.p = { L: mem.pos, N: mem.pos, R: mem.pos };
+    if (!mem.rel) mem.rel = {};
+    const before = JSON.stringify(mem.p), lv = sw.lever;
     // Ground: the lever lock stops the lever going UP.
     if (!env.air && sw.lever === 0) { sw.lever = 2; mem.lock = true; }
-    if (!sw.door) mem.manual = false;
+    // Handles stay home with the access door shut.
+    if (!sw.door) { sw.manL = 0; sw.manN = 0; sw.manR = 0; }
     const hydA = env.hydA !== false;
     const xfr = env.air && !env.eng1 && env.hydB !== false;       // transfer valve (B)
-    if (mem.manual || (sw.lever === 2 && hydA)) mem.pos = Math.min(1, mem.pos + dt * 0.4);
-    else if (sw.lever === 0 && !sw.door && (hydA || xfr)) mem.pos = Math.max(0, mem.pos - dt * 0.35);
+    const extendA = sw.lever === 2 && hydA && !f.noExt;
+    for (const k of ['L', 'N', 'R']) {
+      if (sw.door && sw['man' + k]) mem.rel[k] = true;             // uplock released by hand
+      if (mem.rel[k] || extendA) mem.p[k] = Math.min(1, mem.p[k] + dt * (mem.rel[k] && !extendA ? 0.3 : 0.4));
+      else if (sw.lever === 0 && !sw.door && (hydA || xfr)) mem.p[k] = Math.max(0, mem.p[k] - dt * 0.35);
+      // Retracted again normally: the handle's release is done with.
+      if (mem.p[k] < 0.001 && !sw['man' + k]) mem.rel[k] = false;
+    }
+    mem.pos = Math.min(mem.p.L, mem.p.N, mem.p.R);
+    mem.manual = Object.values(mem.rel).some(Boolean);
     mem.acc = env.hydB !== false ? 3000 : Math.max(1000, (mem.acc ?? 3000) - dt * 4);
-    return mem.pos !== before || sw.lever !== lv;
+    return JSON.stringify(mem.p) !== before || sw.lever !== lv;
   },
 
   action(st, key) {
-    if (key === 'pullHandles' && st.sw.door) st.mem.manual = true;
+    // Instructor shortcut: open the door and pull all three handles.
+    if (key === 'pullHandles') { st.sw.door = 1; st.sw.manL = 1; st.sw.manN = 1; st.sw.manR = 1; }
   },
 
   evaluate(env, st) {
     const { sw, mem, fail: f } = st;
     const pos = mem.pos;
-    const downLocked = pos > 0.999, upLocked = pos < 0.001;
+    const P3 = mem.p || { L: pos, N: pos, R: pos };
+    const downLocked = pos > 0.999, upLocked = Math.max(P3.L, P3.N, P3.R) < 0.001;
     const transit = !downLocked && !upLocked;
-    // OFF is neither up nor down: only UP with gear not up, or DN with gear not down, disagree.
-    const disagree = (sw.lever === 2 && !downLocked) || (sw.lever === 0 && !upLocked);
     const thrustIdleLow = env.alt < 800 && env.air && env.phase === 'landing';
-    const red = transit || disagree || (!downLocked && thrustIdleLow);
+    // Per gear: green down and locked; red in transit, disagreeing with the
+    // lever (OFF never disagrees), or not down with thrust at idle low down.
+    const gl = {};
+    for (const k of ['L', 'N', 'R']) {
+      const dn = P3[k] > 0.999, up = P3[k] < 0.001;
+      gl['green' + k] = dn;
+      gl['red' + k] = (!dn && !up) || (sw.lever === 2 && !dn) || (sw.lever === 0 && !up) || (!dn && thrustIdleLow);
+    }
+    const red = gl.redL || gl.redN || gl.redR;
     const hydA = env.hydA !== false;
     const steer = downLocked && !env.air && (sw.nws ? sw.lever === 2 && hydA : env.hydB !== false);
     const abArmed = sw.ab >= 2 || (sw.ab === 1 && !env.air);
@@ -168,15 +194,15 @@ export default {
         steer: steer && !!sw.nws, steerB: steer && !sw.nws,
       },
       units: {
-        lever: red ? 'fault' : 'on', mlg: downLocked ? 'on' : transit ? 'fault' : 'off', nlg: downLocked ? 'on' : transit ? 'fault' : 'off',
+        lever: red ? 'fault' : 'on', mlg: P3.L > 0.999 && P3.R > 0.999 ? 'on' : P3.L > 0.001 || P3.R > 0.001 ? 'fault' : 'off', nlg: P3.N > 0.999 ? 'on' : P3.N > 0.001 ? 'fault' : 'off',
         brakes: f.antiskid || env.hydB === false && env.hydA === false ? 'fault' : 'on', autobrake: abArmed ? 'on' : 'off', park: sw.park ? 'fault' : 'off',
-        manual: sw.door ? 'fault' : 'off', ag: 'on',
+        manual: mem.manual ? 'on' : sw.door ? 'fault' : 'off', ag: 'on',
       },
       lights: {
-        green: downLocked, red, abDisarm: !!f.autobrake || (sw.ab === 1 && env.phase === 'landing'), antiskid: !!f.antiskid,
+        green: downLocked, red, ...gl, abDisarm: !!f.autobrake || (sw.ab === 1 && env.phase === 'landing'), antiskid: !!f.antiskid,
         park: !!sw.park, brakeTemp: env.phase === 'landing' && sw.ab >= 4,
       },
-      values: { steer, pos, xfr: env.air && !env.eng1 && !upLocked && sw.lever === 0, lock: !!mem.lock, manual: !!mem.manual, acc: Math.round(mem.acc), ab: ['OFF', 'RTO', '1', '2', '3', 'MAX'][sw.ab], lever: ['UP', 'OFF', 'DN'][sw.lever] },
+      values: { steer, pos, p: P3, rel: { ...(mem.rel || {}) }, door: !!sw.door, xfr: env.air && !env.eng1 && !upLocked && sw.lever === 0, lock: !!mem.lock, manual: !!mem.manual, acc: Math.round(mem.acc), ab: ['OFF', 'RTO', '1', '2', '3', 'MAX'][sw.ab], lever: ['UP', 'OFF', 'DN'][sw.lever] },
       pose: { gear: pos },
       note: [!env.air && downLocked && !steer && (sw.nws && sw.lever !== 2 ? 'No nose wheel steering: lever not DN (NORM steering needs it)' : 'No nose wheel steering: no hydraulic pressure'), mem.lock && !env.air && 'Lever lock: gear lever cannot go UP on the ground', transit && (sw.lever === 2 ? 'Gear extending' : 'Gear retracting'), braking && `Autobrake ${['', '', '1', '2', '3', 'MAX'][sw.ab]} braking`].filter(Boolean).join(' · '),
     };

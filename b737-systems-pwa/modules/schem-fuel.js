@@ -1,8 +1,8 @@
 // schem-fuel.js — operable fuel schematic + fuel panel replica.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
-import { fuelTemp } from './gauges.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { fuelTemp } from './gauges.js?v=57';
 
 const F = '#d6336c', CTR = '#9c36b5', SUC = '#c0eb75', APUC = '#e8590c';
 
@@ -58,6 +58,7 @@ export function mount(svgHost, panelHost, ctx) {
     X.pipe([W(sd * ez, MAN), spar, eng], 'e' + n, { color: F });
     X.valve(spar[0], spar[1] - 4, (r) => r.env['eng' + n], { vertical: true, r: 8, label: 'SPAR VALVE', lx: sd * 50, ly: 4, part: n === 1 ? 'spar1' : 'spar2' });
     X.valve(eng[0], eng[1] + 26, (r) => r.env['eng' + n], { vertical: true, r: 8, label: 'ENG VALVE', lx: sd * 48, ly: 4, part: n === 1 ? 'spar1' : 'spar2' });
+    if (n === 1) { const [lx, ly] = W(-ez, 0.0); X.leak(lx - 4, (ly + eng[1]) / 2 + 30, () => ctx.fail.leak1, 'LEAK · engine 1 fuel line (strut)', 'end'); }
     X.unit(eng[0] - 30, eng[1] - 16, 60, 22, `ENG ${n}`, (r) => (r.flows['e' + n] ? 'on' : r.env['eng' + n] ? 'fault' : 'off'), { color: F, part: n === 1 ? 'filter' : 'spar2', small: true });
     // Main tank pumps (fwd at the front spar, aft at the rear spar) and their line to the manifold.
     const fwd = W(sd * PUMP_Z, FRONT + 0.08), aft = W(sd * PUMP_Z, REAR - 0.08);
@@ -111,7 +112,7 @@ export function mount(svgHost, panelHost, ctx) {
   );
   P.title('INSTRUCTOR · FAILURES');
   P.actions(P.fail('ENG 1 fuel leak', 'leak1'), P.fail('1 FWD pump', 'p1fwd'), P.fail('CTR L pump', 'ctrL'),
-    P.fail('ENG 1 filter', 'filter1'), P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'));
+    P.fail('ENG 1 filter', 'filter1'), P.fail('ENG 1 failure', 'flameout1', 'engines'), P.fail('ENG 2 failure', 'flameout2', 'engines'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('CROSSFEED knob: tap its right half to open, left half to close. Try: Cruise → <b>+700 kg in tank 2</b> → IMBAL; crossfeed open, tank 1 pumps OFF, TIME ×120.');
 

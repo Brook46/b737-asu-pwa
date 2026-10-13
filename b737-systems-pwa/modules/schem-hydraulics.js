@@ -1,7 +1,7 @@
 // schem-hydraulics.js — operable A / B / standby schematic + hydraulic panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
 
 const A = '#2f7cf6', B = '#12a874', S = '#f2711c';
 
@@ -91,6 +91,12 @@ export function mount(svgHost, panelHost, ctx) {
   X.unit(xA - 120, 575, 150, 34, 'GEAR XFR VALVE', 'lgtv', { color: B, part: 'lgtv', small: true });
   X.pipe([[xB + 90, 300], [xB + 140, 300], [xB + 140, 640], [xA - 45, 640], [xA - 45, 609]], 'lgtv', { color: B, thin: true });
 
+  // ── Where a leak is (FCOM 13.20) ──
+  X.leak(xA - 60, 266, () => ctx.fail.leakAedp, 'LEAK · EDP 1 line (A keeps ~20 %)');
+  X.leak(xA + 40, 322, () => ctx.fail.leakAcom, 'LEAK · system A (to 0 %)');
+  X.leak(xB - 40, 322, () => ctx.fail.leakB, 'LEAK · system B (to 0 %)', 'end');
+  X.leak(xS + 22, 306, () => ctx.fail.leakS, 'LEAK · standby (B to ~70 %)');
+
   // ── Engine state captions ──
   X.value(xA - 60, 190, (r) => ({ text: r.env.eng1 ? 'ENG 1 RUN' : 'ENG 1 OFF', cls: 't-small' + (r.env.eng1 ? '' : ' t-dim') }));
   X.value(xB + 60, 190, (r) => ({ text: r.env.eng2 ? 'ENG 2 RUN' : 'ENG 2 OFF', cls: 't-small' + (r.env.eng2 ? '' : ' t-dim') }));
@@ -109,7 +115,7 @@ export function mount(svgHost, panelHost, ctx) {
   P.row(P.readout((r) => `${r.values.qtyA}<small>%${r.values.rfA ? ' RF' : ''}</small>`, 'A QTY'),
     P.readout((r) => `${r.values.qtyB}<small>%${r.values.rfB ? ' RF' : ''}</small>`, 'B QTY'));
   P.title('INSTRUCTOR · FAILURES');
-  P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('A leak · EDP side', 'leakAedp'),
+  P.actions(P.fail('ENG 1 failure', 'flameout1', 'engines'), P.fail('ENG 2 failure', 'flameout2', 'engines'), P.fail('A leak · EDP side', 'leakAedp'),
     P.fail('A leak · common', 'leakAcom'), P.fail('B leak', 'leakB'), P.fail('STBY leak', 'leakS'), P.fail('ELEC 2 overheat', 'ovhtA'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('Guarded switches: tap the guard to lift it, then the switch. Tap the lifted guard to close it — that returns the switch to its guarded position.');

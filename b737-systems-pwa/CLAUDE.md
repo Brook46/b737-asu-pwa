@@ -331,6 +331,34 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   text index puts a space between table cells so a label + value selection
   matches.
 
+## Failures, gear, flaps (v57)
+
+- **Failures bar** (`#fail-bar` in the top-left HUD, `renderFailBar()` in
+  app.js): every active failure of every system, each chip clears it, "Reset
+  all" puts every failed system back to `normal(phase)`. Labels come from
+  `FAIL_LABELS` (schem-kit), filled by `P.fail(label, key, otherSys)`.
+  Engine failure is ONE failure — the Engines system's `flameout1/2` — set
+  from any page with `P.fail('ENG 1 failure', 'flameout1', 'engines')`; never
+  add per-system "ENG n fail" keys again (env.eng1 already reaches everyone).
+- **Leaks**: `X.leak(x, y, onFn, label)` marks where a leak is (hydraulics
+  A EDP side / A common / B / standby, fuel engine 1 line).
+- **Gear**: per-gear positions `mem.p.{L,N,R}`, per-gear lights
+  (`greenL/redL`…); the Manual gear extension panel (access door + three
+  handles, area "Flight deck floor") releases each uplock; fail `noExt`
+  stops normal extension. The gear schematic is on the plan view.
+- **Flaps** (FCOM 9.20 / QRH): LE devices lead on extension (EXT for 1–5,
+  FULL EXT from 10), follow the TE flaps in; `mem.leT` moves in time and
+  drives LE FLAPS TRANSIT. Alternate flaps: ARM bypasses the hydraulic drive,
+  position DOWN → LE fully out on standby, TE electric ~2 min to 15 (max 15),
+  TRANSIT until near 15. Flap load relief 40→30 (163/158 kt), 30→25
+  (176/171 kt). The FLAPS indicator is `flapGauge()` in gauges.js (UP at 9
+  o'clock, clockwise to 40 at 6 o'clock, FCOM 9.10); the LE DEVICES panel is
+  two swept blocks as in the FCOM figure (`P.shape`).
+- **Views**: the sheet starts below the toolbar and the cockpit bar sits below
+  it too (they covered the view tabs — "can't get back to the airplane").
+  Body classes hide what a view doesn't use (Show/Home in schematic, system
+  picker and state bar in the cockpit, sim pause/rate unless flying).
+
 ## Plan-view schematics and highlights on the real parts (v56)
 
 - `schem-kit` `X.plan(cx, top, scale)`: the airplane from above on the 3D

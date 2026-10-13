@@ -1,50 +1,78 @@
 // schem-gear.js — gear actuation, brakes and steering schematic, with the
 // landing gear, autobrake and nose wheel steering panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { NLG, MLG } from './airframe.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { flapGauge } from './gauges.js?v=57';
 
 const A = '#2f7cf6', B = '#12a874', G = '#868e96', BR = '#e8590c';
 
 export function mount(svgHost, panelHost, ctx) {
   const X = createSchematic(svgHost, 1000, 640);
   X.onPart = ctx.onPart;
-  // Hydraulic sources.
-  X.unit(60, 30, 160, 44, 'SYSTEM A', (r) => (r.env.hydA !== false ? 'on' : 'fault'), { color: A, part: 'lever' });
-  X.unit(780, 30, 160, 44, 'SYSTEM B', (r) => (r.env.hydB !== false ? 'on' : 'fault'), { color: B, part: 'brakes' });
-  // Gear actuation (A) and the transfer valve (B).
-  X.pipe([[140, 74], [140, 140], [400, 140]], 'gearA', { color: A });
-  X.unit(400, 112, 200, 56, 'GEAR SELECTOR\nVALVE', (r) => (r.flows.gearA ? 'on' : 'off'), { color: G, part: 'lever' });
-  X.value(500, 190, (r) => ({ text: `lever ${r.values.lever}`, cls: 't-small' }));
-  X.valve(700, 140, (r) => r.values.xfr, { label: 'TRANSFER VALVE', ly: -16, part: 'lever' });
-  X.pipe([[860, 74], [860, 140], [720, 140]], (r) => r.values.xfr, { color: B });
-  X.pipe([[680, 140], [600, 140]], (r) => r.values.xfr, { color: B });
-  X.text(700, 182, 'B raises the gear if engine 1 RPM is low', 't-small t-dim', 'middle');
-  // The three gears.
-  const gears = [['L MAIN', 140, 'mlg'], ['NOSE', 500, 'nlg'], ['R MAIN', 860, 'mlg']];
-  for (const [n, x, part] of gears) {
-    X.pipe([[500, 168], [500, 220], [x, 220], [x, 250]], 'gearA', { color: A, thin: true });
-    X.unit(x - 70, 250, 140, 56, `${n} GEAR`, (r) => r.units[part], { color: G, part });
-    X.value(x, 326, (r) => ({ text: r.values.pos > 0.999 ? 'DOWN & LOCKED' : r.values.pos < 0.001 ? 'UP & LOCKED' : 'IN TRANSIT', cls: 't-small' + (r.lights.red ? ' warn' : '') }));
+  // ── The airplane from above, each gear where it is ──
+  const AP = X.plan(500, 26, 13.6);
+  const GEARS = { N: AP.P(NLG.x, 0), L: AP.P(MLG.x, -MLG.z), R: AP.P(MLG.x, MLG.z) };
+  const NAME = { N: 'NOSE', L: 'LEFT MAIN', R: 'RIGHT MAIN' };
+  const stateOf = (r, k) => { const p = r.values.p?.[k] ?? r.values.pos; return p > 0.999 ? 'down' : p < 0.001 ? 'up' : 'transit'; };
+  const COL = { down: '#2fbf5b', up: '#56606b', transit: '#e03131' };
+  for (const [k, [x, y]] of Object.entries(GEARS)) {
+    const g = X.el('g', { class: 'hit' }, X.svg);
+    const wheels = [-1, 1].map((s) => X.el('rect', { x: x + s * 7 - 4, y: y - 9, width: 8, height: 18, rx: 2.5, fill: COL.down, stroke: '#0f1215' }, g));
+    const strut = X.el('line', { x1: x - 3, y1: y, x2: x + 3, y2: y, stroke: '#cfd4d9', 'stroke-width': 2 }, g);
+    g.addEventListener('click', () => X.onPart?.(k === 'N' ? 'nlg' : 'mlg'));
+    const lx = k === 'L' ? x - 60 : k === 'R' ? x + 60 : x + 70, la = k === 'L' ? 'end' : 'start';
+    X.text(lx, y - 4, `${NAME[k]} GEAR`, 't-small halo', la);
+    X.value(lx, y + 10, (r) => {
+      const st = stateOf(r, k), rel = r.values.rel?.[k];
+      return { text: (st === 'down' ? 'DOWN & LOCKED' : st === 'up' ? 'UP & LOCKED' : rel ? 'FREE-FALLING' : 'IN TRANSIT') + (rel && st === 'down' ? ' (manual)' : ''), cls: 't-small halo' + (st === 'transit' ? ' warn' : '') };
+    }, 't-small', la);
+    X.bind((r) => { const c = COL[stateOf(r, k)]; for (const w of wheels) w.setAttribute('fill', c); strut.setAttribute('opacity', stateOf(r, k) === 'up' ? 0.3 : 1); });
   }
-  X.unit(380, 340, 240, 34, 'MANUAL EXTENSION', (r) => (r.values.manual ? 'fault' : 'off'), { color: '#fab005', part: 'manual', small: true });
-  // Brakes.
-  X.pipe([[860, 74], [860, 100], [960, 100], [960, 440], [700, 440]], 'brakeB', { color: B });
-  X.text(950, 420, 'NORMAL', 't-small t-dim', 'end');
-  X.pipe([[60, 74], [40, 74], [40, 440], [300, 440]], 'brakeA', { color: A });
-  X.text(50, 420, 'ALTERNATE', 't-small t-dim');
-  X.unit(300, 410, 400, 60, 'BRAKES · ANTISKID', (r) => r.units.brakes, { color: BR, part: 'brakes' });
-  X.unit(740, 480, 180, 44, 'ACCUMULATOR', () => 'on', { color: B, part: 'brakes', small: true });
-  X.value(830, 545, (r) => ({ text: `${r.values.acc} psi`, cls: 't-small' }));
-  X.unit(80, 480, 180, 44, 'AUTOBRAKE', (r) => r.units.autobrake, { color: BR, part: 'autobrake', small: true });
-  X.value(170, 545, (r) => ({ text: `selector ${r.values.ab}`, cls: 't-small' }));
-  X.unit(410, 490, 180, 40, 'PARKING BRAKE', (r) => r.units.park, { color: '#e03131', part: 'park', small: true });
-  // Steering.
-  X.pipe([[140, 74], [140, 100], [300, 100], [300, 600], [420, 600]], 'steer', { color: A, thin: true });
-  X.pipe([[860, 74], [860, 90], [720, 90], [720, 560], [620, 560], [620, 580]], 'steerB', { color: B, thin: true });
-  X.value(300, 625, (r) => ({ text: ctx.sw.nws ? (ctx.sw.lever === 2 ? 'NORM: A via lever DN' : 'NORM: lever not DN — no steering') : 'ALT: system B', cls: 't-small' + (ctx.sw.nws && ctx.sw.lever !== 2 ? ' warn' : '') }));
-  X.unit(420, 580, 200, 40, 'NOSE WHEEL STEERING', (r) => (r.flows.steer || r.flows.steerB ? 'on' : 'off'), { color: G, part: 'nlg', small: true });
-  X.text(640, 604, 'tiller ±78° · pedals ±7°', 't-small t-dim');
+  // Manual extension: three handles under the flight deck floor, a cable to each uplock.
+  const [hx, hy] = AP.P(15.0, 0);
+  X.unit(hx - 54, hy - 12, 108, 24, 'MANUAL EXT.', (r) => (r.values.manual ? 'on' : r.values.door ? 'fault' : 'off'), { color: '#fab005', part: 'manual', small: true });
+  for (const k of ['L', 'N', 'R']) {
+    const [x, y] = GEARS[k];
+    const pts = k === 'N' ? [[hx, hy + 12], [x, y - 12]] : [[hx + (k === 'L' ? -20 : 20), hy + 12], [hx + (k === 'L' ? -20 : 20), y - 60], [x, y - 60], [x, y - 12]];
+    X.pipe(pts, (r) => !!r.values.rel?.[k], { color: '#fab005', thin: true });
+  }
+
+  // ── Left: system A raises and lowers the gear ──
+  X.unit(15, 24, 150, 40, 'SYSTEM A', (r) => (r.env.hydA !== false ? 'on' : 'fault'), { color: A, part: 'lever' });
+  X.pipe([[90, 64], [90, 96]], 'gearA', { color: A });
+  X.unit(15, 96, 150, 44, 'GEAR SELECTOR\nVALVE', (r) => (r.flows.gearA ? 'on' : 'off'), { color: G, part: 'lever' });
+  X.value(90, 156, (r) => ({ text: `lever ${r.values.lever}`, cls: 't-small' }));
+  // A to the actuators of each gear.
+  const [nx, ny] = GEARS.N, [lx, ly] = GEARS.L, [rx, ry] = GEARS.R;
+  X.pipe([[165, 118], [nx - 30, 118], [nx - 30, ny], [nx - 15, ny]], 'gearA', { color: A, thin: true });
+  X.pipe([[90, 140], [90, ly], [lx - 15, ly]], 'gearA', { color: A, thin: true });
+  X.pipe([[lx, ly + 14], [lx, ly + 30], [rx, ly + 30], [rx, ry + 14]], 'gearA', { color: A, thin: true });
+  X.valve(90, 220, (r) => r.values.xfr, { label: 'TRANSFER VALVE', lx: 62, ly: 4, part: 'lever' });
+  X.text(20, 250, 'B raises the gear if engine 1', 't-small t-dim');
+  X.text(20, 263, 'RPM is low (in the air)', 't-small t-dim');
+  X.unit(15, 470, 150, 34, 'AUTOBRAKE', (r) => r.units.autobrake, { color: BR, part: 'autobrake', small: true });
+  X.value(90, 520, (r) => ({ text: `selector ${r.values.ab}`, cls: 't-small' }));
+  X.unit(15, 540, 150, 30, 'PARKING BRAKE', (r) => r.units.park, { color: '#e03131', part: 'park', small: true });
+
+  // ── Right: system B brakes (A alternate), accumulator, steering ──
+  X.unit(835, 24, 150, 40, 'SYSTEM B', (r) => (r.env.hydB !== false ? 'on' : 'fault'), { color: B, part: 'brakes' });
+  X.unit(835, 110, 150, 44, 'BRAKES · ANTISKID', (r) => r.units.brakes, { color: BR, part: 'brakes', small: true });
+  X.pipe([[910, 64], [910, 110]], 'brakeB', { color: B });
+  X.text(916, 92, 'NORMAL (B)', 't-small t-dim');
+  X.pipe([[835, 132], [rx + 15, 132], [rx + 15, ry]], (r) => r.flows.brakeB || r.flows.brakeA, { color: BR, thin: true });
+  X.pipe([[rx + 15, ry + 22], [lx - 15, ry + 22], [lx - 15, ly + 8]], (r) => r.flows.brakeB || r.flows.brakeA, { color: BR, thin: true });
+  X.text(rx + 22, 150, 'brakes: main wheels only', 't-small t-dim halo');
+  X.pipe([[165, 30], [200, 30], [200, 10], [960, 10], [960, 110]], 'brakeA', { color: A, thin: true });
+  X.text(700, 22, 'ALTERNATE BRAKES (A)', 't-small t-dim');
+  X.unit(835, 190, 150, 34, 'ACCUMULATOR', () => 'on', { color: B, part: 'brakes', small: true });
+  X.value(910, 240, (r) => ({ text: `${r.values.acc} psi`, cls: 't-small' }));
+  X.unit(835, 300, 150, 38, 'NOSE WHEEL\nSTEERING', (r) => (r.flows.steer || r.flows.steerB ? 'on' : 'off'), { color: G, part: 'nlg', small: true });
+  X.pipe([[835, 319], [nx + 60, 319], [nx + 60, ny], [nx + 15, ny]], (r) => r.flows.steer || r.flows.steerB, { color: (A), thin: true });
+  X.value(910, 356, (r) => ({ text: ctx.sw.nws ? (ctx.sw.lever === 2 ? 'NORM: A via lever DN' : 'NORM: lever not DN') : 'ALT: system B', cls: 't-small' + (ctx.sw.nws && ctx.sw.lever !== 2 ? ' warn' : '') }));
+  X.text(910, 372, 'tiller ±78° · pedals ±7°', 't-small t-dim', 'middle');
+  X.text(500, 628, 'Seen from above, nose up. Green: down and locked · red: in transit or disagreeing · grey: up and locked.', 't-small t-dim', 'middle');
 
   const O = createOverhead(panelHost, ctx);
   panels(O, ctx);
@@ -54,10 +82,9 @@ export function mount(svgHost, panelHost, ctx) {
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · FAILURES');
   P.actions(P.push('GEAR LEVER UP', () => ctx.set('lever', 0)), P.push('OFF', () => ctx.set('lever', 1)), P.push('DN', () => ctx.set('lever', 2)));
-  P.actions(P.fail('Antiskid fault', 'antiskid'), P.fail('Autobrake fault', 'autobrake'));
-  P.actions(P.push('OPEN / CLOSE MANUAL EXT. DOOR', () => ctx.set('door', ctx.sw.door ? 0 : 1)),
-    P.push('PULL MANUAL HANDLES', () => ctx.action('pullHandles')), P.push('RESET TO NORMAL', ctx.reset));
-  P.note('Try Takeoff → <b>Cruise</b> with the lever on DN: the gear stays down. Then Hydraulics → <b>A leak</b>, gear lever DN in the Landing phase: nothing moves — open the access door and pull the handles; the gear free-falls and locks. On the ground the lever lock stops UP.');
+  P.actions(P.fail('Gear won\'t extend normally', 'noExt'), P.fail('Antiskid fault', 'antiskid'), P.fail('Autobrake fault', 'autobrake'));
+  P.actions(P.push('RESET TO NORMAL', ctx.reset));
+  P.note('<b>Manual extension:</b> Cruise phase, then <b>Gear won\'t extend normally</b> (or Hydraulics → A leak) and the lever DN: nothing moves. Lever <b>OFF</b>, open the <b>access door</b> on the Manual gear extension panel and pull each handle — that gear free-falls and locks; its green comes on. On the ground the lever lock stops UP.');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };
 }
 
@@ -72,12 +99,12 @@ export function panels(O, ctx) {
   const fc = () => ctx.resOf?.('flightcontrols');
   // Gear indicator lights: NOSE on top, LEFT and RIGHT below; red over green.
   const L = O.panel('Landing gear', 128);
-  L.lamp(116, 8, 68, 16, 'NOSE\nGEAR', 'red', 'red');
-  L.lamp(116, 26, 68, 16, 'NOSE\nGEAR', 'green', 'green');
-  L.lamp(80, 46, 68, 16, 'LEFT\nGEAR', 'red', 'red');
-  L.lamp(152, 46, 68, 16, 'RIGHT\nGEAR', 'red', 'red');
-  L.lamp(80, 64, 68, 16, 'LEFT\nGEAR', 'green', 'green');
-  L.lamp(152, 64, 68, 16, 'RIGHT\nGEAR', 'green', 'green');
+  L.lamp(116, 8, 68, 16, 'NOSE\nGEAR', 'redN', 'red');
+  L.lamp(116, 26, 68, 16, 'NOSE\nGEAR', 'greenN', 'green');
+  L.lamp(80, 46, 68, 16, 'LEFT\nGEAR', 'redL', 'red');
+  L.lamp(152, 46, 68, 16, 'RIGHT\nGEAR', 'redR', 'red');
+  L.lamp(80, 64, 68, 16, 'LEFT\nGEAR', 'greenL', 'green');
+  L.lamp(152, 64, 68, 16, 'RIGHT\nGEAR', 'greenR', 'green');
   L.placard(8, 86, 100, ['LANDING GEAR LIMIT (IAS)', 'EXTEND 270K-.82M', 'RETRACT 235K', 'EXTENDED 320K-.82M'], { size: 5.2 });
   L.placard(192, 86, 100, ['FLAPS LIMIT (IAS)', '1-250K  15-200K', '2-250K  25-190K', '5-250K  30-175K', '10-210K 40-162K'], { size: 5 });
 
@@ -96,12 +123,7 @@ export function panels(O, ctx) {
   C.text(196, 84, 'ANTISKID', { size: 5 });
   C.lamp(178, 87, 36, 11, 'ANTISKID INOP', 'antiskid');
   // Flap position indicator (reads Flight Controls) and the LE FLAPS lights.
-  const pts = [[0, -135], [1, -105], [2, -78], [5, -45], [10, -10], [15, 25], [25, 65], [30, 100], [40, 135]];
-  C.dial(262, 38, 24, {
-    scales: [{ pts, ticks: [0, 1, 2, 5, 10, 15, 25, 30, 40].map((v) => [v, 0.2, 1.2]), labels: [[0, 'UP'], [5, '5'], [15, '15'], [25, '25'], [40, '40']], lr: 0.6, lfs: 5.5 }],
-    texts: [[0, 0.62, 'FLAPS', 4.5]], hub: 0.18,
-    needles: [{ fn: () => fc()?.values.flap ?? 0, len: 0.82, w: 1.6, tag: 'L' }, { fn: () => fc()?.values.flap ?? 0, len: 0.6, w: 1.6, tag: 'R' }],
-  });
+  flapGauge(C, 262, 38, 24, () => fc()?.values.flap ?? 0);
   C.lamp(236, 74, 25, 14, 'LE FLAPS\nTRANSIT', () => fc()?.lights.leTransit);
   C.lamp(264, 74, 25, 14, 'LE FLAPS\nEXT', () => fc()?.lights.leExt, 'green');
 
@@ -126,4 +148,16 @@ export function panels(O, ctx) {
   PB.lamp(196, 10, 64, 24, 'PARKING\nBRAKE', 'park', 'red', 'gear', () => ctx.set('park', ctx.sw.park ? 0 : 1));
   PB.placard(40, 8, 84, ['PARKING BRAKE', 'PULL'], { size: 7, bg: '#e9ecef' });
   PB.push(150, 23, () => ctx.set('park', ctx.sw.park ? 0 : 1), { name: 'Parking brake lever (pull to set)' });
+
+  // Manual gear extension (FCOM 14.10): an access door in the flight deck
+  // floor over three handles — left main, nose, right main. Each releases
+  // its gear's uplock; the gear free-falls and locks down.
+  const M = O.panel('Manual gear extension', 96, { bg: '#2a2d30' });
+  M.text(150, 13, 'MANUAL GEAR EXTENSION', { size: 7.5 });
+  M.toggle(46, 54, 'door', ['CLOSED', 'OPEN'], { name: 'ACCESS DOOR' });
+  for (const [k, x, lab] of [['L', 140, 'LEFT MAIN'], ['N', 200, 'NOSE'], ['R', 260, 'RIGHT MAIN']]) {
+    M.toggle(x, 54, 'man' + k, ['STOWED', 'PULLED'], {});
+    M.text(x, 90, lab, { size: 6 });
+  }
+  M.text(46, 90, 'ACCESS DOOR', { size: 6 });
 }

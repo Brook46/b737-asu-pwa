@@ -1,7 +1,7 @@
 // schem-electrical.js — operable AC/DC/standby schematic + electrical panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
 
 const AC = '#f5a300', DC = '#7048e8', STBY = '#e03131', BAT = '#2f9e44', APUC = '#e8590c', GPU = '#1c7ed6';
 
@@ -98,8 +98,9 @@ export function mount(svgHost, panelHost, ctx) {
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · APU & FAILURES');
   P.actions(P.push('APU START / STOP', () => ctx.action('apuRun', '')));
-  P.actions(P.fail('ENG 1 fail', 'eng1'), P.fail('ENG 2 fail', 'eng2'), P.fail('GEN 1 trip', 'gen1'),
+  P.actions(P.fail('ENG 1 failure', 'flameout1', 'engines'), P.fail('ENG 2 failure', 'flameout2', 'engines'), P.fail('GEN 1 trip', 'gen1'),
     P.fail('APU fail', 'apu'), P.fail('TR 1 fail', 'tr1'), P.fail('TR 3 fail', 'tr3'));
+  P.actions(P.fail('GEN 2 trip', 'gen2'), P.fail('IDG 1 drive (low oil / high temp)', 'drive1'));
   P.actions(P.push('GPU CONNECT / DISCONNECT', () => { const g = ctx.ctxOf('general'); g.set('gpuCart', g.sw.gpuCart ? 0 : 1); }), P.push('RESET TO NORMAL', ctx.reset));
   P.note('GEN, APU GEN and GRD PWR are spring-loaded: tap the top half for OFF, the bottom half for ON. Guarded switches: lift the guard first.');
   P.note('Try: Cruise → <b>GEN 1 trip</b> (BTBs close, GEN 2 powers both, galley/main 2 shed) → APU START → APU GEN ON. Or <b>ENG 1 + ENG 2 fail</b> to see standby on battery.');

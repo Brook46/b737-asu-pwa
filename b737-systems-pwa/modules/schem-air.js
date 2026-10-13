@@ -1,8 +1,8 @@
 // schem-air.js — operable bleed / packs / pressurisation schematic + panel.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
-import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { ductPress, cabinAltDiff, cabinClimb, valvePosition } from './gauges.js?v=57';
 
 const HOT = '#ff6a3d', COOL = '#15aabf', REC = '#82c91e', APUC = '#e8590c', OUT = '#868e96';
 
@@ -71,8 +71,9 @@ export function mount(svgHost, panelHost, ctx) {
   panelHost.append(ih);
   const P = createPanel(ih, ctx);
   P.title('INSTRUCTOR · FAILURES');
-  P.actions(P.fail('ENG 2 fail', 'eng2'), P.fail('Bleed trip 1', 'trip1'), P.fail('L pack trip', 'packL'), P.fail('Wing-body ovht L', 'wbL'),
+  P.actions(P.fail('ENG 2 failure', 'flameout2', 'engines'), P.fail('Bleed trip 1', 'trip1'), P.fail('L pack trip', 'packL'), P.fail('Wing-body ovht L', 'wbL'),
     P.fail('Controller 1', 'ctrl1'), P.fail('Controller 2', 'ctrl2'));
+  P.actions(P.fail('ENG 1 failure', 'flameout1', 'engines'), P.fail('Bleed trip 2', 'trip2'), P.fail('R pack trip', 'packR'));
   P.actions(P.push('AIR-CONDITIONING CART CONNECT / DISCONNECT', () => { const g = ctx.ctxOf('general'); g.set('acCart', g.sw.acCart ? 0 : 1); }), P.push('RESET TO NORMAL', ctx.reset));
   P.note('Outflow valve switch works in MAN only. Try: Cruise → <b>L pack trip</b> (the right pack goes to high flow). Both packs OFF and watch the cabin climb to the horn.');
 

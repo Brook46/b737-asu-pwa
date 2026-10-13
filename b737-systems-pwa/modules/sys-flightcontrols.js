@@ -2,7 +2,7 @@
 // speedbrake state here drives the 3D airplane: move the FLAP lever and the
 // flaps run (on system B, or electrically with alternate flaps).
 
-import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=56';
+import { wingLE, wingChord, wingY, TIP_Z, MLG, EE, YC, FLOOR_Y } from './airframe.js?v=57';
 
 const C = '#3a86ff', CAB = '#adb5bd', DRV = '#fab005';
 const spar = (z, u, dy = 0) => [wingLE(z) - u * wingChord(z), wingY(z) + dy, z];
@@ -173,33 +173,61 @@ export default {
     };
   },
 
-  /** Flaps follow the lever at a believable rate — if something can drive them. */
+  /**
+   * TE flaps follow the lever on system B (or the alternate electric drive),
+   * LE devices are sequenced with them (FCOM 9.20): extending, the LE devices
+   * go first — EXT for flaps 1, 2, 5, FULL EXT for 10 and beyond; retracting,
+   * they follow the TE flaps in. Alternate flaps (ALTERNATE FLAPS ARM, position
+   * switch DOWN): standby hydraulics drive the LE devices fully out (extend
+   * only), an electric motor runs the TE flaps — about 2 minutes to 15 (QRH),
+   * no further, and the flap lever does nothing. Flap load relief: lever 40
+   * above 163 kt → 30 (back below 158), lever 30 above 176 kt → 25 (below 171).
+   */
   tick(dt, st, env) {
     const { sw, mem, fail: f } = st;
-    const target = DETENTS[sw.flap];
-    const hydB = env.hydB !== false && !f.flapDrive;
-    const alt = !!env.altFlapsArmed && sw.altPos !== 1;
-    let rate = 0;
-    if (hydB) rate = 2.5;                                       // °/s on system B
-    else if (alt) rate = 0.6;                                   // electric, much slower
-    const before = mem.flap;
-    if (alt && !hydB) {
-      // Alternate: the position switch drives, not the lever.
-      const dir = sw.altPos === 2 ? 1 : -1;
-      mem.flap = Math.max(0, Math.min(15, mem.flap + dir * rate * dt * 4));
-    } else if (rate) {
-      mem.flap += Math.sign(target - mem.flap) * Math.min(Math.abs(target - mem.flap), rate * dt * 4);
+    const before = mem.flap, beforeLe = mem.leT;
+    if (mem.leT == null) mem.leT = mem.le;
+    const armed = !!env.altFlapsArmed;
+    const hydB = env.hydB !== false && !f.flapDrive && !armed;      // ARM bypasses the hydraulic drive
+    // Flap load relief.
+    const lever = DETENTS[sw.flap], ias = env.ias ?? 0;
+    if (lever === 40) mem.relief = ias > 163 || (mem.relief && ias > 158);
+    else if (lever === 30) mem.relief = ias > 176 || (mem.relief && ias > 171);
+    else mem.relief = false;
+    const target = mem.relief ? (lever === 40 ? 30 : 25) : lever;
+    const leOf = (deg) => (deg < 0.5 ? 0 : deg <= 5.5 ? 1 : 2);
+    let leTarget = mem.leTarget ?? mem.le;
+    if (armed) {
+      // Alternate: the position switch drives (held DOWN extends, UP retracts).
+      const dir = sw.altPos === 2 ? 1 : sw.altPos === 0 ? -1 : 0;
+      if (dir) mem.flap = Math.max(0, Math.min(15, mem.flap + dir * dt * (15 / 120)));
+      if (sw.altPos === 2 && env.stbyLe) leTarget = 2;                // standby: fully out, extend only
+      mem.altExt = mem.altExt || sw.altPos === 2;
+    } else {
+      mem.altExt = false;
+      if (hydB) {
+        // Extending: LE devices first (from the lever); retracting: they follow the TE flaps in.
+        leTarget = target >= mem.flap ? Math.max(leOf(target), leOf(mem.flap)) : leOf(mem.flap);
+        const leReady = Math.abs(mem.leT - leTarget) < 0.01 || target < mem.flap;
+        if (leReady) mem.flap += Math.sign(target - mem.flap) * Math.min(Math.abs(target - mem.flap), dt * 3);
+      }
     }
-    // LE devices: sequenced with the TE flaps (standby can only extend).
-    const leTarget = mem.flap < 0.5 ? 0 : mem.flap <= 5.5 ? 1 : 2;
-    if ((hydB || env.stbyLe) && mem.le !== leTarget && !(env.stbyLe && !hydB && leTarget < mem.le)) mem.le = leTarget;
-    return Math.abs(mem.flap - before) > 1e-3;
+    mem.leTarget = leTarget;
+    // LE devices move in a couple of seconds — on B, or standby extending.
+    const canLe = (env.leB !== false && !armed && env.hydB !== false) || (env.stbyLe && leTarget > mem.leT);
+    if (canLe) mem.leT += Math.sign(leTarget - mem.leT) * Math.min(Math.abs(leTarget - mem.leT), dt * 0.5);
+    mem.le = Math.round(mem.leT);
+    return Math.abs(mem.flap - before) > 1e-4 || Math.abs((mem.leT ?? 0) - (beforeLe ?? 0)) > 1e-4;
   },
 
   evaluate(env, st) {
     const { sw, mem, fail: f } = st;
-    const target = DETENTS[sw.flap];
-    const moving = Math.abs(target - mem.flap) > 0.3;
+    const lever = DETENTS[sw.flap];
+    const target = env.altFlapsArmed ? mem.flap : mem.relief ? (lever === 40 ? 30 : 25) : lever;
+    const moving = Math.abs(target - mem.flap) > 0.3 || (!!env.altFlapsArmed && sw.altPos !== 1 && mem.flap > 0 && mem.flap < 15);
+    const leT = mem.leT ?? mem.le, leMoving = Math.abs(leT - Math.round(leT)) > 0.01 || Math.abs(leT - (mem.leTarget ?? leT)) > 0.01;
+    // LE FLAPS TRANSIT: an LE device moving, or (alternate extension) until the TE flaps near 15.
+    const leTransit = leMoving || (!!mem.altExt && mem.flap < 14.5);
     const ydOn = !!sw.yd && !f.yd && env.hydB !== false && !env.fcBOff;
     const air = env.air;
     const sbExt = sw.sb === 3 || sw.sb === 2;
@@ -214,13 +242,13 @@ export default {
       },
       lights: {
         ydLight: !ydOn, feelDiff: env.hydA === false || env.hydB === false || !!f.feel, speedTrimFail: !!f.sts, machTrimFail: !!f.mach,
-        autoSlatFail: !!f.autoslat, leTransit: moving && mem.flap > 0 && mem.flap < 5, leExt: mem.le > 0 && !moving,
+        autoSlatFail: !!f.autoslat, leTransit, leExt: mem.le > 0 && !leTransit,
         sbArmed: sw.sb === 1, sbExtended: sbExt && (air ? env.flaps > 0 || env.alt < 800 : true), sbDoNotArm: false,
-        loadRelief: false,
+        loadRelief: !!mem.relief,
       },
-      values: { flap: mem.flap, lever: DETENTS[sw.flap], le: ['RET', 'EXT', 'FULL EXT'][mem.le], leIdx: mem.le, moving, sb: SB[sw.sb], sbFrac: [0, 0, 0.5, 1][sw.sb], air: !!air },
-      pose: { flaps: mem.flap, slats: mem.le, speedbrake: [0, 0, 0.55, 1][sw.sb] },
-      note: [moving && `Flaps running to ${target}`, !ydOn && 'YAW DAMPER off'].filter(Boolean).join(' · '),
+      values: { flap: mem.flap, lever, le: leTransit ? 'TRANSIT' : ['RET', 'EXT', 'FULL EXT'][mem.le], leIdx: mem.le, leTransit, moving, alt: !!env.altFlapsArmed, sb: SB[sw.sb], sbFrac: [0, 0, 0.5, 1][sw.sb], air: !!air },
+      pose: { flaps: mem.flap, slats: leT, speedbrake: [0, 0, 0.55, 1][sw.sb] },
+      note: [moving && (env.altFlapsArmed ? 'Alternate flaps: TE electric (≈2 min to 15), LE on standby' : `Flaps running to ${target}`), mem.relief && 'FLAP LOAD RELIEF', !ydOn && 'YAW DAMPER off'].filter(Boolean).join(' · '),
     };
   },
 };

@@ -107,6 +107,7 @@ const AREA = {
   'Forward panels': ['Center panel', 'Landing gear', 'Display select (captain)', 'Display select (first officer)', 'Autoflight lights',
     'Speedbrake lights L', 'Speedbrake lights R', 'Takeoff config and cabin altitude', 'Icing advisory', 'Nose wheel steering', 'Brake pressure', 'GPWS'],
   'Forward electronic panel': ['CDU'],
+  'Flight deck floor': ['Manual gear extension'],
   'Control stand': ['Parking brake', 'Stabilizer trim', 'Flaps and speedbrake', 'Start levers'],
   'Aft electronic panel': ['Fire protection', 'Cargo fire', 'VHF comm', 'Audio control panel', 'Nav radios', 'Flight deck door', 'Transponder'],
 };
@@ -419,6 +420,12 @@ export function createOverhead(host, ctx) {
        *   needles: [{ fn, scale, len, w, tag, tail }]
        *   hub: fraction of r
        */
+      /** A free shape (path d) lit with `on` when lights[key] / key(res), else `off`. */
+      shape(d, key, on, off = '#1d1f21', o2 = {}) {
+        const p = el('path', { d, fill: off, stroke: o2.stroke ?? '#c9ced3', 'stroke-width': o2.sw ?? 0.7, 'stroke-linejoin': 'round' }, layers.parts);
+        binds.push((res) => { const v = typeof key === 'function' ? key(res) : res.lights?.[key]; p.setAttribute('fill', v ? on : off); });
+        return p;
+      },
       dial(x, y, r, o2) {
         const g = el('g', { transform: `translate(${x},${y})` }, layers.parts);
         const map = (pts, v) => {

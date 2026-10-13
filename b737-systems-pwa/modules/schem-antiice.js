@@ -1,9 +1,9 @@
 // schem-antiice.js — thermal (bleed) and electric anti-ice schematic, with
 // the window heat, probe heat, wing / engine anti-ice and wiper panels.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=56';
-import { createOverhead } from './overhead.js?v=56';
-import { PROBES } from './sys-antiice.js?v=56';
+import { createSchematic, createPanel } from './schem-kit.js?v=57';
+import { createOverhead } from './overhead.js?v=57';
+import { PROBES } from './sys-antiice.js?v=57';
 
 const C = '#4cc9f0', HOT = '#ff6a3d', EL = '#63e6be';
 
@@ -77,6 +77,7 @@ export function mount(svgHost, panelHost, ctx) {
   P.title('INSTRUCTOR · CONDITIONS & FAILURES');
   P.actions(P.fail('Icing conditions', 'icing'), P.fail('L FWD window overheat', 'win2'), P.fail('Cowl valve 1 stuck', 'cowl1'),
     P.fail('Cowl duct overpressure 1', 'cowlOvp1'), P.fail('Capt pitot heat', 'captPitot'), P.fail('Wing duct hot (ground)', 'wingDuct'), P.fail('Ice detector', 'iceDet'));
+  P.actions(P.fail('Cowl valve 2 stuck', 'cowl2'), P.fail('L SIDE window overheat', 'win1'), P.fail('R FWD window overheat', 'win3'), P.fail('F/O pitot heat', 'foPitot'), P.fail('AUX pitot heat', 'aux'));
   P.actions(P.push('RESET TO NORMAL', ctx.reset));
   P.note('In <b>Cruise</b> set <b>Icing conditions</b>: ICING lights — turn ENG ANTI-ICE on (TAI appears, stall warning goes to icing logic). Clear it: NO ICE. On the <b>Ground</b> try WING ANTI-ICE with the engines off, then with the duct hot.');
   return { update(res) { X.update(res); O.update(res); P.update(res); } };
