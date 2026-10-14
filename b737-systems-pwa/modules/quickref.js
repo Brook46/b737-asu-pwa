@@ -1,7 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=58';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=58';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=58';
-import { CUES, cueHtml } from './cues.js?v=58';
+import { SUPPLEMENTARY } from './supplementary.js?v=59';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=59';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=59';
+import { CUES, cueHtml } from './cues.js?v=59';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
@@ -333,6 +333,14 @@ export function createQuickRef(sheet, systems, nav = {}) {
   // ── Supplementary: its own sheet, one tab per chapter ──
   let spCh = 16;
   const SP_TABS = [[16, 'Adverse weather'], [2, 'Air systems'], [3, 'Anti-ice'], [7, 'Engines'], [12, 'Fuel']];
+  // Going to another chapter (a tab or a related-procedure link) remembers
+  // where you were; ‹ Back returns there, at the same scroll.
+  const spHist = [];
+  const sheetBody = () => document.getElementById('sheet-body');
+  function goChapter(n) {
+    if (n !== spCh) spHist.push({ ch: spCh, top: sheetBody()?.scrollTop || 0 });
+    openSupp(n);
+  }
   function suppPage() {
     const body = spCh === 16
       ? `${wizardHtml()}${coldHtml()}<details class="sp-ref" id="sp-ref"><summary>SP.16 Adverse Weather — full summary <span class="qr-ref">reference</span></summary>${suppHtml()}</details>`
@@ -340,6 +348,7 @@ export function createQuickRef(sheet, systems, nav = {}) {
     return `<div class="qr">
       <div class="kicker">SUPPLEMENTARY PROCEDURES · FCOM REV 57</div>
       <h2>Supplementary</h2>
+      ${spHist.length ? `<button class="tag tag-btn sp-back" data-sp-back>‹ Back to SP.${spHist[spHist.length - 1].ch} ${esc((SP_TABS.find((t) => t[0] === spHist[spHist.length - 1].ch) || [, ''])[1])}</button>` : ''}
       <div class="qr-tabs">${SP_TABS.map(([n, t]) => `<button class="tag tag-btn${n === spCh ? ' on' : ''}" data-sp-ch="${n}">SP.${n} ${t}</button>`).join('')}</div>
       ${body}
       <p class="qr-foot">Condensed from the FCOM Supplementary Procedures, Rev 57, in our own words. The FCOM${spCh === 16 ? ' and your de-icing programme' : ''} govern.</p>
@@ -369,13 +378,18 @@ export function createQuickRef(sheet, systems, nav = {}) {
     if (lk) {
       const [n, id] = lk.dataset.spProc.split(':');
       openProc(id);
-      openSupp(Number(n));
+      goChapter(Number(n));
       const card = id && document.getElementById(`pr-${id}`);
       if (card) { const d = card.closest('details'); if (d) d.open = true; card.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
       return;
     }
     const ch = e.target.closest('[data-sp-ch]');
-    if (ch) { openSupp(Number(ch.dataset.spCh)); return; }
+    if (ch) { goChapter(Number(ch.dataset.spCh)); return; }
+    if (e.target.closest('[data-sp-back]')) {
+      const last = spHist.pop();
+      if (last) { openSupp(last.ch); requestAnimationFrame(() => { const b = sheetBody(); if (b) b.scrollTop = last.top; }); }
+      return;
+    }
     const pr = e.target.closest('[data-pr-open],[data-pr-tick],[data-pr-clear]');
     if (pr && procClick(pr)) { redrawProcs(); return; }
     const wb = e.target.closest('[data-wz]');

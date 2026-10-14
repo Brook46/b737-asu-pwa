@@ -1086,3 +1086,11 @@ body.view-cockpit #state-bar { display: none; }
 body:not(.sim-flying) #sim-pause, body:not(.sim-flying) #sim-rate { display: none; }
 /* Schematic: no 3D hint. */
 body.view-schem #hint { display: none; }
+
+/* Advisor decisions: the colour follows the answer word. */
+.wz-d.v-no { border-left-color: #d62828; } .wz-d.v-no .wz-v { color: #d62828; }
+.wz-d.v-on { border-left-color: #2b9a4f; background: rgba(43,154,79,.09); } .wz-d.v-on .wz-v { color: #2b9a4f; }
+.wz-d.v-stop { border-left-color: #d62828; background: rgba(214,40,40,.09); } .wz-d.v-stop .wz-v { color: #d62828; }
+.wz-d.v-lim { border-left-color: #f08c00; background: rgba(240,140,0,.09); } .wz-d.v-lim .wz-v { color: #c76a00; }
+.wz-or { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 10px 0 4px; }
+.sp-back { margin: 0 0 8px; }

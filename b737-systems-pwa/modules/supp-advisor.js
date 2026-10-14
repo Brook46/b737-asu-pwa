@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=58';
-import { nav, loadNav } from './navdb.js?v=58';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=58';
-import { relatedFor, procLink } from './supp-procs.js?v=58';
+import { SUPPLEMENTARY } from './supplementary.js?v=59';
+import { nav, loadNav } from './navdb.js?v=59';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=59';
+import { relatedFor, procLink } from './supp-procs.js?v=59';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -37,9 +37,9 @@ const Q = {
       ['upper', 'Frost on top of the wing over the fuel tank, from cold fuel (CSFF)', 'CSFF upper wing'],
       ['contam', 'Snow, ice or frost on leading edges, controls, tail — or anything else', 'Wing contaminated']],
   },
-  fuelT: { t: 'Tank fuel temperature −16 °C or warmer?', yn: true, chip: ['Fuel −16 °C or warmer', 'Fuel colder than −16 °C'] },
-  thick: { t: 'Is the frost under the wing thicker than 3 mm?', yn: true, chip: ['Frost over 3 mm', 'Frost 3 mm or less'] },
-  csffArea: { t: 'Is all the upper-wing frost inside the marked CSFF lines? (No lines on this airplane: No.)', yn: true, chip: ['Inside the CSFF lines', 'Outside the lines / no lines'] },
+  fuelT: { t: 'Tank fuel temperature?', yn: true, chip: ['Fuel −16 °C or warmer', 'Fuel colder than −16 °C'] },
+  thick: { t: 'Frost under the wing — how thick?', yn: true, chip: ['Frost over 3 mm', 'Frost 3 mm or less'], order: [false, true] },
+  csffArea: { t: 'Upper-wing frost — where is it?', yn: true, chip: ['All inside the marked CSFF lines', 'Outside the lines, or no lines on this airplane'] },
   surface: {
     t: 'Ramp, taxiways and runway?',
     opts: [['dry', 'Dry', 'Runway dry'], ['wet', 'Wet', 'Runway wet'], ['contam', 'Slush, snow, standing water or ice', 'Runway contaminated'],
@@ -53,7 +53,7 @@ const Q = {
     t: 'Destination runway?',
     opts: [['dry', 'Dry', 'Runway dry'], ['wet', 'Wet', 'Runway wet'], ['contam', 'Slush, snow, standing water or ice', 'Runway contaminated']],
   },
-  arrIce: { t: 'Icing expected on the approach (flaps out in icing)?', yn: true, chip: ['Icing on approach', 'No icing on approach'] },
+  arrIce: { t: 'Icing on the approach (flaps out in icing)?', yn: true, chip: ['Icing on approach', 'No icing on approach'], order: [false, true] },
   // Windshear clues (SP.16.28): thunderstorms, virga, pilot reports, LLWAS warnings.
   depWs: {
     t: 'Windshear at departure? (thunderstorms, virga, pilot reports, LLWAS)',
@@ -116,8 +116,8 @@ function flow() {
   return [];
 }
 
-// Fluid only changes the answer when the wing must be de-iced or icing exists.
-function needsFluidQ() { return deiceNeeded() || depIcing(); }
+// Fluid only when the airplane is de-iced (no de-icing: no fluid to ask about).
+function needsFluidQ() { return deiceNeeded(); }
 
 // CSFF conditions (SP.3.2): OAT +4 °C or warmer, no visible moisture, fuel −16 °C or warmer.
 function csffOk() { return A.oat != null && A.oat >= 4 && A.precip === 'none' && A.fuelT === true; }
@@ -348,6 +348,16 @@ function chipText(key) {
 
 function questionHtml(key) {
   const q = Q[key];
+  if (key === 'wx') {
+    return `<div class="wz-qq"><div class="wz-qt">${A.place === 'arr' ? 'Destination' : 'Departure'} weather — the airport's METAR, or just type the temperature</div>
+      <div class="wz-numrow"><input id="wz-apt" type="text" class="wz-in" placeholder="Airport: ICAO, IATA or name" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+      <div id="wz-sug" class="wz-sug"></div>
+      <div class="wz-or">or the outside air temperature, °C</div>
+      <div class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="neg" aria-label="Plus or minus">±</button>
+      <input id="wz-t" type="text" inputmode="numeric" class="wz-in wz-num" placeholder="e.g. 2" autocomplete="off">
+      <button class="tag tag-btn wz-ok" data-wz="ok">OK</button></div>
+      <div class="wz-hint">The METAR fills in temperature, precipitation and runway state — you can change any of them. ± for below zero.</div></div>`;
+  }
   if (q.apt) {
     return `<div class="wz-qq"><div class="wz-qt">${A.place === 'arr' ? 'Destination airport?' : 'Departure airport?'}</div>
       <div class="wz-numrow"><input id="wz-apt" type="text" class="wz-in" placeholder="ICAO or name, e.g. LLBG" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
@@ -361,7 +371,8 @@ function questionHtml(key) {
       <button class="tag tag-btn wz-ok" data-wz="ok">OK</button></div>
       <div class="wz-hint">${A.place === 'arr' ? 'At the destination.' : 'At the airport now.'} ± for below zero.</div></div>`;
   }
-  const opts = q.yn ? [[true, 'Yes'], [false, 'No']] : q.opts;
+  // A yes / no question offers its two answers in words, not Yes / No.
+  const opts = q.yn ? (q.order || [true, false]).map((v) => [v, q.chip[v ? 0 : 1]]) : q.opts;
   return `<div class="wz-qq"><div class="wz-qt">${esc(q.t)}</div><div class="wz-opts${q.yn ? ' yn' : ''}">${opts.map(([v, n]) => `<button class="wz-opt" data-wz-ans="${key}|${v}">${esc(n)}</button>`).join('')}</div></div>`;
 }
 
@@ -373,9 +384,18 @@ function flightHtml() {
 
 const clock = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
+// The answer's colour follows the word, so NO and ON never look alike:
+// NO / OFF red, ON / YES green, a stop (DELAY, NOT RECOMMENDED) red, a limit amber.
+function valCls(v) {
+  if (/^(NO|OFF)$/.test(v)) return 'v-no';
+  if (/^(ON|YES)$/.test(v)) return 'v-on';
+  if (/DELAY|NOT RECOMMENDED/.test(v)) return 'v-stop';
+  return /ONLY|FULL/.test(v) ? 'v-lim' : 'v-info';
+}
+
 function resultHtml(r) {
   let h = '';
-  if (r.dec.length) h += `<div class="wz-dec">${r.dec.map((x) => `<div class="wz-d ${x.cls}"><span class="wz-k">${esc(x.k)}</span><span class="wz-v">${esc(x.v)}</span><span class="wz-s">${esc(x.s)} ${spLink(x)}</span></div>`).join('')}</div>`;
+  if (r.dec.length) h += `<div class="wz-dec">${r.dec.map((x) => `<div class="wz-d ${valCls(x.v)}"><span class="wz-k">${esc(x.k)}</span><span class="wz-v">${esc(x.v)}</span><span class="wz-s">${esc(x.s)} ${spLink(x)}</span></div>`).join('')}</div>`;
   if (r.runup) {
     const due = runT ? runT + r.runup.every * 60000 : null;
     h += `<div class="wz-d runup"><span class="wz-k">Taxi run-up</span><span class="wz-v">REQUIRED</span>
@@ -414,7 +434,9 @@ function relatedHtml() {
 }
 
 export function wizardHtml() {
-  reset();
+  // Answers stay until Start over (or the app is reopened): the page can be
+  // left for another chapter and come back as it was.
+  setTimeout(draw, 0);
   return `<section class="wz no-hl" id="wz"><div class="wz-top"><span class="wz-title">Adverse weather</span>
     <span class="wz-act"><button class="tag tag-btn wz-mini" data-wz="back" id="wz-back" hidden>‹ Back</button><button class="tag tag-btn wz-mini" data-wz="reset" id="wz-reset" hidden>Start over</button></span></div>
     <div id="wz-chips" class="wz-chips"></div><div id="wz-wx"></div><div id="wz-body">${questionHtml('place')}</div></section>`;
@@ -449,6 +471,7 @@ function readTemp() {
   if (!el) return;
   const v = parseTemp(el.value);
   if (v == null || v < -70 || v > 60) { el.classList.add('bad'); el.focus(); return; }
+  if (nextKey() === 'wx') answer('wx', 'hand');           // typed straight in: weather by hand
   answer('oat', Math.round(v));
   draw();
 }
@@ -497,7 +520,7 @@ export function wizardAct(action) {
   if (action === 'cold') {
     const c = document.getElementById('wz-cold');
     if (!c) return;
-    c.open = true;
+    c.open = true; CT.open = true;
     const t = document.getElementById('ct-t');
     if (t && A.oat != null) t.value = A.oat;
     refreshCold();
@@ -565,6 +588,7 @@ function prefill(m) {
 
 async function pickAirport(ident) {
   const a = nav.airport(ident) || { ident, name: '', elev: null };
+  if (A.wx !== 'apt') { A.wx = 'apt'; if (!H.includes('wx')) H.push('wx'); }
   A.apt = a; H = H.filter((k) => k !== 'apt'); H.push('apt');
   WX = { apt: a, loading: true };
   draw();
@@ -663,19 +687,25 @@ const ALTS = [
   ['ct-missed', 'Missed approach altitude', 'FMC LEGS constraint, and the MCP for the go-around', true],
 ];
 
+// What was typed in the cold correction, kept while the app is open.
+const CT = { open: false, unit: 'ft' };
+document.addEventListener('toggle', (e) => { if (e.target?.id === 'wz-cold') CT.open = e.target.open; }, true);
+const ctv = (id) => esc(CT[id] ?? '');
+
 export function coldHtml() {
-  return `<details class="wz wz-cold no-hl" id="wz-cold"><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
+  setTimeout(refreshCold, 0);
+  return `<details class="wz wz-cold no-hl" id="wz-cold"${CT.open ? ' open' : ''}><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
     <div class="wz-cold-in">
-      <label class="wz-q">Airport <span class="qr-ref">fills temperature and elevation</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+      <label class="wz-q">Airport <span class="qr-ref">fills temperature and elevation</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${ctv('ct-apt')}"></label>
       <div id="ct-sug" class="wz-sug"></div>
       <div id="ct-src" class="wz-hint"></div>
       <div class="wz-row2">
-        <label class="wz-q">Airport temperature, °C<span class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="ctneg" aria-label="Plus or minus">±</button><input id="ct-t" type="text" inputmode="numeric" class="wz-in" placeholder="15" autocomplete="off"></span></label>
-        <label class="wz-q">Airport elevation<input id="ct-ref" type="number" inputmode="numeric" class="wz-in" placeholder="0"></label>
+        <label class="wz-q">Airport temperature, °C<span class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="ctneg" aria-label="Plus or minus">±</button><input id="ct-t" type="text" inputmode="numeric" class="wz-in" placeholder="15" autocomplete="off" value="${ctv('ct-t')}"></span></label>
+        <label class="wz-q">Airport elevation<input id="ct-ref" type="number" inputmode="numeric" class="wz-in" placeholder="0" value="${ctv('ct-ref')}"></label>
       </div>
-      <div class="wz-units"><label><input type="radio" name="ct-u" value="ft" checked> feet</label><label><input type="radio" name="ct-u" value="m"> metres</label></div>
+      <div class="wz-units"><label><input type="radio" name="ct-u" value="ft"${CT.unit === 'ft' ? ' checked' : ''}> feet</label><label><input type="radio" name="ct-u" value="m"${CT.unit === 'm' ? ' checked' : ''}> metres</label></div>
       <div class="wz-g">Published altitudes — fill in what you need</div>
-      ${ALTS.map(([id, n]) => `<label class="wz-q">${esc(n)}<input id="${id}" type="number" inputmode="numeric" class="wz-in"></label>`).join('')}
+      ${ALTS.map(([id, n]) => `<label class="wz-q">${esc(n)}<input id="${id}" type="number" inputmode="numeric" class="wz-in" value="${ctv(id)}"></label>`).join('')}
       <div id="ct-out" class="wz-res"></div>
       <p class="wz-hint">Not needed under radar vectors, at an assigned flight level, or when the airport is above 0 °C or at or above the procedure's published minimum temperature. Do not correct the altimeter setting. Tell ATC.</p>
     </div></details>`;
@@ -686,6 +716,8 @@ export function refreshCold() {
   if (!out) return;
   const val = (id) => document.getElementById(id)?.value.trim() ?? '';
   const unit = document.querySelector('input[name=ct-u]:checked')?.value || 'ft';
+  for (const id of ['ct-apt', 'ct-t', 'ct-ref', ...ALTS.map((x) => x[0])]) CT[id] = val(id);
+  CT.unit = unit;
   const temp = parseTemp(val('ct-t'));
   const ref = parseTemp(val('ct-ref')) ?? 0;
   if (temp == null) { out.innerHTML = '<p class="wz-none">Enter the airport temperature.</p>'; return; }
