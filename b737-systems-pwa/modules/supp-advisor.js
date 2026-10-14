@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=60';
-import { nav, loadNav } from './navdb.js?v=60';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=60';
-import { relatedFor, procLink } from './supp-procs.js?v=60';
+import { SUPPLEMENTARY } from './supplementary.js?v=61';
+import { nav, loadNav } from './navdb.js?v=61';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=61';
+import { relatedFor, procLink } from './supp-procs.js?v=61';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -348,6 +348,14 @@ function chipText(key) {
 
 function questionHtml(key) {
   const q = Q[key];
+  if (key === 'wx' && !navigator.onLine) {
+    // Offline: no METAR to fetch, so just the temperature.
+    return `<div class="wz-qq"><div class="wz-qt">Outside air temperature, °C</div>
+      <div class="wz-numrow"><button class="tag tag-btn wz-pm" data-wz="neg" aria-label="Plus or minus">±</button>
+      <input id="wz-t" type="text" inputmode="numeric" class="wz-in wz-num" placeholder="e.g. 2" autocomplete="off">
+      <button class="tag tag-btn wz-ok" data-wz="ok">OK</button></div>
+      <div class="wz-hint">Offline — the airport's METAR needs a connection, so answer by hand. ± for below zero.</div></div>`;
+  }
   if (key === 'wx') {
     return `<div class="wz-qq"><div class="wz-qt">${A.place === 'arr' ? 'Destination' : 'Departure'} weather — the airport's METAR, or just type the temperature</div>
       <div class="wz-numrow"><input id="wz-apt" type="text" class="wz-in" placeholder="Airport: ICAO, IATA or name" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
@@ -635,7 +643,9 @@ async function pickColdAirport(ident) {
   for (const id of ['ct-apt', 'ct-ref', 'ct-t']) { const el = document.getElementById(id); if (el) { el.dataset.auto = '1'; if (id !== 'ct-apt') el.value = ''; } }
   document.getElementById('ct-sug').innerHTML = '';
   fillCold(a, null);
-  try { fillCold(a, parseMetar(await fetchMetar(ident))); } catch { /* elevation still filled */ }
+  const src = document.getElementById('ct-src');
+  if (!navigator.onLine) { if (src) src.textContent = `${a.ident}: elevation from the airport database. Offline — type the temperature.`; return; }
+  try { fillCold(a, parseMetar(await fetchMetar(ident))); } catch { if (src) src.textContent = `${a.ident}: elevation filled; no METAR — type the temperature.`; }
 }
 
 /** Typing in the airport boxes and the cold correction (from the sheet's input handler). */
@@ -692,6 +702,10 @@ const ALTS = [
   ['ct-missed', 'Missed approach altitude', 'FMC LEGS constraint, and the MCP for the go-around', true],
 ];
 
+// Going on or offline changes what the weather step offers.
+addEventListener('online', () => draw());
+addEventListener('offline', () => draw());
+
 // What was typed in the cold correction, kept while the app is open.
 const CT = { open: false, unit: 'ft' };
 document.addEventListener('toggle', (e) => { if (e.target?.id === 'wz-cold') CT.open = e.target.open; }, true);
@@ -701,7 +715,7 @@ export function coldHtml() {
   setTimeout(refreshCold, 0);
   return `<details class="wz wz-cold no-hl" id="wz-cold"${CT.open ? ' open' : ''}><summary><span class="wz-title">Cold temperature altitude correction</span> <span class="qr-ref">SP.16.13–14</span></summary>
     <div class="wz-cold-in">
-      <label class="wz-q">Airport <span class="qr-ref">fills temperature and elevation</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${ctv('ct-apt')}"></label>
+      <label class="wz-q">Airport <span class="qr-ref">fills elevation, and the temperature when online</span><input id="ct-apt" type="text" class="wz-in" placeholder="ICAO or name" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${ctv('ct-apt')}"></label>
       <div id="ct-sug" class="wz-sug"></div>
       <div id="ct-src" class="wz-hint"></div>
       <div class="wz-row2">
