@@ -46,7 +46,7 @@ export function parseMetar(raw) {
   const all = raw.replace(/=$/, '').split(/\s+/);
   const end = all.findIndex((t, k) => k > 1 && /^(RMK|TEMPO|BECMG|NOSIG)$/.test(t));
   const tok = end > 0 ? all.slice(0, end) : all;
-  const out = { raw, icao: tok[0] === 'METAR' || tok[0] === 'SPECI' ? tok[1] : tok[0], time: null, tempC: null, dewC: null, visM: null, wx: [], precip: 'none', rwy: [], surface: null };
+  const out = { raw, icao: tok[0] === 'METAR' || tok[0] === 'SPECI' ? tok[1] : tok[0], time: null, tempC: null, dewC: null, visM: null, wx: [], precip: 'none', rwy: [], surface: null, ws: null, wsClues: [] };
   let i = 0;
   for (const t of tok) {
     i++;
@@ -68,9 +68,20 @@ export function parseMetar(raw) {
       if (s.startsWith('CLRD')) out.rwy.push({ rwy: r, deposit: 0, desc: 'cleared', depth: 0 });
       else out.rwy.push({ rwy: r === '88' ? 'all' : r, deposit: s[0] === '/' ? null : Number(s[0]), desc: s[0] === '/' ? 'not reported' : DEPOSIT[Number(s[0])], depth: depthMm(s.slice(2, 4)) });
     } else if (t === 'R/SNOCLO') out.rwy.push({ rwy: 'all', deposit: null, desc: 'closed by snow', depth: null, closed: true });
+    // Windshear reported on the takeoff / approach path: WS R27L, WS RWY27, WS ALL RWY.
+    else if (t === 'WS') {
+      const nx = tok[i] || '', nx2 = tok[i + 1] || '';
+      const rw = nx === 'ALL' && nx2 === 'RWY' ? 'all runways' : /^(R|RWY)\d{2}[LCR]?$/.test(nx) ? `RWY ${nx.replace(/^RWY|^R/, '')}` : 'reported';
+      out.ws = out.ws ? `${out.ws}, ${rw}` : rw;
+    } else if (/^VC(TS|SH)$/.test(t)) out.wx.push(t);
+    else if (/^(FEW|SCT|BKN|OVC)\d{3}(CB|TCU)$/.test(t)) out.wsClues.push(t.endsWith('CB') ? 'CB clouds' : 'towering cumulus');
   }
   // Visible moisture (SP.16.2): fog counts at 1,600 m or less.
   const has = (re) => out.wx.some((w) => re.test(w));
+  // Windshear clues in the report (SP.16.28): thunderstorms, at or near the airport.
+  if (has(/^VCTS$/)) out.wsClues.unshift('thunderstorm in the vicinity');
+  else if (has(/TS/)) out.wsClues.unshift('thunderstorm');
+  out.wsClues = [...new Set(out.wsClues)];
   if (has(/FZ(RA|DZ|FG)/) || has(/^\+.*SN/)) out.precip = 'frz';
   else if (has(/SN|SG|PL|IC|GS|GR/)) out.precip = 'snow';
   else if (has(/RA|DZ/)) out.precip = 'rain';
@@ -110,5 +121,7 @@ export function summary(m) {
   if (m.visM != null) p.push(m.visM >= 10000 ? 'visibility 10 km+' : `visibility ${m.visM} m`);
   p.push(PRECIP[m.precip]);
   for (const r of m.rwy) p.push(`RWY ${r.rwy}: ${r.desc}${r.depth ? ` ${r.depth} mm` : ''}`);
+  if (m.ws) p.push(`windshear reported: ${m.ws}`);
+  else if (m.wsClues?.length) p.push(`windshear clues: ${m.wsClues.join(', ')}`);
   return p.join(' · ');
 }

@@ -11,10 +11,10 @@
 // Rules checked against FCOM Rev 57 SP.16 (pages cited inline). Study aid:
 // the FCOM and the operator's de-icing programme govern.
 
-import { SUPPLEMENTARY } from './supplementary.js?v=59';
-import { nav, loadNav } from './navdb.js?v=59';
-import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=59';
-import { relatedFor, procLink } from './supp-procs.js?v=59';
+import { SUPPLEMENTARY } from './supplementary.js?v=60';
+import { nav, loadNav } from './navdb.js?v=60';
+import { fetchMetar, parseMetar, ageMin, summary } from './metar.js?v=60';
+import { relatedFor, procLink } from './supp-procs.js?v=60';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[x]);
 const SP16 = SUPPLEMENTARY[0];
@@ -580,6 +580,11 @@ function prefill(m) {
   if (flow().includes('precip')) put('precip', m.precip);
   if (A.place === 'dep' && m.surface) put('surface', m.surface);
   if (A.place === 'arr' && m.surface) put('arrSurface', m.surface === 'deep' ? 'contam' : m.surface);
+  // Windshear: a WS group is windshear reported on the path; thunderstorms or
+  // CB / TCU are clues. No sign in the report still leaves the question open
+  // (pilot reports and LLWAS are not in a METAR).
+  const wsKey = A.place === 'dep' ? 'depWs' : A.place === 'arr' ? 'windshear' : null;
+  if (wsKey) put(wsKey, m.ws ? 'conf' : m.wsClues?.length ? 'sus' : null);
   prune();
   // Order the chips as the questions are asked.
   const order = ['place', ...flow()];

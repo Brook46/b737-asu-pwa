@@ -1,7 +1,7 @@
-import { SUPPLEMENTARY } from './supplementary.js?v=59';
-import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=59';
-import { procsHtml, procClick, openProc } from './supp-procs.js?v=59';
-import { CUES, cueHtml } from './cues.js?v=59';
+import { SUPPLEMENTARY } from './supplementary.js?v=60';
+import { wizardHtml, wizardAct, wizardClick, wizardKey, wizardInput, coldHtml } from './supp-advisor.js?v=60';
+import { procsHtml, procClick, openProc } from './supp-procs.js?v=60';
+import { CUES, cueHtml } from './cues.js?v=60';
 
 // quickref.js — Quick Reference: QRH memory items, non-normal maneuvers
 // (done from memory), the limitations a pilot must know by heart (#) and the
