@@ -331,6 +331,30 @@ oxygen mask box each side and a map light (cockpit-info notes for both).
   text index puts a space between table cells so a label + value selection
   matches.
 
+## Flight sequence — FLOW (v62)
+
+Toolbar **FLOW** (sheet key `flow`, `createFlow` in `flow.js`; data in
+`flow-data.js`). Stages after FCOM NP.21 in our own words — M1: Preliminary
+preflight (NP.21.1–5), Preflight F/O (.16–28), Preflight Captain (.29–33) +
+PREFLIGHT checklist, Before start (.34–38) + BEFORE START checklist; the QRH
+NC checklists word for word. Company-only items (ACARS, OPT/OM refs, airport
+rules) are left out; tail-specific ones say "some airplanes".
+- Step: `who`, `t`, `a`, `why`, `p` [sys, panel title], `set` [[sys, key,
+  position label | number]] (inverted toggles — F/D, A/T ARM — use numbers),
+  `act`/`acts` [sys, key, label] for spring-loaded switches, `done(q)`.
+  Labels resolve to state values through the panel control's `positions`
+  (`valueOf`), so check a key's owner system (e.g. spoilers / yaw damper are
+  flightcontrols even on the hydraulics panel).
+- A set step is done when the airplane is in that state (ticks itself);
+  checks are ticked by hand. Watch: "Do it for me" / Play set the switches.
+  Do it: "Cold cockpit for this stage" moves the stage's switches away, you
+  set them on the panel in the player.
+- Player = the cue pop-up pattern: the live panel SVG moved in, controls
+  ringed (SMIL-animated circle appended to the panel SVG, removed after);
+  `flowLive` makes `refresh()` feed the cockpit panels.
+- Next (planned): CDU preflight, exterior walkaround, pushback, engine start,
+  before taxi, before takeoff, takeoff (`COMING`).
+
 ## Failures, gear, flaps (v57)
 
 - **Failures bar** (`#fail-bar` in the top-left HUD, `renderFailBar()` in
