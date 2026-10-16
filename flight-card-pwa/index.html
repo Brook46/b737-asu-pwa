@@ -474,12 +474,11 @@
       <section class="settings-section">
         <h3 class="settings-h">Social notes (per-airport)</h3>
         <p class="muted small">
-          The <strong>Social</strong> tab in each airport popup can auto-refresh
-          weekly from a feed you publish. Give it a URL that returns JSON keyed
-          by airport code, e.g.
-          <code>{ "LLBG": "…", "CDG": "…" }</code>. Export your Mac notes to
-          that file (any CORS-readable URL — a GitHub gist raw link works) and
-          the app pulls it once a week. Your <strong>Personal</strong> tab is
+          The <strong>Social</strong> tab in each airport popup shows your
+          Apple Notes airport folder. Your Mac reads the folder every two hours
+          and publishes any change to this feed; the app picks it up whenever
+          you open it. Edit the notes in Apple Notes — while a feed is set the
+          Social tab is read-only here. Your <strong>Personal</strong> tab is
           never touched.
         </p>
         <label class="cal-row-label" for="social-url">Social feed URL</label>
@@ -603,10 +602,13 @@
           <div id="airport-notes" class="airport-notes" contenteditable="true"
                role="textbox" aria-multiline="true" aria-label="Personal note"
                data-placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></div>
-          <!-- Social note — auto-refreshed weekly from the configured feed.
-               Editable by hand until the next sync overwrites it. -->
-          <textarea id="airport-social" class="airport-notes hidden"
-                    placeholder="Shared / crew-sourced notes for this station. Set a feed URL in Settings → Social notes to auto-update these weekly from your Mac."></textarea>
+          <!-- Social note — synced from the Apple Notes folder via the Mac.
+               A rendered div, not a textarea: the feed carries formatting
+               (bold, underline, colours, bullets) and a textarea showed it as
+               raw tags. Read-only while a feed is set (see setSocialHtml). -->
+          <div id="airport-social" class="airport-notes hidden" contenteditable="true"
+               role="textbox" aria-multiline="true" aria-label="Social note"
+               data-placeholder="Shared / crew-sourced notes for this station. Set a feed URL in Settings → Social notes to sync them from your Apple Notes."></div>
           <div id="airport-social-hint" class="airport-social-hint muted small hidden"></div>
         </div>
       </div>

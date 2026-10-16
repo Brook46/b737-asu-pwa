@@ -55,7 +55,7 @@ const LOGBOOK_RE = /^\/logbook\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 // Per-airport "social" notes feed. A weekly Mac script POSTs a JSON map
 // { "LLBG": "…", "TLV": "…" }; the PWA GETs it and fills the Social tabs.
 // Same KV namespace as the logbook, different key prefix.
-const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json|\/add)?$/i;
+const SOCIAL_RE  = /^\/social\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(\.json|\.ver|\/add)?$/i;
 // Thermal Debrief share links: IGC bundle + saved camera/clock, so a pilot can
 // send a friend exactly the moment they're looking at. Same token model as the
 // logbook — the UUID is the credential — but these expire, because a shared
@@ -176,6 +176,7 @@ export default {
       const token = soc[1].toLowerCase();
       const merge = /\/add$/i.test(url.pathname) || url.searchParams.get('merge') === '1';
       if (request.method === 'POST') return handleSocialPut(request, env, token, merge);
+      if (request.method === 'GET' && /\.ver$/i.test(url.pathname)) return handleSocialVersion(env, token);
       if (request.method === 'GET')  return handleSocialGet(env, token);
       return text('Method not allowed', 405);
     }
@@ -808,6 +809,7 @@ async function handleSocialPut(request, env, token, merge = false) {
       env.LOGBOOK.put(noteKey(token, code), clean[code], {
         metadata: { updatedAt: Date.now() },
       })));
+    await env.LOGBOOK.put(versionKey(token), String(Date.now()));
     // Deliberately NO running total here. KV's list index lags writes by a few
     // seconds, so a count computed mid-loop reads low and looks like the sync
     // is failing when it isn't. Report what THIS request stored; the feed URL
@@ -817,12 +819,37 @@ async function handleSocialPut(request, env, token, merge = false) {
 
   // Replace mode (the bare route) is authoritative: it overwrites the blob AND
   // drops the per-note keys, so posting {} is a genuine full reset.
-  await env.LOGBOOK.put('social:' + token, JSON.stringify(clean), {
+  const stored = JSON.stringify(clean);
+  await env.LOGBOOK.put('social:' + token, stored, {
     metadata: { updatedAt: Date.now(), keys: Object.keys(clean).length },
   });
   try { await clearSocialNotes(env, token); } catch { /* best effort */ }
+  // A content fingerprint, so re-sending identical notes doesn't make every
+  // device download them again.
+  await env.LOGBOOK.put(versionKey(token), await shortHash(stored));
 
   return json({ ok: true, airports: Object.keys(clean).length });
+}
+
+// ---- Feed version ----
+// The feed runs to ~500 KB of notes. The app checks for changes every time
+// it comes to the foreground; downloading half a megabyte each time to find
+// nothing new would be a real cost on roaming data. So every write records a
+// short version string, and GET /social/<token>.ver returns just that — the
+// app fetches the full feed only when it changes. A plain GET with no custom
+// headers, so no CORS preflight and nothing to expose.
+function versionKey(token) { return `socialv:${token}`; }
+
+async function shortHash(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function handleSocialVersion(env, token) {
+  const v = await env.LOGBOOK.get(versionKey(token));
+  // No version yet (a feed written before versions existed): say so, and the
+  // app simply falls back to fetching the feed itself.
+  return v ? text(v, 200) : text('', 404);
 }
 
 // Per-note KV key. One key per airport code → writes never collide.

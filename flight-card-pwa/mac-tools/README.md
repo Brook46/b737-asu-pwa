@@ -1,53 +1,33 @@
-# Flight Card — Social notes: weekly Mac → PWA sync
+# Social notes sync (Mac)
 
-Push your per-airport notes from **Apple Notes on your Mac** to the Flight
-Card **Social** tab, automatically, once a week. The PWA can't read your Mac
-(sandboxing) — this little script on your Mac is the bridge. It only *reads*
-your notes; it never edits or deletes them.
+Apple Notes folder **AIRPORTS B** → Flight Card's per-airport **Social** tab.
 
-## How it flows
+Apple Notes has no API, so the Mac reads the folder (edits made on the
+iPad/iPhone arrive through iCloud) and publishes it to the worker feed the
+app reads. No iOS Shortcut involved — that route never produced a working
+sync.
 
-```
-Apple Notes  →  social-notes-sync.sh  →  Cloudflare worker (/social/<token>)  →  PWA pulls weekly
- (your Mac)      (reads + POSTs JSON)      (stores in KV)                         (Social tab)
-```
+| file | what it does |
+|---|---|
+| `install-social-sync.sh` | one-time setup: token file + launchd agent |
+| `social-notes-sync.sh` | one run: read → convert → upload if changed |
+| `read-notes.js` | JXA: the folder's notes as `[{title, html}]` (read-only) |
+| `notes-to-feed.py` | titles → IATA keys, Apple HTML → what the app renders |
 
-## One-time setup
-
-1. **Pick a token** (any UUID):
-   ```sh
-   uuidgen | tr 'A-Z' 'a-z'
-   ```
-2. **Put it in the script** — edit `FC_SOCIAL_TOKEN` at the top of
-   `social-notes-sync.sh` (or `export FC_SOCIAL_TOKEN=…`).
-3. **Point the PWA at the feed** — Flight Card → Settings → *Social notes*,
-   paste (same token):
-   ```
-   https://b737-asu-pwa.alonbrookstein.workers.dev/social/<TOKEN>.json
-   ```
-4. **Test it**:
-   ```sh
-   bash social-notes-sync.sh
-   ```
-   macOS will ask once to let the script read Notes — allow it. You should
-   see `Worker: {"ok":true,"airports":N}`.
-5. **Schedule it weekly** — edit `social-notes-sync.plist` (paths + token),
-   then:
-   ```sh
-   cp social-notes-sync.plist ~/Library/LaunchAgents/com.alonbrookstein.flightcard.social.plist
-   launchctl load ~/Library/LaunchAgents/com.alonbrookstein.flightcard.social.plist
-   ```
-   Runs every Monday 08:00 (change in the plist). Logs to `/tmp/fc-social-sync.log`.
-
-## Notes convention
-
-One note per airport, **titled by code** (IATA or ICAO):
-
-```
-TLV            LLBG           TLV / LLBG        CDG - Paris
+```bash
+bash install-social-sync.sh <token>   # first time; token = UUID in the app's feed URL
+bash social-notes-sync.sh --dry-run   # what would be sent
+bash social-notes-sync.sh --force     # push now even if unchanged
+tail ~/Library/Logs/FlightCard/social-sync.log
 ```
 
-The first 3–4-letter code in the title is the key; the note body is the
-value. Titles that aren't codes (e.g. "Shopping list") are ignored. Both
-IATA and ICAO work — the PWA stores each note under both so it matches
-whichever code your flights use.
+Runs at login and every 2 hours (on wake if the Mac was asleep); uploads
+only when a note changed. The token lives in `~/.config/flightcard/social.env`
+(mode 600), never in this repo.
+
+Titles are matched by their leading codes (`LFMN  NCE  ניס…`). Each note is
+keyed by IATA — the code the roster and the app use — translating ICAO
+through `b737-systems-pwa/data/navdb.json`, so ICAO-only titles and typos
+(`HESH SHM` → `SSH`) still land. A prose title naming one code
+(`תהליך De ice ב-JFK`) is appended to that airport; titles naming none
+(`פורמט שדה`) are skipped and logged.

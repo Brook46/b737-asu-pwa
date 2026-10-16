@@ -3523,7 +3523,7 @@ async function showAirportInfo(icao) {
   // works instantly even while the city lookup import resolves below.
   airportNoteFor = k;
   setNoteHtml(storage.getAirportNote(k));
-  $('airport-social').value = storage.getAirportSocial(k);
+  setSocialHtml(storage.getAirportSocial(k));
   paintSocialHint();
   showAptTab(aptActiveTab);
   $('airport-title').textContent = k;
@@ -3660,6 +3660,29 @@ function currentNoteHtml() {
   return sanitizeNoteHtml(el.innerHTML);
 }
 
+// ---- Social note: rendered from the feed ----
+// The same allowlist rendering as the personal note: the feed now carries
+// the Apple Notes formatting. While a feed is configured the note is
+// READ-ONLY — the app re-pulls the feed every hour and replaces the note
+// wholesale, so anything typed here would vanish within the hour without a
+// word. Edit the note in Apple Notes instead. With no feed (someone keeping
+// their own notes here) it stays editable, as it always was.
+function socialFeedSet() {
+  return !!(localStorage.getItem('fc.social.feedUrl') || '').trim();
+}
+function setSocialHtml(stored) {
+  const el = $('airport-social');
+  if (!el) return;
+  el.innerHTML = noteToHtml(stored);
+  el.setAttribute('contenteditable', socialFeedSet() ? 'false' : 'true');
+  el.classList.toggle('is-empty', !el.textContent.trim());
+}
+function currentSocialHtml() {
+  const el = $('airport-social');
+  if (!el || !el.textContent.trim()) return '';
+  return sanitizeNoteHtml(el.innerHTML);
+}
+
 // ---- Personal / Social tabs ----
 let aptActiveTab = 'personal';
 function showAptTab(tab) {
@@ -3676,11 +3699,11 @@ function paintSocialHint() {
   const hint = $('airport-social-hint');
   const url = localStorage.getItem('fc.social.feedUrl') || '';
   if (!url) {
-    hint.textContent = 'No feed set — edit freely, or add a feed URL in Settings → Social notes to auto-update weekly.';
+    hint.textContent = 'No feed set — these notes are yours to edit. Add a feed in Settings → Social notes to sync them from Apple Notes.';
   } else {
     const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
     hint.textContent = last
-      ? `Synced ${relDate(last)} from your feed · refreshes weekly (overwrites edits).`
+      ? `From your Apple Notes · checked ${relDate(last)} · edit them in Notes, they sync here.`
       : 'Feed set — will sync on next check.';
   }
 }
@@ -3690,7 +3713,7 @@ $('apt-tab-social').addEventListener('click', () => showAptTab('social'));
 function flushAirportNotes() {
   if (!airportNoteFor) return;
   storage.setAirportNote(airportNoteFor, currentNoteHtml());
-  storage.setAirportSocial(airportNoteFor, $('airport-social').value);
+  if (!socialFeedSet()) storage.setAirportSocial(airportNoteFor, currentSocialHtml());
 }
 
 // Save on each keystroke — storage.setAirport* already debounces the actual
@@ -3732,7 +3755,9 @@ $('apt-fmt').addEventListener('pointerdown', (e) => {
   if (airportNoteFor) storage.setAirportNote(airportNoteFor, currentNoteHtml());
 });
 $('airport-social').addEventListener('input', () => {
-  if (airportNoteFor) storage.setAirportSocial(airportNoteFor, $('airport-social').value);
+  const el = $('airport-social');
+  el.classList.toggle('is-empty', !el.textContent.trim());
+  if (airportNoteFor && !socialFeedSet()) storage.setAirportSocial(airportNoteFor, currentSocialHtml());
 });
 $('airport-close').addEventListener('click', () => {
   flushAirportNotes();
@@ -3745,18 +3770,42 @@ $('airport-overlay').addEventListener('click', (e) => {
   }
 });
 
-// ---- Weekly social-notes feed sync ----
-// If a feed URL is configured (Settings → Social notes), fetch a JSON map
-// { "LLBG": "text", "TLV": "text", … } at most once a week and replace the
-// social notes. The pilot publishes this file from their Mac (e.g. an
-// exported Notes → JSON dropped on any CORS-readable URL / gist / the
-// worker). We never read the Mac directly — the PWA can't.
+// ---- Social-notes feed sync ----
+// If a feed URL is configured (Settings → Social notes), keep the Social
+// notes in step with it. The feed is published by the pilot's Mac
+// (mac-tools/social-notes-sync.sh reads the Apple Notes folder and pushes to
+// the worker); the PWA can't read Notes itself.
+//
+// This used to pull at most once a WEEK, and only at cold start or on an
+// airport tap — on an iPad, where the app is resumed far more often than
+// launched, a change could take days to show. It now checks on launch and
+// every time the app returns to the foreground, at most every 15 minutes.
+// The feed is ~500 KB, so the check is the worker's tiny .ver fingerprint;
+// the notes themselves download only when the fingerprint changes. A feed
+// hosted elsewhere has no fingerprint, so it is fetched whole, hourly.
 async function maybeSyncSocialNotes(force = false) {
   const url = (localStorage.getItem('fc.social.feedUrl') || '').trim();
   if (!url) return false;
-  const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
-  const WEEK = 7 * 24 * 3600 * 1000;
-  if (!force && Date.now() - last < WEEK) return false;
+  const verUrl = /\/social\/[0-9a-f-]{36}\.json(\?.*)?$/i.test(url)
+    ? url.replace(/\.json(\?.*)?$/i, '.ver') : '';
+  const every = verUrl ? 15 * 60 * 1000 : 60 * 60 * 1000;
+  const lastCheck = Number(localStorage.getItem('fc.social.lastCheck') || 0);
+  if (!force && Date.now() - lastCheck < every) return false;
+  localStorage.setItem('fc.social.lastCheck', String(Date.now()));
+  let ver = '';
+  if (verUrl) {
+    try {
+      const r = await fetch(verUrl, { cache: 'no-store' });
+      if (r.ok) ver = (await r.text()).trim();
+    } catch { /* offline: fall through, the full fetch will fail quietly too */ }
+    if (!force && ver && ver === localStorage.getItem('fc.social.ver')) {
+      // Unchanged — the notes on this device ARE current, so say so. Leaving
+      // lastSync alone made the hint read "synced 3 days ago" and look broken.
+      localStorage.setItem('fc.social.lastSync', String(Date.now()));
+      if (airportNoteFor && !$('airport-overlay').classList.contains('hidden')) paintSocialHint();
+      return false;
+    }
+  }
   try {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return false;
@@ -3777,9 +3826,10 @@ async function maybeSyncSocialNotes(force = false) {
       } catch {}
       storage.setAirportSocialAll(expanded);
       localStorage.setItem('fc.social.lastSync', String(Date.now()));
+      if (ver) localStorage.setItem('fc.social.ver', ver);
       // If the popup is open, refresh the visible social note.
       if (airportNoteFor && !$('airport-overlay').classList.contains('hidden')) {
-        $('airport-social').value = storage.getAirportSocial(airportNoteFor);
+        setSocialHtml(storage.getAirportSocial(airportNoteFor));
         paintSocialHint();
       }
       return true;
@@ -3788,8 +3838,13 @@ async function maybeSyncSocialNotes(force = false) {
   return false;
 }
 // Kick a check shortly after boot (off the critical path) and whenever the
-// tab returns to the foreground — both gated by the once-a-week throttle.
+// app returns to the foreground. The comment here always promised the second
+// one; it was never wired up, which mattered most on iPad, where the app is
+// resumed from the background far more often than it is launched.
 setTimeout(() => { try { maybeSyncSocialNotes(); } catch {} }, 6_000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { try { maybeSyncSocialNotes(); } catch {} }
+});
 
 // Delegated tap handler for the Dep / Arr airport buttons in the leg
 // switcher (their data-airport is set dynamically on each render).
