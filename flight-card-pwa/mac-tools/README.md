@@ -21,8 +21,16 @@ bash social-notes-sync.sh --force     # push now even if unchanged
 tail ~/Library/Logs/FlightCard/social-sync.log
 ```
 
-Runs at login and every 2 hours (on wake if the Mac was asleep); uploads
-only when a note changed. The token lives in `~/.config/flightcard/social.env`
+Runs at login and at 5 past every even hour; if the Mac slept through one
+of those times it runs once on wake. (Clock times, deliberately: an
+"every 2 hours" interval counts awake time only, and on a Mac that mostly
+sleeps it ran once in 11.5 hours.) Uploads only when a note changed.
+
+**Read-only by construction.** `read-notes.js` is the only thing that talks
+to Notes, and it only reads titles and text. Verified across a full forced
+sync: all 51 notes' modification times and contents unchanged. Nothing in
+Flight Card writes to Notes either — the app only downloads the feed, and
+highlights live in the app's own storage on that device. The token lives in `~/.config/flightcard/social.env`
 (mode 600), never in this repo.
 
 Titles are matched by their leading codes (`LFMN  NCE  ניס…`). Each note is

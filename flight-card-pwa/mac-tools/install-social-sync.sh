@@ -8,8 +8,9 @@
 # What it sets up:
 #   ~/.config/flightcard/social.env   the feed token, readable only by you
 #   ~/Library/LaunchAgents/com.alonbrookstein.flightcard.social.plist
-#       runs social-notes-sync.sh at login and every 2 hours after. If the Mac
-#       is asleep, it runs on wake. It only uploads when a note changed.
+#       runs social-notes-sync.sh at login and at 5 past every even hour. If
+#       the Mac slept through one of those times, it runs once on wake. It
+#       only uploads when a note changed.
 #   ~/Library/Logs/FlightCard/social-sync.log   one line per run
 #
 # The token is the UUID in Flight Card → Settings → Social notes:
@@ -42,6 +43,17 @@ elif [[ ! -f "$CONF_DIR/social.env" ]]; then
 fi
 chmod 600 "$CONF_DIR/social.env"
 
+# Clock times, not an interval. This first used StartInterval 7200, and
+# launchd counts that interval in AWAKE time only — on a Mac that mostly
+# sleeps, "every 2 hours" ran once in 11.5 hours. StartCalendarInterval fires
+# at fixed times and, when the Mac slept through one, runs once on wake.
+# Every even hour, 5 past.
+CAL=""
+for h in 0 2 4 6 8 10 12 14 16 18 20 22; do
+  CAL+="    <dict><key>Hour</key><integer>$h</integer><key>Minute</key><integer>5</integer></dict>"$'\n'
+done
+CAL="${CAL%$'\n'}"
+
 # The plist is generated, not copied, so it always points at wherever this
 # folder actually lives (the repo path has a space in it).
 cat > "$PLIST" <<PLIST
@@ -58,8 +70,10 @@ cat > "$PLIST" <<PLIST
   </array>
   <key>RunAtLoad</key>
   <true/>
-  <key>StartInterval</key>
-  <integer>7200</integer>
+  <key>StartCalendarInterval</key>
+  <array>
+$CAL
+  </array>
   <key>StandardOutPath</key>
   <string>$LOG_DIR/social-sync.out</string>
   <key>StandardErrorPath</key>
@@ -72,4 +86,4 @@ plutil -lint "$PLIST" >/dev/null
 # Replace any running copy, then start it.
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Installed: runs at login and every 2 hours. Log: $LOG_DIR/social-sync.log"
+echo "Installed: runs at login and at 5 past every even hour (catching up on wake). Log: $LOG_DIR/social-sync.log"
