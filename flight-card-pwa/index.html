@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=145" />
+  <link rel="stylesheet" href="./app.css?v=147" />
 </head>
 <body>
   <header class="app-header">
@@ -580,6 +580,10 @@
           <div class="airport-tabs" role="tablist">
             <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
             <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
+            <!-- Notes full screen: hides the flight list and gives the note the
+                 whole display. Remembered between openings. -->
+            <button id="apt-full" class="airport-tab apt-full" type="button" aria-pressed="false"
+                    title="Full screen" aria-label="Show notes full screen">⤢</button>
           </div>
           <!-- Formatting bar — Personal tab only. Bold / italic + a small
                colour set. Uses execCommand: deprecated on paper, but still
@@ -594,6 +598,19 @@
             <button type="button" class="apt-color" data-apt-color="#3b82f6" style="--swatch:#3b82f6" title="Blue"   aria-label="Blue text"></button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <button type="button" class="apt-fmt-btn" data-apt-fmt="removeFormat" title="Clear formatting" aria-label="Clear formatting">✕</button>
+          </div>
+          <!-- Highlighter — Social tab only. Select words, tap a colour. Kept
+               on THIS device only: never sent to the feed or to Apple Notes,
+               and re-applied after every sync (see hlRender in app.js). -->
+          <div id="apt-hl" class="apt-fmt-bar apt-hl-bar hidden" role="toolbar" aria-label="Highlight">
+            <span class="apt-hl-label">Highlight</span>
+            <button type="button" class="apt-color" data-apt-hl="yellow" style="--swatch:#facc15" title="Yellow" aria-label="Highlight yellow"></button>
+            <button type="button" class="apt-color" data-apt-hl="green"  style="--swatch:#30a46c" title="Green"  aria-label="Highlight green"></button>
+            <button type="button" class="apt-color" data-apt-hl="pink"   style="--swatch:#ec4899" title="Pink"   aria-label="Highlight pink"></button>
+            <button type="button" class="apt-color" data-apt-hl="blue"   style="--swatch:#3b82f6" title="Blue"   aria-label="Highlight blue"></button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-apt-hl="" title="Remove highlight" aria-label="Remove highlight">⌫</button>
+            <span class="apt-hl-note muted small">This iPad only</span>
           </div>
           <!-- Personal note — hand-edited by the pilot. contenteditable (not a
                textarea) so bold + colours survive; CSS unicode-bidi:plaintext
@@ -717,6 +734,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=145"></script>
+  <script type="module" src="./app.js?v=147"></script>
 </body>
 </html>

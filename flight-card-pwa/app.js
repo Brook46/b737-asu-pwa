@@ -1,12 +1,12 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=145';
-import * as dataCard from './modules/data-card.js?v=145';
-import * as checklist from './modules/checklist.js?v=145';
-import * as speeches from './modules/speeches.js?v=145';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=145';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=145';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=145';
+import * as storage from './modules/storage.js?v=147';
+import * as dataCard from './modules/data-card.js?v=147';
+import * as checklist from './modules/checklist.js?v=147';
+import * as speeches from './modules/speeches.js?v=147';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=147';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=147';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=147';
 
 const $ = (id) => document.getElementById(id);
 
@@ -284,6 +284,11 @@ let histShowAllPast = false;
 // throws even under typeof.
 let pdfReady = null;
 let pdfModule = null;   // print-pdf.js once loaded, so a ready PDF shares with no await first
+// Social-note highlighter: the last selection made inside the Social note, as
+// character offsets. Kept because on iPad, tapping a colour button can clear
+// the live selection before the tap lands.
+let socialSel = null;
+const HL_KEY = 'fc.social.highlights';   // this device's Social-note highlights
 
 
 // CTOT pill state classes. Declared HERE, above startClocks(), because the
@@ -3670,12 +3675,148 @@ function currentNoteHtml() {
 function socialFeedSet() {
   return !!(localStorage.getItem('fc.social.feedUrl') || '').trim();
 }
-function setSocialHtml(stored) {
+function setSocialHtml(stored, code = airportNoteFor) {
   const el = $('airport-social');
   if (!el) return;
-  el.innerHTML = noteToHtml(stored);
-  el.setAttribute('contenteditable', socialFeedSet() ? 'false' : 'true');
+  const s = String(stored || '');
+  const feed = socialFeedSet();
+  // Synced notes are plain text now, which is what lets highlights be laid
+  // over them by character position. A note still holding old HTML renders
+  // as before, without highlights, until the next sync replaces it.
+  el.innerHTML = (feed && s && !NOTE_HTML_RE.test(s)) ? hlRender(s, code) : noteToHtml(s);
+  el.setAttribute('contenteditable', feed ? 'false' : 'true');
   el.classList.toggle('is-empty', !el.textContent.trim());
+  socialSel = null;
+}
+
+// ---- Social note highlights — THIS DEVICE ONLY ----
+// Colour highlights over the synced notes. They never leave the device: not
+// in the feed, not in Apple Notes, and kept in their own localStorage key, so
+// not even in the AirDrop "sync everything" export.
+//
+// A sync replaces the note text wholesale, so a highlight can't live inside
+// it. Each one is stored as the exact words plus a little text either side
+// and the old position, and is found again in whatever the note now says.
+// If those words have since been edited away in Notes the highlight simply
+// doesn't show; it isn't forced onto the wrong text.
+function hlAll() {
+  try { return JSON.parse(localStorage.getItem(HL_KEY) || '{}') || {}; } catch { return {}; }
+}
+function hlFor(code) {
+  const a = hlAll()[String(code || '').toUpperCase()];
+  return Array.isArray(a) ? a : [];
+}
+function hlSave(code, list) {
+  const all = hlAll();
+  const k = String(code || '').toUpperCase();
+  if (list.length) all[k] = list; else delete all[k];
+  try { localStorage.setItem(HL_KEY, JSON.stringify(all)); } catch {}
+}
+// Where is this highlight in the note's current text? The occurrence whose
+// surrounding text matches best wins; nearer the old position breaks ties.
+function hlResolve(text, h) {
+  if (!h || !h.exact) return null;
+  const pre = h.prefix || '', suf = h.suffix || '';
+  let best = null, bestScore = -Infinity;
+  for (let i = text.indexOf(h.exact); i !== -1; i = text.indexOf(h.exact, i + 1)) {
+    let score = 0;
+    for (let k = 1; k <= pre.length && text[i - k] === pre[pre.length - k]; k++) score++;
+    for (let k = 0; k < suf.length && text[i + h.exact.length + k] === suf[k]; k++) score++;
+    score -= Math.abs(i - (h.pos || 0)) / 1e6;
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best == null ? null : [best, best + h.exact.length];
+}
+function hlRender(text, code) {
+  const ranges = [];
+  for (const h of hlFor(code)) {
+    const r = hlResolve(text, h);
+    if (r) ranges.push({ s: r[0], e: r[1], c: h.color });
+  }
+  ranges.sort((a, b) => a.s - b.s);
+  const piece = (str) => escapeHtmlSimple(str).replace(/\n/g, '<br>');
+  let out = '', at = 0;
+  for (const r of ranges) {
+    if (r.s < at) continue;                       // overlap: earlier one wins
+    out += piece(text.slice(at, r.s));
+    const c = /^(yellow|green|pink|blue)$/.test(r.c) ? r.c : 'yellow';
+    out += `<mark class="hl" data-c="${c}">${piece(text.slice(r.s, r.e))}</mark>`;
+    at = r.e;
+  }
+  return out + piece(text.slice(at));
+}
+// Character offset of a DOM position inside the rendered note: its text, with
+// each <br> counted as the newline it stands for — the same coordinates as
+// the stored note text.
+function hlOffset(root, node, offset) {
+  const r = document.createRange();
+  r.setStart(root, 0);
+  r.setEnd(node, offset);
+  const frag = r.cloneContents();
+  return frag.textContent.length + frag.querySelectorAll('br').length;
+}
+// The rendered note's text in the stored note's coordinates (<br> = "\n").
+function hlDomText(el) {
+  let out = '';
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    if (n.nodeType === 3) out += n.textContent;
+    else if (n.nodeName === 'BR') out += '\n';
+  }
+  return out;
+}
+function hlLiveSelection() {
+  const el = $('airport-social');
+  const sel = window.getSelection();
+  if (!el || !sel || !sel.rangeCount || sel.isCollapsed) return null;
+  const r = sel.getRangeAt(0);
+  if (!el.contains(r.startContainer) || !el.contains(r.endContainer)) return null;
+  const s = hlOffset(el, r.startContainer, r.startOffset);
+  const e = hlOffset(el, r.endContainer, r.endOffset);
+  return e > s ? { s, e, code: airportNoteFor } : null;
+}
+// color: one of the four names, or '' to remove highlights under the selection.
+function hlApply(color) {
+  const code = airportNoteFor;
+  const text = String(storage.getAirportSocial(code) || '');
+  if (!text || NOTE_HTML_RE.test(text)) { toast('Sync the notes once more to highlight them'); return; }
+  // Selection offsets are measured on the SCREEN and applied to the STORED
+  // text, so the two must be the same text. If the note changed under the
+  // view (a sync, an edit) the offsets would land on different words — mark
+  // nothing rather than the wrong thing.
+  const el0 = $('airport-social');
+  if (hlDomText(el0) !== text) {
+    setSocialHtml(text, code);
+    toast('The note just updated \u2014 select the words again');
+    return;
+  }
+  const pick = hlLiveSelection() || (socialSel && socialSel.code === code ? socialSel : null);
+  if (!pick) { toast('Select some words in the note first'); return; }
+  let { s, e } = pick;
+  while (s < e && /\s/.test(text[s])) s++;          // don't highlight the edges' spaces
+  while (e > s && /\s/.test(text[e - 1])) e--;
+  if (e <= s) return;
+  // Anything the new selection overlaps is replaced (or, for the eraser,
+  // removed). Highlights that no longer resolve are kept, untouched.
+  const list = hlFor(code).filter(h => {
+    const r = hlResolve(text, h);
+    return !r || r[1] <= s || r[0] >= e;
+  });
+  if (color) {
+    list.push({
+      exact: text.slice(s, e),
+      prefix: text.slice(Math.max(0, s - 24), s),
+      suffix: text.slice(e, e + 24),
+      pos: s,
+      color,
+    });
+  }
+  hlSave(code, list);
+  try { window.getSelection().removeAllRanges(); } catch {}
+  const el = $('airport-social');
+  const top = el.scrollTop;
+  setSocialHtml(text, code);
+  el.scrollTop = top;
 }
 function currentSocialHtml() {
   const el = $('airport-social');
@@ -3694,6 +3835,7 @@ function showAptTab(tab) {
   $('apt-fmt').classList.toggle('hidden', isSocial);
   $('airport-social').classList.toggle('hidden', !isSocial);
   $('airport-social-hint').classList.toggle('hidden', !isSocial);
+  $('apt-hl').classList.toggle('hidden', !isSocial || !socialFeedSet());
 }
 function paintSocialHint() {
   const hint = $('airport-social-hint');
@@ -3731,6 +3873,35 @@ $('airport-notes').addEventListener('paste', (e) => {
   const text = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
   if (text) document.execCommand('insertText', false, text);
 });
+// Highlighter bar. pointerdown + preventDefault keeps the text selection
+// alive where the browser allows it; socialSel covers iPad when it doesn't.
+$('apt-hl').addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('[data-apt-hl]');
+  if (!btn) return;
+  e.preventDefault();
+  hlApply(btn.dataset.aptHl);
+});
+document.addEventListener('selectionchange', () => {
+  const el = $('airport-social');
+  if (!el || el.classList.contains('hidden')) return;
+  const pick = hlLiveSelection();
+  if (pick) socialSel = pick;
+});
+
+// Notes full screen, remembered between openings.
+function setNotesFull(on) {
+  $('airport-overlay').classList.toggle('notes-full', on);
+  const b = $('apt-full');
+  b.setAttribute('aria-pressed', String(on));
+  b.textContent = on ? '⤡' : '⤢';
+  b.title = on ? 'Exit full screen' : 'Full screen';
+  b.setAttribute('aria-label', on ? 'Exit full screen' : 'Show notes full screen');
+  try { localStorage.setItem('fc.notes.full', on ? '1' : '0'); } catch {}
+}
+$('apt-full').addEventListener('click', () =>
+  setNotesFull(!$('airport-overlay').classList.contains('notes-full')));
+try { if (localStorage.getItem('fc.notes.full') === '1') setNotesFull(true); } catch {}
+
 // Formatting bar. pointerdown + preventDefault so the button never steals
 // focus from the editor — execCommand needs the selection to still be live.
 $('apt-fmt').addEventListener('pointerdown', (e) => {
@@ -3829,7 +4000,7 @@ async function maybeSyncSocialNotes(force = false) {
       if (ver) localStorage.setItem('fc.social.ver', ver);
       // If the popup is open, refresh the visible social note.
       if (airportNoteFor && !$('airport-overlay').classList.contains('hidden')) {
-        setSocialHtml(storage.getAirportSocial(airportNoteFor));
+        setSocialHtml(storage.getAirportSocial(airportNoteFor), airportNoteFor);
         paintSocialHint();
       }
       return true;

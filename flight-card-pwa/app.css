@@ -979,6 +979,43 @@ div.airport-notes.is-empty::before {
 }
 .apt-color:active { border-color: var(--fg); }
 
+/* ---- Notes full screen ----
+   The note takes the whole display: the flight list and city line go, the
+   sheet loses its corners and margins, and the note grows to fill the height
+   with slightly larger type for reading. Starts below the status-bar blur
+   (--top-clear) like everything else pinned to the top. */
+.apt-full { margin-left: auto; padding: 6px 12px; font-size: 15px; }
+#airport-overlay.notes-full { align-items: stretch; }
+#airport-overlay.notes-full .airport-sheet {
+  width: 100vw; max-width: none;
+  height: 100vh; height: 100dvh; max-height: none;
+  border-radius: 0;
+  padding-top: var(--top-clear);
+  display: flex; flex-direction: column;
+}
+#airport-overlay.notes-full .airport-city,
+#airport-overlay.notes-full #airport-body { display: none; }
+#airport-overlay.notes-full .airport-cols { flex: 1 1 auto; min-height: 0; }
+#airport-overlay.notes-full .airport-notes-col { min-height: 0; }
+#airport-overlay.notes-full .airport-notes {
+  flex: 1 1 auto; min-height: 0; max-height: none;
+  font-size: 17px; line-height: 1.5;
+}
+
+/* ---- Highlighter (Social tab, this device only) ---- */
+.apt-hl-label {
+  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--fg-mute); margin-right: 2px;
+}
+.apt-hl-note { margin-left: auto; }
+/* Translucent marker colours so the text stays readable in both themes;
+   colour: inherit overrides <mark>'s default black-on-yellow. */
+mark.hl { color: inherit; border-radius: 3px; padding: 0 1px; }
+mark.hl[data-c="yellow"] { background: rgba(250, 204, 21, .45); }
+mark.hl[data-c="green"]  { background: rgba(48, 164, 108, .38); }
+mark.hl[data-c="pink"]   { background: rgba(236, 72, 153, .33); }
+mark.hl[data-c="blue"]   { background: rgba(59, 130, 246, .33); }
+
 /* Phones (narrow / portrait): stack the list above the notes instead. */
 @media (max-width: 560px) {
   .airport-cols { flex-direction: column; }
