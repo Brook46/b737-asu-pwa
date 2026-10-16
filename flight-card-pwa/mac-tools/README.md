@@ -12,7 +12,7 @@ sync.
 | `install-social-sync.sh` | one-time setup: token file + launchd agent |
 | `social-notes-sync.sh` | one run: read → convert → upload if changed |
 | `read-notes.js` | JXA: the folder's notes as `[{title, html}]` (read-only) |
-| `notes-to-feed.py` | titles → IATA keys, Apple HTML → what the app renders |
+| `notes-to-feed.py` | titles → IATA keys, Apple HTML → clean plain text |
 
 ```bash
 bash install-social-sync.sh <token>   # first time; token = UUID in the app's feed URL

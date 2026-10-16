@@ -16,9 +16,9 @@ Every rule here comes from the real "AIRPORTS B" folder:
 * A prose title naming exactly one code ("תהליך De ice ב-JFK") is attached to
   that airport as an extra section under its own bold heading.
 * Titles naming no code (the "פורמט שדה" template) are skipped and reported.
-* Bodies are Apple's HTML. Flight Card keeps div / br / b / i / u / font /
-  span; headings and list items are rewritten into those so they keep their
-  emphasis and their line breaks instead of collapsing into one line.
+* Bodies go out as PLAIN TEXT — the words and the line breaks, nothing else.
+  Notes' HTML (<div>, <font>, &nbsp;...) read as a mess on the iPad. List
+  items keep a "• " so they still read as a list.
 """
 import html as htmlmod
 import json
@@ -109,13 +109,47 @@ def clean_html(body, title):
     return s.strip()
 
 
+# Invisible characters Notes leaves in text: direction marks, zero-width
+# joiners/spaces, the byte-order mark. Harmless in Notes, but in a plain
+# text box some show up as stray marks.
+INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+
+
+def html_to_text(body, title):
+    """Apple's note HTML -> clean plain text, one line per line in Notes.
+
+    The feed used to carry the HTML itself to keep bold and colours. On the
+    pilot's iPad that read as a mess of <div>, <font> and &nbsp; — the Social
+    tab on the version they had was a plain text box, and Notes' markup is
+    dense. Plain text reads cleanly on every version of the app, so the feed
+    is now just the words and the line breaks.
+    """
+    s = clean_html(body, title)                        # title line + images out
+    # Notes writes a real newline between every </div> and the next <div>.
+    # It means nothing in HTML, but it doubled every line in plain text.
+    s = re.sub(r">\s*\n\s*<", "><", s)
+    s = s.replace("\r", "").replace("\n", " ")
+    s = re.sub(r"<div>\s*<br\s*/?>\s*</div>", "\n", s, flags=re.I)   # an empty line
+    s = re.sub(r"<br\s*/?>\s*(?=</div>)", "", s, flags=re.I)          # br that only ends a line
+    s = re.sub(r"<br\s*/?>", "\n", s, flags=re.I)
+    s = re.sub(r"</(?:div|p|h[1-6]|li|tr)>", "\n", s, flags=re.I)
+    s = re.sub(r"<[^>]+>", "", s)                      # every remaining tag
+    s = htmlmod.unescape(s)                            # &nbsp; &amp; &quot; ...
+    s = s.replace("\u00a0", " ")
+    s = INVISIBLE.sub("", s)
+    lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in s.split("\n")]
+    s = "\n".join(lines)
+    s = re.sub(r"\n{3,}", "\n\n", s)                   # at most one blank line
+    return s.strip()
+
+
 def convert(data):
     if isinstance(data, dict) and data.get("error"):
         raise SystemExit("ERROR: " + data["error"])
     notes, extras, skipped = {}, {}, []
     for n in data:
         title = (n.get("title") or "").strip()
-        body = clean_html(n.get("html") or "", title)
+        body = html_to_text(n.get("html") or "", title)
         if not body:
             continue
         codes = leading_codes(title)
@@ -125,8 +159,7 @@ def convert(data):
             continue
         named = keys_for(sorted(set(named_codes(title))))
         if len(named) == 1:
-            extras.setdefault(named[0], []).append(
-                f"<div><br></div><div><b>{htmlmod.escape(title)}</b></div>{body}")
+            extras.setdefault(named[0], []).append(f"\n\n{title}\n{body}")
         else:
             skipped.append(title)
     for code, sections in extras.items():
