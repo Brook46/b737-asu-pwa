@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=152';
-import { dateTs, legTs } from './dates.js?v=152';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=152';
+import { flipName } from './roster.js?v=153';
+import { dateTs, legTs } from './dates.js?v=153';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=153';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -822,11 +822,20 @@ export function syncDuties(incoming, now = Date.now()) {
   const s = read();
   const old = Array.isArray(s.duties) ? s.duties : [];
   const inc = new Map();
-  for (const d of incoming || []) if (d && d.uid) inc.set(d.uid, d);
+  // A merged run (mergeRuns: twelve one-day vacation events → one entry)
+  // answers for every member's uid, so single days saved before the merge
+  // existed are replaced, not kept beside it as past history.
+  const memberOf = new Map();
+  for (const d of incoming || []) {
+    if (!d || !d.uid) continue;
+    inc.set(d.uid, d);
+    for (const u of d.uids || []) memberOf.set(u, d.uid);
+  }
   const out = [];
   let added = 0, removed = 0;
   for (const d of old) {
     if (inc.has(d.uid)) { out.push(inc.get(d.uid)); inc.delete(d.uid); continue; }
+    if (memberOf.has(d.uid)) continue;
     if ((d.end || d.start) < now) { out.push(d); continue; }
     removed++;
   }
@@ -1211,8 +1220,9 @@ function mergeLeg(target, source) {
   // used to be frozen at whatever the leg first showed, which left the logbook
   // stuck on a stale block even after dispatch corrected it; the calendar is
   // the authority, so it now refreshes like everything else. actual_flight_time
-  // is NOT touched here — it's measured (GPS) or typed, and the calendar has
-  // no opinion on what actually happened.
+  // is NOT touched here — it's airborne time, measured (GPS) or typed. What the
+  // calendar does report after a flight is off-block / on-block, which arrives
+  // as off_block / on_block / actual_block_time and merges like any field.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
     if (v != null && v !== '') target.dataCard[k] = v;
@@ -1281,8 +1291,32 @@ function mergeLeg(target, source) {
 //
 // Returns { index, added, replaced, pruned } so the UI can craft an
 // honest summary toast.
+// The calendar's actual off/on-block times, copied onto every stored copy of
+// that sector. appendLegs merges only into the current duty's legs, but the
+// same flight can also sit in History or the CSV backfill, and the logbook
+// may be showing that copy. Actuals are measured fact, so they overwrite.
+const ACTUAL_KEYS = ['off_block', 'on_block', 'actual_block_time'];
+function spreadActuals(incoming) {
+  const withActual = (incoming || []).filter(l => l && l.dataCard && l.dataCard.actual_block_time);
+  if (!withActual.length) return 0;
+  let n = 0;
+  const pool = everyLeg();
+  for (const src of withActual) {
+    for (const leg of pool) {
+      if (!sameSector(leg, src)) continue;
+      if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
+      for (const k of ACTUAL_KEYS) {
+        const v = src.dataCard[k];
+        if (v && leg.dataCard[k] !== v) { leg.dataCard[k] = v; n++; }
+      }
+    }
+  }
+  return n;
+}
+
 export function syncFromCalendar(incoming) {
   const append = appendLegs(incoming || []);
+  spreadActuals(incoming);
 
   const c = read().current;
   const now = Date.now();

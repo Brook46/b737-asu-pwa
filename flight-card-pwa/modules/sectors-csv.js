@@ -12,12 +12,14 @@
 //   • "ActualFlightTime" is ATA − ATD (chock to chock) on every row, while the
 //     app's actual_flight_time is what the GPS detector writes: takeoff →
 //     landing. Airborne time is therefore computed from Airborne/Landing, and
-//     the CSV's own actual block is deliberately NOT used — mixing the two
-//     would make "hours flown" mean different things on different legs.
+//     the CSV's actual block goes to its OWN field, actual_block_time, with
+//     ATD / ATA as off_block / on_block — the same fields the calendar's
+//     "Actual:" line fills. Mixing block and airborne in one field would make
+//     "hours flown" mean different things on different legs.
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
-import { RELIEF_KEYS } from './crew.js?v=152';
+import { RELIEF_KEYS } from './crew.js?v=153';
 
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
@@ -182,6 +184,7 @@ export function parseSectors(text) {
 
     const blockTime = r.plannedflighttime || spanHHMM(dep, arr);
     const airborne  = spanHHMM(parseDt(r.airborne), parseDt(r.landing));
+    const atd = parseDt(r.atd), ata = parseDt(r.ata);
 
     const leg = {
       flight,
@@ -197,6 +200,9 @@ export function parseSectors(text) {
       dataCard: {
         block_time: blockTime,
         actual_flight_time: airborne,
+        off_block: atd ? atd.time : '',
+        on_block:  ata ? ata.time : '',
+        actual_block_time: spanHHMM(atd, ata),
         to_role:  role(r.takeoffpilot),
         ldg_role: role(r.landingpilot),
         ac_type:  String(r.actype || '').trim(),

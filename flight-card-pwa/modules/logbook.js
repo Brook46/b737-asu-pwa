@@ -18,9 +18,9 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=152';
-import { dateTs, legTs } from './dates.js?v=152';
-import { CREW_FIELDS, crewShort } from './crew.js?v=152';
+import * as storage from './storage.js?v=153';
+import { dateTs, legTs } from './dates.js?v=153';
+import { CREW_FIELDS, crewShort } from './crew.js?v=153';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -90,6 +90,8 @@ function describeLeg(leg, { displayCrew = (n) => n } = {}) {
   const tail = leg.tail || d.tail || '';
   const block  = d.block_time   || leg.flight_time || '';
   const actual = d.actual_flight_time || '';
+  const actBlock = d.actual_block_time
+    ? `${d.actual_block_time}${d.off_block && d.on_block ? ` (${d.off_block}–${d.on_block}Z)` : ''}` : '';
   const maxG   = d.max_g || '';
   const atis   = d.atis || '';
   const crewLines = [];
@@ -100,7 +102,8 @@ function describeLeg(leg, { displayCrew = (n) => n } = {}) {
   const lines = [
     tail ? `Tail: ${tail}` : '',
     block ? `Block: ${block}` : '',
-    actual ? `Actual: ${actual}` : '',
+    actBlock ? `Actual block: ${actBlock}` : '',
+    actual ? `Airborne: ${actual}` : '',
     maxG ? `Max G: ${maxG}` : '',
     atis ? `ATIS: ${atis}` : '',
     crewLines.length ? '' : '',  // spacer if crew follows

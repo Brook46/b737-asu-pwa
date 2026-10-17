@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=152';
-import * as wx from './wx.js?v=152';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=152';
+import * as storage from './storage.js?v=153';
+import * as wx from './wx.js?v=153';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=153';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -49,7 +49,9 @@ export const FIELDS = [
     // (read-only), actual_flight_time fills automatically from GPS in
     // Phase 4 but is also manually editable.
     { key: 'block_time',         label: 'Block',  kind: 'hhmm', readonly: true },
-    { key: 'actual_flight_time', label: 'Actual', kind: 'hhmm' },
+    // Off-block → on-block from the calendar's "Actual:" line, once flown.
+    { key: 'actual_block_time',  label: 'Actual block', kind: 'hhmm', readonly: true },
+    { key: 'actual_flight_time', label: 'Airborne', kind: 'hhmm' },
   ]},
   // PF / PM lives in the leg-switcher bar now (see renderLegSwitcher in
   // app.js + the .leg-role-pill markup). Two pills next to the leg arrows

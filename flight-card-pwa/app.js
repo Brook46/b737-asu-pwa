@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=152';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=152';
-import * as storage from './modules/storage.js?v=152';
-import * as dataCard from './modules/data-card.js?v=152';
-import * as checklist from './modules/checklist.js?v=152';
-import * as speeches from './modules/speeches.js?v=152';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=152';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=152';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=152';
+import { DUTY_KINDS } from './modules/duties.js?v=153';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=153';
+import * as storage from './modules/storage.js?v=153';
+import * as dataCard from './modules/data-card.js?v=153';
+import * as checklist from './modules/checklist.js?v=153';
+import * as speeches from './modules/speeches.js?v=153';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=153';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=153';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=153';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2187,7 +2187,7 @@ function renderLogbookList(legs, duties = []) {
     const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '—';
     const time = (leg.dep_time && leg.arr_time) ? `${leg.dep_time}–${leg.arr_time}Z` : '';
     const d = leg.dataCard || {};
-    const actual = d.actual_flight_time || d.block_time || leg.flight_time || '';
+    const actual = d.actual_block_time || d.actual_flight_time || d.block_time || leg.flight_time || '';
     const toR  = String(d.to_role  || '').toUpperCase();
     const ldgR = String(d.ldg_role || '').toUpperCase();
     const tags = [
@@ -2225,11 +2225,13 @@ function renderLogbookList(legs, duties = []) {
         ${lbRouteMap(leg)}
         <div class="lb-detail-times">
           ${leg.tail ? `<span class="lb-time"><b>${esc(leg.tail)}</b>${d.ac_type ? ' ' + esc(d.ac_type) : ''}</span>` : ''}
-          <span class="lb-time"><b>BLOCK</b> ${esc(d.block_time || leg.flight_time || '—')}</span>
-          <label class="lb-time lb-time-edit"><b>ACTUAL</b>
+          <span class="lb-time"><b>SCHED</b> ${esc(d.block_time || leg.flight_time || '—')}</span>
+          ${d.actual_block_time ? `<span class="lb-time"><b>ACTUAL</b> ${esc(d.actual_block_time)}${
+            d.off_block && d.on_block ? ` <span class="lb-offon">${esc(d.off_block)}–${esc(d.on_block)}Z</span>` : ''}</span>` : ''}
+          <label class="lb-time lb-time-edit"><b>AIRBORNE</b>
             <input type="text" value="${esc(d.actual_flight_time || '')}" data-lb-actual="1" ${ident}
                    inputmode="numeric" maxlength="5" placeholder="—"
-                   autocomplete="off" spellcheck="false" aria-label="Actual flight time" />
+                   autocomplete="off" spellcheck="false" aria-label="Airborne time, take-off to landing" />
           </label>
         </div>
         ${lbRoleHtml(leg, ident)}
@@ -2525,7 +2527,7 @@ function wireLogbookRows(body) {
         const r = String(v || '').toUpperCase();
         return r ? `<span class="lb-tag ${r === 'PF' ? 'is-pf' : 'is-pm'}">${label} ${r}</span>` : '';
       };
-      const actual = d.actual_flight_time || d.block_time || leg.flight_time || '';
+      const actual = d.actual_block_time || d.actual_flight_time || d.block_time || leg.flight_time || '';
       tags.innerHTML = [
         pill(d.to_role, 'T/O'), pill(d.ldg_role, 'LDG'),
         actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
@@ -3027,8 +3029,9 @@ function showLandingScore(maxG, leg) {
   vEl.textContent = verdict;
   const d = leg?.dataCard || {};
   const lines = [];
-  if (d.actual_flight_time) lines.push(`Actual flight time: ${d.actual_flight_time}`);
-  if (d.block_time)         lines.push(`Block: ${d.block_time}`);
+  if (d.actual_flight_time) lines.push(`Airborne: ${d.actual_flight_time}`);
+  if (d.actual_block_time)  lines.push(`Actual block: ${d.actual_block_time}`);
+  if (d.block_time)         lines.push(`Scheduled block: ${d.block_time}`);
   if (d.ldg_role)           lines.push(`Landing role: ${d.ldg_role}`);
   mEl.textContent = lines.join('\n');
   showOverlay('landing-overlay');
@@ -4283,7 +4286,7 @@ function histRowHtml(leg, { idx = null, active = false } = {}) {
     d.to_role  ? `T/O ${esc(String(d.to_role).toUpperCase())}`  : '',
     d.ldg_role ? `LDG ${esc(String(d.ldg_role).toUpperCase())}` : '',
   ].filter(Boolean).join(' · ');
-  const time = d.actual_flight_time || leg.flight_time || d.block_time || '';
+  const time = d.actual_block_time || d.actual_flight_time || leg.flight_time || d.block_time || '';
   const where = idx == null
     ? `data-past-key="${escapeAttr(lbKeyOf(leg))}"`
     : `data-leg-idx="${idx}"`;
@@ -4331,14 +4334,14 @@ function dutyWhen(duty) {
 function dutyTitle(duty) {
   const k = DUTY_KINDS[duty.kind] || DUTY_KINDS.other;
   const t = String(duty.title || '').trim();
-  const codeOnly = !t || /^[A-Z0-9_]{1,8}$/.test(t) || (duty.kind === 'standby' && /^DUMMY\b/.test(t));
-  return codeOnly ? k.label : t;
+  const codeOnly = !t || /^[A-Z0-9_]{1,10}$/.test(t) || (duty.kind === 'standby' && /^DUMMY\b/.test(t));
+  return codeOnly ? (duty.label || k.label) : t;
 }
 function dutyRowHtml(duty) {
   const k = DUTY_KINDS[duty.kind] || DUTY_KINDS.other;
   const w = dutyWhen(duty);
   const title = dutyTitle(duty);
-  const sub = title === k.label ? w.time : `${k.label} · ${w.time}`;
+  const sub = (title === k.label || title === duty.label) ? w.time : `${k.label} · ${w.time}`;
   return `<div class="history-item is-duty" data-duty-uid="${escapeAttr(duty.uid)}">
       <div class="hi-top">
         <span class="duty-badge" data-kind="${escapeAttr(duty.kind)}">${escapeHtml(k.badge)}</span>

@@ -19,8 +19,8 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=152';
-import { RELIEF_SLOTS, CABIN_SLOTS, CREW_FIELDS } from './crew.js?v=152';
+import { yearNear } from './dates.js?v=153';
+import { RELIEF_SLOTS, CABIN_SLOTS, CREW_FIELDS } from './crew.js?v=153';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
@@ -29,6 +29,14 @@ const ROSTER_MARKERS = [
 
 const FLIGHT_LINE_RE   = /^(\d+)\)\s+(\d{3,4})\s+([A-Z0-9]{2,4})\s+([A-Z]{3})-([A-Z]{3})\s+\[([^\]]+)\]/;
 const TIME_BLOCK_RE    = /(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*-\s*(\d{2})\.(\d{2})\s+(\d{1,2}:\d{2})\s*,\s*(\d{1,2}:\d{2})/;
+// After a leg has flown, the feed adds its real times under the slip line:
+//   1) 5115 EKM TLV-BUS [19.02 10:55 - 19.02 13:25 , 02:30 Hrs]
+//                    Actual: [19.02 10:57 - 19.02 13:15 , 02:18 Hrs]
+// Off-block → on-block, UTC — the same chock-to-chock span the crew portal's
+// CSV calls "ActualFlightTime". It's the logbook's block time, so it lands in
+// its own fields and never in actual_flight_time, which is airborne time
+// (GPS take-off → landing; see sectors-csv.js on keeping the two apart).
+const ACTUAL_LINE_RE   = /^Actual\s*:\s*\[([^\]]+)\]/i;
 
 // ONE pattern for every crew line, in any section:
 //   OPR 021284 CAP KOLAN YUVAL          [phone:0547450555,REQ ...]
@@ -147,7 +155,7 @@ export function parseRoster(text, opts = {}) {
   //   Cockpit block after a leg's row      -> that leg's own pilots
   //   Cabin block / lines under a leg      -> that leg's cabin crew
   //   a deadhead header, or a DH status/rank anywhere -> deadheads
-  const duty = { pilots: [], dh: [] };
+  const duty = { pilots: [], cabin: [], dh: [] };
   const phones = {}; // { CANONICAL_NAME: '+972...' }
   const flights = [];
   let cur = null;
@@ -156,6 +164,20 @@ export function parseRoster(text, opts = {}) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+
+    const am = ACTUAL_LINE_RE.exec(line);
+    if (am) {
+      const tm = cur && TIME_BLOCK_RE.exec(am[1]);
+      if (tm) {
+        const hm = (t) => (t.length === 4 ? '0' + t : t);
+        cur.dataCard = {
+          off_block: hm(tm[3]),
+          on_block:  hm(tm[6]),
+          actual_block_time: hm(tm[7]),
+        };
+      }
+      continue;
+    }
 
     const fm = FLIGHT_LINE_RE.exec(line);
     if (fm) {
@@ -226,6 +248,11 @@ export function parseRoster(text, opts = {}) {
       else duty.pilots.push({ name, rank });
     } else if (cur) {
       cur.cabin.push({ name, rank });
+    } else if (section === 'cabin') {
+      // A same-day turnaround lists Cockpit AND Cabin once, before "Slip
+      // details": that cabin works every leg. It used to fall through to the
+      // line below and turn the whole cabin into relief pilots.
+      duty.cabin.push({ name, rank });
     } else {
       duty.pilots.push({ name, rank });   // crew before any leg, no header: cockpit
     }
@@ -241,7 +268,7 @@ export function parseRoster(text, opts = {}) {
     f.cpt = pilots.cpt;
     f.fo = pilots.fo;
     Object.assign(f, fillSlots(pilots.relief, 'rp', RELIEF_SLOTS));
-    const cabin = f.cabin.slice();
+    const cabin = (f.cabin.length ? f.cabin : duty.cabin).slice();
     // cc1 is labelled Purser: put the purser there even if listed later.
     const pi = cabin.findIndex(p => PURSER_RANKS.has(p.rank));
     if (pi > 0) cabin.unshift(cabin.splice(pi, 1)[0]);

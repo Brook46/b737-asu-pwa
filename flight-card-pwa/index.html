@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=152" />
+  <link rel="stylesheet" href="./app.css?v=153" />
 </head>
 <body>
   <header class="app-header">
@@ -383,6 +383,19 @@
       </div>
 
       <section class="settings-section">
+        <h3 class="settings-h">Logbook &amp; analytics</h3>
+        <p class="muted small">
+          Every leg you've flown, with crew, times and PF / PM — and where you
+          fly most, nights away, landing G and top crew. All computed on this
+          device; nothing leaves it.
+        </p>
+        <div class="settings-row-btns">
+          <button id="logbook-view"   class="btn primary">View logbook</button>
+          <button id="analytics-open" class="btn primary">View analytics</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
         <h3 class="settings-h">Duty calendar</h3>
         <p class="muted small">
           Paste the "Secret address in iCal format" from your Google
@@ -401,53 +414,6 @@
           calendar. Past flown legs always stay — they're your logbook.
           Nothing is ever pushed back to El Al or to your calendar.
         </p>
-      </section>
-
-      <section class="settings-section">
-        <h3 class="settings-h">Logbook calendar (auto-updating)</h3>
-        <p class="muted small">
-          Flight Card publishes your logbook to a private URL after every
-          change. Subscribe once in Apple Calendar (Settings → Calendar →
-          Accounts → Add Subscribed Calendar) and it stays fresh by itself.
-          The link below is the key — anyone with it can read the calendar.
-        </p>
-        <div class="cal-row">
-          <label class="cal-row-label" for="lbpush-url">Subscribe URL</label>
-          <input id="lbpush-url" type="text" readonly autocomplete="off" spellcheck="false" class="cal-url" aria-label="Logbook subscribe URL (read-only)" />
-        </div>
-        <div class="settings-row-btns">
-          <button id="lbpush-copy" class="btn primary">Copy link</button>
-          <button id="lbpush-now"  class="btn">Push now</button>
-        </div>
-        <p id="lbpush-status" class="muted small cal-status"></p>
-      </section>
-
-      <section class="settings-section">
-        <h3 class="settings-h">Sync everything (AirDrop)</h3>
-        <p class="muted small">
-          For the whole app state — every leg, every speech, the template. Imports
-          <em>replace</em> the local store.
-        </p>
-        <div class="settings-row-btns">
-          <button id="sync-export" class="btn">Export &amp; share</button>
-          <label class="btn">
-            <input id="sync-import" type="file" accept="application/json,.json" hidden />
-            Import file…
-          </label>
-        </div>
-      </section>
-
-      <section class="settings-section">
-        <h3 class="settings-h">Export logbook (.ics)</h3>
-        <p class="muted small">
-          Every leg as a calendar event — block time, crew, route. Subscribe
-          to it in Apple Calendar or Google Calendar to keep a permanent
-          flying record.
-        </p>
-        <div class="settings-row-btns">
-          <button id="logbook-view"   class="btn primary">View logbook</button>
-          <button id="logbook-export" class="btn">Export .ics</button>
-        </div>
       </section>
 
       <section class="settings-section">
@@ -472,21 +438,15 @@
       </section>
 
       <section class="settings-section">
-        <h3 class="settings-h">Social notes (per-airport)</h3>
+        <h3 class="settings-h">Export logbook (.ics)</h3>
         <p class="muted small">
-          The <strong>Social</strong> tab in each airport popup shows your
-          Apple Notes airport folder. Your Mac reads the folder every two hours
-          and publishes any change to this feed; the app picks it up whenever
-          you open it. Edit the notes in Apple Notes — while a feed is set the
-          Social tab is read-only here. Your <strong>Personal</strong> tab is
-          never touched.
+          Every leg as a calendar event — block time, crew, route. Subscribe
+          to it in Apple Calendar or Google Calendar to keep a permanent
+          flying record.
         </p>
-        <label class="cal-row-label" for="social-url">Social feed URL</label>
-        <input id="social-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://… .json" class="cal-url" aria-label="Social notes feed URL" />
         <div class="settings-row-btns">
-          <button id="social-sync-now" class="btn">Sync now</button>
+          <button id="logbook-export" class="btn">Export .ics</button>
         </div>
-        <div id="social-sync-status" class="cal-status muted small"></div>
       </section>
 
       <section class="settings-section">
@@ -511,15 +471,57 @@
         </div>
       </section>
 
+      <h2 class="settings-group">Links &amp; backup</h2>
+
       <section class="settings-section">
-        <h3 class="settings-h">Analytics</h3>
+        <h3 class="settings-h">Logbook calendar (auto-updating)</h3>
         <p class="muted small">
-          Where you fly most, nights away, landing G split by PF / PM,
-          top crew. Everything's computed over your stored legs — no
-          server, nothing leaves the device.
+          Flight Card publishes your logbook to a private URL after every
+          change. Subscribe once in Apple Calendar (Settings → Calendar →
+          Accounts → Add Subscribed Calendar) and it stays fresh by itself.
+          The link below is the key — anyone with it can read the calendar.
+        </p>
+        <div class="cal-row">
+          <label class="cal-row-label" for="lbpush-url">Subscribe URL</label>
+          <input id="lbpush-url" type="text" readonly autocomplete="off" spellcheck="false" class="cal-url" aria-label="Logbook subscribe URL (read-only)" />
+        </div>
+        <div class="settings-row-btns">
+          <button id="lbpush-copy" class="btn primary">Copy link</button>
+          <button id="lbpush-now"  class="btn">Push now</button>
+        </div>
+        <p id="lbpush-status" class="muted small cal-status"></p>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-h">Social notes (per-airport)</h3>
+        <p class="muted small">
+          The <strong>Social</strong> tab in each airport popup shows your
+          Apple Notes airport folder. Your Mac reads the folder every two hours
+          and publishes any change to this feed; the app picks it up whenever
+          you open it. Edit the notes in Apple Notes — while a feed is set the
+          Social tab is read-only here. Your <strong>Personal</strong> tab is
+          never touched.
+        </p>
+        <label class="cal-row-label" for="social-url">Social feed URL</label>
+        <input id="social-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://… .json" class="cal-url" aria-label="Social notes feed URL" />
+        <div class="settings-row-btns">
+          <button id="social-sync-now" class="btn">Sync now</button>
+        </div>
+        <div id="social-sync-status" class="cal-status muted small"></div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-h">Sync everything (AirDrop)</h3>
+        <p class="muted small">
+          For the whole app state — every leg, every speech, the template. Imports
+          <em>replace</em> the local store.
         </p>
         <div class="settings-row-btns">
-          <button id="analytics-open" class="btn primary">View analytics</button>
+          <button id="sync-export" class="btn">Export &amp; share</button>
+          <label class="btn">
+            <input id="sync-import" type="file" accept="application/json,.json" hidden />
+            Import file…
+          </label>
         </div>
       </section>
     </div>
@@ -749,6 +751,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=152"></script>
+  <script type="module" src="./app.js?v=153"></script>
 </body>
 </html>

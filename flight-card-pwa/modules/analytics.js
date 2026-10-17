@@ -11,9 +11,9 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=152';
-import { dateTs, legTs, yearPast } from './dates.js?v=152';
-import { CREW_KEYS } from './crew.js?v=152';
+import * as storage from './storage.js?v=153';
+import { dateTs, legTs, yearPast } from './dates.js?v=153';
+import { CREW_KEYS } from './crew.js?v=153';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -106,15 +106,18 @@ export function nightsAwayFromHome(legs, year = null) {
   return dates.size;
 }
 
-// Hours flown: prefer actual_flight_time, fall back to block_time, then
-// flight_time. Per-tail breakdown sorted by total desc.
+// Hours flown are BLOCK hours, chock to chock, as a pilot's logbook and the
+// company count them: the actual block (calendar "Actual:" line or the CSV's
+// ATD→ATA) where known, else the scheduled block. Airborne time
+// (actual_flight_time) is a different measure and is no longer summed in
+// with them. Per-tail breakdown sorted by total desc.
 export function hoursFlown(legs, year = null) {
   let totalMin = 0;
   const perTail = new Map();
   for (const leg of legs) {
     if (year != null && legYear(leg) !== year) continue;
     const d = leg.dataCard || {};
-    const min = hhmmToMin(d.actual_flight_time)
+    const min = hhmmToMin(d.actual_block_time)
               || hhmmToMin(d.block_time)
               || hhmmToMin(leg.flight_time)
               || hhmmToMin(d.flight_time);
