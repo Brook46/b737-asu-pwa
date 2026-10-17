@@ -1,12 +1,13 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import * as storage from './modules/storage.js?v=147';
-import * as dataCard from './modules/data-card.js?v=147';
-import * as checklist from './modules/checklist.js?v=147';
-import * as speeches from './modules/speeches.js?v=147';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=147';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=147';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=147';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=150';
+import * as storage from './modules/storage.js?v=150';
+import * as dataCard from './modules/data-card.js?v=150';
+import * as checklist from './modules/checklist.js?v=150';
+import * as speeches from './modules/speeches.js?v=150';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=150';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=150';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=150';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2314,42 +2315,23 @@ function lbProcDatalist(kind, code) {
 
 // Crew as flown, with role labels. Same slots the data card carries; blanks
 // are skipped and a name repeated across slots is only listed once.
-const LB_CREW = [
-  ['cpt', 'CPT'], ['fo', 'FO'], ['cc1', 'PU'],
-  ['cc2', 'CC2'], ['cc3', 'CC3'], ['cc4', 'CC4'], ['cc5', 'CC5'],
-  ['cc6', 'CC6'], ['cc7', 'CC7'], ['cc8', 'CC8'],
-];
 // Crew, editable in place. A backfilled sector carries whoever the export
 // named, but exports are wrong sometimes and the roster only ever knew the
-// two seats — so every slot is a field, not a label.
-//
-// The two pilot seats and relief are always offered even when empty (that's
-// what you'd be adding to an old flight); cabin slots appear only once they
-// hold a name, so a 737 pair doesn't render eight blank boxes.
+// two seats — so every slot is a field, not a label. Which slots show is
+// crew.js's slotsToShow: CPT and FO, everything filled, one free relief and
+// one free cabin slot to add someone, and Deadhead.
 function lbCrewHtml(leg, ident) {
   const d = leg.dataCard || {};
   const val = (k) => String(leg[k] || d[k] || '').trim();
-  const rows = [];
-  const field = (key, role, value) => `
-    <label class="lb-crew-edit">
-      <b>${esc(role)}</b>
+  const field = (key, value) => `
+    <label class="lb-crew-edit${key === 'dh' ? ' lb-crew-dh' : ''}">
+      <b>${esc(crewShort(key))}</b>
       <input type="text" value="${esc(value)}" data-lb-crew="${esc(key)}" ${ident}
-             placeholder="—" autocomplete="off" spellcheck="false"
-             aria-label="${esc(role)} for this flight" />
+             placeholder="${key === 'dh' ? 'deadhead crew, comma-separated' : '—'}"
+             autocomplete="off" spellcheck="false"
+             aria-label="${esc(crewLabel(key))} for this flight" />
     </label>`;
-  rows.push(field('cpt', 'CPT', val('cpt')));
-  rows.push(field('fo',  'FO',  val('fo')));
-  // Augmenting / cruise-relief pilots. They have no seat slot (cc* is cabin
-  // crew everywhere in the app), so they ride in their own field.
-  rows.push(field('relief', 'RLF', String(d.relief || '').trim()));
-  for (const [k, role] of LB_CREW) {
-    if (k === 'cpt' || k === 'fo') continue;
-    const v = val(k);
-    if (v) rows.push(field(k, role, v));
-  }
-  const dh = String(leg.dh || d.dh || '').trim();
-  if (dh) rows.push(`<span class="lb-crew lb-crew-dh"><b>DH</b> ${esc(dh)}</span>`);
-  return rows.join('');
+  return slotsToShow(k => !!val(k)).map(k => field(k, val(k))).join('');
 }
 
 // PF / PM for this flight's take-off and landing. Tapping the selected one
@@ -3554,7 +3536,7 @@ async function showAirportInfo(icao) {
   if (!legs.length) {
     body.innerHTML = `<p class="muted small crewlog-empty">No past flights to ${escapeHtmlSimple(k)} yet.</p>`;
   } else {
-    const CREW = ['cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8'];
+    const CREW = CREW_KEYS;
     const rows = legs.map(leg => {
       const d = leg.dataCard || {};
       const ely   = leg.flight ? `ELY${escapeHtmlSimple(leg.flight)}` : '—';

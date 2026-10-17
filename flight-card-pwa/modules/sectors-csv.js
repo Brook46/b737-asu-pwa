@@ -17,6 +17,8 @@
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
+import { RELIEF_KEYS } from './crew.js?v=150';
+
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
 // and a UTF-8 BOM.
@@ -152,16 +154,21 @@ export function parseSectors(text) {
     const cpt = tidyName(r.lefthandseatpilot);
     const fo  = tidyName(r.righthandseatpilot);
 
-    // Any operating pilot who wasn't in a seat is cruise relief. Worth
-    // keeping — it's who you actually flew with — but it must not land in a
-    // cc* slot, which the whole app reads as cabin crew.
-    const relief = String(r.operatingcrew || '').split(',')
+    // Any operating pilot who wasn't in a seat is cruise relief — into the
+    // relief-pilot slots (crew.js), not a cc* slot, which the whole app reads
+    // as cabin crew. More than the slots hold share the last one.
+    const reliefNames = String(r.operatingcrew || '').split(',')
       .map(s => s.trim()).filter(Boolean)
       .filter(s => !hasSurname(cpt, s.toUpperCase())
                 && !hasSurname(fo, s.toUpperCase())
                 && !(owner && s.toUpperCase() === owner))
-      .map(tidyName)
-      .join(', ');
+      .map(tidyName);
+    const relief = {};
+    RELIEF_KEYS.forEach((k, i) => {
+      const v = i === RELIEF_KEYS.length - 1
+        ? reliefNames.slice(i).join(', ') : (reliefNames[i] || '');
+      if (v) relief[k] = v;
+    });
 
     // PF/PM for THIS pilot: was the owner the one flying that take-off or
     // that landing? Left blank when the column is empty (~10% of rows) or the
@@ -186,14 +193,14 @@ export function parseSectors(text) {
       arr_date: arr ? arr.date : '', arr_time: arr ? arr.time : '',
       arr_year: arr ? arr.year : '',
       ctot: '',
-      cpt, fo,
+      cpt, fo, ...relief,
       dataCard: {
         block_time: blockTime,
         actual_flight_time: airborne,
         to_role:  role(r.takeoffpilot),
         ldg_role: role(r.landingpilot),
         ac_type:  String(r.actype || '').trim(),
-        relief,
+        ...relief,
       },
       // Provenance: lets the logbook say where a leg came from, and lets a
       // future "undo the import" find exactly these legs again.

@@ -9,8 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=147';
-import { dateTs, legTs } from './dates.js?v=147';
+import { flipName } from './roster.js?v=150';
+import { dateTs, legTs } from './dates.js?v=150';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=150';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -49,7 +50,7 @@ const KEY = 'fc.state';
 // to_role / ldg_role (PF / PM / ''), max_g (peak landing G). Migration
 // seeds block_time = current flight_time on every existing leg so the
 // logbook export has consistent block numbers from day one.
-const VERSION = 15;
+const VERSION = 16;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -353,7 +354,6 @@ function migrate(s) {
   // current.dataCard if there are no legs, and apply the parser's flipName.
   // Idempotency on later runs is guaranteed by the s.v < 12 gate.
   if (s.v && s.v < 12) {
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     const flipBag = (bag) => {
       if (!bag || typeof bag !== 'object') return;
       for (const k of CREW_KEYS) {
@@ -372,6 +372,26 @@ function migrate(s) {
   // v13 → v14: seed block_time = current flight_time on every existing leg.
   // The logbook export reads block_time as the authoritative scheduled block,
   // so back-filling now keeps history honest. Idempotent via the s.v < 14 gate.
+  // v15 → v16: relief pilots got real slots (rp1..rp3, see crew.js). The
+  // MySectors.csv import had stored them as one comma-joined dataCard.relief;
+  // split that into the slots so they show and edit like everyone else.
+  if (s.v && s.v < 16) {
+    const bags = [...(current.legs || [])];
+    for (const f of (s.history || [])) bags.push(...(f.legs || []));
+    for (const leg of (s.imported || [])) bags.push(leg);
+    for (const leg of bags) {
+      const d = leg && leg.dataCard;
+      if (!d || !d.relief) continue;
+      if (!RELIEF_KEYS.some(k => d[k] || leg[k])) {
+        const names = String(d.relief).split(/\s*,\s*/).filter(Boolean);
+        RELIEF_KEYS.forEach((k, i) => {
+          const v = i === RELIEF_KEYS.length - 1 ? names.slice(i).join(', ') : (names[i] || '');
+          if (v) { d[k] = v; leg[k] = v; }
+        });
+      }
+      delete d.relief;
+    }
+  }
   if (s.v && s.v < 14) {
     if (current.legs.length) {
       for (const leg of current.legs) {
@@ -393,7 +413,6 @@ function migrate(s) {
   // happened earlier.
   const crew = (s.crew && typeof s.crew === 'object') ? s.crew : {};
   if (s.v && s.v < 13) {
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     const allLegBags = [];
     if (current.legs.length) {
       for (const leg of current.legs) {
@@ -838,7 +857,7 @@ export function addImportedLegs(legs) {
   // nickname/phone book see everyone from the backfill too.
   for (const leg of fresh) {
     const seen = new Set();
-    for (const k of ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']) {
+    for (const k of CREW_KEYS) {
       const v = ((leg[k] || (leg.dataCard && leg.dataCard[k]) || '')).trim().toUpperCase();
       if (v) seen.add(v);
     }
@@ -907,7 +926,6 @@ function fillEmptyFrom(target, source) {
 export function allLegsWith(name) {
   const k = canon(name);
   if (!k) return [];
-  const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
   const namesInLeg = (leg) => {
     const set = new Set();
     for (const f of CREW_KEYS) {
@@ -938,8 +956,7 @@ export function getLegs() { return read().current.legs || []; }
 // Crew lives on the leg AND on its dataCard, and every reader checks the
 // top-level slot first — so writing only the dataCard leaves the edit
 // invisible. These keys get mirrored to both.
-const MIRROR_TO_LEG = new Set(
-  ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8', 'dh']);
+const MIRROR_TO_LEG = new Set(CREW_FIELDS);
 
 export function setStoredLegField(match, key, value) {
   const same = (l) =>
@@ -1030,8 +1047,7 @@ export function appendLegs(newLegs) {
   // to copy from on the dataCard side.
   // 'dh' belongs here too — without it deadhead crew never reached the
   // dataCard, so it was lost the moment a leg was merged by a later sync.
-  const SEED_KEYS = LEG_IDENTITY_KEYS.concat(
-    ['cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8','dh']);
+  const SEED_KEYS = LEG_IDENTITY_KEYS.concat(CREW_FIELDS);
   for (const leg of newLegs) {
     if (!leg.dataCard || typeof leg.dataCard !== 'object') leg.dataCard = {};
     if (!leg.ticks    || typeof leg.ticks    !== 'object') leg.ticks    = {};
@@ -1102,7 +1118,6 @@ export function appendLegs(newLegs) {
   // doesn't count twice.
   if (toAdd.length) {
     const s = read();
-    const CREW_KEYS = ['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
     for (const leg of toAdd) {
       const seen = new Set();
       for (const k of CREW_KEYS) {
@@ -1157,7 +1172,7 @@ function mergeLeg(target, source) {
   // OLD crew (the logbook reads top-level first).
   for (const k of ['flight','tail','dep','arr','flight_time','ctot',
                    'dep_date','dep_time','arr_date','arr_time','dep_year','arr_year',
-                   'cpt','fo','cc1','cc2','cc3','cc4','cc5','cc6','cc7','cc8','dh']) {
+                   ...CREW_FIELDS]) {
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
   // dataCard merge — incoming wins per key for non-empty values. block_time
@@ -1169,6 +1184,31 @@ function mergeLeg(target, source) {
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
     if (v != null && v !== '') target.dataCard[k] = v;
+  }
+  // Crew: when the incoming leg names ANYONE, its list is the whole crew.
+  // Merging only non-empty values meant a slot was never cleared — someone
+  // taken off the roster (a swap, a dropped relief pilot, a smaller cabin)
+  // stayed on the card for good beside their replacement. An incoming leg
+  // with no crew at all (a provisional roster entry) leaves the crew alone.
+  //
+  // Deadheads are different: the pilot adds them by hand, and the roster
+  // rarely lists them, so "the roster's list is the whole list" would wipe a
+  // hand-typed deadhead on every calendar sync. Keep everyone already there
+  // and add whoever the roster names.
+  const srcCrew = (k) => String(source[k] || (source.dataCard && source.dataCard[k]) || '');
+  if (CREW_KEYS.some(k => srcCrew(k).trim())) {
+    for (const k of CREW_KEYS) {
+      const v = srcCrew(k);
+      target[k] = v;
+      if (v) target.dataCard[k] = v; else delete target.dataCard[k];
+    }
+  }
+  const dhIn = srcCrew('dh').split(',').map(x => x.trim()).filter(Boolean);
+  if (dhIn.length) {
+    const have = String(target.dh || target.dataCard.dh || '').split(',').map(x => x.trim()).filter(Boolean);
+    const seen = new Set(have.map(x => x.toUpperCase()));
+    for (const n of dhIn) if (!seen.has(n.toUpperCase())) { have.push(n); seen.add(n.toUpperCase()); }
+    target.dh = target.dataCard.dh = have.join(', ');
   }
   // Ticks: union — a tick on either side stays. Otherwise an incoming
   // empty checklist would wipe the local one.
@@ -1328,8 +1368,7 @@ export function addBlankLeg() {
     flight: '', tail: '', dep: '', arr: '', flight_time: '', ctot: '',
     dep_date: '', dep_time: '', arr_date: '', arr_time: '',
     dep_year: '', arr_year: '',
-    cpt: '', fo: '', cc1: '', cc2: '', cc3: '', cc4: '', cc5: '',
-    cc6: '', cc7: '', cc8: '', dh: '',
+    ...Object.fromEntries(CREW_FIELDS.map(k => [k, ''])),
     // Creation time — used to position the undated blank leg chronologically
     // in the switcher (see depTs) so it sits among "now" flights.
     created_at: Date.now(),
@@ -1436,9 +1475,12 @@ const K_SHORT = {
   // SOB / ATIS
   sob_total: 'sb', atis: 'as', atis_note: 'an', atis_read: 'ar',
   // Crew
-  cpt: 'cp', fo: 'fo',
-  cc1: 'c1', cc2: 'c2', cc3: 'c3', cc4: 'c4', cc5: 'c5',
-  cc6: 'c6', cc7: 'c7', cc8: 'c8',
+  // Crew — generated from crew.js so a new slot travels in share links
+  // automatically. cc9+ / rp / dh had no code, and packLeg drops any field
+  // without one: deadheads never made it into a shared flight at all.
+  cpt: 'cp', fo: 'fo', dh: 'dh',
+  ...Object.fromEntries(CABIN_KEYS.map((k, i) => [k, 'c' + (i + 1)])),
+  ...Object.fromEntries(RELIEF_KEYS.map((k, i) => [k, 'r' + (i + 1)])),
 };
 const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]));
 

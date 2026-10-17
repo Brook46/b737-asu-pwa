@@ -6,8 +6,9 @@
 // colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=147';
-import { cityName } from './airports.js?v=147';
+import * as storage from './storage.js?v=150';
+import { cityName } from './airports.js?v=150';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=150';
 
 let activeId = null;
 let editing = false;
@@ -25,24 +26,17 @@ let lastFocusedTa = null;
 // keeps naming everyone correctly on every leg without re-editing.
 const INSERT_TOKENS = [
   '@crew', '@cockpit', '@cabin',
-  '@cpt', '@fo', '@PU', '@cc2', '@cc3', '@cc4', '@cc5', '@cc6', '@cc7', '@cc8',
+  '@cpt', '@fo', '@rp1', '@rp2', '@PU', '@cc2', '@cc3', '@cc4', '@cc5', '@cc6', '@cc7', '@cc8',
   '@flight', '@tail', '@dep', '@arr', '@flighttime',
   '@time', '@utc', '@date', '@tod',
 ];
 
 // @token → data-card field key. (PU = purser = CC1.)
+// Every crew slot is a token (crew.js): @rp1..@rp3, @cc9..@cc16 work when
+// typed even though only the commoner ones get an insert chip above.
 const VAR_MAP = {
-  cpt:    'cpt',
-  fo:     'fo',
+  ...Object.fromEntries(CREW_KEYS.map(k => [k, k])),
   pu:     'cc1',
-  cc1:    'cc1',
-  cc2:    'cc2',
-  cc3:    'cc3',
-  cc4:    'cc4',
-  cc5:    'cc5',
-  cc6:    'cc6',
-  cc7:    'cc7',
-  cc8:    'cc8',
   tail:   'tail',
   flight: 'flight',
   flt:    'flight',
@@ -52,7 +46,10 @@ const VAR_MAP = {
   flighttime: 'flight_time',
 };
 
-const VAR_RE = /@([a-zA-Z]{2,10})\b/g;
+// Letters, then an optional slot number. It was letters-only, so @cc2…@cc8 —
+// offered as insert chips all along — could never match: \b fails between
+// "cc" and "2", and the PA kept the literal "@cc2". Same for @rp1, @cc14.
+const VAR_RE = /@([a-zA-Z]{2,10}\d{0,2})\b/g;
 
 // ---- Highlight + colour ----
 // The PA body stays PLAIN TEXT and carries inline markers, rather than becoming
@@ -195,8 +192,6 @@ function todBucket(date = new Date()) {
 // nicknames win, same as the single-crew tokens.
 const CREW_ROLES_EN = { cpt: 'Captain', fo: 'First Officer', cc1: 'Purser' };
 const CREW_ROLES_HE = { cpt: 'קברניט',  fo: 'קצין ראשון',   cc1: 'ממונה'  };
-const CABIN_KEYS   = ['cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8'];
-const COCKPIT_KEYS = ['cpt', 'fo'];
 
 function crewList(data, lang, keys) {
   const roles = lang === 'he' ? CREW_ROLES_HE : CREW_ROLES_EN;
@@ -232,15 +227,16 @@ function dynamicValue(token, data, lang = 'en') {
     const b = todBucket(now);
     return (lang === 'he' ? TOD_BUCKETS_HE : TOD_BUCKETS_EN)[b];
   }
-  if (t === 'crew')    return crewList(data, lang, [...COCKPIT_KEYS, ...CABIN_KEYS]);
-  if (t === 'cockpit') return crewList(data, lang, COCKPIT_KEYS);
+  // @cockpit is every pilot flying it, relief pilots included.
+  if (t === 'crew')    return crewList(data, lang, CREW_KEYS);
+  if (t === 'cockpit') return crewList(data, lang, PILOT_KEYS);
   if (t === 'cabin')   return crewList(data, lang, CABIN_KEYS);
   return null;
 }
 
 // Crew-bearing field keys — substituted through storage.displayCrew so a
 // saved nickname (e.g. "Yuvi" for "YUVAL KOLAN") appears in the rendered PA.
-const CREW_FIELDS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']);
+const CREW_FIELDS = new Set(CREW_KEYS);
 
 export function substitute(body, data, lang = 'en') {
   if (!body) return '';

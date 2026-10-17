@@ -18,8 +18,9 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=147';
-import { dateTs, legTs } from './dates.js?v=147';
+import * as storage from './storage.js?v=150';
+import { dateTs, legTs } from './dates.js?v=150';
+import { CREW_FIELDS, crewShort } from './crew.js?v=150';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -92,11 +93,9 @@ function describeLeg(leg, { displayCrew = (n) => n } = {}) {
   const maxG   = d.max_g || '';
   const atis   = d.atis || '';
   const crewLines = [];
-  for (const [role, key] of [['CPT','cpt'], ['FO','fo'], ['PU','cc1'],
-                             ['CC2','cc2'], ['CC3','cc3'], ['CC4','cc4'], ['CC5','cc5'],
-                             ['CC6','cc6'], ['CC7','cc7'], ['CC8','cc8']]) {
+  for (const key of CREW_FIELDS) {
     const name = leg[key] || d[key] || '';
-    if (name) crewLines.push(`${role}: ${displayCrew(name)}`);
+    if (name) crewLines.push(`${crewShort(key)}: ${key === 'dh' ? name : displayCrew(name)}`);
   }
   const lines = [
     tail ? `Tail: ${tail}` : '',

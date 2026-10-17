@@ -1,8 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=147';
-import * as wx from './wx.js?v=147';
+import * as storage from './storage.js?v=150';
+import * as wx from './wx.js?v=150';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=150';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -54,25 +55,11 @@ export const FIELDS = [
   // app.js + the .leg-role-pill markup). Two pills next to the leg arrows
   // are easier to spot at a glance than a row buried inside the Flight
   // group. The dataCard fields stay the same (to_role / ldg_role).
-  { id: 'g-crew',  group: 'Crew',      cells: [
-    { key: 'cpt',  label: 'CPT',         kind: 'text', wide: true },
-    { key: 'fo',   label: 'FO',          kind: 'text', wide: true },
-    { key: 'cc1',  label: 'Purser (PU)', kind: 'text', wide: true },
-    { key: 'cc2',  label: 'CC2',         kind: 'text', wide: true },
-    { key: 'cc3',  label: 'CC3',         kind: 'text', wide: true },
-    { key: 'cc4',  label: 'CC4',         kind: 'text', wide: true },
-    { key: 'cc5',  label: 'CC5',         kind: 'text', wide: true },
-    // A 737 can carry more than five cabin crew; the roster used to drop
-    // anyone past CC5 on the floor, so the slots go to eight. Empty ones stay
-    // hidden until the crew group's "+ add" is tapped.
-    { key: 'cc6',  label: 'CC6',         kind: 'text', wide: true },
-    { key: 'cc7',  label: 'CC7',         kind: 'text', wide: true },
-    { key: 'cc8',  label: 'CC8',         kind: 'text', wide: true },
-    // Deadhead crew — positioning crew riding on this leg. Comma-separated
-    // string. Only shown when filled or when the rest of the crew row is
-    // empty (in which case all crew slots show so the user can fill them in).
-    { key: 'dh',   label: 'DH',          kind: 'text', wide: true },
-  ]},
+  // Crew slots come from crew.js — CPT, FO, relief pilots, cabin crew,
+  // deadhead — so the card can never disagree with the roster parser about
+  // how many people a flight can carry.
+  { id: 'g-crew',  group: 'Crew',      cells:
+    CREW_FIELDS.map(key => ({ key, label: crewLabel(key), kind: 'text', wide: true })) },
 ];
 
 const CELL_INDEX = (() => {
@@ -123,12 +110,17 @@ export function render(root) {
     let crewAddBtn = '';
     if (group.id === 'g-crew' && filled > 0 && !crewShowAll) {
       renderCells = group.cells.filter(c => has(data[c.key]));
-      const hiddenCount = group.cells.length - renderCells.length;
-      if (hiddenCount > 0) {
-        crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Show ${hiddenCount} empty crew slot${hiddenCount === 1 ? '' : 's'}">+ add</button>`;
+      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Add a crew member, relief pilot or deadhead">+ add</button>`;
+    } else if (group.id === 'g-crew') {
+      // "+ add" mode, or a leg with no crew yet: the filled slots plus ONE
+      // free slot of each kind and Deadhead (crew.js slotsToShow). Showing
+      // every empty slot was fine at eight cabin crew; at sixteen plus relief
+      // pilots it would be twenty-odd blank inputs.
+      const show = new Set(slotsToShow(k => has(data[k])));
+      renderCells = group.cells.filter(c => show.has(c.key));
+      if (filled > 0) {
+        crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all data-collapse-empties title="Hide empty crew slots">− hide empty</button>`;
       }
-    } else if (group.id === 'g-crew' && crewShowAll && filled > 0) {
-      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all data-collapse-empties title="Hide empty crew slots">− hide empty</button>`;
     }
     const summary = renderSummary(group, data);
     const cells = renderCells.map(c => renderCell(c, data[c.key])).join('');
@@ -144,7 +136,7 @@ export function render(root) {
           <button type="button" class="data-group-head" data-toggle="${group.id}">
             <span class="chev">${isCol ? '▸' : '▾'}</span>
             <span class="data-group-name">${escape(group.group)}</span>
-            <span class="data-group-meta">${filled}/${countCells.length}</span>
+            <span class="data-group-meta">${groupMeta(group, data, filled, countCells.length)}</span>
           </button>
           ${resetBtn}
           ${optBtn}
@@ -160,7 +152,7 @@ export function render(root) {
   wire(root);
 }
 
-const CREW_CELL_KEYS = new Set(['cpt', 'fo', 'cc1', 'cc2', 'cc3', 'cc4', 'cc5', 'cc6', 'cc7', 'cc8']);
+const CREW_CELL_KEYS = new Set(CREW_KEYS);
 
 // The official WhatsApp glyph (chat bubble with handset). Sized via the
 // .crew-chip-wa CSS rule. fill="currentColor" so the colour follows the
@@ -438,6 +430,19 @@ const PHONETIC = {
 };
 function atisPhonetic(L) { return PHONETIC[L.toUpperCase()] || L; }
 
+// Group head count. "filled/total" for every group except Crew: with 22
+// crew slots "7/22" reads as fifteen people missing. Crew shows people — a
+// slot can hold several comma-separated names (overflow, deadheads) — with
+// deadheads counted apart, since they're riding, not working.
+function groupMeta(group, data, filled, total) {
+  if (group.id !== 'g-crew') return `${filled}/${total}`;
+  const people = (k) => String(data[k] || '').split(',').filter(x => x.trim()).length;
+  const crew = CREW_KEYS.reduce((n, k) => n + people(k), 0);
+  const dh = people('dh');
+  if (!crew && !dh) return '—';
+  return dh ? `${crew} + ${dh} DH` : String(crew);
+}
+
 function renderSummary(group, data) {
   // METAR is a derived value (cached, multi-line) — never useful in the
   // one-line collapsed summary, so exclude it explicitly.
@@ -599,7 +604,7 @@ function updateGroupMeta(root, changedKey) {
     const groupEl = root.querySelector(`.data-group[data-group="${g.id}"]`);
     if (!groupEl) return;
     const meta = groupEl.querySelector('.data-group-meta');
-    if (meta) meta.textContent = `${filled}/${g.cells.length}`;
+    if (meta) meta.textContent = groupMeta(g, data, filled, g.cells.length);
     const summary = groupEl.querySelector('.data-group-summary');
     if (summary) summary.textContent = renderSummary(g, data);
     return;
