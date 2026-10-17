@@ -33,12 +33,25 @@ export function parseIcal(text) {
     const value = unescapeValue(line.slice(colon + 1));
     // Property names can carry parameters after a semicolon
     // (e.g. DTSTART;TZID=Asia/Jerusalem). Strip those for the key.
-    const key = left.split(';')[0].toUpperCase();
+    const [rawKey, ...params] = left.split(';');
+    const key = rawKey.toUpperCase();
     if (key === 'UID')         current.uid = value;
     else if (key === 'SUMMARY')     current.summary = value;
     else if (key === 'DESCRIPTION') current.description = value;
-    else if (key === 'DTSTART')     current.dtstart = value;
-    else if (key === 'DTEND')       current.dtend = value;
+    else if (key === 'DTSTART' || key === 'DTEND') {
+      // Keep the zone and the all-day flag, not just the digits. Flights
+      // never needed them — their times come from the slip, in UTC — but a
+      // simulator or ground-training event's only time is this one, and
+      // "20260617T080000" with TZID=Asia/Jerusalem read as UTC lands three
+      // hours late.
+      const pfx = key === 'DTSTART' ? 'dtstart' : 'dtend';
+      current[pfx] = value;
+      const tz = params.find(p => /^TZID=/i.test(p));
+      if (tz) current[pfx + 'Tz'] = tz.slice(5).replace(/^"|"$/g, '');
+      if (params.some(p => /^VALUE=DATE$/i.test(p)) || /^\d{8}$/.test(value.trim())) {
+        current[pfx + 'IsDate'] = true;
+      }
+    }
   }
   return events;
 }

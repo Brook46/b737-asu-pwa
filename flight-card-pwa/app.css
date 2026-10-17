@@ -1,12 +1,12 @@
 /* Flight Card — narrow-first PWA for iPadOS Slide Over.
    Target min width: 320pt. Tap targets >= 44pt. */
 
-/* Palette from the "Flight Deck Dashboard" Claude Design project
-   (_design-ref.dc.html): light = 2a "Paper & Teal / EFB daylight",
-   dark = 2b "Liquid Glass Dark / night, low-glare". The glass tokens
-   (--glass-*) drive the frosted-panel treatment layered at the end of
-   this file; in light mode they resolve to flat paper values so the
-   same rules render both treatments. */
+/* Design: Apple Human Interface Guidelines — San Francisco type, iOS
+   system colours, inset-grouped surfaces and Liquid Glass bars. The tokens
+   below are the whole palette; the APPLE LAYER near the end of this file
+   paints the surfaces. (This replaced the "Flight Deck Dashboard" Paper &
+   Teal / Liquid Glass Dark palette at the pilot's request. To bring the
+   teal back, change --accent and its two siblings.) */
 :root {
   /* The line everything pinned to the top of the screen starts below.
      safe-area-inset-top alone used to be enough: content began just under the
@@ -17,95 +17,130 @@
      breathing room. One variable so the header, the PA sheet and the update
      banner can never disagree about where "below the blur" is. */
   --top-clear: calc(env(safe-area-inset-top, 0px) + 12px);
-  --bg: #FAFAF8;
-  --bg-elev: #ffffff;
-  --bg-sunk: #F1EFEA;
-  --fg: #2E2E2E;
-  --fg-mute: #6B6B6B;
-  --fg-dim:  #9A9A9A;
-  --line: #E8E6E1;
-  --line-soft: #F0EEE9;
-  --accent: #3E8B85;
-  --accent-2: #7FB8B3;
-  --accent-soft: #D7ECEA;
-  --accent-grad: linear-gradient(135deg, #4FA39C, #3E8B85);
+  /* iOS system colours (Human Interface Guidelines), light appearance.
+     Grouped background + white cells, labels in black and Apple's
+     translucent greys, one tint for everything interactive. */
+  --bg: #F2F2F7;                       /* systemGroupedBackground */
+  --bg-elev: #FFFFFF;                  /* secondarySystemGroupedBackground */
+  --bg-sunk: rgba(118,118,128,0.12);   /* tertiarySystemFill: fields, tiles */
+  --fg: #000000;                       /* label */
+  --fg-mute: rgba(60,60,67,0.60);      /* secondaryLabel */
+  --fg-dim:  rgba(60,60,67,0.30);      /* tertiaryLabel */
+  --line: rgba(60,60,67,0.18);         /* separator */
+  --line-soft: rgba(60,60,67,0.10);
+  --accent: #007AFF;                   /* systemBlue — the tint */
+  --accent-2: #5AC8FA;
+  --accent-soft: rgba(0,122,255,0.12);
+  --accent-grad: linear-gradient(#007AFF, #007AFF);
   --on-accent: #ffffff;
-  --good: #1c8a44;
-  --warn: #b3590a;
-  --danger: #c0392b;
-  --tick-bg: #D7ECEA;
-  --tick-fg: #3E8B85;
-  --shadow: 0 1px 2px rgba(20,20,20,0.04), 0 4px 14px rgba(20,20,20,0.05);
-  --glass-bg: #ffffff;
-  --glass-bg-strong: #ffffff;
-  --glass-border: #E8E6E1;
-  --glass-hi: transparent;          /* inset top highlight */
-  --glass-blur: 0px;
+  --good: #248A3D;                     /* systemGreen, accessible text shade */
+  --warn: #C25E00;                     /* systemOrange, accessible text shade */
+  --danger: #FF3B30;                   /* systemRed */
+  --tick-bg: #007AFF;
+  --tick-fg: #ffffff;
+  --shadow: none;
+  --glass-bg: #FFFFFF;
+  --glass-bg-strong: rgba(249,249,249,0.80);   /* bar material */
+  --glass-border: transparent;
+  --glass-hi: transparent;
+  --glass-blur: 20px;
   --glow: none;
   --glow-soft: none;
-  --font-display: "Barlow", -apple-system, system-ui, sans-serif;
-  --font-label: "Barlow Semi Condensed", -apple-system, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --font-label: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --radius-card: 12px;                 /* iPadOS inset-grouped corner */
+  --radius-ctl: 10px;                  /* buttons, fields */
+  --ease-sheet: cubic-bezier(.32,.72,0,1);   /* the iOS sheet curve */
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1016;
-    --bg-elev: rgba(255,255,255,0.055);
-    --bg-sunk: rgba(0,0,0,0.25);
-    --fg: #ffffff;
-    --fg-mute: rgba(255,255,255,0.6);
-    --fg-dim:  rgba(255,255,255,0.4);
-    --line: rgba(255,255,255,0.12);
-    --line-soft: rgba(255,255,255,0.08);
-    --accent: #7FB8B3;
-    --accent-2: #3E8B85;
-    --accent-soft: rgba(127,184,179,0.16);
-    --accent-grad: linear-gradient(135deg, #7FB8B3, #3E8B85);
-    --on-accent: #0b1016;
-    --good: #57d68d;
-    --warn: #f0a55a;
-    --danger: #ff6b5b;
-    --tick-bg: rgba(127,184,179,0.2);
-    --tick-fg: #7FB8B3;
-    --shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 30px rgba(0,0,0,0.3);
-    --glass-bg: rgba(255,255,255,0.055);
-    --glass-bg-strong: rgba(255,255,255,0.07);
-    --glass-border: rgba(255,255,255,0.1);
-    --glass-hi: rgba(255,255,255,0.1);
-    --glass-blur: 16px;
-    --glow: 0 0 14px rgba(127,184,179,0.4);
-    --glow-soft: 0 0 20px rgba(127,184,179,0.18);
+    /* iOS system colours, dark appearance: true black grouped background,
+       elevated #1C1C1E cells. */
+    --bg: #000000;
+    --bg-elev: #1C1C1E;
+    --bg-sunk: rgba(118,118,128,0.24);
+    --fg: #FFFFFF;
+    --fg-mute: rgba(235,235,245,0.60);
+    --fg-dim:  rgba(235,235,245,0.30);
+    --line: rgba(84,84,88,0.55);
+    --line-soft: rgba(84,84,88,0.32);
+    --accent: #0A84FF;
+    --accent-2: #64D2FF;
+    --accent-soft: rgba(10,132,255,0.20);
+    --accent-grad: linear-gradient(#0A84FF, #0A84FF);
+    --on-accent: #ffffff;
+    --good: #30D158;
+    --warn: #FF9F0A;
+    --danger: #FF453A;
+    --tick-bg: #0A84FF;
+    --tick-fg: #ffffff;
+    --shadow: none;
+    --glass-bg: #1C1C1E;
+    --glass-bg-strong: rgba(28,28,30,0.72);
+    --glass-border: transparent;
+    --glass-hi: rgba(255,255,255,0.06);
+    --glass-blur: 20px;
+    --glow: none;
+    --glow-soft: none;
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #FAFAF8; --bg-elev: #fff; --bg-sunk: #F1EFEA;
-  --fg: #2E2E2E; --fg-mute: #6B6B6B; --fg-dim: #9A9A9A;
-  --line: #E8E6E1; --line-soft: #F0EEE9;
-  --accent: #3E8B85; --accent-2: #7FB8B3; --accent-soft: #D7ECEA;
-  --accent-grad: linear-gradient(135deg, #4FA39C, #3E8B85);
+  --bg: #F2F2F7;                       /* systemGroupedBackground */
+  --bg-elev: #FFFFFF;                  /* secondarySystemGroupedBackground */
+  --bg-sunk: rgba(118,118,128,0.12);   /* tertiarySystemFill: fields, tiles */
+  --fg: #000000;                       /* label */
+  --fg-mute: rgba(60,60,67,0.60);      /* secondaryLabel */
+  --fg-dim:  rgba(60,60,67,0.30);      /* tertiaryLabel */
+  --line: rgba(60,60,67,0.18);         /* separator */
+  --line-soft: rgba(60,60,67,0.10);
+  --accent: #007AFF;                   /* systemBlue — the tint */
+  --accent-2: #5AC8FA;
+  --accent-soft: rgba(0,122,255,0.12);
+  --accent-grad: linear-gradient(#007AFF, #007AFF);
   --on-accent: #ffffff;
-  --tick-bg: #D7ECEA; --tick-fg: #3E8B85;
-  --shadow: 0 1px 2px rgba(20,20,20,0.04), 0 4px 14px rgba(20,20,20,0.05);
-  --glass-bg: #ffffff; --glass-bg-strong: #ffffff;
-  --glass-border: #E8E6E1; --glass-hi: transparent; --glass-blur: 0px;
-  --glow: none; --glow-soft: none;
+  --good: #248A3D;                     /* systemGreen, accessible text shade */
+  --warn: #C25E00;                     /* systemOrange, accessible text shade */
+  --danger: #FF3B30;                   /* systemRed */
+  --tick-bg: #007AFF;
+  --tick-fg: #ffffff;
+  --shadow: none;
+  --glass-bg: #FFFFFF;
+  --glass-bg-strong: rgba(249,249,249,0.80);   /* bar material */
+  --glass-border: transparent;
+  --glass-hi: transparent;
+  --glass-blur: 20px;
+  --glow: none;
+  --glow-soft: none;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b1016;
-  --bg-elev: rgba(255,255,255,0.055); --bg-sunk: rgba(0,0,0,0.25);
-  --fg: #ffffff; --fg-mute: rgba(255,255,255,0.6); --fg-dim: rgba(255,255,255,0.4);
-  --line: rgba(255,255,255,0.12); --line-soft: rgba(255,255,255,0.08);
-  --accent: #7FB8B3; --accent-2: #3E8B85; --accent-soft: rgba(127,184,179,0.16);
-  --accent-grad: linear-gradient(135deg, #7FB8B3, #3E8B85);
-  --on-accent: #0b1016;
-  --tick-bg: rgba(127,184,179,0.2); --tick-fg: #7FB8B3;
-  --shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 8px 30px rgba(0,0,0,0.3);
-  --glass-bg: rgba(255,255,255,0.055); --glass-bg-strong: rgba(255,255,255,0.07);
-  --glass-border: rgba(255,255,255,0.1); --glass-hi: rgba(255,255,255,0.1);
-  --glass-blur: 16px;
-  --glow: 0 0 14px rgba(127,184,179,0.4);
-  --glow-soft: 0 0 20px rgba(127,184,179,0.18);
+  --bg: #000000;
+  --bg-elev: #1C1C1E;
+  --bg-sunk: rgba(118,118,128,0.24);
+  --fg: #FFFFFF;
+  --fg-mute: rgba(235,235,245,0.60);
+  --fg-dim:  rgba(235,235,245,0.30);
+  --line: rgba(84,84,88,0.55);
+  --line-soft: rgba(84,84,88,0.32);
+  --accent: #0A84FF;
+  --accent-2: #64D2FF;
+  --accent-soft: rgba(10,132,255,0.20);
+  --accent-grad: linear-gradient(#0A84FF, #0A84FF);
+  --on-accent: #ffffff;
+  --good: #30D158;
+  --warn: #FF9F0A;
+  --danger: #FF453A;
+  --tick-bg: #0A84FF;
+  --tick-fg: #ffffff;
+  --shadow: none;
+  --glass-bg: #1C1C1E;
+  --glass-bg-strong: rgba(28,28,30,0.72);
+  --glass-border: transparent;
+  --glass-hi: rgba(255,255,255,0.06);
+  --glass-blur: 20px;
+  --glow: none;
+  --glow-soft: none;
 }
 
 * { box-sizing: border-box; }
@@ -2095,16 +2130,17 @@ mark.hl[data-c="blue"]   { background: rgba(59, 130, 246, .33); }
 }
 
 /* ==========================================================================
-   LIQUID GLASS LAYER — Phase E
-   Frosted-panel treatment from the "Flight Deck Dashboard" design (2b).
-   Additive overrides on top of the layout rules above; in light mode the
-   --glass-* tokens resolve to flat Paper & Teal values, so this section
-   renders BOTH treatments. Keep layout out of here — surfaces only.
+   APPLE LAYER
+   Apple Human Interface Guidelines over the layout rules above: San
+   Francisco type, iOS system colours (see the tokens at the top), borderless
+   inset-grouped cards, hairline separators, Liquid Glass bars, iOS buttons,
+   segmented controls and Reminders-style checkmarks. Surfaces and type only
+   — no layout or behaviour lives here, so this whole section can be removed
+   without breaking anything. Replaces the earlier "Liquid Glass Layer —
+   Phase E" (Barlow type, teal glow backdrop, glowing values).
    ========================================================================== */
 
-/* Signature backdrop: deep blue-green gradient with two teal glows.
-   A fixed pseudo-element (not background-attachment, which iOS ignores)
-   so it stays put behind the scrolling content. Light mode: plain paper. */
+/* ---- Canvas: the plain grouped background, no gradient or glow */
 body::before {
   content: "";
   position: fixed;
@@ -2112,24 +2148,17 @@ body::before {
   z-index: -1;
   background: var(--bg);
 }
-@media (prefers-color-scheme: dark) {
-  body::before {
-    background:
-      radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%),
-      radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,0.16), transparent 62%),
-      linear-gradient(165deg, #0b1016 0%, #0f1c20 48%, #090f13 100%);
-  }
+body {
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
-:root[data-theme="dark"] body::before {
-  background:
-    radial-gradient(1000px 460px at 82% -12%, #2f5b56 0%, transparent 55%),
-    radial-gradient(560px 300px at 12% 116%, rgba(127,184,179,0.16), transparent 62%),
-    linear-gradient(165deg, #0b1016 0%, #0f1c20 48%, #090f13 100%);
-}
-:root[data-theme="light"] body::before { background: var(--bg); }
-body { background: transparent; }
 
-/* ---- Typography: Barlow for display/values, Semi Condensed for labels */
+/* ---- Type: SF everywhere on screen (print keeps its own condensed face).
+   Values and headings in SF Display weights; small labels lose the heavy,
+   wide-tracked capitals for Apple's lighter caption style. */
 .card-title, .pad-label, .lb-flight, .settings-h,
 .data-cell input, .hdr-input, .clock-utc,
 .leg-route, .an-big, .wx-letter {
@@ -2138,88 +2167,224 @@ body { background: transparent; }
 .lbl, .leg-pos, .data-group-meta, .card-summary,
 .lb-month-h, .sensor-name, .cal-row-label, .an-big-sub {
   font-family: var(--font-label);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.01em;
+}
+.lbl {
+  font-weight: 600;
+  color: var(--fg-mute);
+}
+.card-title { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; text-transform: none; }
+.pad-label, .settings-h, .lb-month-h, .hi-sep, .airport-notes-label, .apt-hl-label {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--fg-mute);
+}
+.data-cell input, .an-big { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* ---- Bars: Liquid Glass. Translucent, blurred and saturated like an iOS
+   navigation bar, with a hairline instead of a border. */
+.app-header, .leg-switcher {
+  background: var(--glass-bg-strong);
+  border-bottom: 0.5px solid var(--line);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
 }
 
-/* ---- Major surfaces become glass panels */
-.app-header {
-  background: var(--glass-bg-strong);
-  border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-}
-.leg-switcher {
-  background: var(--glass-bg);
-  border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-}
+/* ---- Cards: inset-grouped. No border, no shadow — the white (or #1C1C1E)
+   cell on the grouped background is the edge. */
 .card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--bg-elev);
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
-.ocr-sheet {
-  background: var(--bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 var(--glass-hi), 0 20px 60px rgba(0,0,0,0.45);
+
+/* ---- Tiles inside a card (data cells, analytics cards): filled, not
+   outlined — iOS uses fills for grouped controls. */
+.data-cell, .an-card, .sensor-row {
+  background: var(--bg-sunk);
+  border: 0;
+  border-radius: var(--radius-ctl);
+  box-shadow: none;
+}
+.an-card { background: var(--bg-elev); border-radius: var(--radius-card); }
+
+/* ---- Lists: rows separated by inset hairlines, the way a grouped table
+   view draws them. */
+.history-item {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 0.5px solid var(--line);
+}
+.history-item:last-child { border-bottom: 0; }
+.history-item.active { background: var(--accent-soft); border-radius: var(--radius-ctl); border-bottom-color: transparent; }
+.history-item .hi-id { font-weight: 600; letter-spacing: -0.01em; }
+.hi-sep { text-transform: uppercase; border-top: 0; padding-top: 14px; }
+.lb-row {
+  background: var(--bg-elev);
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: none;
+}
+.lb-row.is-active { box-shadow: inset 0 0 0 2px var(--accent); }
+.cl-item + .cl-item { border-top: 0.5px solid var(--line); }
+
+/* ---- Buttons: iOS "gray" (filled, tinted label) by default, "filled"
+   (tint, white label) for primary. No outlines, no glow. */
+.btn {
+  border: 0;
+  border-radius: var(--radius-ctl);
+  background: var(--bg-sunk);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: none;
+  transition: opacity .15s, transform .15s;
+}
+.btn:active { opacity: .55; }
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.btn.danger { background: rgba(255,59,48,0.12); color: var(--danger); }
+/* Header icon buttons: round Liquid Glass buttons, label-coloured glyphs —
+   the iOS 26 toolbar button. */
+.actions .btn.icon-btn {
+  border-radius: 50%;
+  background: var(--bg-sunk);
+  color: var(--fg);
+}
+.actions .btn.icon-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.data-group-action, .data-group-reset {
+  border: 0;
+  background: var(--bg-sunk);
+  color: var(--accent);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+/* ---- Fields: filled rounded rects, no border; focus is the tint ring */
+.cal-url, .hdr-input, input.rename, .airport-notes, textarea {
+  border-color: transparent;
+  background: var(--bg-sunk);
+  border-radius: var(--radius-ctl);
+}
+.hdr-ctot { border: 0; background: var(--bg-sunk); border-radius: var(--radius-ctl); }
+.cal-url:focus, .airport-notes:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: transparent;
+}
+.clock-utc { background: var(--accent-soft); color: var(--accent); border-radius: var(--radius-ctl); }
+
+/* ---- Segmented control: one grey track, the selected segment lifted in
+   white (or grey in the dark) with a soft shadow — UISegmentedControl. */
+.airport-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-sunk);
+  border-radius: 9px;
+  align-self: flex-start;
+}
+.airport-tab:not(.apt-full) {
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  border-radius: 7px;
+  font-weight: 500;
+  font-size: 13px;
+  padding: 5px 14px;
+}
+.airport-tab.is-active:not(.apt-full) {
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 0.5px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark) {
-  .ocr-sheet { background: #101820; }
+  :root:not([data-theme="light"]) .airport-tab.is-active:not(.apt-full) { background: #636366; }
 }
-:root[data-theme="dark"] .ocr-sheet { background: #101820; }
-:root[data-theme="light"] .ocr-sheet { background: var(--bg); }
+:root[data-theme="dark"] .airport-tab.is-active:not(.apt-full) { background: #636366; }
+.airport-tab.apt-full { border: 0; background: var(--bg-sunk); color: var(--accent); border-radius: 999px; }
+/* The analytics period picker: capsule chips, the chosen one filled. */
+.an-year {
+  border: 0;
+  background: var(--bg-sunk);
+  color: var(--fg);
+  border-radius: 999px;
+  font-weight: 500;
+}
+.an-year.is-on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+/* ---- Checklist: Reminders-style round checkmarks */
+.cl-item .box {
+  border-radius: 50%;
+  border: 1.5px solid var(--fg-dim);
+  background: transparent;
+}
+.cl-item.done .box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.cl-item.done .label { color: var(--fg-mute); }
+.cl-section-head .cl-section-mark { border-radius: 50%; border-width: 1.5px; border-color: var(--fg-dim); }
+.cl-section.all-done .cl-section-head .cl-section-mark { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ---- PF / PM and status capsules: tinted, never glowing */
+.leg-role-pill.is-pf {
+  background: rgba(52,199,89,0.16);
+  color: var(--good);
+  border-color: transparent;
+  box-shadow: none;
+}
+.leg-now { box-shadow: none; }
+.lb-tag { border: 0; background: var(--bg-sunk); }
+.lb-tag.is-pf { background: rgba(52,199,89,0.16); color: var(--good); }
+.lb-tag.is-pm { background: rgba(255,149,0,0.16); color: var(--warn); }
+
+/* ---- Sheets: rounded, elevated, borderless; rise on the iOS sheet curve
+   over Apple's 40% dim. */
+.overlay { background: rgba(0,0,0,0.40); }
+.ocr-sheet {
+  background: var(--bg-elev);
+  border: 0;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  box-shadow: 0 -2px 30px rgba(0,0,0,0.18);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ocr-sheet { background: #1C1C1E; }
+}
+:root[data-theme="dark"] .ocr-sheet { background: #1C1C1E; }
+@keyframes fc-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fc-dim-in   { from { opacity: 0; } to { opacity: 1; } }
+.overlay:not(.hidden) { animation: fc-dim-in .25s ease-out; }
+.overlay:not(.hidden) > .ocr-sheet { animation: fc-sheet-up .42s var(--ease-sheet); }
+@media (prefers-reduced-motion: reduce) {
+  .overlay:not(.hidden), .overlay:not(.hidden) > .ocr-sheet { animation: none; }
+}
+
+/* ---- Toast: a glass capsule, like an iOS system banner */
 .toast {
   background: var(--glass-bg-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 30px rgba(0,0,0,0.35);
+  color: var(--fg);
+  border: 0;
+  border-radius: 999px;
+  backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18), 0 0 0 0.5px var(--line);
+  font-weight: 600;
 }
 
-/* ---- Inner cells: subtle glass tiles */
-.data-cell, .lb-row, .sensor-row, .history-item, .an-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-}
-
-/* ---- Accent-gradient states: checked ticks, active pills, primary btns */
-.cl-item.done .box {
-  background: var(--accent-grad);
-  border-color: transparent;
-  color: var(--on-accent);
-  box-shadow: var(--glow);
-}
-.btn.primary {
-  background: var(--accent-grad);
-  border-color: transparent;
-  color: var(--on-accent);
-  box-shadow: var(--glow-soft);
-}
-.leg-role-pill.is-pf {
-  background: var(--accent-grad);
-  border-color: transparent;
-  color: var(--on-accent);
-  box-shadow: var(--glow);
-}
-.leg-now {
-  box-shadow: var(--glow-soft);
-}
-.lb-row.is-active {
-  border-color: var(--accent);
-  box-shadow: var(--glow-soft);
-}
-
-/* Big numeric values glow faintly at night (V-speeds, SOB, logbook day) */
-@media (prefers-color-scheme: dark) {
-  .data-cell input, .lb-date .lb-day { text-shadow: 0 0 18px rgba(127,184,179,0.3); }
-}
-:root[data-theme="dark"] .data-cell input,
-:root[data-theme="dark"] .lb-date .lb-day { text-shadow: 0 0 18px rgba(127,184,179,0.3); }
-:root[data-theme="light"] .data-cell input,
-:root[data-theme="light"] .lb-date .lb-day { text-shadow: none; }
+/* ---- No glow anywhere: Apple's values are crisp, day or night. */
+.data-cell input, .lb-date .lb-day { text-shadow: none; }
 
 /* ---------- Print: quarter-A4 kneeboard cards ---------- */
 /* Geometry is in mm so the preview on screen and the sheet on paper are the
@@ -2817,4 +2982,56 @@ body { background: transparent; }
   color: var(--warn, var(--fg-dim));
   font-style: italic;
   opacity: .85;
+}
+
+/* ---------- Duties (non-flight calendar events) ---------- */
+/* A small capsule badge per kind, in Apple's system colours (light/dark
+   pairs from the HIG), so a sim, a standby and a day off read apart at a
+   glance in History and the logbook. */
+.duty-badge {
+  --duty: #8e8e93;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 18px; padding: 0 6px;
+  border-radius: 9px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+  color: var(--duty);
+  background: color-mix(in srgb, var(--duty) 16%, transparent);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.duty-badge[data-kind="sim"]      { --duty: #af52de; }
+.duty-badge[data-kind="training"] { --duty: #007aff; }
+.duty-badge[data-kind="course"]   { --duty: #5ac8fa; }
+.duty-badge[data-kind="office"]   { --duty: #8e8e93; }
+.duty-badge[data-kind="medical"]  { --duty: #ff3b30; }
+.duty-badge[data-kind="standby"]  { --duty: #ff9500; }
+.duty-badge[data-kind="vacation"] { --duty: #34c759; }
+.duty-badge[data-kind="dayOff"]   { --duty: #30b0c7; }
+.duty-badge[data-kind="miluim"]   { --duty: #a2845e; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .duty-badge[data-kind="sim"]      { --duty: #bf5af2; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="training"] { --duty: #0a84ff; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="course"]   { --duty: #64d2ff; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="medical"]  { --duty: #ff453a; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="standby"]  { --duty: #ff9f0a; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="vacation"] { --duty: #30d158; }
+  :root:not([data-theme="light"]) .duty-badge[data-kind="dayOff"]   { --duty: #40c8e0; }
+}
+:root[data-theme="dark"] .duty-badge[data-kind="sim"]      { --duty: #bf5af2; }
+:root[data-theme="dark"] .duty-badge[data-kind="training"] { --duty: #0a84ff; }
+:root[data-theme="dark"] .duty-badge[data-kind="course"]   { --duty: #64d2ff; }
+:root[data-theme="dark"] .duty-badge[data-kind="medical"]  { --duty: #ff453a; }
+:root[data-theme="dark"] .duty-badge[data-kind="standby"]  { --duty: #ff9f0a; }
+:root[data-theme="dark"] .duty-badge[data-kind="vacation"] { --duty: #30d158; }
+:root[data-theme="dark"] .duty-badge[data-kind="dayOff"]   { --duty: #40c8e0; }
+
+.history-item.is-duty .hi-id { font-weight: 600; }
+.lb-duty .lb-flight { display: flex; align-items: center; gap: 8px; }
+.duty-head { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.duty-title { margin: 6px 2px 4px; font-size: 22px; font-weight: 700; line-height: 1.2; unicode-bidi: plaintext; text-align: start; }
+.duty-when { margin: 0 2px 12px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.duty-notes {
+  white-space: pre-wrap; unicode-bidi: plaintext; text-align: start;
+  background: var(--bg-sunk); border-radius: 12px; padding: 12px 14px;
+  line-height: 1.45; max-height: 50vh; overflow: auto;
 }

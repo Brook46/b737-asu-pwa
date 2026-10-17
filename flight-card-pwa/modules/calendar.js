@@ -13,9 +13,10 @@
 // PWA side — the description's "Slip details (UTC)" line is the source
 // of truth for each leg's dep/arr times.
 
-import { parseIcal } from './ical.js?v=150';
-import { parseRoster } from './roster.js?v=150';
-import { WORKER_BASE } from './proxy.js?v=150';
+import { parseIcal } from './ical.js?v=152';
+import { parseRoster } from './roster.js?v=152';
+import { WORKER_BASE } from './proxy.js?v=152';
+import { eventToDuty } from './duties.js?v=152';
 
 const URL_STORAGE_KEY        = 'fc.gcal.url';
 const LAST_SYNC_STORAGE_KEY  = 'fc.gcal.lastSyncAt';
@@ -96,12 +97,13 @@ export async function syncFromCalendar() {
 
   const icsText = await res.text();
   const events = parseIcal(icsText);
-  if (!events.length) return { events: 0, flights: [], source, ageSec };
+  if (!events.length) return { events: 0, flights: [], duties: [], source, ageSec };
 
   // Each VEVENT description is run through parseRoster. ELALOrganizer
   // includes the entire slip block per duty period, so one VEVENT usually
   // produces multiple flights (the trip pair, sometimes more).
   const allFlights = [];
+  const allDuties = [];  // every event that ISN'T a flight — see duties.js
   const allPhones = {}; // canonical name → E.164 phone; later events win
   for (const ev of events) {
     const body = ev.description || ev.summary || '';
@@ -114,10 +116,16 @@ export async function syncFromCalendar() {
     const parsed = parseRoster(body, { anchorMs: icalTs(ev.dtstart) });
     if (parsed && parsed.flights?.length) allFlights.push(...parsed.flights);
     if (parsed && parsed.phones) Object.assign(allPhones, parsed.phones);
+    // Not a flight slip: a simulator, training, standby, day off… These were
+    // simply dropped before.
+    if (!(parsed && parsed.flights?.length)) {
+      const duty = eventToDuty(ev);
+      if (duty) allDuties.push(duty);
+    }
   }
 
   try { localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(Date.now())); }
   catch {}
 
-  return { events: events.length, flights: allFlights, phones: allPhones, source, ageSec };
+  return { events: events.length, flights: allFlights, duties: allDuties, phones: allPhones, source, ageSec };
 }

@@ -1,13 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=150';
-import * as storage from './modules/storage.js?v=150';
-import * as dataCard from './modules/data-card.js?v=150';
-import * as checklist from './modules/checklist.js?v=150';
-import * as speeches from './modules/speeches.js?v=150';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=150';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=150';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=150';
+import { DUTY_KINDS } from './modules/duties.js?v=152';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=152';
+import * as storage from './modules/storage.js?v=152';
+import * as dataCard from './modules/data-card.js?v=152';
+import * as checklist from './modules/checklist.js?v=152';
+import * as speeches from './modules/speeches.js?v=152';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=152';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=152';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=152';
 
 const $ = (id) => document.getElementById(id);
 
@@ -381,9 +382,7 @@ function renderLegSwitcher() {
   if (legPos) {
     let label = '';
     if (leg.dep_date) {
-      const y = leg.dep_year && Number(leg.dep_year) !== new Date().getUTCFullYear()
-        ? `.${String(leg.dep_year).slice(2)}` : '';
-      label = `${leg.dep_date}${y}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
+      label = `${legDateLabel(leg.dep_date, leg.dep_year)}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
     } else if (hasMany) {
       label = `Leg ${idx + 1} / ${legs.length}`;
     }
@@ -1796,16 +1795,26 @@ async function runCalendarSync(source) {
     // temporal dead zone for the whole block, so the `source === 'manual'`
     // check above it throws "Cannot access 'source' before initialization"
     // and every sync dies. Valid syntax, so node --check cannot see it.
-    const { events, flights, phones, source: feedSource, ageSec } = await cal.syncFromCalendar();
+    const { events, flights, duties, phones, source: feedSource, ageSec } = await cal.syncFromCalendar();
     // 'stale' means Google refused and the proxy served its stored copy.
     const fromCopy = feedSource === 'stale'
       ? ` · from a stored copy${ageSec > 60 ? ' ' + Math.round(ageSec / 60) + ' min old' : ''}`
       : '';
+    // Duties first: a calendar with sims and standbys but no flights this
+    // month is still worth syncing — it used to count as "nothing found".
+    const dutySync = storage.syncDuties(duties || []);
     if (!flights.length) {
+      renderHistory();
       if (source === 'manual') {
-        throw new Error(`No flights found in ${events} calendar event${events === 1 ? '' : 's'}`);
+        if (!(duties || []).length) {
+          throw new Error(`No flights or duties found in ${events} calendar event${events === 1 ? '' : 's'}`);
+        }
+        if (status) {
+          status.classList.add('is-ok');
+          status.textContent = `${duties.length} dut${duties.length === 1 ? 'y' : 'ies'}, no flights${fromCopy}`;
+        }
       }
-      return false; // auto: silently no-op when nothing to add
+      return dutySync.added > 0 || dutySync.removed > 0;
     }
     // Authoritative sync: append/merge incoming, then prune ONLY future
     // legs missing from the duty calendar. Past flown legs and manually-
@@ -1821,7 +1830,10 @@ async function runCalendarSync(source) {
     }
     await applyLeg(newIdx);
     renderHistory();
-    const summary = syncSummary({ added, replaced, pruned });
+    const dutyNote = dutySync.total
+      ? ` · ${dutySync.total} dut${dutySync.total === 1 ? 'y' : 'ies'}${dutySync.added ? ` (${dutySync.added} new)` : ''}`
+      : '';
+    const summary = syncSummary({ added, replaced, pruned }) + dutyNote;
     if (source === 'manual') {
       if (status) {
         status.classList.add('is-ok');
@@ -2061,7 +2073,10 @@ async function openLogbook(focusKey = '') {
     const lb = await import('./modules/logbook.js');
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
     await ensureLbAirports();
-    body.innerHTML = renderLogbookList(legs);
+    // Past duties only: the logbook is what happened.
+    const now = Date.now();
+    const duties = storage.getDuties().filter(d => (d.end || d.start) < now);
+    body.innerHTML = renderLogbookList(legs, duties);
     wireLogbookRows(body);   // guarded — see the `wired` flag inside
     if (focusKey) {
       const row = [...body.querySelectorAll('.lb-row')]
@@ -2081,6 +2096,10 @@ async function openLogbook(focusKey = '') {
 }
 $('logbook-view').addEventListener('click', () => openLogbook());
 $('logbook-close').addEventListener('click', () => hideOverlay('logbook-overlay'));
+$('duty-close').addEventListener('click', () => hideOverlay('duty-overlay'));
+$('duty-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'duty-overlay') hideOverlay('duty-overlay');
+});
 $('logbook-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'logbook-overlay') hideOverlay('logbook-overlay');
 });
@@ -2100,11 +2119,33 @@ function lbMonthKey(leg) {
   return `${monthNames[monthIdx]} ${year}`;
 }
 
-function renderLogbookList(legs) {
+// A past duty as a logbook row: same date block as a flight, its badge and
+// title instead of a route, and no expandable detail — tapping opens the
+// duty sheet.
+function lbDutyRowHtml(d) {
+  const k = DUTY_KINDS[d.kind] || DUTY_KINDS.other;
+  const w = dutyWhen(d);
+  // Timed duties print their LOCAL date (that's the day they happened);
+  // all-day ones are already a calendar date.
+  const [day, mon, yy] = d.allDay
+    ? [...String(d.dep_date).split('.'), String(d.dep_year).slice(-2)]
+    : localDayLabel(d.start).split('.');
+  return `<div class="lb-item lb-duty-item">
+      <button type="button" class="lb-row lb-duty" data-duty-uid="${esc(d.uid)}">
+        <span class="lb-date"><span class="lb-day">${esc(day || '—')}</span>${esc(`${mon || ''}.${yy || ''}`)}</span>
+        <span class="lb-mid">
+          <div class="lb-flight"><span class="duty-badge" data-kind="${esc(d.kind)}">${esc(k.badge)}</span> ${esc(dutyTitle(d))}</div>
+          <div class="lb-route">${esc(w.time)}</div>
+        </span>
+      </button>
+    </div>`;
+}
+
+function renderLogbookList(legs, duties = []) {
   buildLbProcMemory(legs);
   lbLegIndex.clear();
   for (const leg of legs) lbLegIndex.set(lbKeyOf(leg), leg);
-  if (!legs.length) {
+  if (!legs.length && !duties.length) {
     return '<p class="lb-empty">No legs stored yet. Sync your duty calendar or paste a roster from Settings.</p>';
   }
   // Active leg in fc.state.current — for highlighting the row the user
@@ -2114,7 +2155,22 @@ function renderLogbookList(legs) {
   const activeKey = activeLeg ? lbKeyOf(activeLeg) : '';
   let lastMonth = '';
   const parts = [];
-  for (const leg of legs) {
+  // Flights and past duties in one newest-first timeline.
+  const items = [
+    ...legs.map(leg => ({ leg, t: legSortTs(leg) || 0 })),
+    ...duties.map(duty => ({ duty, t: duty.start })),
+  ].sort((a, b) => b.t - a.t);
+  for (const it of items) {
+    if (it.duty) {
+      const monthH = lbMonthKey(it.duty);
+      if (monthH !== lastMonth) {
+        parts.push(`<div class="lb-month-h">${esc(monthH)}</div>`);
+        lastMonth = monthH;
+      }
+      parts.push(lbDutyRowHtml(it.duty));
+      continue;
+    }
+    const leg = it.leg;
     const monthH = lbMonthKey(leg);
     if (monthH !== lastMonth) {
       parts.push(`<div class="lb-month-h">${esc(monthH)}</div>`);
@@ -2122,7 +2178,10 @@ function renderLogbookList(legs) {
     }
     const dm = String(leg.dep_date || '').split('.');
     const day = dm[0] || '—';
-    const mon = dm[1] || '';
+    // "09.26" under the day: the month heading above has the year, but a row
+    // read on its own (or scrolled past its heading) didn't.
+    const yr = leg.dep_date ? (leg.dep_year || yearPast(leg.dep_date)) : '';
+    const mon = (dm[1] || '') + (yr ? '.' + String(yr).slice(-2) : '');
     // displayFlight already prepends the ELY callsign — don't double-stamp.
     const flight = leg.flight ? displayFlight(leg.flight) : 'Flight';
     const route = (leg.dep && leg.arr) ? `${leg.dep} → ${leg.arr}` : '—';
@@ -2385,6 +2444,8 @@ function wireLogbookRows(body) {
       else toast('From a previous duty — view only');
       return;
     }
+    const dutyRow = e.target.closest('[data-duty-uid]');
+    if (dutyRow) { e.preventDefault(); showDuty(dutyRow.dataset.dutyUid); return; }
     const row = e.target.closest('.lb-row');
     if (!row) return;
     e.preventDefault();
@@ -3469,7 +3530,7 @@ function showLastFlightWith(name) {
       const route = (leg.dep && leg.arr)
         ? `${escapeHtmlSimple(leg.dep)} → ${escapeHtmlSimple(leg.arr)}`
         : '—';
-      const date  = leg.dep_date ? escapeHtmlSimple(leg.dep_date) : '';
+      const date  = leg.dep_date ? escapeHtmlSimple(legDateLabel(leg.dep_date, leg.dep_year)) : '';
       const toR   = d.to_role  ? escapeHtmlSimple(d.to_role)  : '';
       const ldgR  = d.ldg_role ? escapeHtmlSimple(d.ldg_role) : '';
       const role  = (toR || ldgR)
@@ -3542,7 +3603,7 @@ async function showAirportInfo(icao) {
       const ely   = leg.flight ? `ELY${escapeHtmlSimple(leg.flight)}` : '—';
       const route = (leg.dep && leg.arr)
         ? `${escapeHtmlSimple(leg.dep)} → ${escapeHtmlSimple(leg.arr)}` : '—';
-      const date  = leg.dep_date ? escapeHtmlSimple(leg.dep_date) : '';
+      const date  = leg.dep_date ? escapeHtmlSimple(legDateLabel(leg.dep_date, leg.dep_year)) : '';
       // Compact crew line — nickname-aware, deduped, "you" excluded is fine
       // to keep since the pilot knows they were there.
       const names = [];
@@ -4214,8 +4275,7 @@ function histRowHtml(leg, { idx = null, active = false } = {}) {
   // missing data.
   let when = 'no date', dateless = true;
   if (leg.dep_date) {
-    const yr = leg.dep_year ? `.${String(leg.dep_year).slice(2)}` : '';
-    when = `${leg.dep_date}${yr}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
+    when = `${legDateLabel(leg.dep_date, leg.dep_year)}${leg.dep_time ? '  ' + leg.dep_time + 'Z' : ''}`;
     dateless = false;
   }
   const d = leg.dataCard || {};
@@ -4239,24 +4299,122 @@ function histRowHtml(leg, { idx = null, active = false } = {}) {
     </div>`;
 }
 
+// ---- Duties in History / logbook ----
+// A non-flight calendar event (duties.js). Ground events are scheduled in
+// local time, so they print local, marked LT — flights keep their Z.
+// Function declarations, not const arrows: renderHistory() runs during boot,
+// long before this point in the module body, and a const would still be in
+// its temporal dead zone — the boot-time ReferenceError that has frozen this
+// app before.
+function pad2(n) { return String(n).padStart(2, '0'); }
+function localDayLabel(ms) {
+  const d = new Date(ms);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)}`;
+}
+function localHm(ms) { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function dutyWhen(duty) {
+  if (duty.allDay) {
+    // DTEND of an all-day event is the day AFTER the last one.
+    const days = Math.max(1, Math.round((duty.end - duty.start) / 86400000));
+    const first = legDateLabel(duty.dep_date, duty.dep_year);
+    if (days === 1) return { date: first, time: 'All day' };
+    const last = new Date(duty.start + (days - 1) * 86400000);
+    return { date: first, time: `to ${pad2(last.getUTCDate())}.${pad2(last.getUTCMonth() + 1)} · ${days} days` };
+  }
+  const mins = Math.round((duty.end - duty.start) / 60000);
+  const dur = mins > 0 ? ` · ${Math.floor(mins / 60)}:${pad2(mins % 60)}` : '';
+  return { date: `${localDayLabel(duty.start)} ${localHm(duty.start)} LT`,
+           time: `${localHm(duty.start)}–${localHm(duty.end)} LT${dur}` };
+}
+// A title that's only a roster code ("X", "VAC_FLD", "DUMMY R TLV") reads
+// better as its plain meaning; a descriptive title is kept as written.
+function dutyTitle(duty) {
+  const k = DUTY_KINDS[duty.kind] || DUTY_KINDS.other;
+  const t = String(duty.title || '').trim();
+  const codeOnly = !t || /^[A-Z0-9_]{1,8}$/.test(t) || (duty.kind === 'standby' && /^DUMMY\b/.test(t));
+  return codeOnly ? k.label : t;
+}
+function dutyRowHtml(duty) {
+  const k = DUTY_KINDS[duty.kind] || DUTY_KINDS.other;
+  const w = dutyWhen(duty);
+  const title = dutyTitle(duty);
+  const sub = title === k.label ? w.time : `${k.label} · ${w.time}`;
+  return `<div class="history-item is-duty" data-duty-uid="${escapeAttr(duty.uid)}">
+      <div class="hi-top">
+        <span class="duty-badge" data-kind="${escapeAttr(duty.kind)}">${escapeHtml(k.badge)}</span>
+        <span class="hi-id">${escapeHtml(title)}</span>
+        <span class="hi-date">${escapeHtml(w.date)}</span>
+      </div>
+      <div class="hi-line">${escapeHtml(sub)}</div>
+    </div>`;
+}
+function showDuty(uid) {
+  const duty = storage.getDuties().find(d => d.uid === uid);
+  if (!duty) return;
+  const k = DUTY_KINDS[duty.kind] || DUTY_KINDS.other;
+  const w = dutyWhen(duty);
+  $('duty-badge').textContent = k.badge;
+  $('duty-badge').dataset.kind = duty.kind;
+  $('duty-kind').textContent = k.label;
+  $('duty-title').textContent = String(duty.title || k.label);
+  const utc = duty.allDay ? '' :
+    ` (${new Date(duty.start).toISOString().slice(11, 16)}–${new Date(duty.end).toISOString().slice(11, 16)}Z)`;
+  $('duty-when').textContent = `${w.date.replace(/ \d\d:\d\d LT$/, '')} · ${w.time}${utc}`;
+  $('duty-notes').textContent = duty.notes || '';
+  $('duty-notes').classList.toggle('hidden', !duty.notes);
+  showOverlay('duty-overlay');
+}
+// legTs needs a time; a leg that has a date but no time (hand-entered, or
+// an import without one) came back null and sank to the bottom of a list
+// sorted by time, out of date order. Fall back to the start of its day.
+function legSortTs(leg) {
+  const now = Date.now();
+  const t = legTs(leg.dep_date, leg.dep_time, leg.dep_year, now);
+  if (Number.isFinite(t)) return t;
+  return leg.dep_date ? legTs(leg.dep_date, '00:00', leg.dep_year, now) : NaN;
+}
+
 function renderHistory() {
   const legs = storage.getLegs();
   const activeIdx = storage.getLegIndex();
   const past = pastLegsForHistory();
-  if (!legs.length && !past.length) {
+  // Duties sit in the same timeline as the flights. Anything from the start
+  // of the current trip onward goes up top with its legs (in date order);
+  // older ones join the past list.
+  const now = Date.now();
+  const tripStart = legs.reduce((m, l) => {
+    const t = legSortTs(l);
+    return Number.isFinite(t) ? Math.min(m, t) : m;
+  }, now);
+  const duties = storage.getDuties();
+  const dutiesUp = duties.filter(d => d.start >= tripStart || (d.end || d.start) >= now);
+  const dutiesPast = duties.filter(d => !dutiesUp.includes(d)).sort((a, b) => b.start - a.start);
+  if (!legs.length && !past.length && !duties.length) {
     historyBody.innerHTML = `<div class="history-empty">No flights yet. Tap the new-flight button → Paste roster.</div>`;
     return;
   }
-  const shown = histShowAllPast ? past : past.slice(0, HIST_PAST_PAGE);
-  const pastHtml = past.length ? `
-    <div class="hi-sep">Past flights · ${past.length}</div>
-    ${shown.map(leg => histRowHtml(leg)).join('')}
-    ${past.length > shown.length
-        ? `<button type="button" class="hi-more" data-hist-more="1">Show all ${past.length}</button>`
+  const pastAll = [
+    ...past.map(leg => ({ t: legSortTs(leg) || 0, html: () => histRowHtml(leg) })),
+    ...dutiesPast.map(d => ({ t: d.start, html: () => dutyRowHtml(d) })),
+  ].sort((a, b) => b.t - a.t);
+  const shown = histShowAllPast ? pastAll : pastAll.slice(0, HIST_PAST_PAGE);
+  const pastHtml = pastAll.length ? `
+    <div class="hi-sep">Past · ${pastAll.length}</div>
+    ${shown.map(x => x.html()).join('')}
+    ${pastAll.length > shown.length
+        ? `<button type="button" class="hi-more" data-hist-more="1">Show all ${pastAll.length}</button>`
         : ''}` : '';
-  historyBody.innerHTML =
-    legs.map((leg, i) => histRowHtml(leg, { idx: i, active: i === activeIdx })).join('')
-    + pastHtml;
+  // Legs keep their own order (that IS the leg switcher's order); each duty
+  // is slotted in before the first leg that departs after it.
+  const upHtml = [];
+  const queue = dutiesUp.slice().sort((a, b) => a.start - b.start);
+  legs.forEach((leg, i) => {
+    const t = legSortTs(leg);
+    while (queue.length && Number.isFinite(t) && queue[0].start <= t) upHtml.push(dutyRowHtml(queue.shift()));
+    upHtml.push(histRowHtml(leg, { idx: i, active: i === activeIdx }));
+  });
+  for (const d of queue) upHtml.push(dutyRowHtml(d));
+  historyBody.innerHTML = upHtml.join('') + pastHtml;
 
   historyBody.querySelectorAll('.history-item').forEach(el => {
     el.addEventListener('click', async (e) => {
@@ -4266,6 +4424,7 @@ function renderHistory() {
       // the logbook on it instead — that's where crew, actual time and PF/PM
       // are editable.
       if (el.dataset.pastKey) { await openLogbook(el.dataset.pastKey); return; }
+      if (el.dataset.dutyUid) { showDuty(el.dataset.dutyUid); return; }
       const i = parseInt(el.dataset.legIdx, 10);
       await applyLeg(i);
       renderHistory();
@@ -4290,9 +4449,19 @@ function renderHistory() {
   });
 }
 
+// Every leg date shown anywhere: dd.mm.yy, always with the year. The leg's
+// own stored year when it has one; a legacy leg without one is history, so
+// it resolves into the past (yearPast) — the same rule the logbook sorts by,
+// so a row's printed year can never disagree with where it sits.
+function legDateLabel(ddmm, year) {
+  if (!ddmm) return '';
+  const y = year || yearPast(ddmm);
+  return y ? `${ddmm}.${String(y).slice(-2)}` : ddmm;
+}
+
 function fmtDateShort(ts) {
   const d = new Date(ts);
-  return `${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // ---------- Helpers ----------

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=150" />
+  <link rel="stylesheet" href="./app.css?v=152" />
 </head>
 <body>
   <header class="app-header">
@@ -632,6 +632,21 @@
     </div>
   </div>
 
+  <!-- Duty details — a non-flight calendar event (sim, training, standby,
+       day off…) tapped in History or the logbook. Read-only: the calendar is
+       the source, and nothing is ever written back to it. -->
+  <div id="duty-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="duty-title">
+    <div class="ocr-sheet duty-sheet">
+      <div class="pad-head">
+        <span class="duty-head"><span id="duty-badge" class="duty-badge">DTY</span><span id="duty-kind" class="pad-label">Duty</span></span>
+        <button id="duty-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <h2 id="duty-title" class="duty-title"></h2>
+      <div id="duty-when" class="duty-when"></div>
+      <div id="duty-notes" class="duty-notes"></div>
+    </div>
+  </div>
+
   <!-- Landing score modal — fires once when gps.js detects 'landed' and
        g.js has produced a max_g. Tap anywhere to dismiss. -->
   <div id="landing-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landing-title">
@@ -734,6 +749,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=150"></script>
+  <script type="module" src="./app.js?v=152"></script>
 </body>
 </html>

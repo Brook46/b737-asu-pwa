@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=150';
-import { dateTs, legTs } from './dates.js?v=150';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=150';
+import { flipName } from './roster.js?v=152';
+import { dateTs, legTs } from './dates.js?v=152';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=152';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -247,6 +247,10 @@ function freshState() {
     // get their own flat bucket that every "walk all my legs" reader picks
     // up via everyLeg().
     imported: [],
+    // Non-flight duties from the calendar (sims, training, standby, days off…)
+    // — see duties.js. Their own list: they have no data card, crew or
+    // checklist, so they are not legs.
+    duties: [],
     // Crew registry: { [CANONICAL_NAME]: { nickname, phone, flights } }.
     // Keyed by the uppercased canonical name the calendar produces (e.g.
     // "YUVAL KOLAN"). Populated by appendLegs() as new legs land + by the
@@ -279,6 +283,7 @@ function read() {
   cache.current.legIndex = Number.isInteger(cache.current.legIndex) ? cache.current.legIndex : 0;
   cache.history  = Array.isArray(cache.history) ? cache.history : [];
   cache.imported = Array.isArray(cache.imported) ? cache.imported : [];
+  cache.duties   = Array.isArray(cache.duties) ? cache.duties : [];
   if (!cache.crew || typeof cache.crew !== 'object') cache.crew = {};
   return cache;
 }
@@ -476,6 +481,7 @@ function migrate(s) {
     current,
     history: Array.isArray(s.history) ? s.history : [],
     imported: Array.isArray(s.imported) ? s.imported : [],
+    duties:   Array.isArray(s.duties) ? s.duties : [],
     crew,
     // Per-airport free-text notes, keyed by ICAO. Preserved across migrations.
     // airportNotes  = the pilot's own "Personal" note (hand-edited).
@@ -804,6 +810,32 @@ export function everyLeg() {
 }
 
 export function getImportedLegs() { return read().imported || []; }
+
+// ---------- Duties (non-flight calendar events) ----------
+export function getDuties() { return read().duties || []; }
+
+// Same authority rule as flights: the calendar owns the FUTURE, the device
+// owns the past. A duty still in the feed is replaced by its latest version;
+// a future one gone from the feed was cancelled, so it goes; a past one is
+// history and stays even after the feed stops listing it.
+export function syncDuties(incoming, now = Date.now()) {
+  const s = read();
+  const old = Array.isArray(s.duties) ? s.duties : [];
+  const inc = new Map();
+  for (const d of incoming || []) if (d && d.uid) inc.set(d.uid, d);
+  const out = [];
+  let added = 0, removed = 0;
+  for (const d of old) {
+    if (inc.has(d.uid)) { out.push(inc.get(d.uid)); inc.delete(d.uid); continue; }
+    if ((d.end || d.start) < now) { out.push(d); continue; }
+    removed++;
+  }
+  for (const d of inc.values()) { out.push(d); added++; }
+  out.sort((a, b) => a.start - b.start);
+  s.duties = out;
+  scheduleWrite();
+  return { added, removed, total: out.length };
+}
 
 // Drop the whole CSV backfill. Legs that were merged INTO an existing leg
 // are not undone — those edits are indistinguishable from the pilot's own
