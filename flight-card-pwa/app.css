@@ -2963,18 +2963,18 @@ body {
 .an-year {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-sunk);
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 999px;
   padding: 6px 14px;
-  font: inherit; font-size: 13px; font-weight: 700;
+  font: inherit; font-size: 14px; font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--fg-mute);
+  color: var(--fg);
   cursor: pointer;
 }
 .an-year.is-on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 
 /* History: a leg with no schedule at all. It sorts to the end of the list, so
@@ -3047,3 +3047,60 @@ body {
   text-transform: uppercase; color: var(--fg-mute);
 }
 .settings-section + .settings-section { border-top: 0.5px solid var(--line); padding-top: 14px; }
+
+/* ---------- Analytics search (iOS search field + suggestion list) ---------- */
+.an-search { position: relative; margin: 0 2px 12px; }
+.an-search-field {
+  display: flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 10px;
+  background: var(--bg-sunk); border-radius: var(--radius-ctl);
+}
+.an-search-field svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--fg-mute); stroke-width: 2; stroke-linecap: round; }
+.an-search-field input {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  font: inherit; font-size: 16px; color: var(--fg); -webkit-appearance: none; appearance: none;
+}
+.an-search-field input::placeholder { color: var(--fg-mute); }
+.an-sugg {
+  position: absolute; left: 0; right: 0; top: 40px; z-index: 5;
+  background: var(--bg-elev); border-radius: var(--radius-card);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18), 0 0 0 0.5px var(--line);
+  overflow: hidden; max-height: 50vh; overflow-y: auto;
+}
+.an-sugg-row {
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
+  padding: 11px 14px; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-size: 15px; text-align: start; cursor: pointer;
+}
+.an-sugg-row + .an-sugg-row { border-top: 0.5px solid var(--line); }
+.an-sugg-row:active { background: var(--bg-sunk); }
+.an-sugg-type { flex: none; width: 82px; font-size: 12px; font-weight: 600; color: var(--fg-mute); }
+.an-sugg-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-sugg-n { flex: none; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.an-sugg-row.is-text .an-sugg-label { color: var(--accent); }
+.an-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.an-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 4px 4px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--fg); font-size: 14px; font-weight: 500;
+}
+.an-chip-type { font-size: 11px; font-weight: 600; color: var(--accent); }
+.an-chip-x {
+  width: 22px; height: 22px; border: 0; border-radius: 50%;
+  background: var(--bg-sunk); color: var(--fg-mute); font-size: 11px; cursor: pointer;
+}
+.an-clear { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; padding: 4px 6px; cursor: pointer; }
+.an-results { display: flex; flex-direction: column; }
+.an-result {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 2px; border: 0; background: transparent; color: var(--fg);
+  font: inherit; text-align: start; cursor: pointer;
+}
+.an-result + .an-result { border-top: 0.5px solid var(--line); }
+.an-result:active { opacity: .55; }
+.an-result-date { flex: none; width: 66px; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.an-result-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.an-result-top { font-size: 15px; font-weight: 600; }
+.an-result-sub { font-size: 12px; color: var(--fg-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-result-time { flex: none; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.an-more { margin-top: 6px; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 15px; font-weight: 600; padding: 8px 2px; cursor: pointer; }

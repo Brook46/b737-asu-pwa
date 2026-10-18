@@ -11,9 +11,9 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=153';
-import { dateTs, legTs, yearPast } from './dates.js?v=153';
-import { CREW_KEYS } from './crew.js?v=153';
+import * as storage from './storage.js?v=154';
+import { dateTs, legTs, yearPast } from './dates.js?v=154';
+import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=154';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -188,13 +188,14 @@ function detectPilotName(legs) {
 // (most-frequent CPT, detected heuristically) is excluded so the top spot
 // isn't always "you". Returns canonical names — the UI flows them through
 // displayCrew for nickname-awareness.
-export function mostFlownCrew(legs, n = 5, year = null) {
+export function mostFlownCrew(legs, n = 5, year = null, pilotFrom = legs) {
   const inYear = year == null
     ? legs
     : legs.filter(l => legYear(l) === year);
-  // Detect the pilot from the FULL leg history (not just YTD), so the
-  // exclusion is stable even with only a few legs this year.
-  const pilot = detectPilotName(legs);
+  // Detect the pilot from the FULL leg history (not just YTD, and not just a
+  // search's matches — filter on one captain and they'd look like the owner),
+  // so the exclusion is stable.
+  const pilot = detectPilotName(pilotFrom);
   const counts = new Map();
   for (const leg of inYear) {
     const d = leg.dataCard || {};
@@ -265,21 +266,92 @@ export function availableYears(legs = allLegs()) {
 // year === null means ALL TIME. It used to be hardwired to the current year,
 // so the panel silently showed year-to-date only and there was no way to ask
 // for anything else.
-export function snapshot(year = new Date().getUTCFullYear()) {
-  const legs = allLegs();
+//
+// filters: the search's chosen terms (see matchesFilters). Every card is then
+// computed over the matching flights only — "hours with this captain in
+// 2025", "where I flew 4X-EKR" — while the year picker and the pilot
+// detection still look at everything.
+export function snapshot(year = new Date().getUTCFullYear(), filters = []) {
+  const all = allLegs();
+  const legs = filters.length ? all.filter(l => matchesFilters(l, filters)) : all;
+  const inScope = year == null ? legs : legs.filter(l => legYear(l) === year);
   return {
     year,
-    legCount:  legs.length,
-    years:     availableYears(legs),
+    filters,
+    legCount:  all.length,
+    years:     availableYears(all),
+    // The flights the cards describe, newest first — the search's result list.
+    matches:   inScope.slice().reverse(),
+    pool:      legs,
     top:       topDestinations(legs, 5, year),
     nights:    nightsAwayFromHome(legs, year),
     hours:     hoursFlown(legs, year),
     g:         avgMaxG(legs, year),
-    crew:      mostFlownCrew(legs, 5, year),
+    crew:      mostFlownCrew(legs, 5, year, all),
     // All-time recency maps for the "last flew" sub-labels.
     lastDest:  lastToDestination(legs),
     lastCrew:  lastWithCrew(legs),
   };
+}
+
+// ---------- Search ----------
+// What a flight can be found by. Crew includes relief pilots, cabin and
+// deadheads (one comma-separated field); destination is either end of the
+// leg, so "AMS" finds the way out and the way home; aircraft is the tail and
+// the type.
+function crewOf(leg) {
+  const d = leg.dataCard || {};
+  const out = new Set();
+  for (const k of CREW_FIELDS) {
+    const raw = String(leg[k] || d[k] || '');
+    for (const part of (k === 'dh' ? raw.split(',') : [raw])) {
+      const v = part.trim().toUpperCase();
+      if (v) out.add(v);
+    }
+  }
+  return out;
+}
+export function legFacets(leg) {
+  const d = leg.dataCard || {};
+  const up = (v) => String(v || '').trim().toUpperCase();
+  return {
+    crew: crewOf(leg),
+    dest: new Set([up(leg.dep), up(leg.arr)].filter(Boolean)),
+    aircraft: new Set([up(leg.tail || d.tail), up(d.ac_type)].filter(Boolean)),
+    flight: String(leg.flight || '').replace(/\D/g, '').replace(/^0+/, ''),
+  };
+}
+
+// Every term the pilot could pick, with how many flights carry it — the
+// search's suggestions. { crew: Map(name → n), dest: …, aircraft: …, flight: … }
+export function searchIndex(legs = allLegs()) {
+  const idx = { crew: new Map(), dest: new Map(), aircraft: new Map(), flight: new Map() };
+  const bump = (m, v) => m.set(v, (m.get(v) | 0) + 1);
+  for (const leg of legs) {
+    const f = legFacets(leg);
+    for (const v of f.crew) bump(idx.crew, v);
+    for (const v of f.dest) bump(idx.dest, v);
+    for (const v of f.aircraft) bump(idx.aircraft, v);
+    if (f.flight) bump(idx.flight, f.flight);
+  }
+  return idx;
+}
+
+// filters: [{ type: 'crew'|'dest'|'aircraft'|'flight'|'text', value }].
+// ALL must match — picking a captain and then AMS narrows to the AMS flights
+// with that captain. 'text' is whatever was typed without picking a
+// suggestion, matched as a substring against everything.
+export function matchesFilters(leg, filters) {
+  if (!filters || !filters.length) return true;
+  const f = legFacets(leg);
+  return filters.every(({ type, value }) => {
+    const v = String(value || '').trim().toUpperCase();
+    if (!v) return true;
+    if (type === 'flight') return f.flight === v.replace(/\D/g, '').replace(/^0+/, '');
+    if (type === 'crew' || type === 'dest' || type === 'aircraft') return f[type].has(v);
+    const hay = [...f.crew, ...f.dest, ...f.aircraft, f.flight].join(' | ');
+    return hay.includes(v) || (/^\D*\d+$/.test(v) && f.flight === v.replace(/\D/g, '').replace(/^0+/, ''));
+  });
 }
 
 // ---------- Route heat ----------

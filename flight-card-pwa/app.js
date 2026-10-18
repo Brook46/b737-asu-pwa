@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=153';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=153';
-import * as storage from './modules/storage.js?v=153';
-import * as dataCard from './modules/data-card.js?v=153';
-import * as checklist from './modules/checklist.js?v=153';
-import * as speeches from './modules/speeches.js?v=153';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=153';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=153';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=153';
+import { DUTY_KINDS } from './modules/duties.js?v=154';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=154';
+import * as storage from './modules/storage.js?v=154';
+import * as dataCard from './modules/data-card.js?v=154';
+import * as checklist from './modules/checklist.js?v=154';
+import * as speeches from './modules/speeches.js?v=154';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=154';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=154';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=154';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2018,20 +2018,31 @@ $('logbook-export').addEventListener('click', async () => {
 // null = all time. Defaults to this year, which is what the panel always
 // showed — the difference is that it is now a choice rather than a hard-wire.
 let anYear = new Date().getUTCFullYear();
+// The search's picked terms ({ type, value }), all of which a flight must
+// match. Kept across repaints and year changes; cleared one chip at a time.
+let anFilters = [];
+let anIndex = null;          // analytics.searchIndex() — the suggestion pool
+let anCity = null;           // airports.cityName, for suggestion labels
+let anShowAll = false;       // result list expanded past its first rows
 
 async function paintAnalytics() {
   const body = $('analytics-body');
+  const keepScroll = body.closest('.ocr-sheet')?.scrollTop || 0;
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
     const an = await import('./modules/analytics.js');
     const airports = await import('./modules/airports.js');
     const world = await import('./modules/worldmap.js');
-    const data = an.snapshot(anYear);
-    data.heat = an.routeHeat();
-    data.routeLegs = an.flownRoutes();
+    const data = an.snapshot(anYear, anFilters);
+    data.routeLegs = an.flownRoutes(data.pool);
+    data.heatFrom = an.heatFrom;
+    anIndex = an.searchIndex(an.allLegs());
+    anCity = airports.cityName;
     body.innerHTML = renderAnalytics(data, {
       cityName: airports.cityName, displayCrew: storage.displayCrew, airports, world,
     });
+    const sheet = body.closest('.ocr-sheet');
+    if (sheet && keepScroll) sheet.scrollTop = keepScroll;
   } catch (err) {
     console.warn('analytics render failed', err);
     body.innerHTML = `<p class="muted small">Couldn't compute analytics: ${err?.message || err}</p>`;
@@ -2050,7 +2061,90 @@ $('analytics-body').addEventListener('click', (e) => {
   if (!pick) return;
   const v = pick.dataset.anYear;
   anYear = v === 'all' ? null : Number(v);
+  anShowAll = false;
   paintAnalytics();
+});
+
+// ---------- Analytics search ----------
+const AN_TYPE_LABEL = { crew: 'Crew', dest: 'Destination', aircraft: 'Aircraft', flight: 'Flight', text: 'Contains' };
+function anTermLabel(type, value) {
+  if (type === 'crew') return storage.displayCrew(value) || value;
+  if (type === 'dest') { const c = anCity && anCity(value); return c ? `${value} · ${c}` : value; }
+  if (type === 'flight') return displayFlight(value);
+  return value;
+}
+// Suggestions for what's typed: each kind of term, best first — a name that
+// STARTS with the text beats one that merely contains it, then the most
+// flown. A nickname or a city counts as a hit too ("dub" finds DUB · Dublin).
+function anSuggestions(q) {
+  const t = q.trim().toUpperCase();
+  if (!t || !anIndex) return [];
+  const out = [];
+  for (const type of ['crew', 'dest', 'aircraft', 'flight']) {
+    for (const [value, n] of anIndex[type]) {
+      if (anFilters.some(f => f.type === type && f.value === value)) continue;
+      const label = anTermLabel(type, value);
+      const hay = `${value} ${label}`.toUpperCase();
+      const at = hay.indexOf(t);
+      if (at < 0) continue;
+      const starts = at === 0 || /[\s·-]/.test(hay[at - 1]);
+      out.push({ type, value, label, n, rank: (starts ? 0 : 1) });
+    }
+  }
+  out.sort((a, b) => a.rank - b.rank || b.n - a.n);
+  return out.slice(0, 8);
+}
+function paintAnSuggestions() {
+  const q = $('an-q'), box = $('an-sugg');
+  if (!q || !box) return;
+  const list = anSuggestions(q.value);
+  box.innerHTML = list.map(s => `
+    <button type="button" class="an-sugg-row" data-an-pick="${escapeAttr(s.type)}" data-an-value="${escapeAttr(s.value)}">
+      <span class="an-sugg-type">${escapeHtml(AN_TYPE_LABEL[s.type])}</span>
+      <span class="an-sugg-label">${escapeHtml(s.label)}</span>
+      <span class="an-sugg-n">${s.n}</span>
+    </button>`).join('')
+    + (q.value.trim() ? `<button type="button" class="an-sugg-row is-text" data-an-pick="text" data-an-value="${escapeAttr(q.value.trim())}">
+        <span class="an-sugg-type">Search</span><span class="an-sugg-label">“${escapeHtml(q.value.trim())}” anywhere</span></button>` : '');
+  box.classList.toggle('hidden', !q.value.trim());
+}
+function anAddFilter(type, value) {
+  const v = String(value || '').trim();
+  if (!v) return;
+  if (!anFilters.some(f => f.type === type && f.value === v)) anFilters.push({ type, value: v });
+  anShowAll = false;
+  paintAnalytics();
+}
+$('analytics-body').addEventListener('input', (e) => {
+  if (e.target.id === 'an-q') paintAnSuggestions();
+});
+$('analytics-body').addEventListener('keydown', (e) => {
+  if (e.target.id !== 'an-q') return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // Enter takes the top suggestion — usually what was meant — or, with
+    // none, searches the typed text everywhere.
+    const top = anSuggestions(e.target.value)[0];
+    if (top) anAddFilter(top.type, top.value); else anAddFilter('text', e.target.value);
+  } else if (e.key === 'Escape') {
+    e.target.value = ''; paintAnSuggestions();
+  }
+});
+$('analytics-body').addEventListener('click', (e) => {
+  const pick = e.target.closest('[data-an-pick]');
+  if (pick) { anAddFilter(pick.dataset.anPick, pick.dataset.anValue); return; }
+  const un = e.target.closest('[data-an-unpick]');
+  if (un) {
+    anFilters.splice(Number(un.dataset.anUnpick), 1);
+    anShowAll = false;
+    paintAnalytics();
+    return;
+  }
+  if (e.target.closest('#an-clear')) { anFilters = []; anShowAll = false; paintAnalytics(); return; }
+  if (e.target.closest('#an-more')) { anShowAll = true; paintAnalytics(); return; }
+  // A result row opens that flight in the logbook, expanded.
+  const row = e.target.closest('[data-an-open]');
+  if (row) { hideOverlay('analytics-overlay'); openLogbook(row.dataset.anOpen); }
 });
 $('analytics-close').addEventListener('click', () => hideOverlay('analytics-overlay'));
 $('analytics-overlay').addEventListener('click', (e) => {
@@ -2663,15 +2757,29 @@ const anDayLabel = (ts) => {
   return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${String(d.getUTCFullYear()).slice(2)}`;
 };
 
-function renderRouteHeatMap(heat, airports, world, routeLegs) {
-  if (!heat.length || !airports || !world) return '';
+function renderRouteHeatMap(airports, world, routeLegs, year = null, heatFrom) {
+  if (!airports || !world) return '';
   const W = 720, H = 360;
-  const legs = (routeLegs || []).filter(r => r.ts > 0);
-  // The scale runs from the first flight on record to today, in whole days.
-  const first = legs.length ? Math.min(...legs.map(r => r.ts)) : Date.now();
   const now = Date.now();
-  const days = Math.max(1, Math.ceil((now - first) / AN_DAY));
-  anMapCtx = { airports, world, W, H, first, days, legs };
+  // The scale is the period the year picker chose: 1 Jan → 31 Dec of that
+  // year (→ today for the current one), or first flight on record → today
+  // for all time. It used to span everything whatever the picker said, so
+  // a 2024 view still drew 2019's routes on a seven-year slider.
+  let legs = (routeLegs || []).filter(r => r.ts > 0);
+  let first, end;
+  if (year != null) {
+    first = Date.UTC(year, 0, 1);
+    end = Math.min(Date.UTC(year + 1, 0, 1) - 1, now);
+    legs = legs.filter(r => r.ts >= first && r.ts <= end);
+  } else {
+    first = legs.length ? Math.min(...legs.map(r => r.ts)) : now;
+    end = now;
+  }
+  const heat = heatFrom(legs);
+  if (!heat.length) return '';
+  const days = Math.max(1, Math.ceil((end - first) / AN_DAY));
+  anMapCtx = { airports, world, W, H, first, end, days, legs };
+  const wholeLabel = year != null ? `All of ${year}` : 'All time';
   return `
     <section class="an-card an-map-card">
       <h4>Where I fly</h4>
@@ -2694,8 +2802,8 @@ function renderRouteHeatMap(heat, airports, world, routeLegs) {
         </div>
         <div class="an-scale-ends">
           <output id="an-from-out">${anDayLabel(first)}</output>
-          <button type="button" id="an-range-all" class="an-range-all">All time</button>
-          <output id="an-to-out">${anDayLabel(now)}</output>
+          <button type="button" id="an-range-all" class="an-range-all">${wholeLabel}</button>
+          <output id="an-to-out">${anDayLabel(end)}</output>
         </div>
       </div>
       <p id="an-map-key" class="an-map-key muted small">
@@ -2709,14 +2817,14 @@ function renderRouteHeatMap(heat, airports, world, routeLegs) {
 // dragging stays smooth.
 async function repaintAnMap() {
   if (!anMapCtx) return;
-  const { airports, world, W, H, first, days, legs } = anMapCtx;
+  const { airports, world, W, H, first, end, days, legs } = anMapCtx;
   const fromEl = $('an-from'), toEl = $('an-to');
   let a = Number(fromEl.value), b = Number(toEl.value);
   if (a > b) { [a, b] = [b, a]; }        // crossed handles read as a range, not an empty one
   const fromTs = first + a * AN_DAY;
   const toTs   = first + b * AN_DAY + AN_DAY - 1;
   $('an-from-out').textContent = anDayLabel(fromTs);
-  $('an-to-out').textContent   = anDayLabel(Math.min(toTs, Date.now()));
+  $('an-to-out').textContent   = anDayLabel(Math.min(toTs, end));
   const fill = $('an-scale-fill');
   if (fill) {
     fill.style.left  = (a / days * 100).toFixed(2) + '%';
@@ -2754,10 +2862,53 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
         analytics appear here.
       </p>`;
   }
-  const heatMap = renderRouteHeatMap(data.heat || [], airports, world, data.routeLegs || []);
+  const heatMap = renderRouteHeatMap(airports, world, data.routeLegs || [], data.year, data.heatFrom);
   // Scope label used by every card heading, so it is never ambiguous whether a
-  // number is year-to-date or a career total.
-  const scope = data.year == null ? 'all time' : String(data.year);
+  // number is year-to-date or a career total — or only the searched flights.
+  const filters = data.filters || [];
+  const scope = (data.year == null ? 'all time' : String(data.year)) + (filters.length ? ' · search' : '');
+  const chips = filters.map((f, i) => `
+    <span class="an-chip">
+      <span class="an-chip-type">${escapeHtml(AN_TYPE_LABEL[f.type] || '')}</span>
+      ${escapeHtml(anTermLabel(f.type, f.value))}
+      <button type="button" class="an-chip-x" data-an-unpick="${i}" aria-label="Remove ${escapeAttr(f.value)}">✕</button>
+    </span>`).join('');
+  const search = `
+    <div class="an-search">
+      <label class="an-search-field">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4.5 4.5"/></svg>
+        <input id="an-q" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off"
+               spellcheck="false" placeholder="Crew, destination, aircraft, flight"
+               aria-label="Search flights by crew, destination, aircraft or flight number" />
+      </label>
+      <div id="an-sugg" class="an-sugg hidden" role="listbox"></div>
+      ${chips ? `<div class="an-chips">${chips}<button type="button" id="an-clear" class="an-clear">Clear</button></div>` : ''}
+    </div>`;
+  // The flights behind the numbers, when a search is on: tap one to open it.
+  let results = '';
+  if (filters.length) {
+    const m = data.matches || [];
+    const shown = anShowAll ? m : m.slice(0, 12);
+    const rows = shown.map(leg => {
+      const d = leg.dataCard || {};
+      const time = d.actual_block_time || d.block_time || leg.flight_time || '';
+      const crew = [leg.cpt || d.cpt, leg.fo || d.fo].filter(Boolean).map(n => storage.displayCrew(n) || n).join(' · ');
+      return `<button type="button" class="an-result" data-an-open="${escapeAttr(lbKeyOf(leg))}">
+          <span class="an-result-date">${escapeHtml(legDateLabel(leg.dep_date, leg.dep_year))}</span>
+          <span class="an-result-mid">
+            <span class="an-result-top">${escapeHtml(leg.flight ? displayFlight(leg.flight) : 'Flight')} · ${escapeHtml(leg.dep || '—')} → ${escapeHtml(leg.arr || '—')}</span>
+            <span class="an-result-sub">${escapeHtml([leg.tail || d.tail, crew].filter(Boolean).join(' · '))}</span>
+          </span>
+          <span class="an-result-time">${escapeHtml(time)}</span>
+        </button>`;
+    }).join('');
+    results = `
+      <div class="an-card">
+        <h4>${m.length} flight${m.length === 1 ? '' : 's'} (${scope.replace(' · search', '')})</h4>
+        ${m.length ? `<div class="an-results">${rows}</div>` : `<p class="an-empty">No flights match${data.year != null ? ` in ${data.year} — try All time` : ''}.</p>`}
+        ${m.length > shown.length ? `<button type="button" id="an-more" class="an-more">Show all ${m.length}</button>` : ''}
+      </div>`;
+  }
   const years = Array.isArray(data.years) ? data.years : [];
   const yearPicker = `
     <div class="an-years" role="group" aria-label="Period">
@@ -2816,6 +2967,8 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
 
   return `
     ${yearPicker}
+    ${search}
+    ${results}
     ${heatMap}
     <div class="an-card">
       <h4>Top destinations (${scope})</h4>
@@ -2829,7 +2982,7 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
     <div class="an-card">
       <h4>Hours flown (${scope})</h4>
       <div class="an-big">${esc(data.hours.totalLabel)}</div>
-      <div class="an-big-sub">prefers actual flight time when set, then block, then scheduled</div>
+      <div class="an-big-sub">block hours — actual off-block → on-block where known, else scheduled</div>
       ${tailChips ? `<div class="an-tails">${tailChips}</div>` : ''}
     </div>
     <div class="an-card">
