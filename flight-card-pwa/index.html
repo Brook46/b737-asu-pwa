@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=154" />
+  <link rel="stylesheet" href="./app.css?v=155" />
 </head>
 <body>
   <header class="app-header">
@@ -159,6 +159,7 @@
           <span class="card-title">Data card</span>
         </button>
         <button id="data-reset-all" data-action="data-reset-all" class="btn ghost-btn" title="Reset SOB, ATIS, Takeoff &amp; Fuel (keeps Flight + Crew)" aria-label="Reset data card">↻</button>
+        <button id="data-edit" class="btn ghost-btn" aria-pressed="false" title="Arrange the data card" aria-label="Arrange the data card">✎</button>
       </header>
       <div class="card-body" id="data-body"></div>
     </section>
@@ -751,6 +752,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=154"></script>
+  <script type="module" src="./app.js?v=155"></script>
 </body>
 </html>

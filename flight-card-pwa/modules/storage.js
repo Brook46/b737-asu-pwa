@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=154';
-import { dateTs, legTs } from './dates.js?v=154';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=154';
+import { flipName } from './roster.js?v=155';
+import { dateTs, legTs } from './dates.js?v=155';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=155';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -634,19 +634,45 @@ export function setNote(itemId, text) {
   else delete bag[itemId];
   scheduleWrite();
 }
+// Fields a calendar sync would otherwise overwrite. One the pilot TYPES is
+// pinned on that leg (leg.pinned) and every later sync leaves it alone — a
+// corrected flight time used to snap back to the roster's on the next
+// refresh. Clearing the field unpins it, so the next sync fills it in again.
+// Crew is deliberately not here: the roster's list stays authoritative so a
+// swapped-out crew member doesn't linger (see mergeLeg).
+const PIN_KEYS = new Set(['flight_time', 'block_time', 'tail', 'ctot', 'dep', 'arr']);
+
 export function setDataField(key, value) {
   const bag = dataCardBag();
-  if (value === '' || value == null) delete bag[key];
+  const empty = value === '' || value == null;
+  if (empty) delete bag[key];
   else bag[key] = value;
   // Keep the leg's top-level identity fields in sync with the data card so
   // the leg-switcher chip and the depTs() sort still see edits made in the
   // data card (e.g. fixing a dep airport on the fly).
   const leg = activeLeg();
   if (leg && LEG_IDENTITY_KEYS.includes(key)) {
-    if (value === '' || value == null) leg[key] = '';
+    if (empty) leg[key] = '';
     else leg[key] = value;
   }
+  if (leg && PIN_KEYS.has(key)) {
+    const pins = (leg.pinned && typeof leg.pinned === 'object') ? leg.pinned : (leg.pinned = {});
+    // A typed flight time IS the block for this leg: carry it to block_time,
+    // or the logbook would still show the roster's number beside it.
+    const keys = key === 'flight_time' ? ['flight_time', 'block_time'] : [key];
+    for (const k of keys) {
+      if (empty) delete pins[k]; else pins[k] = true;
+      if (k === 'block_time' && key === 'flight_time') {
+        if (empty) delete bag.block_time; else bag.block_time = value;
+      }
+    }
+    if (!Object.keys(pins).length) delete leg.pinned;
+  }
   scheduleWrite();
+}
+export function isPinned(key) {
+  const leg = activeLeg();
+  return !!(leg && leg.pinned && leg.pinned[key]);
 }
 export function setDataBulk(fields) {
   const bag = dataCardBag();
@@ -1211,9 +1237,13 @@ function mergeLeg(target, source) {
   // Crew belongs here too: it lives at the top level of a leg AND in the
   // dataCard, and leaving the top-level copy behind meant a re-sync showed the
   // OLD crew (the logbook reads top-level first).
+  // Fields the pilot typed by hand (target.pinned, see setDataField) are
+  // left exactly as typed.
+  const pinned = (target.pinned && typeof target.pinned === 'object') ? target.pinned : {};
   for (const k of ['flight','tail','dep','arr','flight_time','ctot',
                    'dep_date','dep_time','arr_date','arr_time','dep_year','arr_year',
                    ...CREW_FIELDS]) {
+    if (pinned[k]) continue;
     if (source[k] != null && source[k] !== '') target[k] = source[k];
   }
   // dataCard merge — incoming wins per key for non-empty values. block_time
@@ -1225,6 +1255,7 @@ function mergeLeg(target, source) {
   // as off_block / on_block / actual_block_time and merges like any field.
   target.dataCard = target.dataCard || {};
   for (const [k, v] of Object.entries(source.dataCard || {})) {
+    if (pinned[k]) continue;
     if (v != null && v !== '') target.dataCard[k] = v;
   }
   // Crew: when the incoming leg names ANYONE, its list is the whole crew.

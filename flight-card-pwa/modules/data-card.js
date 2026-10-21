@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=154';
-import * as wx from './wx.js?v=154';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=154';
+import * as storage from './storage.js?v=155';
+import * as wx from './wx.js?v=155';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=155';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -79,6 +79,7 @@ let collapsed = new Set(DEFAULT_COLLAPSED);
 let onChange = null;
 let onOptFmc = null;
 let onResetGroup = null;
+let onEditDone = null;     // edit mode's Done — the card head's ✎ un-presses
 // Flaps picker collapsed by default — tap to open the 5-chip row.
 let flapsPickerOpen = false;
 // Kept so the picker open/close + chip clicks can repaint the card without
@@ -97,10 +98,51 @@ export function setOnResetGroup(fn) { onResetGroup = fn; }
 // "+ add" is needed again) or none (so all cells show automatically).
 let crewShowAll = false;
 
+// ---------- Layout: the pilot's own order of the groups ----------
+// Set by dragging in edit mode (✎ in the card head), the same way the print
+// layout is arranged. It's a view preference for this device, not flight
+// data, so it lives in localStorage beside the other view settings rather
+// than in the synced store. Groups the saved order doesn't know (added in a
+// later version) keep their default place.
+const ORDER_KEY = 'fc.dataCard.order';
+let editMode = false;
+function savedOrder() {
+  try {
+    const v = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null');
+    return Array.isArray(v) ? v : null;
+  } catch { return null; }
+}
+export function orderedGroups() {
+  const order = savedOrder();
+  if (!order) return FIELDS.slice();
+  const byId = new Map(FIELDS.map(g => [g.id, g]));
+  const out = order.filter(id => byId.has(id)).map(id => byId.get(id));
+  FIELDS.forEach((g, i) => {
+    if (out.includes(g)) return;
+    out.splice(Math.min(i, out.length), 0, g);
+  });
+  return out;
+}
+export function setOrder(ids) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(ids)); } catch {}
+}
+export function resetOrder() {
+  try { localStorage.removeItem(ORDER_KEY); } catch {}
+  if (lastRoot) render(lastRoot);
+}
+export function isEditing() { return editMode; }
+export function setEditing(on) {
+  editMode = !!on;
+  if (lastRoot) render(lastRoot);
+}
+
 export function render(root) {
   const data = storage.getCurrent().dataCard;
-  const html = FIELDS.map(group => {
-    const isCol = collapsed.has(group.id);
+  const html = orderedGroups().map(group => {
+    // Edit mode shows every group folded to its head, so the list is short
+    // enough to drag through — like the print layout's field list. The
+    // pilot's own fold state is untouched and comes back on Done.
+    const isCol = editMode || collapsed.has(group.id);
     // METAR is a derived/cached value, not user data — don't include it in
     // the filled count or denominator that the collapsed head shows.
     const countCells = group.cells.filter(c => c.kind !== 'metar');
@@ -132,27 +174,91 @@ export function render(root) {
     const optBtn = group.hasOptFmc
       ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
       : '';
+    const grip = editMode
+      ? `<span class="data-grip" data-group-grip role="button" aria-label="Drag ${escape(group.group)} to reorder" title="Drag to reorder">≡</span>`
+      : '';
     return `
-      <div class="data-group ${isCol ? 'collapsed' : ''}" data-group="${group.id}">
+      <div class="data-group ${isCol ? 'collapsed' : ''}${editMode ? ' is-editing' : ''}" data-group="${group.id}">
         <div class="data-group-head-row">
-          <button type="button" class="data-group-head" data-toggle="${group.id}">
+          ${grip}
+          <button type="button" class="data-group-head" data-toggle="${group.id}"${editMode ? ' tabindex="-1"' : ''}>
             <span class="chev">${isCol ? '▸' : '▾'}</span>
             <span class="data-group-name">${escape(group.group)}</span>
             <span class="data-group-meta">${groupMeta(group, data, filled, countCells.length)}</span>
           </button>
-          ${resetBtn}
-          ${optBtn}
-          ${crewAddBtn}
+          ${editMode ? '' : resetBtn}
+          ${editMode ? '' : optBtn}
+          ${editMode ? '' : crewAddBtn}
         </div>
         <div class="data-group-summary">${escape(summary)}</div>
         <div class="data-grid">${cells}</div>
       </div>
     `;
   }).join('');
-  root.innerHTML = html;
+  const editBar = editMode ? `
+    <div class="data-edit-bar">
+      <span class="muted small">Drag ≡ to put the groups in the order you want.</span>
+      <button type="button" class="data-edit-reset" data-order-reset>Default order</button>
+      <button type="button" class="btn primary data-edit-done" data-edit-done>Done</button>
+    </div>` : '';
+  root.innerHTML = html + editBar;
   lastRoot = root;
   wire(root);
+  wireDrag(root);
 }
+
+// Drag a group by its grip. Pointer events, not HTML5 drag-and-drop (which
+// iOS Safari touch doesn't do reliably) — the same approach as the print
+// layout: the group follows the finger, its neighbours swap underneath once
+// the finger crosses their middle, and the order is saved on release.
+function wireDrag(root) {
+  if (root.dataset.dragWired) return;
+  root.dataset.dragWired = '1';
+  let drag = null;
+  root.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('[data-group-grip]');
+    if (!grip || !editMode) return;
+    const row = grip.closest('.data-group');
+    if (!row) return;
+    e.preventDefault();
+    try { grip.setPointerCapture(e.pointerId); } catch {}
+    drag = { row, startY: e.clientY, dy: 0 };
+    row.classList.add('is-dragging');
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    e.preventDefault();
+    const { row } = drag;
+    drag.dy = e.clientY - drag.startY;
+    row.style.transform = `translateY(${drag.dy}px)`;
+    for (const other of root.querySelectorAll('.data-group')) {
+      if (other === row) continue;
+      const r = other.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      const down = drag.dy > 0;
+      if (down && e.clientY > mid && (other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_PRECEDING)) {
+        other.after(row); drag.startY = e.clientY; drag.dy = 0; row.style.transform = ''; break;
+      }
+      if (!down && e.clientY < mid && (other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+        other.before(row); drag.startY = e.clientY; drag.dy = 0; row.style.transform = ''; break;
+      }
+    }
+  });
+  const end = () => {
+    if (!drag) return;
+    drag.row.classList.remove('is-dragging');
+    drag.row.style.transform = '';
+    drag = null;
+    setOrder([...root.querySelectorAll('.data-group')].map(g => g.dataset.group));
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('[data-edit-done]')) { setEditing(false); if (onEditDone) onEditDone(); }
+    else if (e.target.closest('[data-order-reset]')) resetOrder();
+  });
+}
+export function setOnEditDone(fn) { onEditDone = fn; }
 
 const CREW_CELL_KEYS = new Set(CREW_KEYS);
 
@@ -458,6 +564,7 @@ function wire(root) {
   root.querySelectorAll('[data-toggle]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
+      if (editMode) return;              // heads are drag rows while editing
       const id = btn.dataset.toggle;
       if (collapsed.has(id)) collapsed.delete(id);
       else collapsed.add(id);

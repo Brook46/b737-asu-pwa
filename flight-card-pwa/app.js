@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=154';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=154';
-import * as storage from './modules/storage.js?v=154';
-import * as dataCard from './modules/data-card.js?v=154';
-import * as checklist from './modules/checklist.js?v=154';
-import * as speeches from './modules/speeches.js?v=154';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=154';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=154';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=154';
+import { DUTY_KINDS } from './modules/duties.js?v=155';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=155';
+import * as storage from './modules/storage.js?v=155';
+import * as dataCard from './modules/data-card.js?v=155';
+import * as checklist from './modules/checklist.js?v=155';
+import * as speeches from './modules/speeches.js?v=155';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=155';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=155';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=155';
 
 const $ = (id) => document.getElementById(id);
 
@@ -847,6 +847,14 @@ $('hdr-tail').addEventListener('input', () => {
 // cell, shown twice. Typing here writes storage and repaints the data-card
 // cell; typing there comes back through dataCard.setOnChange → syncHeaderInputs.
 // Neither path re-renders the card, so whichever box has focus keeps it.
+// ✎ in the Data card head: arrange the groups (data-card.js edit mode).
+$('data-edit').addEventListener('click', () => {
+  const on = !dataCard.isEditing();
+  dataCard.setEditing(on);
+  $('data-edit').setAttribute('aria-pressed', String(on));
+});
+dataCard.setOnEditDone(() => $('data-edit').setAttribute('aria-pressed', 'false'));
+
 $('hdr-fltime').addEventListener('input', () => {
   const el = $('hdr-fltime');
   const formatted = formatHHMM(el.value);
