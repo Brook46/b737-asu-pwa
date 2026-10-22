@@ -123,6 +123,15 @@ export default {
       return handleMetar(url);
     }
 
+    // Flight Card Route info: METAR + TAF for many airports at once, and
+    // NOTAMs (FAA NOTAM API — off until its free key is set as secrets).
+    if (url.pathname === '/routewx') {
+      return handleRouteWx(url);
+    }
+    if (url.pathname === '/notams') {
+      return handleNotams(url, env);
+    }
+
     if (url.pathname === '/ical') {
       return handleIcal(url, env);
     }
@@ -371,6 +380,84 @@ async function handleTaf(url) {
   } catch (err) {
     return text('Upstream unreachable: ' + err.message, 502);
   }
+}
+
+// ---------- /routewx?ids=LGAV,LTBA,…  (Flight Card Route info) ----------
+// Decoded METAR + TAF JSON from aviationweather.gov for up to 300 airports,
+// fetched in chunks (its URL takes ~100 ids comfortably). Trimmed to what
+// the diversion rating reads, edge-cached for 10 minutes.
+async function handleRouteWx(url) {
+  const ids = [...new Set((url.searchParams.get('ids') || '').toUpperCase().split(','))]
+    .filter(id => /^[A-Z0-9]{4}$/.test(id)).slice(0, 300);
+  if (!ids.length) return text('No ids', 400);
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 90) chunks.push(ids.slice(i, i + 90));
+  const get = async (kind, list) => {
+    const u = `https://aviationweather.gov/api/data/${kind}?ids=${list.join(',')}&format=json`;
+    try {
+      const r = await fetch(u, { cf: { cacheTtl: 600, cacheEverything: true } });
+      if (!r.ok) return [];
+      const body = await r.text();
+      return body.trim() ? JSON.parse(body) : [];
+    } catch { return []; }
+  };
+  const [metars, tafs] = await Promise.all([
+    Promise.all(chunks.map(c => get('metar', c))).then(a => a.flat()),
+    Promise.all(chunks.map(c => get('taf', c))).then(a => a.flat()),
+  ]);
+  const cloud = (cs) => (cs || []).map(c => ({ cover: c.cover, base: c.base }));
+  const out = {
+    metars: metars.map(m => ({
+      id: m.icaoId, time: m.obsTime, raw: m.rawOb, wdir: m.wdir, wspd: m.wspd, wgst: m.wgst,
+      visib: m.visib, wx: m.wxString || '', clouds: cloud(m.clouds), vv: m.vertVis ?? null,
+    })),
+    tafs: tafs.map(t => ({
+      id: t.icaoId, raw: t.rawTAF, from: t.validTimeFrom, to: t.validTimeTo,
+      f: (t.fcsts || []).map(f => ({
+        from: f.timeFrom, to: f.timeTo, chg: f.fcstChange || '', prob: f.probability || 0,
+        wdir: f.wdir, wspd: f.wspd, wgst: f.wgst, visib: f.visib, wx: f.wxString || '',
+        clouds: cloud(f.clouds), vv: f.vertVis ?? null,
+      })),
+    })),
+  };
+  return new Response(JSON.stringify(out), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      'cache-control': 'public, max-age=300',
+    },
+  });
+}
+
+// ---------- /notams?ids=LGAV,…  (Flight Card Route info) ----------
+// FAA NOTAM API (international NOTAMs included). Needs the pilot's free FAA
+// API credentials as worker secrets FAA_NOTAM_ID / FAA_NOTAM_SECRET; without
+// them this answers 501 and the app shows "NOTAMs not checked". Up to 30
+// airports per call, each cached 30 min at the edge.
+async function handleNotams(url, env) {
+  if (!env || !env.FAA_NOTAM_ID || !env.FAA_NOTAM_SECRET) return json({ error: 'not configured' }, 501);
+  const ids = [...new Set((url.searchParams.get('ids') || '').toUpperCase().split(','))]
+    .filter(id => /^[A-Z0-9]{4}$/.test(id)).slice(0, 30);
+  if (!ids.length) return text('No ids', 400);
+  const one = async (id) => {
+    const u = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${id}&pageSize=200`;
+    try {
+      const r = await fetch(u, {
+        headers: { client_id: env.FAA_NOTAM_ID, client_secret: env.FAA_NOTAM_SECRET },
+        cf: { cacheTtl: 1800, cacheEverything: true },
+      });
+      if (!r.ok) return [id, { error: r.status }];
+      const data = await r.json();
+      const items = (data.items || []).map(it => {
+        const n = (it.properties && it.properties.coreNOTAMData && it.properties.coreNOTAMData.notam) || {};
+        return { text: n.text || '', start: n.effectiveStart || '', end: n.effectiveEnd || '' };
+      }).filter(n => n.text);
+      return [id, items];
+    } catch (err) { return [id, { error: String(err.message || err) }]; }
+  };
+  const results = Object.fromEntries(await Promise.all(ids.map(one)));
+  return json({ notams: results });
 }
 
 // ---------- /metar  (737 NG Inside's fallback when metar.vatsim.net is down) ---
