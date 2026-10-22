@@ -14,12 +14,12 @@
 //     scatters red light away from the Sun's direction). A Mars day is 24 h 40 min.
 //   • The landscape (rocks, craters, hills) is invented scenery, not a real place.
 
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=27';
-import { moonPhase } from './astro.js?v=27';
-import { earthClouds } from './orrery3d.js?v=27';
-import { SKY_BODIES } from './catalog.js?v=27';
-import { robotSVG } from './robot.js?v=27';
-import { liftPlay } from './lessonui.js?v=27';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=28';
+import { moonPhase } from './astro.js?v=28';
+import { earthClouds } from './orrery3d.js?v=28';
+import { SKY_BODIES } from './catalog.js?v=28';
+import { robotSVG } from './robot.js?v=28';
+import { liftPlay } from './lessonui.js?v=28';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588;

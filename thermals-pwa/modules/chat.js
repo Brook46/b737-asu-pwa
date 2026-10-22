@@ -3,7 +3,7 @@
 // as a compressed data URL — fine for the short clips a flying crew shares; the
 // per-pilot WhatsApp button stays the path for anything bigger.
 
-import { esc, ago } from './ui.js';
+import { esc, ago } from './ui.js?v=15';
 
 let onSend = () => {};
 let onSendMedia = () => {};

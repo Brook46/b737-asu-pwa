@@ -9,7 +9,7 @@
 // Every mode returns Uint8 RGBA, which is what deck.gl wants, and every mode
 // publishes a legend so the UI never hard-codes a swatch.
 
-import { clamp } from './metrics.js';
+import { clamp } from './metrics.js?v=6';
 
 const LIFT_MS = 0.5;    // spec: above this is lift → red
 const SINK_MS = -1.0;   // spec: below this is sink → blue

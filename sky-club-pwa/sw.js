@@ -2,37 +2,37 @@
 // including the vendored astronomy engine, star data and planet textures — is
 // cache-first and works fully offline once loaded.
 
-const CACHE_VERSION = 'skyclub-v27';
+const CACHE_VERSION = 'skyclub-v28';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=27',
-  './app.js?v=27',
+  './app.css?v=28',
+  './app.js?v=28',
   './manifest.json',
   './icon.svg',
-  './modules/astro.js?v=27',
-  './modules/catalog.js?v=27',
-  './modules/orbits.js?v=27',
-  './modules/sky.js?v=27',
-  './modules/sensors.js?v=27',
-  './modules/speech.js?v=27',
-  './modules/starfield.js?v=27',
-  './modules/moonphase.js?v=27',
-  './modules/badges.js?v=27',
-  './modules/events.js?v=27',
-  './modules/resume.js?v=27',
-  './modules/geomag.js?v=27',
-  './modules/wmm2025.js?v=27',
-  './modules/globe.js?v=27',
-  './modules/sunfx.js?v=27',
-  './modules/orrery3d.js?v=27',
-  './modules/cardglobe.js?v=27',
-  './modules/learn.js?v=27',
-  './modules/zoom.js?v=27',
-  './modules/sound.js?v=27',
-  './modules/robot.js?v=27',
-  './modules/surface.js?v=27',
-  './modules/lessonui.js?v=27',
+  './modules/astro.js?v=28',
+  './modules/catalog.js?v=28',
+  './modules/orbits.js?v=28',
+  './modules/sky.js?v=28',
+  './modules/sensors.js?v=28',
+  './modules/speech.js?v=28',
+  './modules/starfield.js?v=28',
+  './modules/moonphase.js?v=28',
+  './modules/badges.js?v=28',
+  './modules/events.js?v=28',
+  './modules/resume.js?v=28',
+  './modules/geomag.js?v=28',
+  './modules/wmm2025.js?v=28',
+  './modules/globe.js?v=28',
+  './modules/sunfx.js?v=28',
+  './modules/orrery3d.js?v=28',
+  './modules/cardglobe.js?v=28',
+  './modules/learn.js?v=28',
+  './modules/zoom.js?v=28',
+  './modules/sound.js?v=28',
+  './modules/robot.js?v=28',
+  './modules/surface.js?v=28',
+  './modules/lessonui.js?v=28',
   './data/stars.json',
   './vendor/astronomy-engine.js',
   './data/sky.json',
@@ -70,7 +70,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('skyclub-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

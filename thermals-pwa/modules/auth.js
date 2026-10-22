@@ -4,7 +4,7 @@
 // HMAC-signed session token we keep in localStorage and hand to presence.js.
 // Keyless and free; the number is both your identity and your contact link.
 
-import { API_BASE } from '../config.js';
+import { API_BASE } from '../config.js?v=15';
 
 const TOKEN_KEY = 'thermals.token';
 const PHONE_KEY = 'thermals.authPhone';

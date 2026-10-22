@@ -2,8 +2,8 @@
 // renders a single page into a canvas at the canvas's pixel width.
 // Used by the home view result cards to show the actual page (not a link).
 
-import { pdfjsLib } from './pdf-ingest.js';
-import * as storage from './storage.js?v=5';
+import { pdfjsLib } from './pdf-ingest.js?v=42';
+import * as storage from './storage.js?v=42';
 
 const docCache = new Map(); // fileId -> pdf.js PDFDocumentProxy
 

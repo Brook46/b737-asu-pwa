@@ -9,8 +9,8 @@
 // there's no tile dependency. Samples are cached per task signature so dragging
 // the time slider doesn't refetch.
 
-import { elevations } from './meteo.js';
-import { zonesAt } from './airspace.js';
+import { elevations } from './meteo.js?v=20';
+import { zonesAt } from './airspace.js?v=20';
 
 const SAMPLES = 60;           // points across the whole task — plenty at phone width
 

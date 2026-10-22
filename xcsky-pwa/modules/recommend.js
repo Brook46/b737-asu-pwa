@@ -7,7 +7,7 @@
 // The output is a suggested line + a distance estimate, clearly labelled as
 // day-potential guidance, never a flight plan.
 
-import { sampleAt } from './grid.js';
+import { sampleAt } from './grid.js?v=20';
 
 const R = 6371;
 const toRad = (d) => d * Math.PI / 180;

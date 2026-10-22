@@ -15,8 +15,8 @@
 // At 250 m spacing the interpolation error is far smaller than the DEM's own
 // 90 m resolution, so nothing is gained by asking for more.
 
-import { distance } from './metrics.js';
-import { getKv, putKv, terrainKey } from './store.js';
+import { distance } from './metrics.js?v=6';
+import { getKv, putKv, terrainKey } from './store.js?v=6';
 
 const API = 'https://api.open-meteo.com/v1/elevation';
 const BATCH = 100;          // Open-Meteo's documented per-request limit

@@ -4,26 +4,26 @@
 // cell. Live data is deliberately never cached: an ADS-B position or a map tile
 // served from cache would be a lie about where an aircraft is.
 
-const CACHE_VERSION = 'airadar-v18';
+const CACHE_VERSION = 'airadar-v19';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=18',
-  './app.js?v=18',
+  './app.css?v=19',
+  './app.js?v=19',
   './manifest.json',
   './icon.svg',
-  './modules/adsb.js?v=18',
-  './modules/airlines.js?v=18',
-  './modules/aircraft.js?v=18',
-  './modules/routes.js?v=18',
-  './modules/map.js?v=18',
-  './modules/panel.js?v=18',
-  './modules/fmt.js?v=18',
-  './modules/search.js?v=18',
-  './modules/runways.js?v=18',
-  './modules/map3d.js?v=18',
-  './modules/history.js?v=18',
-  './modules/resume.js?v=18',
+  './modules/adsb.js?v=19',
+  './modules/airlines.js?v=19',
+  './modules/aircraft.js?v=19',
+  './modules/routes.js?v=19',
+  './modules/map.js?v=19',
+  './modules/panel.js?v=19',
+  './modules/fmt.js?v=19',
+  './modules/search.js?v=19',
+  './modules/runways.js?v=19',
+  './modules/map3d.js?v=19',
+  './modules/history.js?v=19',
+  './modules/resume.js?v=19',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
@@ -43,7 +43,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('airadar-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

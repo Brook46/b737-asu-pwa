@@ -8,8 +8,8 @@
 // history, freehand + shape markup, a selectable text layer (drag-select then
 // Highlight or Note), centred page jumps and a nested chapter outline.
 
-import { pdfjsLib } from './pdf-ingest.js';
-import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js?v=5';
+import { pdfjsLib } from './pdf-ingest.js?v=42';
+import { getFile, getMarkup, putMarkup, deleteMarkup } from './storage.js?v=42';
 
 const docCache = new Map();
 const tokens = new Map();             // container -> current render token

@@ -25,7 +25,7 @@
 // keys in Sky Monkeys) and is forwarded per request by the Worker, never stored
 // server-side.
 
-import { pref, setPref } from './store.js';
+import { pref, setPref } from './store.js?v=6';
 
 /** The suite's existing Cloudflare Worker; see flight-card-pwa/cloudflare-worker/. */
 const WORKER_BASE = 'https://b737-asu-pwa.alonbrookstein.workers.dev';

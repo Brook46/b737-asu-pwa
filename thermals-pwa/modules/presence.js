@@ -8,7 +8,7 @@
 //
 // Messages (both directions) are JSON: { t: 'type', ... }.
 
-import { wsBase, todayKey, LOCATION_THROTTLE_MS } from '../config.js';
+import { wsBase, todayKey, LOCATION_THROTTLE_MS } from '../config.js?v=15';
 
 let ws = null;
 let token = null;

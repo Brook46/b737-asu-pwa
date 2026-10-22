@@ -13,9 +13,9 @@
 // Scrubbing time re-renders all three from the cached grid — no refetch.
 // timezone=auto is per-point, so rendering looks hours up by local ISO string.
 
-import { lclAgl, wStar, climbRate, dryThermalTopMSL, STD_HEIGHT } from './soaring.js';
-import { fetchRetry } from './meteo.js';
-import * as Store from './store.js';
+import { lclAgl, wStar, climbRate, dryThermalTopMSL, STD_HEIGHT } from './soaring.js?v=20';
+import { fetchRetry } from './meteo.js?v=20';
+import * as Store from './store.js?v=20';
 
 const COLS = 9, ROWS = 7;
 const PAD = 0.16;            // fetch this fraction beyond the viewport each side

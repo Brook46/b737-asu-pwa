@@ -763,7 +763,7 @@ async function checkForUpdate() {
     const [running, deployed] = await Promise.all([runningVersion(), deployedVersion()]);
     if (running && deployed && running !== deployed) {
       toast('Clearing stale cache…');
-      for (const k of await caches.keys()) await caches.delete(k);
+      for (const k of await caches.keys()) if (k.startsWith('duty-cal-')) await caches.delete(k);
       await reg.unregister();
       setTimeout(() => location.reload(), 300);
       return;

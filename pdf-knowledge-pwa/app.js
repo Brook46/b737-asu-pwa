@@ -1,21 +1,21 @@
 // B737 Pilot Companion — bootstrap, state, and event wiring.
 
-import * as storage from './modules/storage.js?v=5';
-import { extractPdf, makeFileId } from './modules/pdf-ingest.js';
-import * as searchMod from './modules/search.js';
-import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=16';
-import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=2';
-import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js';
-import { extractAnchors } from './modules/anchor-extract.js';
-import * as kg from './modules/knowledge-graph.js';
-import { renderAnchorAdmin } from './modules/anchor-admin.js';
-import { PHASES, TOGGLES, sectionsFor, phaseById } from './modules/phases.js';
-import * as gps from './modules/gps.js';
-import * as notes from './modules/annotations.js';
-import { initScratchpad } from './modules/scratchpad.js';
-import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js';
-import { paragraphsForPage, paragraphHash } from './modules/paragraphs.js?v=1';
-import { renderPreview } from './modules/page-preview.js?v=1';
+import * as storage from './modules/storage.js?v=42';
+import { extractPdf, makeFileId } from './modules/pdf-ingest.js?v=42';
+import * as searchMod from './modules/search.js?v=42';
+import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=42';
+import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=42';
+import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js?v=42';
+import { extractAnchors } from './modules/anchor-extract.js?v=42';
+import * as kg from './modules/knowledge-graph.js?v=42';
+import { renderAnchorAdmin } from './modules/anchor-admin.js?v=42';
+import { PHASES, TOGGLES, sectionsFor, phaseById } from './modules/phases.js?v=42';
+import * as gps from './modules/gps.js?v=42';
+import * as notes from './modules/annotations.js?v=42';
+import { initScratchpad } from './modules/scratchpad.js?v=42';
+import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js?v=42';
+import { paragraphsForPage, paragraphHash } from './modules/paragraphs.js?v=42';
+import { renderPreview } from './modules/page-preview.js?v=42';
 
 const $ = (id) => document.getElementById(id);
 const els = {

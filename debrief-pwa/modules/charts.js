@@ -15,9 +15,9 @@
 // The x axis is the timeline's clock, so the chart is correct in both sync modes
 // without knowing which one is active: the caller passes a `toClock` mapper.
 
-import { colorFor, rgbCss, hexToRgb } from './colors.js';
-import { HIGHLIGHT_META } from './highlights.js';
-import { fmtClockShort, fmtDuration } from './format.js';
+import { colorFor, rgbCss, hexToRgb } from './colors.js?v=6';
+import { HIGHLIGHT_META } from './highlights.js?v=6';
+import { fmtClockShort, fmtDuration } from './format.js?v=6';
 
 const PAD = { left: 44, right: 10, top: 12, bottom: 18 };
 /** Height of the vario ribbon strip along the bottom of the plot, px. */

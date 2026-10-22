@@ -6,23 +6,23 @@
 // forecast (time-height chart, wind profile, detail cards) opens as a bottom
 // sheet. Vanilla ES modules, no framework.
 
-import { fetchForecast, cachedForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js';
-import { deriveHour, summariseDay } from './modules/soaring.js';
-import { drawTimeHeight, drawWindProfile, drawRouteSection, drawSounding, soundingAt, drawTaskProfile, liftColor } from './modules/chart.js';
-import * as U from './modules/units.js';
-import * as Loc from './modules/location.js';
-import * as XMap from './modules/map.js';
-import * as Grid from './modules/grid.js';
-import * as Takeoffs from './modules/takeoffs.js';
-import * as Plan from './modules/planning.js';
-import * as Recommend from './modules/recommend.js';
-import * as Webcams from './modules/webcams.js';
-import * as Flow from './modules/windflow.js';
-import * as Store from './modules/store.js';
-import * as Airspace from './modules/airspace.js';
-import * as Profile from './modules/profile.js';
-import * as Compare from './modules/compare.js';
-import { installResumeHardening } from './modules/resume.js';
+import { fetchForecast, cachedForecast, groupByDay, MODELS, reverseLabel, reverseCountry } from './modules/meteo.js?v=20';
+import { deriveHour, summariseDay } from './modules/soaring.js?v=20';
+import { drawTimeHeight, drawWindProfile, drawRouteSection, drawSounding, soundingAt, drawTaskProfile, liftColor } from './modules/chart.js?v=20';
+import * as U from './modules/units.js?v=20';
+import * as Loc from './modules/location.js?v=20';
+import * as XMap from './modules/map.js?v=20';
+import * as Grid from './modules/grid.js?v=20';
+import * as Takeoffs from './modules/takeoffs.js?v=20';
+import * as Plan from './modules/planning.js?v=20';
+import * as Recommend from './modules/recommend.js?v=20';
+import * as Webcams from './modules/webcams.js?v=20';
+import * as Flow from './modules/windflow.js?v=20';
+import * as Store from './modules/store.js?v=20';
+import * as Airspace from './modules/airspace.js?v=20';
+import * as Profile from './modules/profile.js?v=20';
+import * as Compare from './modules/compare.js?v=20';
+import { installResumeHardening } from './modules/resume.js?v=20';
 
 // Default point if we have no saved location and GPS is unavailable:
 // Ölüdeniz / Babadağ — an easy-to-recognise flying site.

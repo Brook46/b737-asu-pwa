@@ -13,7 +13,7 @@
 //
 // Format: https://xctrack.org/Competition_Interfaces.html
 
-import { distance, launchIndex } from './metrics.js';
+import { distance, launchIndex } from './metrics.js?v=6';
 
 const API = 'https://tools.xcontest.org/api/xctsk';
 const TIMEOUT_MS = 15000;

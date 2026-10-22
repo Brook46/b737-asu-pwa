@@ -3,7 +3,7 @@
 // state by key, and overhead-panel controls (toggles, rotaries, lamps,
 // readouts) that write into the system's switch state.
 
-import { wingLE, wingChord, fusSection, TIP_Z, ENG, NOSE_X, TAIL_X } from './airframe.js?v=62';
+import { wingLE, wingChord, fusSection, TIP_Z, ENG, NOSE_X, TAIL_X } from './airframe.js?v=63';
 
 const NS = 'http://www.w3.org/2000/svg';
 

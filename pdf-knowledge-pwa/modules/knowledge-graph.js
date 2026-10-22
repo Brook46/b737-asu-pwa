@@ -5,7 +5,7 @@
 // numbers, so a revision that renumbers pages only needs the anchor store
 // rebuilt — callers are unaffected.
 
-import * as storage from './storage.js?v=5';
+import * as storage from './storage.js?v=42';
 
 let cache = null; // { all: [anchor] }
 

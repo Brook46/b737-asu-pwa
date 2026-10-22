@@ -1,12 +1,12 @@
-import { initExplore } from './modules/orbits.js?v=27';
-import { initSky } from './modules/sky.js?v=27';
-import { initStarfield } from './modules/starfield.js?v=27';
-import { initBadges } from './modules/badges.js?v=27';
-import { initLearn } from './modules/learn.js?v=27';
-import { installResumeHardening } from './modules/resume.js?v=27';
-import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=27';
-import { initRobot, hopRobot } from './modules/robot.js?v=27';
-import { initSound, syncMute } from './modules/sound.js?v=27';
+import { initExplore } from './modules/orbits.js?v=28';
+import { initSky } from './modules/sky.js?v=28';
+import { initStarfield } from './modules/starfield.js?v=28';
+import { initBadges } from './modules/badges.js?v=28';
+import { initLearn } from './modules/learn.js?v=28';
+import { installResumeHardening } from './modules/resume.js?v=28';
+import { isMuted, setMuted, stop as stopSpeech } from './modules/speech.js?v=28';
+import { initRobot, hopRobot } from './modules/robot.js?v=28';
+import { initSound, syncMute } from './modules/sound.js?v=28';
 
 const NAV_SCREENS = ['explore', 'sky', 'discover', 'badges'];
 

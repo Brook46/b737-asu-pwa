@@ -4,10 +4,10 @@
 // app.js feeds pilot upserts/removals here and into map.js; roster owns the
 // canonical client-side pilot map and the visibility filter set.
 
-import { glyphSVG } from './icons.js';
-import { STATES } from '../config.js';
-import { ago, esc, fmtSpeed, fmtAlt, fmtAgl, fmtVario, fmtTrack, compass } from './ui.js';
-import { waNumber } from './profile.js';
+import { glyphSVG } from './icons.js?v=15';
+import { STATES } from '../config.js?v=15';
+import { ago, esc, fmtSpeed, fmtAlt, fmtAgl, fmtVario, fmtTrack, compass } from './ui.js?v=15';
+import { waNumber } from './profile.js?v=15';
 
 const pilots = new Map();          // id -> pilot
 const hidden = new Set();          // ids the user has toggled off

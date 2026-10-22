@@ -2,7 +2,7 @@
 // geolocation, and a lazily-built MapLibre picker. No API key: OpenFreeMap
 // keyless vector tiles (same approach as the Sky Club app).
 
-import { geocode, reverseLabel } from './meteo.js';
+import { geocode, reverseLabel } from './meteo.js?v=20';
 
 const SPOTS_KEY = 'xcsky.spots';
 const LAST_KEY  = 'xcsky.last';

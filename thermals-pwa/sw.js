@@ -2,29 +2,31 @@
 // App shell is cache-first. MapLibre (CDN) is cached on first load so the
 // shell works offline; map *tiles* are network-only (they're huge + dynamic).
 
-const CACHE_VERSION = 'skyclub-v14';
+const CACHE_VERSION = 'thermals-v15';
+// Thermals used to share Sky Club's 'skyclub-' prefix; its last cache under that
+// name is cleared once below. Every other 'skyclub-*' cache belongs to Sky Club.
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css',
-  './app.js',
+  './app.css?v=15',
+  './app.js?v=15',
   './config.js',
   './manifest.json',
   './icon.svg',
-  './modules/ui.js',
-  './modules/geo.js',
-  './modules/icons.js',
-  './modules/state.js',
-  './modules/profile.js',
-  './modules/map.js',
-  './modules/presence.js',
-  './modules/auth.js',
-  './modules/roster.js',
-  './modules/chat.js',
-  './modules/sos.js',
-  './modules/crash.js',
-  './modules/xc.js',
-  './modules/elevation.js',
+  './modules/ui.js?v=15',
+  './modules/geo.js?v=15',
+  './modules/icons.js?v=15',
+  './modules/state.js?v=15',
+  './modules/profile.js?v=15',
+  './modules/map.js?v=15',
+  './modules/presence.js?v=15',
+  './modules/auth.js?v=15',
+  './modules/roster.js?v=15',
+  './modules/chat.js?v=15',
+  './modules/sos.js?v=15',
+  './modules/crash.js?v=15',
+  './modules/xc.js?v=15',
+  './modules/elevation.js?v=15',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
@@ -44,7 +46,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => (k.startsWith('thermals-') && k !== CACHE_VERSION) || k === 'skyclub-v14').map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

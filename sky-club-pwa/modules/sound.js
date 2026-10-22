@@ -18,7 +18,7 @@
 // lets audio start (pointerup / touchend / click do), so the listeners cover all of
 // them, and any later tap also revives a context iOS has suspended or interrupted.
 
-import { isMuted } from './speech.js?v=27';
+import { isMuted } from './speech.js?v=28';
 
 const MUSIC_LEVEL = 0.16;   // the whole background: low on purpose
 const DUCKED = 0.35;        // share of that level while a voice is speaking

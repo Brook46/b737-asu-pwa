@@ -7,7 +7,7 @@
 // We deliberately pull raw physical variables and derive the soaring numbers
 // ourselves in soaring.js, so the maths is auditable rather than a black box.
 
-import * as Store from './store.js';
+import * as Store from './store.js?v=20';
 
 const FORECAST_API = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_API  = 'https://geocoding-api.open-meteo.com/v1/search';

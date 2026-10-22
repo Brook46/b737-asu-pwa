@@ -2,14 +2,14 @@
 // inspection standard (§5.2): four spanwise zones on the top sail, a reading or
 // more in each, rated by the zone's average. Readings are saved with the check.
 
-import { $, el, esc, clear, toast } from './dom.js?v=19';
-import { icon } from './icons.js?v=19';
-import { gliderCard } from './glider.js?v=19';
-import { prefs, sessions, draft } from '../store.js?v=19';
+import { $, el, esc, clear, toast } from './dom.js?v=20';
+import { icon } from './icons.js?v=20';
+import { gliderCard } from './glider.js?v=20';
+import { prefs, sessions, draft } from '../store.js?v=20';
 import {
   ZONES, UNITS, toLpm, porosityOf, addReading, removeReading, porositySummary,
   RATING_LABEL, RATING_STATUS, LIMIT_FAIL, LIMIT_GOOD,
-} from '../porosity.js?v=19';
+} from '../porosity.js?v=20';
 
 const COL = { good: 'var(--good)', acceptable: 'var(--warn)', fail: 'var(--bad)' };
 

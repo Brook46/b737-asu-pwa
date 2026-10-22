@@ -13,8 +13,8 @@
 // because the export engine cuts video clips from these and a single timestamp
 // isn't a clip.
 
-import { segmentFlight, launchIndex, distance } from './metrics.js';
-import { fmtAlt, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtAgl } from './format.js';
+import { segmentFlight, launchIndex, distance } from './metrics.js?v=6';
+import { fmtAlt, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtAgl } from './format.js?v=6';
 
 /** A save is only a save if it started this low, in metres AGL. */
 export const LOW_SAVE_AGL = 150;
