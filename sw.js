@@ -2,12 +2,12 @@
  * Cache-first for all app shell + QRH data so the app works fully offline.
  * Bump CACHE_VERSION whenever shell assets change — old caches are purged on activate.
  */
-const CACHE_VERSION = 'asu-v19';
+const CACHE_VERSION = 'asu-v20';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=19',
-  './app.js?v=19',
+  './app.css?v=20',
+  './app.js?v=20',
   './manifest.json',
   './icon.svg',
   './icons/apple-touch-icon-152.png',
@@ -28,10 +28,13 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Only this app's OLD caches: every app on the site shares one origin and
+// one CacheStorage, and deleting "everything but mine" wiped the others —
+// including the ASU copy Flight Card keeps for offline use.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('asu-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

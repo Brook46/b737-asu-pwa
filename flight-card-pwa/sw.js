@@ -1,12 +1,12 @@
 // Flight Card service worker.
 // App shell is cache-first. Tesseract.js is fetched on demand and then cached.
 
-const CACHE_VERSION = 'flightcard-v168';
+const CACHE_VERSION = 'flightcard-v169';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=168',
-  './app.js?v=168',
+  './app.css?v=169',
+  './app.js?v=169',
   './manifest.json',
   './icon.svg',
   './menu.html',
@@ -14,34 +14,34 @@ const APP_SHELL = [
   './print.html',
   // Route info's airport database — precached so diversions work offline in flight.
   './data/divdb.json',
-  './modules/storage.js?v=168',
-  './modules/dates.js?v=168',
-  './modules/data-card.js?v=168',
-  './modules/checklist.js?v=168',
-  './modules/print.js?v=168',
-  './modules/print-pdf.js?v=168',
-  './modules/crew.js?v=168',
-  './modules/duties.js?v=168',
-  './modules/tlv-board.js?v=168',
-  './modules/route-info.js?v=168',
-  './modules/route-ui.js?v=168',
-  './modules/ui.js?v=168',
-  './modules/ocr.js?v=168',
-  './modules/speeches.js?v=168',
-  './modules/airports.js?v=168',
-  './modules/worldmap.js?v=168',
-  './modules/roster.js?v=168',
-  './modules/ly-routes.js?v=168',
-  './modules/wx.js?v=168',
-  './modules/logbook.js?v=168',
-  './modules/logbook-push.js?v=168',
-  './modules/gps.js?v=168',
-  './modules/g.js?v=168',
-  './modules/analytics.js?v=168',
-  './modules/sectors-csv.js?v=168',
-  './modules/ical.js?v=168',
-  './modules/calendar.js?v=168',
-  './modules/proxy.js?v=168',
+  './modules/storage.js?v=169',
+  './modules/dates.js?v=169',
+  './modules/data-card.js?v=169',
+  './modules/checklist.js?v=169',
+  './modules/print.js?v=169',
+  './modules/print-pdf.js?v=169',
+  './modules/crew.js?v=169',
+  './modules/duties.js?v=169',
+  './modules/tlv-board.js?v=169',
+  './modules/route-info.js?v=169',
+  './modules/route-ui.js?v=169',
+  './modules/ui.js?v=169',
+  './modules/ocr.js?v=169',
+  './modules/speeches.js?v=169',
+  './modules/airports.js?v=169',
+  './modules/worldmap.js?v=169',
+  './modules/roster.js?v=169',
+  './modules/ly-routes.js?v=169',
+  './modules/wx.js?v=169',
+  './modules/logbook.js?v=169',
+  './modules/logbook-push.js?v=169',
+  './modules/gps.js?v=169',
+  './modules/g.js?v=169',
+  './modules/analytics.js?v=169',
+  './modules/sectors-csv.js?v=169',
+  './modules/ical.js?v=169',
+  './modules/calendar.js?v=169',
+  './modules/proxy.js?v=169',
   './share-roster.html',
   './icons/icon-152.png',
   './icons/icon-167.png',
@@ -72,10 +72,13 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Only this app's OLD caches: every app on the site shares one origin and
+// one CacheStorage, and deleting "everything but mine" wiped the others —
+// including the ASU copy Flight Card keeps for offline use.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('flightcard-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

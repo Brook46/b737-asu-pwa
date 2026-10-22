@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=168';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=168';
-import * as storage from './modules/storage.js?v=168';
-import * as dataCard from './modules/data-card.js?v=168';
-import * as checklist from './modules/checklist.js?v=168';
-import * as speeches from './modules/speeches.js?v=168';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=168';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=168';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=168';
+import { DUTY_KINDS } from './modules/duties.js?v=169';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=169';
+import * as storage from './modules/storage.js?v=169';
+import * as dataCard from './modules/data-card.js?v=169';
+import * as checklist from './modules/checklist.js?v=169';
+import * as speeches from './modules/speeches.js?v=169';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=169';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=169';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=169';
 
 const $ = (id) => document.getElementById(id);
 
@@ -128,6 +128,9 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       const reg = await navigator.serviceWorker.register('./sw.js');
+      // Keep the Airspeed Unreliable app saved inside Flight Card too, so it
+      // opens with no internet (see openEmbedded).
+      registerAsuWorker();
 
       // Immediate update check at boot.
       try { await reg.update(); } catch {}
@@ -1207,7 +1210,7 @@ const TOP_ACTIONS = {
   'checklist-reset': () => doChecklistReset(),
   'checklist-edit':  () => doChecklistEditToggle(),
   'checklist-print': () => openPrintSheet(),
-  'radar':           () => doRadar(),
+  'radar':           () => navigator.onLine === false ? toast('Radar needs internet') : doRadar(),
   'asu':             () => doAirspeedUnreliable(),
   'systems':         () => doSystems(),
   'pa-toggle':       () => speeches.open(),
@@ -1751,12 +1754,52 @@ async function doAirspeedUnreliable() {
     if (ap && Number.isFinite(ap.elev)) params.set('alt', String(Math.round(ap.elev)));
   }
   const q = params.toString();
-  window.open('../' + (q ? '?' + q : ''), '_blank', 'noopener,noreferrer');
+  openEmbedded('../' + (q ? '?' + q : ''), 'Airspeed Unreliable',
+    [v ? `737-${v}` : '', params.get('alt') ? `${dep} ${params.get('alt')} ft` : ''].filter(Boolean).join(' · '));
 }
 
-// 737 NG Inside — the systems explorer, a sibling app on the same site.
+// 737 NG Inside — the systems explorer, a sibling app on the same site. Saved
+// for offline the first time it's opened here (its own worker caches it).
 function doSystems() {
-  window.open('../b737-systems-pwa/', '_blank', 'noopener,noreferrer');
+  openEmbedded('../b737-systems-pwa/', '737 NG Inside', '');
+}
+
+// A sibling app shown inside Flight Card, full screen, with Done to come
+// back. Inside, it uses the copy saved in Flight Card's own storage — a new
+// window (the old way) is a separate browser on iOS, where it was never
+// saved, so it failed offline.
+function openEmbedded(url, title, note) {
+  const frame = $('embed-frame');
+  $('embed-title').textContent = title;
+  $('embed-note').textContent = note || '';
+  frame.title = title;
+  frame.src = url;
+  showOverlay('embed-overlay');
+}
+$('embed-done')?.addEventListener('click', () => hideOverlay('embed-overlay'));
+
+// ---------- Offline ----------
+// A small "Offline" pill by the clock whenever there's no connection, so a
+// blank or old figure is never a mystery. Tap it for what still works.
+function paintNet() {
+  const pill = $('net-pill');
+  if (!pill) return;
+  const off = navigator.onLine === false;
+  pill.hidden = !off;
+  document.body.classList.toggle('is-offline', off);
+}
+window.addEventListener('online', paintNet);
+window.addEventListener('offline', paintNet);
+paintNet();
+$('net-pill')?.addEventListener('click', () => toast('No internet — the card, checklist, PA, ASU and Route info run from what was saved; weather shows the last report with its age.', 4200));
+
+// The ASU app's own service worker, registered from here so its pages and
+// QRH tables are stored in Flight Card's storage (a Home-Screen app on iOS
+// has its own). Only where the ASU app sits one level up — the deployed site
+// and the suite dev server — never on a Flight-Card-only server.
+function registerAsuWorker() {
+  if (!('serviceWorker' in navigator) || !/\/flight-card-pwa\//.test(location.pathname)) return null;
+  return navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => null);
 }
 
 function openSettingsSheet() {

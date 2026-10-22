@@ -20,12 +20,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=168" />
+  <link rel="stylesheet" href="./app.css?v=169" />
 </head>
 <body>
   <header class="app-header">
     <div class="hdr-row hdr-row-1">
       <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
+      <button id="net-pill" class="net-pill" type="button" hidden title="No internet — showing saved data">Offline</button>
       <div class="hdr-ctot">
         <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" maxlength="5" aria-label="CTOT (UTC)" />
         <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
@@ -671,6 +672,22 @@
   <!-- Duty details — a non-flight calendar event (sim, training, standby,
        day off…) tapped in History or the logbook. Read-only: the calendar is
        the source, and nothing is ever written back to it. -->
+  <!-- A sibling app (Airspeed Unreliable, 737 NG Inside) opened INSIDE Flight
+       Card, full screen. On iOS a Home-Screen app opens a new window as a
+       separate browser with its own storage, where the app was never saved —
+       so offline it couldn't load. In here it runs from Flight Card's own
+       saved copy. -->
+  <div id="embed-overlay" class="overlay hidden embed-overlay" role="dialog" aria-modal="true" aria-labelledby="embed-title">
+    <div class="embed-sheet">
+      <div class="embed-bar">
+        <button id="embed-done" class="btn primary" type="button">Done</button>
+        <span id="embed-title" class="embed-title"></span>
+        <span id="embed-note" class="embed-note"></span>
+      </div>
+      <iframe id="embed-frame" title="" allow="geolocation"></iframe>
+    </div>
+  </div>
+
   <!-- Route info: diversion airports along the route (modules/route-ui.js). -->
   <div id="route-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="route-label">
     <div class="ocr-sheet route-sheet">
@@ -799,6 +816,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=168"></script>
+  <script type="module" src="./app.js?v=169"></script>
 </body>
 </html>

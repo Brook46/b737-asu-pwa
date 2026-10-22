@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=168';
-import * as wx from './wx.js?v=168';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=168';
+import * as storage from './storage.js?v=169';
+import * as wx from './wx.js?v=169';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=169';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -475,7 +475,7 @@ function renderMetarCell(c) {
     body = 'Set Dep first';
     stateCls = 'is-empty';
   } else if (!entry) {
-    body = 'Fetching METAR…';
+    body = navigator.onLine === false ? 'No internet — no METAR saved for this airport' : 'Fetching METAR…';
     stateCls = 'is-empty';
   } else if (!metar) {
     body = 'No METAR available right now';
@@ -483,9 +483,15 @@ function renderMetarCell(c) {
   } else {
     body = metar;
   }
+  // How old the report is, once it's worth saying — and plainly when it's
+  // the last one kept on the device because there's no internet.
+  const age = metar ? wx.metarAgeMin(metar) : null;
+  const ageTxt = age == null || age < 45 ? ''
+    : age < 120 ? `${age} min old` : `${Math.round(age / 60)} h old`;
+  const staleTxt = entry?.stale && ageTxt ? `${ageTxt} · last saved` : ageTxt;
   return `
-    <div class="data-cell metar-cell span2 ${stateCls}">
-      <span class="lbl">${escape(c.label)}${dep ? ' · ' + escape(dep) : ''}</span>
+    <div class="data-cell metar-cell span2 ${stateCls}${age != null && age >= 90 ? ' is-old' : ''}">
+      <span class="lbl">${escape(c.label)}${dep ? ' · ' + escape(dep) : ''}${staleTxt ? ` <i class="metar-age">${escape(staleTxt)}</i>` : ''}</span>
       <div class="metar-text">${escape(body)}</div>
     </div>
   `;

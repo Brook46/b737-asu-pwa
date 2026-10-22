@@ -12,8 +12,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=168';
-import { WORKER_BASE } from './proxy.js?v=168';
+import { lookup } from './airports.js?v=169';
+import { WORKER_BASE } from './proxy.js?v=169';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -21,6 +21,27 @@ import { WORKER_BASE } from './proxy.js?v=168';
 
 const TTL_MS = 9 * 60 * 1000;
 const cache = new Map();   // icao → { metar, taf, datis, ts }
+
+// The last METAR / TAF per airport is also kept on the device
+// (fc.wx.<ICAO>), so with no internet — or after the app was closed — the
+// card still shows the last one, marked with its age, instead of nothing.
+function readStored(icao) {
+  try { return JSON.parse(localStorage.getItem('fc.wx.' + icao) || 'null'); } catch { return null; }
+}
+function store(icao, e) {
+  try {
+    localStorage.setItem('fc.wx.' + icao, JSON.stringify({ metar: e.metar, taf: e.taf, ts: e.ts, metarTs: e.metarTs }));
+  } catch {}
+}
+// A fresh fetch that came back empty (offline) keeps the stored report.
+function withStored(icao, entry) {
+  const st = readStored(icao);
+  if (!st) return entry;
+  const out = { ...entry };
+  if (!out.metar && st.metar) { out.metar = st.metar; out.metarTs = st.metarTs || st.ts; out.stale = true; }
+  if (!out.taf && st.taf) { out.taf = st.taf; out.stale = true; }
+  return out;
+}
 
 function toIcao(code) {
   if (!code) return null;
@@ -79,7 +100,9 @@ export async function fetchWx(code, opts) {
   if (!force && cached && (Date.now() - cached.ts) < TTL_MS && (metarOnly || !cached.partial)) return cached;
   if (metarOnly) {
     const metar = await fetchMetar(icao);
-    const entry = { icao, metar, taf: cached?.taf ?? null, datis: cached?.datis ?? null, ts: Date.now(), partial: true };
+    let entry = { icao, metar, metarTs: metar ? Date.now() : null, taf: cached?.taf ?? null, datis: cached?.datis ?? null, ts: Date.now(), partial: true };
+    if (metar) store(icao, { ...entry, taf: entry.taf ?? readStored(icao)?.taf ?? null });
+    entry = withStored(icao, entry);
     cache.set(icao, entry);
     return entry;
   }
@@ -88,7 +111,9 @@ export async function fetchWx(code, opts) {
     fetchTaf(icao),
     fetchDatis(icao),
   ]);
-  const entry = { icao, metar, taf, datis, ts: Date.now() };
+  let entry = { icao, metar, metarTs: metar ? Date.now() : null, taf, datis, ts: Date.now() };
+  if (metar || taf) store(icao, entry);
+  entry = withStored(icao, entry);
   cache.set(icao, entry);
   return entry;
 }
@@ -102,7 +127,21 @@ export function clearCache() { cache.clear(); }
 export function peekCachedWx(code) {
   const icao = toIcao(code);
   if (!icao) return null;
-  return cache.get(icao) || null;
+  if (cache.has(icao)) return cache.get(icao);
+  // Nothing fetched this session: the last one kept on the device.
+  const st = readStored(icao);
+  return st ? { icao, metar: st.metar, metarTs: st.metarTs || st.ts, taf: st.taf, ts: st.ts, stale: true } : null;
+}
+
+// Minutes since a METAR was observed, from its own ddhhmmZ group; null when
+// it can't be read.
+export function metarAgeMin(metar, now = Date.now()) {
+  const m = /\b(\d{2})(\d{2})(\d{2})Z\b/.exec(String(metar || ''));
+  if (!m) return null;
+  const d = new Date(now);
+  let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), +m[1], +m[2], +m[3]);
+  if (t - now > 2 * 86400000) t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, +m[1], +m[2], +m[3]);
+  return Math.round((now - t) / 60000);
 }
 
 // Pick the most useful D-ATIS letter from the response.

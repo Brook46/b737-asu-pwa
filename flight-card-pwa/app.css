@@ -3393,3 +3393,33 @@ body {
 .ri-order { display: inline-flex; gap: 2px; padding: 2px; margin: 8px 2px 4px; background: var(--bg-sunk); border-radius: 9px; }
 .ri-order button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
 .ri-order button.is-on { background: var(--bg-elev); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* Sibling apps (ASU, 737 NG Inside) shown inside Flight Card, full screen. */
+.embed-overlay { padding: 0; align-items: stretch; }
+.embed-sheet {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  background: var(--bg); padding-top: env(safe-area-inset-top);
+}
+.embed-bar {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  padding: 8px 12px; border-bottom: 0.5px solid var(--line);
+  background: var(--glass-bg-strong);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur)); -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+}
+.embed-title { font-weight: 700; font-size: 16px; }
+.embed-note { margin-left: auto; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.embed-sheet iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+.metar-age { font-style: normal; font-weight: 600; color: var(--warn); text-transform: none; letter-spacing: 0; margin-left: 4px; }
+.net-pill {
+  border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer;
+  background: var(--warn); color: #fff; font: inherit; font-size: 12px; font-weight: 700;
+}
+.net-pill[hidden] { display: none; }
+
+/* Route info: what's saved for offline, and the one-tap fill. */
+.ri-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 2px 8px; }
+.ri-ready:empty { display: none; }
+.rr-item { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-sunk); color: var(--fg-mute); }
+.rr-item.ok { color: var(--good); }
+.rr-item.warn { color: var(--warn); }
+.rr-go { padding: 6px 14px; font-size: 13px; }

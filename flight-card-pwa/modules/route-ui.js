@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=168';
-import * as ri from './route-info.js?v=168';
-import { legTs, nearestHm } from './dates.js?v=168';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=168';
+import * as storage from './storage.js?v=169';
+import * as ri from './route-info.js?v=169';
+import { legTs, nearestHm } from './dates.js?v=169';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=169';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -720,6 +720,7 @@ async function paint(model, showAll = false) {
       NOTAMs ${model.notamsOff ? 'not checked' : 'checked'} ·
       within an hour (${ri.RADIUS_NM} nm) of the great-circle route
     </div>
+    <div id="ri-ready" class="ri-ready"></div>
     ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
       `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
     ${mapSvg(model, list, world)}
@@ -735,6 +736,7 @@ async function paint(model, showAll = false) {
   state = { model, showAll };
   listKey = '';
   renderList();
+  paintReady();
   const svg = $('ri-map');
   if (svg) { wireZoom(svg); pinScale(svg, mapGeom ? mapGeom.W : 720); relabel(); }
   livePaintAt = 0;
@@ -788,6 +790,51 @@ function renderList() {
         <span class="ri-row-d">${Math.round(x ? x.d : c.distNm)} nm</span>
       </button>`;
   }).join('')}</div>`;
+}
+
+// ---------- Ready for offline ----------
+// What's actually on the device for this flight, checked rather than
+// assumed: the route's METARs / TAFs and how old, the Airspeed Unreliable
+// app, the airport database, NOTAMs. One tap fills any gap while there's
+// still a connection.
+async function savedInCache(path) {
+  try { return !!(await caches.match(new URL(path, location.href).href)); } catch { return false; }
+}
+async function paintReady() {
+  const el = $('ri-ready');
+  if (!el || !state) return;
+  const m = state.model, leg = m.leg;
+  const c = leg ? readCache(leg) : null;
+  const [asu, db] = await Promise.all([
+    Promise.all(['../data/qrh-800.json', '../data/qrh-900.json'].map(savedInCache)).then(a => a.every(Boolean)),
+    savedInCache('./data/divdb.json'),
+  ]);
+  const n = c && c.wx ? (c.wx.metars || []).length : 0;
+  const ageMin = c ? (Date.now() - c.at) / 60000 : Infinity;
+  const wxOk = c && ageMin <= 60;
+  const item = (ok, txt, warn) => `<span class="rr-item ${ok ? 'ok' : warn ? 'warn' : 'no'}">${ok ? '✓' : warn ? '!' : '–'} ${esc(txt)}</span>`;
+  const allOk = wxOk && asu && db;
+  el.innerHTML = `
+    ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
+    ${item(asu, asu ? 'Airspeed Unreliable saved' : 'ASU not saved yet')}
+    ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
+    ${item(!m.notamsOff, m.notamsOff ? 'NOTAMs off (no FAA key)' : 'NOTAMs checked', false)}
+    ${allOk ? '' : `<button type="button" class="btn primary rr-go" data-ri-prepare>Prepare for flight</button>`}`;
+}
+async function prepareForFlight() {
+  if (navigator.onLine === false) { toast('No internet — prepare while you still have a connection'); return; }
+  const btn = document.querySelector('[data-ri-prepare]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+  // ASU: its own worker (one level up) saves it into this app's storage.
+  if ('serviceWorker' in navigator && /\/flight-card-pwa\//.test(location.pathname)) {
+    try { await navigator.serviceWorker.register('../sw.js', { scope: '../' }); } catch {}
+  }
+  try { await fetch('./data/divdb.json'); } catch {}
+  await refresh(false);
+  // The ASU worker installs in the background; give it a moment to finish.
+  for (let i = 0; i < 10 && !(await savedInCache('../data/qrh-800.json')); i++) await new Promise(r => setTimeout(r, 1000));
+  await paintReady();
+  toast('Ready for offline');
 }
 
 function openCard(icao, { keepView = false } = {}) {
@@ -1044,6 +1091,11 @@ export async function open(legArg = null) {
 export async function refresh(announce = true) {
   const leg = screenLeg();
   if (!leg || busy) return;
+  if (navigator.onLine === false) {
+    const c = readCache(leg);
+    if (announce) toast(c ? `No internet — showing the weather saved ${ago(c.at)}` : 'No internet — no weather saved for this route yet');
+    return;
+  }
   busy = true;
   const btn = $('route-refresh');
   if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
@@ -1111,6 +1163,7 @@ export function wire() {
     if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
     if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
     const wp = e.target.closest('[data-wx-pick]');
     if (wp) {
       const icao = wp.closest('.ri-card')?.dataset.icao;
