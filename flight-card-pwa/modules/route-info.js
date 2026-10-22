@@ -23,7 +23,7 @@
 // /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=162';
+import { WORKER_BASE } from './proxy.js?v=163';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -180,7 +180,11 @@ function bestRunwayForWind(rwys, wdir, wind) {
       const xw = Math.abs(Math.sin(ang)) * wind;
       const hw = Math.cos(ang) * wind;
       if (hw < -10) continue;
-      if (!best || xw < best.xw) best = { rwy: ends[i] || r[0], xw: Math.round(xw), hw: Math.round(hw) };
+      // Lowest crosswind; within a knot of each other, the one with more
+      // headwind (never pick a tailwind end over an equal headwind one).
+      if (!best || xw < best.xw - 1 || (Math.abs(xw - best.xw) <= 1 && hw > best.hw)) {
+        best = { rwy: ends[i] || r[0], xw: Math.round(xw), hw: Math.round(hw) };
+      }
     }
   }
   return best;

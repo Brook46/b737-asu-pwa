@@ -3292,3 +3292,39 @@ body {
 .rd-wtxt { fill: var(--fg); font-size: 10px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
 .rd-best-t { color: var(--accent); }
 .rd-row-short td { color: var(--fg-dim); }
+
+/* Route info v2: labels that appear as you zoom, the chart-style runway
+   diagram, the wind in its own colour, full screen. */
+.ri-pin .ri-pin-code, .ri-pin .ri-pin-name { display: none; }
+.ri-pin.show-code .ri-pin-code, .ri-pin.show-name .ri-pin-name { display: inline; }
+.ri-pin .ri-pin-name {
+  fill: var(--fg-mute); font-size: 9px; font-weight: 600; text-anchor: middle;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+}
+:root { --wind: #0a84c6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wind: #64d2ff; } }
+:root[data-theme="dark"] { --wind: #64d2ff; }
+.rd { max-width: 520px; }
+.rd-rwy    { fill: #5d5d63; stroke: none; }
+.rd-short  { fill: var(--fg-dim); stroke: none; }
+.rd-closed { fill: var(--danger); stroke: none; }
+.rd-cl   { stroke: #fff; stroke-width: 0.8; stroke-dasharray: 5 4; opacity: .8; }
+.rd-dthr { stroke: #fff; stroke-width: 1.6; }
+.rd-id { fill: var(--fg); font-size: 10.5px; font-weight: 800; text-anchor: middle; }
+.rd-id.is-best { fill: #fff; }
+.rd-best-pill { fill: var(--accent); }
+.rd-lda { fill: var(--fg-mute); font-size: 8.5px; font-weight: 600; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.rd-clsd { fill: #fff; font-size: 8px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; letter-spacing: .08em; }
+.rd-wind line, .rd-wind circle { stroke: var(--wind); stroke-width: 2; fill: none; stroke-linecap: round; }
+.rd-wind .rd-barb-f { fill: var(--wind); stroke: none; }
+.rd-wtxt { fill: var(--wind); font-size: 10px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.rd-wind-t { color: var(--wind); font-weight: 600; }
+.rd-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+.rd-tag { padding: 3px 9px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; }
+.ri-rwy td:last-child { color: var(--fg-mute); }
+.ri-upd { font-size: 11px; color: var(--fg-dim); margin: 2px 0 4px; }
+.route-sheet.is-full {
+  position: fixed; inset: 0; max-width: none; width: 100%; max-height: none; height: 100%;
+  border-radius: 0; margin: 0; padding-top: max(14px, env(safe-area-inset-top));
+}
+.route-sheet.is-full .ri-map { max-height: 62vh; }

@@ -12,7 +12,8 @@ anything shorter is no diversion for a 737. Compact arrays to keep it small:
     "countries": { "GR": "Greece", ... },
     "a": { ICAO: [lat, lon, elevFt, name, city, country, size, iata,
                   [[ "03R/21L", lenFt, widthFt, hdgTrueOfLowEnd, lighted,
-                     leLat, leLon, heLat, heLon ], ...],   (ends optional)
+                     leLat, leLon, heLat, heLon,          (null when unknown)
+                     leDisplacedFt, heDisplacedFt, surface ], ...],
                   [[ type, ident, freqKHzOrMHz ], ...] ] } }
 
 size: 2 = large_airport, 1 = medium. Runways are hard-surfaced only.
@@ -86,11 +87,22 @@ for r in rows('runways.csv'):
         digits = ''.join(ch for ch in le if ch.isdigit())
         hdg = int(digits) * 10 if digits else None
     # Threshold positions (4 decimals ≈ 11 m) for the airport card's runway
-    # diagram; None where OurAirports doesn't have them.
+    # diagram — null where OurAirports doesn't have them — then each end's
+    # displaced threshold (LDA ≈ length − the landing end's displacement) and
+    # the surface code (ASP / CON …, with OurAirports' condition suffix
+    # -E/-G/-F/-P = excellent / good / fair / poor).
     ends = [fnum(r['le_latitude_deg']), fnum(r['le_longitude_deg']),
             fnum(r['he_latitude_deg']), fnum(r['he_longitude_deg'])]
+    if not all(e is not None for e in ends):
+        ends = [None] * 4
+    def disp(v):
+        try:
+            return int(float(v or 0))
+        except ValueError:
+            return 0
     a['rwy'].append([f'{le}/{he}' if he else le, length, width, int(hdg) if hdg is not None else None,
-                     1 if r['lighted'] == '1' else 0] + (ends if all(e is not None for e in ends) else []))
+                     1 if r['lighted'] == '1' else 0] + ends
+                    + [disp(r['le_displaced_threshold_ft']), disp(r['he_displaced_threshold_ft']), surf[:10]])
 
 for r in rows('navaids.csv'):
     a = air.get((r['associated_airport'] or '').strip())
