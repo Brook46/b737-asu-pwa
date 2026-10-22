@@ -3371,3 +3371,6 @@ body {
 .ri-ac path { fill: #ffd60a; stroke: #000; stroke-width: 1; }
 .ri-near-h { font-size: 12px; font-weight: 600; color: var(--fg-mute); margin: 4px 2px 2px; }
 #ri-near .ri-row { padding: 6px 2px; }
+.ri-wxctx { font-size: 12px; font-weight: 600; color: var(--accent); margin: 0 0 4px; }
+.ri-rawh { font-size: 10.5px; font-weight: 700; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .04em; margin-top: 8px; }
+.ri-rawh + .ri-raw { margin-top: 2px; }

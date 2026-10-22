@@ -23,7 +23,7 @@
 // /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=165';
+import { WORKER_BASE } from './proxy.js?v=166';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -146,12 +146,17 @@ function ceilingFt(clouds, vv) {
   if (Number.isFinite(vv) && vv > 0) c = Math.min(c, vv);
   return c;
 }
-// The conditions for time `ts`.
-//   A CURRENT METAR (observed within the last 90 min) is the truth while
-//   that time is within the hour — what the airport has now beats a forecast.
-//   Otherwise every TAF block covering that time (base, BECMG, TEMPO, PROB)
-//   folded into the WORST case — a diversion is planned on what might happen.
-//   No TAF covering it: a current METAR still stands in up to three hours out.
+// Which weather fits the moment you're looking (mode):
+//   'browse' — the flight isn't today (last month, next week): its forecast
+//              doesn't exist or doesn't matter, so the latest METAR — what
+//              the airport has now — is the useful thing.
+//   'plan'   — before departure and en route: the TAF for the time you'd be
+//              passing, worst case of every block covering it (a diversion
+//              is planned on what might happen) — unless you'd be there
+//              within the hour and a current METAR (≤ 90 min) exists, which
+//              then wins: what's happening beats what was forecast.
+//   'near'   — close to the airport (GPS, within ~an hour): the METAR.
+// The same choice drives the weather rating and the runway / wind.
 function metarCurrent(entry, now) {
   const m = entry && entry.metar;
   return !!(m && Number.isFinite(m.time) && now - m.time * 1000 <= 90 * 60000);
@@ -167,21 +172,28 @@ function fold(list, src) {
   }
   return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' '), at: list[0] && list[0].time ? list[0].time * 1000 : null };
 }
-export function wxAt(entry, ts, now = Date.now()) {
+export function wxAt(entry, ts, now = Date.now(), mode = 'plan') {
   const tsS = ts / 1000;
+  const metar = entry && entry.metar;
   const cur = metarCurrent(entry, now);
-  if (cur && Math.abs(ts - now) <= H) return fold([entry.metar], 'METAR');
-  const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= tsS && tsS < f.to);
-  if (blocks.length) return fold(blocks, 'TAF');
-  if (cur && Math.abs(ts - now) <= 3 * H) return fold([entry.metar], 'METAR');
+  const tafAt = () => {
+    const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= tsS && tsS < f.to);
+    return blocks.length ? fold(blocks, 'TAF') : null;
+  };
+  if (mode === 'browse') {
+    if (metar) return fold([metar], 'METAR');
+    return tafAt() || { src: null };
+  }
+  if (mode === 'near' && metar) return fold([metar], 'METAR');
+  if (cur && Math.abs(ts - now) <= H) return fold([metar], 'METAR');
+  const t = tafAt();
+  if (t) return t;
+  if (cur && Math.abs(ts - now) <= 3 * H) return fold([metar], 'METAR');
   return { src: null };
 }
-// The wind for choosing a runway: the runway in use is what the airport has
-// NOW, so a current METAR wins while you'd be passing within three hours;
-// later than that, the TAF for the time.
-export function windFor(entry, ts, now = Date.now()) {
-  if (metarCurrent(entry, now) && Math.abs(ts - now) <= 3 * H) return fold([entry.metar], 'METAR');
-  return wxAt(entry, ts, now);
+// Runway / wind follows the same rule.
+export function windFor(entry, ts, now = Date.now(), mode = 'plan') {
+  return wxAt(entry, ts, now, mode);
 }
 
 // Crosswind on the best-aligned runway (lowest crosswind, not mostly tailwind).
@@ -255,7 +267,7 @@ export function notamSeverity(text, usable = new Set()) {
 // Each part's points against its maximum, so a card can say exactly why an
 // airport isn't a 10 ("−1.4 distance: 139 nm off the route").
 export const MAX = { runway: 2, lighting: 0.5, size: 1.5, distance: 3, weather: 3 };
-export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now() }) {
+export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now(), mode = 'plan' }) {
   const why = [];
   if (rules.exclude.includes(ap.cc)) {
     return { score: 0, excluded: true, why: [`${ap.country}: not a diversion option`], lost: [] };
@@ -277,10 +289,10 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   const distPts = 3 * Math.max(0, 1 - distNm / RADIUS_NM);
   if (MAX.distance - distPts >= 0.05) lost.push({ pts: MAX.distance - distPts, what: `${Math.round(distNm)} nm off the route` });
 
-  const w = wxAt(wxEntry, eta, now);
-  const wind = windFor(wxEntry, eta, now);
+  const w = wxAt(wxEntry, eta, now, mode);
+  const wind = windFor(wxEntry, eta, now, mode);
   let wxPts = 1.5, belowMins = false, xw = null;
-  if (!w.src) { why.push('No forecast for that time'); lost.push({ pts: 1.5, what: 'No METAR / TAF covering that time' }); }
+  if (!w.src) { why.push('No forecast for that time'); lost.push({ pts: 1.5, what: mode === 'browse' ? 'No METAR for this airport' : 'No METAR / TAF covering that time' }); }
   else {
     const c = w.ceil, v = w.vis;
     const src = w.src === 'METAR' ? 'METAR' : 'TAF';

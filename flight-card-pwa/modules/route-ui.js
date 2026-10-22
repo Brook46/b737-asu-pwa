@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=165';
-import * as ri from './route-info.js?v=165';
-import { legTs, nearestHm } from './dates.js?v=165';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=165';
+import * as storage from './storage.js?v=166';
+import * as ri from './route-info.js?v=166';
+import { legTs, nearestHm } from './dates.js?v=166';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=166';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -30,6 +30,31 @@ let livePaintAt = 0;
 let busy = false;
 
 function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
+// The flight the screen was opened for. A calendar sync can move the app's
+// selected leg underneath an open screen (it used to jump to "the leg for
+// now"), so while Route info is open every refresh works on THIS flight,
+// found again by identity, never on whatever is selected at that moment.
+let pinned = null;
+const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => String(v ?? '')).join('|');
+function screenLeg() {
+  if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
+    const hit = storage.getLegs().find(l => idOf(l) === pinned);
+    if (hit) return hit;
+  }
+  return activeLeg();
+}
+// Where you are relative to this flight decides which weather is useful
+// (route-info.js wxAt): 'browse' when the flight isn't today — more than
+// 12 h before departure or over an hour after arrival — else 'plan'.
+function contextFor(leg, stdMs) {
+  const d = leg.dataCard || {};
+  let sta = legTs(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year);
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(d.block_time || leg.flight_time || ''));
+  if (!Number.isFinite(sta) && Number.isFinite(stdMs)) sta = stdMs + (m ? ((+m[1]) * 60 + (+m[2])) : 300) * 60000;
+  const now = Date.now();
+  if (!Number.isFinite(stdMs)) return 'browse';
+  return (now < stdMs - 12 * H || now > sta + H) ? 'browse' : 'plan';
+}
 function legKey(leg) {
   const f = String(leg?.flight || '').replace(/\D/g, '').replace(/^0+/, '');
   return `fc.route.${f}@${leg?.dep_date || ''}.${leg?.dep_year || ''}.${leg?.dep || ''}${leg?.arr || ''}`;
@@ -65,6 +90,7 @@ async function build(leg, { doFetch = false } = {}) {
   const ctotMs = nearestHm(d.ctot || leg.ctot, stdMs);
   const tm = ri.timing(leg, route.total, { taxiOut: taxiMinutes(String(leg.dep || '').toUpperCase()), ctotMs, stdMs });
   const rules = ri.getCountryRules();
+  const mode = contextFor(leg, stdMs);
   const all = ri.candidates(db, route).map(c => ({
     ...c, eta: tm.etaAt(c.along), isEnd: c.ap.icao === A.icao || c.ap.icao === B.icao,
   }));
@@ -90,7 +116,7 @@ async function build(leg, { doFetch = false } = {}) {
     const n = cache?.notams ? cache.notams[c.ap.icao] : null;
     c.wxEntry = wmap.get(c.ap.icao) || null;
     c.notams = Array.isArray(n) ? n : null;
-    c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, rules });
+    c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, rules, mode });
   }
   // Stretches with no usable airport within the hour (open ocean): the
   // route points whose nearest non-excluded candidate is beyond the radius.
@@ -105,6 +131,7 @@ async function build(leg, { doFetch = false } = {}) {
   }
   if (open) { open.to = route.total; gaps.push(open); }
   return {
+    mode,
     dbDate: db.v,
     leg, A, B, route, tm, pool, gaps: gaps.filter(g => g.to - g.from > 40),
     shown: ri.pickShown(pool, route, 4),
@@ -562,7 +589,29 @@ function whyNot10(r) {
   return `<div class="ri-why-h">Why not 10${r.capped ? ' — capped at 3: weather below CAT I' : ''}</div><ul class="ri-why">${rows}</ul>`;
 }
 
+// Which weather the card leads with, and why — the pilot shouldn't have to
+// wonder whether a number is a forecast or an observation.
+function wxContext(c, m, r) {
+  const src = r.wx && r.wx.src;
+  if (c.near) return `Current METAR — you're about ${Math.round(c.near)} min away`;
+  if (m.mode === 'browse') return src === 'METAR'
+    ? 'Current METAR — this flight isn\'t today, so its forecast doesn\'t matter yet'
+    : 'No METAR — showing the TAF';
+  if (src === 'METAR') return 'Current METAR — you\'d be there within the hour';
+  if (src === 'TAF') return `TAF for ${hm(c.eta)} — when you'd be passing (worst case of the forecast)`;
+  return 'No METAR / TAF covering that time';
+}
+
 function cardHtml(c, m) {
+  // In the air with GPS and this airport within about an hour: what it has
+  // NOW matters more than the forecast, so re-rate it on the METAR.
+  if (gpsFix && gpsFix.airborne && c.wxEntry) {
+    const t = timeTo(c.ap, gpsFix);
+    if (t.min <= 60) {
+      c = { ...c, near: t.min, eta: Date.now() + t.min * 60000 };
+      c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: 'near' });
+    }
+  }
   const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
   const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
   const rwys = ap.rwy.map(x => `<tr class="${x[1] < 5500 ? 'rd-row-short' : ''}"><td>${esc(x[0])}</td><td>${x[1].toLocaleString('en-US')} × ${x[2] || '—'} ft</td><td>${x[4] ? 'lit' : ''}</td><td>${esc(surfaceText(x))}</td></tr>`).join('');
@@ -585,11 +634,16 @@ function cardHtml(c, m) {
       <div class="ri-upd">Runway data: OurAirports, ${esc(m.dbDate || '—')} · LDA ≈ length − displaced threshold · grooving / friction treatment isn't in the free data</div>
       <h5>Runway</h5>
       ${runwayPanel(c, m)}
-      <h5>Weather at ${hm(c.eta)}${r.wx && r.wx.src ? ' (' + r.wx.src + ')' : ''}</h5>
+      <h5>Weather</h5>
+      <div class="ri-wxctx">${esc(wxContext(c, m, r))}</div>
       <div class="ri-upd">${m.fetchedAt ? `Fetched ${hm(m.fetchedAt)} (${ago(m.fetchedAt)}) from aviationweather.gov` : 'Not fetched yet — tap Update'}${c.wxEntry?.metar?.time ? ` · METAR issued ${hm(c.wxEntry.metar.time * 1000)}` : ''}</div>
       <div class="ri-wx">${ws.html}</div>
-      ${metar ? `<pre class="ri-raw">${colourRaw(metar, usable)}</pre>` : ''}
-      ${taf ? `<pre class="ri-raw">${colourRaw(taf, usable)}</pre>` : ''}
+      ${(() => {
+        const mt = c.wxEntry?.metar?.time ? c.wxEntry.metar.time * 1000 : null;
+        const mBlock = metar ? `<div class="ri-rawh">METAR${mt ? ` · ${hm(mt)}, ${ago(mt)}` : ''}</div><pre class="ri-raw">${colourRaw(metar, usable)}</pre>` : '';
+        const tBlock = taf ? `<div class="ri-rawh">TAF</div><pre class="ri-raw">${colourRaw(taf, usable)}</pre>` : '';
+        return r.wx && r.wx.src === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
+      })()}
       <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span></div>
       <h5>NOTAMs</h5>
       ${notamList(c, m)}
@@ -873,6 +927,7 @@ function wireZoom(svg) {
 
 export async function open() {
   const leg = activeLeg();
+  pinned = leg ? idOf(leg) : null;
   if (!leg || !leg.dep || !leg.arr) { toast('Route info needs a leg with departure and destination'); return; }
   showOverlay('route-overlay');
   startGps();
@@ -888,7 +943,7 @@ export async function open() {
   }
 }
 export async function refresh(announce = true) {
-  const leg = activeLeg();
+  const leg = screenLeg();
   if (!leg || busy) return;
   busy = true;
   const btn = $('route-refresh');
@@ -915,20 +970,22 @@ export async function refresh(announce = true) {
   }
 }
 
-// From an hour before departure until arrival, keep the route's weather
-// fresh in the background (every 15 min, when there's a connection) — so the
-// latest picture is on the device whether or not the screen was opened.
+// From 12 hours before departure until arrival, keep the route's METARs and
+// TAFs on the device — every 30 min, then every 15 in the last hour and en
+// route, whenever there's a connection — so with no internet in the air the
+// last TAF and METAR for every airport are still there to read.
 export async function autoUpdate() {
-  const leg = activeLeg();
+  const leg = screenLeg();
   if (!leg || !leg.dep || !leg.arr || busy || navigator.onLine === false) return;
   const std = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
   const sta = legTs(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year);
   if (!Number.isFinite(std)) return;
   const now = Date.now();
   const end = Number.isFinite(sta) ? sta + 15 * 60000 : std + 12 * H;
-  if (now < std - 65 * 60000 || now > end) return;
+  if (now < std - 12 * H || now > end) return;
   const cache = readCache(leg);
-  if (cache && now - cache.at < FRESH_MS) return;
+  const every = now >= std - 65 * 60000 ? FRESH_MS : 30 * 60000;
+  if (cache && now - cache.at < every) return;
   await refresh(false);
 }
 

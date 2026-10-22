@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=165';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=165';
-import * as storage from './modules/storage.js?v=165';
-import * as dataCard from './modules/data-card.js?v=165';
-import * as checklist from './modules/checklist.js?v=165';
-import * as speeches from './modules/speeches.js?v=165';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=165';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=165';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=165';
+import { DUTY_KINDS } from './modules/duties.js?v=166';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=166';
+import * as storage from './modules/storage.js?v=166';
+import * as dataCard from './modules/data-card.js?v=166';
+import * as checklist from './modules/checklist.js?v=166';
+import * as speeches from './modules/speeches.js?v=166';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=166';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=166';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=166';
 
 const $ = (id) => document.getElementById(id);
 
@@ -299,6 +299,15 @@ const HL_KEY = 'fc.social.highlights';   // this device's Social-note highlights
 // (its natural home ~250 lines down) puts it in the temporal dead zone and
 // every boot tick throws a caught-but-noisy ReferenceError.
 const CTOT_CLASSES = ['is-ctot-yellow','is-ctot-green','is-ctot-orange','is-ctot-red'];
+// When the pilot last chose a leg themselves (arrows, History, logbook,
+// flight number). For 30 minutes after, syncs and the boot jump leave that
+// leg on screen instead of jumping to "the leg for now" — opening last
+// month's flight and having an auto-sync whisk it away was the bug. Declared
+// up here because boot-time code reads it.
+let manualLegPickAt = 0;
+const MANUAL_LEG_HOLD_MS = 30 * 60 * 1000;
+function pickLeg(idx) { manualLegPickAt = Date.now(); return applyLeg(idx); }
+function holdingManualLeg() { return Date.now() - manualLegPickAt < MANUAL_LEG_HOLD_MS; }
 
 renderAll();
 startClocks();
@@ -532,6 +541,7 @@ const BOOT_JUMP_COOLDOWN_MS = 30 * 1000;
 function maybeAutoJumpToCurrentLeg() {
   const legs = storage.getLegs();
   if (legs.length < 2) return;
+  if (holdingManualLeg()) return;
   const last = Number(storage.getLastBootJumpAt() || 0);
   if (Date.now() - last < BOOT_JUMP_COOLDOWN_MS) return;
   const idx = pickLegForNow();
@@ -1085,7 +1095,7 @@ $('hdr-flight').addEventListener('blur', () => {
   const legs = storage.getLegs();
   const existingIdx = legs.findIndex(l => normaliseFlightNumber(l.flight) === digits);
   if (existingIdx >= 0) {
-    applyLeg(existingIdx).then(() => toast(`Switched to ELY${digits}`));
+    pickLeg(existingIdx).then(() => toast(`Switched to ELY${digits}`));
     return;
   }
   // Otherwise → pop the confirmation modal with the auto-fill preview.
@@ -1202,10 +1212,11 @@ const TOP_ACTIONS = {
   'systems':         () => doSystems(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
-  'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
-  'leg-now':         () => applyLeg(pickLegForNow()),
+  'leg-prev':        () => pickLeg(storage.getLegIndex() - 1),
+  // "Now" is the pilot asking for the current leg: no hold afterwards.
+  'leg-now':         () => { manualLegPickAt = 0; return applyLeg(pickLegForNow()); },
   'route-info':      () => openRouteInfo(),
-  'leg-next':        () => applyLeg(storage.getLegIndex() + 1),
+  'leg-next':        () => pickLeg(storage.getLegIndex() + 1),
   'ctot-bell':       () => { try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); } },
 };
 document.addEventListener('click', (e) => {
@@ -2013,8 +2024,16 @@ async function runCalendarSync(source) {
     // Authoritative sync: append/merge incoming, then prune ONLY future
     // legs missing from the duty calendar. Past flown legs and manually-
     // entered legs are always kept. Nothing is ever pushed to the calendar.
-    const { index: newIdx, added, replaced, pruned } =
+    // The leg on screen, by identity — the sync re-sorts and re-points the
+    // selection (to the newest / last-merged leg), so find it again after.
+    const viewIdOf = (l) => l ? [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => String(v ?? '')).join('|') : '';
+    const viewing = viewIdOf(storage.getLegs()[storage.getLegIndex()]);
+    const { index: syncIdx, added, replaced, pruned } =
       storage.syncFromCalendar(flights);
+    let newIdx = syncIdx;
+    const keep = holdingManualLeg() && viewing
+      ? storage.getLegs().findIndex(l => viewIdOf(l) === viewing) : -1;
+    if (keep >= 0) newIdx = keep;
     // Calendar phones go into the global crew registry — calendar wins on
     // every sync, matching the Phase 2.1 always-overwrite rule.
     if (phones && typeof phones === 'object') {
@@ -2041,9 +2060,12 @@ async function runCalendarSync(source) {
     // dep → arr + 20 min window contains "now". The cooldown is reset
     // here so the post-sync jump always fires regardless of when the
     // last boot-jump happened.
+    // ...unless the pilot picked a leg in the last 30 minutes (see pickLeg).
     try {
-      storage.setLastBootJumpAt(0);
-      maybeAutoJumpToCurrentLeg();
+      if (!holdingManualLeg()) {
+        storage.setLastBootJumpAt(0);
+        maybeAutoJumpToCurrentLeg();
+      }
     } catch (err) { console.warn('post-sync jump skipped', err); }
     return true;
   } catch (err) {
@@ -2165,7 +2187,7 @@ async function routeAutoUpdate() {
   if (navigator.onLine === false) return;
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
-  if (!Number.isFinite(std) || Date.now() < std - 65 * 60000 || Date.now() > std + 20 * 3600000) return;
+  if (!Number.isFinite(std) || Date.now() < std - 12 * 3600000 || Date.now() > std + 20 * 3600000) return;
   const ru = await import('./modules/route-ui.js');
   ru.wire();
   await ru.autoUpdate();
@@ -2883,7 +2905,7 @@ function wireLogbookRows(body) {
         String(l.dep || '') === id.dep &&
         String(l.arr || '') === id.arr &&
         (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
-      if (idx >= 0) { hideOverlay('logbook-overlay'); applyLeg(idx); }
+      if (idx >= 0) { hideOverlay('logbook-overlay'); pickLeg(idx); }
       // Historical flights live in fc.state.history and can't be made active.
       else toast('From a previous duty — view only');
       return;
@@ -3629,6 +3651,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   try { safeAutoSync(); } catch (err) { console.warn('auto-sync skipped', err); }
   try { tryArmGps(); }   catch (err) { console.warn('gps arm skipped', err); }
+  // Route info's METARs / TAFs: top them up on every return to the app
+  // (from 12 h before departure), so they're on the device before the
+  // connection goes.
+  try { routeAutoUpdate(); } catch (err) { console.warn('route prefetch skipped', err); }
 });
 // Boot — fire after the initial auto-jump so the leg is settled.
 setTimeout(tryArmGps, 2_000);
@@ -4970,7 +4996,7 @@ function renderHistory() {
       if (el.dataset.pastKey) { await openLogbook(el.dataset.pastKey); return; }
       if (el.dataset.dutyUid) { showDuty(el.dataset.dutyUid); return; }
       const i = parseInt(el.dataset.legIdx, 10);
-      await applyLeg(i);
+      await pickLeg(i);
       renderHistory();
     });
   });
