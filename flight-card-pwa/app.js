@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=169';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=169';
-import * as storage from './modules/storage.js?v=169';
-import * as dataCard from './modules/data-card.js?v=169';
-import * as checklist from './modules/checklist.js?v=169';
-import * as speeches from './modules/speeches.js?v=169';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=169';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=169';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=169';
+import { DUTY_KINDS } from './modules/duties.js?v=170';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=170';
+import * as storage from './modules/storage.js?v=170';
+import * as dataCard from './modules/data-card.js?v=170';
+import * as checklist from './modules/checklist.js?v=170';
+import * as speeches from './modules/speeches.js?v=170';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=170';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=170';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=170';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1777,6 +1777,14 @@ function openEmbedded(url, title, note) {
   showOverlay('embed-overlay');
 }
 $('embed-done')?.addEventListener('click', () => hideOverlay('embed-overlay'));
+
+// "•••" menu: close it once something in it is chosen, or on a tap
+// anywhere else (it's a native <details>, which otherwise stays open).
+document.addEventListener('click', (e) => {
+  const menu = $('more-menu');
+  if (!menu || !menu.open) return;
+  if (e.target.closest('.more-item') || !e.target.closest('#more-menu')) menu.open = false;
+});
 
 // ---------- Offline ----------
 // A small "Offline" pill by the clock whenever there's no connection, so a

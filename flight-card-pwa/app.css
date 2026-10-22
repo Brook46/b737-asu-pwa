@@ -3423,3 +3423,56 @@ body {
 .rr-item.ok { color: var(--good); }
 .rr-item.warn { color: var(--warn); }
 .rr-go { padding: 6px 14px; font-size: 13px; }
+
+/* ---------- Header v2: labelled tools + "•••" ---------- */
+.actions .btn.tool-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px; border-radius: 999px;
+  background: var(--bg-sunk); color: var(--fg);
+  font-size: 14px; font-weight: 600;
+}
+.actions .btn.tool-btn svg { flex: none; }
+.actions .btn.tool-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.more-menu { position: relative; }
+.more-menu > summary { list-style: none; cursor: pointer; }
+.more-menu > summary::-webkit-details-marker { display: none; }
+.more-menu[open] > summary { background: var(--accent); color: var(--on-accent); }
+.more-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 230px;
+  display: flex; flex-direction: column; padding: 6px;
+  background: var(--glass-bg-strong); border-radius: var(--radius-card);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur)); -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  box-shadow: 0 12px 34px rgba(0,0,0,.28), 0 0 0 0.5px var(--line);
+}
+.more-item {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 12px; border: 0; border-radius: 9px; background: transparent;
+  color: var(--fg); font: inherit; font-size: 15px; text-align: start; text-decoration: none; cursor: pointer;
+}
+.more-item svg { flex: none; width: 20px; height: 20px; color: var(--accent); }
+.more-item + .more-item { border-top: 0.5px solid var(--line); border-radius: 0; }
+.more-item:active { background: var(--bg-sunk); }
+/* On a phone the three labels shorten to icons + short words still. */
+@media (max-width: 430px) {
+  .actions .btn.tool-btn { padding: 0 10px; font-size: 13px; gap: 5px; }
+}
+
+/* ---------- Flight strip on a phone ----------
+   Side by side, the role pills and the ◀ ● ▶ buttons left the route ~140 px:
+   the destination dropped to its own line and the Ben Gurion line took
+   three. On a narrow screen the route gets the full width on top, and the
+   pills and buttons share one row beneath it. */
+@media (max-width: 560px) {
+  .leg-switcher {
+    display: grid; grid-template-columns: 1fr auto;
+    grid-template-areas: "info info" "roles ctrls";
+    row-gap: 6px; align-items: center;
+  }
+  .leg-info  { grid-area: info; }
+  .leg-roles { grid-area: roles; flex-direction: row; }
+  .leg-ctrls { grid-area: ctrls; }
+  .leg-role-pill { min-width: 0; padding: 4px 10px; }
+  .leg-route { flex-wrap: nowrap; white-space: nowrap; }
+  .leg-board, .leg-ctrls .leg-btn { white-space: nowrap; }
+  .leg-board { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+}
