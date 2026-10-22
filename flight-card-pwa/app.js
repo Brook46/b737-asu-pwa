@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=156';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=156';
-import * as storage from './modules/storage.js?v=156';
-import * as dataCard from './modules/data-card.js?v=156';
-import * as checklist from './modules/checklist.js?v=156';
-import * as speeches from './modules/speeches.js?v=156';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=156';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=156';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=156';
+import { DUTY_KINDS } from './modules/duties.js?v=157';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=157';
+import * as storage from './modules/storage.js?v=157';
+import * as dataCard from './modules/data-card.js?v=157';
+import * as checklist from './modules/checklist.js?v=157';
+import * as speeches from './modules/speeches.js?v=157';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=157';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=157';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=157';
 
 const $ = (id) => document.getElementById(id);
 
@@ -405,6 +405,44 @@ function renderLegSwitcher() {
   if (arrBtn) { arrBtn.textContent = arr || '—'; arrBtn.dataset.airport = arr; arrBtn.hidden = !arr; }
   if (arrow) arrow.hidden = !(dep && arr);
   paintLegRolePills();
+  paintTlvBoard();
+}
+
+// ---------- Ben Gurion flight board chip ----------
+// The airport's own status for this leg — the closest public thing to a
+// start-up / off-block time (TOBT, TSAT and CTOT are airline-and-ATC only).
+// Shown on any leg departing or arriving at TLV within the board's window;
+// see modules/tlv-board.js. A function declaration with its state on itself,
+// so the boot-time renderLegSwitcher call can't hit a TDZ.
+async function paintTlvBoard(force = false) {
+  const el = $('leg-board');
+  if (!el) return;
+  const seq = (paintTlvBoard.seq = (paintTlvBoard.seq || 0) + 1);
+  const leg = storage.getLegs()[storage.getLegIndex()] || null;
+  let tb = null;
+  try { tb = await import('./modules/tlv-board.js'); } catch {}
+  if (!leg || !tb || !tb.applies(leg)) { el.hidden = true; return; }
+  const b = await tb.boardFor(leg, { force });
+  if (seq !== paintTlvBoard.seq) return;          // the leg changed meanwhile
+  if (!b) { el.hidden = true; return; }
+  const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16) + 'Z' : '';
+  const st = b.status.toUpperCase();
+  const tone = /CANCEL/.test(st) ? 'is-bad'
+    : /DELAY/.test(st) || b.delayMin >= 15 ? 'is-late'
+    : /ON TIME|DEPARTED|LANDED|FINAL|NOT FINAL/.test(st) ? 'is-ok' : '';
+  const delay = b.delayMin ? ` (${b.delayMin > 0 ? '+' : ''}${b.delayMin})` : '';
+  const parts = [
+    `<b>TLV</b>`,
+    st ? `<span class="leg-board-st">${escapeHtml(st)}</span>` : '',
+    b.updatedMs ? `${b.dir === 'D' ? 'dep' : 'arr'} ${hm(b.updatedMs)}${delay}` : '',
+    b.terminal ? `T${escapeHtml(b.terminal)}` : '',
+    b.dir === 'D' && b.checkin ? `check-in ${escapeHtml(b.checkin)}${b.zone ? ' ' + escapeHtml(b.zone) : ''}` : '',
+    b.stale ? `${Math.max(1, Math.round((Date.now() - b.fetchedAt) / 60000))} min ago` : '',
+  ].filter(Boolean);
+  el.innerHTML = parts.join(' · ');
+  el.className = `leg-board ${tone}${b.stale ? ' is-stale' : ''}`;
+  el.title = `Ben Gurion flight board${b.statusHe ? ' — ' + b.statusHe : ''}`;
+  el.hidden = false;
 }
 
 // Paint the T/O & LDG pills from the active leg's dataCard. Called from
@@ -1926,6 +1964,7 @@ async function runFullSync() {
     const res = await lp.pushNow({ force: true });
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
+  try { await paintTlvBoard(true); } catch {}
   toast(done.length ? `Synced ${done.join(' · ')}` : 'Already up to date');
 }
 
@@ -1967,6 +2006,9 @@ const safeAutoSync = () => {
 };
 setTimeout(safeAutoSync, 5_000);
 setInterval(safeAutoSync, 10 * 60 * 1000);
+// The airport board moves faster than the roster: repaint on the same tick
+// (its own 5-minute cache decides whether that actually fetches).
+setInterval(() => { try { paintTlvBoard(); } catch {} }, 10 * 60 * 1000);
 // calendar auto-sync runs from the consolidated module-level visibilitychange
 // listener defined below (alongside the GPS re-arm).
 
