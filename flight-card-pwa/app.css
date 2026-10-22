@@ -3250,3 +3250,45 @@ body {
 .ri-map { touch-action: none; }
 .ri-pin > * { transform: scale(var(--ri-k, 1)); }
 .ri-gap { font-size: 12px; font-weight: 600; color: var(--warn); margin: -4px 2px 8px; }
+
+/* Route info card: colour-coded weather, NOTAMs and the runway diagram. */
+.wx-g { color: var(--good); font-weight: 600; }
+.wx-y { color: #c9a300; font-weight: 600; }
+.wx-o { color: var(--warn); font-weight: 700; }
+.wx-r { color: var(--danger); font-weight: 700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wx-y { color: #ffd60a; } }
+:root[data-theme="dark"] .wx-y { color: #ffd60a; }
+.wx-pill {
+  display: inline-block; padding: 1px 8px; border-radius: 999px; margin-right: 4px;
+  font-size: 12px; font-weight: 700; color: #fff; background: var(--fg-dim);
+}
+.wx-bg-g { background: var(--good); } .wx-bg-y { background: #c9a300; }
+.wx-bg-o { background: var(--warn); } .wx-bg-r { background: var(--danger); }
+.ri-wx { line-height: 1.6; }
+.ri-key { font-size: 11px; color: var(--fg-mute); margin-top: 6px; }
+.nt-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.nt {
+  font-size: 12px; font-family: ui-monospace, Menlo, monospace; line-height: 1.35;
+  padding: 6px 8px; border-radius: 6px; background: var(--bg-elev);
+  border-left: 3px solid var(--line); white-space: pre-wrap; word-break: break-word;
+}
+.nt-r { border-left-color: var(--danger); background: rgba(255,59,48,0.10); }
+.nt-o { border-left-color: var(--warn);   background: rgba(255,149,0,0.10); }
+.nt-y { border-left-color: #c9a300;      background: rgba(255,214,10,0.10); }
+.nt-more summary { font-size: 12px; color: var(--accent); cursor: pointer; margin-top: 6px; }
+.rd { display: block; width: 100%; max-width: 420px; height: auto; margin: 4px 0 6px;
+      background: var(--bg-elev); border-radius: var(--radius-ctl); }
+.rd line { stroke-linecap: butt; }
+.rd-rwy    { stroke: var(--fg-mute); }
+.rd-best   { stroke: var(--accent); }
+.rd-short  { stroke: var(--fg-dim); }
+.rd-closed { stroke: var(--danger); }
+.rd-id { fill: var(--fg); font-size: 10px; font-weight: 700; text-anchor: middle; }
+.rd-x  { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; }
+.rd-n  { fill: var(--fg-mute); font-size: 10px; font-weight: 700; text-anchor: middle; }
+.rd-np { fill: var(--fg-mute); }
+.rd-wind { stroke: var(--accent); stroke-width: 2.5; }
+.rd-ahp  { fill: var(--accent); }
+.rd-wtxt { fill: var(--fg); font-size: 10px; font-weight: 700; text-anchor: middle; font-variant-numeric: tabular-nums; }
+.rd-best-t { color: var(--accent); }
+.rd-row-short td { color: var(--fg-dim); }

@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=161';
-import * as ri from './route-info.js?v=161';
-import { legTs, nearestHm } from './dates.js?v=161';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=161';
+import * as storage from './storage.js?v=162';
+import * as ri from './route-info.js?v=162';
+import { legTs, nearestHm } from './dates.js?v=162';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=162';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -163,25 +163,177 @@ function mapSvg(m, list, world) {
 }
 
 // ---------- Airport card ----------
-function wxLine(w) {
-  if (!w || !w.src) return 'No forecast covering that time.';
-  const ceil = Number.isFinite(w.ceil) ? `ceiling ${Math.round(w.ceil).toLocaleString('en-US')} ft` : 'no ceiling';
-  const vis = Number.isFinite(w.vis) ? (w.vis >= 9999 ? 'vis 10 km+' : `vis ${(w.vis / 1000).toFixed(w.vis < 5000 ? 1 : 0)} km`) : '';
-  const wind = (w.wspd || w.wgst) ? `wind ${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0')}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : 'wind calm';
-  return [ceil, vis, wind, w.wx].filter(Boolean).join(' · ');
+// Colour scale shared by the decoded line, the raw METAR/TAF and the wind:
+//   g green  — nothing to think about: CAVOK / 10 km+, ceiling 1,500 ft+
+//   y yellow — marginal: under 1,500 m or a ceiling under 500 ft
+//   o orange — below CAT I (550 m / 200 ft): only a CAT II/III ILS gets in;
+//              fog, snow, freezing drizzle; crosswind over 25 kt
+//   r red    — below any 737 approach (CAT IIIA, RVR 200 m); thunderstorm,
+//              hail, freezing rain, sand/dust storm; crosswind over 33 kt
+// Approach categories aren't in the data, so "below minima" means below the
+// best a 737 can do — with only a VOR approach, orange is already too low.
+function visBand(m) {
+  if (!Number.isFinite(m)) return '';
+  return m < 200 ? 'r' : m < 550 ? 'o' : m < 1500 ? 'y' : m >= 5000 ? 'g' : '';
 }
+function ceilBand(ft) {
+  if (!Number.isFinite(ft)) return 'g';
+  return ft < 200 ? 'o' : ft < 500 ? 'y' : ft >= 1500 ? 'g' : '';
+}
+function wxPhenBand(w) {
+  const t = String(w || '').toUpperCase();
+  if (/TS|GR|FZRA|\+SN|SS|DS|FC|VA/.test(t)) return 'r';
+  if (/FG|SN|FZDZ|PL|\+RA|SQ/.test(t)) return 'o';
+  return '';
+}
+function xwBand(kt) { return kt > 33 ? 'r' : kt > 25 ? 'o' : ''; }
+const RANK = { r: 4, o: 3, y: 2, '': 1, g: 0 };
+function worst(...bands) { return bands.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'g'); }
+
+// Crosswind from a wind token against the airport's usable runways.
+function xwFor(rwys, dir, spd) {
+  if (dir == null || !spd) return 0;
+  let best = Infinity;
+  for (const r of rwys) {
+    if (r[3] == null) continue;
+    for (const h of [r[3], (r[3] + 180) % 360]) {
+      const a = (dir - h) * Math.PI / 180;
+      if (Math.cos(a) * spd < -10) continue;
+      best = Math.min(best, Math.abs(Math.sin(a)) * spd);
+    }
+  }
+  return Number.isFinite(best) ? Math.round(best) : 0;
+}
+
+// Raw METAR / TAF with each meaningful group coloured.
+function colourRaw(raw, rwys) {
+  return String(raw || '').split(/(\s+)/).map(tok => {
+    if (/^\s+$/.test(tok) || !tok) return tok;
+    const T = tok.toUpperCase();
+    let b = null;
+    if (/^(CAVOK|NSC|SKC|CLR|NCD)$/.test(T)) b = 'g';
+    else if (/^\d{4}$/.test(T)) b = visBand(+T === 9999 ? 10000 : +T);
+    else if (/^P6SM$/.test(T)) b = 'g';
+    else if (/^(\d{1,2})SM$/.test(T)) b = visBand(parseInt(T, 10) * 1609);
+    else if (/^M?\d\/\dSM$/.test(T)) b = visBand(0.5 * 1609);
+    else if (/^R\d{2}[LRC]?\/[PM]?(\d{4})/.test(T)) b = visBand(+/^R\d{2}[LRC]?\/[PM]?(\d{4})/.exec(T)[1]);
+    else if (/^(BKN|OVC|VV)(\d{3})/.test(T)) {
+      const base = +/^(?:BKN|OVC|VV)(\d{3})/.exec(T)[1] * 100;
+      b = /CB|TCU/.test(T) ? 'o' : ceilBand(base);
+    }
+    else if (/^(FEW|SCT)\d{3}(CB|TCU)$/.test(T)) b = 'o';
+    else if (/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/.test(T)) {
+      const m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(T);
+      const k = m[4] === 'MPS' ? 1.944 : 1;
+      const spd = Math.max(+m[2], +(m[3] || 0)) * k;
+      b = m[1] === 'VRB' ? (spd > 25 ? 'o' : '') : xwBand(xwFor(rwys, +m[1], spd));
+    }
+    else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
+          || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || null;
+    return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
+  }).join('');
+}
+
+function wxSummary(w, xw) {
+  if (!w || !w.src) return { band: '', html: 'No forecast covering that time.' };
+  const ceilB = ceilBand(w.ceil), visB = visBand(w.vis), phB = wxPhenBand(w.wx), xB = xw ? xwBand(xw.xw) : '';
+  const part = (b, t) => t ? `<span class="wx-${b || 'n'}">${esc(t)}</span>` : '';
+  const ceil = Number.isFinite(w.ceil) ? `ceiling ${Math.round(w.ceil).toLocaleString('en-US')} ft` : 'no ceiling';
+  const vis = Number.isFinite(w.vis) ? (w.vis >= 9999 ? 'vis 10 km+' : `vis ${w.vis >= 5000 ? Math.round(w.vis / 1000) + ' km' : Math.round(w.vis) + ' m'}`) : '';
+  const wind = (w.wspd || w.wgst) ? `wind ${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0')}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : 'wind calm';
+  // No significant weather and a light crosswind are good news, not neutral.
+  const band = worst(ceilB, visB, phB || 'g', xB || (xw && xw.xw > 15 ? '' : 'g'));
+  const verdict = { g: 'Good', y: 'Marginal', o: 'Below CAT I — CAT II/III ILS only', r: 'Below 737 minima / hazardous', '': 'Workable' }[band];
+  return {
+    band,
+    html: `<span class="wx-pill wx-bg-${band || 'n'}">${verdict}</span> ${[part(ceilB, ceil), part(visB, vis), part(xB, wind), part(phB, w.wx)].filter(Boolean).join(' · ')}`,
+  };
+}
+
+// The airport's runways to scale, north up, from the threshold positions in
+// the database: the best runway for the forecast wind in the accent colour,
+// runways closed by NOTAM red, ones too short for a 737 grey. A wind arrow
+// shows where the wind is blowing from.
+function runwayDiagram(c) {
+  const ap = c.ap, rw = ap.rwy;
+  if (!rw.length) return '';
+  const W = 320, Hh = 200, PAD = 34;
+  const lat0 = ap.lat, lon0 = ap.lon, kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
+  const segs = rw.map((r, i) => {
+    let a, b;
+    if (r.length >= 9) {
+      a = [(r[6] - lon0) * kx, (r[5] - lat0) * ky];
+      b = [(r[8] - lon0) * kx, (r[7] - lat0) * ky];
+    } else {
+      // No threshold positions: draw it through the middle on its heading,
+      // offset a little so several such runways don't sit on top of each other.
+      const L = r[1] * 0.3048, h = (r[3] ?? 0) * Math.PI / 180, off = i * 400;
+      a = [-Math.sin(h) * L / 2 + off, -Math.cos(h) * L / 2];
+      b = [Math.sin(h) * L / 2 + off, Math.cos(h) * L / 2];
+    }
+    return { r, a, b };
+  });
+  const xs = segs.flatMap(s => [s.a[0], s.b[0]]), ys = segs.flatMap(s => [s.a[1], s.b[1]]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = Math.max(maxX - minX, (maxY - minY) * (W - 2 * PAD) / (Hh - 2 * PAD), 1200);
+  const sc = (W - 2 * PAD) / span;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const P = ([x, y]) => [W / 2 + (x - cx) * sc, Hh / 2 - (y - cy) * sc];
+  const closed = new Set((c.r.flags && c.r.flags.rwyClosed) || []);
+  const bestEnd = c.r.xw ? c.r.xw.rwy : null;
+  const body = segs.map(({ r, a, b }) => {
+    const [x1, y1] = P(a), [x2, y2] = P(b);
+    const ends = String(r[0]).split('/');
+    const isClosed = closed.has(r[0]) || ends.some(e => closed.has(e));
+    const cls = isClosed ? 'rd-closed' : r[1] < 5500 ? 'rd-short' : ends.includes(bestEnd) ? 'rd-best' : 'rd-rwy';
+    const wpx = Math.max(5, Math.min(14, (r[2] || 148) * 0.3048 * sc));
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / len, uy = (y2 - y1) / len;
+    const lbl = (x, y, t, s) => `<text x="${(x + s * ux * 13).toFixed(1)}" y="${(y + s * uy * 13 + 3.5).toFixed(1)}" class="rd-id">${esc(t)}</text>`;
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="${cls}" stroke-width="${wpx.toFixed(1)}"/>
+      ${isClosed ? `<text x="${((x1 + x2) / 2).toFixed(1)}" y="${((y1 + y2) / 2 + 4).toFixed(1)}" class="rd-x">✕</text>` : ''}
+      ${lbl(x1, y1, ends[0], -1)}${ends[1] ? lbl(x2, y2, ends[1], 1) : ''}`;
+  }).join('');
+  // Wind arrow, top right: points the way the wind blows, from its source.
+  const w = c.r.wx;
+  let wind = '';
+  if (w && w.src && w.wdir != null && (w.wspd || w.wgst)) {
+    const to = (w.wdir + 180) * Math.PI / 180, ax = W - 30, ay = 30, L = 16;
+    const x1 = ax - Math.sin(to) * L, y1 = ay + Math.cos(to) * L, x2 = ax + Math.sin(to) * L, y2 = ay - Math.cos(to) * L;
+    wind = `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="rd-wind" marker-end="url(#rd-ah)"/>
+      <text x="${ax}" y="${ay + 30}" class="rd-wtxt">${String(w.wdir).padStart(3, '0')}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''}</text>`;
+  }
+  return `<svg class="rd" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Runway diagram, north up">
+      <defs><marker id="rd-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="rd-ahp"/></marker></defs>
+      <text x="14" y="20" class="rd-n">N</text><path d="M14,24 L10,34 L14,31 L18,34 Z" class="rd-np"/>
+      ${body}${wind}
+    </svg>`;
+}
+
+function notamList(c, m) {
+  if (m.notamsOff) return `<div class="ri-sub">Not checked — add the free FAA NOTAM key (Settings → Route info).</div>`;
+  if (!c.notams) return `<div class="ri-sub">Not fetched for this airport (only the best 30 are checked).</div>`;
+  const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
+  const now = c.eta;
+  const live = c.notams.filter(n => {
+    const st = Date.parse(n.start), en = Date.parse(n.end);
+    return !(Number.isFinite(st) && st > now) && !(Number.isFinite(en) && en < now);
+  }).map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) }))
+    .sort((a, b) => RANK[b.sev] - RANK[a.sev]);
+  if (!live.length) return `<div class="ri-sub"><span class="wx-g">None in force at ${hm(now)}.</span></div>`;
+  const item = (n) => `<li class="nt nt-${n.sev || 'n'}">${esc(n.text)}</li>`;
+  const top = live.filter(n => n.sev), rest = live.filter(n => !n.sev);
+  return `<ul class="nt-list">${top.map(item).join('')}</ul>
+    ${rest.length ? `<details class="nt-more"><summary>${rest.length} other NOTAM${rest.length === 1 ? '' : 's'}</summary><ul class="nt-list">${rest.map(item).join('')}</ul></details>` : ''}
+    ${!top.length ? `<div class="ri-sub"><span class="wx-g">Nothing closing the aerodrome, a runway or an ILS.</span></div>` : ''}`;
+}
+
 function cardHtml(c, m) {
   const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
-  const rwys = ap.rwy.map(x => `<tr><td>${esc(x[0])}</td><td>${x[1].toLocaleString('en-US')} × ${x[2] || '—'} ft</td><td>${x[4] ? 'lit' : ''}</td></tr>`).join('');
+  const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
+  const rwys = ap.rwy.map(x => `<tr class="${x[1] < 5500 ? 'rd-row-short' : ''}"><td>${esc(x[0])}</td><td>${x[1].toLocaleString('en-US')} × ${x[2] || '—'} ft</td><td>${x[4] ? 'lit' : ''}</td></tr>`).join('');
   const nav = ap.nav.length ? ap.nav.map(n => `${esc(n[0])} ${esc(n[1])} ${esc(n[2])}`).join(' · ') : 'none listed';
   const metar = c.wxEntry?.metar?.raw, taf = c.wxEntry?.taf?.raw;
-  const fl = r.flags;
-  const notamTxt = m.notamsOff ? 'Not checked — add the free FAA NOTAM key (Settings → Route info).'
-    : !c.notams ? 'Not fetched for this airport (only the best 30 are checked).'
-    : fl && (fl.adClosed || fl.rwyClosed.length || fl.ilsOut.length)
-      ? [fl.adClosed ? 'AERODROME CLOSED' : '', fl.rwyClosed.length ? 'RWY ' + fl.rwyClosed.join(', ') + ' closed' : '',
-         fl.ilsOut.length ? 'ILS/LOC unserviceable' : ''].filter(Boolean).join(' · ')
-      : `${fl ? fl.count : 0} in force — none closing the aerodrome, a runway or an ILS.`;
+  const ws = wxSummary(r.wx, r.xw);
   return `<div class="ri-card" data-icao="${esc(ap.icao)}">
       <div class="ri-card-head">
         <span class="ri-score ri-b-${b}">${r.excluded ? '×' : r.score}</span>
@@ -192,17 +344,19 @@ function cardHtml(c, m) {
       <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
       ${r.why && r.why.length ? `<ul class="ri-why">${r.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
       <h5>Runways</h5>
+      ${runwayDiagram(c)}
       <table class="ri-rwy"><tbody>${rwys}</tbody></table>
-      ${r.xw ? `<div class="ri-sub">Best for the forecast wind: RWY ${esc(r.xw.rwy)} — crosswind ${r.xw.xw} kt, ${r.xw.hw >= 0 ? 'headwind' : 'tailwind'} ${Math.abs(r.xw.hw)} kt</div>` : ''}
+      ${r.xw ? `<div class="ri-sub">Best for the forecast wind: <b class="rd-best-t">RWY ${esc(r.xw.rwy)}</b> — <span class="wx-${xwBand(r.xw.xw) || 'n'}">crosswind ${r.xw.xw} kt</span>, ${r.xw.hw >= 0 ? 'headwind' : 'tailwind'} ${Math.abs(r.xw.hw)} kt</div>` : ''}
       <h5>Approaches</h5>
       <div class="ri-sub">Navaids: ${nav}</div>
       <div class="ri-sub">ILS / CAT I-II-III: not in any free data — check the chart.</div>
       <h5>Weather at ${hm(c.eta)}${r.wx && r.wx.src ? ' (' + r.wx.src + ')' : ''}</h5>
-      <div>${esc(wxLine(r.wx))}</div>
-      ${metar ? `<pre class="ri-raw">${esc(metar)}</pre>` : ''}
-      ${taf ? `<pre class="ri-raw">${esc(taf)}</pre>` : ''}
+      <div class="ri-wx">${ws.html}</div>
+      ${metar ? `<pre class="ri-raw">${colourRaw(metar, usable)}</pre>` : ''}
+      ${taf ? `<pre class="ri-raw">${colourRaw(taf, usable)}</pre>` : ''}
+      <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span></div>
       <h5>NOTAMs</h5>
-      <div class="ri-sub">${esc(notamTxt)}</div>
+      ${notamList(c, m)}
     </div>`;
 }
 

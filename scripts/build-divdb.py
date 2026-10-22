@@ -11,7 +11,8 @@ anything shorter is no diversion for a 737. Compact arrays to keep it small:
   { "v": <build date>,
     "countries": { "GR": "Greece", ... },
     "a": { ICAO: [lat, lon, elevFt, name, city, country, size, iata,
-                  [[ "03R/21L", lenFt, widthFt, hdgTrueOfLowEnd, lighted ], ...],
+                  [[ "03R/21L", lenFt, widthFt, hdgTrueOfLowEnd, lighted,
+                     leLat, leLon, heLat, heLon ], ...],   (ends optional)
                   [[ type, ident, freqKHzOrMHz ], ...] ] } }
 
 size: 2 = large_airport, 1 = medium. Runways are hard-surfaced only.
@@ -84,8 +85,12 @@ for r in rows('runways.csv'):
         # Fall back to the runway number: 03 → 30°.
         digits = ''.join(ch for ch in le if ch.isdigit())
         hdg = int(digits) * 10 if digits else None
+    # Threshold positions (4 decimals ≈ 11 m) for the airport card's runway
+    # diagram; None where OurAirports doesn't have them.
+    ends = [fnum(r['le_latitude_deg']), fnum(r['le_longitude_deg']),
+            fnum(r['he_latitude_deg']), fnum(r['he_longitude_deg'])]
     a['rwy'].append([f'{le}/{he}' if he else le, length, width, int(hdg) if hdg is not None else None,
-                     1 if r['lighted'] == '1' else 0])
+                     1 if r['lighted'] == '1' else 0] + (ends if all(e is not None for e in ends) else []))
 
 for r in rows('navaids.csv'):
     a = air.get((r['associated_airport'] or '').strip())

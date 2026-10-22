@@ -23,7 +23,7 @@
 // /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=161';
+import { WORKER_BASE } from './proxy.js?v=162';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -205,6 +205,30 @@ export function notamFlags(items, ts) {
     if (ils) out.ilsOut.push(t.slice(0, 80));
   }
   return out;
+}
+
+// One NOTAM's weight for a diversion, for colour-coding the card:
+//   'r' red    — aerodrome closed, a usable runway closed, ILS/LOC/GP out,
+//                no fuel, fire cover below what a 737 needs
+//   'o' orange — a shorter runway / taxiway closed, VOR/DME/NDB out,
+//                approach / runway lighting out, declared distances reduced
+//   'y' yellow — work in progress, cranes / obstacles, birds
+//   ''  the rest
+// `usable` is the set of runway designators the rating can use (both ends).
+export function notamSeverity(text, usable = new Set()) {
+  const t = String(text || '').toUpperCase();
+  if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) return 'r';
+  const rw = /\bRWY\s+(\d{2}[LRC]?)(?:\/(\d{2}[LRC]?))?\s+(CLSD|CLOSED)\b/.exec(t);
+  if (rw) return (usable.has(rw[1]) || (rw[2] && usable.has(rw[2]))) ? 'r' : 'o';
+  if (/\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS|WITHDRAWN)/.test(t)) return 'r';
+  if (/\b(NO FUEL|FUEL\b[^.]{0,30}\bNOT AVBL)/.test(t)) return 'r';
+  if (/\bRFFS?\b[^.]{0,40}\bCAT(EGORY)?\s*([1-6])\b/.test(t)) return 'r';
+  if (/\bTWY\b[^.]{0,40}\b(CLSD|CLOSED)\b/.test(t)) return 'o';
+  if (/\b(VOR|DVOR|DME|NDB|TACAN)\b[^.]{0,40}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS)/.test(t)) return 'o';
+  if (/\b(ALS|APCH LGT|APPROACH LIGHT|PAPI|VASIS?|RWY (EDGE |CL |CENTRE ?LINE )?LGT|TDZ LGT)\b[^.]{0,40}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS)/.test(t)) return 'o';
+  if (/\b(TORA|TODA|ASDA|LDA)\b[^.]{0,40}\b(REDUCED|RESTRICTED)|\bTHR\b[^.]{0,20}\bDISPLACED|\bSHORTENED\b/.test(t)) return 'o';
+  if (/\b(WIP|WORK IN PROGRESS|CRANE|OBST|BIRD)/.test(t)) return 'y';
+  return '';
 }
 
 // ---------- Rating ----------
