@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=157';
-import { dateTs, legTs } from './dates.js?v=157';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=157';
+import { flipName } from './roster.js?v=158';
+import { dateTs, legTs } from './dates.js?v=158';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=158';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -643,6 +643,11 @@ export function setNote(itemId, text) {
 const PIN_KEYS = new Set(['flight_time', 'block_time', 'tail', 'ctot', 'dep', 'arr']);
 
 export function setDataField(key, value) {
+  // The leg is looked up ONCE, before anything is deleted. activeLeg() seeds
+  // an empty dataCard identity field from the leg's top-level copy — so
+  // calling it again after the delete below put the old value straight back,
+  // and clearing a CTOT (or flight time, tail…) silently did nothing.
+  const leg = activeLeg();
   const bag = dataCardBag();
   const empty = value === '' || value == null;
   if (empty) delete bag[key];
@@ -650,7 +655,6 @@ export function setDataField(key, value) {
   // Keep the leg's top-level identity fields in sync with the data card so
   // the leg-switcher chip and the depTs() sort still see edits made in the
   // data card (e.g. fixing a dep airport on the fly).
-  const leg = activeLeg();
   if (leg && LEG_IDENTITY_KEYS.includes(key)) {
     if (empty) leg[key] = '';
     else leg[key] = value;

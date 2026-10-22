@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=157" />
+  <link rel="stylesheet" href="./app.css?v=158" />
 </head>
 <body>
   <header class="app-header">
@@ -121,6 +121,10 @@
       </span>
       <!-- Ben Gurion's own flight board for this leg (modules/tlv-board.js). -->
       <span id="leg-board" class="leg-board" hidden></span>
+      <!-- Off-block target worked out from the CTOT (paintOffBlock in app.js).
+           Tap to set this airport's taxi-out time. -->
+      <button id="leg-ctot" class="leg-ctot" type="button" hidden
+              title="Off-block time from the CTOT — tap to set the taxi-out time"></button>
     </div>
     <div class="leg-ctrls">
       <button id="leg-prev" data-action="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
@@ -754,6 +758,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=157"></script>
+  <script type="module" src="./app.js?v=158"></script>
 </body>
 </html>

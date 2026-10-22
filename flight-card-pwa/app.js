@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=157';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=157';
-import * as storage from './modules/storage.js?v=157';
-import * as dataCard from './modules/data-card.js?v=157';
-import * as checklist from './modules/checklist.js?v=157';
-import * as speeches from './modules/speeches.js?v=157';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=157';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=157';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=157';
+import { DUTY_KINDS } from './modules/duties.js?v=158';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=158';
+import * as storage from './modules/storage.js?v=158';
+import * as dataCard from './modules/data-card.js?v=158';
+import * as checklist from './modules/checklist.js?v=158';
+import * as speeches from './modules/speeches.js?v=158';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=158';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=158';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=158';
 
 const $ = (id) => document.getElementById(id);
 
@@ -600,7 +600,65 @@ function tickClocks() {
   try { updateCtotColor(now); }   catch (err) { console.warn('CTOT colour skipped', err); }
   try { updatePastLegUI(now); }   catch (err) { console.warn('past-leg cue skipped', err); }
   try { maybeFireCtotAlert(now); } catch (err) { console.warn('CTOT alert skipped', err); }
+  try { paintOffBlock(now); }     catch (err) { console.warn('off-block line skipped', err); }
 }
+
+// ---------- Off-block target from the CTOT ----------
+// TOBT / TSAT are airport A-CDM data the public can't get, so this is the
+// app's own arithmetic, labelled as such: the CTOT is a TAKE-OFF time with a
+// −5 / +10 min tolerance, so to make it the aircraft must be off blocks by
+//   CTOT − taxi-out          (target)
+//   CTOT + 10 − taxi-out     (latest, still inside the slot)
+// Taxi-out defaults to 15 min and is set per departure airport by tapping
+// the line — stored on this device as fc.taxi.<CODE>. Runs on the 1-s clock
+// tick, so everything here is a function declaration (boot-time TDZ).
+function taxiMinutes(code) {
+  try {
+    const v = parseInt(localStorage.getItem('fc.taxi.' + code), 10);
+    if (v >= 1 && v <= 60) return v;
+  } catch {}
+  return 15;
+}
+function offBlockDepCode() {
+  const leg = storage.getLegs()[storage.getLegIndex()] || null;
+  return String((leg && leg.dep) || storage.getCurrent()?.dataCard?.dep || '').toUpperCase();
+}
+function offBlockTimes(now = new Date()) {
+  const { diff } = ctotDiffMinutes(now);
+  if (diff == null) return null;
+  const taxi = taxiMinutes(offBlockDepCode());
+  const ctot = now.getTime() - diff * 60000;
+  return { ctot, taxi, target: ctot - taxi * 60000, latest: ctot + (10 - taxi) * 60000 };
+}
+function paintOffBlock(now = new Date()) {
+  const el = $('leg-ctot');
+  if (!el) return;
+  const t = offBlockTimes(now);
+  if (!t) { if (!el.hidden) el.hidden = true; return; }
+  const hm = (ms) => new Date(ms).toISOString().slice(11, 16) + 'Z';
+  const toTarget = (t.target - now.getTime()) / 60000;
+  const cls = now.getTime() > t.latest ? 'is-missed'
+    : toTarget <= 0 ? 'is-now'
+    : toTarget <= 15 ? 'is-soon' : '';
+  const html = `<b>CTOT ${hm(t.ctot)}</b> · off-block <b>${hm(t.target)}</b> · latest ${hm(t.latest)} · taxi ${t.taxi} min`;
+  if (el.innerHTML !== html) el.innerHTML = html;
+  const want = `leg-ctot ${cls}`.trim();
+  if (el.className !== want) el.className = want;
+  if (el.hidden) el.hidden = false;
+}
+$('leg-ctot')?.addEventListener('click', () => {
+  const code = offBlockDepCode() || 'this airport';
+  const cur = taxiMinutes(offBlockDepCode());
+  const v = prompt(`Taxi-out time at ${code}, in minutes`, String(cur));
+  if (v == null) return;
+  const n = parseInt(v, 10);
+  if (!(n >= 1 && n <= 60)) { toast('Taxi time must be 1–60 minutes'); return; }
+  try { localStorage.setItem('fc.taxi.' + offBlockDepCode(), String(n)); } catch {}
+  // A new taxi time moves the off-block alerts: let them fire afresh.
+  try { resetCtotAlertState(); } catch {}
+  paintOffBlock();
+  toast(`Taxi-out at ${code}: ${n} min`);
+});
 function pad(n) { return String(n).padStart(2, '0'); }
 
 // ---------- CTOT slot-state colour ----------
@@ -706,11 +764,19 @@ function maybeFireCtotAlert(now) {
   ctotAlerts.prevDiffMin = diff;
   if (prev == null) return;
 
+  // Off-block alerts sit relative to the CTOT too: target off-block is
+  // CTOT − taxi-out (see offBlockTimes).
+  const taxi = taxiMinutes(offBlockDepCode());
   const thresholds = [
+    { key: 'OFB-5', when: -(taxi + 5), label: 'Off-block in 5 minutes' },
+    { key: 'OFB',   when: -taxi,       label: 'Off-block now for the CTOT' },
     { key: 'T-20', when: -20, label: 'CTOT in 20 minutes' },
     { key: 'T-10', when: -10, label: 'CTOT in 10 minutes' },
     { key: 'T0',   when:   0, label: 'CTOT now' },
-  ];
+  // A CTOT alert landing on the same minute as an off-block one (taxi 15 →
+  // both at T−20) would buzz twice; the off-block one says more.
+  ].filter((t, i, all) => t.key.startsWith('OFB')
+    || !all.some(o => o.key.startsWith('OFB') && o.when === t.when));
   const flightStr = (() => {
     const f = storage.getCurrent()?.dataCard?.flight || '';
     return f ? ' — ' + displayFlight(f) : '';
@@ -755,7 +821,7 @@ function paintCtotBell() {
     ? 'CTOT alerts on (tap to mute)'
     : state === 'denied'
       ? 'Notifications blocked — enable in iOS Settings'
-      : 'Enable CTOT alerts (20 / 10 / now)';
+      : 'Enable CTOT alerts (off-block, 20 / 10 / now)';
 }
 async function onBellTap() {
   if (typeof Notification === 'undefined') {

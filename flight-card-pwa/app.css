@@ -3148,3 +3148,16 @@ body {
 .leg-board.is-late .leg-board-st { color: var(--warn); }
 .leg-board.is-bad .leg-board-st { color: var(--danger); }
 .leg-board.is-stale { opacity: .7; }
+
+/* Off-block target from the CTOT, under the leg route (paintOffBlock). */
+.leg-ctot {
+  display: inline-block; margin-top: 3px; padding: 0; border: 0; background: transparent;
+  font: inherit; font-size: 12px; font-weight: 500; color: var(--fg-mute);
+  font-variant-numeric: tabular-nums; text-align: start; cursor: pointer;
+}
+.leg-ctot[hidden] { display: none; }
+.leg-ctot b { color: var(--fg); font-weight: 700; }
+.leg-ctot.is-soon b:nth-of-type(2) { color: var(--warn); }
+.leg-ctot.is-now  b:nth-of-type(2) { color: var(--good); }
+.leg-ctot.is-missed { color: var(--danger); }
+.leg-ctot.is-missed b { color: var(--danger); }
