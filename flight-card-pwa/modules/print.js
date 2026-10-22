@@ -13,7 +13,7 @@
 // Field order and which fields appear are user-editable and persisted; the
 // pilot rearranges them in the preview before printing.
 
-import * as storage from './storage.js?v=164';
+import * as storage from './storage.js?v=165';
 
 const CFG_KEY = 'fc.print.cfg';
 

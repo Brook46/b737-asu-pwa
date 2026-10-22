@@ -3357,3 +3357,17 @@ body {
 .rw-box { display: inline-block; padding: 1px 7px; margin-right: 6px; border-radius: 4px; background: var(--accent); color: #fff; font-weight: 800; }
 .rw-sub { font-size: 13px; color: var(--fg-mute); }
 .rw-sub b { color: var(--fg); font-weight: 600; }
+
+/* Route info v4: why-not-10, wind source, live aircraft + reach shapes. */
+.ri-why-h { font-size: 12px; font-weight: 600; color: var(--fg-mute); margin: 8px 0 2px; text-transform: uppercase; letter-spacing: .03em; }
+.ri-why { list-style: none; margin: 2px 0 0; padding: 0; font-size: 13px; }
+.ri-why li { display: flex; gap: 8px; padding: 2px 0; }
+.ri-why.is-zero li { color: var(--danger); font-weight: 600; }
+.ri-lost { flex: none; min-width: 34px; font-weight: 800; color: var(--warn); font-variant-numeric: tabular-nums; }
+.rw-src { color: var(--fg-dim); font-size: 12px; font-weight: 500; }
+.ri-iso { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.ri-iso-60 { fill: rgba(10,132,255,0.07); stroke: rgba(10,132,255,0.45); stroke-dasharray: 5 4; }
+.ri-iso-30 { fill: rgba(10,132,255,0.14); stroke: rgba(10,132,255,0.8); }
+.ri-ac path { fill: #ffd60a; stroke: #000; stroke-width: 1; }
+.ri-near-h { font-size: 12px; font-weight: 600; color: var(--fg-mute); margin: 4px 2px 2px; }
+#ri-near .ri-row { padding: 6px 2px; }

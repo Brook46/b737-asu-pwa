@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=164';
-import * as ri from './route-info.js?v=164';
-import { legTs, nearestHm } from './dates.js?v=164';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=164';
+import * as storage from './storage.js?v=165';
+import * as ri from './route-info.js?v=165';
+import { legTs, nearestHm } from './dates.js?v=165';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=165';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -23,6 +23,10 @@ const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16
 let state = null;        // { key, model } of what's on screen
 let mapGeom = null;      // { W, H, proj } of the drawn map, for zoom
 const selEnd = new Map(); // ICAO → the runway end the pilot picked (default: best for the wind)
+let gpsWatch = null;      // geolocation watch id while the screen is open
+let gpsFix = null;        // { lat, lon, altFt, gs, trk, at, airborne }
+let gpsPrev = null;
+let livePaintAt = 0;
 let busy = false;
 
 function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
@@ -156,7 +160,9 @@ function mapSvg(m, list, world) {
       <rect width="${W}" height="${H2}" class="lb-sea"/>
       ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
       <path d="${track}" class="ri-track"/>
+      <g id="ri-iso"></g>
       ${pins}
+      <g id="ri-ac"></g>
     </svg>`;
 }
 
@@ -415,7 +421,7 @@ function runwayDiagram(c) {
         <text y="3.8" class="rd-id">${esc(e.id)}</text>
         <text y="18" class="rd-lda">LDA ${fmt(e.lda)}</text></g>`);
   }
-  const w = c.r.wx;
+  const w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
   const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - WIND_COL / 2, 44, w.wdir, w.wspd || 0, w.wgst) : '';
   return `<svg class="rd" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Runway diagram, north up">
       <text x="16" y="18" class="rd-n">N</text><path d="M16,22 L11,34 L16,30 L21,34 Z" class="rd-np"/>
@@ -477,7 +483,7 @@ function runwayEnds(ap) {
 // wind), and the chosen end's details — wind components, LDA, surface,
 // approaches, and the NOTAMs that name it.
 function runwayPanel(c, m) {
-  const ap = c.ap, w = c.r.wx;
+  const ap = c.ap, w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
   const ends = runwayEnds(ap);
   if (!ends.length) return '';
   const best = c.r.xw ? c.r.xw.rwy : null;
@@ -495,7 +501,8 @@ function runwayPanel(c, m) {
   if (k) {
     const hwTxt = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">tailwind ${-k.head} kt</span>`;
     const xb = xwBand(k.cross), gxb = xwBand(k.gustCross);
-    windLine = `<span class="rd-wind-t">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span>: ${hwTxt} · `
+    const srcTxt = w.src === 'METAR' ? `METAR${w.at ? ' ' + hm(w.at) : ''} — current` : `TAF for ${hm(c.eta)}`;
+    windLine = `<span class="rd-wind-t">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> <span class="rw-src">(${srcTxt})</span>: ${hwTxt} · `
       + `<span class="${xb ? 'wx-' + xb : 'rd-wind-t'}">crosswind ${k.cross} kt from the ${k.side}</span>`
       + (k.gustCross ? ` · <span class="${gxb ? 'wx-' + gxb : 'rd-wind-t'}">gusting ${k.gustCross} kt cross</span>` : '');
   } else if (w && w.wdir == null && (w.wspd || w.wgst)) {
@@ -543,6 +550,18 @@ function notamList(c, m) {
     ${!top.length ? `<div class="ri-sub"><span class="wx-g">Nothing closing the aerodrome, a runway or an ILS.</span></div>` : ''}`;
 }
 
+// Exactly where an airport lost its points, biggest first — every part of
+// the rating short of its maximum (route-info.js rate().lost).
+function whyNot10(r) {
+  if (r.excluded || (r.score === 0 && r.why && r.why.length)) {
+    return `<ul class="ri-why is-zero">${(r.why || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>`;
+  }
+  if (r.score >= 10 || !r.lost || !r.lost.length) return '';
+  const rows = r.lost.filter(l => l.pts >= 0.05).map(l =>
+    `<li><span class="ri-lost">−${l.pts.toFixed(1).replace(/\.0$/, '')}</span>${esc(l.what)}</li>`).join('');
+  return `<div class="ri-why-h">Why not 10${r.capped ? ' — capped at 3: weather below CAT I' : ''}</div><ul class="ri-why">${rows}</ul>`;
+}
+
 function cardHtml(c, m) {
   const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
   const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
@@ -558,7 +577,7 @@ function cardHtml(c, m) {
         <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
       </div>
       <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
-      ${r.why && r.why.length ? `<ul class="ri-why">${r.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+      ${whyNot10(r)}
       <h5>Runways</h5>
       ${runwayDiagram(c)}
       ${bigNotamTags(c)}
@@ -613,11 +632,14 @@ async function paint(model, showAll = false) {
       <span><i class="ri-dot ri-b-x"></i>no-go ${counts.x}</span>
       <button type="button" class="ri-all" data-ri-all>${showAll ? 'Best per stretch' : `Show all ${model.pool.length}`}</button>
     </div>
+    <div id="ri-near"></div>
     <div id="ri-card-slot"></div>
     <div class="ri-list">${rows}</div>`;
   state = { model, showAll };
   const svg = $('ri-map');
   if (svg) { wireZoom(svg); pinScale(svg, mapGeom ? mapGeom.W : 720); relabel(); }
+  livePaintAt = 0;
+  paintLive();
 }
 function openCard(icao, { keepView = false } = {}) {
   if (!state) return;
@@ -639,6 +661,144 @@ function openCard(icao, { keepView = false } = {}) {
     const w = Math.max(mapGeom.W / 24, Math.min(mapGeom.W, 600 / (nmPerUnit || 1))), h = w * mapGeom.H / mapGeom.W;
     setViewBox({ x: x - w / 2, y: y - h / 2, w, h });
   }
+}
+
+// ---------- Live: the aircraft from GPS ----------
+// While the screen is open, GPS (when the device has it and it's allowed)
+// puts the aircraft on the map and works out which airports are NEAREST IN
+// TIME — not miles: one 30 nm straight ahead is quicker than one 30 nm
+// behind (the turn), and from cruise height even a close one takes as long
+// as the descent needs. Two shaded shapes show what's reachable in 30 and
+// 60 minutes. A rough model, labelled as one:
+//   turn at 25° bank (rate = 1091·tan25°/TAS, max 3°/s);
+//   descent needs ~3 nm per 1,000 ft above the field + 10 nm to slow down,
+//   so a closer airport still costs that many track miles;
+//   ~85% of present ground speed (≥ 250 kt) until 30 nm out, 210 kt for the
+//   last 30 nm, + 4 min to land.
+const TURN_BANK_TAN = Math.tan(25 * Math.PI / 180);
+function brg(lat1, lon1, lat2, lon2) {
+  const f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dl) * Math.cos(f2), x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function distNm(lat1, lon1, lat2, lon2) {
+  const R = Math.PI / 180;
+  const a = Math.sin((lat2 - lat1) * R / 2) ** 2 + Math.cos(lat1 * R) * Math.cos(lat2 * R) * Math.sin((lon2 - lon1) * R / 2) ** 2;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(a))) * 3440.065;
+}
+function destPoint(lat, lon, b, dNm) {
+  const R = Math.PI / 180, d = dNm / 3440.065, f1 = lat * R, l1 = lon * R, th = b * R;
+  const f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(th));
+  const l2 = l1 + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(f1), Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+  return [f2 / R, l2 / R];
+}
+function speeds(g) {
+  const tas = Math.max(250, g.gs || 0);
+  return { vFar: Math.max(250, 0.85 * tas), vNear: 210, rate: Math.min(3, 1091 * TURN_BANK_TAN / tas) };
+}
+function minutesFor(dTrack, turnDeg, g) {
+  const { vFar, vNear, rate } = speeds(g);
+  const near = Math.min(dTrack, 30), far = Math.max(0, dTrack - near);
+  return turnDeg / rate / 60 + far / vFar * 60 + near / vNear * 60 + 4;
+}
+function timeTo(ap, g) {
+  const d = distNm(g.lat, g.lon, ap.lat, ap.lon);
+  const b = brg(g.lat, g.lon, ap.lat, ap.lon);
+  const rel = ((b - g.trk + 540) % 360) - 180;          // −180..180, + = right
+  const need = Math.max(0, (g.altFt - (ap.elev || 0)) / 1000 * 3 + 10);
+  return { min: minutesFor(Math.max(d, need), Math.abs(rel), g), d, rel };
+}
+// The edge of what's reachable in T minutes, bearing by bearing.
+function isochrone(g, T) {
+  const { vFar, vNear, rate } = speeds(g);
+  const need = Math.max(0, g.altFt / 1000 * 3 + 10);
+  const pts = [];
+  for (let b = 0; b < 360; b += 5) {
+    const turn = Math.abs(((b - g.trk + 540) % 360) - 180) / rate / 60;
+    const left = T - 4 - turn;
+    let r = 0;
+    if (left > 0) {
+      const tNear = 30 / vNear * 60;
+      r = left <= tNear ? left / 60 * vNear : 30 + (left - tNear) / 60 * vFar;
+    }
+    if (r < need) r = 0;                               // can't get down in time that way
+    pts.push(destPoint(g.lat, g.lon, b, r));
+  }
+  return pts;
+}
+// With no usable heading yet, assume the aircraft is flying the route.
+function routeTrackNear(lat, lon) {
+  const pts = state.model.route.pts;
+  let bi = 0, bd = Infinity;
+  pts.forEach((p, i) => { const d = distNm(lat, lon, p.lat, p.lon); if (d < bd) { bd = d; bi = i; } });
+  const a = pts[Math.min(bi, pts.length - 2)], b = pts[Math.min(bi + 1, pts.length - 1)];
+  return brg(a.lat, a.lon, b.lat, b.lon);
+}
+function onFix(pos) {
+  const c = pos.coords;
+  const now = pos.timestamp || Date.now();
+  let trk = Number.isFinite(c.heading) && c.heading >= 0 && (c.speed || 0) > 20 ? c.heading : null;
+  let gs = Number.isFinite(c.speed) && c.speed >= 0 ? c.speed * 1.94384 : null;
+  if (gpsPrev) {
+    const dd = distNm(gpsPrev.lat, gpsPrev.lon, c.latitude, c.longitude);
+    const dt = (now - gpsPrev.at) / 3600000;
+    if (trk == null && dd > 0.3) trk = brg(gpsPrev.lat, gpsPrev.lon, c.latitude, c.longitude);
+    if (gs == null && dt > 0) gs = dd / dt;
+  }
+  if (trk == null) trk = gpsFix ? gpsFix.trk : (state ? routeTrackNear(c.latitude, c.longitude) : 0);
+  gpsFix = {
+    lat: c.latitude, lon: c.longitude, at: now,
+    altFt: Number.isFinite(c.altitude) ? c.altitude * 3.28084 : 0,
+    gs: gs || 0, trk, airborne: (gs || 0) > 80,
+  };
+  gpsPrev = { lat: c.latitude, lon: c.longitude, at: now };
+  if (now - livePaintAt > 5000) paintLive();
+}
+function startGps() {
+  if (gpsWatch != null || !navigator.geolocation) return;
+  try {
+    gpsWatch = navigator.geolocation.watchPosition(onFix, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+  } catch { gpsWatch = null; }
+}
+function stopGps() {
+  if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} }
+  gpsWatch = null;
+}
+function paintLive() {
+  livePaintAt = Date.now();
+  const iso = $('ri-iso'), ac = $('ri-ac'), near = $('ri-near');
+  if (!iso || !ac || !mapGeom || !state) return;
+  const g = gpsFix;
+  if (!g) { iso.innerHTML = ''; ac.innerHTML = ''; if (near) near.innerHTML = ''; return; }
+  const P = mapGeom.proj;
+  const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
+  const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
+  const xy = ([lat, lon]) => `${P.x(unwrap(lon)).toFixed(1)},${P.y(lat).toFixed(1)}`;
+  iso.innerHTML = g.airborne ? [60, 30].map(T => {
+    const pts = isochrone(g, T);
+    return pts.every(p => Math.abs(p[0] - g.lat) < 1e-6) ? '' : `<path d="M${pts.map(xy).join('L')}Z" class="ri-iso ri-iso-${T}"/>`;
+  }).join('') : '';
+  const [x, y] = xy([g.lat, g.lon]).split(',');
+  ac.innerHTML = `<g class="ri-ac" transform="translate(${x},${y})"><g class="ri-ac-in" style="transform: scale(var(--ri-k,1)) rotate(${g.trk.toFixed(0)}deg)">
+      <path d="M0,-11 L2,-3 L10,2 L10,4 L2,2 L1.5,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.5,8 L-2,2 L-10,4 L-10,2 L-2,-3 Z"/></g></g>`;
+  if (!near) return;
+  if (!g.airborne) {
+    near.innerHTML = `<div class="ri-near-h">GPS: on the ground — nearest-by-time appears once airborne.</div>`;
+    return;
+  }
+  const cands = state.model.pool.filter(c => !c.r.excluded && c.r.score > 0)
+    .map(c => ({ c, t: timeTo(c.ap, g) })).sort((a, b) => a.t.min - b.t.min).slice(0, 6);
+  const fl = g.altFt > 1000 ? `FL${String(Math.round(g.altFt / 100)).padStart(3, '0')} · ` : '';
+  near.innerHTML = `<div class="ri-near-h">Nearest by time · GPS ${fl}${Math.round(g.gs)} kt · track ${String(Math.round(g.trk)).padStart(3, '0')}° <span class="rw-src">(rough: turn + descent + approach)</span></div>
+    ${cands.map(({ c, t }) => {
+      const b = ri.band(c.r.score, c.r.excluded);
+      const side = Math.abs(t.rel) < 15 ? 'ahead' : Math.abs(t.rel) > 150 ? 'behind' : `${Math.round(Math.abs(t.rel))}° ${t.rel > 0 ? 'right' : 'left'}`;
+      return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
+          <span class="ri-row-t">≈${Math.round(t.min)}′</span>
+          <span class="ri-score ri-b-${b}">${c.r.score}</span>
+          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b> ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
+          <span class="ri-row-d">${Math.round(t.d)} nm</span></button>`;
+    }).join('')}`;
 }
 
 // ---------- Zoom & pan ----------
@@ -715,6 +875,7 @@ export async function open() {
   const leg = activeLeg();
   if (!leg || !leg.dep || !leg.arr) { toast('Route info needs a leg with departure and destination'); return; }
   showOverlay('route-overlay');
+  startGps();
   $('route-body').innerHTML = '<p class="muted small" style="padding:18px 4px;">Plotting the route…</p>';
   try {
     const cache = readCache(leg);
@@ -776,7 +937,7 @@ let wired = false;
 export function wire() {
   if (wired) return;
   wired = true;
-  $('route-close')?.addEventListener('click', () => hideOverlay('route-overlay'));
+  $('route-close')?.addEventListener('click', () => { stopGps(); hideOverlay('route-overlay'); });
   $('route-refresh')?.addEventListener('click', () => refresh(true));
   // Full screen, remembered on this device — like the notes.
   const sheet = document.querySelector('.route-sheet');
@@ -791,7 +952,7 @@ export function wire() {
   $('route-full')?.addEventListener('click', () => setFull(!sheet.classList.contains('is-full')));
   window.addEventListener('resize', () => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
   $('route-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'route-overlay') { hideOverlay('route-overlay'); return; }
+    if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
     if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
     const end = e.target.closest('[data-rw-end]');

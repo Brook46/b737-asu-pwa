@@ -23,7 +23,7 @@
 // /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=164';
+import { WORKER_BASE } from './proxy.js?v=165';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -146,17 +146,17 @@ function ceilingFt(clouds, vv) {
   if (Number.isFinite(vv) && vv > 0) c = Math.min(c, vv);
   return c;
 }
-// The conditions at `ts`: every TAF block covering that time (base, BECMG,
-// TEMPO, PROB) folded into the WORST case — a diversion is planned on what
-// might happen, not the average. With no TAF covering it, the METAR stands in
-// when the time is within two hours.
-export function wxAt(entry, ts, now = Date.now()) {
-  const tsS = ts / 1000;
-  const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= tsS && tsS < f.to);
-  let src = null, list = [];
-  if (blocks.length) { src = 'TAF'; list = blocks; }
-  else if (entry && entry.metar && Math.abs(ts - now) < 2 * H) { src = 'METAR'; list = [entry.metar]; }
-  if (!src) return { src: null };
+// The conditions for time `ts`.
+//   A CURRENT METAR (observed within the last 90 min) is the truth while
+//   that time is within the hour — what the airport has now beats a forecast.
+//   Otherwise every TAF block covering that time (base, BECMG, TEMPO, PROB)
+//   folded into the WORST case — a diversion is planned on what might happen.
+//   No TAF covering it: a current METAR still stands in up to three hours out.
+function metarCurrent(entry, now) {
+  const m = entry && entry.metar;
+  return !!(m && Number.isFinite(m.time) && now - m.time * 1000 <= 90 * 60000);
+}
+function fold(list, src) {
   let ceil = Infinity, vis = Infinity, wspd = 0, wgst = 0, wdir = null, wx = [];
   for (const b of list) {
     ceil = Math.min(ceil, ceilingFt(b.clouds, b.vv));
@@ -165,7 +165,23 @@ export function wxAt(entry, ts, now = Date.now()) {
     if (Math.max(sp, gs) >= Math.max(wspd, wgst)) { wspd = sp; wgst = gs; wdir = typeof b.wdir === 'number' ? b.wdir : wdir; }
     if (b.wx) wx.push(b.wx);
   }
-  return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' ') };
+  return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' '), at: list[0] && list[0].time ? list[0].time * 1000 : null };
+}
+export function wxAt(entry, ts, now = Date.now()) {
+  const tsS = ts / 1000;
+  const cur = metarCurrent(entry, now);
+  if (cur && Math.abs(ts - now) <= H) return fold([entry.metar], 'METAR');
+  const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= tsS && tsS < f.to);
+  if (blocks.length) return fold(blocks, 'TAF');
+  if (cur && Math.abs(ts - now) <= 3 * H) return fold([entry.metar], 'METAR');
+  return { src: null };
+}
+// The wind for choosing a runway: the runway in use is what the airport has
+// NOW, so a current METAR wins while you'd be passing within three hours;
+// later than that, the TAF for the time.
+export function windFor(entry, ts, now = Date.now()) {
+  if (metarCurrent(entry, now) && Math.abs(ts - now) <= 3 * H) return fold([entry.metar], 'METAR');
+  return wxAt(entry, ts, now);
 }
 
 // Crosswind on the best-aligned runway (lowest crosswind, not mostly tailwind).
@@ -236,47 +252,61 @@ export function notamSeverity(text, usable = new Set()) {
 }
 
 // ---------- Rating ----------
+// Each part's points against its maximum, so a card can say exactly why an
+// airport isn't a 10 ("−1.4 distance: 139 nm off the route").
+export const MAX = { runway: 2, lighting: 0.5, size: 1.5, distance: 3, weather: 3 };
 export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now() }) {
   const why = [];
   if (rules.exclude.includes(ap.cc)) {
-    return { score: 0, excluded: true, why: [`${ap.country}: not a diversion option`] };
+    return { score: 0, excluded: true, why: [`${ap.country}: not a diversion option`], lost: [] };
   }
   const flags = notams ? notamFlags(notams, eta) : null;
-  if (flags && flags.adClosed) return { score: 0, why: ['Aerodrome closed by NOTAM'], flags };
+  if (flags && flags.adClosed) return { score: 0, why: ['Aerodrome closed by NOTAM'], flags, lost: [] };
   const closed = new Set((flags && flags.rwyClosed) || []);
   const usable = ap.rwy.filter(r => r[1] >= 5500 && !closed.has(r[0]) && !String(r[0]).split('/').some(e => closed.has(e)));
-  if (!usable.length) return { score: 0, why: ['No usable runway (5,500 ft hard surface)'], flags };
+  if (!usable.length) return { score: 0, why: ['No usable runway (5,500 ft hard surface)'], flags, lost: [] };
+  const lost = [];      // { pts, what } — every point short of the maximum
   const L = usable[0][1], width = usable[0][2];
   let rwyPts = L >= 9000 ? 2 : L >= 8000 ? 1.8 : L >= 7000 ? 1.5 : L >= 6000 ? 1 : 0.4;
-  if (width && width < 98) { rwyPts -= 0.5; why.push(`Narrow runway (${width} ft)`); }
+  if (rwyPts < MAX.runway) lost.push({ pts: MAX.runway - rwyPts, what: `Longest runway ${L.toLocaleString('en-US')} ft (9,000+ scores full)` });
+  if (width && width < 98) { rwyPts -= 0.5; why.push(`Narrow runway (${width} ft)`); lost.push({ pts: 0.5, what: `Narrow runway (${width} ft)` }); }
   const lightPts = usable[0][4] ? 0.5 : 0;
-  if (!lightPts) why.push('Runway lighting not listed');
+  if (!lightPts) { why.push('Runway lighting not listed'); lost.push({ pts: 0.5, what: 'Runway lighting not listed in the data' }); }
   const sizePts = ap.size === 2 ? 1.5 : 0.8;
+  if (sizePts < MAX.size) lost.push({ pts: MAX.size - sizePts, what: 'Medium airport — a smaller city than a large one' });
   const distPts = 3 * Math.max(0, 1 - distNm / RADIUS_NM);
+  if (MAX.distance - distPts >= 0.05) lost.push({ pts: MAX.distance - distPts, what: `${Math.round(distNm)} nm off the route` });
 
   const w = wxAt(wxEntry, eta, now);
+  const wind = windFor(wxEntry, eta, now);
   let wxPts = 1.5, belowMins = false, xw = null;
-  if (!w.src) why.push('No forecast for that time');
+  if (!w.src) { why.push('No forecast for that time'); lost.push({ pts: 1.5, what: 'No METAR / TAF covering that time' }); }
   else {
     const c = w.ceil, v = w.vis;
+    const src = w.src === 'METAR' ? 'METAR' : 'TAF';
     if (c >= 1000 && v >= 5000) wxPts = 3;
-    else if (c >= 500 && v >= 1500) wxPts = 2.2;
-    else if (c >= 200 && v >= 550) { wxPts = 1.2; why.push('Low cloud / visibility'); }
-    else { wxPts = 0; belowMins = true; why.push('Below CAT I (forecast)'); }
-    if (/TS|FZ|SN|GR|\+RA/.test(w.wx || '')) { wxPts -= 1; why.push(`Weather: ${w.wx}`); }
-    xw = bestRunwayForWind(usable, w.wdir, Math.max(w.wspd || 0, w.wgst || 0));
-    if (xw && xw.xw > 35) { wxPts -= 2; why.push(`Crosswind ${xw.xw} kt`); }
-    else if (xw && xw.xw > 25) { wxPts -= 1; why.push(`Crosswind ${xw.xw} kt`); }
+    else if (c >= 500 && v >= 1500) { wxPts = 2.2; lost.push({ pts: 0.8, what: `Cloud / visibility a little low (${src})` }); }
+    else if (c >= 200 && v >= 550) { wxPts = 1.2; why.push('Low cloud / visibility'); lost.push({ pts: 1.8, what: `Low cloud / visibility (${src})` }); }
+    else { wxPts = 0; belowMins = true; why.push('Below CAT I (forecast)'); lost.push({ pts: 3, what: `Below CAT I (${src})` }); }
+    if (/TS|FZ|SN|GR|\+RA/.test(w.wx || '')) { wxPts -= 1; why.push(`Weather: ${w.wx}`); lost.push({ pts: 1, what: `Weather: ${w.wx}` }); }
+  }
+  if (wind.src) {
+    xw = bestRunwayForWind(usable, wind.wdir, Math.max(wind.wspd || 0, wind.wgst || 0));
+    if (xw) xw.src = wind.src;
+    if (xw && xw.xw > 35) { wxPts -= 2; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 2, what: `Crosswind ${xw.xw} kt on the best runway (${wind.src})` }); }
+    else if (xw && xw.xw > 25) { wxPts -= 1; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 1, what: `Crosswind ${xw.xw} kt on the best runway (${wind.src})` }); }
   }
   let score = rwyPts + lightPts + sizePts + distPts + Math.max(-2, wxPts);
-  if (ap.elev > 5000) { score -= 0.5; why.push(`High elevation (${ap.elev} ft)`); }
+  if (ap.elev > 5000) { score -= 0.5; why.push(`High elevation (${ap.elev} ft)`); lost.push({ pts: 0.5, what: `High elevation (${ap.elev.toLocaleString('en-US')} ft)` }); }
   const pen = Number(rules.penalty[ap.cc]) || 0;
-  if (pen) { score += pen; why.push(`${ap.country} ${pen > 0 ? '+' : ''}${pen}`); }
-  if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); }
+  if (pen) { score += pen; why.push(`${ap.country} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${ap.country} (country penalty, Settings)` }); }
+  if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); lost.push({ pts: 0.5, what: 'ILS / LOC unserviceable (NOTAM)' }); }
   if (flags && closed.size) why.push(`RWY ${[...closed].join(', ')} closed (NOTAM)`);
-  if (belowMins) score = Math.min(score, 3);
+  let capped = false;
+  if (belowMins && score > 3) { score = 3; capped = true; }
   score = Math.max(0, Math.min(10, Math.round(score)));
-  return { score, why, wx: w, xw, flags, longest: L, width, usable };
+  lost.sort((a, b) => b.pts - a.pts);
+  return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost, capped };
 }
 
 // Colour band for a rating.
