@@ -3374,3 +3374,9 @@ body {
 .ri-wxctx { font-size: 12px; font-weight: 600; color: var(--accent); margin: 0 0 4px; }
 .ri-rawh { font-size: 10.5px; font-weight: 700; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .04em; margin-top: 8px; }
 .ri-rawh + .ri-raw { margin-top: 2px; }
+/* Logbook: "Open this leg" and "Route info" side by side. */
+.lb-open, .lb-routeinfo { width: calc(50% - 4px); }
+.lb-routeinfo { margin-left: 8px; }
+/* Route info: the best-runway line above the diagram, wind source under the barb. */
+.rd-bestline { font-size: 13.5px; margin: 2px 0 6px; line-height: 1.6; }
+.rd-wsrc { fill: var(--fg-mute); font-size: 8.5px; font-weight: 600; text-anchor: middle; }

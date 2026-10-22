@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=166';
-import * as ri from './route-info.js?v=166';
-import { legTs, nearestHm } from './dates.js?v=166';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=166';
+import * as storage from './storage.js?v=167';
+import * as ri from './route-info.js?v=167';
+import { legTs, nearestHm } from './dates.js?v=167';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=167';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -35,11 +35,15 @@ function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; 
 // now"), so while Route info is open every refresh works on THIS flight,
 // found again by identity, never on whatever is selected at that moment.
 let pinned = null;
+// A flight opened from the logbook / History lives outside the current leg
+// list (an earlier duty, the CSV backfill) — keep the object itself too.
+let pinnedLeg = null;
 const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => String(v ?? '')).join('|');
 function screenLeg() {
   if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
     const hit = storage.getLegs().find(l => idOf(l) === pinned);
     if (hit) return hit;
+    if (pinnedLeg) return pinnedLeg;
   }
   return activeLeg();
 }
@@ -328,7 +332,7 @@ function wxSummary(w, xw) {
 // right with the wind written beneath it in the same colour.
 const FT = 0.3048;
 function upright(deg) { let a = ((deg % 360) + 360) % 360; if (a > 90 && a <= 270) a -= 180; return a; }
-function windBarb(x, y, dir, spd, gst) {
+function windBarb(x, y, dir, spd, gst, srcLabel = '') {
   const th = dir * Math.PI / 180;
   const v = [Math.sin(th), -Math.cos(th)];            // towards where it blows FROM
   const perp = [-v[1], v[0]];                          // barbs on the clockwise side
@@ -352,7 +356,8 @@ function windBarb(x, y, dir, spd, gst) {
   const label = `${String(dir).padStart(3, '0')}°/${spd}${gst ? 'G' + gst : ''} kt`;
   return `<g class="rd-wind"><circle cx="${x}" cy="${y}" r="3"/>
       <line x1="${x}" y1="${y}" x2="${tip[0].toFixed(1)}" y2="${tip[1].toFixed(1)}"/>${out}</g>
-    <text x="${x}" y="${y + 46}" class="rd-wtxt">${label}</text>`;
+    <text x="${x}" y="${y + 46}" class="rd-wtxt">${label}</text>
+    ${srcLabel ? `<text x="${x}" y="${y + 58}" class="rd-wsrc">${esc(srcLabel)}</text>` : ''}`;
 }
 function runwayDiagram(c) {
   const ap = c.ap, rw = ap.rwy;
@@ -449,7 +454,8 @@ function runwayDiagram(c) {
         <text y="18" class="rd-lda">LDA ${fmt(e.lda)}</text></g>`);
   }
   const w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
-  const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - WIND_COL / 2, 44, w.wdir, w.wspd || 0, w.wgst) : '';
+  const wsrc = w && w.src ? (w.src === 'METAR' ? `METAR ${w.at ? hm(w.at) : ''}` : `TAF ${hm(c.eta)}`) : '';
+  const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - WIND_COL / 2, 44, w.wdir, w.wspd || 0, w.wgst, wsrc) : '';
   return `<svg class="rd" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Runway diagram, north up">
       <text x="16" y="18" class="rd-n">N</text><path d="M16,22 L11,34 L16,30 L21,34 Z" class="rd-np"/>
       ${strips.join('')}${labels.join('')}${barb}
@@ -509,6 +515,28 @@ function runwayEnds(ap) {
 // The runway picker: one chip per runway end (★ = best for the forecast
 // wind), and the chosen end's details — wind components, LDA, surface,
 // approaches, and the NOTAMs that name it.
+// One line above the diagram: which runway to use with the best wind there
+// is for the moment you're looking (METAR when browsing or close, the TAF
+// for the abeam time when planning), its components, and where the wind
+// came from.
+function bestRunwayLine(c) {
+  const w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
+  const longest = (c.r.usable && c.r.usable[0]) ? c.r.usable[0][0] : (c.ap.rwy[0] || [''])[0];
+  if (!w || !w.src) return `<div class="rd-bestline">No wind for this time — pick a runway below.</div>`;
+  const src = w.src === 'METAR' ? `METAR ${w.at ? hm(w.at) : ''}`.trim() : `TAF for ${hm(c.eta)}`;
+  if (!(w.wspd || w.wgst)) return `<div class="rd-bestline">Wind calm <span class="rw-src">(${esc(src)})</span> — any runway; longest is ${esc(longest)}.</div>`;
+  if (w.wdir == null) return `<div class="rd-bestline">Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt <span class="rw-src">(${esc(src)})</span> — no preferred runway; longest is ${esc(longest)}.</div>`;
+  const best = c.r.xw && runwayEnds(c.ap).find(e => e.id === c.r.xw.rwy);
+  if (!best) return '';
+  const k = components(best.hdg, w);
+  const hw = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="wx-o">tailwind ${-k.head} kt</span>`;
+  const xb = xwBand(Math.max(k.cross, k.gustCross));
+  return `<div class="rd-bestline">Best runway now: <span class="rw-box">${esc(best.id)}</span>
+      <span class="rd-wind-t">${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> — ${hw} ·
+      <span class="${xb ? 'wx-' + xb : 'rd-wind-t'}">crosswind ${k.cross} kt from the ${k.side}${k.gustCross ? `, ${k.gustCross} in gusts` : ''}</span>
+      <span class="rw-src">(${esc(src)})</span></div>`;
+}
+
 function runwayPanel(c, m) {
   const ap = c.ap, w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
   const ends = runwayEnds(ap);
@@ -628,6 +656,7 @@ function cardHtml(c, m) {
       <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
       ${whyNot10(r)}
       <h5>Runways</h5>
+      ${bestRunwayLine(c)}
       ${runwayDiagram(c)}
       ${bigNotamTags(c)}
       <table class="ri-rwy"><tbody>${rwys}</tbody></table>
@@ -661,7 +690,10 @@ async function paint(model, showAll = false) {
   const list = showAll ? model.pool : model.shown;
   const counts = { a: 0, b: 0, c: 0, d: 0, x: 0 };
   for (const c of list) counts[ri.band(c.r.score, c.r.excluded)]++;
-  $('route-sub').textContent = `${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${hm(model.tm.takeoff)}`;
+  // A flight that isn't today carries its date, so it's clear which one this is.
+  const day = (ms) => { const d = new Date(ms); return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCFullYear()).slice(-2)} `; };
+  const fl = model.leg && model.leg.flight ? `${String(model.leg.flight).replace(/^0+/, '')} · ` : '';
+  $('route-sub').textContent = `${fl}${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${model.mode === 'browse' ? day(model.tm.takeoff) : ''}${hm(model.tm.takeoff)}`;
   const rows = list.map(c => {
     const b = ri.band(c.r.score, c.r.excluded);
     return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
@@ -925,9 +957,12 @@ function wireZoom(svg) {
   svg.addEventListener('pointercancel', end);
 }
 
-export async function open() {
-  const leg = activeLeg();
+// `legArg`: a specific flight (the logbook's "Route info") — otherwise the
+// leg on the main screen.
+export async function open(legArg = null) {
+  const leg = legArg || activeLeg();
   pinned = leg ? idOf(leg) : null;
+  pinnedLeg = legArg || null;
   if (!leg || !leg.dep || !leg.arr) { toast('Route info needs a leg with departure and destination'); return; }
   showOverlay('route-overlay');
   startGps();

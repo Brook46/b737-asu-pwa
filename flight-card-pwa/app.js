@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=166';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=166';
-import * as storage from './modules/storage.js?v=166';
-import * as dataCard from './modules/data-card.js?v=166';
-import * as checklist from './modules/checklist.js?v=166';
-import * as speeches from './modules/speeches.js?v=166';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=166';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=166';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=166';
+import { DUTY_KINDS } from './modules/duties.js?v=167';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=167';
+import * as storage from './modules/storage.js?v=167';
+import * as dataCard from './modules/data-card.js?v=167';
+import * as checklist from './modules/checklist.js?v=167';
+import * as speeches from './modules/speeches.js?v=167';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=167';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=167';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=167';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2623,6 +2623,7 @@ function renderLogbookList(legs, duties = []) {
           </label>
         </div>
         <button type="button" class="btn lb-open" ${ident}>Open this leg</button>
+        <button type="button" class="btn lb-routeinfo" ${ident}>Route info</button>
       </div>
       </div>
     `);
@@ -2908,6 +2909,24 @@ function wireLogbookRows(body) {
       if (idx >= 0) { hideOverlay('logbook-overlay'); pickLeg(idx); }
       // Historical flights live in fc.state.history and can't be made active.
       else toast('From a previous duty — view only');
+      return;
+    }
+    // Route info for THIS flight — including ones from earlier duties or the
+    // CSV backfill, which can't become the active leg.
+    const routeBtn = e.target.closest('.lb-routeinfo');
+    if (routeBtn) {
+      e.preventDefault();
+      const id = identOf(routeBtn);
+      const leg = storage.everyLeg().find(l =>
+        String(l.flight || '') === id.flight &&
+        String(l.dep_date || '') === id.dep_date &&
+        String(l.dep || '') === id.dep &&
+        String(l.arr || '') === id.arr &&
+        (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
+      if (!leg) { toast('Flight not found'); return; }
+      hideOverlay('logbook-overlay');
+      import('./modules/route-ui.js').then(ru => { ru.wire(); return ru.open(leg); })
+        .catch(err => { console.warn('route info failed', err); toast('Route info failed to load'); });
       return;
     }
     const dutyRow = e.target.closest('[data-duty-uid]');
