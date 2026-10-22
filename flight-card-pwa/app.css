@@ -3193,3 +3193,60 @@ body {
 .lb-tl-d.is-vlate,   .lb-delay.is-vlate,   .an-punct-avg.is-vlate   { color: var(--danger); }
 .an-punct-avg { font-weight: 700; }
 .leg-ctot.is-actual { cursor: default; }
+
+/* ---------- Route info (modules/route-ui.js) ---------- */
+.route-sheet { max-width: 900px; }
+.route-sheet .pad-head .btn { flex: none; }
+.route-sub { margin: 2px 2px 8px; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.ri-status { font-size: 12px; color: var(--fg-mute); margin: 0 2px 8px; }
+.ri-map { display: block; width: 100%; height: auto; border-radius: var(--radius-ctl); margin-bottom: 8px; touch-action: manipulation; }
+.ri-track { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
+.ri-pin { cursor: pointer; }
+.ri-pin circle { stroke: var(--bg-elev); stroke-width: 1.6; }
+.ri-pin text { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; pointer-events: none; }
+.ri-pin .ri-pin-code {
+  fill: var(--fg); font-size: 9px; font-weight: 700; letter-spacing: .02em;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+}
+.ri-pin.is-end circle { stroke: var(--fg); stroke-width: 2.2; }
+.ri-pin.is-sel circle { stroke: var(--fg); stroke-width: 3; }
+/* Rating bands: 8–10 green, 6–7 yellow-green, 4–5 orange, 1–3 red, no-go grey. */
+.ri-b-a { --ri: #34c759; } .ri-b-b { --ri: #a3c43a; } .ri-b-c { --ri: #ff9500; }
+.ri-b-d { --ri: #ff3b30; } .ri-b-x { --ri: #8e8e93; }
+.ri-pin circle { fill: var(--ri); }
+.ri-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: var(--fg-mute); margin: 0 2px 10px; }
+.ri-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ri); margin-right: 4px; vertical-align: -1px; }
+.ri-all { margin-left: auto; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ri-score {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px;
+  background: var(--ri); color: #fff; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.ri-list { display: flex; flex-direction: column; }
+.ri-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 2px;
+  border: 0; background: transparent; color: var(--fg); font: inherit; text-align: start; cursor: pointer;
+}
+.ri-row + .ri-row { border-top: 0.5px solid var(--line); }
+.ri-row-t { flex: none; width: 44px; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.ri-row-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.ri-row-n i { font-style: normal; font-size: 12px; color: var(--fg-mute); margin-left: 4px; }
+.ri-row-d { flex: none; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.ri-card {
+  background: var(--bg-sunk); border-radius: var(--radius-card); padding: 12px 14px; margin: 0 0 12px;
+  font-size: 14px; line-height: 1.4;
+}
+.ri-card-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+.ri-card-head > div { flex: 1; min-width: 0; }
+.ri-card-head .ri-score { min-width: 34px; height: 34px; border-radius: 17px; font-size: 17px; }
+.ri-card-x { flex: none; border: 0; background: transparent; color: var(--fg-mute); font-size: 16px; cursor: pointer; }
+.ri-card h5 { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .03em; }
+.ri-sub { font-size: 13px; color: var(--fg-mute); }
+.ri-why { margin: 6px 0 0 18px; padding: 0; font-size: 13px; }
+.ri-rwy { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ri-rwy td { padding: 2px 14px 2px 0; }
+.ri-raw { white-space: pre-wrap; font-size: 11.5px; margin: 6px 0 0; color: var(--fg-mute); font-family: ui-monospace, Menlo, monospace; }
+/* Pins and labels hold their size while the map zooms (--ri-k = zoom). */
+.ri-map { touch-action: none; }
+.ri-pin > * { transform: scale(var(--ri-k, 1)); }
+.ri-gap { font-size: 12px; font-weight: 600; color: var(--warn); margin: -4px 2px 8px; }

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A suite of vanilla-JS Progressive Web Apps for a 737 pilot, all served from one GitHub Pages site (`https://brook46.github.io/b737-asu-pwa/`). No bundler, no framework, no build step — plain HTML/CSS/ES-modules with a service worker per app.
 
 - **Root** (`index.html`, `app.js`) — Airspeed Unreliable QRH quick-reference (see README.md)
-- **flight-card-pwa/** — flight card with roster OCR, weather (TAF/METAR), logbook, calendar sync; the most complex app (`modules/` holds ~19 ES modules)
+- **flight-card-pwa/** — flight card with roster OCR, weather (TAF/METAR), logbook, calendar sync; the most complex app (`modules/` holds ~19 ES modules). Route info (diversion airports rated 0–10) reads `data/divdb.json`, built from OurAirports by `scripts/build-divdb.py`; its weather/NOTAMs come through the worker's `/routewx` and `/notams` (NOTAMs need worker secrets `FAA_NOTAM_ID`/`FAA_NOTAM_SECRET`)
 - **duty-cal-pwa/** — duty roster calendar (parses duty-plan PDFs); `kinds.js` is the duty taxonomy. See `duty-cal-pwa/CLAUDE.md`.
 - **swap-pwa/** — "Roster Swap": crew flight-exchange board, a **separate app at its own URL**, reading the calendar's roster read-only. See `swap-pwa/CLAUDE.md`.
 - **gpws-pwa/** — GPWS warning simulator/trainer

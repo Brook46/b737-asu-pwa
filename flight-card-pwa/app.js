@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=160';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=160';
-import * as storage from './modules/storage.js?v=160';
-import * as dataCard from './modules/data-card.js?v=160';
-import * as checklist from './modules/checklist.js?v=160';
-import * as speeches from './modules/speeches.js?v=160';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=160';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=160';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=160';
+import { DUTY_KINDS } from './modules/duties.js?v=161';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=161';
+import * as storage from './modules/storage.js?v=161';
+import * as dataCard from './modules/data-card.js?v=161';
+import * as checklist from './modules/checklist.js?v=161';
+import * as speeches from './modules/speeches.js?v=161';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=161';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=161';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=161';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1204,6 +1204,7 @@ const TOP_ACTIONS = {
   'settings':        () => openSettingsSheet(),
   'leg-prev':        () => applyLeg(storage.getLegIndex() - 1),
   'leg-now':         () => applyLeg(pickLegForNow()),
+  'route-info':      () => openRouteInfo(),
   'leg-next':        () => applyLeg(storage.getLegIndex() + 1),
   'ctot-bell':       () => { try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); } },
 };
@@ -2146,7 +2147,53 @@ setInterval(safeAutoSync, 10 * 60 * 1000);
 setInterval(() => {
   try { paintTlvBoard(); } catch {}
   try { dataCard.refreshMetar(dataBody); } catch {}
+  try { routeAutoUpdate(); } catch {}
 }, 10 * 60 * 1000);
+setTimeout(() => { try { routeAutoUpdate(); } catch {} }, 20 * 1000);
+
+// ---------- Route info (modules/route-ui.js) ----------
+// Loaded on demand; the auto-update only does anything from an hour before
+// departure to arrival, so the import is cheap the rest of the time.
+async function openRouteInfo() {
+  try {
+    const ru = await import('./modules/route-ui.js');
+    ru.wire();
+    await ru.open();
+  } catch (err) { console.warn('route info failed', err); toast('Route info failed to load'); }
+}
+async function routeAutoUpdate() {
+  if (navigator.onLine === false) return;
+  const leg = storage.getLegs()[storage.getLegIndex()] || null;
+  const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
+  if (!Number.isFinite(std) || Date.now() < std - 65 * 60000 || Date.now() > std + 20 * 3600000) return;
+  const ru = await import('./modules/route-ui.js');
+  ru.wire();
+  await ru.autoUpdate();
+}
+
+// Settings → Route info: the country rules, as two plain text fields.
+(function wireDivCountries() {
+  const ex = $('div-exclude'), pen = $('div-penalty');
+  if (!ex || !pen) return;
+  const load = async () => {
+    const ri = await import('./modules/route-info.js');
+    const r = ri.getCountryRules();
+    ex.value = r.exclude.join(' ');
+    pen.value = Object.entries(r.penalty).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ');
+  };
+  const save = async () => {
+    const ri = await import('./modules/route-info.js');
+    const exclude = (ex.value.toUpperCase().match(/\b[A-Z]{2}\b/g) || []);
+    const penalty = {};
+    for (const m of pen.value.toUpperCase().matchAll(/\b([A-Z]{2})\s*([+-]?\d+(?:\.\d+)?)/g)) penalty[m[1]] = Number(m[2]);
+    ri.setCountryRules({ exclude, penalty });
+    toast('Diversion countries saved');
+    load();
+  };
+  ex.addEventListener('change', save);
+  pen.addEventListener('change', save);
+  load();
+})();
 // calendar auto-sync runs from the consolidated module-level visibilitychange
 // listener defined below (alongside the GPS re-arm).
 
