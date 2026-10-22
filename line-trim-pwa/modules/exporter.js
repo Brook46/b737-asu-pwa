@@ -1,9 +1,9 @@
 // exporter.js — session download + shareable text summary.
 
-import { porositySummary, RATING_LABEL } from './porosity.js?v=19';
-import { analyse, aoiNote } from './trim.js?v=19';
-import { sideLabel } from './linemodel.js?v=19';
-import { signed } from './ui/dom.js?v=19';
+import { porositySummary, RATING_LABEL } from './porosity.js?v=20';
+import { analyse, aoiNote } from './trim.js?v=20';
+import { sideLabel } from './linemodel.js?v=20';
+import { signed } from './ui/dom.js?v=20';
 
 export function download(name, mime, text) {
   const blob = new Blob([text], { type: mime });

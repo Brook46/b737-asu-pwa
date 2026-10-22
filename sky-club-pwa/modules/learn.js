@@ -7,16 +7,16 @@
 //   • Why the sea goes in and out — the Moon and the Sun pull the oceans into bumps.
 // Every number on these screens is computed, never typed in.
 
-import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=27';
-import { drawMoonPhase, describePhase } from './moonphase.js?v=27';
-import { Globe, loadTexture, frameFromPole } from './globe.js?v=27';
-import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=27';
-import { SKY_BODIES } from './catalog.js?v=27';
-import { sensorState, primeLocation } from './sensors.js?v=27';
-import { mountZoom, unmountZoom } from './zoom.js?v=27';
-import { mountSurface } from './surface.js?v=27';
-import { liftPlay } from './lessonui.js?v=27';
-import { say } from './speech.js?v=27';
+import { moonPhase, sunDeclinationDeg, helioEcliptic } from './astro.js?v=28';
+import { drawMoonPhase, describePhase } from './moonphase.js?v=28';
+import { Globe, loadTexture, frameFromPole } from './globe.js?v=28';
+import { poleOf, LOOKS, earthClouds } from './orrery3d.js?v=28';
+import { SKY_BODIES } from './catalog.js?v=28';
+import { sensorState, primeLocation } from './sensors.js?v=28';
+import { mountZoom, unmountZoom } from './zoom.js?v=28';
+import { mountSurface } from './surface.js?v=28';
+import { liftPlay } from './lessonui.js?v=28';
+import { say } from './speech.js?v=28';
 
 const DEG = Math.PI / 180;
 const SYNODIC = 29.530588; // days from one New Moon to the next

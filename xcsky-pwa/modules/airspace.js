@@ -18,7 +18,7 @@
 //
 // Everything is pure functions + one Leaflet layer, no dependencies.
 
-import * as Store from './store.js';
+import * as Store from './store.js?v=20';
 
 const NM = 1852;          // metres
 const FT = 0.3048;

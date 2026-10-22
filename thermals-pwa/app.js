@@ -6,20 +6,20 @@
 //   3. Profile  — at least a nickname + colour before you appear on the map.
 // Then we connect to today's room and the live map comes alive.
 
-import { initTheme, toast, showOverlay, hideOverlay, esc, ago } from './modules/ui.js';
-import { COLORS } from './config.js';
-import * as geo from './modules/geo.js';
-import * as mapMod from './modules/map.js';
-import * as profile from './modules/profile.js';
-import * as stateMod from './modules/state.js';
-import * as auth from './modules/auth.js';
-import * as presence from './modules/presence.js';
-import * as roster from './modules/roster.js';
-import * as chat from './modules/chat.js';
-import * as sos from './modules/sos.js';
-import * as crash from './modules/crash.js';
-import * as xc from './modules/xc.js';
-import * as elevation from './modules/elevation.js';
+import { initTheme, toast, showOverlay, hideOverlay, esc, ago } from './modules/ui.js?v=15';
+import { COLORS } from './config.js?v=15';
+import * as geo from './modules/geo.js?v=15';
+import * as mapMod from './modules/map.js?v=15';
+import * as profile from './modules/profile.js?v=15';
+import * as stateMod from './modules/state.js?v=15';
+import * as auth from './modules/auth.js?v=15';
+import * as presence from './modules/presence.js?v=15';
+import * as roster from './modules/roster.js?v=15';
+import * as chat from './modules/chat.js?v=15';
+import * as sos from './modules/sos.js?v=15';
+import * as crash from './modules/crash.js?v=15';
+import * as xc from './modules/xc.js?v=15';
+import * as elevation from './modules/elevation.js?v=15';
 
 const $ = (id) => document.getElementById(id);
 let mapStarted = false;

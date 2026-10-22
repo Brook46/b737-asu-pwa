@@ -1,6 +1,6 @@
 /* GPWS simulator service worker — cache-first for the app shell.
    Bump VERSION on every deploy so clients pick up new assets. */
-const VERSION = 'gpws-v6';
+const VERSION = 'gpws-v7';
 const SOUNDS = [
   'pull-up.mp3', 'sink-rate.mp3', 'dont-sink.wav', 'too-low-gear.wav',
   'too-low-flaps.wav', 'too-low-terrain.wav', 'glideslope.wav', 'bank-angle.wav',
@@ -32,7 +32,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('gpws-') && k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

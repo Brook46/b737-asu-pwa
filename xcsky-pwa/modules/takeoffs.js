@@ -11,7 +11,7 @@
 // Only sites reachable inside the loaded grid can be scored (so the ranking is
 // always consistent with what's painted on the map).
 
-import { sampleAt, gridReady } from './grid.js';
+import { sampleAt, gridReady } from './grid.js?v=20';
 
 const WORKER_BASE = 'https://b737-asu-pwa.alonbrookstein.workers.dev';
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];

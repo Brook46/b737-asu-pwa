@@ -5,7 +5,7 @@
 // double-newline split first and fall back to single. Short / non-prose lines
 // (headers, footers, page numbers) are filtered out.
 
-import * as storage from './storage.js?v=5';
+import * as storage from './storage.js?v=42';
 
 const cache = new Map(); // `${fileId}:${pageNum}` -> string[]
 

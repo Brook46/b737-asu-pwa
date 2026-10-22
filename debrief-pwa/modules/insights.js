@@ -16,7 +16,7 @@
 // achieved that day — because 1.2 m/s is a poor climb in Spain in June and a
 // very good one in Wales in October, and only the other pilots know which.
 
-import { segmentFlight, distance, launchIndex, CLIMB_MS } from './metrics.js';
+import { segmentFlight, distance, launchIndex, CLIMB_MS } from './metrics.js?v=6';
 
 /** Altitude bucket for the climb-by-height analysis, metres. */
 const BAND_M = 250;

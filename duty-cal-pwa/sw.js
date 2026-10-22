@@ -1,5 +1,5 @@
 // Service worker: offline-first, but self-healing rather than stubbornly stale.
-const VER = 'duty-cal-v19';
+const VER = 'duty-cal-v20';
 const CORE = [
   './',
   'index.html',
@@ -26,7 +26,7 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VER).map(k => caches.delete(k)))));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('duty-cal-') && k !== VER).map(k => caches.delete(k)))));
   self.clients.claim();
 });
 

@@ -12,23 +12,23 @@
 // Vanilla ES modules, no framework, no build step — same as the rest of the
 // suite (see CLAUDE.md).
 
-import { parseIGC, looksLikeIGC } from './modules/igc.js';
-import { analyse, computeMetrics } from './modules/metrics.js';
-import { detectHighlights, HIGHLIGHT_META, rankAcrossTracks } from './modules/highlights.js';
-import { attachTerrain } from './modules/terrain.js';
-import { COLOR_MODES, DEFAULT_MODE, TRACK_COLORS, legendGradient, modeValue, rgbCss } from './modules/colors.js';
-import { analyseDay, pilotInsights, gradeFlight, xcScore, compareTracks, versusDay, invalidate as invalidateInsights } from './modules/insights.js';
-import { Timeline, SPEEDS } from './modules/timeline.js';
-import * as Map3D from './modules/map3d.js';
-import * as Charts from './modules/charts.js';
-import * as Store from './modules/store.js';
-import * as Exporter from './modules/exporter.js';
-import { demoFlights } from './modules/demo.js';
-import * as XC from './modules/xcontest.js';
-import * as Share from './modules/share.js';
-import * as Task from './modules/xctsk.js';
-import { installResumeHardening } from './modules/resume.js';
-import { fmtAlt, fmtClock, fmtClockShort, fmtDate, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtAgl } from './modules/format.js';
+import { parseIGC, looksLikeIGC } from './modules/igc.js?v=6';
+import { analyse, computeMetrics } from './modules/metrics.js?v=6';
+import { detectHighlights, HIGHLIGHT_META, rankAcrossTracks } from './modules/highlights.js?v=6';
+import { attachTerrain } from './modules/terrain.js?v=6';
+import { COLOR_MODES, DEFAULT_MODE, TRACK_COLORS, legendGradient, modeValue, rgbCss } from './modules/colors.js?v=6';
+import { analyseDay, pilotInsights, gradeFlight, xcScore, compareTracks, versusDay, invalidate as invalidateInsights } from './modules/insights.js?v=6';
+import { Timeline, SPEEDS } from './modules/timeline.js?v=6';
+import * as Map3D from './modules/map3d.js?v=6';
+import * as Charts from './modules/charts.js?v=6';
+import * as Store from './modules/store.js?v=6';
+import * as Exporter from './modules/exporter.js?v=6';
+import { demoFlights } from './modules/demo.js?v=6';
+import * as XC from './modules/xcontest.js?v=6';
+import * as Share from './modules/share.js?v=6';
+import * as Task from './modules/xctsk.js?v=6';
+import { installResumeHardening } from './modules/resume.js?v=6';
+import { fmtAlt, fmtClock, fmtClockShort, fmtDate, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtAgl } from './modules/format.js?v=6';
 
 /** The spec's ceiling: two to four tracks is a comparison, more is a mess. */
 const MAX_TRACKS = 4;

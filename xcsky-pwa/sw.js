@@ -3,33 +3,33 @@
 // and map tiles are network-only (fresh + huge). Leaflet CDN is cached after
 // first load.
 
-const CACHE_VERSION = 'skymonkeys-v19';
+const CACHE_VERSION = 'skymonkeys-v20';
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=10',
-  './app.js?v=10',
+  './app.css?v=20',
+  './app.js?v=20',
   './manifest.json',
   './icon.svg',
-  './modules/meteo.js',
-  './modules/soaring.js',
-  './modules/units.js',
-  './modules/chart.js',
-  './modules/location.js',
-  './modules/map.js',
-  './modules/grid.js',
-  './modules/pilots.js',
-  './modules/takeoffs.js',
-  './modules/planning.js',
-  './modules/recommend.js',
-  './modules/stations.js',
-  './modules/webcams.js',
-  './modules/windflow.js',
-  './modules/store.js',
-  './modules/airspace.js',
-  './modules/profile.js',
-  './modules/compare.js',
-  './modules/resume.js',
+  './modules/meteo.js?v=20',
+  './modules/soaring.js?v=20',
+  './modules/units.js?v=20',
+  './modules/chart.js?v=20',
+  './modules/location.js?v=20',
+  './modules/map.js?v=20',
+  './modules/grid.js?v=20',
+  './modules/pilots.js?v=20',
+  './modules/takeoffs.js?v=20',
+  './modules/planning.js?v=20',
+  './modules/recommend.js?v=20',
+  './modules/stations.js?v=20',
+  './modules/webcams.js?v=20',
+  './modules/windflow.js?v=20',
+  './modules/store.js?v=20',
+  './modules/airspace.js?v=20',
+  './modules/profile.js?v=20',
+  './modules/compare.js?v=20',
+  './modules/resume.js?v=20',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];
@@ -49,7 +49,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('skymonkeys-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });

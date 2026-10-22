@@ -8,8 +8,8 @@ import {
   STATES, STATE_ORDER, AUTO_STATES,
   FLY_AGL_M, FLY_CONFIRM_MS, LAND_AGL_M, LAND_CONFIRM_MS,
   BEER_FROM_START_MS, BEER_AWAY_MS,
-} from '../config.js';
-import { glyphSVG } from './icons.js';
+} from '../config.js?v=15';
+import { glyphSVG } from './icons.js?v=15';
 
 const KEY = 'thermals.state';
 const SEATS_KEY = 'thermals.seats';

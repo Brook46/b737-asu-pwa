@@ -11,9 +11,9 @@
 // Everything here degrades rather than dies: no WebGL, no deck.gl, a DEM tile
 // 404 — the app says so and keeps working in 2D.
 
-import { segmentColors, hexToRgb } from './colors.js';
-import { HIGHLIGHT_META } from './highlights.js';
-import { cylinderRing, roleOf } from './xctsk.js';
+import { segmentColors, hexToRgb } from './colors.js?v=6';
+import { HIGHLIGHT_META } from './highlights.js?v=6';
+import { cylinderRing, roleOf } from './xctsk.js?v=6';
 
 /** Keyless raster basemaps. Attribution is a licence condition, not decoration. */
 export const BASEMAPS = [

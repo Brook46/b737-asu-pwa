@@ -8,7 +8,7 @@
 // live panel with the control ringed: operate it there yourself (Do it), or
 // let the app do it (Watch / Play). Each stage ends with its QRH checklist.
 
-import { STAGES, COMING } from './flow-data.js?v=62';
+import { STAGES, COMING } from './flow-data.js?v=63';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const md = (s) => esc(s).replace(/"([^"]+)"/g, '<b>"$1"</b>');

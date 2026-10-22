@@ -4,8 +4,8 @@
 // We keep one HTML marker per pilot (small crew → DOM markers are simplest and
 // let us tint by colour + swap the state glyph trivially).
 
-import { MAPTILER_KEY, TERRAIN_TILES } from '../config.js';
-import { markerEl, updateMarkerEl, glyphSVG } from './icons.js';
+import { MAPTILER_KEY, TERRAIN_TILES } from '../config.js?v=15';
+import { markerEl, updateMarkerEl, glyphSVG } from './icons.js?v=15';
 
 let map = null;
 let ready = false;

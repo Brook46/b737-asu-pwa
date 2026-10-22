@@ -15,9 +15,9 @@
 // On iOS a blob download is unreliable inside a standalone PWA, so anything we
 // produce goes through the native share sheet when one is available.
 
-import { fmtAlt, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtDate, fmtClock } from './format.js';
-import { colorFor, rgbCss, hexToRgb } from './colors.js';
-import { HIGHLIGHT_META } from './highlights.js';
+import { fmtAlt, fmtDist, fmtDuration, fmtGlide, fmtSpeed, fmtDate, fmtClock } from './format.js?v=6';
+import { colorFor, rgbCss, hexToRgb } from './colors.js?v=6';
+import { HIGHLIGHT_META } from './highlights.js?v=6';
 
 /** Tried in order — the first the browser can encode wins. */
 const MIME_CANDIDATES = [

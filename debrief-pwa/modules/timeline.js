@@ -13,7 +13,7 @@
 // logger switched on 20 minutes early while the pilot lays out the wing would
 // otherwise offset that pilot's whole flight.
 
-import { sampleAt, launchIndex } from './metrics.js';
+import { sampleAt, launchIndex } from './metrics.js?v=6';
 
 /** Transport rates offered by the UI. */
 export const SPEEDS = [1, 2, 5, 10];

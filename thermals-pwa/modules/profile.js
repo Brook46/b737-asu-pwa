@@ -4,8 +4,8 @@
 // so the editor copy is upfront about that. The profile is pushed to the room
 // on join and whenever it changes (presence.js subscribes via onProfile).
 
-import { COLORS } from '../config.js';
-import { toast, esc } from './ui.js';
+import { COLORS } from '../config.js?v=15';
+import { toast, esc } from './ui.js?v=15';
 
 const KEY = 'thermals.profile';
 const subs = new Set();

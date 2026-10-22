@@ -5,8 +5,8 @@
 // Pure canvas, no library. Retina-aware. Colours come from CSS variables so the
 // charts follow the app theme.
 
-import { deriveHour } from './soaring.js';
-import { altNum, altUnit } from './units.js';
+import { deriveHour } from './soaring.js?v=20';
+import { altNum, altUnit } from './units.js?v=20';
 
 /** Lift colour ramp: net climb (m/s) → CSS colour. Blue(weak)→green→gold→red(strong). */
 export function liftColor(net) {

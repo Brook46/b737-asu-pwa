@@ -9,9 +9,9 @@
 // plan around. A day where they disagree by 1000 m is a day to stay flexible —
 // that judgement is the whole point of showing this.
 
-import { fetchRetry } from './meteo.js';
-import { deriveHour } from './soaring.js';
-import * as Store from './store.js';
+import { fetchRetry } from './meteo.js?v=20';
+import { deriveHour } from './soaring.js?v=20';
+import * as Store from './store.js?v=20';
 
 const FORECAST_API = 'https://api.open-meteo.com/v1/forecast';
 

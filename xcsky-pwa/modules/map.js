@@ -5,10 +5,10 @@
 // KK7 (thermal.kk7.ch) publishes thermal-hotspot and skyways tiles for free
 // hotlinking with a `src=` attribution parameter, CORS `*`, TMS tile scheme.
 
-import { fetchPilots, typeColor, TYPE_NAMES, SOARING_TYPES, ageLabel } from './pilots.js';
-import { fetchStations, windColor, ageMin } from './stations.js';
-import { fetchWebcams, hasKey as hasWindyKey } from './webcams.js';
-import { alt as fmtAlt, wind as fmtWind, climb as fmtClimb } from './units.js';
+import { fetchPilots, typeColor, TYPE_NAMES, SOARING_TYPES, ageLabel } from './pilots.js?v=20';
+import { fetchStations, windColor, ageMin } from './stations.js?v=20';
+import { fetchWebcams, hasKey as hasWindyKey } from './webcams.js?v=20';
+import { alt as fmtAlt, wind as fmtWind, climb as fmtClimb } from './units.js?v=20';
 
 const OPENAIP_KEY_LS = 'xcsky.openaipKey';
 export function hasOpenaipKey() { return !!localStorage.getItem(OPENAIP_KEY_LS); }

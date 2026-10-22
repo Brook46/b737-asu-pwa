@@ -1,6 +1,6 @@
 // Minimal cache-first service worker for the Roster Swap app.
 // Scope is this folder only — the Duty Calendar app has its own worker.
-const VER = 'swap-v1';
+const VER = 'swap-v2';
 const CORE = [
   './',
   'index.html',
@@ -19,7 +19,7 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VER).map(k => caches.delete(k)))));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('swap-') && k !== VER).map(k => caches.delete(k)))));
   self.clients.claim();
 });
 self.addEventListener('fetch', e => {

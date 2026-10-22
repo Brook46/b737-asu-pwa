@@ -8,32 +8,32 @@
 // Map tiles, the DEM and the elevation API are network-only: they're huge,
 // change per viewport, and MapLibre keeps its own in-memory tile cache.
 
-const CACHE_VERSION = 'debrief-v5';
+const CACHE_VERSION = 'debrief-v6';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './app.css?v=5',
-  './app.js?v=5',
+  './app.css?v=6',
+  './app.js?v=6',
   './manifest.json',
   './icon.svg',
-  './modules/igc.js',
-  './modules/metrics.js',
-  './modules/highlights.js',
-  './modules/insights.js',
-  './modules/xcontest.js',
-  './modules/share.js',
-  './modules/xctsk.js',
-  './modules/terrain.js',
-  './modules/colors.js',
-  './modules/map3d.js',
-  './modules/timeline.js',
-  './modules/charts.js',
-  './modules/exporter.js',
-  './modules/store.js',
-  './modules/format.js',
-  './modules/demo.js',
-  './modules/resume.js',
+  './modules/igc.js?v=6',
+  './modules/metrics.js?v=6',
+  './modules/highlights.js?v=6',
+  './modules/insights.js?v=6',
+  './modules/xcontest.js?v=6',
+  './modules/share.js?v=6',
+  './modules/xctsk.js?v=6',
+  './modules/terrain.js?v=6',
+  './modules/colors.js?v=6',
+  './modules/map3d.js?v=6',
+  './modules/timeline.js?v=6',
+  './modules/charts.js?v=6',
+  './modules/exporter.js?v=6',
+  './modules/store.js?v=6',
+  './modules/format.js?v=6',
+  './modules/demo.js?v=6',
+  './modules/resume.js?v=6',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
@@ -62,7 +62,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('debrief-') && k !== CACHE_VERSION).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
