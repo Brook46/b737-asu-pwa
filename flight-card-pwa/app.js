@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=158';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=158';
-import * as storage from './modules/storage.js?v=158';
-import * as dataCard from './modules/data-card.js?v=158';
-import * as checklist from './modules/checklist.js?v=158';
-import * as speeches from './modules/speeches.js?v=158';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=158';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=158';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=158';
+import { DUTY_KINDS } from './modules/duties.js?v=159';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=159';
+import * as storage from './modules/storage.js?v=159';
+import * as dataCard from './modules/data-card.js?v=159';
+import * as checklist from './modules/checklist.js?v=159';
+import * as speeches from './modules/speeches.js?v=159';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=159';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=159';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=159';
 
 const $ = (id) => document.getElementById(id);
 
@@ -626,24 +626,69 @@ function offBlockDepCode() {
 function offBlockTimes(now = new Date()) {
   const { diff } = ctotDiffMinutes(now);
   if (diff == null) return null;
+  const leg = storage.getLegs()[storage.getLegIndex()] || null;
+  const d = storage.getCurrent()?.dataCard || {};
   const taxi = taxiMinutes(offBlockDepCode());
-  const ctot = now.getTime() - diff * 60000;
-  return { ctot, taxi, target: ctot - taxi * 60000, latest: ctot + (10 - taxi) * 60000 };
+  let ctot = now.getTime() - diff * 60000;
+  // The plan, straight from the calendar: STD / STA. The CTOT pill only
+  // carries HH:MM, so pin it to the day nearest the leg's STD (a slot for a
+  // 23:50Z departure can fall after midnight).
+  const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
+  const sta = leg ? legTs(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year) : NaN;
+  if (Number.isFinite(std)) {
+    const DAY = 86400000;
+    for (const k of [-1, 1]) {
+      if (Math.abs(ctot + k * DAY - std) < Math.abs(ctot - std)) ctot += k * DAY;
+    }
+  }
+  // Block = off-block → on-block, so it already holds taxi-out AND taxi-in:
+  // in-block = off-block + block, never + taxi again. A typed flight time is
+  // the block here too (setDataField carries it to block_time).
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(d.block_time || d.flight_time || (leg && leg.flight_time) || '').trim());
+  const blockMin = m ? (+m[1]) * 60 + (+m[2]) : NaN;
+  const target = ctot - taxi * 60000;
+  const ibt = Number.isFinite(blockMin) ? target + blockMin * 60000 : NaN;
+  const planIbt = Number.isFinite(sta) ? sta
+    : (Number.isFinite(std) && Number.isFinite(blockMin)) ? std + blockMin * 60000 : NaN;
+  return {
+    ctot, taxi, target, ibt,
+    latest: ctot + (10 - taxi) * 60000,
+    obtDelta: Number.isFinite(std) ? Math.round((target - std) / 60000) : null,
+    ibtDelta: Number.isFinite(ibt) && Number.isFinite(planIbt) ? Math.round((ibt - planIbt) / 60000) : null,
+  };
+}
+// Early / on time / late against the calendar's plan. On time runs to +5,
+// late to +15; past that it's a real delay.
+function planTone(delta) {
+  if (delta == null) return '';
+  if (delta < -2) return 'is-early';
+  if (delta <= 5) return 'is-ontime';
+  if (delta <= 15) return 'is-late';
+  return 'is-vlate';
 }
 function paintOffBlock(now = new Date()) {
   const el = $('leg-ctot');
   if (!el) return;
   const t = offBlockTimes(now);
   if (!t) { if (!el.hidden) el.hidden = true; return; }
-  const hm = (ms) => new Date(ms).toISOString().slice(11, 16) + 'Z';
+  const hm = (ms) => new Date(ms).toISOString().slice(11, 16);
+  const dl = (n) => n == null ? '' : `<i>${n === 0 ? '±0' : (n > 0 ? '+' : '−') + Math.abs(n)}</i>`;
   const toTarget = (t.target - now.getTime()) / 60000;
-  const cls = now.getTime() > t.latest ? 'is-missed'
-    : toTarget <= 0 ? 'is-now'
-    : toTarget <= 15 ? 'is-soon' : '';
-  const html = `<b>CTOT ${hm(t.ctot)}</b> · off-block <b>${hm(t.target)}</b> · latest ${hm(t.latest)} · taxi ${t.taxi} min`;
+  // Countdown to off-block while it matters; nothing once long gone.
+  const due = now.getTime() > t.latest + 3 * 3600000 ? ''
+    : now.getTime() > t.latest ? '<span class="ob-due is-missed">missed</span>'
+    : toTarget <= 0 ? '<span class="ob-due is-now">now</span>'
+    : toTarget <= 30 ? `<span class="ob-due">in ${Math.ceil(toTarget)}′</span>` : '';
+  const html = [
+    `<span class="ob-tok"><b>CTOT ${hm(t.ctot)}Z</b></span>`,
+    `<span class="ob-tok ${planTone(t.obtDelta)}" title="Off-block: CTOT − taxi; latest still inside the slot">OBT <b>${hm(t.target)}</b>${dl(t.obtDelta)}<small>≤${hm(t.latest)}</small></span>`,
+    due,
+    Number.isFinite(t.ibt)
+      ? `<span class="ob-tok ${planTone(t.ibtDelta)}" title="In-block: off-block + block time">IBT <b>${hm(t.ibt)}</b>${dl(t.ibtDelta)}</span>` : '',
+    `<span class="ob-tok ob-taxi">taxi ${t.taxi}′</span>`,
+  ].filter(Boolean).join('');
   if (el.innerHTML !== html) el.innerHTML = html;
-  const want = `leg-ctot ${cls}`.trim();
-  if (el.className !== want) el.className = want;
+  if (el.className !== 'leg-ctot') el.className = 'leg-ctot';
   if (el.hidden) el.hidden = false;
 }
 $('leg-ctot')?.addEventListener('click', () => {

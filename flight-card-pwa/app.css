@@ -3149,15 +3149,28 @@ body {
 .leg-board.is-bad .leg-board-st { color: var(--danger); }
 .leg-board.is-stale { opacity: .7; }
 
-/* Off-block target from the CTOT, under the leg route (paintOffBlock). */
+/* Off-block / in-block from the CTOT, under the leg route (paintOffBlock).
+   Compact tokens that wrap on a phone; each time is coloured against the
+   calendar's plan — early blue, on time green, late orange, delayed red. */
 .leg-ctot {
-  display: inline-block; margin-top: 3px; padding: 0; border: 0; background: transparent;
+  display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 9px; row-gap: 2px;
+  margin-top: 3px; padding: 0; border: 0; background: transparent;
   font: inherit; font-size: 12px; font-weight: 500; color: var(--fg-mute);
   font-variant-numeric: tabular-nums; text-align: start; cursor: pointer;
 }
 .leg-ctot[hidden] { display: none; }
 .leg-ctot b { color: var(--fg); font-weight: 700; }
-.leg-ctot.is-soon b:nth-of-type(2) { color: var(--warn); }
-.leg-ctot.is-now  b:nth-of-type(2) { color: var(--good); }
-.leg-ctot.is-missed { color: var(--danger); }
-.leg-ctot.is-missed b { color: var(--danger); }
+.ob-tok { white-space: nowrap; }
+.ob-tok i { font-style: normal; font-weight: 700; margin-left: 2px; font-size: 11px; }
+.ob-tok small { margin-left: 4px; font-size: 11px; color: var(--fg-dim); }
+.ob-tok.is-early   b, .ob-tok.is-early   i { color: var(--accent); }
+.ob-tok.is-ontime  b, .ob-tok.is-ontime  i { color: var(--good); }
+.ob-tok.is-late    b, .ob-tok.is-late    i { color: var(--warn); }
+.ob-tok.is-vlate   b, .ob-tok.is-vlate   i { color: var(--danger); }
+.ob-due {
+  padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  background: var(--bg-sunk); color: var(--fg);
+}
+.ob-due.is-now    { background: var(--good); color: #fff; }
+.ob-due.is-missed { background: var(--danger); color: #fff; }
+.ob-taxi { color: var(--fg-dim); }

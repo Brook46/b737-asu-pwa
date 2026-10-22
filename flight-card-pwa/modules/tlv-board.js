@@ -12,8 +12,8 @@
 // '2026-10-21T13:31:00' — CHLOC1 the other airport (IATA), CHRMINE / CHRMINH
 // status in English / Hebrew, CHTERM terminal, CHCINT counters, CHCKZN zone.
 
-import { icalToMs } from './duties.js?v=158';
-import { legTs } from './dates.js?v=158';
+import { icalToMs } from './duties.js?v=159';
+import { legTs } from './dates.js?v=159';
 
 const API = 'https://data.gov.il/api/3/action/datastore_search';
 const RESOURCE = 'e83f763b-b7d7-479e-b172-ae981ddc6de5';
