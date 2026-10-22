@@ -48,6 +48,7 @@ const KT_CRUISE_FALLBACK = 160;
 // Watch state — module-scoped so disarm() can clear everything reliably.
 let watchId       = null;
 let onUpdateCb    = null;
+let lastFix       = null;    // the latest position, for the "nearest airport" chip
 let activeLeg     = null;
 let phase         = 'armed';
 let takeoffAt     = 0;     // ms epoch
@@ -105,6 +106,9 @@ export function requestPermission() {
     );
   });
 }
+
+// The latest GPS position while the detector is armed (null otherwise).
+export function getLastFix() { return lastFix; }
 
 export function getState() {
   return {
@@ -171,6 +175,9 @@ function handlePosition(pos) {
   if (!pos || !pos.coords) return;
   const c = pos.coords;
   const ts = pos.timestamp || Date.now();
+  lastFix = { lat: c.latitude, lon: c.longitude, altM: Number.isFinite(c.altitude) ? c.altitude : null,
+              speedMps: Number.isFinite(c.speed) ? c.speed : null,
+              heading: Number.isFinite(c.heading) && c.heading >= 0 ? c.heading : null, ts };
   // Some platforms emit null for speed; assume 0 then so we still tick.
   const speed_mps = Number.isFinite(c.speed) ? c.speed : 0;
   const alt_m     = Number.isFinite(c.altitude) ? c.altitude : null;

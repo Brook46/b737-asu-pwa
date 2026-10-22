@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=170';
-import * as ri from './route-info.js?v=170';
-import { legTs, nearestHm } from './dates.js?v=170';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=170';
+import * as storage from './storage.js?v=171';
+import * as ri from './route-info.js?v=171';
+import { legTs, nearestHm } from './dates.js?v=171';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=171';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1070,7 +1070,9 @@ function wireZoom(svg) {
 
 // `legArg`: a specific flight (the logbook's "Route info") — otherwise the
 // leg on the main screen.
-export async function open(legArg = null) {
+// `focus`: an airport (ICAO or IATA) whose card opens straight away — from
+// the airport popup's "Diversion card" or the flight strip's nearest chip.
+export async function open(legArg = null, { focus = '' } = {}) {
   const leg = legArg || activeLeg();
   pinned = leg ? idOf(leg) : null;
   pinnedLeg = legArg || null;
@@ -1083,6 +1085,10 @@ export async function open(legArg = null) {
     const stale = !cache || Date.now() - cache.at > FRESH_MS;
     // Show what's on the device straight away, then refresh if it's old.
     await paint(await build(leg, { doFetch: false }));
+    const f = String(focus || '').toUpperCase();
+    const hit = f && state.model.pool.find(c => c.ap.icao === f || c.ap.iata === f);
+    if (hit) openCard(hit.ap.icao);
+    else if (f) toast(`${f} isn't within an hour of this route`);
     if (stale && navigator.onLine !== false) await refresh(false);
   } catch (err) {
     $('route-body').innerHTML = `<p class="muted small" style="padding:18px 4px;">${esc(err.message || err)}</p>`;
@@ -1138,6 +1144,19 @@ export async function autoUpdate() {
   const every = now >= std - 65 * 60000 ? FRESH_MS : 30 * 60000;
   if (cache && now - cache.at < every) return;
   await refresh(false);
+}
+
+// The airport quickest to reach from a GPS fix, for the flight strip's chip.
+// Uses the route's saved weather (no fetching); the model is rebuilt only
+// when the flight or its saved weather changes.
+let nearMemo = null;
+export async function nearestNow(leg, g) {
+  if (!leg || !leg.dep || !leg.arr || !g) return null;
+  const id = idOf(leg), c = readCache(leg), at = c ? c.at : 0;
+  if (!nearMemo || nearMemo.id !== id || nearMemo.at !== at) nearMemo = { id, at, model: await build(leg, { doFetch: false }) };
+  const best = nearMemo.model.pool.filter(x => !x.r.excluded && x.r.score > 0)
+    .map(x => ({ x, t: timeTo(x.ap, g) })).sort((a, b) => a.t.min - b.t.min)[0];
+  return best ? { icao: best.x.ap.icao, min: best.t.min, score: best.x.r.score, band: ri.band(best.x.r.score, false) } : null;
 }
 
 // Wiring — once, on first import.

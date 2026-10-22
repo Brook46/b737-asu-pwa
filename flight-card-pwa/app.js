@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=170';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=170';
-import * as storage from './modules/storage.js?v=170';
-import * as dataCard from './modules/data-card.js?v=170';
-import * as checklist from './modules/checklist.js?v=170';
-import * as speeches from './modules/speeches.js?v=170';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=170';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=170';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=170';
+import { DUTY_KINDS } from './modules/duties.js?v=171';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=171';
+import * as storage from './modules/storage.js?v=171';
+import * as dataCard from './modules/data-card.js?v=171';
+import * as checklist from './modules/checklist.js?v=171';
+import * as speeches from './modules/speeches.js?v=171';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=171';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=171';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=171';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2227,13 +2227,53 @@ setTimeout(() => { try { routeAutoUpdate(); } catch {} }, 20 * 1000);
 // ---------- Route info (modules/route-ui.js) ----------
 // Loaded on demand; the auto-update only does anything from an hour before
 // departure to arrival, so the import is cheap the rest of the time.
-async function openRouteInfo() {
+async function openRouteInfo(focus = '') {
   try {
     const ru = await import('./modules/route-ui.js');
     ru.wire();
-    await ru.open();
+    await ru.open(null, { focus });
   } catch (err) { console.warn('route info failed', err); toast('Route info failed to load'); }
 }
+// The airport popup's "Diversion card": this airport in Route info.
+$('airport-route')?.addEventListener('click', () => {
+  const code = airportNoteFor;
+  hideOverlay('airport-overlay');
+  openRouteInfo(code);
+});
+
+// In the air with GPS (the take-off / landing detector armed and airborne):
+// a chip in the flight strip naming the airport quickest to reach — tap for
+// its diversion card. Refreshed every 30 s from the detector's last fix.
+let nearPrevFix = null;
+async function updateNearChip() {
+  const el = $('leg-near');
+  if (!el) return;
+  const hide = () => { if (!el.hidden) el.hidden = true; };
+  if (!gpsActive) return hide();
+  let gps;
+  try { ({ gps } = await loadSensorMods()); } catch { return hide(); }
+  const st = gps.getState(), fix = gps.getLastFix && gps.getLastFix();
+  if (!st || st.phase !== 'airborne' || !fix || Date.now() - fix.ts > 90 * 1000) return hide();
+  let trk = fix.heading != null && (fix.speedMps || 0) > 20 ? fix.heading : null;
+  if (trk == null && nearPrevFix) {
+    const R = Math.PI / 180, dl = (fix.lon - nearPrevFix.lon) * R;
+    const y = Math.sin(dl) * Math.cos(fix.lat * R), x = Math.cos(nearPrevFix.lat * R) * Math.sin(fix.lat * R) - Math.sin(nearPrevFix.lat * R) * Math.cos(fix.lat * R) * Math.cos(dl);
+    trk = (Math.atan2(y, x) / R + 360) % 360;
+  }
+  nearPrevFix = fix;
+  const g = { lat: fix.lat, lon: fix.lon, altFt: (fix.altM || 0) * 3.28084, gs: (fix.speedMps || 0) * 1.94384, trk: trk ?? 0, airborne: true };
+  try {
+    const ru = await import('./modules/route-ui.js');
+    const leg = storage.getLegs()[storage.getLegIndex()] || null;
+    const n = await ru.nearestNow(leg, g);
+    if (!n) return hide();
+    el.innerHTML = `Nearest <b>${escapeHtml(n.icao)}</b> ≈${Math.round(n.min)}′ <span class="ri-score ri-b-${n.band}">${n.score}</span>`;
+    el.dataset.icao = n.icao;
+    el.hidden = false;
+  } catch { hide(); }
+}
+$('leg-near')?.addEventListener('click', (e) => openRouteInfo(e.currentTarget.dataset.icao || ''));
+setInterval(() => { try { updateNearChip(); } catch {} }, 30 * 1000);
 async function routeAutoUpdate() {
   if (navigator.onLine === false) return;
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
@@ -3699,6 +3739,7 @@ async function tryArmGps() {
       // have been granted yet — start() silently no-ops if not supported.
       g.start();
       toast('Airborne — GPS logging flight time');
+      setTimeout(() => { try { updateNearChip(); } catch {} }, 5000);
     } else if (kind === 'landed') {
       const peak = g.peakG(payload.landing_at, 10);
       g.stop();

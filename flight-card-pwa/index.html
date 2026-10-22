@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=170" />
+  <link rel="stylesheet" href="./app.css?v=171" />
 </head>
 <body>
   <header class="app-header">
@@ -129,6 +129,8 @@
       </span>
       <!-- Ben Gurion's own flight board for this leg (modules/tlv-board.js). -->
       <span id="leg-board" class="leg-board" hidden></span>
+      <!-- In the air with GPS: the airport quickest to reach (Route info). -->
+      <button id="leg-near" class="leg-near" type="button" hidden></button>
       <!-- Off-block target worked out from the CTOT (paintOffBlock in app.js).
            Tap to set this airport's taxi-out time. -->
       <button id="leg-ctot" class="leg-ctot" type="button" hidden
@@ -605,6 +607,7 @@
     <div class="ocr-sheet airport-sheet">
       <div class="pad-head">
         <span id="airport-title" class="pad-label">Airport</span>
+        <button id="airport-route" class="btn" type="button" title="This airport as a diversion: runways, wind, weather">Diversion card</button>
         <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="airport-city" class="airport-city muted small"></div>
@@ -815,6 +818,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=170"></script>
+  <script type="module" src="./app.js?v=171"></script>
 </body>
 </html>

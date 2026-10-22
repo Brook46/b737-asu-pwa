@@ -3476,3 +3476,15 @@ body {
   .leg-board, .leg-ctrls .leg-btn { white-space: nowrap; }
   .leg-board { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* Flight strip: nearest airport by time (in the air with GPS). */
+.leg-near {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 4px;
+  padding: 3px 4px 3px 10px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--bg-elev); color: var(--fg); font: inherit; font-size: 12.5px; font-weight: 500;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.leg-near[hidden] { display: none; }
+.leg-near b { font-weight: 800; }
+.leg-near .ri-score { min-width: 22px; height: 22px; font-size: 12px; }
+#airport-route { flex: none; font-size: 13px; padding: 6px 12px; }
