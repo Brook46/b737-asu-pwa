@@ -3328,3 +3328,32 @@ body {
   border-radius: 0; margin: 0; padding-top: max(14px, env(safe-area-inset-top));
 }
 .route-sheet.is-full .ri-map { max-height: 62vh; }
+
+/* Runway ends v3: the designator in a box like the painted marking, its LDA
+   beneath in small muted type — a boxed number is always a runway, a
+   length always belongs to the box above it. Selected end filled with the
+   accent; the best end for the wind outlined. */
+.rd-end { cursor: pointer; }
+.rd-idbox { fill: #1c1c1e; stroke: #8e8e93; stroke-width: 1; }
+.rd-end .rd-id { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; letter-spacing: .02em; }
+.rd-end.is-best .rd-idbox { stroke: var(--accent); stroke-width: 2; }
+.rd-end.is-sel .rd-idbox { fill: var(--accent); stroke: var(--accent); }
+.rd-end .rd-lda {
+  fill: var(--fg-mute); font-size: 8px; font-weight: 500; font-style: italic;
+  text-anchor: middle; font-variant-numeric: tabular-nums;
+  paint-order: stroke; stroke: var(--bg-elev); stroke-width: 2.5;
+}
+.rw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+.rw-chip {
+  min-width: 44px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid var(--line); background: #1c1c1e; color: #fff;
+  font: inherit; font-size: 14px; font-weight: 800; letter-spacing: .02em;
+}
+.rw-chip.is-sel { background: var(--accent); border-color: var(--accent); }
+.rw-chip.t-o { box-shadow: inset 0 -3px 0 var(--warn); }
+.rw-chip.t-r { box-shadow: inset 0 -3px 0 var(--danger); }
+.rw-sel { background: var(--bg-elev); border-radius: var(--radius-ctl); padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; }
+.rw-sel-h { font-size: 14px; }
+.rw-box { display: inline-block; padding: 1px 7px; margin-right: 6px; border-radius: 4px; background: var(--accent); color: #fff; font-weight: 800; }
+.rw-sub { font-size: 13px; color: var(--fg-mute); }
+.rw-sub b { color: var(--fg); font-weight: 600; }

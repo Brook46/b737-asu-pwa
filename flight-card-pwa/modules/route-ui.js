@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=163';
-import * as ri from './route-info.js?v=163';
-import { legTs, nearestHm } from './dates.js?v=163';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=163';
+import * as storage from './storage.js?v=164';
+import * as ri from './route-info.js?v=164';
+import { legTs, nearestHm } from './dates.js?v=164';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=164';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -22,6 +22,7 @@ const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16
 
 let state = null;        // { key, model } of what's on screen
 let mapGeom = null;      // { W, H, proj } of the drawn map, for zoom
+const selEnd = new Map(); // ICAO → the runway end the pilot picked (default: best for the wind)
 let busy = false;
 
 function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
@@ -323,7 +324,9 @@ function windBarb(x, y, dir, spd, gst) {
 function runwayDiagram(c) {
   const ap = c.ap, rw = ap.rwy;
   if (!rw.length) return '';
-  const W = 360, Hh = 250, PAD = 50;
+  // The right-hand column is kept for the wind barb; runways and their
+  // labels are laid out in the area to its left.
+  const W = 380, Hh = 260, PAD = 46, WIND_COL = 76, DW = W - WIND_COL;
   const lat0 = ap.lat, lon0 = ap.lon, kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
   const segs = rw.map((r, i) => {
     let a, b;
@@ -340,27 +343,16 @@ function runwayDiagram(c) {
   });
   const xs = segs.flatMap(s => [s.a[0], s.b[0]]), ys = segs.flatMap(s => [s.a[1], s.b[1]]);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const span = Math.max(maxX - minX, (maxY - minY) * (W - 2 * PAD) / (Hh - 2 * PAD), 1500);
-  const sc = (W - 2 * PAD) / span;
+  const span = Math.max(maxX - minX, (maxY - minY) * (DW - 2 * PAD) / (Hh - 2 * PAD), 1500);
+  const sc = (DW - 2 * PAD) / span;
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  const P = ([x, y]) => [W / 2 + (x - cx) * sc, Hh / 2 - (y - cy) * sc];
+  const P = ([x, y]) => [DW / 2 + (x - cx) * sc, Hh / 2 - (y - cy) * sc];
   const closed = new Set((c.r.flags && c.r.flags.rwyClosed) || []);
   const bestEnd = c.r.xw ? c.r.xw.rwy : null;
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
-  const strips = [], labels = [];
+  const strips = [], labels = [], endLabels = [];
   const geo = segs.map(({ a, b }) => [P(a), P(b)]);
-  // Distance from a point to the nearest OTHER runway's centreline (px).
-  const clearance = (pt, self) => {
-    let best = Infinity;
-    geo.forEach(([s1, s2], i) => {
-      if (i === self) return;
-      const dx = s2[0] - s1[0], dy = s2[1] - s1[1], L2 = dx * dx + dy * dy || 1;
-      const t = Math.max(0, Math.min(1, ((pt[0] - s1[0]) * dx + (pt[1] - s1[1]) * dy) / L2));
-      best = Math.min(best, Math.hypot(pt[0] - (s1[0] + t * dx), pt[1] - (s1[1] + t * dy)));
-    });
-    return best;
-  };
-  for (const [idx, { r, a, b }] of segs.entries()) {
+  for (const { r, a, b } of segs) {
     const p1 = P(a), p2 = P(b);
     const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) || 1;
     const u = [(p2[0] - p1[0]) / len, (p2[1] - p1[1]) / len], n = [-u[1], u[0]];
@@ -383,33 +375,48 @@ function runwayDiagram(c) {
       const m = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
       labels.push(`<text x="${m[0].toFixed(1)}" y="${m[1].toFixed(1)}" class="rd-clsd" transform="rotate(${upright(Math.atan2(u[1], u[0]) * 180 / Math.PI).toFixed(1)} ${m[0].toFixed(1)} ${m[1].toFixed(1)})">CLOSED</text>`);
     }
-    // Designators beyond each threshold, lying along the runway.
+    // Runway ends are labelled after all strips are known (below), so the
+    // labels can be placed clear of each other — Ben Gurion's 26 and 21
+    // thresholds are ~150 m apart and used to print on top of each other.
     const ang = upright(Math.atan2(u[1], u[0]) * 180 / Math.PI);
-    for (const [id, pt, sgn] of [[ends[0], p1, -1], [ends[1], p2, 1]]) {
+    for (const [id, pt, sgn, disp] of [[ends[0], p1, -1, r[9]], [ends[1], p2, 1, r[10]]]) {
       if (!id) continue;
-      const t = [pt[0] + u[0] * 14 * sgn, pt[1] + u[1] * 14 * sgn];
-      const best = id === bestEnd;
-      labels.push(`<g transform="translate(${t[0].toFixed(1)},${t[1].toFixed(1)}) rotate(${ang.toFixed(1)})">
-          ${best ? `<rect x="-14" y="-8" width="28" height="16" rx="8" class="rd-best-pill"/>` : ''}
-          <text y="3.6" class="rd-id${best ? ' is-best' : ''}">${esc(id)}</text></g>`);
+      endLabels.push({ id, pt, d: [u[0] * sgn, u[1] * sgn], ang, lda: r[1] - (disp || 0) });
     }
-    // LDA alongside, on whichever side has more room from the other runways
-    // (close parallels); with no room either side it stays in the table only.
-    const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
-    const off = hw + 8;
-    const cand = [1, -1].map(sd => {
-      const pt = [mid[0] + n[0] * sd * off, mid[1] + n[1] * sd * off];
-      const q1 = [pt[0] - u[0] * len * 0.3, pt[1] - u[1] * len * 0.3], q2 = [pt[0] + u[0] * len * 0.3, pt[1] + u[1] * len * 0.3];
-      return { pt, room: Math.min(clearance(pt, idx), clearance(q1, idx), clearance(q2, idx)) };
-    }).sort((x, y) => y.room - x.room)[0];
-    const lp = cand.pt;
-    const lda1 = r[1] - (r[9] || 0), lda2 = r[1] - (r[10] || 0);
-    const ldaTxt = lda1 === lda2 || !ends[1] ? `LDA ${fmt(lda1)} ft`
-      : `LDA ${ends[0]} ${fmt(lda1)} · ${ends[1]} ${fmt(lda2)} ft`;
-    if (len > 60 && cand.room > 9) labels.push(`<text x="${lp[0].toFixed(1)}" y="${(lp[1] + 3).toFixed(1)}" class="rd-lda" transform="rotate(${ang.toFixed(1)} ${lp[0].toFixed(1)} ${lp[1].toFixed(1)})">${esc(ldaTxt)}</text>`);
+  }
+  // Each end: the designator in a box (like the painted marking) with that
+  // direction's LDA in small muted type directly beneath it — so a number in
+  // a box is always a runway, and a length always belongs to the box above.
+  // Tried outward from the threshold at growing distances, then nudged
+  // sideways, until it clears every label already placed.
+  const placed = [];
+  const selId = selEnd.get(ap.icao) || bestEnd;
+  for (const e of endLabels) {
+    let pos = null;
+    outer: for (const dist of [18, 32, 46, 60, 74]) {
+      for (const side of [0, 1, -1, 2, -2]) {
+        const x = e.pt[0] + e.d[0] * dist - e.d[1] * side * 16, y = e.pt[1] + e.d[1] * dist + e.d[0] * side * 16;
+        if (x < 20 || x > DW - 4 || y < 18 || y > Hh - 22) continue;
+        // The box AND its LDA line beneath (~50 × 30 px) must stay clear.
+        if (placed.some(([px, py]) => Math.hypot(px - x, py - y) < 40)) continue;
+        if (geo.some(([s1, s2]) => {
+          const dx = s2[0] - s1[0], dy = s2[1] - s1[1], L2 = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((x - s1[0]) * dx + (y - s1[1]) * dy) / L2));
+          return Math.hypot(x - (s1[0] + t * dx), y - (s1[1] + t * dy)) < 11;
+        })) continue;
+        pos = [x, y]; break outer;
+      }
+    }
+    if (!pos) pos = [e.pt[0] + e.d[0] * 18, e.pt[1] + e.d[1] * 18];
+    placed.push(pos);
+    const isSel = e.id === selId, isBest = e.id === bestEnd;
+    labels.push(`<g class="rd-end${isSel ? ' is-sel' : ''}${isBest ? ' is-best' : ''}" data-rw-end="${esc(e.id)}" transform="translate(${pos[0].toFixed(1)},${pos[1].toFixed(1)}) rotate(${e.ang.toFixed(1)})">
+        <rect x="-14" y="-9" width="28" height="17" rx="3" class="rd-idbox"/>
+        <text y="3.8" class="rd-id">${esc(e.id)}</text>
+        <text y="18" class="rd-lda">LDA ${fmt(e.lda)}</text></g>`);
   }
   const w = c.r.wx;
-  const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - 36, 34, w.wdir, w.wspd || 0, w.wgst) : '';
+  const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - WIND_COL / 2, 44, w.wdir, w.wspd || 0, w.wgst) : '';
   return `<svg class="rd" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Runway diagram, north up">
       <text x="16" y="18" class="rd-n">N</text><path d="M16,22 L11,34 L16,30 L21,34 Z" class="rd-np"/>
       ${strips.join('')}${labels.join('')}${barb}
@@ -438,6 +445,84 @@ function surfaceText(rw) {
   const s = String(rw[11] || '').toUpperCase();
   const [base, cond] = s.split('-');
   return [SURF[base] || base.toLowerCase(), COND[cond] ? COND[cond] + ' condition' : ''].filter(Boolean).join(', ');
+}
+
+// Head / tail and cross components for one runway end (headings and winds
+// are both true). Gusts give the worst-case crosswind.
+function components(hdg, w) {
+  if (!w || w.wdir == null || !(w.wspd || w.wgst)) return null;
+  const a = (w.wdir - hdg) * Math.PI / 180;
+  const sp = w.wspd || 0, gs = w.wgst || 0;
+  return {
+    head: Math.round(Math.cos(a) * sp),
+    cross: Math.round(Math.abs(Math.sin(a)) * sp),
+    side: Math.sin(a) > 0 ? 'right' : 'left',
+    gustCross: gs ? Math.round(Math.abs(Math.sin(a)) * gs) : 0,
+    gustHead: gs ? Math.round(Math.cos(a) * gs) : 0,
+  };
+}
+function runwayEnds(ap) {
+  const out = [];
+  for (const r of ap.rwy) {
+    const ends = String(r[0]).split('/');
+    ends.forEach((id, i) => {
+      if (!id) return;
+      out.push({ id, r, hdg: r[3] == null ? null : (i === 0 ? r[3] : (r[3] + 180) % 360),
+                 lda: r[1] - ((i === 0 ? r[9] : r[10]) || 0), disp: (i === 0 ? r[9] : r[10]) || 0 });
+    });
+  }
+  return out;
+}
+// The runway picker: one chip per runway end (★ = best for the forecast
+// wind), and the chosen end's details — wind components, LDA, surface,
+// approaches, and the NOTAMs that name it.
+function runwayPanel(c, m) {
+  const ap = c.ap, w = c.r.wx;
+  const ends = runwayEnds(ap);
+  if (!ends.length) return '';
+  const best = c.r.xw ? c.r.xw.rwy : null;
+  const selId = selEnd.get(ap.icao) || best || ends[0].id;
+  const sel = ends.find(e => e.id === selId) || ends[0];
+  const chips = ends.map(e => {
+    const k = e.hdg == null ? null : components(e.hdg, w);
+    const tone = k ? (k.head < -10 || xwBand(Math.max(k.cross, k.gustCross)) === 'r' ? 'r'
+      : k.head < 0 || xwBand(Math.max(k.cross, k.gustCross)) === 'o' ? 'o' : '') : '';
+    return `<button type="button" class="rw-chip${e.id === sel.id ? ' is-sel' : ''}${tone ? ' t-' + tone : ''}" data-rw-end="${esc(e.id)}">${esc(e.id)}${e.id === best ? ' ★' : ''}</button>`;
+  }).join('');
+  const k = sel.hdg == null ? null : components(sel.hdg, w);
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  let windLine = 'No forecast wind for that time.';
+  if (k) {
+    const hwTxt = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">tailwind ${-k.head} kt</span>`;
+    const xb = xwBand(k.cross), gxb = xwBand(k.gustCross);
+    windLine = `<span class="rd-wind-t">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span>: ${hwTxt} · `
+      + `<span class="${xb ? 'wx-' + xb : 'rd-wind-t'}">crosswind ${k.cross} kt from the ${k.side}</span>`
+      + (k.gustCross ? ` · <span class="${gxb ? 'wx-' + gxb : 'rd-wind-t'}">gusting ${k.gustCross} kt cross</span>` : '');
+  } else if (w && w.wdir == null && (w.wspd || w.wgst)) {
+    windLine = `Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt — components can't be worked out.`;
+  } else if (w && w.src) {
+    windLine = 'Wind calm.';
+  }
+  // What the NOTAMs say about this runway (and its reciprocal): when they're
+  // on, an "ILS RWY 26 …" NOTAM is also the only sign the data gives that an
+  // ILS exists there at all.
+  const recip = String(sel.r[0]).split('/');
+  const mentions = (c.notams || []).filter(n => recip.some(id => new RegExp(`\\bRWY\\s*${id}\\b|\\b${id}\\b`).test(String(n.text).toUpperCase())));
+  const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
+  const ilsHint = (c.notams || []).some(n => new RegExp(`\\b(ILS|LOC|LLZ)\\b[^.]{0,30}\\bRWY\\s*${sel.id}\\b|\\bRWY\\s*${sel.id}\\b[^.]{0,30}\\b(ILS|LOC|LLZ)\\b`).test(String(n.text).toUpperCase()));
+  const nav = ap.nav.length ? ap.nav.map(n => `${esc(n[0])} ${esc(n[1])} ${esc(n[2])}`).join(' · ') : 'none listed';
+  return `<div class="rw-chips" role="group" aria-label="Pick a runway">${chips}</div>
+    <div class="rw-sel">
+      <div class="rw-sel-h"><span class="rw-box">${esc(sel.id)}</span>
+        ${sel.hdg != null ? `${String(Math.round(sel.hdg)).padStart(3, '0')}°T · ` : ''}LDA <b>${fmt(sel.lda)} ft</b>${sel.disp ? ` (threshold displaced ${fmt(sel.disp)} ft)` : ''}
+        · ${sel.r[2] || '—'} ft wide${surfaceText(sel.r) ? ' · ' + esc(surfaceText(sel.r)) : ''}${sel.r[4] ? ' · lit' : ''}${sel.r[1] < 5500 ? ' · <span class="wx-r">too short for a 737</span>' : ''}</div>
+      <div>${windLine}</div>
+      <div class="rw-sub"><b>Approaches:</b> ${ilsHint ? `an ILS / LOC to RWY ${esc(sel.id)} is named in a NOTAM — ` : ''}approach types and CAT I-II-III aren't in any free data — check the chart.</div>
+      <div class="rw-sub"><b>Navaids at ${esc(ap.icao)}:</b> ${nav}</div>
+      ${m.notamsOff ? '' : `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${mentions.length
+        ? `<ul class="nt-list">${mentions.map(n => `<li class="nt nt-${ri.notamSeverity(n.text, usable) || 'n'}">${esc(n.text)}</li>`).join('')}</ul>`
+        : '<span class="wx-g">none</span>'}</div>`}
+    </div>`;
 }
 
 function notamList(c, m) {
@@ -479,10 +564,8 @@ function cardHtml(c, m) {
       ${bigNotamTags(c)}
       <table class="ri-rwy"><tbody>${rwys}</tbody></table>
       <div class="ri-upd">Runway data: OurAirports, ${esc(m.dbDate || '—')} · LDA ≈ length − displaced threshold · grooving / friction treatment isn't in the free data</div>
-      ${r.xw ? `<div class="ri-sub">Best for the forecast wind: <b class="rd-best-t">RWY ${esc(r.xw.rwy)}</b> — <span class="rd-wind-t">crosswind ${r.xw.xw} kt, ${r.xw.hw >= 0 ? 'headwind' : 'tailwind'} ${Math.abs(r.xw.hw)} kt</span>${xwBand(r.xw.xw) ? ` <span class="wx-${xwBand(r.xw.xw)}">(${xwBand(r.xw.xw) === 'r' ? 'over 33 kt' : 'over 25 kt'})</span>` : ''}</div>` : ''}
-      <h5>Approaches</h5>
-      <div class="ri-sub">Navaids: ${nav}</div>
-      <div class="ri-sub">ILS / CAT I-II-III: not in any free data — check the chart.</div>
+      <h5>Runway</h5>
+      ${runwayPanel(c, m)}
       <h5>Weather at ${hm(c.eta)}${r.wx && r.wx.src ? ' (' + r.wx.src + ')' : ''}</h5>
       <div class="ri-upd">${m.fetchedAt ? `Fetched ${hm(m.fetchedAt)} (${ago(m.fetchedAt)}) from aviationweather.gov` : 'Not fetched yet — tap Update'}${c.wxEntry?.metar?.time ? ` · METAR issued ${hm(c.wxEntry.metar.time * 1000)}` : ''}</div>
       <div class="ri-wx">${ws.html}</div>
@@ -711,6 +794,12 @@ export function wire() {
     if (e.target.id === 'route-overlay') { hideOverlay('route-overlay'); return; }
     if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const end = e.target.closest('[data-rw-end]');
+    if (end) {
+      const icao = end.closest('.ri-card')?.dataset.icao;
+      if (icao) { selEnd.set(icao, end.dataset.rwEnd); openCard(icao, { keepView: true }); }
+      return;
+    }
     const hit = e.target.closest('[data-icao]');
     if (hit && !hit.classList.contains('ri-card')) openCard(hit.dataset.icao);
   });
