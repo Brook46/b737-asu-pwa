@@ -23,7 +23,7 @@
 // /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=167';
+import { WORKER_BASE } from './proxy.js?v=168';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -180,6 +180,16 @@ export function wxAt(entry, ts, now = Date.now(), mode = 'plan') {
     const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= tsS && tsS < f.to);
     return blocks.length ? fold(blocks, 'TAF') : null;
   };
+  // Chosen by hand on the airport card: exactly that source. A TAF for a
+  // time it doesn't cover (an old flight) falls back to the TAF for now.
+  if (mode === 'metar') return metar ? fold([metar], 'METAR') : { src: null };
+  if (mode === 'taf') {
+    const t = tafAt();
+    if (t) return t;
+    const nowS = now / 1000;
+    const blocks = (entry && entry.taf && entry.taf.f || []).filter(f => f.from <= nowS && nowS < f.to);
+    return blocks.length ? { ...fold(blocks, 'TAF'), forNow: true } : { src: null };
+  }
   if (mode === 'browse') {
     if (metar) return fold([metar], 'METAR');
     return tafAt() || { src: null };

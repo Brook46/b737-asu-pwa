@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=167';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=167';
-import * as storage from './modules/storage.js?v=167';
-import * as dataCard from './modules/data-card.js?v=167';
-import * as checklist from './modules/checklist.js?v=167';
-import * as speeches from './modules/speeches.js?v=167';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=167';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=167';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=167';
+import { DUTY_KINDS } from './modules/duties.js?v=168';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=168';
+import * as storage from './modules/storage.js?v=168';
+import * as dataCard from './modules/data-card.js?v=168';
+import * as checklist from './modules/checklist.js?v=168';
+import * as speeches from './modules/speeches.js?v=168';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=168';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=168';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=168';
 
 const $ = (id) => document.getElementById(id);
 

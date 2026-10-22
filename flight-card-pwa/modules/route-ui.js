@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=167';
-import * as ri from './route-info.js?v=167';
-import { legTs, nearestHm } from './dates.js?v=167';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=167';
+import * as storage from './storage.js?v=168';
+import * as ri from './route-info.js?v=168';
+import { legTs, nearestHm } from './dates.js?v=168';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=168';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -27,6 +27,9 @@ let gpsWatch = null;      // geolocation watch id while the screen is open
 let gpsFix = null;        // { lat, lon, altFt, gs, trk, at, airborne }
 let gpsPrev = null;
 let livePaintAt = 0;
+const srcPick = new Map(); // ICAO → 'metar' | 'taf' when the pilot chose the source by hand
+let listOrder = null;      // 'gps' (nearest to the aircraft) | 'route'; default: gps once GPS has a fix
+let listKey = '';          // the order last drawn, so live GPS only redraws when it changes
 let busy = false;
 
 function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
@@ -621,6 +624,9 @@ function whyNot10(r) {
 // wonder whether a number is a forecast or an observation.
 function wxContext(c, m, r) {
   const src = r.wx && r.wx.src;
+  if (c.picked === 'metar') return src ? 'METAR — chosen by you (tap it again for automatic)' : 'No METAR for this airport';
+  if (c.picked === 'taf') return !src ? 'No TAF for this airport'
+    : r.wx.forNow ? 'TAF for now — chosen by you (it doesn\'t cover that time)' : `TAF for ${hm(c.eta)} — chosen by you (tap it again for automatic)`;
   if (c.near) return `Current METAR — you're about ${Math.round(c.near)} min away`;
   if (m.mode === 'browse') return src === 'METAR'
     ? 'Current METAR — this flight isn\'t today, so its forecast doesn\'t matter yet'
@@ -639,6 +645,14 @@ function cardHtml(c, m) {
       c = { ...c, near: t.min, eta: Date.now() + t.min * 60000 };
       c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: 'near' });
     }
+  }
+  // The pilot picked METAR or TAF by tapping it: that source drives the
+  // diagram's wind, the best runway, the runway panel and the summary. The
+  // rating itself stays as listed.
+  const pick = srcPick.get(c.ap.icao);
+  if (pick && c.wxEntry) {
+    const r2 = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: pick });
+    c = { ...c, picked: pick, r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
   }
   const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
   const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
@@ -669,9 +683,15 @@ function cardHtml(c, m) {
       <div class="ri-wx">${ws.html}</div>
       ${(() => {
         const mt = c.wxEntry?.metar?.time ? c.wxEntry.metar.time * 1000 : null;
-        const mBlock = metar ? `<div class="ri-rawh">METAR${mt ? ` · ${hm(mt)}, ${ago(mt)}` : ''}</div><pre class="ri-raw">${colourRaw(metar, usable)}</pre>` : '';
-        const tBlock = taf ? `<div class="ri-rawh">TAF</div><pre class="ri-raw">${colourRaw(taf, usable)}</pre>` : '';
-        return r.wx && r.wx.src === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
+        // Each report is a button: tap to drive the diagram and runway from
+        // it; the one in use is ringed.
+        const using = r.wx && r.wx.src;
+        const blk = (kind, title, raw) => `<button type="button" class="ri-rawpick${using === kind.toUpperCase() ? ' is-on' : ''}${c.picked === kind ? ' is-picked' : ''}" data-wx-pick="${kind}">
+            <span class="ri-rawh">${title}${using === kind.toUpperCase() ? ' · in use' : ' · tap to use'}</span>
+            <pre class="ri-raw">${colourRaw(raw, usable)}</pre></button>`;
+        const mBlock = metar ? blk('metar', `METAR${mt ? ` · ${hm(mt)}, ${ago(mt)}` : ''}`, metar) : '';
+        const tBlock = taf ? blk('taf', 'TAF', taf) : '';
+        return using === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
       })()}
       <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span></div>
       <h5>NOTAMs</h5>
@@ -694,15 +714,6 @@ async function paint(model, showAll = false) {
   const day = (ms) => { const d = new Date(ms); return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCFullYear()).slice(-2)} `; };
   const fl = model.leg && model.leg.flight ? `${String(model.leg.flight).replace(/^0+/, '')} · ` : '';
   $('route-sub').textContent = `${fl}${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${model.mode === 'browse' ? day(model.tm.takeoff) : ''}${hm(model.tm.takeoff)}`;
-  const rows = list.map(c => {
-    const b = ri.band(c.r.score, c.r.excluded);
-    return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
-        <span class="ri-row-t">${hm(c.eta).replace('Z', '')}</span>
-        <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
-        <span class="ri-row-n"><b>${esc(c.ap.iata || c.ap.icao)}</b> ${esc(c.ap.city || c.ap.name)} <i>${esc(c.ap.cc)}</i></span>
-        <span class="ri-row-d">${Math.round(c.distNm)} nm</span>
-      </button>`;
-  }).join('');
   $('route-body').innerHTML = `
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
@@ -720,13 +731,65 @@ async function paint(model, showAll = false) {
     </div>
     <div id="ri-near"></div>
     <div id="ri-card-slot"></div>
-    <div class="ri-list">${rows}</div>`;
+    <div id="ri-list-wrap"></div>`;
   state = { model, showAll };
+  listKey = '';
+  renderList();
   const svg = $('ri-map');
   if (svg) { wireZoom(svg); pinScale(svg, mapGeom ? mapGeom.W : 720); relabel(); }
   livePaintAt = 0;
   paintLive();
 }
+// The airport list: in route order (time abeam), or — with a GPS fix —
+// nearest to the aircraft first, with distance and where it lies from you.
+// Live GPS redraws it only when the order actually changes, so a row doesn't
+// jump from under your finger every few seconds.
+function renderList() {
+  const wrap = $('ri-list-wrap');
+  if (!wrap || !state) return;
+  const list = state.showAll ? state.model.pool : state.model.shown;
+  const g = gpsFix;
+  const order = g ? (listOrder || 'gps') : 'route';
+  let rows = list;
+  let info = null;
+  if (order === 'gps') {
+    info = new Map(list.map(c => {
+      const d = distNm(g.lat, g.lon, c.ap.lat, c.ap.lon), b = brg(g.lat, g.lon, c.ap.lat, c.ap.lon);
+      return [c, { d, b, t: g.airborne ? timeTo(c.ap, g) : null }];
+    }));
+    rows = list.slice().sort((a, b) => info.get(a).d - info.get(b).d);
+  }
+  const key = order + ':' + rows.map(c => c.ap.icao).join(',');
+  if (key === listKey) {
+    // Same order: just refresh the distances in place.
+    if (info) for (const c of rows) {
+      const el = wrap.querySelector(`.ri-row[data-icao="${c.ap.icao}"] .ri-row-d`);
+      if (el) el.textContent = `${Math.round(info.get(c).d)} nm`;
+    }
+    return;
+  }
+  listKey = key;
+  const where = (x) => {
+    if (!g) return '';
+    if (!g.airborne) return `brg ${String(Math.round(x.b)).padStart(3, '0')}°`;
+    const rel = ((x.b - g.trk + 540) % 360) - 180;
+    return Math.abs(rel) < 15 ? 'ahead' : Math.abs(rel) > 150 ? 'behind' : `${Math.round(Math.abs(rel))}° ${rel > 0 ? 'R' : 'L'}`;
+  };
+  const toggle = g ? `<div class="ri-order" role="group" aria-label="List order">
+      <button type="button" class="${order === 'gps' ? 'is-on' : ''}" data-ri-order="gps">Nearest to aircraft</button>
+      <button type="button" class="${order === 'route' ? 'is-on' : ''}" data-ri-order="route">Route order</button></div>` : '';
+  wrap.innerHTML = toggle + `<div class="ri-list">${rows.map(c => {
+    const b = ri.band(c.r.score, c.r.excluded);
+    const x = info && info.get(c);
+    return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
+        <span class="ri-row-t">${x ? (x.t ? '≈' + Math.round(x.t.min) + '′' : '') : hm(c.eta).replace('Z', '')}</span>
+        <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
+        <span class="ri-row-n"><b>${esc(c.ap.iata || c.ap.icao)}</b> ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
+        <span class="ri-row-d">${Math.round(x ? x.d : c.distNm)} nm</span>
+      </button>`;
+  }).join('')}</div>`;
+}
+
 function openCard(icao, { keepView = false } = {}) {
   if (!state) return;
   const c = state.model.pool.find(x => x.ap.icao === icao);
@@ -867,6 +930,7 @@ function paintLive() {
   const [x, y] = xy([g.lat, g.lon]).split(',');
   ac.innerHTML = `<g class="ri-ac" transform="translate(${x},${y})"><g class="ri-ac-in" style="transform: scale(var(--ri-k,1)) rotate(${g.trk.toFixed(0)}deg)">
       <path d="M0,-11 L2,-3 L10,2 L10,4 L2,2 L1.5,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.5,8 L-2,2 L-10,4 L-10,2 L-2,-3 Z"/></g></g>`;
+  renderList();
   if (!near) return;
   if (!g.airborne) {
     near.innerHTML = `<div class="ri-near-h">GPS: on the ground — nearest-by-time appears once airborne.</div>`;
@@ -1047,6 +1111,17 @@ export function wire() {
     if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
     if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const wp = e.target.closest('[data-wx-pick]');
+    if (wp) {
+      const icao = wp.closest('.ri-card')?.dataset.icao;
+      if (icao) {
+        if (srcPick.get(icao) === wp.dataset.wxPick) srcPick.delete(icao); else srcPick.set(icao, wp.dataset.wxPick);
+        openCard(icao, { keepView: true });
+      }
+      return;
+    }
+    const ord = e.target.closest('[data-ri-order]');
+    if (ord) { listOrder = ord.dataset.riOrder; listKey = ''; renderList(); return; }
     const end = e.target.closest('[data-rw-end]');
     if (end) {
       const icao = end.closest('.ri-card')?.dataset.icao;

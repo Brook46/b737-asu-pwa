@@ -3380,3 +3380,16 @@ body {
 /* Route info: the best-runway line above the diagram, wind source under the barb. */
 .rd-bestline { font-size: 13.5px; margin: 2px 0 6px; line-height: 1.6; }
 .rd-wsrc { fill: var(--fg-mute); font-size: 8.5px; font-weight: 600; text-anchor: middle; }
+
+/* Route info: tap METAR / TAF to drive the diagram; list order toggle. */
+.ri-rawpick {
+  display: block; width: 100%; margin-top: 6px; padding: 6px 8px; text-align: start;
+  border: 1.5px solid transparent; border-radius: var(--radius-ctl);
+  background: var(--bg-elev); color: inherit; font: inherit; cursor: pointer;
+}
+.ri-rawpick .ri-rawh { margin-top: 0; }
+.ri-rawpick.is-on { border-color: var(--accent); }
+.ri-rawpick.is-picked { box-shadow: 0 0 0 3px var(--accent-soft); }
+.ri-order { display: inline-flex; gap: 2px; padding: 2px; margin: 8px 2px 4px; background: var(--bg-sunk); border-radius: 9px; }
+.ri-order button { border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
+.ri-order button.is-on { background: var(--bg-elev); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
