@@ -219,6 +219,15 @@ const TOKEN_PATTERNS = [
   // Souls on board (total)
   { key: 'sob_total',  re: /\b(?:SOB|TTL\s*PAX|PAX)\b[^\d]{0,6}(\d{1,3})\b/i },
 
+  // CTOT — there is no public feed for it (Eurocontrol releases slots only to
+  // airlines, airports and ANSPs, and bars passing them to third-party
+  // apps), so it comes from what the crew is already given: a photo or paste
+  // of the slot message — ACARS SAM printout, dispatch message, crew app.
+  // "CTOT 0715", "CTOT: 07:15Z", "CTOT/0715", "SLOT 0715". preferLast: a SRM
+  // revising the slot prints below the original SAM.
+  { key: 'ctot', re: /\b(?:CTOT|SLOT)\b[\s:\/=-]{0,4}([01]\d|2[0-3]):?([0-5]\d)\s*Z?\b/i,
+    preferLast: true, join: (m) => `${m[1]}:${m[2]}` },
+
   // ATIS letter (info Charlie / ATIS C / INFO C)
   { key: 'atis',  re: /\b(?:ATIS|INFO)\b[^A-Z]{0,4}([A-Z])\b/i, asString: true },
 
@@ -253,7 +262,7 @@ export function parseFmcText(rawText) {
       m = tok.re.exec(text);
       if (!m) continue;
     }
-    let val = (tok.group ? m[tok.group] : m[1]).replace(',', '.');
+    let val = tok.join ? tok.join(m) : (tok.group ? m[tok.group] : m[1]).replace(',', '.');
     if (!tok.asString && tok.scale) {
       const n = parseFloat(val);
       if (Number.isFinite(n)) val = String(Math.round(n * tok.scale));
@@ -268,7 +277,10 @@ export function parseFmcText(rawText) {
 }
 
 // ---------- Field labels for review ----------
-import { fieldDef } from './data-card.js?v=155';
+import { fieldDef } from './data-card.js?v=156';
+
+// Header fields have no data-card definition to borrow a label from.
+const HEADER_LABELS = { tail: 'Tail', flight: 'Flight', ctot: 'CTOT (UTC)' };
 
 export function buildReviewFields(parsed, knownKeys) {
   // Always show every known field; parsed values pre-fill.
@@ -276,7 +288,7 @@ export function buildReviewFields(parsed, knownKeys) {
     const def = fieldDef(k);
     return {
       key: k,
-      label: def ? def.label : k,
+      label: def ? def.label : (HEADER_LABELS[k] || k),
       value: parsed[k] ?? '',
       matched: parsed[k] != null,
     };

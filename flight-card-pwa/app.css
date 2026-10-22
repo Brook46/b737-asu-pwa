@@ -3129,3 +3129,8 @@ body {
 .data-edit-bar .muted { flex: 1 1 180px; }
 .data-edit-reset { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 6px 4px; }
 #data-edit[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+
+/* Logbook route map: direction chevron and great-circle distance. */
+.lb-dir { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lb-dist { fill: var(--fg-mute); font-size: 9px; font-weight: 600; text-anchor: end; paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5; }
+.lb-map { border: 0; border-radius: var(--radius-ctl); }

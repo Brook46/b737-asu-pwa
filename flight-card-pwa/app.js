@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=155';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=155';
-import * as storage from './modules/storage.js?v=155';
-import * as dataCard from './modules/data-card.js?v=155';
-import * as checklist from './modules/checklist.js?v=155';
-import * as speeches from './modules/speeches.js?v=155';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=155';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=155';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=155';
+import { DUTY_KINDS } from './modules/duties.js?v=156';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=156';
+import * as storage from './modules/storage.js?v=156';
+import * as dataCard from './modules/data-card.js?v=156';
+import * as checklist from './modules/checklist.js?v=156';
+import * as speeches from './modules/speeches.js?v=156';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=156';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=156';
+import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=156';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1676,6 +1676,19 @@ $('roster-parse').addEventListener('click', async () => {
     const { parseRoster } = await import('./modules/roster.js');
     const parsed = parseRoster(text);
     if (!parsed || !parsed.flights?.length) {
+      // Not a roster — maybe the slot message (ACARS SAM, dispatch text).
+      const { parseFmcText } = await import('./modules/ocr.js');
+      const ctot = parseFmcText(text).ctot;
+      if (ctot) {
+        storage.setDataField('ctot', ctot);
+        syncHeaderInputs();
+        try { updateCtotColor(); } catch {}
+        try { resetCtotAlertState(); } catch {}
+        speeches.notifyDataChange();
+        hideOverlay('roster-overlay');
+        toast(`CTOT ${ctot}Z set`);
+        return;
+      }
       toast('Could not parse the roster — check the format');
       return;
     }
@@ -2416,34 +2429,101 @@ function lbRouteMap(leg) {
   const A = lbAirports.lookup(leg.dep), B = lbAirports.lookup(leg.arr);
   if (!A || !B || !Number.isFinite(A.lat) || !Number.isFinite(B.lat)) return '';
   const d = leg.dataCard || {};
-  const W = 280, H = 150, PAD = 18;
-  const minLon = Math.min(A.lon, B.lon), maxLon = Math.max(A.lon, B.lon);
-  const minLat = Math.min(A.lat, B.lat), maxLat = Math.max(A.lat, B.lat);
-  // Frame the pair with margin, with a floor so a short hop isn't magnified
-  // into a meaningless zoom.
-  const spanLon = Math.max(maxLon - minLon, 10) * 1.5;
-  const spanLat = Math.max(maxLat - minLat, 8)  * 1.5;
-  const view = { cLon: (minLon + maxLon) / 2, cLat: (minLat + maxLat) / 2, spanLon, spanLat };
+  const W = 320, H = 180;
+  // The route as actually flown: the great circle, not a decorative arc.
+  // TLV→NRT runs up over Central Asia, and a map that shows that reads right
+  // to a pilot; a symmetric curve between the two pins never does.
+  const gc = greatCircle(A, B, 72);
+  const pts = gc.pts;
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const [lon, lat] of pts) {
+    if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+  }
+  // ONE scale both ways. The old frame fitted longitude and latitude to the
+  // box separately — TLV-NRT was 157° wide but 12° tall, squeezed into the
+  // same 280×150, so the land came out stretched seven times over. Here a
+  // degree of longitude is drawn cos(latitude) as wide as a degree of
+  // latitude (true shapes around the route's middle), the route gets a
+  // margin, and the frame then grows in whichever direction the box needs.
+  const cLat0 = (minLat + maxLat) / 2;
+  const k = Math.cos(Math.max(-60, Math.min(60, cLat0)) * Math.PI / 180);
+  let spanX = Math.max((maxLon - minLon) * k * 1.35, 7);   // in equator-degrees
+  let spanY = Math.max((maxLat - minLat) * 1.35 + 3, 5);   // +3°: room for labels
+  if (spanX / spanY > W / H) spanY = spanX * H / W; else spanX = spanY * W / H;
+  let cLat = cLat0;
+  spanY = Math.min(spanY, 150);
+  if (cLat + spanY / 2 > 84)  cLat = 84 - spanY / 2;
+  if (cLat - spanY / 2 < -84) cLat = -84 + spanY / 2;
+  const view = { cLon: (minLon + maxLon) / 2, cLat, spanLon: spanX / k, spanLat: spanY };
   const proj = lbWorld.projector({ x0: 0, y0: 0, w: W, h: H, ...view });
-  const land = lbWorld.landPaths(proj, view)
-    .map(dd => `<path d="${dd}" class="lb-land"/>`).join('');
-  const ax = proj.x(A.lon), ay = proj.y(A.lat), bx = proj.x(B.lon), by = proj.y(B.lat);
-  const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.abs(bx - ax) * 0.14;
-  // Procedure labels sit just below their airport so they don't collide with
-  // the airport code above it.
+  // Land, drawn again one world over when the frame crosses the date line.
+  let land = lbWorld.landPaths(proj, view);
+  for (const shift of [-360, 360]) {
+    const v2 = { ...view, cLon: view.cLon + shift };
+    if (Math.abs(v2.cLon) - v2.spanLon / 2 > 180) continue;
+    const p2 = { x: (lon) => proj.x(lon - shift), y: proj.y };
+    land = land.concat(lbWorld.landPaths(p2, v2));
+  }
+  const landSvg = land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('');
+  const xy = pts.map(([lon, lat]) => [proj.x(lon), proj.y(lat)]);
+  const track = 'M' + xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L');
+  const [ax, ay] = xy[0], [bx, by] = xy[xy.length - 1];
+  // Direction chevron at the middle of the track.
+  const mi = Math.floor(xy.length / 2);
+  const [p0x, p0y] = xy[Math.max(0, mi - 2)], [p1x, p1y] = xy[Math.min(xy.length - 1, mi + 2)];
+  const ang = Math.atan2(p1y - p0y, p1x - p0x) * 180 / Math.PI;
+  const [mx, my] = xy[mi];
+  const arrow = gc.nm > 60
+    ? `<path d="M-4,-3.5 L3,0 L-4,3.5" class="lb-dir" transform="translate(${mx.toFixed(1)},${my.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`
+    : '';
+  // Labels stay inside the frame: flipped below a pin that sits near the top,
+  // nudged in from the side edges.
+  const clampX = (x) => Math.max(16, Math.min(W - 16, x));
+  const lbl = (txt, x, y) => {
+    const above = y > 16;
+    return `<text x="${clampX(x).toFixed(1)}" y="${(above ? y - 7 : y + 13).toFixed(1)}" class="lb-pin-lbl">${esc(txt)}</text>`;
+  };
   const proc = (txt, x, y) => txt
-    ? `<text x="${x.toFixed(1)}" y="${(y + 13).toFixed(1)}" class="lb-proc-lbl">${esc(txt)}</text>` : '';
+    ? `<text x="${clampX(x).toFixed(1)}" y="${Math.min(H - 4, y + (y > 16 ? 13 : 23)).toFixed(1)}" class="lb-proc-lbl">${esc(txt)}</text>` : '';
+  const nm = Math.round(gc.nm);
   return `<svg class="lb-map" viewBox="0 0 ${W} ${H}" role="img"
-       aria-label="Route ${esc(leg.dep || '')} to ${esc(leg.arr || '')}">
+       aria-label="Route ${esc(leg.dep || '')} to ${esc(leg.arr || '')}, ${nm} nautical miles">
     <rect x="0" y="0" width="${W}" height="${H}" class="lb-sea"/>
-    ${land}
-    <path d="M${ax.toFixed(1)},${ay.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}" class="lb-track"/>
+    ${landSvg}
+    <path d="${track}" class="lb-track"/>
+    ${arrow}
     <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="3.5" class="lb-pin"/>
     <circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5" class="lb-pin lb-pin-arr"/>
-    <text x="${ax.toFixed(1)}" y="${(ay - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.dep || '')}</text>
-    <text x="${bx.toFixed(1)}" y="${(by - 7).toFixed(1)}" class="lb-pin-lbl">${esc(leg.arr || '')}</text>
+    ${lbl(leg.dep || '', ax, ay)}${lbl(leg.arr || '', bx, by)}
     ${proc(d.sid, ax, ay)}${proc(d.star, bx, by)}
+    ${nm > 0 ? `<text x="${W - 8}" y="${H - 8}" class="lb-dist">${nm.toLocaleString('en-US')} nm</text>` : ''}
   </svg>`;
+}
+
+// Points along the great circle A→B as [lon, lat], longitudes unwrapped so a
+// route over the date line stays one continuous line (lon may pass ±180).
+function greatCircle(A, B, n) {
+  const R = Math.PI / 180;
+  const f1 = A.lat * R, l1 = A.lon * R, f2 = B.lat * R, l2 = B.lon * R;
+  const dist = 2 * Math.asin(Math.sqrt(
+    Math.sin((f2 - f1) / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin((l2 - l1) / 2) ** 2));
+  if (!(dist > 1e-7)) return { pts: [[A.lon, A.lat], [B.lon, B.lat]], nm: 0 };
+  const pts = [];
+  let prev = null;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const a = Math.sin((1 - t) * dist) / Math.sin(dist), b = Math.sin(t * dist) / Math.sin(dist);
+    const x = a * Math.cos(f1) * Math.cos(l1) + b * Math.cos(f2) * Math.cos(l2);
+    const y = a * Math.cos(f1) * Math.sin(l1) + b * Math.cos(f2) * Math.sin(l2);
+    const z = a * Math.sin(f1) + b * Math.sin(f2);
+    let lon = Math.atan2(y, x) / R;
+    const lat = Math.atan2(z, Math.hypot(x, y)) / R;
+    if (prev != null) { while (lon - prev > 180) lon -= 360; while (lon - prev < -180) lon += 360; }
+    prev = lon;
+    pts.push([lon, lat]);
+  }
+  return { pts, nm: dist * 3440.065 };
 }
 
 // Procedures you have already recorded at this airport. The app cannot know
@@ -4331,7 +4411,7 @@ async function runParse(text) {
   $('ocr-progress').classList.add('hidden');
   // dep / arr deliberately excluded — the roster already sets them and a
   // takeoff-perf screenshot shouldn't overwrite the route.
-  const headline = ['v1','vr','v2','n1','flaps','trip_fuel','block_fuel','sob_total','atis','tail','flight'];
+  const headline = ['ctot','v1','vr','v2','n1','flaps','trip_fuel','block_fuel','sob_total','atis','tail','flight'];
   const fields = buildReviewFields(parsed, headline);
   const matchedCount = fields.filter(f => f.matched).length;
   $('ocr-review').classList.remove('hidden');
@@ -4381,7 +4461,20 @@ $('ocr-apply').addEventListener('click', () => {
     delete out.flight;
   }
   if (Object.keys(headerBag).length) storage.setDataBulk(headerBag);
-  const totalApplied = Object.keys(headerBag).length + Object.keys(out).length;
+  // CTOT goes through the same path as typing it in the header: pinned
+  // against calendar syncs, and the countdown starts afresh.
+  let ctotApplied = 0;
+  if (out.ctot) {
+    const c = formatHHMM(String(out.ctot).replace(/[^\d]/g, ''));
+    delete out.ctot;
+    if (/^\d\d:\d\d$/.test(c)) {
+      storage.setDataField('ctot', c);
+      try { updateCtotColor(); } catch {}
+      try { resetCtotAlertState(); } catch {}
+      ctotApplied = 1;
+    }
+  }
+  const totalApplied = Object.keys(headerBag).length + Object.keys(out).length + ctotApplied;
   dataCard.applyExternal(out, dataBody);
   syncHeaderInputs();
   speeches.notifyDataChange();
