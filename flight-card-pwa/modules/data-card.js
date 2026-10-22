@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=159';
-import * as wx from './wx.js?v=159';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=159';
+import * as storage from './storage.js?v=160';
+import * as wx from './wx.js?v=160';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=160';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -474,8 +474,11 @@ function renderMetarCell(c) {
   if (!dep) {
     body = 'Set Dep first';
     stateCls = 'is-empty';
+  } else if (!entry) {
+    body = 'Fetching METAR…';
+    stateCls = 'is-empty';
   } else if (!metar) {
-    body = 'Tap the ATIS button above to fetch';
+    body = 'No METAR available right now';
     stateCls = 'is-empty';
   } else {
     body = metar;
@@ -486,6 +489,20 @@ function renderMetarCell(c) {
       <div class="metar-text">${escape(body)}</div>
     </div>
   `;
+}
+
+// Fetch the departure METAR by itself — no need to open the ATIS popup first.
+// Goes through THIS module's wx import (wx.js?v=…): app.js loads wx.js by a
+// different URL for the popup, which is a separate module instance with its
+// own cache, so a fetch made there never reached this cell. wx caches for
+// ~9 min, so calling this on every leg change / refresh tick is cheap.
+export async function refreshMetar(root, { force = false } = {}) {
+  const dep = (storage.getCurrent().dataCard.dep || '').toString().toUpperCase();
+  if (!dep) return;
+  try { await wx.fetchWx(dep, { force, metarOnly: true }); } catch {}
+  // The leg may have changed while the fetch was out; paint whatever is
+  // current now (its cache entry may already be there).
+  paintMetar(root || lastRoot);
 }
 
 // Surgically refresh the METAR cell without re-rendering the whole data card

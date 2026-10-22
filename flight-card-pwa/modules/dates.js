@@ -116,3 +116,45 @@ export function yearPast(ddmm, nowMs = Date.now()) {
 export function legTs(ddmm, hhmm, year, nowMs = Date.now()) {
   return dateTs(ddmm, hhmm, year || yearPast(ddmm, nowMs), nowMs);
 }
+
+// A bare "HH:MM" (UTC) placed on the day nearest a reference timestamp —
+// off-block / on-block / CTOT times are stored as HH:MM only, and an actual
+// off-block at 23:50 for a 00:05 departure belongs to the day BEFORE. Returns
+// NaN without a usable time or reference.
+export function nearestHm(hhmm, refMs) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+  if (!m || !Number.isFinite(refMs)) return NaN;
+  const d = new Date(refMs);
+  let ts = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +m[1], +m[2]);
+  const DAY = 86400000;
+  if (ts - refMs > DAY / 2) ts -= DAY;
+  else if (refMs - ts > DAY / 2) ts += DAY;
+  return ts;
+}
+
+// A leg's plan against what actually happened, all as UTC ms (NaN when
+// unknown) plus minute deltas (null when either side is missing).
+//   plan:   STD / STA from the roster (STA falls back to STD + block)
+//   actual: off-block / on-block (calendar "Actual:" line, CSV ATD/ATA),
+//           take-off / landing (CSV Airborne/Landing, GPS)
+//   ctot:   the slot, if one was entered for this leg
+export function legPlanActual(leg) {
+  const d = (leg && leg.dataCard) || {};
+  const std = legTs(leg?.dep_date, leg?.dep_time, leg?.dep_year);
+  let sta = legTs(leg?.arr_date, leg?.arr_time, leg?.arr_year || leg?.dep_year);
+  const bm = /^(\d{1,2}):(\d{2})$/.exec(String(d.block_time || leg?.flight_time || '').trim());
+  if (!Number.isFinite(sta) && Number.isFinite(std) && bm) sta = std + ((+bm[1]) * 60 + (+bm[2])) * 60000;
+  const obt = nearestHm(d.off_block, std);
+  const ibt = nearestHm(d.on_block, Number.isFinite(sta) ? sta : obt);
+  const num = (v) => (v === '' || v == null) ? NaN : Number(v);
+  const tko = num(d.takeoff_at), ldg = num(d.landing_at);
+  const ctot = nearestHm(d.ctot || leg?.ctot, std);
+  const delta = (a, b) => (Number.isFinite(a) && Number.isFinite(b)) ? Math.round((a - b) / 60000) : null;
+  return {
+    std, sta, obt, ibt, ctot,
+    takeoff: Number.isFinite(tko) && tko > 0 ? tko : NaN,
+    landing: Number.isFinite(ldg) && ldg > 0 ? ldg : NaN,
+    obtDelta: delta(obt, std),
+    ibtDelta: delta(ibt, sta),
+  };
+}

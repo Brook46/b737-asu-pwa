@@ -12,8 +12,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=159';
-import { WORKER_BASE } from './proxy.js?v=159';
+import { lookup } from './airports.js?v=160';
+import { WORKER_BASE } from './proxy.js?v=160';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -65,12 +65,24 @@ async function fetchDatis(icao) {
 
 // Get { icao, metar, taf, datis, ts } for a code (IATA or ICAO). Respects
 // cache unless opts.force is true. All three sources fetched in parallel.
+//
+// opts.metarOnly: the data card's automatic refresh needs just the METAR —
+// no point asking atis.info (which 404s for most non-US airports) or the TAF
+// proxy every ten minutes. Such an entry is marked partial, so a full fetch
+// (the WX popup) still goes out for the rest.
 export async function fetchWx(code, opts) {
   const icao = toIcao(code);
   if (!icao) return null;
   const force = !!(opts && opts.force);
+  const metarOnly = !!(opts && opts.metarOnly);
   const cached = cache.get(icao);
-  if (!force && cached && (Date.now() - cached.ts) < TTL_MS) return cached;
+  if (!force && cached && (Date.now() - cached.ts) < TTL_MS && (metarOnly || !cached.partial)) return cached;
+  if (metarOnly) {
+    const metar = await fetchMetar(icao);
+    const entry = { icao, metar, taf: cached?.taf ?? null, datis: cached?.datis ?? null, ts: Date.now(), partial: true };
+    cache.set(icao, entry);
+    return entry;
+  }
   const [metar, taf, datis] = await Promise.all([
     fetchMetar(icao),
     fetchTaf(icao),

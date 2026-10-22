@@ -19,7 +19,7 @@
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
-import { RELIEF_KEYS } from './crew.js?v=159';
+import { RELIEF_KEYS } from './crew.js?v=160';
 
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
@@ -185,6 +185,7 @@ export function parseSectors(text) {
     const blockTime = r.plannedflighttime || spanHHMM(dep, arr);
     const airborne  = spanHHMM(parseDt(r.airborne), parseDt(r.landing));
     const atd = parseDt(r.atd), ata = parseDt(r.ata);
+    const tko = parseDt(r.airborne), ldg = parseDt(r.landing);
 
     const leg = {
       flight,
@@ -203,6 +204,10 @@ export function parseSectors(text) {
         off_block: atd ? atd.time : '',
         on_block:  ata ? ata.time : '',
         actual_block_time: spanHHMM(atd, ata),
+        // Wheels-up / touchdown as epoch ms — the same fields the GPS
+        // detector writes (gps.js takeoff_at / landing_at).
+        takeoff_at: tko ? tko.ms : '',
+        landing_at: ldg ? ldg.ms : '',
         to_role:  role(r.takeoffpilot),
         ldg_role: role(r.landingpilot),
         ac_type:  String(r.actype || '').trim(),

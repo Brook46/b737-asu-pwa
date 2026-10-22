@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=159';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=159';
-import * as storage from './modules/storage.js?v=159';
-import * as dataCard from './modules/data-card.js?v=159';
-import * as checklist from './modules/checklist.js?v=159';
-import * as speeches from './modules/speeches.js?v=159';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=159';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=159';
-import { rollingTs, dateTs, yearOf, yearPast, legTs } from './modules/dates.js?v=159';
+import { DUTY_KINDS } from './modules/duties.js?v=160';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=160';
+import * as storage from './modules/storage.js?v=160';
+import * as dataCard from './modules/data-card.js?v=160';
+import * as checklist from './modules/checklist.js?v=160';
+import * as speeches from './modules/speeches.js?v=160';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=160';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=160';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=160';
 
 const $ = (id) => document.getElementById(id);
 
@@ -272,6 +272,7 @@ if ('serviceWorker' in navigator) {
 
 // ---------- Render shell ----------
 const dataBody = $('data-body');
+let metarTypeTimer = 0;   // debounces the METAR fetch while a Dep is typed
 const checklistBody = $('checklist-body');
 const historyBody = $('history-body');
 
@@ -406,6 +407,7 @@ function renderLegSwitcher() {
   if (arrow) arrow.hidden = !(dep && arr);
   paintLegRolePills();
   paintTlvBoard();
+  try { dataCard.refreshMetar(dataBody); } catch {}
 }
 
 // ---------- Ben Gurion flight board chip ----------
@@ -669,6 +671,26 @@ function planTone(delta) {
 function paintOffBlock(now = new Date()) {
   const el = $('leg-ctot');
   if (!el) return;
+  // A flown leg: show what actually happened against the plan instead of a
+  // CTOT estimate — off-block, wheels-up, touchdown, in-block.
+  const legNow = storage.getLegs()[storage.getLegIndex()] || null;
+  const pa = legNow ? legPlanActual(legNow) : null;
+  if (pa && (Number.isFinite(pa.obt) || Number.isFinite(pa.ibt))) {
+    const hm = (ms) => new Date(ms).toISOString().slice(11, 16);
+    const dl = (n) => n == null ? '' : `<i>${fmtDelta(n)}</i>`;
+    const html = [
+      Number.isFinite(pa.ctot) ? `<span class="ob-tok">CTOT <b>${hm(pa.ctot)}Z</b></span>` : '',
+      Number.isFinite(pa.obt) ? `<span class="ob-tok ${planTone(pa.obtDelta)}" title="Actual off-block vs schedule">OBT <b>${hm(pa.obt)}</b>${dl(pa.obtDelta)}</span>` : '',
+      Number.isFinite(pa.takeoff) ? `<span class="ob-tok">T/O <b>${hm(pa.takeoff)}</b></span>` : '',
+      Number.isFinite(pa.landing) ? `<span class="ob-tok">LDG <b>${hm(pa.landing)}</b></span>` : '',
+      Number.isFinite(pa.ibt) ? `<span class="ob-tok ${planTone(pa.ibtDelta)}" title="Actual in-block vs schedule">IBT <b>${hm(pa.ibt)}</b>${dl(pa.ibtDelta)}</span>` : '',
+      `<span class="ob-tok ob-taxi">actual</span>`,
+    ].filter(Boolean).join('');
+    if (el.innerHTML !== html) el.innerHTML = html;
+    if (el.className !== 'leg-ctot is-actual') el.className = 'leg-ctot is-actual';
+    if (el.hidden) el.hidden = false;
+    return;
+  }
   const t = offBlockTimes(now);
   if (!t) { if (!el.hidden) el.hidden = true; return; }
   const hm = (ms) => new Date(ms).toISOString().slice(11, 16);
@@ -692,6 +714,7 @@ function paintOffBlock(now = new Date()) {
   if (el.hidden) el.hidden = false;
 }
 $('leg-ctot')?.addEventListener('click', () => {
+  if ($('leg-ctot').classList.contains('is-actual')) return;   // nothing to set on a flown leg
   const code = offBlockDepCode() || 'this airport';
   const cur = taxiMinutes(offBlockDepCode());
   const v = prompt(`Taxi-out time at ${code}, in minutes`, String(cur));
@@ -2076,6 +2099,7 @@ async function runFullSync() {
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
   try { await paintTlvBoard(true); } catch {}
+  try { await dataCard.refreshMetar(dataBody, { force: true }); } catch {}
   toast(done.length ? `Synced ${done.join(' · ')}` : 'Already up to date');
 }
 
@@ -2119,7 +2143,10 @@ setTimeout(safeAutoSync, 5_000);
 setInterval(safeAutoSync, 10 * 60 * 1000);
 // The airport board moves faster than the roster: repaint on the same tick
 // (its own 5-minute cache decides whether that actually fetches).
-setInterval(() => { try { paintTlvBoard(); } catch {} }, 10 * 60 * 1000);
+setInterval(() => {
+  try { paintTlvBoard(); } catch {}
+  try { dataCard.refreshMetar(dataBody); } catch {}
+}, 10 * 60 * 1000);
 // calendar auto-sync runs from the consolidated module-level visibilitychange
 // listener defined below (alongside the GPS re-arm).
 
@@ -2458,10 +2485,13 @@ function renderLogbookList(legs, duties = []) {
     const actual = d.actual_block_time || d.actual_flight_time || d.block_time || leg.flight_time || '';
     const toR  = String(d.to_role  || '').toUpperCase();
     const ldgR = String(d.ldg_role || '').toUpperCase();
+    const pa = legPlanActual(leg);
     const tags = [
       toR  ? `<span class="lb-tag ${toR === 'PF' ? 'is-pf' : toR === 'PM' ? 'is-pm' : ''}">T/O ${toR}</span>` : '',
       ldgR ? `<span class="lb-tag ${ldgR === 'PF' ? 'is-pf' : ldgR === 'PM' ? 'is-pm' : ''}">LDG ${ldgR}</span>` : '',
       actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
+      pa.obtDelta != null
+        ? `<span class="lb-tag lb-delay ${planTone(pa.obtDelta)}" title="Off-block vs schedule">${fmtDelta(pa.obtDelta)}</span>` : '',
     ].filter(Boolean).join('');
     const key = lbKeyOf(leg);
     const isActive = key === activeKey;
@@ -2502,6 +2532,7 @@ function renderLogbookList(legs, duties = []) {
                    autocomplete="off" spellcheck="false" aria-label="Airborne time, take-off to landing" />
           </label>
         </div>
+        ${lbTimelineHtml(leg)}
         ${lbRoleHtml(leg, ident)}
         <div class="lb-detail-crew">${lbCrewHtml(leg, ident)}</div>
         <div class="lb-detail-proc">
@@ -2568,6 +2599,35 @@ function lbCities(leg) {
   // showing "TLV → TLV" under "TLV → AMS" would just be noise.
   if (up(a) === up(leg.dep || '') && up(b) === up(leg.arr || '')) return '';
   return `${esc(a)} → ${esc(b)}`;
+}
+
+// Signed minute difference for display: +12, −3, ±0.
+function fmtDelta(n) {
+  if (n == null) return '';
+  return n === 0 ? '±0' : (n > 0 ? '+' : '−') + Math.abs(n);
+}
+// Plan against what actually happened, for the logbook's expanded row:
+// off-block, take-off, landing, in-block — scheduled beside actual with the
+// difference coloured early / on time / late (planTone). Rows with nothing
+// known are left out; with no actuals at all the block is omitted.
+function lbTimelineHtml(leg) {
+  const pa = legPlanActual(leg);
+  const has = [pa.obt, pa.ibt, pa.takeoff, pa.landing, pa.ctot].some(Number.isFinite);
+  if (!has) return '';
+  const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16) : '';
+  const row = (label, plan, act, delta) => (Number.isFinite(plan) || Number.isFinite(act)) ? `
+      <span class="lb-tl-k">${label}</span>
+      <span class="lb-tl-p">${hm(plan)}</span>
+      <span class="lb-tl-a">${hm(act) || '—'}</span>
+      <span class="lb-tl-d ${planTone(delta)}">${fmtDelta(delta)}</span>` : '';
+  return `<div class="lb-tl" aria-label="Times, UTC: plan against actual">
+      <span class="lb-tl-h"></span><span class="lb-tl-h">Plan</span><span class="lb-tl-h">Actual</span><span class="lb-tl-h"></span>
+      ${row('CTOT', NaN, pa.ctot, null)}
+      ${row('Off-block', pa.std, pa.obt, pa.obtDelta)}
+      ${row('Take-off', NaN, pa.takeoff, null)}
+      ${row('Landing', NaN, pa.landing, null)}
+      ${row('In-block', pa.sta, pa.ibt, pa.ibtDelta)}
+    </div>`;
 }
 
 // A small map of the leg — the coastline behind it, the two airports, and the
@@ -2863,9 +2923,12 @@ function wireLogbookRows(body) {
         return r ? `<span class="lb-tag ${r === 'PF' ? 'is-pf' : 'is-pm'}">${label} ${r}</span>` : '';
       };
       const actual = d.actual_block_time || d.actual_flight_time || d.block_time || leg.flight_time || '';
+      const pa = legPlanActual(leg);
       tags.innerHTML = [
         pill(d.to_role, 'T/O'), pill(d.ldg_role, 'LDG'),
         actual ? `<span class="lb-tag">${esc(actual)}</span>` : '',
+        pa.obtDelta != null
+          ? `<span class="lb-tag lb-delay ${planTone(pa.obtDelta)}" title="Off-block vs schedule">${fmtDelta(pa.obtDelta)}</span>` : '',
       ].filter(Boolean).join('');
     }
   });
@@ -3095,6 +3158,26 @@ $('analytics-body').addEventListener('click', (e) => {
   repaintAnMap();
 });
 
+// On-time card: off-block and in-block against the schedule (see
+// analytics.punctuality). Two tiles, same shape as the landing-G split.
+function renderPunctuality(p, scope) {
+  if (!p || (!p.dep && !p.arr)) return '';
+  const tile = (x, label) => x ? `
+      <div class="an-g-tile">
+        <div class="an-g-role">${label}</div>
+        <div class="an-g-num">${x.onPct}%</div>
+        <div class="an-g-count">on time · ${x.a15Pct}% within 15′</div>
+        <div class="an-g-count">avg <span class="an-punct-avg ${planTone(x.avg)}">${fmtDelta(x.avg)} min</span> · ${x.n} flight${x.n === 1 ? '' : 's'}</div>
+      </div>` : `
+      <div class="an-g-tile"><div class="an-g-role">${label}</div><div class="an-g-num">—</div><div class="an-g-count">No actual times</div></div>`;
+  return `
+    <div class="an-card">
+      <h4>On time (${scope})</h4>
+      <div class="an-g-split">${tile(p.dep, 'Off-block')}${tile(p.arr, 'In-block')}</div>
+      <div class="an-big-sub">against the roster's STD / STA — on time is within 5 min</div>
+    </div>`;
+}
+
 function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
   if (!data.legCount) {
     return `
@@ -3226,6 +3309,7 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
       <div class="an-big-sub">block hours — actual off-block → on-block where known, else scheduled</div>
       ${tailChips ? `<div class="an-tails">${tailChips}</div>` : ''}
     </div>
+    ${renderPunctuality(data.punct, scope)}
     <div class="an-card">
       <h4>Landing G — PF vs PM (${scope})</h4>
       ${gContent}
@@ -3831,6 +3915,9 @@ dataCard.setOnChange((key) => {
   // input mid-type.
   if (key === 'dep') {
     dataCard.paintMetar(dataBody);
+    // A typed departure gets its METAR fetched once typing settles.
+    clearTimeout(metarTypeTimer);
+    metarTypeTimer = setTimeout(() => { try { dataCard.refreshMetar(dataBody); } catch {} }, 800);
   }
   // NB: Do not re-render the data card here. Previously this fired on every
   // dep keystroke and destroyed the focused input mid-type — only the first

@@ -3174,3 +3174,22 @@ body {
 .ob-due.is-now    { background: var(--good); color: #fff; }
 .ob-due.is-missed { background: var(--danger); color: #fff; }
 .ob-taxi { color: var(--fg-dim); }
+
+/* Logbook: plan against actual (lbTimelineHtml), and the row's off-block
+   delay chip. Same early / on-time / late colours as the leg strip. */
+.lb-tl {
+  display: grid; grid-template-columns: auto auto auto 1fr; column-gap: 14px; row-gap: 3px;
+  margin: 0 0 10px; font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.lb-tl-h { font-size: 10px; font-weight: 600; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .04em; }
+.lb-tl-k { color: var(--fg-mute); }
+.lb-tl-p { color: var(--fg-mute); }
+.lb-tl-a { color: var(--fg); font-weight: 600; }
+.lb-tl-d { font-weight: 700; }
+.lb-tag.lb-delay { font-weight: 700; }
+.lb-tl-d.is-early,   .lb-delay.is-early,   .an-punct-avg.is-early   { color: var(--accent); }
+.lb-tl-d.is-ontime,  .lb-delay.is-ontime,  .an-punct-avg.is-ontime  { color: var(--good); }
+.lb-tl-d.is-late,    .lb-delay.is-late,    .an-punct-avg.is-late    { color: var(--warn); }
+.lb-tl-d.is-vlate,   .lb-delay.is-vlate,   .an-punct-avg.is-vlate   { color: var(--danger); }
+.an-punct-avg { font-weight: 700; }
+.leg-ctot.is-actual { cursor: default; }

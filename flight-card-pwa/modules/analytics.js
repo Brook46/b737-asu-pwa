@@ -11,9 +11,9 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=159';
-import { dateTs, legTs, yearPast } from './dates.js?v=159';
-import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=159';
+import * as storage from './storage.js?v=160';
+import { dateTs, legTs, yearPast, legPlanActual } from './dates.js?v=160';
+import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=160';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -288,10 +288,40 @@ export function snapshot(year = new Date().getUTCFullYear(), filters = []) {
     hours:     hoursFlown(legs, year),
     g:         avgMaxG(legs, year),
     crew:      mostFlownCrew(legs, 5, year, all),
+    punct:     punctuality(legs, year),
     // All-time recency maps for the "last flew" sub-labels.
     lastDest:  lastToDestination(legs),
     lastCrew:  lastWithCrew(legs),
   };
+}
+
+// ---------- Punctuality ----------
+// Off-block and in-block against the schedule, from the actual times the
+// calendar ("Actual:" lines) and the crew-portal CSV (ATD / ATA) carry.
+// On time = within 5 min of STD / STA; also counted within 15 (the industry
+// A15). A delta beyond ±12 h is a data mismatch, not a delay, and is skipped.
+export function punctuality(legs, year = null) {
+  const side = () => ({ n: 0, on: 0, a15: 0, sum: 0 });
+  const dep = side(), arr = side();
+  const add = (acc, dlt) => {
+    if (dlt == null || Math.abs(dlt) > 720) return;
+    acc.n++; acc.sum += dlt;
+    if (dlt <= 5) acc.on++;
+    if (dlt <= 15) acc.a15++;
+  };
+  for (const leg of legs) {
+    if (year != null && legYear(leg) !== year) continue;
+    const pa = legPlanActual(leg);
+    add(dep, pa.obtDelta);
+    add(arr, pa.ibtDelta);
+  }
+  const out = (a) => a.n ? {
+    n: a.n,
+    onPct: Math.round(a.on / a.n * 100),
+    a15Pct: Math.round(a.a15 / a.n * 100),
+    avg: Math.round(a.sum / a.n),
+  } : null;
+  return { dep: out(dep), arr: out(arr) };
 }
 
 // ---------- Search ----------
