@@ -616,6 +616,22 @@ body.is-past-leg #card-checklist {
 .crew-chip:active { background: var(--accent-soft); border-color: var(--accent); }
 .crew-chip.has-nick { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .crew-chip.is-disabled { opacity: .35; cursor: default; }
+.lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crew-note-add {
+  border: 0; background: transparent; padding: 0 2px; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; line-height: 1.2;
+}
+.crew-note {
+  display: block; width: 100%; margin-top: 6px; resize: none; overflow: hidden;
+  font: inherit; font-size: 14px; line-height: 1.35; color: var(--fg);
+  background: var(--bg-sunk); border: 0; border-left: 3px solid var(--accent);
+  border-radius: 6px; padding: 6px 8px; unicode-bidi: plaintext;
+}
+.crew-note:focus { outline: 2px solid var(--accent-soft); }
+.crewlog-note {
+  margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--accent);
+  background: var(--bg-sunk); border-radius: 6px; white-space: pre-wrap; unicode-bidi: plaintext;
+}
 .crew-chip-wa { color: #25d366; }
 .crew-chip-wa svg { display: block; }
 

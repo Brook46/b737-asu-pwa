@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=176';
-import * as wx from './wx.js?v=176';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=176';
+import * as storage from './storage.js?v=177';
+import * as wx from './wx.js?v=177';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=177';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -70,8 +70,24 @@ const CELL_INDEX = (() => {
   return m;
 })();
 
+// Which groups are folded. The pilot's own choice is remembered on this
+// device (a view setting, like the group order below), so a reload or a
+// refresh opens the card the way it was left.
 const DEFAULT_COLLAPSED = new Set(['g-flt', 'g-crew']);
-let collapsed = new Set(DEFAULT_COLLAPSED);
+const COLLAPSED_KEY = 'fc.dataCard.collapsed';
+let collapsed = loadCollapsed();
+function loadCollapsed() {
+  try {
+    const v = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || 'null');
+    if (Array.isArray(v)) return new Set(v);
+  } catch {}
+  return new Set(DEFAULT_COLLAPSED);
+}
+function saveCollapsed() {
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch {}
+}
+// Crew members whose note editor is open (a note that exists is always shown).
+const crewNoteOpen = new Set();
 
 // ATIS cell is now a launcher into the wx (D-ATIS + METAR) overlay.
 // Live letter comes from the popup; manual letter still allowed there.
@@ -297,6 +313,35 @@ function renderCrewChips(rawName) {
   `;
 }
 
+// The pilot's own note about a crew member, under their name. Kept with the
+// person (storage.setCrewNote), so it shows on every flight with them.
+function renderCrewNote(rawName) {
+  const canonical = String(rawName || '').trim().toUpperCase();
+  if (!canonical) return '';
+  const note = storage.getCrew(canonical)?.note || '';
+  if (!note && !crewNoteOpen.has(canonical)) return '';
+  return `<textarea class="crew-note" data-crew-note="${escapeAttr(canonical)}" rows="1" dir="auto"
+            placeholder="Your note about ${escapeAttr(storage.displayCrew(canonical))}…">${escape(note)}</textarea>`;
+}
+
+// "+ note" beside the seat label — only while there's no note to tap into.
+function crewNoteBtn(rawName) {
+  const canonical = String(rawName || '').trim().toUpperCase();
+  if (!canonical || storage.getCrew(canonical)?.note || crewNoteOpen.has(canonical)) return '';
+  return `<button type="button" class="crew-note-add" data-crew-name="${escapeAttr(canonical)}" data-crew-action="note"
+            title="Add your own note about this crew member">+ note</button>`;
+}
+
+// "+ note": open (or focus) that person's note.
+export function openCrewNote(name) {
+  const canonical = String(name || '').trim().toUpperCase();
+  if (!canonical || !lastRoot) return;
+  crewNoteOpen.add(canonical);
+  render(lastRoot);
+  const ta = [...lastRoot.querySelectorAll('textarea[data-crew-note]')].find(t => t.dataset.crewNote === canonical);
+  if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch {} }
+}
+
 // PF / PM tri-state cell — tap cycles through PF → PM → '' (none).
 // Wired via app.js's [data-role-key] click delegate.
 function renderRoleCell(c, raw) {
@@ -365,11 +410,12 @@ function renderCell(c, raw) {
   // chips sit at the right edge level with the name. Other cells stay
   // single-column.
   const body = chips
-    ? `<div class="crew-row">${inputHtml}${chips}</div>`
+    ? `<div class="crew-row">${inputHtml}${chips}</div>${renderCrewNote(v)}`
     : inputHtml;
+  const noteBtn = chips ? crewNoteBtn(v) : '';
   return `
     <label class="${cls.join(' ')}">
-      <span class="lbl">${escape(labelStr)}</span>
+      ${noteBtn ? `<span class="lbl-row"><span class="lbl">${escape(labelStr)}</span>${noteBtn}</span>` : `<span class="lbl">${escape(labelStr)}</span>`}
       ${body}
     </label>
   `;
@@ -591,6 +637,7 @@ function wire(root) {
       const id = btn.dataset.toggle;
       if (collapsed.has(id)) collapsed.delete(id);
       else collapsed.add(id);
+      saveCollapsed();
       render(root);
     });
   });
@@ -662,6 +709,21 @@ function wire(root) {
         }
       }
       inp.value = formatValue(def, raw);
+    });
+  });
+  // Crew notes: saved as they're typed; the box grows with the text, and an
+  // emptied one closes when left.
+  root.querySelectorAll('textarea[data-crew-note]').forEach(ta => {
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    grow();
+    ta.addEventListener('input', () => {
+      storage.setCrewNote(ta.dataset.crewNote, ta.value);
+      grow();
+    });
+    ta.addEventListener('blur', () => {
+      if (ta.value.trim()) return;
+      crewNoteOpen.delete(ta.dataset.crewNote);
+      setTimeout(() => { if (lastRoot && !lastRoot.contains(document.activeElement)) render(lastRoot); }, 0);
     });
   });
   // CTOT "Now" — fill the current UTC HH:MM
@@ -825,6 +887,7 @@ export function applyExternal(fields, root) {
   for (const k of Object.keys(out)) {
     for (const g of FIELDS) if (g.cells.some(c => c.key === k)) collapsed.delete(g.id);
   }
+  saveCollapsed();
   if (root) render(root);
 }
 

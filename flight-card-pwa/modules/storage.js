@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=176';
-import { dateTs, legTs } from './dates.js?v=176';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=176';
+import { flipName } from './roster.js?v=177';
+import { dateTs, legTs } from './dates.js?v=177';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=177';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -638,9 +638,10 @@ export function setNote(itemId, text) {
 // pinned on that leg (leg.pinned) and every later sync leaves it alone — a
 // corrected flight time used to snap back to the roster's on the next
 // refresh. Clearing the field unpins it, so the next sync fills it in again.
-// Crew is deliberately not here: the roster's list stays authoritative so a
-// swapped-out crew member doesn't linger (see mergeLeg).
-const PIN_KEYS = new Set(['flight_time', 'block_time', 'tail', 'ctot', 'dep', 'arr']);
+// Crew slots pin too — a corrected purser's name used to snap back on every
+// sync — but only while the roster keeps naming the same person in that
+// seat: a real swap on the roster still wins (see mergeLeg, rosterCrew).
+const PIN_KEYS = new Set(['flight_time', 'block_time', 'tail', 'ctot', 'dep', 'arr', ...CREW_KEYS]);
 
 export function setDataField(key, value) {
   // The leg is looked up ONCE, before anything is deleted. activeLeg() seeds
@@ -655,7 +656,9 @@ export function setDataField(key, value) {
   // Keep the leg's top-level identity fields in sync with the data card so
   // the leg-switcher chip and the depTs() sort still see edits made in the
   // data card (e.g. fixing a dep airport on the fly).
-  if (leg && LEG_IDENTITY_KEYS.includes(key)) {
+  // Crew lives at the leg's top level too, and the logbook reads that first —
+  // an edit left only in the data card never reached it.
+  if (leg && (LEG_IDENTITY_KEYS.includes(key) || CREW_KEYS.includes(key))) {
     if (empty) leg[key] = '';
     else leg[key] = value;
   }
@@ -718,8 +721,21 @@ export function getCrew(name) {
     name: k,
     nickname: entry.nickname || '',
     phone: entry.phone || '',
+    note: entry.note || '',
     flights: entry.flights | 0,
   };
+}
+
+// The pilot's own note about a crew member — kept with the person, so it's
+// there on every flight with them.
+export function setCrewNote(name, note) {
+  const k = canon(name);
+  if (!k) return;
+  const s = read();
+  const entry = ensureCrewEntry(s, k);
+  const t = String(note || '').trim();
+  if (t) entry.note = t; else delete entry.note;
+  scheduleWrite();
 }
 
 export function setCrewNickname(name, nickname) {
@@ -1164,6 +1180,11 @@ export function appendLegs(newLegs) {
       replaced++;
       continue;
     }
+    // Remember whom the roster named in each seat, so a later hand edit can
+    // tell a roster swap from the same roster re-synced (mergeLeg).
+    if (CREW_KEYS.some(k => String(fresh[k] || fresh.dataCard[k] || '').trim())) {
+      fresh.rosterCrew = Object.fromEntries(CREW_KEYS.map(k => [k, String(fresh[k] || fresh.dataCard[k] || '')]));
+    }
     toAdd.push(fresh);
     mostRecentlyTouched = fresh;
   }
@@ -1272,13 +1293,27 @@ function mergeLeg(target, source) {
   // rarely lists them, so "the roster's list is the whole list" would wipe a
   // hand-typed deadhead on every calendar sync. Keep everyone already there
   // and add whoever the roster names.
+  //
+  // A slot the pilot typed (pinned) keeps the typed name while the roster
+  // still names whoever it named before; `rosterCrew` remembers that. When
+  // the roster names someone else there, that's a real change — it wins and
+  // the pin goes. (A leg from before rosterCrew existed keeps its edit.)
   const srcCrew = (k) => String(source[k] || (source.dataCard && source.dataCard[k]) || '');
   if (CREW_KEYS.some(k => srcCrew(k).trim())) {
+    const seen = (target.rosterCrew && typeof target.rosterCrew === 'object') ? target.rosterCrew : {};
+    const same = (a, b) => String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
     for (const k of CREW_KEYS) {
       const v = srcCrew(k);
+      if (pinned[k]) {
+        if (!(k in seen) || same(seen[k], v)) { seen[k] = v; continue; }
+        delete pinned[k];
+      }
+      seen[k] = v;
       target[k] = v;
       if (v) target.dataCard[k] = v; else delete target.dataCard[k];
     }
+    target.rosterCrew = seen;
+    if (target.pinned && !Object.keys(target.pinned).length) delete target.pinned;
   }
   const dhIn = srcCrew('dh').split(',').map(x => x.trim()).filter(Boolean);
   if (dhIn.length) {

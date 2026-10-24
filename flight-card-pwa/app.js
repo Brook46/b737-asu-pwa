@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=176';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=176';
-import * as storage from './modules/storage.js?v=176';
-import * as dataCard from './modules/data-card.js?v=176';
-import * as checklist from './modules/checklist.js?v=176';
-import * as speeches from './modules/speeches.js?v=176';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=176';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=176';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=176';
+import { DUTY_KINDS } from './modules/duties.js?v=177';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=177';
+import * as storage from './modules/storage.js?v=177';
+import * as dataCard from './modules/data-card.js?v=177';
+import * as checklist from './modules/checklist.js?v=177';
+import * as speeches from './modules/speeches.js?v=177';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=177';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=177';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=177';
 
 const $ = (id) => document.getElementById(id);
 
@@ -4282,6 +4282,7 @@ dataBody.addEventListener('click', (e) => {
   if (action === 'edit')        promptCrewEdit(name);
   else if (action === 'whatsapp') openWhatsApp(name);
   else if (action === 'lastflight') showLastFlightWith(name);
+  else if (action === 'note') dataCard.openCrewNote(name);
 });
 
 function promptCrewEdit(name) {
@@ -4323,8 +4324,10 @@ function showLastFlightWith(name) {
   const disp = storage.displayCrew(name);
   $('crewlog-title').textContent = `Flights with ${disp}`;
   const body = $('crewlog-body');
+  const note = storage.getCrew(name)?.note || '';
+  const noteHtml = note ? `<p class="crewlog-note" dir="auto">${escapeHtmlSimple(note)}</p>` : '';
   if (!legs.length) {
-    body.innerHTML = `<p class="muted small crewlog-empty">No prior flights with ${escapeHtmlSimple(disp)} yet.</p>`;
+    body.innerHTML = `${noteHtml}<p class="muted small crewlog-empty">No prior flights with ${escapeHtmlSimple(disp)} yet.</p>`;
   } else {
     const rows = legs.map(leg => {
       const d = leg.dataCard || {};
@@ -4346,7 +4349,7 @@ function showLastFlightWith(name) {
           ${role}
         </div>`;
     }).join('');
-    body.innerHTML = `
+    body.innerHTML = `${noteHtml}
       <p class="muted small crewlog-count">${legs.length} flight${legs.length === 1 ? '' : 's'} together</p>
       <div class="crewlog-list">${rows}</div>`;
   }
@@ -4437,7 +4440,7 @@ async function showAirportInfo(icao) {
           ${crewLine}
         </div>`;
     }).join('');
-    body.innerHTML = `
+    body.innerHTML = `${noteHtml}
       <p class="muted small crewlog-count">${legs.length} flight${legs.length === 1 ? '' : 's'} to ${escapeHtmlSimple(k)}</p>
       <div class="crewlog-list">${rows}</div>`;
   }
