@@ -12,8 +12,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=172';
-import { WORKER_BASE } from './proxy.js?v=172';
+import { lookup } from './airports.js?v=173';
+import { WORKER_BASE } from './proxy.js?v=173';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗

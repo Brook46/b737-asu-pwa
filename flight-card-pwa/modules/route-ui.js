@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=172';
-import * as ri from './route-info.js?v=172';
-import { legTs, nearestHm } from './dates.js?v=172';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=172';
+import * as storage from './storage.js?v=173';
+import * as ri from './route-info.js?v=173';
+import { legTs, nearestHm } from './dates.js?v=173';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=173';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -667,9 +667,9 @@ function cardHtml(c, m) {
           <div class="ri-sub">${esc(ap.city)}${ap.city ? ', ' : ''}${esc(ap.country)} · ${ap.size === 2 ? 'large' : 'medium'} airport · elev ${ap.elev.toLocaleString('en-US')} ft</div></div>
         <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
       </div>
-      <div class="ri-tabs" role="tablist">
-        <button type="button" class="is-on" role="tab" aria-selected="true">Diversion</button>
-        <button type="button" role="tab" data-ri-notes>Notes</button>
+      <div class="view-switch" role="tablist" aria-label="Airport view">
+        <button type="button" class="vs-btn" role="tab" aria-selected="false" data-ri-notes>Notes</button>
+        <button type="button" class="vs-btn is-on" role="tab" aria-selected="true">Diversion</button>
       </div>
       <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
       ${whyNot10(r)}
@@ -1159,6 +1159,15 @@ export async function nearestNow(leg, g) {
   return best ? { icao: best.x.ap.icao, min: best.t.min, score: best.x.r.score, band: ri.band(best.x.r.score, false) } : null;
 }
 
+// Show an airport's card in the open Route info (the notes' "Diversion"
+// when Route info is already open beneath them).
+export function focusAirport(code) {
+  const f = String(code || '').toUpperCase();
+  const hit = state && f && state.model.pool.find(c => c.ap.icao === f || c.ap.iata === f);
+  if (hit) openCard(hit.ap.icao);
+  else if (f) toast(`${f} isn't within an hour of this route`);
+}
+
 // Wiring — once, on first import.
 let wired = false;
 export function wire() {
@@ -1190,9 +1199,13 @@ export function wire() {
       // Notes are keyed the way the flight strip opens them (IATA first).
       const code = c.ap.iata || c.ap.icao;
       const leg = screenLeg();
-      stopGps();
-      hideOverlay('route-overlay');
-      window.dispatchEvent(new CustomEvent('fc:airport-notes', { detail: { code, leg } }));
+      // The notes already open underneath (Route info was opened from them):
+      // close Route info and go back down to them. Otherwise open them on
+      // top, leaving Route info open beneath — closing the notes then comes
+      // straight back here.
+      const back = !$('airport-overlay').classList.contains('hidden');
+      if (back) { stopGps(); hideOverlay('route-overlay'); }
+      window.dispatchEvent(new CustomEvent('fc:airport-notes', { detail: { code, leg, back } }));
       return;
     }
     const wp = e.target.closest('[data-wx-pick]');

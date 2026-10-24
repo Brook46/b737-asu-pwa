@@ -3487,8 +3487,17 @@ body {
 .leg-near b { font-weight: 800; }
 .leg-near .ri-score { min-width: 22px; height: 22px; font-size: 12px; }
 
-/* Notes ↔ Route info: "Diversion" tab in the notes, "Notes" tab on a card. */
-#airport-route { color: var(--accent); }
-.ri-tabs { display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 8px; background: var(--bg-elev); border-radius: 9px; }
-.ri-tabs button { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 14px; border-radius: 7px; cursor: pointer; }
-.ri-tabs button.is-on { background: var(--bg-sunk); color: var(--fg); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+/* Notes | Diversion — one switch, identical in the notes header and on a
+   Route info airport card: a grey track, the current view raised, the
+   other one in the accent colour so it reads as the way across. */
+.view-switch {
+  display: inline-flex; flex: none; gap: 2px; padding: 2px;
+  background: var(--bg-sunk); border-radius: 10px;
+}
+.vs-btn {
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 14px; font-weight: 600;
+  padding: 6px 16px; border-radius: 8px; min-width: 84px;
+}
+.vs-btn.is-on { background: var(--bg-elev); color: var(--fg); cursor: default; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.ri-card .view-switch { margin: 0 0 10px; }

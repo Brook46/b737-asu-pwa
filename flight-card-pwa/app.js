@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=172';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=172';
-import * as storage from './modules/storage.js?v=172';
-import * as dataCard from './modules/data-card.js?v=172';
-import * as checklist from './modules/checklist.js?v=172';
-import * as speeches from './modules/speeches.js?v=172';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=172';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=172';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=172';
+import { DUTY_KINDS } from './modules/duties.js?v=173';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=173';
+import * as storage from './modules/storage.js?v=173';
+import * as dataCard from './modules/data-card.js?v=173';
+import * as checklist from './modules/checklist.js?v=173';
+import * as speeches from './modules/speeches.js?v=173';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=173';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=173';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=173';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2238,24 +2238,35 @@ async function openRouteInfo(focus = '') {
 // from Route info's "Notes" tab? Then back to that same flight (it may be
 // an old one from the logbook), not the leg on the main screen.
 let routeReturnLeg = null;
+// Route info open UNDERNEATH (the notes were opened from it): close the
+// notes and go back down to it, on this airport's card. Otherwise open Route
+// info ON TOP and leave the notes beneath — closing Route info then comes
+// straight back to them. Close both and everything is closed.
 $('airport-route')?.addEventListener('click', async () => {
   const code = airportNoteFor;
   const leg = routeReturnLeg;
-  routeReturnLeg = null;
-  hideOverlay('airport-overlay');
-  if (!leg) { openRouteInfo(code); return; }
   try {
     const ru = await import('./modules/route-ui.js');
     ru.wire();
-    await ru.open(leg, { focus: code });
+    if (!$('route-overlay').classList.contains('hidden')) {
+      flushAirportNotes();
+      hideOverlay('airport-overlay');
+      ru.focusAirport(code);
+      return;
+    }
+    await ru.open(leg || null, { focus: code });
+    raiseOverlay('route-overlay');
   } catch (err) { console.warn('route info failed', err); }
 });
-// Route info's "Notes" tab → this airport's notes.
+// Route info's "Notes" tab → this airport's notes: on top of Route info, or
+// (back) Route info has just closed and the notes beneath show this airport.
 window.addEventListener('fc:airport-notes', async (e) => {
-  const { code, leg } = e.detail || {};
+  const { code, leg, back } = e.detail || {};
   if (!code) return;
+  if (back) flushAirportNotes();
   await showAirportInfo(code);
   routeReturnLeg = leg || null;
+  if (!back) raiseOverlay('airport-overlay');
 });
 
 // In the air with GPS (the take-off / landing detector armed and airborne):

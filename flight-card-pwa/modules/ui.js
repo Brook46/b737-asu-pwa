@@ -57,7 +57,23 @@ export function toast(msg, ms = 1600) {
 }
 
 export function showOverlay(id) { document.getElementById(id).classList.remove('hidden'); }
-export function hideOverlay(id) { document.getElementById(id).classList.add('hidden'); }
+export function hideOverlay(id) {
+  const el = document.getElementById(id);
+  el.classList.add('hidden');
+  el.style.zIndex = '';
+}
+// Put an open sheet above every other open one. Sheets otherwise stack by
+// page order, so a sheet opened over another (Notes over Route info, or the
+// other way round) could land underneath it.
+export function raiseOverlay(id) {
+  const el = document.getElementById(id);
+  let top = 50;
+  for (const o of document.querySelectorAll('.overlay:not(.hidden)')) {
+    if (o === el) continue;
+    top = Math.max(top, parseInt(getComputedStyle(o).zIndex, 10) || 50);
+  }
+  el.style.zIndex = String(top + 1);
+}
 
 export function fmtDate(ts) {
   const d = new Date(ts);
