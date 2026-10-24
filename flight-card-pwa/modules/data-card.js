@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=177';
-import * as wx from './wx.js?v=177';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=177';
+import * as storage from './storage.js?v=178';
+import * as wx from './wx.js?v=178';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=178';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -86,8 +86,9 @@ function loadCollapsed() {
 function saveCollapsed() {
   try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch {}
 }
-// Crew members whose note editor is open (a note that exists is always shown).
-const crewNoteOpen = new Set();
+// The one crew member whose note is showing. Notes stay folded until asked
+// for, and opening one folds the other.
+let crewNoteOpen = '';
 
 // ATIS cell is now a launcher into the wx (D-ATIS + METAR) overlay.
 // Live letter comes from the popup; manual letter still allowed there.
@@ -313,33 +314,40 @@ function renderCrewChips(rawName) {
   `;
 }
 
-// The pilot's own note about a crew member, under their name. Kept with the
-// person (storage.setCrewNote), so it shows on every flight with them.
+// The pilot's own note about a crew member, under their name — only for
+// the one person it was asked for. Kept with the person
+// (storage.setCrewNote), so it's there on every flight with them.
 function renderCrewNote(rawName) {
   const canonical = String(rawName || '').trim().toUpperCase();
-  if (!canonical) return '';
+  if (!canonical || crewNoteOpen !== canonical) return '';
   const note = storage.getCrew(canonical)?.note || '';
-  if (!note && !crewNoteOpen.has(canonical)) return '';
   return `<textarea class="crew-note" data-crew-note="${escapeAttr(canonical)}" rows="1" dir="auto"
             placeholder="Your note about ${escapeAttr(storage.displayCrew(canonical))}…">${escape(note)}</textarea>`;
 }
 
-// "+ note" beside the seat label — only while there's no note to tap into.
+// Beside the seat label: "+ note" with no note yet, "note" (highlighted)
+// when there is one to show, "hide" while it's showing.
 function crewNoteBtn(rawName) {
   const canonical = String(rawName || '').trim().toUpperCase();
-  if (!canonical || storage.getCrew(canonical)?.note || crewNoteOpen.has(canonical)) return '';
-  return `<button type="button" class="crew-note-add" data-crew-name="${escapeAttr(canonical)}" data-crew-action="note"
-            title="Add your own note about this crew member">+ note</button>`;
+  if (!canonical) return '';
+  const has = !!storage.getCrew(canonical)?.note, open = crewNoteOpen === canonical;
+  const label = open ? 'hide' : has ? 'note' : '+ note';
+  const title = open ? 'Hide the note' : has ? 'Show your note about this crew member' : 'Add your own note about this crew member';
+  return `<button type="button" class="crew-note-add${has && !open ? ' has-note' : ''}" data-crew-name="${escapeAttr(canonical)}" data-crew-action="note"
+            aria-expanded="${open}" title="${title}">${label}</button>`;
 }
 
-// "+ note": open (or focus) that person's note.
+// The note button: show that person's note (folding any other), or hide it.
+// A new, empty note opens ready to type; an existing one just shows.
 export function openCrewNote(name) {
   const canonical = String(name || '').trim().toUpperCase();
   if (!canonical || !lastRoot) return;
-  crewNoteOpen.add(canonical);
+  crewNoteOpen = crewNoteOpen === canonical ? '' : canonical;
   render(lastRoot);
-  const ta = [...lastRoot.querySelectorAll('textarea[data-crew-note]')].find(t => t.dataset.crewNote === canonical);
-  if (ta) { ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch {} }
+  if (crewNoteOpen && !storage.getCrew(canonical)?.note) {
+    const ta = [...lastRoot.querySelectorAll('textarea[data-crew-note]')].find(t => t.dataset.crewNote === canonical);
+    if (ta) ta.focus();
+  }
 }
 
 // PF / PM tri-state cell — tap cycles through PF → PM → '' (none).
@@ -722,7 +730,7 @@ function wire(root) {
     });
     ta.addEventListener('blur', () => {
       if (ta.value.trim()) return;
-      crewNoteOpen.delete(ta.dataset.crewNote);
+      if (crewNoteOpen === ta.dataset.crewNote) crewNoteOpen = '';
       setTimeout(() => { if (lastRoot && !lastRoot.contains(document.activeElement)) render(lastRoot); }, 0);
     });
   });
