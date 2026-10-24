@@ -124,7 +124,7 @@ export default {
     }
 
     // Flight Card Route info: METAR + TAF for many airports at once, and
-    // NOTAMs (FAA NOTAM API — off until its free key is set as secrets).
+    // NOTAMs (autorouter or FAA — off until the pilot's login is set as secrets).
     if (url.pathname === '/routewx') {
       return handleRouteWx(url);
     }
@@ -431,15 +431,118 @@ async function handleRouteWx(url) {
 }
 
 // ---------- /notams?ids=LGAV,…  (Flight Card Route info) ----------
-// FAA NOTAM API (international NOTAMs included). Needs the pilot's free FAA
-// API credentials as worker secrets FAA_NOTAM_ID / FAA_NOTAM_SECRET; without
-// them this answers 501 and the app shows "NOTAMs not checked". Up to 30
-// airports per call, each cached 30 min at the edge.
+// Worldwide NOTAMs for the diversion airports, answered as
+//   { notams: { ICAO: [{ id, text, start, end, sched }] | { error } }, src }
+// Source, first one configured wins:
+//   autorouter.aero — Eurocontrol EAD's worldwide database (including the
+//     European NOTAMs never sent abroad). The pilot's free account, with API
+//     access enabled by autorouter support, as secrets AUTOROUTER_USER (the
+//     account email) / AUTOROUTER_PASS.
+//   FAA NOTAM API — only what states disseminate internationally; secrets
+//     FAA_NOTAM_ID / FAA_NOTAM_SECRET.
+// With neither it answers 501 and the app shows "NOTAMs not checked". Up to
+// 30 airports per call; each airport's list is cached 15 min at the edge.
+const NOTAM_FRESH_S = 900;
+
 async function handleNotams(url, env) {
-  if (!env || !env.FAA_NOTAM_ID || !env.FAA_NOTAM_SECRET) return json({ error: 'not configured' }, 501);
   const ids = [...new Set((url.searchParams.get('ids') || '').toUpperCase().split(','))]
     .filter(id => /^[A-Z0-9]{4}$/.test(id)).slice(0, 30);
   if (!ids.length) return text('No ids', 400);
+  if (env && env.AUTOROUTER_USER && env.AUTOROUTER_PASS) return notamsAutorouter(ids, env);
+  if (env && env.FAA_NOTAM_ID && env.FAA_NOTAM_SECRET) return notamsFaa(ids, env);
+  return json({ error: 'not configured' }, 501);
+}
+
+// Per-airport edge cache, so a re-opened Route info costs no upstream calls.
+function notamCacheKey(src, id) { return new Request(`https://notam-cache.invalid/${src}/${id}`); }
+async function notamCached(src, ids) {
+  const hit = {}, miss = [];
+  await Promise.all(ids.map(async id => {
+    const r = await caches.default.match(notamCacheKey(src, id));
+    if (r) hit[id] = await r.json(); else miss.push(id);
+  }));
+  return { hit, miss };
+}
+async function notamStore(src, id, items) {
+  await caches.default.put(notamCacheKey(src, id), new Response(JSON.stringify(items), {
+    headers: { 'content-type': 'application/json', 'cache-control': `max-age=${NOTAM_FRESH_S}` },
+  }));
+}
+
+// autorouter allows only 20 live tokens per account, so one token (valid an
+// hour) is shared by every worker instance through KV rather than each
+// instance logging in for itself.
+const AR_API = 'https://api.autorouter.aero/v1.0';
+let arToken = null;   // { tok, exp } — this instance's copy
+async function autorouterToken(env, fresh = false) {
+  const now = Date.now();
+  if (!fresh && arToken && arToken.exp > now + 60000) return arToken.tok;
+  const kv = env.LOGBOOK || null;
+  if (!fresh && kv) {
+    const saved = await kv.get('notam:ar-token', 'json');
+    if (saved && saved.exp > now + 60000) { arToken = saved; return saved.tok; }
+  }
+  const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: env.AUTOROUTER_USER, client_secret: env.AUTOROUTER_PASS });
+  const r = await fetch(`${AR_API}/oauth2/token`, { method: 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data.access_token) throw new Error('autorouter login ' + r.status + (data.error ? ' ' + data.error : ''));
+  arToken = { tok: data.access_token, exp: now + (Number(data.expires_in) || 3600) * 1000 };
+  if (kv) await kv.put('notam:ar-token', JSON.stringify(arToken), { expirationTtl: Math.max(60, Math.floor((arToken.exp - now) / 1000) - 120) });
+  return arToken.tok;
+}
+
+async function notamsAutorouter(ids, env) {
+  const { hit, miss } = await notamCached('ar', ids);
+  const out = { ...hit };
+  if (miss.length) {
+    const nowS = Math.floor(Date.now() / 1000);
+    const iso = (s) => (Number.isFinite(s) && s > 0 && s < 4294967295 ? new Date(s * 1000).toISOString() : '');
+    const got = Object.fromEntries(miss.map(id => [id, []]));
+    try {
+      let tok = await autorouterToken(env);
+      // One call for every airport, 100 rows a page.
+      for (let offset = 0, page = 0; page < 20; page++) {
+        const q = `${AR_API}/notam?itemas=${encodeURIComponent(JSON.stringify(miss))}&offset=${offset}&limit=100`;
+        let r = await fetch(q, { headers: { authorization: 'Bearer ' + tok } });
+        if (r.status === 401 || r.status === 403) {   // token expired or revoked: log in once more
+          tok = await autorouterToken(env, true);
+          r = await fetch(q, { headers: { authorization: 'Bearer ' + tok } });
+        }
+        if (!r.ok) throw new Error('autorouter NOTAM ' + r.status);
+        const data = await r.json();
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        for (const n of rows) {
+          const where = String(n.itema || '').toUpperCase();
+          // Item A can name several locations ("LLBG LLLL"); file it under each asked-for one.
+          const locs = miss.filter(id => where.split(/\s+/).includes(id));
+          if (!locs.length || !n.iteme) continue;
+          if (Number.isFinite(n.endvalidity) && n.endvalidity > 0 && n.endvalidity < nowS) continue;
+          const item = {
+            id: n.series && n.number ? `${n.series}${String(n.number).padStart(4, '0')}/${String(n.year || '').slice(-2)}` : '',
+            text: String(n.iteme).trim(),
+            start: iso(n.startvalidity),
+            end: iso(n.endvalidity),
+            est: !!n.estimation,
+            sched: n.itemd ? String(n.itemd).trim() : '',
+          };
+          for (const id of locs) got[id].push(item);
+        }
+        offset += rows.length;
+        if (!rows.length || offset >= (Number(data.total) || 0)) break;
+      }
+      await Promise.all(miss.map(id => notamStore('ar', id, got[id])));
+      Object.assign(out, got);
+    } catch (err) {
+      // Nothing to show at all (typically the login, e.g. API access not
+      // enabled yet): say so plainly instead of thirty per-airport errors.
+      if (!Object.keys(hit).length) return json({ error: String(err.message || err), src: 'autorouter' }, 502);
+      for (const id of miss) out[id] = { error: String(err.message || err) };
+    }
+  }
+  return json({ notams: out, src: 'autorouter' });
+}
+
+async function notamsFaa(ids, env) {
   const one = async (id) => {
     const u = `https://external-api.faa.gov/notamapi/v1/notams?icaoLocation=${id}&pageSize=200`;
     try {
@@ -451,13 +554,13 @@ async function handleNotams(url, env) {
       const data = await r.json();
       const items = (data.items || []).map(it => {
         const n = (it.properties && it.properties.coreNOTAMData && it.properties.coreNOTAMData.notam) || {};
-        return { text: n.text || '', start: n.effectiveStart || '', end: n.effectiveEnd || '' };
+        return { id: n.number || '', text: n.text || '', start: n.effectiveStart || '', end: n.effectiveEnd || '' };
       }).filter(n => n.text);
       return [id, items];
     } catch (err) { return [id, { error: String(err.message || err) }]; }
   };
   const results = Object.fromEntries(await Promise.all(ids.map(one)));
-  return json({ notams: results });
+  return json({ notams: results, src: 'faa' });
 }
 
 // ---------- /metar  (737 NG Inside's fallback when metar.vatsim.net is down) ---

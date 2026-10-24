@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=173';
-import * as ri from './route-info.js?v=173';
-import { legTs, nearestHm } from './dates.js?v=173';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=173';
+import * as storage from './storage.js?v=174';
+import * as ri from './route-info.js?v=174';
+import { legTs, nearestHm } from './dates.js?v=174';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=174';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -110,10 +110,16 @@ async function build(leg, { doFetch = false } = {}) {
     const wx = await ri.fetchWeather(ids);
     // NOTAMs for the best 30 — the API is per airport.
     const top = pool.filter(c => !c.r.excluded).sort((a, b) => b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
-    let notams = null, notamsOff = false;
+    // A failed NOTAM fetch keeps the last good set (marked with its age)
+    // rather than blanking what the pilot already had.
+    let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();
     try { const n = await ri.fetchNotams(top); if (n.off) notamsOff = true; else notams = n.notams; }
-    catch { notamsOff = true; }
-    cache = { at: Date.now(), wx, notams, notamsOff };
+    catch (e) {
+      notamsErr = String(e.message || e);
+      if (cache?.notams) { notams = cache.notams; notamsAt = cache.notamsAt || cache.at; }
+      else notamsOff = true;
+    }
+    cache = { at: Date.now(), wx, notams, notamsOff, notamsErr, notamsAt };
     writeCache(leg, cache);
   }
   const wmap = new Map();
@@ -144,6 +150,8 @@ async function build(leg, { doFetch = false } = {}) {
     shown: ri.pickShown(pool, route, 4),
     fetchedAt: cache?.at || 0,
     notamsOff: !cache || cache.notamsOff || !cache.notams,
+    notamsErr: cache?.notamsErr || '',
+    notamsAt: cache?.notamsAt || cache?.at || 0,
     hasWx: !!cache?.wx,
   };
 }
@@ -585,14 +593,26 @@ function runwayPanel(c, m) {
       <div class="rw-sub"><b>Approaches:</b> ${ilsHint ? `an ILS / LOC to RWY ${esc(sel.id)} is named in a NOTAM — ` : ''}approach types and CAT I-II-III aren't in any free data — check the chart.</div>
       <div class="rw-sub"><b>Navaids at ${esc(ap.icao)}:</b> ${nav}</div>
       ${m.notamsOff ? '' : `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${mentions.length
-        ? `<ul class="nt-list">${mentions.map(n => `<li class="nt nt-${ri.notamSeverity(n.text, usable) || 'n'}">${esc(n.text)}</li>`).join('')}</ul>`
+        ? `<ul class="nt-list">${mentions.map(n => ntItem(n, ri.notamSeverity(n.text, usable))).join('')}</ul>`
         : '<span class="wx-g">none</span>'}</div>`}
     </div>`;
 }
 
+// One NOTAM: its text, then a muted line with its number, validity and
+// schedule (Item D) when the source gives them.
+function ntItem(n, sev) {
+  const day = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')} ${hm(d.getTime())}` : ''; };
+  const from = n.start ? day(n.start) : '', to = n.end ? day(n.end) + (n.est ? ' EST' : '') : 'PERM';
+  const meta = [n.id, from ? `${from} – ${to}` : '', n.sched].filter(Boolean).join(' · ');
+  return `<li class="nt nt-${sev || 'n'}">${esc(n.text)}${meta ? `<div class="nt-meta">${esc(meta)}</div>` : ''}</li>`;
+}
+
 function notamList(c, m) {
-  if (m.notamsOff) return `<div class="ri-sub">Not checked — add the free FAA NOTAM key (Settings → Route info).</div>`;
+  if (m.notamsOff) return `<div class="ri-sub">${m.notamsErr
+    ? `Not checked — the NOTAM service answered “${esc(m.notamsErr)}”.`
+    : 'Not checked — NOTAMs aren’t set up yet (Settings → Route info).'}</div>`;
   if (!c.notams) return `<div class="ri-sub">Not fetched for this airport (only the best 30 are checked).</div>`;
+  const stale = m.notamsErr ? `<div class="ri-sub"><span class="wx-o">Saved ${ago(m.notamsAt)} — refresh failed (${esc(m.notamsErr)}).</span></div>` : '';
   const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
   const now = c.eta;
   const live = c.notams.filter(n => {
@@ -600,10 +620,10 @@ function notamList(c, m) {
     return !(Number.isFinite(st) && st > now) && !(Number.isFinite(en) && en < now);
   }).map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) }))
     .sort((a, b) => RANK[b.sev] - RANK[a.sev]);
-  if (!live.length) return `<div class="ri-sub"><span class="wx-g">None in force at ${hm(now)}.</span></div>`;
-  const item = (n) => `<li class="nt nt-${n.sev || 'n'}">${esc(n.text)}</li>`;
+  if (!live.length) return `${stale}<div class="ri-sub"><span class="wx-g">None in force at ${hm(now)}.</span></div>`;
+  const item = (n) => ntItem(n, n.sev);
   const top = live.filter(n => n.sev), rest = live.filter(n => !n.sev);
-  return `<ul class="nt-list">${top.map(item).join('')}</ul>
+  return `${stale}<ul class="nt-list">${top.map(item).join('')}</ul>
     ${rest.length ? `<details class="nt-more"><summary>${rest.length} other NOTAM${rest.length === 1 ? '' : 's'}</summary><ul class="nt-list">${rest.map(item).join('')}</ul></details>` : ''}
     ${!top.length ? `<div class="ri-sub"><span class="wx-g">Nothing closing the aerodrome, a runway or an ILS.</span></div>` : ''}`;
 }
@@ -721,7 +741,7 @@ async function paint(model, showAll = false) {
   $('route-body').innerHTML = `
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
-      NOTAMs ${model.notamsOff ? 'not checked' : 'checked'} ·
+      NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
       within an hour (${ri.RADIUS_NM} nm) of the great-circle route
     </div>
     <div id="ri-ready" class="ri-ready"></div>
@@ -818,7 +838,7 @@ async function paintReady() {
   el.innerHTML = `
     ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
     ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
-    ${item(!m.notamsOff, m.notamsOff ? 'NOTAMs off (no FAA key)' : 'NOTAMs checked', false)}
+    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs failed' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}
     ${allOk ? '' : `<button type="button" class="btn primary rr-go" data-ri-prepare>Prepare for flight</button>`}`;
 }
 async function prepareForFlight() {

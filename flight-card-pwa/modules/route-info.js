@@ -20,10 +20,10 @@
 //
 // Data: data/divdb.json (OurAirports, public domain; scripts/build-divdb.py),
 // weather via the worker's /routewx (aviationweather.gov), NOTAMs via its
-// /notams (FAA NOTAM API, off until the pilot's free key is set). OurAirports
+// /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=173';
+import { WORKER_BASE } from './proxy.js?v=174';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -229,7 +229,7 @@ function bestRunwayForWind(rwys, wdir, wind) {
 }
 
 // ---------- NOTAMs ----------
-// Plain-text scan of the FAA items for the three things that change a
+// Plain-text scan of the NOTAM items for the three things that change a
 // diversion decision. Only NOTAMs in force at `ts` (or with no end) count.
 export function notamFlags(items, ts) {
   const out = { adClosed: false, rwyClosed: [], ilsOut: [], count: 0 };
@@ -407,6 +407,9 @@ export async function fetchNotams(ids) {
   if (!WORKER_BASE || !ids.length) return { off: true };
   const r = await fetch(WORKER_BASE.replace(/\/$/, '') + '/notams?ids=' + ids.slice(0, 30).join(','), { cache: 'no-store' });
   if (r.status === 501 || r.status === 404) return { off: true };
-  if (!r.ok) throw new Error('NOTAM HTTP ' + r.status);
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.error || 'NOTAM HTTP ' + r.status);
+  }
   return r.json();
 }

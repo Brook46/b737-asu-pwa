@@ -3274,6 +3274,7 @@ body {
 .nt-r { border-left-color: var(--danger); background: rgba(255,59,48,0.10); }
 .nt-o { border-left-color: var(--warn);   background: rgba(255,149,0,0.10); }
 .nt-y { border-left-color: #c9a300;      background: rgba(255,214,10,0.10); }
+.nt-meta { font-family: -apple-system, system-ui, sans-serif; font-size: 11px; color: var(--fg-mute); margin-top: 3px; }
 .nt-more summary { font-size: 12px; color: var(--accent); cursor: pointer; margin-top: 6px; }
 .rd { display: block; width: 100%; max-width: 420px; height: auto; margin: 4px 0 6px;
       background: var(--bg-elev); border-radius: var(--radius-ctl); }

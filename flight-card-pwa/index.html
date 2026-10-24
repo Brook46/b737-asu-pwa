@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=173" />
+  <link rel="stylesheet" href="./app.css?v=174" />
 </head>
 <body>
   <header class="app-header">
@@ -500,8 +500,11 @@
         <label class="cal-row-label" for="div-penalty">Penalties</label>
         <input id="div-penalty" type="text" class="cal-url" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <p class="muted small">
-          NOTAMs need a free FAA API key, stored only in the Cloudflare worker as
-          the secrets <code>FAA_NOTAM_ID</code> and <code>FAA_NOTAM_SECRET</code>.
+          NOTAMs come worldwide from autorouter.aero (Eurocontrol’s database) with a
+          free account whose API access autorouter support has enabled. Its email and
+          password live only in the Cloudflare worker, as the secrets
+          <code>AUTOROUTER_USER</code> and <code>AUTOROUTER_PASS</code>
+          (an FAA key, <code>FAA_NOTAM_ID</code> / <code>FAA_NOTAM_SECRET</code>, also works).
           Until then ratings say “NOTAMs not checked”. ILS / CAT categories are
           in no free data, so the airport card says to check the chart.
         </p>
@@ -823,6 +826,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=173"></script>
+  <script type="module" src="./app.js?v=174"></script>
 </body>
 </html>
