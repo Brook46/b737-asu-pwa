@@ -13,10 +13,10 @@
 // PWA side — the description's "Slip details (UTC)" line is the source
 // of truth for each leg's dep/arr times.
 
-import { parseIcal } from './ical.js?v=178';
-import { parseRoster } from './roster.js?v=178';
-import { WORKER_BASE } from './proxy.js?v=178';
-import { eventToDuty, mergeRuns } from './duties.js?v=178';
+import { parseIcal } from './ical.js?v=179';
+import { parseRoster } from './roster.js?v=179';
+import { WORKER_BASE } from './proxy.js?v=179';
+import { eventToDuty, mergeRuns, icalToMs } from './duties.js?v=179';
 
 const URL_STORAGE_KEY        = 'fc.gcal.url';
 const LAST_SYNC_STORAGE_KEY  = 'fc.gcal.lastSyncAt';
@@ -59,6 +59,24 @@ function icalTs(dtstart) {
   const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/.exec(String(dtstart || ''));
   if (!m) return NaN;
   return Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 12), +(m[5] || 0), +(m[6] || 0));
+}
+
+// When the roster system last issued this duty: the slip's own
+// "Updated at: 24.10.26 18:28" line (Israel time), else the event's
+// LAST-MODIFIED. Google's secret-iCal export lags the live calendar and
+// different copies of it disagree for a while, so one refresh can bring the
+// new crew and the next the old one back. Comparing this stamp lets the
+// older copy be ignored instead of undoing the newer one (storage mergeLeg).
+function eventUpdatedAt(ev) {
+  const m = /Updated at:\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})\s+(\d{1,2}):(\d{2})/i.exec(ev.description || '');
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    const stamp = `${y}${m[2].padStart(2, '0')}${m[1].padStart(2, '0')}T${m[4].padStart(2, '0')}${m[5]}00`;
+    const r = icalToMs(stamp, 'Asia/Jerusalem');
+    if (r && Number.isFinite(r.ms)) return r.ms;
+  }
+  const r = ev.lastModified ? icalToMs(ev.lastModified) : null;
+  return r && Number.isFinite(r.ms) ? r.ms : 0;
 }
 
 export async function syncFromCalendar() {
@@ -114,7 +132,13 @@ export async function syncFromCalendar() {
     // wrong for anything more than ~6 months old — which is how flights from
     // different years ended up merged.
     const parsed = parseRoster(body, { anchorMs: icalTs(ev.dtstart) });
-    if (parsed && parsed.flights?.length) allFlights.push(...parsed.flights);
+    if (parsed && parsed.flights?.length) {
+      // When this version of the duty was issued, so storage can tell a
+      // newer roster from an older copy of it (see eventUpdatedAt).
+      const at = eventUpdatedAt(ev);
+      if (at) for (const f of parsed.flights) f.roster_at = at;
+      allFlights.push(...parsed.flights);
+    }
     if (parsed && parsed.phones) Object.assign(allPhones, parsed.phones);
     // Not a flight slip: a simulator, training, standby, day off… These were
     // simply dropped before.

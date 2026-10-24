@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=178';
-import { dateTs, legTs } from './dates.js?v=178';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=178';
+import { flipName } from './roster.js?v=179';
+import { dateTs, legTs } from './dates.js?v=179';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=179';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -1258,6 +1258,24 @@ function digitsOf(s) {
 // the cockpit will be re-overwritten on the next sync; that's the
 // trade-off, and it's correct for this pilot's workflow.
 function mergeLeg(target, source) {
+  // An OLDER issue of this duty than the one already merged (roster_at, the
+  // slip's "Updated at"): Google's iCal export can hand back a stale copy
+  // for a while after a roster change. It may fill a gap, never overwrite —
+  // otherwise it put back the crew member the roster had swapped out and
+  // wiped the pilot's edit with them.
+  const srcAt = Number(source.roster_at) || 0, tgtAt = Number(target.roster_at) || 0;
+  if (srcAt && tgtAt && srcAt < tgtAt) {
+    for (const k of ['flight','tail','dep','arr','flight_time','dep_date','dep_time','arr_date','arr_time','dep_year','arr_year']) {
+      if ((target[k] == null || target[k] === '') && source[k] != null && source[k] !== '') target[k] = source[k];
+    }
+    target.dataCard = target.dataCard || {};
+    for (const [k, v] of Object.entries(source.dataCard || {})) {
+      if (CREW_FIELDS.includes(k)) continue;
+      if ((target.dataCard[k] == null || target.dataCard[k] === '') && v != null && v !== '') target.dataCard[k] = v;
+    }
+    return;
+  }
+  if (srcAt > tgtAt) target.roster_at = srcAt;
   // Top-level identity + schedule fields — incoming wins for non-empty.
   // Crew belongs here too: it lives at the top level of a leg AND in the
   // dataCard, and leaving the top-level copy behind meant a re-sync showed the
@@ -1395,6 +1413,7 @@ export function syncFromCalendar(incoming) {
       .map(l => fingerprintLeg(l))
       .filter(Boolean)
   );
+  const feedAt = Math.max(0, ...(Array.isArray(incoming) ? incoming : []).map(l => Number(l && l.roster_at) || 0));
   let pruned = 0;
   if (incomingKeys.size) {
     const keep = [];
@@ -1408,6 +1427,11 @@ export function syncFromCalendar(incoming) {
       // the future. Past flights stay forever — they're the logbook.
       const arrAt = arrTs(leg);
       if (Number.isFinite(arrAt) && arrAt < now) { keep.push(leg); return; }
+      // Issued more recently than anything in this feed, within the last
+      // day: the feed is a stale copy that predates this duty, not a roster
+      // that dropped it (see mergeLeg / roster_at).
+      const at = Number(leg.roster_at) || 0;
+      if (at && at > feedAt && now - at < 24 * 3600000) { keep.push(leg); return; }
       pruned++;
     });
     if (pruned) {

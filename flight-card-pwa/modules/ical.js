@@ -38,6 +38,7 @@ export function parseIcal(text) {
     if (key === 'UID')         current.uid = value;
     else if (key === 'SUMMARY')     current.summary = value;
     else if (key === 'DESCRIPTION') current.description = value;
+    else if (key === 'LAST-MODIFIED') current.lastModified = value;
     else if (key === 'DTSTART' || key === 'DTEND') {
       // Keep the zone and the all-day flag, not just the digits. Flights
       // never needed them — their times come from the slip, in UTC — but a
