@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=171" />
+  <link rel="stylesheet" href="./app.css?v=172" />
 </head>
 <body>
   <header class="app-header">
@@ -607,7 +607,10 @@
     <div class="ocr-sheet airport-sheet">
       <div class="pad-head">
         <span id="airport-title" class="pad-label">Airport</span>
-        <button id="airport-route" class="btn" type="button" title="This airport as a diversion: runways, wind, weather">Diversion card</button>
+        <!-- Notes full screen: hides the flight list and gives the note the
+             whole display. Top right beside ✕, as in Route info. -->
+        <button id="apt-full" class="btn icon-btn" type="button" aria-pressed="false"
+                title="Full screen" aria-label="Show notes full screen">⤢</button>
         <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="airport-city" class="airport-city muted small"></div>
@@ -619,10 +622,9 @@
           <div class="airport-tabs" role="tablist">
             <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
             <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
-            <!-- Notes full screen: hides the flight list and gives the note the
-                 whole display. Remembered between openings. -->
-            <button id="apt-full" class="airport-tab apt-full" type="button" aria-pressed="false"
-                    title="Full screen" aria-label="Show notes full screen">⤢</button>
+            <!-- This airport as a diversion (Route info) — the matching tab
+                 there, "Notes", comes back here. -->
+            <button id="airport-route" class="airport-tab" role="tab" type="button" title="This airport as a diversion: runways, wind, weather">Diversion</button>
           </div>
           <!-- Formatting bar — Personal tab only. Bold / italic + a small
                colour set. Uses execCommand: deprecated on paper, but still
@@ -818,6 +820,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=171"></script>
+  <script type="module" src="./app.js?v=172"></script>
 </body>
 </html>

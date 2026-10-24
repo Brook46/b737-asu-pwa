@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=171';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=171';
-import * as storage from './modules/storage.js?v=171';
-import * as dataCard from './modules/data-card.js?v=171';
-import * as checklist from './modules/checklist.js?v=171';
-import * as speeches from './modules/speeches.js?v=171';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=171';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=171';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=171';
+import { DUTY_KINDS } from './modules/duties.js?v=172';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=172';
+import * as storage from './modules/storage.js?v=172';
+import * as dataCard from './modules/data-card.js?v=172';
+import * as checklist from './modules/checklist.js?v=172';
+import * as speeches from './modules/speeches.js?v=172';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=172';
+import { initTheme, cycleTheme, toast, showOverlay, hideOverlay } from './modules/ui.js?v=172';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=172';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2234,11 +2234,28 @@ async function openRouteInfo(focus = '') {
     await ru.open(null, { focus });
   } catch (err) { console.warn('route info failed', err); toast('Route info failed to load'); }
 }
-// The airport popup's "Diversion card": this airport in Route info.
-$('airport-route')?.addEventListener('click', () => {
+// The notes popup's "Diversion" tab: this airport in Route info. Arrived
+// from Route info's "Notes" tab? Then back to that same flight (it may be
+// an old one from the logbook), not the leg on the main screen.
+let routeReturnLeg = null;
+$('airport-route')?.addEventListener('click', async () => {
   const code = airportNoteFor;
+  const leg = routeReturnLeg;
+  routeReturnLeg = null;
   hideOverlay('airport-overlay');
-  openRouteInfo(code);
+  if (!leg) { openRouteInfo(code); return; }
+  try {
+    const ru = await import('./modules/route-ui.js');
+    ru.wire();
+    await ru.open(leg, { focus: code });
+  } catch (err) { console.warn('route info failed', err); }
+});
+// Route info's "Notes" tab → this airport's notes.
+window.addEventListener('fc:airport-notes', async (e) => {
+  const { code, leg } = e.detail || {};
+  if (!code) return;
+  await showAirportInfo(code);
+  routeReturnLeg = leg || null;
 });
 
 // In the air with GPS (the take-off / landing detector armed and airborne):
@@ -4235,6 +4252,7 @@ let airportNoteFor = '';      // ICAO whose notes the editors are bound to
 async function showAirportInfo(icao) {
   const k = String(icao || '').trim().toUpperCase();
   if (!k) return;
+  routeReturnLeg = null;      // opened afresh: "Diversion" means the main-screen leg
   // Bind + load the notes and open the sheet SYNCHRONOUSLY first, so typing
   // works instantly even while the city lookup import resolves below.
   airportNoteFor = k;
@@ -4356,10 +4374,24 @@ function noteToHtml(stored) {
   if (!NOTE_HTML_RE.test(s)) return escapeHtmlSimple(s).replace(/\n/g, '<br>');
   return sanitizeNoteHtml(s);
 }
+// One reading direction for the whole note, from its main language. Each
+// line used to pick its own (unicode-bidi: plaintext): in a mostly-Hebrew
+// note, any line starting with a code or an English word ("RWY 12…") flipped
+// to the left, and the text zig-zagged. Now a mostly-Hebrew note is
+// right-to-left throughout — English runs still read in order inside it.
+function noteDir(text) {
+  const t = String(text || '');
+  const heb = (t.match(/[\u0590-\u05FF]/g) || []).length;
+  const lat = (t.match(/[A-Za-z]/g) || []).length;
+  return heb > 0 && heb >= lat * 0.5 ? 'rtl' : 'ltr';
+}
+function setNoteDir(el) { if (el) el.setAttribute('dir', noteDir(el.textContent)); }
+
 function setNoteHtml(stored) {
   const el = $('airport-notes');
   if (!el) return;
   el.innerHTML = noteToHtml(stored);
+  setNoteDir(el);
   paintNoteEmpty();
 }
 // An "empty" contenteditable still holds <br> or an empty <div>, so :empty
@@ -4397,6 +4429,7 @@ function setSocialHtml(stored, code = airportNoteFor) {
   el.innerHTML = (feed && s && !NOTE_HTML_RE.test(s)) ? hlRender(s, code) : noteToHtml(s);
   el.setAttribute('contenteditable', feed ? 'false' : 'true');
   el.classList.toggle('is-empty', !el.textContent.trim());
+  setNoteDir(el);
   socialSel = null;
 }
 
@@ -4574,6 +4607,10 @@ function flushAirportNotes() {
 // avoids the cross-field timer race that a shared UI debounce introduced.
 $('airport-notes').addEventListener('input', () => {
   paintNoteEmpty();
+  // A new note takes its direction from its first words, then keeps it —
+  // flipping mid-sentence would throw the caret around.
+  const el = $('airport-notes');
+  if (el.textContent.trim().length <= 24) setNoteDir(el);
   if (airportNoteFor) storage.setAirportNote(airportNoteFor, currentNoteHtml());
 });
 // Paste as PLAIN text. Keeps pasted web content from dragging in fonts,

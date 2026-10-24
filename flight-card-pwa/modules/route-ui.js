@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=171';
-import * as ri from './route-info.js?v=171';
-import { legTs, nearestHm } from './dates.js?v=171';
-import { toast, showOverlay, hideOverlay } from './ui.js?v=171';
+import * as storage from './storage.js?v=172';
+import * as ri from './route-info.js?v=172';
+import { legTs, nearestHm } from './dates.js?v=172';
+import { toast, showOverlay, hideOverlay } from './ui.js?v=172';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -667,6 +667,10 @@ function cardHtml(c, m) {
           <div class="ri-sub">${esc(ap.city)}${ap.city ? ', ' : ''}${esc(ap.country)} · ${ap.size === 2 ? 'large' : 'medium'} airport · elev ${ap.elev.toLocaleString('en-US')} ft</div></div>
         <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
       </div>
+      <div class="ri-tabs" role="tablist">
+        <button type="button" class="is-on" role="tab" aria-selected="true">Diversion</button>
+        <button type="button" role="tab" data-ri-notes>Notes</button>
+      </div>
       <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
       ${whyNot10(r)}
       <h5>Runways</h5>
@@ -805,18 +809,14 @@ async function paintReady() {
   if (!el || !state) return;
   const m = state.model, leg = m.leg;
   const c = leg ? readCache(leg) : null;
-  const [asu, db] = await Promise.all([
-    Promise.all(['../data/qrh-800.json', '../data/qrh-900.json'].map(savedInCache)).then(a => a.every(Boolean)),
-    savedInCache('./data/divdb.json'),
-  ]);
+  const db = await savedInCache('./data/divdb.json');
   const n = c && c.wx ? (c.wx.metars || []).length : 0;
   const ageMin = c ? (Date.now() - c.at) / 60000 : Infinity;
   const wxOk = c && ageMin <= 60;
   const item = (ok, txt, warn) => `<span class="rr-item ${ok ? 'ok' : warn ? 'warn' : 'no'}">${ok ? '✓' : warn ? '!' : '–'} ${esc(txt)}</span>`;
-  const allOk = wxOk && asu && db;
+  const allOk = wxOk && db;
   el.innerHTML = `
     ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
-    ${item(asu, asu ? 'Airspeed Unreliable saved' : 'ASU not saved yet')}
     ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
     ${item(!m.notamsOff, m.notamsOff ? 'NOTAMs off (no FAA key)' : 'NOTAMs checked', false)}
     ${allOk ? '' : `<button type="button" class="btn primary rr-go" data-ri-prepare>Prepare for flight</button>`}`;
@@ -1183,6 +1183,18 @@ export function wire() {
     if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
     if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
+    if (e.target.closest('[data-ri-notes]')) {
+      const icao = e.target.closest('.ri-card')?.dataset.icao;
+      const c = state && state.model.pool.find(x => x.ap.icao === icao);
+      if (!c) return;
+      // Notes are keyed the way the flight strip opens them (IATA first).
+      const code = c.ap.iata || c.ap.icao;
+      const leg = screenLeg();
+      stopGps();
+      hideOverlay('route-overlay');
+      window.dispatchEvent(new CustomEvent('fc:airport-notes', { detail: { code, leg } }));
+      return;
+    }
     const wp = e.target.closest('[data-wx-pick]');
     if (wp) {
       const icao = wp.closest('.ri-card')?.dataset.icao;

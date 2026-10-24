@@ -967,11 +967,10 @@ body.is-past-leg #card-checklist {
   border-radius: 12px;
   padding: 12px 14px;
   line-height: 1.4;
-  /* Bidi: each LINE picks its own direction from its first strong character,
-     so a Hebrew line right-aligns and an English line left-aligns inside the
-     same note. text-align:start then follows that per-line direction. Works
-     on both the contenteditable div and the social textarea. */
-  unicode-bidi: plaintext;
+  /* Direction: one for the whole note, set as dir="rtl|ltr" from its main
+     language (noteDir in app.js). Per-line direction (unicode-bidi:
+     plaintext) made a mostly-Hebrew note zig-zag wherever a line started
+     with a code or an English word. text-align:start follows dir. */
   text-align: start;
 }
 .airport-notes:focus { outline: none; border-color: var(--accent); }
@@ -3487,4 +3486,9 @@ body {
 .leg-near[hidden] { display: none; }
 .leg-near b { font-weight: 800; }
 .leg-near .ri-score { min-width: 22px; height: 22px; font-size: 12px; }
-#airport-route { flex: none; font-size: 13px; padding: 6px 12px; }
+
+/* Notes ↔ Route info: "Diversion" tab in the notes, "Notes" tab on a card. */
+#airport-route { color: var(--accent); }
+.ri-tabs { display: inline-flex; gap: 2px; padding: 2px; margin: 0 0 8px; background: var(--bg-elev); border-radius: 9px; }
+.ri-tabs button { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 14px; border-radius: 7px; cursor: pointer; }
+.ri-tabs button.is-on { background: var(--bg-sunk); color: var(--fg); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
