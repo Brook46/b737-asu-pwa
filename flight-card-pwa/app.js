@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=175';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=175';
-import * as storage from './modules/storage.js?v=175';
-import * as dataCard from './modules/data-card.js?v=175';
-import * as checklist from './modules/checklist.js?v=175';
-import * as speeches from './modules/speeches.js?v=175';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=175';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=175';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=175';
+import { DUTY_KINDS } from './modules/duties.js?v=176';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=176';
+import * as storage from './modules/storage.js?v=176';
+import * as dataCard from './modules/data-card.js?v=176';
+import * as checklist from './modules/checklist.js?v=176';
+import * as speeches from './modules/speeches.js?v=176';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=176';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=176';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=176';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2159,8 +2159,8 @@ function consumeSyncAfterReload() {
 
 // Calendar → social notes → logbook push, each isolated so one failure can't
 // stop the others. Only sources that are actually configured are reported.
-async function runFullSync() {
-  toast('Refreshing…');
+async function runFullSync({ quiet = false } = {}) {
+  if (!quiet) toast('Refreshing…');
   const done = [];
   try {
     const { isConfigured } = await import('./modules/calendar.js');
@@ -2199,21 +2199,33 @@ async function runFullSync() {
 // window is open over the card, nor when the pull starts on a field or a
 // drag grip.
 (function wirePullRefresh() {
-  const ARM = 64, MAX = 96;
+  const ARM = 64, MAX = 96, REST = 60;   // px of pull; REST = where the badge sits while spinning
   let y0 = null, x0 = 0, pull = 0, active = false, busy = false;
   const el = () => $('ptr');
+  // Badge position: `h` px of pull below the header's bottom edge.
+  const place = (h, { settle = false } = {}) => {
+    const p = el(); if (!p) return;
+    p.classList.toggle('is-settling', settle);
+    p.style.transform = `translateY(${h > 0 ? h - 44 : -56}px)`;
+    p.style.opacity = h > 0 ? String(Math.min(1, h / 28)) : '0';
+  };
   const paint = (h) => {
     const p = el(); if (!p) return;
-    p.style.height = h + 'px';
-    p.classList.toggle('is-open', h > 0);
     p.classList.toggle('is-armed', h >= ARM);
-    const svg = p.querySelector('svg'); if (svg && !busy) svg.style.transform = `rotate(${Math.round(h * 4)}deg)`;
-    const lbl = p.querySelector('.ptr-lbl'); if (lbl && !busy) lbl.textContent = h >= ARM ? 'Release to refresh' : 'Pull to refresh';
+    const arc = p.querySelector('.ptr-arc');
+    const fill = Math.min(1, h / ARM) * 80;
+    if (arc) arc.style.strokeDasharray = `${fill} ${100 - fill}`;
+    const svg = p.querySelector('svg'); if (svg) svg.style.transform = `rotate(${Math.round(h * 3)}deg)`;
+    place(h);
   };
-  const settle = (h) => {
+  const reset = () => {
     const p = el(); if (!p) return;
-    p.classList.add('is-settling'); paint(h);
-    setTimeout(() => p.classList.remove('is-settling'), 240);
+    place(0, { settle: true });
+    setTimeout(() => {
+      p.classList.remove('is-armed', 'is-busy', 'is-done');
+      const arc = p.querySelector('.ptr-arc'); if (arc) arc.style.strokeDasharray = '';
+      const svg = p.querySelector('svg'); if (svg) svg.style.transform = '';
+    }, 260);
   };
   const blocked = (t) => !!(document.querySelector('.overlay:not(.hidden)')
     || $('more-menu')?.open
@@ -2222,6 +2234,8 @@ async function runFullSync() {
     y0 = null;
     if (busy || e.touches.length !== 1 || window.scrollY > 0 || blocked(e.target)) return;
     y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; pull = 0; active = false;
+    const hdr = document.querySelector('.app-header');
+    const p = el(); if (p && hdr) p.style.setProperty('--ptr-top', Math.round(hdr.getBoundingClientRect().bottom) + 'px');
   }, { passive: true });
   document.addEventListener('touchmove', (e) => {
     if (y0 == null) return;
@@ -2235,6 +2249,7 @@ async function runFullSync() {
       e.preventDefault();
       if (dy < 8) return;
       active = true;
+      el()?.classList.remove('is-settling');
     }
     e.preventDefault();
     pull = Math.min(MAX, Math.max(0, dy - 8) * 0.5);
@@ -2245,16 +2260,24 @@ async function runFullSync() {
     y0 = null;
     if (!active) return;
     active = false;
-    if (pull < ARM) { settle(0); return; }
-    if (navigator.onLine === false) { toast('No internet — nothing to refresh'); settle(0); return; }
+    if (pull < ARM) { reset(); return; }
+    if (navigator.onLine === false) { toast('No internet — nothing to refresh'); reset(); return; }
     busy = true;
     const p = el();
-    if (p) { p.classList.add('is-busy'); p.querySelector('.ptr-lbl').textContent = 'Refreshing…'; }
-    settle(48);
-    try { await runFullSync(); } catch (err) { console.warn('pull refresh failed', err); }
+    if (p) {
+      p.classList.add('is-busy');
+      p.querySelector('.ptr-arc').style.strokeDasharray = '';
+      p.querySelector('svg').style.transform = '';
+    }
+    place(REST, { settle: true });
+    // Spin for at least a moment, so a quick refresh still reads as one.
+    const t0 = Date.now();
+    try { await runFullSync({ quiet: true }); } catch (err) { console.warn('pull refresh failed', err); }
+    await new Promise(r => setTimeout(r, Math.max(0, 700 - (Date.now() - t0))));
+    if (p) { p.classList.remove('is-busy'); p.classList.add('is-done'); }
+    await new Promise(r => setTimeout(r, 650));
     busy = false;
-    if (p) p.classList.remove('is-busy');
-    settle(0);
+    reset();
   };
   document.addEventListener('touchend', end, { passive: true });
   document.addEventListener('touchcancel', end, { passive: true });

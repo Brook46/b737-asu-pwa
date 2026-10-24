@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=175" />
+  <link rel="stylesheet" href="./app.css?v=176" />
 </head>
 <body>
   <header class="app-header">
@@ -157,10 +157,17 @@
     </div>
   </div>
 
+  <!-- Pull-to-refresh: a round badge that slides out from under the header,
+       its ring filling as the page is pulled; it spins while refreshing and
+       ends on a tick (app.js wirePullRefresh). -->
+  <div id="ptr" class="ptr" aria-hidden="true">
+    <svg viewBox="0 0 40 40" width="40" height="40">
+      <circle class="ptr-track" cx="20" cy="20" r="12" />
+      <circle class="ptr-arc" cx="20" cy="20" r="12" pathLength="100" />
+      <path class="ptr-ok" d="M14 20.5l4 4 8-8.5" />
+    </svg>
+  </div>
   <main id="main" class="main">
-    <!-- Pull-to-refresh indicator: grows as the page is pulled down from the
-         top (app.js wirePullRefresh). -->
-    <div id="ptr" class="ptr" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg><span class="ptr-lbl">Pull to refresh</span></div>
     <!-- Checklist -->
     <section class="card" id="card-checklist" data-section="checklist">
       <header class="card-head">
@@ -838,6 +845,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=175"></script>
+  <script type="module" src="./app.js?v=176"></script>
 </body>
 </html>

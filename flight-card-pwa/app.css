@@ -3462,15 +3462,25 @@ body {
 
 /* ---------- Pull to refresh ---------- */
 .ptr {
-  height: 0; margin-bottom: -12px; overflow: hidden;   /* cancels .main's gap while closed */
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  color: var(--fg-mute); font-size: 13px; flex: none;
+  position: fixed; left: 50%; top: var(--ptr-top, 90px); z-index: 4;   /* under the sticky header */
+  width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
+  background: var(--glass-bg-strong); box-shadow: 0 3px 12px rgba(0,0,0,.28), 0 0 0 0.5px var(--line);
+  backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px);
+  transform: translateY(-56px); opacity: 0; pointer-events: none;
 }
-.ptr.is-open { margin-bottom: 0; }
-.ptr.is-settling { transition: height .22s ease, margin-bottom .22s ease; }
-.ptr svg { color: var(--accent); transition: transform .1s linear; }
-.ptr.is-armed .ptr-lbl { color: var(--accent); }
-.ptr.is-busy svg { animation: ptr-spin .8s linear infinite; }
+.ptr.is-settling { transition: transform .25s ease, opacity .25s ease; }
+.ptr svg { display: block; transform-origin: 50% 50%; }
+.ptr-track { fill: none; stroke: var(--line); stroke-width: 3; }
+.ptr-arc {
+  fill: none; stroke: var(--fg-mute); stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 0 100; transform: rotate(-90deg); transform-origin: 50% 50%;
+}
+.ptr.is-armed .ptr-arc, .ptr.is-busy .ptr-arc, .ptr.is-done .ptr-arc { stroke: var(--accent); }
+.ptr.is-busy .ptr-arc { stroke-dasharray: 70 30; }
+.ptr.is-busy svg { animation: ptr-spin .75s linear infinite; }
+.ptr-ok { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.ptr.is-done .ptr-arc { stroke-dasharray: 100 0; }
+.ptr.is-done .ptr-ok { opacity: 1; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 /* On a phone the three labels shorten to icons + short words still. */
 @media (max-width: 430px) {
