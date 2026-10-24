@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=174';
-import * as ri from './route-info.js?v=174';
-import { legTs, nearestHm } from './dates.js?v=174';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=174';
+import * as storage from './storage.js?v=175';
+import * as ri from './route-info.js?v=175';
+import { legTs, nearestHm } from './dates.js?v=175';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=175';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1114,13 +1114,14 @@ export async function open(legArg = null, { focus = '' } = {}) {
     $('route-body').innerHTML = `<p class="muted small" style="padding:18px 4px;">${esc(err.message || err)}</p>`;
   }
 }
+// Resolves true once the route's weather / NOTAMs were fetched and saved.
 export async function refresh(announce = true) {
   const leg = screenLeg();
-  if (!leg || busy) return;
+  if (!leg || busy) return false;
   if (navigator.onLine === false) {
     const c = readCache(leg);
     if (announce) toast(c ? `No internet — showing the weather saved ${ago(c.at)}` : 'No internet — no weather saved for this route yet');
-    return;
+    return false;
   }
   busy = true;
   const btn = $('route-refresh');
@@ -1139,8 +1140,10 @@ export async function refresh(announce = true) {
       const sh = document.querySelector('.route-sheet'); if (sh) sh.scrollTop = scroll;
     }
     if (announce) toast('Route weather updated');
+    return true;
   } catch (err) {
     if (announce) toast('Update failed — showing the last copy (' + (err.message || err) + ')');
+    return false;
   } finally {
     busy = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Update'; }

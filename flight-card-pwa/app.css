@@ -3452,6 +3452,26 @@ body {
 .more-item svg { flex: none; width: 20px; height: 20px; color: var(--accent); }
 .more-item + .more-item { border-top: 0.5px solid var(--line); border-radius: 0; }
 .more-item:active { background: var(--bg-sunk); }
+.more-theme {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 4px 9px 12px; border-top: 0.5px solid var(--line);
+}
+.more-theme-lbl { font-size: 15px; color: var(--fg); }
+.theme-switch .vs-btn { min-width: 0; padding: 6px 11px; font-size: 13px; }
+.more-theme + .more-item { border-top: 0.5px solid var(--line); }
+
+/* ---------- Pull to refresh ---------- */
+.ptr {
+  height: 0; margin-bottom: -12px; overflow: hidden;   /* cancels .main's gap while closed */
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  color: var(--fg-mute); font-size: 13px; flex: none;
+}
+.ptr.is-open { margin-bottom: 0; }
+.ptr.is-settling { transition: height .22s ease, margin-bottom .22s ease; }
+.ptr svg { color: var(--accent); transition: transform .1s linear; }
+.ptr.is-armed .ptr-lbl { color: var(--accent); }
+.ptr.is-busy svg { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
 /* On a phone the three labels shorten to icons + short words still. */
 @media (max-width: 430px) {
   .actions .btn.tool-btn { padding: 0 10px; font-size: 13px; gap: 5px; }

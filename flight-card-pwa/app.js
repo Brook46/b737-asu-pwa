@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=174';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=174';
-import * as storage from './modules/storage.js?v=174';
-import * as dataCard from './modules/data-card.js?v=174';
-import * as checklist from './modules/checklist.js?v=174';
-import * as speeches from './modules/speeches.js?v=174';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=174';
-import { initTheme, cycleTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=174';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=174';
+import { DUTY_KINDS } from './modules/duties.js?v=175';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=175';
+import * as storage from './modules/storage.js?v=175';
+import * as dataCard from './modules/data-card.js?v=175';
+import * as checklist from './modules/checklist.js?v=175';
+import * as speeches from './modules/speeches.js?v=175';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=175';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=175';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=175';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1223,6 +1223,8 @@ const TOP_ACTIONS = {
   'ctot-bell':       () => { try { onBellTap(); } catch (err) { console.warn('bell tap failed', err); } },
 };
 document.addEventListener('click', (e) => {
+  const th = e.target.closest('[data-theme-set]');
+  if (th) { e.preventDefault(); setTheme(th.dataset.themeSet); return; }
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const fn = TOP_ACTIONS[btn.dataset.action];
@@ -2172,10 +2174,91 @@ async function runFullSync() {
     const res = await lp.pushNow({ force: true });
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
-  try { await paintTlvBoard(true); } catch {}
-  try { await dataCard.refreshMetar(dataBody, { force: true }); } catch {}
-  toast(done.length ? `Synced ${done.join(' · ')}` : 'Already up to date');
+  try { await paintTlvBoard(true); if ($('leg-board') && !$('leg-board').hidden) done.push('TLV board'); } catch {}
+  try { await dataCard.refreshMetar(dataBody, { force: true }); done.push('weather'); } catch {}
+  // Route info (diversion weather + NOTAMs) for this flight, unless it's
+  // already flown — a past leg's NOTAMs are no use.
+  try {
+    const leg = storage.getLegs()[storage.getLegIndex()] || null;
+    const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
+    if (leg && leg.dep && leg.arr && Number.isFinite(std) && Date.now() < std + 20 * 3600000) {
+      const ru = await import('./modules/route-ui.js');
+      ru.wire();
+      if (await ru.refresh(false)) done.push('NOTAMs');
+    }
+  } catch (err) { console.warn('refresh: route info failed', err); }
+  try { paintOffBlock(); } catch {}
+  toast(done.length ? `Updated ${done.join(' · ')}` : 'Already up to date');
 }
+
+// ---------- Pull to refresh ----------
+// Pull the page down from the very top and let go: the same full refresh as
+// the header reload — calendar (times, crew, actual off/on-block), notes,
+// TLV board, METAR, route weather and NOTAMs — without reloading the page.
+// iOS Home-Screen apps have no pull-to-refresh of their own. Not while a
+// window is open over the card, nor when the pull starts on a field or a
+// drag grip.
+(function wirePullRefresh() {
+  const ARM = 64, MAX = 96;
+  let y0 = null, x0 = 0, pull = 0, active = false, busy = false;
+  const el = () => $('ptr');
+  const paint = (h) => {
+    const p = el(); if (!p) return;
+    p.style.height = h + 'px';
+    p.classList.toggle('is-open', h > 0);
+    p.classList.toggle('is-armed', h >= ARM);
+    const svg = p.querySelector('svg'); if (svg && !busy) svg.style.transform = `rotate(${Math.round(h * 4)}deg)`;
+    const lbl = p.querySelector('.ptr-lbl'); if (lbl && !busy) lbl.textContent = h >= ARM ? 'Release to refresh' : 'Pull to refresh';
+  };
+  const settle = (h) => {
+    const p = el(); if (!p) return;
+    p.classList.add('is-settling'); paint(h);
+    setTimeout(() => p.classList.remove('is-settling'), 240);
+  };
+  const blocked = (t) => !!(document.querySelector('.overlay:not(.hidden)')
+    || $('more-menu')?.open
+    || t.closest('input, textarea, select, [contenteditable="true"], [data-group-grip], .data-grip'));
+  document.addEventListener('touchstart', (e) => {
+    y0 = null;
+    if (busy || e.touches.length !== 1 || window.scrollY > 0 || blocked(e.target)) return;
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; pull = 0; active = false;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (y0 == null) return;
+    const dy = e.touches[0].clientY - y0, dx = e.touches[0].clientX - x0;
+    if (!active) {
+      // Up or sideways is ordinary scrolling / swiping: not ours.
+      if (dy < 0 || Math.abs(dx) > Math.max(6, dy) || window.scrollY > 0) { y0 = null; return; }
+      if (dy === 0) return;
+      // Claimed from the first downward move — iOS won't let a rubber-band
+      // bounce that has already started be cancelled later.
+      e.preventDefault();
+      if (dy < 8) return;
+      active = true;
+    }
+    e.preventDefault();
+    pull = Math.min(MAX, Math.max(0, dy - 8) * 0.5);
+    paint(pull);
+  }, { passive: false });
+  const end = async () => {
+    if (y0 == null) return;
+    y0 = null;
+    if (!active) return;
+    active = false;
+    if (pull < ARM) { settle(0); return; }
+    if (navigator.onLine === false) { toast('No internet — nothing to refresh'); settle(0); return; }
+    busy = true;
+    const p = el();
+    if (p) { p.classList.add('is-busy'); p.querySelector('.ptr-lbl').textContent = 'Refreshing…'; }
+    settle(48);
+    try { await runFullSync(); } catch (err) { console.warn('pull refresh failed', err); }
+    busy = false;
+    if (p) p.classList.remove('is-busy');
+    settle(0);
+  };
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', end, { passive: true });
+})();
 
 // Auto-refresh: fires the same sync 3 hours before any upcoming leg's
 // dep_time, with a 60-min cooldown so the same window doesn't sync

@@ -26,11 +26,14 @@ export function initTheme() {
 
 export function cycleTheme() {
   const cur = getTheme();
-  const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
-  localStorage.setItem(THEME_KEY, next);
-  applyTheme(next);
+  setTheme(ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length]);
+}
+
+export function setTheme(t) {
+  if (!ORDER.includes(t)) return;
+  localStorage.setItem(THEME_KEY, t);
+  applyTheme(t);
   paintThemeIcon();
-  toast(`Theme: ${next}`);
 }
 
 function applyTheme(t) {
@@ -39,10 +42,16 @@ function applyTheme(t) {
   else root.setAttribute('data-theme', t);
 }
 
+// The ••• menu's Day | Night | Auto switch (and the old single icon, if any).
 function paintThemeIcon() {
+  const t = getTheme();
+  for (const b of document.querySelectorAll('[data-theme-set]')) {
+    const on = b.dataset.themeSet === t;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
   const svg = document.getElementById('theme-icon');
-  if (!svg) return;
-  svg.innerHTML = ICONS[getTheme()];
+  if (svg) svg.innerHTML = ICONS[t];
 }
 
 // ---------- Toast ----------
