@@ -7,7 +7,7 @@
 //
 //   runway   0.4–2    longest open hard runway (5,500 ft is the floor for a 737)
 //   lighting 0–0.5    that runway lighted
-//   size     0.8–1.5  large airport (a big city: hotels, handling, maintenance,
+//   size     0.5–1.5  large airport (a big city: hotels, handling, maintenance,
 //                     onward connections) over medium
 //   distance 0–3      closer to the route is better — 15 nm off beats 250
 //   weather  0–3   TAF (or METAR) for the time you'd be passing it: ceiling
@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=183';
+import { WORKER_BASE } from './proxy.js?v=184';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -313,8 +313,10 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   if (width && width < 98) { rwyPts -= 0.5; why.push(`Narrow runway (${width} ft)`); lost.push({ pts: 0.5, what: `Narrow runway (${width} ft)` }); }
   const lightPts = usable[0][4] ? 0.5 : 0;
   if (!lightPts) { why.push('Runway lighting not listed'); lost.push({ pts: 0.5, what: 'Runway lighting not listed in the data' }); }
-  const sizePts = ap.size === 2 ? 1.5 : 0.8;
-  if (sizePts < MAX.size) lost.push({ pts: MAX.size - sizePts, what: 'Medium airport — a smaller city than a large one' });
+  // Not a big city (a medium airport): one full point off — fewer hotels,
+  // handling and maintenance for a diverted 737 and its passengers.
+  const sizePts = ap.size === 2 ? 1.5 : 0.5;
+  if (sizePts < MAX.size) lost.push({ pts: MAX.size - sizePts, what: 'Not a big city (medium airport)' });
   const distPts = 3 * Math.max(0, 1 - distNm / RADIUS_NM);
   if (MAX.distance - distPts >= 0.05) lost.push({ pts: MAX.distance - distPts, what: `${Math.round(distNm)} nm off the route` });
 
