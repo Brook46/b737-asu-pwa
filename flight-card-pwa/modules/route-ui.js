@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=180';
-import * as ri from './route-info.js?v=180';
-import { legTs, nearestHm } from './dates.js?v=180';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=180';
+import * as storage from './storage.js?v=181';
+import * as ri from './route-info.js?v=181';
+import { legTs, nearestHm } from './dates.js?v=181';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=181';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -797,6 +797,13 @@ async function paint(model, showAll = false) {
 // nearest to the aircraft first, with distance and where it lies from you.
 // Live GPS redraws it only when the order actually changes, so a row doesn't
 // jump from under your finger every few seconds.
+// Red "LVP" beside an airport whose weather (as rated) means low-visibility
+// procedures. Kept on the row's own key so a change repaints it.
+function lvpTag(c) {
+  const why = c.r && !c.r.excluded ? ri.lvpOf(c.r.wx, c.wxEntry?.metar?.raw) : null;
+  return why ? ` <span class="ri-lvp" title="Low-visibility procedures likely — ${esc(why)}">LVP</span>` : '';
+}
+
 function renderList() {
   const wrap = $('ri-list-wrap');
   if (!wrap || !state) return;
@@ -812,7 +819,7 @@ function renderList() {
     }));
     rows = list.slice().sort((a, b) => info.get(a).d - info.get(b).d);
   }
-  const key = order + ':' + rows.map(c => c.ap.icao).join(',');
+  const key = order + ':' + rows.map(c => c.ap.icao + (lvpTag(c) ? '!' : '')).join(',');
   if (key === listKey) {
     // Same order: just refresh the distances in place.
     if (info) for (const c of rows) {
@@ -837,7 +844,7 @@ function renderList() {
     return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
         <span class="ri-row-t">${x ? (x.t ? '≈' + Math.round(x.t.min) + '′' : '') : hm(c.eta).replace('Z', '')}</span>
         <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
-        <span class="ri-row-n"><b>${esc(c.ap.iata || c.ap.icao)}</b> ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
+        <span class="ri-row-n"><b>${esc(c.ap.iata || c.ap.icao)}</b>${lvpTag(c)} ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
         <span class="ri-row-d">${Math.round(x ? x.d : c.distNm)} nm</span>
       </button>`;
   }).join('')}</div>`;
@@ -1054,7 +1061,7 @@ function paintLive() {
       return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
           <span class="ri-row-t">≈${Math.round(t.min)}′</span>
           <span class="ri-score ri-b-${b}">${c.r.score}</span>
-          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b> ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
+          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b>${lvpTag(c)} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
           <span class="ri-row-d">${Math.round(t.d)} nm</span></button>`;
     }).join('')}`;
 }

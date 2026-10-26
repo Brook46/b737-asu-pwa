@@ -3285,6 +3285,10 @@ body {
 .ri-map-src { font-size: 11px; color: var(--fg-mute); margin: 2px 2px 8px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .ri-map-src i { display: inline-block; width: 16px; height: 0; border-top: 1.5px solid var(--fg-mute); opacity: .7; }
 .ri-map-src i.ri-k-fir { border-top: 1.5px dashed #8e6fd8; margin-left: 6px; }
+.ri-lvp {
+  display: inline-block; vertical-align: 1px; margin-left: 4px; padding: 0 5px; border-radius: 4px;
+  background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .4px; line-height: 16px;
+}
 .ri-gap { font-size: 12px; font-weight: 600; color: var(--warn); margin: -4px 2px 8px; }
 
 /* Route info card: colour-coded weather, NOTAMs and the runway diagram. */

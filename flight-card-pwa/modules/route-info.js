@@ -23,7 +23,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=180';
+import { WORKER_BASE } from './proxy.js?v=181';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -172,6 +172,23 @@ function fold(list, src) {
   }
   return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' '), at: list[0] && list[0].time ? list[0].time * 1000 : null };
 }
+// Low-visibility procedures: the conditions airports run LVP for (CAT II /
+// III) — visibility or RVR below 550 m, or a ceiling below 200 ft — in the
+// weather the rating used. A METAR's RVR groups (R26/0400…) count too, as the
+// visibility alone can read better than the runway does. Returns the reason
+// ("RVR 400 m (METAR)") or null.
+export function lvpOf(w, metarRaw = '') {
+  if (!w || !w.src) return null;
+  const why = [];
+  if (Number.isFinite(w.vis) && w.vis < 550) why.push(`visibility ${Math.round(w.vis / 50) * 50} m`);
+  if (Number.isFinite(w.ceil) && w.ceil < 200) why.push(`ceiling ${Math.round(w.ceil)} ft`);
+  if (w.src === 'METAR' && metarRaw) {
+    const rvr = [...String(metarRaw).matchAll(/\bR\d{2}[LRC]?\/[PM]?(\d{4})/g)].map(m => +m[1]);
+    if (rvr.length && Math.min(...rvr) < 550) why.push(`RVR ${Math.min(...rvr)} m`);
+  }
+  return why.length ? `${why.join(', ')} (${w.src})` : null;
+}
+
 export function wxAt(entry, ts, now = Date.now(), mode = 'plan') {
   const tsS = ts / 1000;
   const metar = entry && entry.metar;
