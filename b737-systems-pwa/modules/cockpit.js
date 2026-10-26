@@ -7,12 +7,12 @@
 // work exactly like the 2D ones. Screens are canvases redrawn from the live
 // system states a few times a second.
 
-import * as THREE from '../vendor/three.module.min.js?v=63';
-import { createOverhead } from './overhead.js?v=63';
-import * as CAB from './cockpit-cab.js?v=63';
-import { buildStand } from './cockpit-stand.js?v=63';
-import * as D from './cockpit-displays.js?v=63';
-import { drawCDUScreen } from './cdu.js?v=63';
+import * as THREE from '../vendor/three.module.min.js?v=64';
+import { createOverhead } from './overhead.js?v=64';
+import * as CAB from './cockpit-cab.js?v=64';
+import { buildStand } from './cockpit-stand.js?v=64';
+import * as D from './cockpit-displays.js?v=64';
+import { drawCDUScreen } from './cdu.js?v=64';
 
 const U = 0.2 / 300;                 // overhead panel units → metres
 const EYE = new THREE.Vector3(0.12, 1.34, -0.52);
@@ -193,6 +193,7 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
     metal: new THREE.MeshStandardMaterial({ color: 0xb8bdc1, roughness: 0.35, metalness: 0.6 }),
     knob: new THREE.MeshStandardMaterial({ color: 0x151617, roughness: 0.5 }),
     seat: new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.9 }),
+    seatLeather: new THREE.MeshStandardMaterial({ color: 0x5b6168, roughness: 0.62 }),
     glass: new THREE.MeshBasicMaterial({ color: 0xa9cdee, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide }),
     // Flight deck lining and the control column.
     trim: new THREE.MeshStandardMaterial({ color: 0xa3aaaf, roughness: 0.55 }),
@@ -232,9 +233,31 @@ export function createCockpit({ canvas, systems, ctxFor, onControl, onLever, cdu
   // ── Glareshield ──
   // Top of the glareshield, and its sloped front face that carries the MCP
   // and the two EFIS control panels.
-  const glare = add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 2.0), M.glare));
-  glare.position.set(0.9, 1.11, 0);
-  add(plate(2.0, 0.12, M.glare, [0.752, 1.08, 0], [-1, 0.32, 0]));
+  // A deep hood, as on the airplane: the padded lip rounds over the MCP face,
+  // the top runs forward to the windshield, and the outboard ends sweep
+  // forward with the No. 1 windows.
+  {
+    const prof = new THREE.Shape();
+    // The MCP face is the plane x = 0.744 + 0.32 (y − 1.08) (panels sit on it).
+    prof.moveTo(0.738, 1.022);                // bottom of the MCP face
+    prof.lineTo(0.770, 1.122);                // up the face, just behind the panels
+    prof.quadraticCurveTo(0.758, 1.162, 0.80, 1.164);    // padded lip, rolled over
+    prof.lineTo(1.0, 1.154);                  // top, forward
+    prof.quadraticCurveTo(1.07, 1.15, 1.09, 1.11);       // down into the windshield sill
+    prof.lineTo(1.04, 1.05);
+    prof.lineTo(0.738, 1.022);
+    const geo = new THREE.ExtrudeGeometry(prof, { depth: 1.76, bevelEnabled: false, curveSegments: 6 });
+    geo.translate(0, 0, -0.88);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const z = pos.getZ(i), over = Math.max(0, Math.abs(z) - 0.66);
+      pos.setX(i, pos.getX(i) + over * over * 0.6);        // ends sweep forward, inside the frames
+      pos.setY(i, pos.getY(i) - over * 0.12);              // and drop toward the sill
+    }
+    geo.computeVertexNormals();
+    const hood = add(new THREE.Mesh(geo, M.glare));
+    hood.userData.pick = { kind: 'static', name: 'Glareshield' };
+  }
 
   // ── Main instrument panel ──
   const MIP_N = [-1, 0.22, 0];

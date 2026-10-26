@@ -10,7 +10,7 @@
 //               side, P6 first officer side), drawn as textures.
 // Cockpit frame: metres, +x forward, +y up, +z right; captain at z −0.52.
 
-import * as THREE from '../vendor/three.module.min.js?v=63';
+import * as THREE from '../vendor/three.module.min.js?v=64';
 
 const V = (a) => new THREE.Vector3(...a);
 
@@ -340,16 +340,51 @@ export function pedals(add, M, z, pickables) {
   bar.rotation.x = Math.PI / 2; bar.position.set(0.845, 0.08, z);
 }
 
-/** Pilot seat: cushion, back, headrest, armrests. */
+/** A box with rounded edges (extruded rounded rectangle, bevelled). */
+function roundedBox(w, h, d, r, seg = 3) {
+  r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
+  const sh = new THREE.Shape();
+  const x0 = -w / 2 + r, x1 = w / 2 - r, y0 = -h / 2 + r, y1 = h / 2 - r;
+  sh.moveTo(x0, -h / 2 + r - r);
+  sh.lineTo(x1, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, y0);
+  sh.lineTo(w / 2, y1); sh.quadraticCurveTo(w / 2, h / 2, x1, h / 2);
+  sh.lineTo(x0, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, y1);
+  sh.lineTo(-w / 2, y0); sh.quadraticCurveTo(-w / 2, -h / 2, x0, -h / 2);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: Math.max(1e-3, d - 2 * r), bevelEnabled: true, bevelSize: r * 0.9, bevelThickness: r, bevelSegments: seg, curveSegments: 6 });
+  g.translate(0, 0, -(d - 2 * r) / 2);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Pilot seat, shaped like the airplane's: a base on fore-and-aft tracks, a
+ * deep cushion, a tall back that leans back with a lumbar bulge and wider
+ * shoulders, a separate headrest, and fold-down armrests (inboard and
+ * outboard). x is fore-aft, z across.
+ */
 export function seat(add, M, z) {
   const g = add(new THREE.Group());
   g.position.set(-0.22, 0, z);
-  const box = (sx, sy, sz, p, mat = M.seat, rz = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat); m.position.set(...p); m.rotation.z = rz; g.add(m); return m; };
-  box(0.36, 0.34, 0.36, [0, 0.2, 0], M.column);                 // pedestal / tracks
-  box(0.5, 0.11, 0.5, [0.02, 0.43, 0]);                         // cushion
-  box(0.11, 0.72, 0.48, [-0.24, 0.84, 0], M.seat, 0.12);        // back
-  box(0.09, 0.16, 0.3, [-0.29, 1.27, 0], M.seat, 0.12);         // headrest
-  for (const dz of [-0.27, 0.27]) box(0.36, 0.04, 0.06, [-0.03, 0.64, dz], M.column);
+  const leather = M.seatLeather || M.seat, frame = M.column;
+  const part = (geo, mat, p, rot = [0, 0, 0]) => { const m = new THREE.Mesh(geo, mat); m.position.set(...p); m.rotation.set(...rot); m.castShadow = true; g.add(m); return m; };
+  // Base and tracks.
+  part(roundedBox(0.4, 0.3, 0.34, 0.03), frame, [0, 0.17, 0]);
+  for (const dz of [-0.13, 0.13]) part(new THREE.BoxGeometry(0.62, 0.03, 0.04), frame, [0.05, 0.015, dz]);
+  // Cushion: thick, rounded, a little higher at the front edge.
+  part(roundedBox(0.5, 0.12, 0.5, 0.05), leather, [0.02, 0.4, 0], [0, 0, -0.06]);
+  // Back: leaning back ~14°, wider at the shoulders, with a lumbar pad.
+  const back = new THREE.Group(); back.position.set(-0.22, 0.46, 0); back.rotation.z = 0.24; g.add(back);
+  const bp = (geo, p) => { const m = new THREE.Mesh(geo, leather); m.position.set(...p); m.castShadow = true; back.add(m); return m; };
+  bp(roundedBox(0.12, 0.5, 0.46, 0.05), [0, 0.27, 0]);
+  bp(roundedBox(0.13, 0.3, 0.5, 0.06), [0, 0.62, 0]);          // shoulders
+  bp(roundedBox(0.06, 0.2, 0.38, 0.03), [0.07, 0.2, 0]);        // lumbar
+  bp(roundedBox(0.11, 0.17, 0.3, 0.05), [-0.01, 0.88, 0]);      // headrest
+  for (const dz of [-0.075, 0.075]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07), M.metal); post.position.set(-0.01, 0.78, dz); back.add(post); }
+  // Armrests, folded down, on short pivots.
+  for (const dz of [-0.28, 0.28]) {
+    part(roundedBox(0.34, 0.05, 0.07, 0.022), leather, [-0.04, 0.66, dz], [0, 0, 0.05]);
+    part(new THREE.BoxGeometry(0.04, 0.12, 0.04), frame, [-0.2, 0.6, dz]);
+  }
 }
 
 /**

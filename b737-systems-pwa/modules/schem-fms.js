@@ -2,8 +2,8 @@
 // the IRS mode select unit, instrument transfer switches, nav radios and a
 // small CDU.
 
-import { createSchematic, createPanel } from './schem-kit.js?v=63';
-import { createOverhead } from './overhead.js?v=63';
+import { createSchematic, createPanel } from './schem-kit.js?v=64';
+import { createOverhead } from './overhead.js?v=64';
 
 const C = '#06d6a0', IRS = '#20c997', RAD = '#74c0fc';
 

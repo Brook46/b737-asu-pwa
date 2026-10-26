@@ -277,6 +277,18 @@ sits on its front face — keep that face clear). `consoles()`: side consoles
 under the side windows with the captain's nose wheel steering tiller, an
 oxygen mask box each side and a map light (cockpit-info notes for both).
 
+## Glareshield hood and seats (v64)
+
+Compared against a free CC-BY 737-800 cockpit model on Sketchfab (reference
+only — 1.7 M triangles, nothing imported or copied): the glareshield is now a
+deep hood (`cockpit.js`, extruded profile): padded lip rolled over the MCP
+face (the face is the plane x = 0.744 + 0.32 (y − 1.08) that the MCP, EFIS
+and annunciators sit on), top running forward into the windshield sill, ends
+sweeping forward and dropping inside the No. 1 frames (width ±0.88). Seats
+(`seat()` in cockpit-cab.js) are built from `roundedBox()`: base on tracks,
+deep cushion, reclined back with shoulders, lumbar pad and a headrest on
+posts, fold-down armrests; `M.seatLeather`.
+
 ## Panel viewer and depth (v23)
 
 - Tapping a panel or screen in the cockpit shows its info card with
