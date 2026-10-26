@@ -16,14 +16,16 @@
 //                  for crosswind on the best-aligned runway
 //   − elevation over 5,000 ft, − country penalty (Turkey −2 by default)
 //   0 outright: an excluded country, no usable runway, aerodrome closed by
-//   NOTAM; weather below CAT I caps the rating at 3.
+//   NOTAM; weather below CAT I costs its 3 weather points and nothing more —
+//   approach categories aren't in the data, and an airport isn't marked down
+//   for what can't be known (the card says to check the chart).
 //
 // Data: data/divdb.json (OurAirports, public domain; scripts/build-divdb.py),
 // weather via the worker's /routewx (aviationweather.gov), NOTAMs via its
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=182';
+import { WORKER_BASE } from './proxy.js?v=183';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -318,7 +320,7 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
 
   const w = wxAt(wxEntry, eta, now, mode);
   const wind = windFor(wxEntry, eta, now, mode);
-  let wxPts = 1.5, belowMins = false, xw = null;
+  let wxPts = 1.5, xw = null;
   if (!w.src) { why.push('No forecast for that time'); lost.push({ pts: 1.5, what: mode === 'browse' ? 'No METAR for this airport' : 'No METAR / TAF covering that time' }); }
   else {
     const c = w.ceil, v = w.vis;
@@ -326,7 +328,7 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
     if (c >= 1000 && v >= 5000) wxPts = 3;
     else if (c >= 500 && v >= 1500) { wxPts = 2.2; lost.push({ pts: 0.8, what: `Cloud / visibility a little low (${src})` }); }
     else if (c >= 200 && v >= 550) { wxPts = 1.2; why.push('Low cloud / visibility'); lost.push({ pts: 1.8, what: `Low cloud / visibility (${src})` }); }
-    else { wxPts = 0; belowMins = true; why.push('Below CAT I (forecast)'); lost.push({ pts: 3, what: `Below CAT I (${src})` }); }
+    else { wxPts = 0; why.push('Below CAT I (forecast)'); lost.push({ pts: 3, what: `Below CAT I (${src})` }); }
     if (/TS|FZ|SN|GR|\+RA/.test(w.wx || '')) { wxPts -= 1; why.push(`Weather: ${w.wx}`); lost.push({ pts: 1, what: `Weather: ${w.wx}` }); }
   }
   if (wind.src) {
@@ -341,17 +343,9 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   if (pen) { score += pen; why.push(`${ap.country} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${ap.country} (country penalty, Settings)` }); }
   if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); lost.push({ pts: 0.5, what: 'ILS / LOC unserviceable (NOTAM)' }); }
   if (flags && closed.size) why.push(`RWY ${[...closed].join(', ')} closed (NOTAM)`);
-  // Below CAT I: only a CAT II/III approach gets in, and approach categories
-  // aren't in any free data — so the rating stops at 3 until the chart says
-  // otherwise. The cap is its own "why not 10" line, so the list adds up.
-  let capped = false;
-  if (belowMins && score > 3) {
-    lost.push({ pts: score - 3, what: 'Capped at 3: below CAT I needs a CAT II/III approach — not in the data, check the chart', cap: true });
-    score = 3; capped = true;
-  }
   score = Math.max(0, Math.min(10, Math.round(score)));
   lost.sort((a, b) => b.pts - a.pts);
-  return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost, capped };
+  return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost };
 }
 
 // Colour band for a rating.
