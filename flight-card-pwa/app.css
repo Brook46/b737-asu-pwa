@@ -3405,6 +3405,7 @@ body {
 .ri-why li { display: flex; gap: 8px; padding: 2px 0; }
 .ri-why.is-zero li { color: var(--danger); font-weight: 600; }
 .ri-lost { flex: none; min-width: 34px; font-weight: 800; color: var(--warn); font-variant-numeric: tabular-nums; }
+.ri-why li.is-cap .ri-lost { color: var(--danger); }
 .rw-src { color: var(--fg-dim); font-size: 12px; font-weight: 500; }
 .ri-iso { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .ri-iso-60 { fill: rgba(10,132,255,0.07); stroke: rgba(10,132,255,0.45); stroke-dasharray: 5 4; }

@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=181';
-import * as ri from './route-info.js?v=181';
-import { legTs, nearestHm } from './dates.js?v=181';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=181';
+import * as storage from './storage.js?v=182';
+import * as ri from './route-info.js?v=182';
+import { legTs, nearestHm } from './dates.js?v=182';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=182';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -656,8 +656,8 @@ function whyNot10(r) {
   }
   if (r.score >= 10 || !r.lost || !r.lost.length) return '';
   const rows = r.lost.filter(l => l.pts >= 0.05).map(l =>
-    `<li><span class="ri-lost">−${l.pts.toFixed(1).replace(/\.0$/, '')}</span>${esc(l.what)}</li>`).join('');
-  return `<div class="ri-why-h">Why not 10${r.capped ? ' — capped at 3: weather below CAT I' : ''}</div><ul class="ri-why">${rows}</ul>`;
+    `<li${l.cap ? ' class="is-cap"' : ''}><span class="ri-lost">−${l.pts.toFixed(1).replace(/\.0$/, '')}</span>${esc(l.what)}</li>`).join('');
+  return `<div class="ri-why-h">Why not 10</div><ul class="ri-why">${rows}</ul>`;
 }
 
 // Which weather the card leads with, and why — the pilot shouldn't have to

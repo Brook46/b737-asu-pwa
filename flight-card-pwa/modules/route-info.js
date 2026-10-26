@@ -23,7 +23,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=181';
+import { WORKER_BASE } from './proxy.js?v=182';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -341,8 +341,14 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   if (pen) { score += pen; why.push(`${ap.country} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${ap.country} (country penalty, Settings)` }); }
   if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); lost.push({ pts: 0.5, what: 'ILS / LOC unserviceable (NOTAM)' }); }
   if (flags && closed.size) why.push(`RWY ${[...closed].join(', ')} closed (NOTAM)`);
+  // Below CAT I: only a CAT II/III approach gets in, and approach categories
+  // aren't in any free data — so the rating stops at 3 until the chart says
+  // otherwise. The cap is its own "why not 10" line, so the list adds up.
   let capped = false;
-  if (belowMins && score > 3) { score = 3; capped = true; }
+  if (belowMins && score > 3) {
+    lost.push({ pts: score - 3, what: 'Capped at 3: below CAT I needs a CAT II/III approach — not in the data, check the chart', cap: true });
+    score = 3; capped = true;
+  }
   score = Math.max(0, Math.min(10, Math.round(score)));
   lost.sort((a, b) => b.pts - a.pts);
   return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost, capped };
