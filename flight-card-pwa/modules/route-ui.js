@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=179';
-import * as ri from './route-info.js?v=179';
-import { legTs, nearestHm } from './dates.js?v=179';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=179';
+import * as storage from './storage.js?v=180';
+import * as ri from './route-info.js?v=180';
+import { legTs, nearestHm } from './dates.js?v=180';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=180';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -157,7 +157,7 @@ async function build(leg, { doFetch = false } = {}) {
 }
 
 // ---------- Map ----------
-function mapSvg(m, list, world) {
+function mapSvg(m, list, world, md) {
   const W = 720, H2 = 420;
   const pts = m.route.pts.map(p => [p.lon, p.lat]).concat(list.map(c => [c.lonDraw, c.ap.lat]));
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
@@ -181,6 +181,22 @@ function mapSvg(m, list, world) {
     if (Math.abs(v2.cLon) - v2.spanLon / 2 > 180) continue;
     land = land.concat(world.landPaths({ x: (lon) => proj.x(lon - shift), y: proj.y }, v2));
   }
+  // Country borders and FIRs: thin and faint, background only. FIR names
+  // appear once zoomed in (relabel toggles .is-zoomed).
+  let borders = [], firs = [], firLbl = '';
+  if (md) {
+    for (const shift of [0, -360, 360]) {
+      const v2 = { ...view, cLon: view.cLon + shift };
+      if (shift && Math.abs(v2.cLon) - v2.spanLon / 2 > 180) continue;
+      const p2 = shift ? { x: (lon) => proj.x(lon - shift), y: proj.y } : proj;
+      borders = borders.concat(md.borderPaths(p2, v2));
+      firs = firs.concat(md.firPaths(p2, v2));
+    }
+    const l = view.cLon - view.spanLon / 2, r = view.cLon + view.spanLon / 2;
+    const b = view.cLat - view.spanLat / 2, t = view.cLat + view.spanLat / 2;
+    firLbl = md.FIR_LABELS.filter(([, lon, lat]) => lon > l && lon < r && lat > b && lat < t)
+      .map(([id, lon, lat]) => `<g class="ri-fir-lbl" transform="translate(${proj.x(lon).toFixed(1)},${proj.y(lat).toFixed(1)})"><text>${esc(id)}</text></g>`).join('');
+  }
   const track = 'M' + m.route.pts.map(p => `${proj.x(p.lon).toFixed(1)},${proj.y(p.lat).toFixed(1)}`).join('L');
   // Every pin carries its ICAO code and its name; relabel() shows as many as
   // fit at the current zoom (best first) — zoom in and more appear, closer
@@ -201,6 +217,9 @@ function mapSvg(m, list, world) {
   return `<svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom">
       <rect width="${W}" height="${H2}" class="lb-sea"/>
       ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
+      <g class="ri-firs">${firs.map(dd => `<path d="${dd}"/>`).join('')}</g>
+      <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
+      <g class="ri-fir-lbls">${firLbl}</g>
       <path d="${track}" class="ri-track"/>
       <g id="ri-iso"></g>
       ${pins}
@@ -225,6 +244,7 @@ function relabel() {
   const v = getViewBox();
   const sx = rect.width / v.w, sy = rect.height / v.h;
   const zoomed = v.w <= mapGeom.W * 0.45;
+  svg.classList.toggle('is-zoomed', zoomed);
   const boxes = [];
   const free = (b) => !boxes.some(o => b.x < o.x + o.w && o.x < b.x + b.w && b.y < o.y + o.h && o.y < b.y + b.h);
   // Pins themselves are obstacles for labels.
@@ -730,7 +750,13 @@ function ago(ms) {
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 }
 async function paint(model, showAll = false) {
-  const world = await import('./worldmap.js?v=160');
+  // This module's own ?v= stamp, so the map files load under exactly the URL
+  // the service worker precached (a fixed old ?v= only got cached on first
+  // use, which may be offline).
+  const V = new URL(import.meta.url).search;
+  const world = await import('./worldmap.js' + V);
+  let md = null;
+  try { md = await import('./mapdata.js' + V); } catch {}   // borders + FIRs: nice to have
   const list = showAll ? model.pool : model.shown;
   const counts = { a: 0, b: 0, c: 0, d: 0, x: 0 };
   for (const c of list) counts[ri.band(c.r.score, c.r.excluded)]++;
@@ -747,13 +773,14 @@ async function paint(model, showAll = false) {
     <div id="ri-ready" class="ri-ready"></div>
     ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
       `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
-    ${mapSvg(model, list, world)}
+    ${mapSvg(model, list, world, md)}
     <div class="ri-legend">
       <span><i class="ri-dot ri-b-a"></i>8–10 ${counts.a}</span><span><i class="ri-dot ri-b-b"></i>6–7 ${counts.b}</span>
       <span><i class="ri-dot ri-b-c"></i>4–5 ${counts.c}</span><span><i class="ri-dot ri-b-d"></i>1–3 ${counts.d}</span>
       <span><i class="ri-dot ri-b-x"></i>no-go ${counts.x}</span>
       <button type="button" class="ri-all" data-ri-all>${showAll ? 'Best per stretch' : `Show all ${model.pool.length}`}</button>
     </div>
+    ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
     <div id="ri-near"></div>
     <div id="ri-card-slot"></div>
     <div id="ri-list-wrap"></div>`;
@@ -990,9 +1017,23 @@ function paintLive() {
   const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
   const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
   const xy = ([lat, lon]) => `${P.x(unwrap(lon)).toFixed(1)},${P.y(lat).toFixed(1)}`;
+  // Each ring carries its time, written on the ring as near as it can to
+  // ahead-and-right of the nose — on a stretch of ring that is on the map
+  // and not cut short by the descent.
+  const vb = getViewBox(), pad = 0.06;
+  const onMap = ([x, y]) => x > vb.x + vb.w * pad && x < vb.x + vb.w * (1 - pad) && y > vb.y + vb.h * pad && y < vb.y + vb.h * (1 - pad);
   iso.innerHTML = g.airborne ? [60, 30].map(T => {
     const pts = isochrone(g, T);
-    return pts.every(p => Math.abs(p[0] - g.lat) < 1e-6) ? '' : `<path d="M${pts.map(xy).join('L')}Z" class="ri-iso ri-iso-${T}"/>`;
+    if (pts.every(p => Math.abs(p[0] - g.lat) < 1e-6)) return '';
+    const dist = (p) => Math.hypot(p[0] - g.lat, (p[1] - g.lon) * Math.cos(g.lat * Math.PI / 180));
+    const far = Math.max(...pts.map(dist));
+    const want = (((g.trk + 45) % 360) + 360) % 360;
+    const order = pts.map((p, i) => i).sort((a, b) => Math.abs(((a * 5 - want + 540) % 360) - 180) - Math.abs(((b * 5 - want + 540) % 360) - 180));
+    const at = order.find(i => dist(pts[i]) > far * 0.5 && onMap(xy(pts[i]).split(',').map(Number)))
+      ?? order.find(i => dist(pts[i]) > far * 0.5) ?? order[0];
+    const [lx, ly] = xy(pts[at]).split(',');
+    return `<path d="M${pts.map(xy).join('L')}Z" class="ri-iso ri-iso-${T}"/>
+      <g class="ri-iso-lbl ri-iso-lbl-${T}" transform="translate(${lx},${ly})"><text>${T} min</text></g>`;
   }).join('') : '';
   const [x, y] = xy([g.lat, g.lon]).split(',');
   ac.innerHTML = `<g class="ri-ac" transform="translate(${x},${y})"><g class="ri-ac-in" style="transform: scale(var(--ri-k,1)) rotate(${g.trk.toFixed(0)}deg)">
