@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=185';
-import * as ri from './route-info.js?v=185';
-import { legTs, nearestHm } from './dates.js?v=185';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=185';
+import * as storage from './storage.js?v=186';
+import * as ri from './route-info.js?v=186';
+import { legTs, nearestHm } from './dates.js?v=186';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=186';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -206,16 +206,16 @@ function mapSvg(m, list, world, md) {
   const pins = list.slice().sort((a, b) => a.r.score - b.r.score).map(c => {
     const x = proj.x(c.lonDraw), y = proj.y(c.ap.lat);
     const b = ri.band(c.r.score, c.r.excluded);
-    const wind = c.r.excluded ? null : pinWind(c);
+    const st = c.r.excluded ? null : station(c, rad);
     pinData.push({ icao: c.ap.icao, x, y, pri: (c.isEnd ? 100 : 0) + (c.r.excluded ? -1 : c.r.score),
-                   nameLen: shortName(c.ap).length, windLen: wind ? wind.len : 0 });
+                   nameLen: shortName(c.ap).length, windLen: st && st.label ? st.label.len : 0 });
     // A wide invisible disc under each pin makes it easy to hit with a
     // finger; taps go to the NEAREST pin anyway (wireZoom).
     return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
-        <circle r="${rad}"/><text y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
+        ${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}<text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
-        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text>${wind ? wind.svg : ''}</g>`;
+        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text>${st && st.label ? st.label.svg : ''}</g>`;
   }).join('');
   mapGeom = { W, H: H2, proj, pins: pinData };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
@@ -238,23 +238,63 @@ function mapSvg(m, list, world, md) {
     </div></div>`;
 }
 
-// The wind beside a pin: an arrow flying with the wind, its strength (and
-// gust), and the crosswind on the best-aligned runway when it's 10 kt or
-// more — orange over 25 kt, red over 33 kt, like the airport card.
-function pinWind(c) {
-  const w = c.r && c.r.wind;
-  if (!w || !w.src || w.wspd == null) return null;
-  const sp = Math.round(Number(w.wspd) || 0), gs = Math.round(Number(w.wgst) || 0);
-  const xw = c.r.xw ? c.r.xw.xw : null;
-  const tone = xw > 33 ? ' is-r' : xw > 25 ? ' is-o' : '';
-  const txt = sp < 1 ? 'calm'
-    : `${w.wdir == null ? 'VRB ' : ''}${sp}${gs > sp ? 'G' + gs : ''}${xw != null && xw >= 10 ? ' X' + xw : ''}`;
-  const arrow = w.wdir != null && sp >= 1
-    ? `<g transform="translate(4,0) rotate(${(Number(w.wdir) + 180) % 360})"><path d="M0,-5.5 L0,5 M-3,2 L0,5.5 L3,2"/></g>` : '';
-  return {
-    len: txt.length,
-    svg: `<g class="ri-pin-wind${tone}"><g transform="translate(13,0)">${arrow}<text x="${arrow ? 10 : 0}" y="3.4">${esc(txt)}</text></g></g>`,
-  };
+// Each airport drawn as a weather station plot, in its rating colour:
+//   the circle fills with the sky cover — empty clear, ¼ FEW, ½ SCT, ¾ BKN,
+//   full OVC, ⊗ sky obscured (vertical visibility); a dashed ring when
+//   there's no weather for it;
+//   a wind barb on the side the wind comes FROM — half feather 5 kt, full
+//   feather 10 kt, flag 50 kt; a ring round the circle when calm. Orange
+//   when the crosswind on the best runway is over 25 kt, red over 33 kt.
+// Beside it, placed by the label pass: VRB, the gust and the crosswind (X)
+// when it's 10 kt or more.
+function station(c, r) {
+  const w = c.r && c.r.wx, wind = c.r && c.r.wind;
+  if (!w || !w.src) return { svg: `<g class="ri-st is-missing"><circle class="ri-st-bg" r="${r}"/></g>`, label: null };
+  const cov = w.cover || 'clr';
+  const sector = {
+    few: `M0,0 L0,${-r} A${r},${r} 0 0 1 ${r},0 Z`,
+    sct: `M0,0 L0,${-r} A${r},${r} 0 0 1 0,${r} Z`,
+    bkn: `M0,0 L0,${-r} A${r},${r} 0 1 1 ${-r},0 Z`,
+  }[cov];
+  const fill = cov === 'ovc' ? `<circle class="ri-st-fill" r="${r}"/>`
+    : sector ? `<path class="ri-st-fill" d="${sector}"/>`
+    : cov === 'vv' ? `<path class="ri-st-vv" d="M${-r * 0.62},${-r * 0.62} L${r * 0.62},${r * 0.62} M${r * 0.62},${-r * 0.62} L${-r * 0.62},${r * 0.62}"/>` : '';
+  let barb = '', label = null;
+  if (wind && wind.src && wind.wspd != null) {
+    const sp = Math.round(Number(wind.wspd) || 0), gs = Math.round(Number(wind.wgst) || 0);
+    const xw = c.r.xw ? c.r.xw.xw : null;
+    const tone = xw > 33 ? ' is-r' : xw > 25 ? ' is-o' : '';
+    const kt = Math.round(sp / 5) * 5;
+    if (kt === 0) barb = `<circle class="ri-st-calm${tone}" r="${r + 3}"/>`;
+    else if (wind.wdir != null) {
+      // Drawn pointing north (wind from 360°), then turned to the direction.
+      const L = 20, tip = -r - L;
+      let y = tip, d = `M0,${-r} L0,${tip}`, flags = '';
+      let left = kt;
+      while (left >= 50) { flags += `M0,${y} L8,${y + 2.2} L0,${y + 4.4} Z`; y += 5.6; left -= 50; }
+      while (left >= 10) { d += ` M0,${y} L8,${y - 4}`; y += 3.4; left -= 10; }
+      if (left >= 5) { if (y === tip) y += 3.4; d += ` M0,${y} L4.5,${y - 2.3}`; }
+      barb = `<g class="ri-st-barb${tone}" transform="rotate(${Number(wind.wdir) % 360})"><path d="${d}"/>${flags ? `<path class="ri-st-flag" d="${flags}"/>` : ''}</g>`;
+    }
+    const txt = [wind.wdir == null && kt ? `VRB ${sp}` : '', gs > sp ? `G${gs}` : '', xw != null && xw >= 10 ? `X${xw}` : ''].filter(Boolean).join(' ');
+    if (txt) label = { len: txt.length, svg: `<g class="ri-pin-wind${tone}"><text x="${r + 4}" y="3.4">${esc(txt)}</text></g>` };
+  }
+  return { svg: `<g class="ri-st">${barb}<circle class="ri-st-bg" r="${r}"/>${fill}<circle class="ri-st-ring" r="${r}"/></g>`, label };
+}
+
+// The key to the station plot, in the same drawing as the map.
+function stationKey() {
+  const r = 6, ic = (inner) => `<svg viewBox="-9 -9 18 18" width="16" height="16" class="ri-b-a"><circle class="ri-st-bg" r="${r}"/>${inner}<circle class="ri-st-ring" r="${r}"/></svg>`;
+  const sec = (d) => `<path class="ri-st-fill" d="${d}"/>`;
+  return [
+    [ic(''), 'clear'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 0 1 ${r},0 Z`)), 'few'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 0 1 0,${r} Z`)), 'sct'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 1 1 ${-r},0 Z`)), 'bkn'],
+    [ic(`<circle class="ri-st-fill" r="${r}"/>`), 'ovc'],
+    [ic(`<path class="ri-st-vv" d="M-3.7,-3.7 L3.7,3.7 M3.7,-3.7 L-3.7,3.7"/>`), 'VV'],
+  ].map(([s, t]) => `<span>${s}${t}</span>`).join('') +
+    `<span class="ri-st-key-w">barb: wind from · ½ = 5 kt, | = 10, ▲ = 50 · G gust · X crosswind</span>`;
 }
 
 // A short airport name for map labels: the city, else the name without
@@ -817,6 +857,7 @@ async function paint(model, showAll = false) {
       <span><i class="ri-dot ri-b-x"></i>no-go ${counts.x}</span>
       <button type="button" class="ri-all" data-ri-all>${showAll ? 'Best per stretch' : `Show all ${model.pool.length}`}</button>
     </div>
+    <div class="ri-map-src ri-st-key">${stationKey()}</div>
     ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
     <div id="ri-near"></div>
     <div id="ri-card-slot"></div>

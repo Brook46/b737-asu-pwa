@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=185';
+import { WORKER_BASE } from './proxy.js?v=186';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -163,16 +163,29 @@ function metarCurrent(entry, now) {
   const m = entry && entry.metar;
   return !!(m && Number.isFinite(m.time) && now - m.time * 1000 <= 90 * 60000);
 }
+// Sky cover the way a station plot shows it: clr · few · sct · bkn · ovc,
+// or vv (sky obscured, vertical visibility). The worst layer reported.
+const COVER = ['clr', 'few', 'sct', 'bkn', 'ovc', 'vv'];
+function coverRank(clouds, vv) {
+  if (Number.isFinite(vv) && vv > 0) return 5;
+  let r = 0;
+  for (const cl of clouds || []) {
+    const c = String(cl.cover || '').toUpperCase();
+    r = Math.max(r, c === 'OVX' ? 5 : c === 'OVC' ? 4 : c === 'BKN' ? 3 : c === 'SCT' ? 2 : c === 'FEW' ? 1 : 0);
+  }
+  return r;
+}
 function fold(list, src) {
-  let ceil = Infinity, vis = Infinity, wspd = 0, wgst = 0, wdir = null, wx = [];
+  let ceil = Infinity, vis = Infinity, wspd = 0, wgst = 0, wdir = null, wx = [], cov = 0;
   for (const b of list) {
+    cov = Math.max(cov, coverRank(b.clouds, b.vv));
     ceil = Math.min(ceil, ceilingFt(b.clouds, b.vv));
     const v = visM(b.visib); if (Number.isFinite(v)) vis = Math.min(vis, v);
     const sp = Number(b.wspd) || 0, gs = Number(b.wgst) || 0;
     if (Math.max(sp, gs) >= Math.max(wspd, wgst)) { wspd = sp; wgst = gs; wdir = typeof b.wdir === 'number' ? b.wdir : wdir; }
     if (b.wx) wx.push(b.wx);
   }
-  return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' '), at: list[0] && list[0].time ? list[0].time * 1000 : null };
+  return { src, ceil, vis, wspd, wgst, wdir, wx: wx.join(' '), cover: COVER[cov], at: list[0] && list[0].time ? list[0].time * 1000 : null };
 }
 // Low-visibility procedures: the conditions airports run LVP for (CAT II /
 // III) — visibility or RVR below 550 m, or a ceiling below 200 ft — in the

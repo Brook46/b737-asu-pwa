@@ -3221,18 +3221,19 @@ body {
 .ri-map { display: block; width: 100%; height: auto; border-radius: var(--radius-ctl); margin-bottom: 8px; touch-action: manipulation; }
 .ri-track { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
 .ri-pin { cursor: pointer; }
-.ri-pin circle { stroke: var(--bg-elev); stroke-width: 1.6; }
+.ri-pin .ri-st-full { fill: var(--ri); stroke: var(--bg-elev); stroke-width: 1.6; }
 .ri-pin text { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; pointer-events: none; }
 .ri-pin .ri-pin-code {
   fill: var(--fg); font-size: 9px; font-weight: 700; letter-spacing: .02em;
   paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
 }
-.ri-pin.is-end circle { stroke: var(--fg); stroke-width: 2.2; }
-.ri-pin.is-sel circle { stroke: var(--fg); stroke-width: 3; }
+/* Departure / destination, and the chosen airport: a light halo round the station. */
+.ri-pin.is-end .ri-st, .ri-pin.is-end .ri-st-full { filter: drop-shadow(0 0 1.2px var(--fg)); }
+.ri-pin.is-sel .ri-st, .ri-pin.is-sel .ri-st-full { filter: drop-shadow(0 0 1.6px var(--fg)) drop-shadow(0 0 1.6px var(--fg)); }
 /* Rating bands: 8–10 green, 6–7 yellow-green, 4–5 orange, 1–3 red, no-go grey. */
 .ri-b-a { --ri: #34c759; } .ri-b-b { --ri: #a3c43a; } .ri-b-c { --ri: #ff9500; }
 .ri-b-d { --ri: #ff3b30; } .ri-b-x { --ri: #8e8e93; }
-.ri-pin circle { fill: var(--ri); }
+
 .ri-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: var(--fg-mute); margin: 0 2px 10px; }
 .ri-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--ri); margin-right: 4px; vertical-align: -1px; }
 .ri-all { margin-left: auto; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
@@ -3279,6 +3280,23 @@ body {
 .ri-zoom button:active { background: var(--accent-soft); }
 .ri-zoom .ri-zoom-ac { display: none; font-size: 15px; color: var(--accent); }
 .ri-map-wrap.has-ac .ri-zoom-ac { display: block; }
+/* Station plot: sky cover fills the circle in the rating colour; the barb
+   flies from the side the wind comes from (route-ui.js station()). */
+.ri-st-bg { fill: var(--bg-elev); }
+.ri-st-fill { fill: var(--ri); }
+.ri-st-ring { fill: none; stroke: var(--ri); stroke-width: 2.2; }
+.ri-st-vv { fill: none; stroke: var(--ri); stroke-width: 1.8; stroke-linecap: round; }
+.ri-st.is-missing .ri-st-bg { stroke: var(--ri); stroke-width: 1.6; stroke-dasharray: 2.5 2; }
+.ri-st-barb path { fill: none; stroke: var(--wind); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ri-st-barb .ri-st-flag { fill: var(--wind); stroke: none; }
+.ri-st-calm { fill: none; stroke: var(--wind); stroke-width: 1.2; }
+.ri-st-barb.is-o path, .ri-st-calm.is-o { stroke: var(--warn); } .ri-st-barb.is-o .ri-st-flag { fill: var(--warn); }
+.ri-st-barb.is-r path, .ri-st-calm.is-r { stroke: var(--danger); } .ri-st-barb.is-r .ri-st-flag { fill: var(--danger); }
+.ri-pin .ri-pin-score { paint-order: stroke; stroke: rgba(0,0,0,.55); stroke-width: 2.4px; stroke-linejoin: round; }
+.ri-st-key { gap: 10px; }
+.ri-st-key span { display: inline-flex; align-items: center; gap: 3px; }
+.ri-st-key svg { overflow: visible; }
+.ri-st-key-w { color: var(--fg-mute); }
 /* A finger-sized target under every pin. */
 .ri-pin .ri-pin-hit { fill: transparent; stroke: none; }
 /* Wind beside a pin: arrow with the wind, strength, crosswind (X) on the best runway. */
@@ -3291,7 +3309,7 @@ body {
 }
 .ri-pin-wind.is-o path { stroke: var(--warn); } .ri-pin .ri-pin-wind.is-o text { fill: var(--warn); }
 .ri-pin-wind.is-r path { stroke: var(--danger); } .ri-pin .ri-pin-wind.is-r text { fill: var(--danger); }
-.ri-pin.is-sel circle { stroke-width: 3.2; }
+
 .ri-pin > * { transform: scale(var(--ri-k, 1)); }
 /* Background lines: country borders and FIRs, faint so the route and pins lead. */
 .ri-borders path { fill: none; stroke: var(--fg-mute); stroke-opacity: .5; stroke-width: .9; vector-effect: non-scaling-stroke; }
