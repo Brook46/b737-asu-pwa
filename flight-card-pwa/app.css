@@ -3267,6 +3267,31 @@ body {
 .ri-raw { white-space: pre-wrap; font-size: 11.5px; margin: 6px 0 0; color: var(--fg-mute); font-family: ui-monospace, Menlo, monospace; }
 /* Pins and labels hold their size while the map zooms (--ri-k = zoom). */
 .ri-map { touch-action: none; }
+/* Map controls: + − fit, and ✈ while GPS has the aircraft. */
+.ri-map-wrap { position: relative; }
+.ri-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ri-zoom button {
+  width: 34px; height: 34px; border: 0; border-radius: 10px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 19px; font-weight: 600; line-height: 1; color: var(--fg);
+  background: var(--glass-bg-strong); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
+  backdrop-filter: saturate(180%) blur(10px); -webkit-backdrop-filter: saturate(180%) blur(10px);
+}
+.ri-zoom button:active { background: var(--accent-soft); }
+.ri-zoom .ri-zoom-ac { display: none; font-size: 15px; color: var(--accent); }
+.ri-map-wrap.has-ac .ri-zoom-ac { display: block; }
+/* A finger-sized target under every pin. */
+.ri-pin .ri-pin-hit { fill: transparent; stroke: none; }
+/* Wind beside a pin: arrow with the wind, strength, crosswind (X) on the best runway. */
+.ri-pin .ri-pin-wind { display: none; }
+.ri-pin.show-wind .ri-pin-wind { display: inline; }
+.ri-pin-wind path { fill: none; stroke: var(--wind); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ri-pin .ri-pin-wind text {
+  fill: var(--wind); font-size: 9px; font-weight: 700; text-anchor: start;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+}
+.ri-pin-wind.is-o path { stroke: var(--warn); } .ri-pin .ri-pin-wind.is-o text { fill: var(--warn); }
+.ri-pin-wind.is-r path { stroke: var(--danger); } .ri-pin .ri-pin-wind.is-r text { fill: var(--danger); }
+.ri-pin.is-sel circle { stroke-width: 3.2; }
 .ri-pin > * { transform: scale(var(--ri-k, 1)); }
 /* Background lines: country borders and FIRs, faint so the route and pins lead. */
 .ri-borders path { fill: none; stroke: var(--fg-mute); stroke-opacity: .5; stroke-width: .9; vector-effect: non-scaling-stroke; }
