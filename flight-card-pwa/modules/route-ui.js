@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=186';
-import * as ri from './route-info.js?v=186';
-import { legTs, nearestHm } from './dates.js?v=186';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=186';
+import * as storage from './storage.js?v=187';
+import * as ri from './route-info.js?v=187';
+import { legTs, nearestHm } from './dates.js?v=187';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=187';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -213,6 +213,7 @@ function mapSvg(m, list, world, md) {
     // finger; taps go to the NEAREST pin anyway (wireZoom).
     return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
+        <circle class="ri-sel-ring" r="${rad + 5}"/>
         ${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}<text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
         <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text>${st && st.label ? st.label.svg : ''}</g>`;
@@ -976,7 +977,13 @@ function openCard(icao, { keepView = false } = {}) {
   if (!c || !slot) return;
   slot.innerHTML = cardHtml(c, state.model);
   document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
-  document.querySelector(`.ri-pin[data-icao="${icao}"]`)?.classList.add('is-sel');
+  const pin = document.querySelector(`.ri-pin[data-icao="${icao}"]`);
+  if (pin) {
+    pin.classList.add('is-sel');
+    // Drawn on top of its neighbours (still under the aircraft and ring labels).
+    pin.parentNode.insertBefore(pin, $('ri-iso-lbls') || null);
+    relabel();
+  }
   if (keepView) return;
   slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   if (mapGeom) {
@@ -1423,7 +1430,12 @@ export function wire() {
   for (const ev of ['online', 'offline']) window.addEventListener(ev, () => { if (state) paintReady(); });
   $('route-overlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
-    if (e.target.closest('[data-ri-close]')) { $('ri-card-slot').innerHTML = ''; return; }
+    if (e.target.closest('[data-ri-close]')) {
+      $('ri-card-slot').innerHTML = '';
+      document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
+      relabel();
+      return;
+    }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
     if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
     const zb = e.target.closest('[data-ri-zoom]');

@@ -3227,9 +3227,12 @@ body {
   fill: var(--fg); font-size: 9px; font-weight: 700; letter-spacing: .02em;
   paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
 }
-/* Departure / destination, and the chosen airport: a light halo round the station. */
+/* Departure / destination: a light halo round the station. */
 .ri-pin.is-end .ri-st, .ri-pin.is-end .ri-st-full { filter: drop-shadow(0 0 1.2px var(--fg)); }
-.ri-pin.is-sel .ri-st, .ri-pin.is-sel .ri-st-full { filter: drop-shadow(0 0 1.6px var(--fg)) drop-shadow(0 0 1.6px var(--fg)); }
+/* The airport being looked at (list, map or card): a magenta ring. */
+.ri-pin .ri-sel-ring { display: none; fill: none; stroke: #ff2bd6; stroke-width: 3; }
+.ri-pin.is-sel .ri-sel-ring { display: inline; animation: ri-sel-pop .45s ease-out; transform-origin: 0 0; }
+@keyframes ri-sel-pop { from { stroke-width: 7; stroke-opacity: .3; } to { stroke-width: 3; stroke-opacity: 1; } }
 /* Rating bands: 8–10 green, 6–7 yellow-green, 4–5 orange, 1–3 red, no-go grey. */
 .ri-b-a { --ri: #34c759; } .ri-b-b { --ri: #a3c43a; } .ri-b-c { --ri: #ff9500; }
 .ri-b-d { --ri: #ff3b30; } .ri-b-x { --ri: #8e8e93; }
