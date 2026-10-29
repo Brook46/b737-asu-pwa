@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=191';
-import * as ri from './route-info.js?v=191';
-import { legTs, nearestHm } from './dates.js?v=191';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=191';
+import * as storage from './storage.js?v=192';
+import * as ri from './route-info.js?v=192';
+import { legTs, nearestHm } from './dates.js?v=192';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=192';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -27,7 +27,11 @@ let gpsWatch = null;      // geolocation watch id while the screen is open
 let gpsFix = null;        // { lat, lon, altFt, gs, trk, at, airborne }
 let gpsPrev = null;
 let livePaintAt = 0;
-const srcPick = new Map(); // ICAO → 'metar' | 'taf' when the pilot chose the source by hand
+const srcPick = new Map(); // ICAO → 'metar' | 'taf' | 'auto' when the pilot chose the source by hand on the card
+// What the map's station plots show: 'auto' (the weather each airport is
+// rated on), 'metar' (what it has now) or 'taf' (forecast for when you'd
+// pass it). Remembered. Not under fc.route.* — writeCache prunes those.
+let mapWx = (() => { try { const v = localStorage.getItem('fc.routeMapWx'); return v === 'metar' || v === 'taf' ? v : 'auto'; } catch { return 'auto'; } })();
 let listOrder = null;      // 'gps' (nearest to the aircraft) | 'route'; default: gps once GPS has a fix
 let listKey = '';          // the order last drawn, so live GPS only redraws when it changes
 let busy = false;
@@ -201,12 +205,12 @@ function mapSvg(m, list, world, md) {
   // Every pin carries its ICAO code and its name; relabel() shows as many as
   // fit at the current zoom (best first) — zoom in and more appear, closer
   // still and the names join them. Pins stay one size on screen throughout.
-  const rad = 9;
+  const rad = PIN_R;
   const pinData = [];
   const pins = list.slice().sort((a, b) => a.r.score - b.r.score).map(c => {
     const x = proj.x(c.lonDraw), y = proj.y(c.ap.lat);
     const b = ri.band(c.r.score, c.r.excluded);
-    const st = c.r.excluded ? null : station(c, rad);
+    const st = c.r.excluded ? null : station(mapWxView(c), rad);
     pinData.push({ icao: c.ap.icao, x, y, pri: (c.isEnd ? 100 : 0) + (c.r.excluded ? -1 : c.r.score),
                    nameLen: shortName(c.ap).length, windLen: st && st.label ? st.label.len : 0 });
     // A wide invisible disc under each pin makes it easy to hit with a
@@ -214,9 +218,9 @@ function mapSvg(m, list, world, md) {
     return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
         <circle class="ri-sel-ring" r="${rad + 5}"/>
-        ${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}<text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
+        <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
-        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text>${st && st.label ? st.label.svg : ''}</g>`;
+        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g></g>`;
   }).join('');
   mapGeom = { W, H: H2, proj, pins: pinData };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
@@ -237,6 +241,70 @@ function mapSvg(m, list, world, md) {
       <button type="button" data-ri-zoom="fit" aria-label="Whole route" title="Whole route">⤢</button>
       <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
     </div></div>`;
+}
+
+const PIN_R = 9;
+// The airport as the map's weather choice sees it. Only the plot changes —
+// cover, barb, crosswind; the score and its colour stay the rating.
+function mapWxView(c) {
+  if (mapWx === 'auto' || c.r.excluded) return c;
+  const r2 = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: mapWx });
+  return { ...c, r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
+}
+// Redraw just the plots in place, so switching keeps the zoom.
+function restyleStations() {
+  const svg = $('ri-map');
+  if (!svg || !state || !mapGeom || !mapGeom.pins) return;
+  for (const p of mapGeom.pins) {
+    const c = state.model.pool.find(x => x.ap.icao === p.icao);
+    const g = svg.querySelector(`.ri-pin[data-icao="${p.icao}"]`);
+    if (!c || !g || c.r.excluded) continue;
+    const st = station(mapWxView(c), PIN_R);
+    g.querySelector('.ri-st-slot').innerHTML = st.svg;
+    g.querySelector('.ri-wind-slot').innerHTML = st.label ? st.label.svg : '';
+    p.windLen = st.label ? st.label.len : 0;
+  }
+  relabel();
+  paintMapWx();
+}
+// The switch, and one line saying exactly what the plots are.
+function paintMapWx() {
+  document.querySelectorAll('[data-ri-mapwx]').forEach(b => {
+    const on = b.dataset.riMapwx === mapWx;
+    b.classList.toggle('is-on', on); b.setAttribute('aria-selected', String(on));
+  });
+  const note = $('ri-mapwx-note');
+  if (!note || !state || !mapGeom || !mapGeom.pins) return;
+  const drawn = mapGeom.pins.map(p => state.model.pool.find(x => x.ap.icao === p.icao)).filter(c => c && !c.r.excluded);
+  let txt = '';
+  if (mapWx === 'auto') {
+    txt = state.model.mode === 'browse'
+      ? 'Auto: each airport\'s latest METAR (this flight isn\'t today), else its TAF'
+      : 'Auto: the weather each airport is rated on — its TAF for when you\'d pass it, or its METAR when that\'s within the hour';
+  } else if (mapWx === 'metar') {
+    const t = drawn.map(c => c.wxEntry?.metar?.time).filter(Number.isFinite).map(x => x * 1000);
+    const miss = drawn.length - t.length;
+    txt = t.length ? `Now: each airport's latest METAR, observed ${hm(Math.min(...t))}–${hm(Math.max(...t))}` : 'Now: no METARs fetched yet';
+    if (t.length && miss) txt += ` · dashed = no METAR (${miss})`;
+  } else {
+    const views = drawn.map(c => ({ c, w: mapWxView(c).r.wx }));
+    const has = views.filter(v => v.w && v.w.src);
+    const etas = has.filter(v => !v.w.forNow).map(v => v.c.eta).filter(Number.isFinite);
+    txt = has.length ? `At ETA: each airport's TAF for when you'd pass it${etas.length ? `, ${hm(Math.min(...etas))}–${hm(Math.max(...etas))}` : ''}` : 'At ETA: no TAFs fetched yet';
+    if (has.some(v => v.w.forNow)) txt += ' · TAF for now where it doesn\'t reach that time';
+    if (has.length && has.length < views.length) txt += ` · dashed = no TAF (${views.length - has.length})`;
+  }
+  note.textContent = txt;
+}
+function setMapWx(v) {
+  if (v !== 'metar' && v !== 'taf') v = 'auto';
+  mapWx = v;
+  try { localStorage.setItem('fc.routeMapWx', v); } catch {}
+  // The map's choice drives the airport cards too; hand-picks start over.
+  srcPick.clear();
+  restyleStations();
+  const open = $('ri-card-slot')?.querySelector('.ri-card')?.dataset.icao;
+  if (open) openCard(open, { keepView: true });
 }
 
 // Each airport drawn as a weather station plot, in its rating colour:
@@ -742,9 +810,10 @@ function whyNot10(r) {
 // wonder whether a number is a forecast or an observation.
 function wxContext(c, m, r) {
   const src = r.wx && r.wx.src;
-  if (c.picked === 'metar') return src ? 'METAR — chosen by you (tap it again for automatic)' : 'No METAR for this airport';
+  const by = c.pickedBy === 'map' ? 'as chosen for the map' : 'chosen by you';
+  if (c.picked === 'metar') return src ? `METAR — ${by} (tap it again for automatic)` : 'No METAR for this airport';
   if (c.picked === 'taf') return !src ? 'No TAF for this airport'
-    : r.wx.forNow ? 'TAF for now — chosen by you (it doesn\'t cover that time)' : `TAF for ${hm(c.eta)} — chosen by you (tap it again for automatic)`;
+    : r.wx.forNow ? `TAF for now — ${by} (it doesn't cover that time)` : `TAF for ${hm(c.eta)} — ${by} (tap it again for automatic)`;
   if (c.near) return `Current METAR — you're about ${Math.round(c.near)} min away`;
   if (m.mode === 'browse') return src === 'METAR'
     ? 'Current METAR — this flight isn\'t today, so its forecast doesn\'t matter yet'
@@ -767,10 +836,12 @@ function cardHtml(c, m) {
   // The pilot picked METAR or TAF by tapping it: that source drives the
   // diagram's wind, the best runway, the runway panel and the summary. The
   // rating itself stays as listed.
-  const pick = srcPick.get(c.ap.icao);
+  // Nothing picked on the card: the map's METAR / TAF choice applies.
+  const own = srcPick.get(c.ap.icao);
+  const pick = own === 'auto' ? null : own || (mapWx !== 'auto' ? mapWx : null);
   if (pick && c.wxEntry) {
     const r2 = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: pick });
-    c = { ...c, picked: pick, r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
+    c = { ...c, picked: pick, pickedBy: own ? 'you' : 'map', r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
   }
   const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
   const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
@@ -851,7 +922,14 @@ async function paint(model, showAll = false) {
     <div id="ri-ready" class="ri-ready"></div>
     ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
       `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
+    <div class="ri-mapwx"><span>Map weather</span>
+      <div class="view-switch" role="tablist" aria-label="Weather on the map">
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="auto">Auto</button>
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="metar">Now · METAR</button>
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="taf">At ETA · TAF</button>
+      </div></div>
     ${mapSvg(model, list, world, md)}
+    <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
     <div class="ri-legend">
       <span><i class="ri-dot ri-b-a"></i>8–10 ${counts.a}</span><span><i class="ri-dot ri-b-b"></i>6–7 ${counts.b}</span>
       <span><i class="ri-dot ri-b-c"></i>4–5 ${counts.c}</span><span><i class="ri-dot ri-b-d"></i>1–3 ${counts.d}</span>
@@ -869,6 +947,7 @@ async function paint(model, showAll = false) {
   paintReady();
   const svg = $('ri-map');
   if (svg) { wireZoom(svg); pinScale(svg, mapGeom ? mapGeom.W : 720); relabel(); }
+  paintMapWx();
   livePaintAt = 0;
   paintLive();
 }
@@ -1542,6 +1621,8 @@ export function wire() {
     if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
+    const mw = e.target.closest('[data-ri-mapwx]');
+    if (mw) { setMapWx(mw.dataset.riMapwx); return; }
     if (e.target.closest('#ri-map')) return;          // taps on the map: wireZoom
     if (e.target.closest('[data-ri-notes]')) {
       const icao = e.target.closest('.ri-card')?.dataset.icao;
@@ -1563,7 +1644,11 @@ export function wire() {
     if (wp) {
       const icao = wp.closest('.ri-card')?.dataset.icao;
       if (icao) {
-        if (srcPick.get(icao) === wp.dataset.wxPick) srcPick.delete(icao); else srcPick.set(icao, wp.dataset.wxPick);
+        const own = srcPick.get(icao);
+        const eff = own === 'auto' ? null : own || (mapWx !== 'auto' ? mapWx : null);
+        if (eff !== wp.dataset.wxPick) srcPick.set(icao, wp.dataset.wxPick);
+        else if (mapWx !== 'auto') srcPick.set(icao, 'auto');
+        else srcPick.delete(icao);
         openCard(icao, { keepView: true });
       }
       return;
