@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=189" />
+  <link rel="stylesheet" href="./app.css?v=190" />
 </head>
 <body>
   <header class="app-header">
@@ -647,9 +647,14 @@
       <div class="airport-cols">
         <div id="airport-body" class="airport-body"></div>
         <div class="airport-notes-col">
-          <div class="airport-tabs" role="tablist">
-            <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
-            <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
+          <div class="apt-tab-row">
+            <div class="airport-tabs" role="tablist">
+              <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
+              <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
+            </div>
+            <!-- Copy: the selected words, or the whole note when nothing is
+                 selected — one tap instead of fighting selection handles. -->
+            <button id="apt-copy" class="apt-copy" type="button" title="Copy the selection, or the whole note">Copy</button>
           </div>
           <!-- Formatting bar — Personal tab only. Bold / italic + a small
                colour set. Uses execCommand: deprecated on paper, but still
@@ -845,6 +850,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=189"></script>
+  <script type="module" src="./app.js?v=190"></script>
 </body>
 </html>

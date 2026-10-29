@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=189';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=189';
-import * as storage from './modules/storage.js?v=189';
-import * as dataCard from './modules/data-card.js?v=189';
-import * as checklist from './modules/checklist.js?v=189';
-import * as speeches from './modules/speeches.js?v=189';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=189';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=189';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=189';
+import { DUTY_KINDS } from './modules/duties.js?v=190';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=190';
+import * as storage from './modules/storage.js?v=190';
+import * as dataCard from './modules/data-card.js?v=190';
+import * as checklist from './modules/checklist.js?v=190';
+import * as speeches from './modules/speeches.js?v=190';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=190';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=190';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=190';
 
 const $ = (id) => document.getElementById(id);
 
@@ -4749,11 +4749,42 @@ $('apt-hl').addEventListener('pointerdown', (e) => {
   e.preventDefault();
   hlApply(btn.dataset.aptHl);
 });
+// Remember the Social selection for the highlighter — measured once the
+// selection has settled, not on every step of a handle drag (each measure
+// walks the note from its start, which made dragging the handles stutter).
+let socialSelT = 0;
 document.addEventListener('selectionchange', () => {
   const el = $('airport-social');
   if (!el || el.classList.contains('hidden')) return;
-  const pick = hlLiveSelection();
-  if (pick) socialSel = pick;
+  clearTimeout(socialSelT);
+  socialSelT = setTimeout(() => {
+    const pick = hlLiveSelection();
+    if (pick) socialSel = pick;
+  }, 180);
+});
+
+// Copy from the open note: the selected words if any, else the whole note.
+// Text only — the synced notes carry no pictures (the Mac sync drops them).
+$('apt-copy')?.addEventListener('pointerdown', (e) => e.preventDefault());   // keep the selection
+$('apt-copy')?.addEventListener('click', async () => {
+  const el = aptActiveTab === 'social' ? $('airport-social') : $('airport-notes');
+  if (!el) return;
+  const sel = window.getSelection();
+  const inNote = sel && sel.rangeCount && !sel.isCollapsed && el.contains(sel.getRangeAt(0).commonAncestorContainer);
+  const text = (inNote ? sel.toString() : el.innerText).replace(/\u00a0/g, ' ').trim();
+  if (!text) { toast('Nothing to copy'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(inNote ? 'Copied the selection' : 'Copied the whole note');
+  } catch {
+    // Older iOS: copy through a hidden field.
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch {}
+    ta.remove();
+    toast(ok ? (inNote ? 'Copied the selection' : 'Copied the whole note') : 'Copy didn\u2019t work — select and use the iPad\u2019s Copy');
+  }
 });
 
 // Notes full screen, remembered between openings.

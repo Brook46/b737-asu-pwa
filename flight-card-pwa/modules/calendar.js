@@ -13,10 +13,10 @@
 // PWA side — the description's "Slip details (UTC)" line is the source
 // of truth for each leg's dep/arr times.
 
-import { parseIcal } from './ical.js?v=189';
-import { parseRoster } from './roster.js?v=189';
-import { WORKER_BASE } from './proxy.js?v=189';
-import { eventToDuty, mergeRuns, icalToMs } from './duties.js?v=189';
+import { parseIcal } from './ical.js?v=190';
+import { parseRoster } from './roster.js?v=190';
+import { WORKER_BASE } from './proxy.js?v=190';
+import { eventToDuty, mergeRuns, icalToMs } from './duties.js?v=190';
 
 const URL_STORAGE_KEY        = 'fc.gcal.url';
 const LAST_SYNC_STORAGE_KEY  = 'fc.gcal.lastSyncAt';
