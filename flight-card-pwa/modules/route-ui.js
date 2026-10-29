@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=187';
-import * as ri from './route-info.js?v=187';
-import { legTs, nearestHm } from './dates.js?v=187';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=187';
+import * as storage from './storage.js?v=188';
+import * as ri from './route-info.js?v=188';
+import { legTs, nearestHm } from './dates.js?v=188';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=188';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -970,7 +970,10 @@ async function prepareForFlight() {
   toast('Ready for offline');
 }
 
-function openCard(icao, { keepView = false } = {}) {
+// `fromMap`: chosen by tapping the map — the map stays exactly where it is
+// (the magenta ring shows the choice) and the page only scrolls enough for
+// the card's head to show below it, so the next tap lands where you aimed.
+function openCard(icao, { keepView = false, fromMap = false } = {}) {
   if (!state) return;
   const c = state.model.pool.find(x => x.ap.icao === icao);
   const slot = $('ri-card-slot');
@@ -985,6 +988,12 @@ function openCard(icao, { keepView = false } = {}) {
     relabel();
   }
   if (keepView) return;
+  if (fromMap) {
+    const sheet = document.querySelector('.route-sheet');
+    const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
+    if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
+    return;
+  }
   slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   if (mapGeom) {
     const x = mapGeom.proj.x(c.lonDraw), y = mapGeom.proj.y(c.ap.lat);
@@ -1189,6 +1198,9 @@ function setViewBox(v) {
   const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
   const x = Math.max(0, Math.min(W - w, v.x)), y = Math.max(0, Math.min(Hh - h, v.y));
   svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}`);
+  // Whole route showing: there's nothing to pan, so an up/down finger
+  // scrolls the page as it does everywhere else. Zoomed in: the map has it.
+  svg.style.touchAction = w >= W * 0.98 ? 'pan-y' : 'none';
   pinScale(svg, w);
   relabel();
 }
@@ -1252,7 +1264,10 @@ function wireZoom(svg) {
     }
     return best;
   };
+  // A plain wheel / two-finger trackpad scroll scrolls the page; zoom is a
+  // trackpad pinch (which arrives as ctrl+wheel) or ⌘/⌥ + wheel.
   svg.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
     e.preventDefault();
     viewAnim++;
     const p = toSvg(e.clientX, e.clientY);
@@ -1260,6 +1275,10 @@ function wireZoom(svg) {
   }, { passive: false });
   svg.addEventListener('pointerdown', (e) => {
     viewAnim++;
+    // A new first finger: forget any pointer whose up/cancel never came (iOS
+    // drops them when the page scrolls or a card opens mid-gesture). A stale
+    // one turned the next tap into a "pinch" — taps missed, drags zoomed.
+    if (e.isPrimary) pts.clear();
     try { svg.setPointerCapture(e.pointerId); } catch {}
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     down = pts.size === 1 ? { x: e.clientX, y: e.clientY, t: Date.now(), moved: false } : null;
@@ -1270,7 +1289,8 @@ function wireZoom(svg) {
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const r = svg.getBoundingClientRect();
     const [a, b] = [...pts.values()], [a0, b0] = [...start.pts.values()];
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) down.moved = true;
+    // A fingertip wanders a few pixels on a tap; only a real drag pans.
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 12) down.moved = true;
     if (pts.size >= 2 && a0 && b0) {
       e.preventDefault();
       const d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y), d1 = Math.hypot(a.x - b.x, a.y - b.y);
@@ -1284,7 +1304,7 @@ function wireZoom(svg) {
     }
   });
   const end = (e) => {
-    const wasTap = down && !down.moved && pts.size === 1 && Date.now() - down.t < 500 && e.type === 'pointerup';
+    const wasTap = down && !down.moved && pts.size === 1 && Date.now() - down.t < 600 && e.type === 'pointerup';
     pts.delete(e.pointerId);
     start = pts.size ? { v: getViewBox(), pts: new Map([...pts].map(([k, p]) => [k, { ...p }])) } : null;
     if (!wasTap) { if (!pts.size) down = null; return; }
@@ -1293,7 +1313,7 @@ function wireZoom(svg) {
     // there (the + / − / fit buttons do the rest).
     const icao = pinAt(e.clientX, e.clientY);
     const now = Date.now();
-    if (icao) { lastTap = { t: 0 }; openCard(icao); return; }
+    if (icao) { lastTap = { t: 0 }; openCard(icao, { fromMap: true }); return; }
     if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
       const p = toSvg(e.clientX, e.clientY);
       zoomAbout(0.5, p.x, p.y);
@@ -1302,6 +1322,7 @@ function wireZoom(svg) {
   };
   svg.addEventListener('pointerup', end);
   svg.addEventListener('pointercancel', end);
+  svg.addEventListener('lostpointercapture', (e) => { if (pts.has(e.pointerId)) end(e); });
 }
 
 // `legArg`: a specific flight (the logbook's "Route info") — otherwise the

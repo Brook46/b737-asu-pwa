@@ -3270,7 +3270,9 @@ body {
 .ri-rwy td { padding: 2px 14px 2px 0; }
 .ri-raw { white-space: pre-wrap; font-size: 11.5px; margin: 6px 0 0; color: var(--fg-mute); font-family: ui-monospace, Menlo, monospace; }
 /* Pins and labels hold their size while the map zooms (--ri-k = zoom). */
-.ri-map { touch-action: none; }
+/* pan-y while the whole route shows (a finger scrolls the page); route-ui
+   switches it to none once zoomed in, where the finger pans the map. */
+.ri-map { touch-action: pan-y; }
 /* Map controls: + − fit, and ✈ while GPS has the aircraft. */
 .ri-map-wrap { position: relative; }
 .ri-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -3527,9 +3529,9 @@ body {
 .more-pop {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; min-width: 230px;
   display: flex; flex-direction: column; padding: 6px;
-  background: var(--glass-bg-strong); border-radius: var(--radius-card);
-  backdrop-filter: saturate(180%) blur(var(--glass-blur)); -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
-  box-shadow: 0 12px 34px rgba(0,0,0,.28), 0 0 0 0.5px var(--line);
+  /* Solid, not glass: the card behind showed through and made it hard to read. */
+  background: var(--bg-elev); border-radius: var(--radius-card);
+  box-shadow: 0 14px 40px rgba(0,0,0,.38), 0 0 0 0.5px var(--line);
 }
 .more-item {
   display: flex; align-items: center; gap: 12px; width: 100%;
