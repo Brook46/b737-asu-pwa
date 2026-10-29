@@ -1,14 +1,14 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=190';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=190';
-import * as storage from './modules/storage.js?v=190';
-import * as dataCard from './modules/data-card.js?v=190';
-import * as checklist from './modules/checklist.js?v=190';
-import * as speeches from './modules/speeches.js?v=190';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=190';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=190';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=190';
+import { DUTY_KINDS } from './modules/duties.js?v=191';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=191';
+import * as storage from './modules/storage.js?v=191';
+import * as dataCard from './modules/data-card.js?v=191';
+import * as checklist from './modules/checklist.js?v=191';
+import * as speeches from './modules/speeches.js?v=191';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=191';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=191';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=191';
 
 const $ = (id) => document.getElementById(id);
 
@@ -1007,7 +1007,7 @@ function syncChipTag(routeEl, selector, className, label, want) {
   const el = $(id);
   if (!el) return;
   el.addEventListener('focus', () => {
-    setTimeout(() => { try { el.select(); } catch {} }, 0);
+    setTimeout(() => { try { el.select(); el.setSelectionRange(0, el.value.length); } catch {} }, 0);
   });
 });
 
@@ -1189,8 +1189,9 @@ hdrCtot.addEventListener('input', () => {
 // previous session).
 try { paintCtotBell(); } catch (err) { console.warn('bell paint failed', err); }
 
+// Same roll-in rule as data-card.js formatHHMM: the newest four digits.
 function formatHHMM(raw) {
-  const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
+  const digits = String(raw || '').replace(/\D/g, '').slice(-4);
   if (digits.length <= 2) return digits;
   return digits.slice(0, digits.length - 2) + ':' + digits.slice(-2);
 }

@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=190';
-import { dateTs, legTs } from './dates.js?v=190';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=190';
+import { flipName } from './roster.js?v=191';
+import { dateTs, legTs } from './dates.js?v=191';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=191';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -641,7 +641,7 @@ export function setNote(itemId, text) {
 // Crew slots pin too — a corrected purser's name used to snap back on every
 // sync — but only while the roster keeps naming the same person in that
 // seat: a real swap on the roster still wins (see mergeLeg, rosterCrew).
-const PIN_KEYS = new Set(['flight_time', 'block_time', 'tail', 'ctot', 'dep', 'arr', ...CREW_KEYS]);
+const PIN_KEYS = new Set(['flight_time', 'tail', 'ctot', 'dep', 'arr', ...CREW_KEYS]);
 
 export function setDataField(key, value) {
   // The leg is looked up ONCE, before anything is deleted. activeLeg() seeds
@@ -664,15 +664,10 @@ export function setDataField(key, value) {
   }
   if (leg && PIN_KEYS.has(key)) {
     const pins = (leg.pinned && typeof leg.pinned === 'object') ? leg.pinned : (leg.pinned = {});
-    // A typed flight time IS the block for this leg: carry it to block_time,
-    // or the logbook would still show the roster's number beside it.
-    const keys = key === 'flight_time' ? ['flight_time', 'block_time'] : [key];
-    for (const k of keys) {
-      if (empty) delete pins[k]; else pins[k] = true;
-      if (k === 'block_time' && key === 'flight_time') {
-        if (empty) delete bag.block_time; else bag.block_time = value;
-      }
-    }
+    // Flight time only. The block is the calendar's and stays the calendar's
+    // (it used to be overwritten with a typed flight time and pinned).
+    if (empty) delete pins[key]; else pins[key] = true;
+    delete pins.block_time;
     if (!Object.keys(pins).length) delete leg.pinned;
   }
   scheduleWrite();
@@ -1297,6 +1292,10 @@ function mergeLeg(target, source) {
   // calendar does report after a flight is off-block / on-block, which arrives
   // as off_block / on_block / actual_block_time and merges like any field.
   target.dataCard = target.dataCard || {};
+  // block_time is the calendar's whatever an older version pinned: a typed
+  // flight time used to be copied into it and locked, and the next sync now
+  // puts the calendar's block back.
+  if (pinned.block_time) delete pinned.block_time;
   for (const [k, v] of Object.entries(source.dataCard || {})) {
     if (pinned[k]) continue;
     if (v != null && v !== '') target.dataCard[k] = v;

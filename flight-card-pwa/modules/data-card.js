@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=190';
-import * as wx from './wx.js?v=190';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=190';
+import * as storage from './storage.js?v=191';
+import * as wx from './wx.js?v=191';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=191';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -399,7 +399,7 @@ function renderCell(c, raw) {
   const autocap = c.kind === 'text' ? 'characters' : 'none';
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
   const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
-  const maxlen = c.kind === 'hhmm' ? ' maxlength="5"' : '';
+  const maxlen = '';      // no maxlength: a full HH:MM box must still take digits (formatHHMM)
   const chips = CREW_CELL_KEYS.has(c.key) ? renderCrewChips(v) : '';
   const inputHtml = `
       <input
@@ -680,8 +680,9 @@ function wire(root) {
   root.querySelectorAll('input[data-key]').forEach(inp => {
     // Select all on focus so a single keystroke replaces the existing value
     inp.addEventListener('focus', () => {
-      // setTimeout so iOS Safari actually honours the selection on tap
-      setTimeout(() => { try { inp.select(); } catch {} }, 0);
+      // setTimeout so iOS Safari actually honours the selection on tap;
+      // setSelectionRange is the form iPad respects where select() isn't.
+      setTimeout(() => { try { inp.select(); inp.setSelectionRange(0, inp.value.length); } catch {} }, 0);
     });
     inp.addEventListener('input', () => {
       const key = inp.dataset.key;
@@ -859,8 +860,13 @@ function normalize(def, raw) {
 
 // "1" → "1"  · "11" → "11"  · "112" → "1:12"  · "1145" → "11:45"
 // Always treats the last 2 digits as minutes once 3+ are typed.
+// Digits roll in from the right, like a calculator: typing into a full box
+// ("01:25", cursor at the end — iPad Safari often ignores select-on-focus)
+// pushes the oldest digit out, so four new digits always give exactly what
+// was typed. Keeping the FIRST four threw the new ones away: the box looked
+// locked.
 export function formatHHMM(raw) {
-  const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
+  const digits = String(raw || '').replace(/\D/g, '').slice(-4);
   if (digits.length <= 2) return digits;
   return digits.slice(0, digits.length - 2) + ':' + digits.slice(-2);
 }

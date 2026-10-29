@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=190" />
+  <link rel="stylesheet" href="./app.css?v=191" />
 </head>
 <body>
   <header class="app-header">
@@ -28,7 +28,7 @@
       <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
       <button id="net-pill" class="net-pill" type="button" hidden title="No internet — showing saved data">Offline</button>
       <div class="hdr-ctot">
-        <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" maxlength="5" aria-label="CTOT (UTC)" />
+        <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" aria-label="CTOT (UTC)" />
         <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
         <button id="hdr-ctot-bell" data-action="ctot-bell" type="button" class="hdr-ctot-bell is-off" title="Enable CTOT alerts (20 / 10 / now)" aria-label="Toggle CTOT alerts">🔕</button>
       </div>
@@ -109,7 +109,7 @@
       <!-- Flight time mirrors the Flight group's "Flight time" cell — edit
            either one and both update (see syncHeaderInputs + the flight_time
            branch in dataCard.setOnChange). Sits left of the tail, under CTOT. -->
-      <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" maxlength="5" aria-label="Flight time (HH:MM)" />
+      <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" aria-label="Flight time (HH:MM)" />
       <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
       <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
     </div>
@@ -850,6 +850,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=190"></script>
+  <script type="module" src="./app.js?v=191"></script>
 </body>
 </html>
