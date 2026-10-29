@@ -1200,6 +1200,11 @@ mark.hl[data-c="blue"]   { background: rgba(59, 130, 246, .33); }
   display: flex; align-items: flex-end; justify-content: center;
 }
 .overlay.hidden { display: none; }
+/* A window's scrolling stays in the window: reaching its top or bottom never
+   carries on into the main page behind (iOS scroll chaining), and the page
+   itself is held still while any window is open. */
+.overlay, .overlay .ocr-sheet { overscroll-behavior: contain; }
+html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow: hidden; }
 .ocr-sheet {
   width: 100%; max-width: 640px;
   background: var(--bg-elev);
@@ -3270,17 +3275,20 @@ body {
 .ri-rwy td { padding: 2px 14px 2px 0; }
 .ri-raw { white-space: pre-wrap; font-size: 11.5px; margin: 6px 0 0; color: var(--fg-mute); font-family: ui-monospace, Menlo, monospace; }
 /* Pins and labels hold their size while the map zooms (--ri-k = zoom). */
-/* pan-y while the whole route shows (a finger scrolls the page); route-ui
-   switches it to none once zoomed in, where the finger pans the map. */
-.ri-map { touch-action: pan-y; }
+/* The map handles every touch itself (route-ui wireZoom): pinch, pan, and
+   at the whole-route view a one-finger scroll of the sheet. While a finger
+   moves it's slid as one GPU layer and redrawn when let go. */
+.ri-map { touch-action: none; }
+.ri-map.is-moving { will-change: transform; transform-origin: 0 0; }
 /* Map controls: + − fit, and ✈ while GPS has the aircraft. */
-.ri-map-wrap { position: relative; }
+.ri-map-wrap { position: relative; overflow: hidden; border-radius: var(--radius-ctl); margin-bottom: 8px; }
+.ri-map-wrap .ri-map { margin-bottom: 0; }
 .ri-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .ri-zoom button {
   width: 34px; height: 34px; border: 0; border-radius: 10px; padding: 0; cursor: pointer;
   font: inherit; font-size: 19px; font-weight: 600; line-height: 1; color: var(--fg);
-  background: var(--glass-bg-strong); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
-  backdrop-filter: saturate(180%) blur(10px); -webkit-backdrop-filter: saturate(180%) blur(10px);
+  /* Solid: a blur over the map would be recomputed on every frame of a pan. */
+  background: var(--bg-elev); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
 }
 .ri-zoom button:active { background: var(--accent-soft); }
 .ri-zoom .ri-zoom-ac { display: none; font-size: 15px; color: var(--accent); }

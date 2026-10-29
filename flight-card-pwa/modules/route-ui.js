@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=188';
-import * as ri from './route-info.js?v=188';
-import { legTs, nearestHm } from './dates.js?v=188';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=188';
+import * as storage from './storage.js?v=189';
+import * as ri from './route-info.js?v=189';
+import { legTs, nearestHm } from './dates.js?v=189';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=189';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1186,24 +1186,55 @@ function paintLive() {
 // ---------- Zoom & pan ----------
 // Pinch (two fingers) or scroll to zoom, drag to pan, double-tap to see the
 // whole route again. Works on the SVG viewBox, so pins and text stay sharp.
+function currentView() { return previewing || getViewBox(); }
 function getViewBox() {
   const svg = $('ri-map');
   const [x, y, w, h] = (svg?.getAttribute('viewBox') || '0 0 720 420').split(/\s+/).map(Number);
   return { x, y, w, h };
 }
+// Where the map sits on screen, ignoring any preview transform (the
+// frame around it doesn't move while the picture inside does).
+function mapRect(svg) {
+  const r = (svg.parentElement || svg).getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.width * (mapGeom ? mapGeom.H / mapGeom.W : 420 / 720) };
+}
+// The view kept inside the map: zoom limits, no panning past the edges.
+function clampView(v) {
+  const W = mapGeom.W, Hh = mapGeom.H;
+  const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
+  return { x: Math.max(0, Math.min(W - w, v.x)), y: Math.max(0, Math.min(Hh - h, v.y)), w, h };
+}
+// Redraw the map at a view: everything re-laid, labels re-placed. Costly on
+// an iPad with every coastline, border, FIR and pin, so a moving finger or
+// an animation never calls it per frame — they slide a picture of the map
+// instead (previewView) and commit once at the end.
 function setViewBox(v) {
   const svg = $('ri-map');
   if (!svg || !mapGeom) return;
-  const W = mapGeom.W, Hh = mapGeom.H;
-  const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
-  const x = Math.max(0, Math.min(W - w, v.x)), y = Math.max(0, Math.min(Hh - h, v.y));
-  svg.setAttribute('viewBox', `${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}`);
-  // Whole route showing: there's nothing to pan, so an up/down finger
-  // scrolls the page as it does everywhere else. Zoomed in: the map has it.
-  svg.style.touchAction = w >= W * 0.98 ? 'pan-y' : 'none';
-  pinScale(svg, w);
+  const c = clampView(v);
+  previewing = null;
+  svg.style.transform = '';
+  svg.classList.remove('is-moving');
+  svg.setAttribute('viewBox', `${c.x.toFixed(1)} ${c.y.toFixed(1)} ${c.w.toFixed(1)} ${c.h.toFixed(1)}`);
+  pinScale(svg, c.w);
   relabel();
 }
+// Show the map at a view WITHOUT redrawing it: a GPU transform of the map
+// as last drawn. Pins grow and shrink with it for that moment and snap back
+// to size on commit — the way map apps do it.
+let previewing = null;
+function previewView(v) {
+  const svg = $('ri-map');
+  if (!svg || !mapGeom) return;
+  const c = clampView(v), v0 = getViewBox();
+  const R = mapRect(svg);
+  const s = v0.w / c.w;
+  const tx = (v0.x - c.x) / c.w * R.width, ty = (v0.y - c.y) / c.h * R.height;
+  svg.classList.add('is-moving');
+  svg.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${s.toFixed(4)})`;
+  previewing = c;
+}
+function commitView() { if (previewing) setViewBox(previewing); }
 // Pins hold one on-screen size — about 18 px across — whatever the zoom and
 // however wide the map is drawn (a phone draws the 720-unit map at ~340 px,
 // which shrank them to dots). Pins are drawn at ~9 units, so k = units/px.
@@ -1216,20 +1247,21 @@ function pinScale(svg, vbW) {
 // Any touch or wheel on the map cancels it, so it never fights a finger.
 let viewAnim = 0;
 function animateViewBox(to, ms = 260) {
+  commitView();
   const from = getViewBox(), t0 = performance.now(), id = ++viewAnim;
   const ease = (t) => 1 - Math.pow(1 - t, 3);
   const step = (now) => {
     if (id !== viewAnim) return;
     const t = Math.min(1, (now - t0) / ms), e = ease(t);
-    setViewBox({ x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e,
-                 w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e });
-    if (t < 1) requestAnimationFrame(step);
+    const v = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e,
+                w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e };
+    if (t < 1) { previewView(v); requestAnimationFrame(step); } else setViewBox(v);
   };
   requestAnimationFrame(step);
 }
 // Zoom by `f` (0.5 = twice as close) about a point in map units.
 function zoomAbout(f, px, py, animate = true) {
-  const v = getViewBox();
+  const v = currentView();
   const cx = px ?? v.x + v.w / 2, cy = py ?? v.y + v.h / 2;
   const to = { x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f, w: v.w * f, h: v.h * f };
   if (animate) animateViewBox(to); else setViewBox(to);
@@ -1241,7 +1273,7 @@ function mapZoom(kind) {
   else if (kind === 'out') zoomAbout(2);
   else if (kind === 'fit') animateViewBox({ x: 0, y: 0, w: mapGeom.W, h: mapGeom.H });
   else if (kind === 'ac' && gpsFix) {
-    const v = getViewBox(), x = mapGeom.proj.x(gpsFix.lon), y = mapGeom.proj.y(gpsFix.lat);
+    const v = currentView(), x = mapGeom.proj.x(gpsFix.lon), y = mapGeom.proj.y(gpsFix.lat);
     const w = Math.min(v.w, mapGeom.W / 3), h = w * mapGeom.H / mapGeom.W;
     animateViewBox({ x: x - w / 2, y: y - h / 2, w, h });
   }
@@ -1249,14 +1281,20 @@ function mapZoom(kind) {
 function wireZoom(svg) {
   const pts = new Map();
   let start = null, lastTap = { t: 0, x: 0, y: 0 }, down = null;
+  let frame = 0, want = null, wheelT = 0;
+  // One map update per screen frame, however many touch events arrive.
+  const show = (v) => {
+    want = v;
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (want) previewView(want); });
+  };
   const toSvg = (cx, cy) => {
-    const r = svg.getBoundingClientRect(), v = getViewBox();
+    const r = mapRect(svg), v = currentView();
     return { x: v.x + (cx - r.left) / r.width * v.w, y: v.y + (cy - r.top) / r.height * v.h };
   };
   // The pin nearest a tap, within reach of a fingertip.
   const pinAt = (cx, cy) => {
     if (!mapGeom || !mapGeom.pins) return null;
-    const r = svg.getBoundingClientRect(), v = getViewBox();
+    const r = mapRect(svg), v = currentView();
     let best = null, bd = 26;
     for (const p of mapGeom.pins) {
       const d = Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy);
@@ -1264,17 +1302,44 @@ function wireZoom(svg) {
     }
     return best;
   };
-  // A plain wheel / two-finger trackpad scroll scrolls the page; zoom is a
-  // trackpad pinch (which arrives as ctrl+wheel) or ⌘/⌥ + wheel.
+  // With the whole route on screen there's nothing to pan: one finger up or
+  // down scrolls the Route info sheet instead (with a little momentum), so
+  // the map never hands the gesture to the browser — which let a pinch get
+  // taken over as a scroll, and scrolled the main page behind.
+  const sheet = () => document.querySelector('.route-sheet');
+  let scroll0 = 0, vel = 0, lastY = 0, lastT = 0, coast = 0;
+  const coastOn = () => {
+    const sh = sheet(); if (!sh) return;
+    cancelAnimationFrame(coast);
+    // Exponential slow-down, integrated exactly per frame, so a dropped or
+    // slow frame doesn't fling the sheet further than a smooth one would.
+    const D = 0.994, K = -Math.log(D);
+    let v = Math.max(-4, Math.min(4, vel)), t = performance.now();
+    const stepF = (now) => {
+      const dt = Math.min(100, now - t); t = now;
+      const f = Math.pow(D, dt);
+      sh.scrollTop -= v * (1 - f) / K; v *= f;
+      if (Math.abs(v) > 0.02) coast = requestAnimationFrame(stepF);
+    };
+    if (Math.abs(v) > 0.1) coast = requestAnimationFrame(stepF);
+  };
+  const atWhole = () => start && start.v.w >= mapGeom.W * 0.98;
+  const restart = () => {
+    commitView();
+    start = pts.size ? { v: getViewBox(), pts: new Map([...pts].map(([k, p]) => [k, { ...p }])) } : null;
+  };
   svg.addEventListener('wheel', (e) => {
+    // Plain wheel / trackpad scroll: the page. Pinch (ctrl+wheel) or ⌘/⌥: zoom.
     if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
     e.preventDefault();
     viewAnim++;
-    const p = toSvg(e.clientX, e.clientY);
-    zoomAbout(Math.exp(e.deltaY * 0.0015), p.x, p.y, false);
+    const p = toSvg(e.clientX, e.clientY), v = currentView(), f = Math.exp(e.deltaY * 0.0015);
+    show({ x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f, w: v.w * f, h: v.h * f });
+    clearTimeout(wheelT); wheelT = setTimeout(() => { cancelAnimationFrame(frame); frame = 0; want = null; commitView(); }, 140);
   }, { passive: false });
   svg.addEventListener('pointerdown', (e) => {
     viewAnim++;
+    cancelAnimationFrame(coast);
     // A new first finger: forget any pointer whose up/cancel never came (iOS
     // drops them when the page scrolls or a card opens mid-gesture). A stale
     // one turned the next tap into a "pinch" — taps missed, drags zoomed.
@@ -1282,31 +1347,47 @@ function wireZoom(svg) {
     try { svg.setPointerCapture(e.pointerId); } catch {}
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     down = pts.size === 1 ? { x: e.clientX, y: e.clientY, t: Date.now(), moved: false } : null;
-    start = { v: getViewBox(), pts: new Map([...pts].map(([k, p]) => [k, { ...p }])) };
+    restart();
+    scroll0 = sheet()?.scrollTop || 0; vel = 0; lastY = e.clientY; lastT = performance.now();
   });
   svg.addEventListener('pointermove', (e) => {
     if (!pts.has(e.pointerId) || !start) return;
+    e.preventDefault();
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const r = svg.getBoundingClientRect();
+    const r = mapRect(svg);
     const [a, b] = [...pts.values()], [a0, b0] = [...start.pts.values()];
-    // A fingertip wanders a few pixels on a tap; only a real drag pans.
+    // A fingertip wanders a few pixels on a tap; only a real drag counts.
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 12) down.moved = true;
     if (pts.size >= 2 && a0 && b0) {
-      e.preventDefault();
       const d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y), d1 = Math.hypot(a.x - b.x, a.y - b.y);
       const f = d1 > 0 ? d0 / d1 : 1;
-      const mx = ((a0.x + b0.x) / 2 - r.left) / r.width, my = ((a0.y + b0.y) / 2 - r.top) / r.height;
+      // Zoom about the pinch's start midpoint and follow the midpoint as it moves.
+      const m0x = (a0.x + b0.x) / 2, m0y = (a0.y + b0.y) / 2, m1x = (a.x + b.x) / 2, m1y = (a.y + b.y) / 2;
       const v = start.v, w = v.w * f, h = v.h * f;
-      setViewBox({ x: v.x + mx * v.w - mx * w, y: v.y + my * v.h - my * h, w, h });
+      const px = v.x + (m0x - r.left) / r.width * v.w, py = v.y + (m0y - r.top) / r.height * v.h;
+      show({ x: px - (m1x - r.left) / r.width * w, y: py - (m1y - r.top) / r.height * h, w, h });
     } else if (pts.size === 1 && a0 && down && down.moved) {
-      const dx = (a.x - a0.x) / r.width * start.v.w, dy = (a.y - a0.y) / r.height * start.v.h;
-      setViewBox({ ...start.v, x: start.v.x - dx, y: start.v.y - dy });
+      if (atWhole()) {
+        const sh = sheet(); if (!sh) return;
+        sh.scrollTop = scroll0 - (a.y - a0.y);
+        const now = performance.now();
+        if (now > lastT) vel = 0.8 * vel + 0.2 * ((e.clientY - lastY) / (now - lastT));
+        lastY = e.clientY; lastT = now;
+      } else {
+        const dx = (a.x - a0.x) / r.width * start.v.w, dy = (a.y - a0.y) / r.height * start.v.h;
+        show({ ...start.v, x: start.v.x - dx, y: start.v.y - dy });
+      }
     }
   });
   const end = (e) => {
     const wasTap = down && !down.moved && pts.size === 1 && Date.now() - down.t < 600 && e.type === 'pointerup';
+    const scrolling = pts.size === 1 && down && down.moved && atWhole();
     pts.delete(e.pointerId);
-    start = pts.size ? { v: getViewBox(), pts: new Map([...pts].map(([k, p]) => [k, { ...p }])) } : null;
+    // Draw the map once, at the view the fingers left it.
+    if (frame) { cancelAnimationFrame(frame); frame = 0; if (want) previewView(want); }
+    want = null;
+    restart();
+    if (scrolling) coastOn();
     if (!wasTap) { if (!pts.size) down = null; return; }
     down = null;
     // A tap: the nearest airport opens. Two quick taps on open map zoom in
