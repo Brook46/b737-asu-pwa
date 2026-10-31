@@ -43,7 +43,7 @@ src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
 include/             pins.h, build_config.h
 test/                desktop tests + synthetic flight generator
 tools/sim/           flight replay
-docs/                hardware.md (wiring, BOM checks), bringup.md (milestone steps)
+docs/                hardware.md (wiring, BOM checks), bringup.md (milestone steps), build-sketch.html (to-scale layout, open and closed)
 ```
 
 ## Build
