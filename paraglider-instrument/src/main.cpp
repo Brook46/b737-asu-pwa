@@ -12,9 +12,9 @@
 #include <cmath>
 
 #include "build_config.h"
-#include "drivers/bmp390.h"
-#include "drivers/gnss_m10.h"
-#include "drivers/icm42688.h"
+#include "drivers/dps310.h"
+#include "drivers/gnss_l76k.h"
+#include "drivers/lsm6ds3.h"
 #include "flight_computer.h"
 #include "io/ble_link.h"
 #include "io/buzzer.h"
@@ -25,9 +25,9 @@
 
 namespace {
 
-Bmp390 baro;
-GnssM10 gnss;
-Icm42688 imu;
+Dps310 baro;
+GnssL76k gnss;
+Lsm6ds3 imu;
 BleLink ble;
 XcTracerSource xct(ble);
 LoraFanet lora;
@@ -36,7 +36,7 @@ StatusLed led;
 Preferences prefs;
 pg::FlightComputer fc;
 
-// Bring-up print toggles (console: `show baro|gnss|imu|xct|fc|off`).
+// Bring-up print toggles (console: `show baro|gnss|nmea|imu|xct|fc|off`).
 bool showBaro = false, showGnss = false, showImu = false, showFc = true;
 uint32_t lastTick = 0, lastPrint = 0, lastStatusText = 0, lastTrack = 0;
 pg::BaroSample lastBaro;
@@ -69,7 +69,7 @@ void i2cScan() {
   for (uint8_t a = 1; a < 127; ++a) {
     Wire.beginTransmission(a);
     if (Wire.endTransmission() == 0) {
-      const char* what = a == 0x42 ? " (u-blox GNSS)" : (a == 0x76 || a == 0x77) ? " (BMP390?)" : "";
+      const char* what = (a == 0x76 || a == 0x77) ? " (DPS310?)" : (a == 0x6A || a == 0x6B) ? " (LSM6DS3?)" : "";
       Serial.printf("  0x%02X%s\n", a, what);
     }
   }
@@ -88,9 +88,9 @@ void printStatus() {
 
 void printHealth() {
   Serial.printf("baro: %s (%lu samples)  gnss: %s (%lu)  imu: %s (%lu)\n",
-                baro.present() ? "BMP390" : "absent", static_cast<unsigned long>(baroCount),
-                gnss.present() ? "M10" : "absent", static_cast<unsigned long>(gnssCount),
-                imu.present() ? "ICM42688" : "absent", static_cast<unsigned long>(imuCount));
+                baro.present() ? "DPS310" : "absent", static_cast<unsigned long>(baroCount),
+                gnss.present() ? "L76K" : "silent", static_cast<unsigned long>(gnssCount),
+                imu.present() ? "LSM6DS3" : "absent", static_cast<unsigned long>(imuCount));
   Serial.printf("xctracer: %s %s (%lu bytes, %lu ok / %lu bad sentences, batt %d%%)\n",
                 ble.xctConnected() ? "connected" : "searching", ble.xctAddress(),
                 static_cast<unsigned long>(ble.xctBytes()), static_cast<unsigned long>(xct.sentences()),
@@ -100,7 +100,7 @@ void printHealth() {
                 static_cast<unsigned long>(lora.rxCount()), static_cast<unsigned long>(lora.txCount()),
                 LoraFanet::txCompiledIn() ? "compiled in" : "compiled OUT",
                 lora.txArmed() ? ", ARMED" : "",
-                fc.status().baro == pg::BaroOrigin::Onboard   ? "BMP390"
+                fc.status().baro == pg::BaroOrigin::Onboard   ? "DPS310"
                 : fc.status().baro == pg::BaroOrigin::XcTracer ? "XCTracer"
                                                                : "none");
 }
@@ -146,7 +146,7 @@ void consoleHelp() {
   Serial.println(
       "commands:\n"
       "  status | health | i2c | help\n"
-      "  show baro|gnss|imu|fc|xct|off   periodic prints for bring-up\n"
+      "  show baro|gnss|nmea|imu|fc|xct|off   periodic prints / raw streams for bring-up\n"
       "  mc <m/s> | automc on|off | vol <0-3> | mute | qnh <hPa>\n"
       "  beep stay|glide|msg|boot|err    play an alert\n"
       "  tone <Hz> | vario <m/s>          drive the piezo directly (bench)\n"
@@ -186,6 +186,7 @@ void console() {
       showImu = !off && !strcmp(arg, "imu") ? !showImu : (off ? false : showImu);
       showFc = !off && !strcmp(arg, "fc") ? !showFc : (off ? false : showFc);
       xct.echo = !off && !strcmp(arg, "xct") ? !xct.echo : (off ? false : xct.echo);
+      gnss.echo = !off && !strcmp(arg, "nmea") ? !gnss.echo : (off ? false : gnss.echo);
     } else if (!strcmp(line, "mc") && arg) {
       auto a = fc.advisor().config();
       a.autoMc = false;
@@ -296,8 +297,6 @@ void setup() {
   Serial.println("\n== paragliding instrument ==");
 
   // Both SPI chip-selects high before anything talks on the shared bus.
-  pinMode(PIN_IMU_CS, OUTPUT);
-  digitalWrite(PIN_IMU_CS, HIGH);
   pinMode(PIN_LORA_NSS, OUTPUT);
   digitalWrite(PIN_LORA_NSS, HIGH);
 
@@ -308,10 +307,11 @@ void setup() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQ_HZ);
   SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI);
 
-  Serial.printf("BMP390     %s\n", baro.begin(Wire) ? "ok" : "not found");
+  Serial.printf("DPS310     %s\n", baro.begin(Wire) ? "ok" : "not found");
   if (baro.present()) Serial.printf("           at 0x%02X\n", baro.address());
-  Serial.printf("MAX-M10S   %s\n", gnss.begin(Wire, 5) ? "ok" : "not found");
-  Serial.printf("ICM-42688  %s (WHO_AM_I 0x%02X)\n", imu.begin(SPI, PIN_IMU_CS) ? "ok" : "not found", imu.whoAmI());
+  Serial.printf("LSM6DS3    %s (WHO_AM_I 0x%02X)\n", imu.begin(Wire) ? "ok" : "not found", imu.whoAmI());
+  gnss.begin(Serial1, PIN_GNSS_RX, PIN_GNSS_TX, 5);
+  Serial.println("L76K       configured on Serial1 (D7 RX / D6 TX); `health` shows if it talks");
   // FANET zone: last one used (saved), corrected from GPS once there's a fix.
   prefs.begin("pg", true);
   const String savedRegion = prefs.getString("region", "IL918");

@@ -1,5 +1,7 @@
 #include "nmea.h"
 
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -50,6 +52,29 @@ bool num(const char* s, double& v) {
   char* end = nullptr;
   v = std::strtod(s, &end);
   return end != s;
+}
+
+// Like split(), but for any two-letter talker: tag "RMC" matches "$GNRMC,".
+bool splitAnyTalker(const char* line, const char* tag, Fields& out) {
+  if (line[0] != '$' || !line[1] || !line[2]) return false;
+  char fullTag[8];
+  std::snprintf(fullTag, sizeof fullTag, "%c%c%s", line[1], line[2], tag);
+  return split(line, fullTag, out);
+}
+
+// "ddmm.mmmm" / "dddmm.mmmm" + hemisphere → signed degrees.
+bool latLon(const char* v, const char* hemi, int degDigits, double& out) {
+  if (!v || !*v || !hemi || !*hemi) return false;
+  char deg[4] = {};
+  for (int i = 0; i < degDigits; ++i) {
+    if (!v[i]) return false;
+    deg[i] = v[i];
+  }
+  const double d = std::atof(deg);
+  const double m = std::atof(v + degDigits);
+  out = d + m / 60.0;
+  if (*hemi == 'S' || *hemi == 'W') out = -out;
+  return true;
 }
 
 }  // namespace
@@ -122,6 +147,85 @@ bool parseXctrc(const char* line, Xctrc& out) {
   }
   if (fs.n > 17 && num(fs.f[17], v)) out.batteryPct = static_cast<int>(v);
   return true;
+}
+
+size_t nmeaBuild(const char* body, char* out, size_t cap) {
+  const size_t n = std::strlen(body);
+  if (n + 5 > cap) return 0;
+  const int w = std::snprintf(out, cap, "$%s*%02X", body, nmeaChecksum(body, n));
+  return w > 0 ? static_cast<size_t>(w) : 0;
+}
+
+bool NmeaGnssParser::utc(int& y, int& mo, int& d, int& h, int& mi, int& s) const {
+  if (!haveTime_) return false;
+  y = y_;
+  mo = mo_;
+  d = d_;
+  h = h_;
+  mi = mi_;
+  s = s_;
+  return true;
+}
+
+bool NmeaGnssParser::feed(const char* line, TimeMs now, GnssFix& out) {
+  Fields fs;
+  double v;
+  if (splitAnyTalker(line, "GGA", fs)) {
+    // time,lat,N,lon,E,quality,sats,hdop,alt,M,geoid,M,age,station
+    if (fs.n < 10) {
+      ++bad_;
+      return false;
+    }
+    ++good_;
+    quality_ = num(fs.f[5], v) ? static_cast<int>(v) : 0;
+    sats_ = num(fs.f[6], v) ? static_cast<uint8_t>(v) : 0;
+    hdop_ = num(fs.f[7], v) ? static_cast<float>(v) : 99.0f;
+    if (num(fs.f[8], v)) alt_ = static_cast<float>(v);
+    haveGga_ = true;
+    return false;
+  }
+  if (splitAnyTalker(line, "RMC", fs)) {
+    // time,status,lat,N,lon,E,speed(kn),course,date,magvar,E,mode
+    if (fs.n < 9) {
+      ++bad_;
+      return false;
+    }
+    ++good_;
+    const char* t = fs.f[0];
+    const char* date = fs.f[8];
+    if (std::strlen(t) >= 6 && std::strlen(date) >= 6) {
+      auto two = [](const char* p) { return (p[0] - '0') * 10 + (p[1] - '0'); };
+      h_ = two(t);
+      mi_ = two(t + 2);
+      s_ = two(t + 4);
+      d_ = two(date);
+      mo_ = two(date + 2);
+      y_ = 2000 + two(date + 4);
+      haveTime_ = true;
+    }
+    out = GnssFix{};
+    out.t = now;
+    const bool active = fs.f[1][0] == 'A';
+    double lat = 0, lon = 0;
+    const bool pos = latLon(fs.f[2], fs.f[3], 2, lat) && latLon(fs.f[4], fs.f[5], 3, lon);
+    if (active && pos) {
+      out.lat = lat;
+      out.lon = lon;
+      out.fix = (haveGga_ && quality_ == 0) ? FixType::None : FixType::Fix3D;
+      out.altMsl = alt_;
+      out.sats = sats_;
+      // u-blox-style accuracy isn't in NMEA; HDOP × ~2.5 m is a usable stand-in.
+      out.hAcc = hdop_ * 2.5f;
+      if (num(fs.f[6], v)) out.groundSpeed = static_cast<float>(v * 0.514444);
+      if (num(fs.f[7], v)) out.trackDeg = static_cast<float>(v);
+      const float tr = out.trackDeg * 0.0174532925f;
+      out.velN = out.groundSpeed * std::cos(tr);
+      out.velE = out.groundSpeed * std::sin(tr);
+    }
+    return true;
+  }
+  if (line[0] == '$') ++bad_;
+  return false;
 }
 
 }  // namespace pg

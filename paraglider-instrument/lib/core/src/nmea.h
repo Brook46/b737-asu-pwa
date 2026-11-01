@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "types.h"
+
 namespace pg {
 
 class LineAssembler {
@@ -85,5 +87,31 @@ struct Xctrc {
 };
 
 bool parseXctrc(const char* line, Xctrc& out);
+
+// Standard NMEA position sentences from a GNSS receiver (the L76K sends
+// GGA + RMC after setup; any talker: GP, GN, GB, BD, GL). One fix is emitted
+// per RMC, using the altitude, satellite count and HDOP of the latest GGA.
+class NmeaGnssParser {
+ public:
+  // Returns true and fills `out` when a sentence completed a fix (RMC).
+  bool feed(const char* line, TimeMs now, GnssFix& out);
+  uint32_t sentences() const { return good_; }
+  uint32_t rejected() const { return bad_; }
+  // UTC date and time from the last RMC that carried them.
+  bool utc(int& y, int& mo, int& d, int& h, int& mi, int& s) const;
+
+ private:
+  float alt_ = 0, hdop_ = 99;
+  uint8_t sats_ = 0;
+  int quality_ = 0;  // GGA fix quality: 0 none, 1 GPS, 2 DGPS, 6 dead reckoning
+  bool haveGga_ = false;
+  int y_ = 0, mo_ = 0, d_ = 0, h_ = 0, mi_ = 0, s_ = 0;
+  bool haveTime_ = false;
+  uint32_t good_ = 0, bad_ = 0;
+};
+
+// Builds "$BODY*hh" with the correct checksum (no CR/LF) into `out`.
+// Returns the length, or 0 if it doesn't fit.
+size_t nmeaBuild(const char* body, char* out, size_t cap);
 
 }  // namespace pg

@@ -9,6 +9,7 @@
 #include "averager.h"
 #include "check.h"
 #include "circling.h"
+#include "dps310_comp.h"
 #include "fanet.h"
 #include "flight_computer.h"
 #include "kalman_vario.h"
@@ -372,6 +373,67 @@ TEST("nmea: line assembler rebuilds sentences split across BLE packets") {
     EXPECT(got[0] == "$LK8EX1,1,2,3,4,5*00");
     EXPECT(got[1] == "$XCTRC,a*11");
   }
+}
+
+TEST("nmea: L76K setup commands match Meshtastic's known-good strings") {
+  char b[96];
+  nmeaBuild("PCAS04,7", b, sizeof b);
+  EXPECT(std::strcmp(b, "$PCAS04,7*1E") == 0);
+  nmeaBuild("PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0", b, sizeof b);
+  EXPECT(std::strcmp(b, "$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0*02") == 0);
+  nmeaBuild("PCAS11,3", b, sizeof b);
+  EXPECT(std::strcmp(b, "$PCAS11,3*1E") == 0);
+  nmeaBuild("PCAS06,0", b, sizeof b);
+  EXPECT(std::strcmp(b, "$PCAS06,0*1B") == 0);
+}
+
+TEST("nmea: GGA + RMC from a GNSS receiver make one fix") {
+  NmeaGnssParser p;
+  char gga[128], rmc[128];
+  nmeaBuild("GNGGA,101530.00,3233.0000,N,03521.0000,E,1,09,0.9,512.3,M,18.0,M,,", gga, sizeof gga);
+  nmeaBuild("GNRMC,101530.00,A,3233.0000,N,03521.0000,E,19.44,90.0,011126,,,A", rmc, sizeof rmc);
+  GnssFix f;
+  EXPECT(!p.feed(gga, 1000, f));
+  EXPECT(p.feed(rmc, 1000, f));
+  EXPECT(f.valid());
+  EXPECT_NEAR(f.lat, 32.55, 1e-6);
+  EXPECT_NEAR(f.lon, 35.35, 1e-6);
+  EXPECT_NEAR(f.altMsl, 512.3, 1e-3);
+  EXPECT(f.sats == 9);
+  EXPECT_NEAR(f.groundSpeed, 10.0, 0.01);  // 19.44 kn
+  EXPECT_NEAR(f.velE, 10.0, 0.01);
+  EXPECT_NEAR(f.velN, 0.0, 0.01);
+  int y, mo, d, h, mi, sec;
+  EXPECT(p.utc(y, mo, d, h, mi, sec) && y == 2026 && mo == 11 && d == 1 && h == 10 && mi == 15);
+  nmeaBuild("GPRMC,101531.00,V,,,,,,,011126,,,N", rmc, sizeof rmc);
+  EXPECT(p.feed(rmc, 1200, f));
+  EXPECT(!f.valid());  // receiver says no fix
+}
+
+TEST("dps310: coefficient unpacking and sign extension") {
+  // c0=-100 (12b) c1=-300 (12b) c00=81000 (20b) c10=-50000 (20b) c01..c30 16-bit.
+  const int32_t c0 = -100 & 0xFFF, c1 = -300 & 0xFFF, c00 = 81000, c10 = -50000 & 0xFFFFF;
+  uint8_t b[18];
+  b[0] = c0 >> 4;
+  b[1] = ((c0 & 0xF) << 4) | (c1 >> 8);
+  b[2] = c1 & 0xFF;
+  b[3] = c00 >> 12;
+  b[4] = (c00 >> 4) & 0xFF;
+  b[5] = ((c00 & 0xF) << 4) | (c10 >> 16);
+  b[6] = (c10 >> 8) & 0xFF;
+  b[7] = c10 & 0xFF;
+  const int16_t rest[5] = {-1234, 567, -8000, 42, -3};
+  for (int i = 0; i < 5; ++i) {
+    b[8 + 2 * i] = static_cast<uint8_t>(static_cast<uint16_t>(rest[i]) >> 8);
+    b[9 + 2 * i] = static_cast<uint8_t>(rest[i] & 0xFF);
+  }
+  const Dps310Calib c = dps310ParseCalib(b);
+  EXPECT(c.c0 == -100 && c.c1 == -300 && c.c00 == 81000 && c.c10 == -50000);
+  EXPECT(c.c01 == -1234 && c.c11 == 567 && c.c20 == -8000 && c.c21 == 42 && c.c30 == -3);
+  const uint8_t neg[3] = {0xFF, 0xFF, 0xFE};
+  EXPECT(dps310Raw24(neg) == -2);
+  EXPECT(dps310ScaleFactor(3) == 7864320);
+  EXPECT_NEAR(dps310Temperature(c, 0.0), -50.0, 1e-9);  // c0 / 2
 }
 
 // ---------------------------------------------------------------- fanet
