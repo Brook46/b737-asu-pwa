@@ -25,6 +25,7 @@
 #include "traffic.h"
 #include "profile.h"
 #include "xc.h"
+#include "sun.h"
 #include "flight_computer.h"
 #include "kalman_vario.h"
 #include "nmea.h"
@@ -1418,6 +1419,162 @@ TEST("flight computer: thermal model drives TIGHTEN/MOVE sounds in a synthetic c
               static_cast<double>(fc.status().advisor.circleClimb));
   EXPECT(move && again && straight);
   EXPECT(std::hypot(cx, cy) < 45);  // following the advice moved the circle onto the core
+}
+
+// ---------------------------------------------------------------- sun on terrain
+
+TEST("sun: position — midsummer noon high in the south, morning east, afternoon west") {
+  // Gilboa, 21 June: solar noon ≈ 09:38 UTC, elevation ≈ 90 − (32.5 − 23.4) ≈ 81°.
+  const SunPos noon = sunPosition(2026, 6, 21, 9 * 60 + 38, 32.5, 35.4);
+  const SunPos morning = sunPosition(2026, 11, 1, 5 * 60, 32.5, 35.4);    // 07:00 local
+  const SunPos evening = sunPosition(2026, 11, 1, 13 * 60, 32.5, 35.4);   // 15:00 local
+  std::printf("        noon %.1f°/%.0f°  Nov 07:00 %.1f°/%.0f°  15:00 %.1f°/%.0f°\n", static_cast<double>(noon.elevDeg),
+              static_cast<double>(noon.azDeg), static_cast<double>(morning.elevDeg), static_cast<double>(morning.azDeg),
+              static_cast<double>(evening.elevDeg), static_cast<double>(evening.azDeg));
+  EXPECT_NEAR(noon.elevDeg, 81, 1.0);
+  EXPECT(std::fabs(angleDiffDeg(noon.azDeg, 180)) < 15);
+  EXPECT(morning.azDeg > 90 && morning.azDeg < 150 && morning.elevDeg > 5 && morning.elevDeg < 25);
+  EXPECT(evening.azDeg > 210 && evening.azDeg < 260);
+}
+
+namespace {
+// A north–south ridge, 600 m high, on a 200 m plain: 31 × 31 cells of 0.004°.
+std::vector<uint8_t> makeRidge() {
+  const int n = 31;
+  std::vector<uint8_t> d(44 + n * n * 2, 0);
+  std::memcpy(d.data(), "PGTR", 4);
+  d[4] = 1;
+  d[6] = n;
+  d[8] = n;
+  const double hdr[4] = {32.4, 35.35, 0.004, 0.004};
+  std::memcpy(d.data() + 12, hdr, 32);
+  for (int r = 0; r < n; ++r)
+    for (int c = 0; c < n; ++c) {
+      const float x = (c - 15) * 0.004f * 94000;  // m from the crest, east +
+      const int16_t z = static_cast<int16_t>(200 + 600 * std::exp(-(x * x) / (2500.0f * 2500.0f)));
+      std::memcpy(d.data() + 44 + (r * n + c) * 2, &z, 2);
+    }
+  return d;
+}
+// East offset (m) of the strongest source from the crest.
+float sourceSide(const ThermalSources& ts) {
+  int b = 0;
+  for (int i = 1; i < ts.count(); ++i)
+    if (ts.at(i).strength > ts.at(b).strength) b = i;
+  return ts.count() ? static_cast<float>((ts.at(b).lon - 35.41) * 94000) : 0;
+}
+}  // namespace
+
+TEST("thermal sources: morning on the east face, afternoon on the west; wind moves them to the crest") {
+  static std::vector<uint8_t> d = makeRidge();
+  Terrain t;
+  EXPECT(t.load(d.data(), d.size()));
+  ThermalSources ts;
+  // 1 Nov, 08:30 local (06:30 UTC), calm: sun from the ESE.
+  for (int m = 5 * 60; m <= 6 * 60 + 30; m += 10) ts.update(t, 32.46, 35.41, 2026, 11, 1, m, 0, 0);
+  const float morning = sourceSide(ts);
+  const float eastHeat = ts.heatingAt(32.46, 35.41 + 2500 / 94000.0);
+  const float westHeat = ts.heatingAt(32.46, 35.41 - 2500 / 94000.0);
+  // Afternoon 15:00 local: from the WSW.
+  for (int m = 6 * 60 + 40; m <= 13 * 60; m += 10) ts.update(t, 32.46, 35.41, 2026, 11, 1, m, 0, 0);
+  const float afternoon = sourceSide(ts);
+  // Same afternoon, 7 m/s from the west: release points pushed east to the crest.
+  ThermalSources tw;
+  for (int m = 12 * 60; m <= 13 * 60; m += 10) tw.update(t, 32.46, 35.41, 2026, 11, 1, m, 0, 7.0f);
+  const float windy = sourceSide(tw);
+  float maxCalm = 0, maxWindy = 0;
+  for (int i = 0; i < ts.count(); ++i) maxCalm = std::max(maxCalm, ts.at(i).strength);
+  for (int i = 0; i < tw.count(); ++i) maxWindy = std::max(maxWindy, tw.at(i).strength);
+  std::printf("        sources: morning %+.0f m, afternoon %+.0f m, afternoon in W wind %+.0f m (east of crest +); "
+              "heat E %.2f W %.2f; strength calm %.2f windy %.2f\n",
+              static_cast<double>(morning), static_cast<double>(afternoon), static_cast<double>(windy),
+              static_cast<double>(eastHeat), static_cast<double>(westHeat), static_cast<double>(maxCalm),
+              static_cast<double>(maxWindy));
+  EXPECT(eastHeat > westHeat + 0.2f);
+  EXPECT(morning > 300);
+  EXPECT(afternoon < -300);
+  EXPECT(windy > afternoon + 300);  // toward the crest (downwind of the heated face)
+  EXPECT(maxWindy < maxCalm);
+}
+
+TEST("thermal column: drifts downwind with height, by the wind in each layer") {
+  // 4 m/s toward the east, rising at 2.5 m/s: 1000 m above the source → 1.6 km
+  // east, plus the bubble's half depth (300 m → 480 m).
+  double lat, lon;
+  thermalColumnAt(32.5, 35.4, 200, 1200, 2.5f, nullptr, 0, 4, lat, lon);
+  float n, e;
+  offsetMeters(32.5, 35.4, lat, lon, n, e);
+  std::printf("        1000 m above the source: %.0f m east\n", static_cast<double>(e));
+  EXPECT_NEAR(e, 2080, 30);
+  EXPECT(std::fabs(n) < 1);
+  // Measured layers: still air below 700 m, 8 m/s east above.
+  Profile pr;
+  pr.addWind(0, 650, 0, 0);
+  pr.addWind(0, 750, 0, 8);
+  pr.addWind(0, 1250, 0, 8);
+  thermalColumnAt(32.5, 35.4, 200, 1200, 2.5f, &pr, 0, 4, lat, lon);
+  offsetMeters(32.5, 35.4, lat, lon, n, e);
+  std::printf("        with the layers: %.0f m east\n", static_cast<double>(e));
+  EXPECT(e > 2200);  // the windier upper layers push it further than 4 m/s throughout
+}
+
+TEST("flight computer: with terrain and a clock, the glide target is a sunny face (no pack needed)") {
+  static std::vector<uint8_t> d = makeRidge();
+  static Terrain t;
+  EXPECT(t.load(d.data(), d.size()));
+  FlightComputer fc;
+  fc.setTerrain(&t);
+  fc.setClock(2026, 11, 1, 6 * 60 + 30);  // 08:30 local: sun from the ESE
+  // Over the crest, 1500 m: the sunny east face and the shaded west are equally near.
+  for (TimeMs ms = 0; ms <= 20000; ms += 20) {
+    if (ms % 40 == 0) {
+      BaroSample b{ms, altitudeToPressure(1500), 20, true};
+      fc.onBaro(b);
+    }
+    if (ms % 200 == 0) fc.onGnss(fixAt(ms, 32.46, 35.41, 1500, 0, 10));
+    fc.tick(ms);
+  }
+  const Target& b = fc.status().best;
+  const float x = static_cast<float>((b.lon - 35.41) * 94000);
+  std::printf("        target kind %d, %.0f m east of the crest, %.1f km, arrive %+.0f m, chance %.0f%%\n",
+              static_cast<int>(b.kind), static_cast<double>(x), static_cast<double>(b.distM / 1000),
+              static_cast<double>(b.arrivalAgl), static_cast<double>(b.chance * 100));
+  EXPECT(b.valid && b.kind == TargetKind::Sun);
+  EXPECT(x > 0);  // the east (sunny) side
+}
+
+TEST("remote air sensor: frame round trip; preferred over the warm case while fresh, no offset") {
+  uint8_t f[5];
+  EXPECT(encodeAirFrame(-3.27f, 61.5f, f) == 5);
+  float tc, rh;
+  EXPECT(parseAirFrame(f, 5, tc, rh));
+  EXPECT_NEAR(tc, -3.27, 0.006);
+  EXPECT_NEAR(rh, 61.5, 0.006);
+  EXPECT(!parseAirFrame(f, 4, tc, rh));
+  EXPECT(parseCommand(f, 5) == Command::None);  // not mistaken for a button
+
+  FlightComputer fc;
+  AtmosphereConfig ac = fc.atmosphere().config();
+  ac.tempOffset = 2.0f;  // the case reads 2 °C warm
+  fc.atmosphere().configure(ac);
+  for (TimeMs t = 40; t <= 30000; t += 40) {
+    BaroSample b{t, altitudeToPressure(1000), 20, true};
+    fc.onBaro(b);
+    if (t % 1000 == 0) fc.onAir(t, 24.0f, 40.0f);                   // case: 24 → 22 after the offset
+    if (t % 2000 == 0 && t >= 15000) fc.onRemoteAir(t, 20.5f, 46.0f);  // outside: 20.5 °C
+    fc.tick(t);
+  }
+  EXPECT(fc.status().air.ventilated);
+  EXPECT_NEAR(fc.status().air.tempC, 20.5, 0.01);  // the remote's reading, unshifted
+  // The remote goes quiet: back to the case after a few seconds.
+  for (TimeMs t = 30040; t <= 40000; t += 40) {
+    BaroSample b{t, altitudeToPressure(1000), 20, true};
+    fc.onBaro(b);
+    if (t % 1000 == 0) fc.onAir(t, 24.0f, 40.0f);
+    fc.tick(t);
+  }
+  EXPECT(!fc.status().air.ventilated);
+  EXPECT_NEAR(fc.status().air.tempC, 22.0, 0.01);
 }
 
 int main() { return check::runAll(); }

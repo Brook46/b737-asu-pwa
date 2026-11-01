@@ -38,12 +38,14 @@ void FlightComputer::reset() {
   xc_.reset();
   traffic_.reset();
   profile_.reset();
+  sun_.reset();
   airX_ = airY_ = 0;
   lastAirStep_ = lastCirclingT_ = circStart_ = 0;
   nettoAvg_ = accMean_ = accVar_ = 0;
   thermalTop_ = curTop_ = 0;
   betterNearby_ = finalCued_ = false;
   lastWindFed_ = 0;
+  remoteAirT_ = 0;
   candAdv_ = cuedAdv_ = TurnAdvice::None;
   candSince_ = lastTurnCue_ = lastMoveCue_ = moveEnd_ = 0;
   cuedBar_ = candBar_ = 0;
@@ -228,8 +230,19 @@ void FlightComputer::onTraffic(TimeMs t, uint32_t id, const fanet::Tracking& tr)
   }
 }
 
+void FlightComputer::onRemoteAir(TimeMs t, float tempC, float rhPct) {
+  if (!kf_.initialized()) return;
+  remoteAirT_ = t;
+  const AtmosphereEvent ev = atmo_.update(t, st_.altitude, tempC, rhPct, circ_.circling(), st_.vario, true);
+  st_.air = atmo_.state();
+  if (t - filterStart_ < kSettleMs) return;
+  if (ev == AtmosphereEvent::NearBase) notify(Alert::NearBase, t);
+  else if (ev == AtmosphereEvent::Inversion) notify(Alert::Inversion, t);
+}
+
 void FlightComputer::onAir(TimeMs t, float caseTempC, float rhPct) {
   if (!kf_.initialized()) return;  // cloud base is relative to the vario altitude
+  if (remoteAirFresh(t)) return;   // the remote's outside air is better
   const AtmosphereEvent ev =
       atmo_.update(t, st_.altitude, caseTempC, rhPct, circ_.circling(), st_.vario);
   st_.air = atmo_.state();
@@ -285,6 +298,10 @@ bool FlightComputer::onCommand(Command c, TimeMs t) {
     case Command::AtCloudBase:
       if (!st_.air.haveAir) {
         notify(Alert::Error, t);
+        return true;
+      }
+      if (remoteAirFresh(t)) {  // outside sensor: nothing to calibrate
+        notify(Alert::RemoteAck, t);
         return true;
       }
       atmo_.calibrateAtBase();
@@ -554,35 +571,102 @@ void FlightComputer::updateNav(TimeMs t) {
     st_.home.arrivalAgl = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, st_.home.lat,
                                      st_.home.lon, gN, gE, st_.home.bearingDeg, st_.home.distM);
   }
+  // Where to glide next. Every candidate is a ground trigger (KK7 history,
+  // today's sun on the terrain) or a pilot climbing at some height; the climb
+  // is where the thermal's column will be at the height you'd arrive.
   st_.best = Target{};
+  st_.best.kind = TargetKind::None;
   float bestScore = 0;
-  if (hotspots_ && st_.clockValid && st_.pos.valid) {
-    st_.best = bestHotspot(*hotspots_, cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, gN, gE, st_.year,
-                           st_.month, st_.day, st_.utcMin, 250.0f);
-    if (st_.best.valid) bestScore = targetScore(st_.best.chance, st_.best.arrivalAgl, st_.best.distM, 250.0f);
-  }
-  // Live thermals (other pilots climbing) beat history. They drift with the wind.
   betterNearby_ = false;
   st_.nearCount = 0;
+  if (terrain_ && st_.clockValid && st_.pos.valid &&
+      (!sun_.valid() || st_.utcMin - sun_.lastUtcMin() >= 10 || st_.utcMin < sun_.lastUtcMin())) {
+    sun_.update(*terrain_, st_.pos.lat, st_.pos.lon, st_.year, st_.month, st_.day, st_.utcMin, wN, wE);
+  }
+  // A thermal's core updraft ≈ the climb you've been getting + your sink and
+  // the sink around it (~1.7 m/s); the bubble itself rises at about 0.6 × that.
+  float rise = 0.6f * (advisor_.mc() / 0.8f + 1.7f);
+  rise = rise < 1.5f ? 1.5f : (rise > 5 ? 5 : rise);
+  auto consider = [&](double tLat, double tLon, float fromAlt, float chance, TargetKind kind, float liveClimb,
+                      int ageMin) {
+    // Two passes: the arrival height decides where the column is, and that
+    // decides the arrival height.
+    double cLat = tLat, cLon = tLon;
+    float brg = 0, dist = 0, arr = 0, z = st_.altMsl;
+    for (int pass = 0; pass < 2; ++pass) {
+      if (kind == TargetKind::Live) {
+        // Their climb was at their height: shift it by the drift between there and here.
+        float dn = 0, de = 0;
+        const float dz = z - fromAlt;
+        dn = gN * dz / rise;
+        de = gE * dz / rise;
+        cLat = tLat + dn / 111195.0;
+        cLon = tLon + de / (111195.0 * std::cos(tLat * kDegToRad));
+      } else {
+        thermalColumnAt(tLat, tLon, fromAlt, z, rise, &profile_, wN, wE, cLat, cLon);
+      }
+      arr = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, cLat, cLon, gN, gE, brg, dist);
+      float g = 0;
+      if (!terrain_ || !terrain_->elevation(cLat, cLon, g)) g = st_.altMsl - (st_.aglValid ? st_.agl : 0);
+      z = g + arr;
+    }
+    if (dist < 400 || arr < 250) return;
+    if (chance > 0.95f) chance = 0.95f;
+    const float sc = targetScore(chance, arr, dist, 250.0f);
+    if (sc <= bestScore) return;
+    bestScore = sc;
+    float dn, de;
+    offsetMeters(tLat, tLon, cLat, cLon, dn, de);
+    Target tg;
+    tg.valid = true;
+    tg.lat = cLat;
+    tg.lon = cLon;
+    tg.bearingDeg = brg;
+    tg.distM = dist;
+    tg.arrivalAgl = arr;
+    tg.chance = chance;
+    tg.kind = kind;
+    tg.live = kind == TargetKind::Live;
+    tg.liveClimb = liveClimb;
+    tg.ageMin = ageMin;
+    tg.driftM = std::sqrt(dn * dn + de * de);
+    st_.best = tg;
+  };
+  if (st_.pos.valid) {
+    // History (KK7 pack), weighted by today's sun on that spot.
+    if (hotspots_ && st_.clockValid) {
+      for (int i = 0; i < hotspots_->count(); ++i) {
+        float ch = hotspots_->chance(i, st_.year, st_.month, st_.day, st_.utcMin);
+        if (ch < 0.15f) continue;
+        const Hotspot& h = hotspots_->at(i);
+        float g = 0;
+        if (terrain_) terrain_->elevation(h.lat, h.lon, g);
+        if (sun_.valid()) ch *= 0.6f + 0.8f * sun_.heatingAt(h.lat, h.lon);
+        consider(h.lat, h.lon, g, ch, TargetKind::History, 0, 0);
+      }
+    }
+    // Today's sun on the terrain: less certain than history, so scaled down.
+    if (sun_.valid()) {
+      for (int i = 0; i < sun_.count(); ++i) {
+        const ThermalSource& src = sun_.at(i);
+        if (src.strength < 0.2f) continue;
+        consider(src.lat, src.lon, src.ground, 0.6f * src.strength, TargetKind::Sun, 0, 0);
+      }
+    }
+  }
+  // Live thermals (other pilots climbing) beat history and prediction. They
+  // drift with the wind as they age, and with height between theirs and yours.
   if (st_.gps == GpsState::Ok && st_.pos.valid) {
     for (int i = 0; i < traffic_.thermals(); ++i) {
       const LiveThermal& h = traffic_.thermal(i);
       const float age = (t - h.t) / 1000.0f;
       const double lat = h.lat + wN * age / 111195.0;
       const double lon = h.lon + wE * age / (111195.0 * std::cos(h.lat * kDegToRad));
-      float brg, dist;
-      const float arr = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, lat, lon, gN, gE, brg,
-                                   dist);
-      if (dist < 400 || arr < 250) continue;
       float ch = (0.5f + 0.15f * h.climb) * std::exp(-age / 900.0f);
-      if (ch > 0.95f) ch = 0.95f;
-      const float sc = targetScore(ch, arr, dist, 250.0f);
-      if (sc > bestScore) {
-        bestScore = sc;
-        st_.best = Target{true, false, -1, lat, lon, brg, dist, arr, ch, true, h.climb, static_cast<int>(age / 60)};
-      }
+      consider(lat, lon, h.alt, ch, TargetKind::Live, h.climb, static_cast<int>(age / 60));
       // Leave a weak thermal for a clearly better one you can reach high.
-      if (st_.circling && age < 300 && arr > 300 && h.climb > st_.advisor.circleClimb + cfg_.xc.betterBy)
+      if (st_.circling && age < 300 && st_.best.kind == TargetKind::Live && st_.best.arrivalAgl > 300 &&
+          h.climb > st_.advisor.circleClimb + cfg_.xc.betterBy)
         betterNearby_ = true;
     }
     for (int i = 0; i < traffic_.pilots() && st_.nearCount < 8; ++i) {

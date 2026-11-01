@@ -13,6 +13,7 @@
 #include "hotspots.h"
 #include "terrain.h"
 #include "profile.h"
+#include "sun.h"
 #include "task.h"
 #include "thermal_assist.h"
 #include "thermal_model.h"
@@ -119,6 +120,9 @@ class FlightComputer {
   void onGnss(const GnssFix& f);
   // Temperature and humidity from the case sensor (BME280), ~1 Hz.
   void onAir(TimeMs t, float caseTempC, float rhPct);
+  // The same from a sensor on the remote, outside the case (preferred while
+  // fresh: true air temperature, fast response, no calibration needed).
+  void onRemoteAir(TimeMs t, float tempC, float rhPct);
   // Handles commands that are pure logic (MC, volume, mute, status). Returns
   // false for commands the firmware must act on (FANET sends, marks).
   bool onCommand(Command c, TimeMs t);
@@ -137,6 +141,7 @@ class FlightComputer {
   void onTraffic(TimeMs t, uint32_t id, const fanet::Tracking& tr);
   const Traffic& traffic() const { return traffic_; }
   const Profile& profile() const { return profile_; }
+  const ThermalSources& sunSources() const { return sun_; }
   // UTC date and time (from GPS while it's trusted, or the RTC).
   void setClock(int year, int month, int day, int utcMin);
   Atmosphere& atmosphere() { return atmo_; }
@@ -166,6 +171,7 @@ class FlightComputer {
   XcAdvisor xc_;
   Traffic traffic_;
   Profile profile_;
+  ThermalSources sun_;
   Task* task_ = nullptr;
   float airX_ = 0, airY_ = 0;   // air-mass-frame position (gyro × airspeed)
   TimeMs lastAirStep_ = 0, lastCirclingT_ = 0, circStart_ = 0;
@@ -173,6 +179,8 @@ class FlightComputer {
   float thermalTop_ = 0, curTop_ = 0;
   bool betterNearby_ = false, finalCued_ = false;
   TimeMs lastWindFed_ = 0;
+  TimeMs remoteAirT_ = 0;
+  bool remoteAirFresh(TimeMs t) const { return remoteAirT_ && t - remoteAirT_ < 6000; }
   TurnAdvice candAdv_ = TurnAdvice::None, cuedAdv_ = TurnAdvice::None;
   TimeMs candSince_ = 0, lastTurnCue_ = 0, lastMoveCue_ = 0, moveEnd_ = 0;
   float cuedBar_ = 0, candBar_ = 0;

@@ -379,10 +379,17 @@ void pageGlide(Canvas& c, const Status& s, const Model& m, TimeMs t) {
       std::snprintf(b, sizeof b, "%s", b2);
     c.text(8, 30, b, kFontMedium);
   } else {
+    // What it is (another pilot, history, today's sun on the terrain), and
+    // how far downwind of its trigger the climb is at the height you'll arrive.
     if (s.best.valid && s.best.live)
-      std::snprintf(b, sizeof b, "PILOT %+.1f  %d'", static_cast<double>(s.best.liveClimb), s.best.ageMin);
-    else if (s.best.valid) std::snprintf(b, sizeof b, "THERMAL %.0f%%", static_cast<double>(s.best.chance * 100));
-    else std::snprintf(b, sizeof b, s.home.valid ? "HOME" : "NO TARGET");
+      std::snprintf(b2, sizeof b2, "PILOT %+.1f  %d'", static_cast<double>(s.best.liveClimb), s.best.ageMin);
+    else if (s.best.valid)
+      std::snprintf(b2, sizeof b2, "%s %.0f%%", s.best.kind == TargetKind::Sun ? "SUN" : "THERMAL",
+                    static_cast<double>(s.best.chance * 100));
+    else std::snprintf(b2, sizeof b2, s.home.valid ? "HOME" : "NO TARGET");
+    if (s.best.valid && s.best.driftM >= 300)
+      std::snprintf(b, sizeof b, "%s - %.1f km downwind", b2, static_cast<double>(s.best.driftM / 1000));
+    else std::snprintf(b, sizeof b, "%s", b2);
     label(c, 8, 20, b);
     if (tg.valid && s.pos.valid) {
       fmtKm(b2, sizeof b2, tg.distM);

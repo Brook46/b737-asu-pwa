@@ -95,15 +95,41 @@ With the BME280 inside the case:
 * **It reacts slowly**, with tens of seconds of lag. Fine for cloud base and
   the lapse rate; inversion cues arrive about 100 m late.
 
-Planned upgrade: a second BME280 **outside**, on a 30–50 cm Grove cable in
-shade and airflow, gives true air temperature without calibration. It goes on
-the same I²C bus, set to the other address (0x77).
+### Better: a temperature/humidity sensor on the remote
+
+The brake-handle remote is already outside the case, in the airflow. A small
+sensor there reads **true air temperature within seconds**, needs no
+calibration, and makes cloud base, lapse rate and inversion cues sharper.
+The instrument takes it automatically whenever the remote is sending, and
+falls back to the case BME280 when it stops (for more than 6 s).
+
+* **Sensor:** a Sensirion **SHT40** (or SHT41/SHT45). It's accurate (about
+  ±0.2 °C, ±2 %RH), small, and responds in seconds. Seeed sells it as a
+  Grove board ("Grove - Temperature & Humidity Sensor (SHT40)"); check stock
+  when ordering. A BME280 works too, but it is bigger and slower.
+* **Wiring:** to the XIAO ESP32-C6's I²C pins (D4 SDA, D5 SCL, 3V3, GND), the
+  same Grove cable as on the main unit.
+* **Placement matters more than the sensor:**
+  * In the airflow, **out of direct sun**: under the remote's body, or in a
+    small white vented cap. Sun on a bare sensor reads several °C high.
+  * Away from your hand and glove: on a 10–20 cm lead up the brake line or
+    riser, not inside the handle.
+  * Don't turn on the SHT4x's built-in heater.
+* **Protocol:** every ~2 s the remote writes a 5-byte frame to the same
+  command characteristic: `0xA1`, temperature × 100 (int16), RH × 100
+  (uint16), little-endian (`encodeAirFrame()` in `lib/core/src/remote.h`).
+  `air` on the console shows which sensor is in use.
+* **Remote firmware:** not written yet. The XIAO ESP32-C6 needs Arduino-ESP32
+  3.x (the pioarduino platform), not the 2.0.17 core this firmware is pinned
+  to, so the remote will be its own small PlatformIO project: buttons → BLE
+  writes, plus the SHT40 every 2 s.
 
 ## Interfaces
 
 * **XCTracer → this unit**: BLE. Set the XCTracer's own config file
   (`XCTracerConfig.txt`) to **XCTRC** or **LK8EX1**.
-* **Remote → this unit**: BLE GATT write, one byte per press. Service
+* **Remote → this unit**: BLE GATT write, one byte per press (and the
+  5-byte air frame above). Service
   `7d2a0001-6c39-4b8e-9f4e-3a1c5b8e2f10`, command `…0002`, status text
   `…0003` (read/notify; includes cloud base and lapse rate). The bytes are in
   `lib/core/src/remote.h`, including `0x0C` / `'b'` for "at cloud base".

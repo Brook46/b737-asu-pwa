@@ -55,13 +55,14 @@ float condensationHeight(float t, float td) {
 }
 
 AtmosphereEvent Atmosphere::update(TimeMs t, float alt, float caseT, float rh, bool circling,
-                                   float vario) {
+                                   float vario, bool ventilated) {
   AtmosphereEvent ev = AtmosphereEvent::None;
-  caseT_ = caseT;
+  if (!ventilated) caseT_ = caseT;
   dew_ = dewPointC(caseT, rh);
   st_.rh = rh;
   st_.dewPointC = dew_;
-  st_.tempC = caseT - cfg_.tempOffset;
+  st_.tempC = ventilated ? caseT : caseT - cfg_.tempOffset;
+  st_.ventilated = ventilated;
   st_.haveAir = true;
   const float dt = lastT_ && t > lastT_ ? (t - lastT_) / 1000.0f : 0.0f;
   lastT_ = t;

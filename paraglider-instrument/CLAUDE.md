@@ -82,6 +82,11 @@ workers, Pages deploy) apply here.
   several seeds in `build/sim_native`; following must beat ignoring.
 * Sounds are rate-limited in `FlightComputer::runCues`; the device is mostly
   headless, so a new cue must not nag.
+* Glide targets are **columns at your arrival height**, never ground triggers:
+  `thermalColumnAt()` for sun/KK7 sources, height-difference drift for live
+  thermals. `sim_eval_drift` (native) measures prediction vs trigger error.
+* Air data: the remote's outside sensor (5-byte `0xA1` frame) wins over the
+  case BME280 while fresh; the case offset applies only to the case.
 
 ## Display and simulator
 
@@ -98,7 +103,9 @@ workers, Pages deploy) apply here.
   otherwise), INFO and PROFILE. Keep them sparse: the user asked for fewer, more
   useful numbers.
 * The simulator's world (`tools/websim/world.h`) is real terrain with ridge
-  lift and terrain-triggered thermals; GPS modes (sim_set 12) jam/spoof it.
+  lift and thermals as rising, drifting bubbles from the true sun-on-terrain
+  sources (true wind and time; the instrument computes its own with its
+  estimated wind); GPS modes (sim_set 12) jam/spoof it.
   A landing relaunches and starts a new flight on the instrument.
 * The simulator's autopilot obeys STAY/GLIDE on purpose. Use it to judge cue
   quality, and fix what it finds in lib/core (with a test), not in the world.

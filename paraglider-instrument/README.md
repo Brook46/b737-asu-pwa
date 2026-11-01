@@ -18,7 +18,7 @@ this unit only *listens* to its Bluetooth stream.
 
 | Part | State |
 |---|---|
-| Logic layer (`lib/core`) | Written, **74 desktop tests pass** (`make test`) |
+| Logic layer (`lib/core`) | Written, **79 desktop tests pass** (`make test`) |
 | Flight replay tool (`tools/sim`) | Works on IGC files, XCTracer captures, synthetic flights |
 | Firmware (`src/`) | Written against pinned library versions; every library call was checked against those tags' headers, and a host compile against signature stubs is clean. **Not yet built with the real ESP32 toolchain, not flashed.** |
 | Thermal pack builder (`sim/pack.html`) | Written and tested against mocked replies; **not yet run against live KK7** (this build environment can't reach it) |
@@ -48,6 +48,7 @@ lib/core/src/        hardware-free logic — builds with desktop g++ and on the 
   task.*               XCTrack .xctsk tasks: turnpoints, final glide
   traffic.*            other pilots (FANET): live thermals, pilots in your thermal
   profile.*            wind, climb, temperature and dew point per 100 m
+  sun.*                sun position; sun on the terrain → thermal triggers; drift with height
   hotspots.*           thermal pack (KK7 history × day forecast), best reachable thermal
   fanet.*              FANET frame/tracking/message codec, region table (IL918, EU868, …)
   remote.*             brake-handle remote command bytes
@@ -174,6 +175,15 @@ reasoning and sources are in [docs/xc-tactics.md](docs/xc-tactics.md).
   goal at your MC, and the MC you can afford). Console: `task`, `xc`.
 * **Other pilots** (FANET receive): a pilot turning and climbing marks a live
   thermal, preferred over history as the glide target.
+* **Sun on the terrain**: from the date, time and terrain grid, which faces
+  the sun is heating now (with shade from ridges and a ~45 min lag), where
+  the warm air releases (crests, spurs; pushed downwind in wind), and where
+  that thermal will be **at the height you'd arrive**: downwind of its
+  trigger by the wind in each layer. The glide page shows "SUN 40% - 1.2 km
+  downwind". Works without a KK7 pack; weights a pack when there is one.
+* **Remote air sensor** (optional): an SHT40 on the brake-handle remote gives
+  true outside air temperature for cloud base and stability, in place of the
+  warm case sensor (docs/hardware.md).
 * **Profile page**: climb, wind, temperature and dew point at every 100 m
   you've flown through. Glide arrival heights use these winds.
 * **Terrain**: height above ground, and glide arrival heights at home and at

@@ -45,3 +45,27 @@ const char* commandName(Command c) {
 }
 
 }  // namespace pg
+
+namespace pg {
+
+bool parseAirFrame(const uint8_t* d, size_t n, float& tempC, float& rhPct) {
+  if (!d || n != 5 || d[0] != kAirFrame) return false;
+  const int16_t t = static_cast<int16_t>(d[1] | (d[2] << 8));
+  const uint16_t h = static_cast<uint16_t>(d[3] | (d[4] << 8));
+  tempC = t / 100.0f;
+  rhPct = h / 100.0f;
+  return tempC > -60 && tempC < 70 && rhPct >= 0 && rhPct <= 100;
+}
+
+size_t encodeAirFrame(float tempC, float rhPct, uint8_t* out) {
+  const int16_t t = static_cast<int16_t>(tempC * 100.0f + (tempC >= 0 ? 0.5f : -0.5f));
+  const uint16_t h = static_cast<uint16_t>(rhPct * 100.0f + 0.5f);
+  out[0] = kAirFrame;
+  out[1] = static_cast<uint8_t>(t & 0xFF);
+  out[2] = static_cast<uint8_t>((t >> 8) & 0xFF);
+  out[3] = static_cast<uint8_t>(h & 0xFF);
+  out[4] = static_cast<uint8_t>(h >> 8);
+  return 5;
+}
+
+}  // namespace pg

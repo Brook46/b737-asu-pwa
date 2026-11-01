@@ -121,9 +121,13 @@ void printAir() {
     Serial.println("air: no humidity sensor data yet");
     return;
   }
-  Serial.printf("air: %.1f C (case %.1f, offset %.1f)  RH %.0f%%  dew point %.1f C\n", a.tempC,
-                a.tempC + fc.atmosphere().config().tempOffset, fc.atmosphere().config().tempOffset, a.rh,
-                a.dewPointC);
+  if (a.ventilated)
+    Serial.printf("air: %.1f C from the remote (outside, no offset)  RH %.0f%%  dew point %.1f C\n", a.tempC, a.rh,
+                  a.dewPointC);
+  else
+    Serial.printf("air: %.1f C (case %.1f, offset %.1f)  RH %.0f%%  dew point %.1f C\n", a.tempC,
+                  a.tempC + fc.atmosphere().config().tempOffset, fc.atmosphere().config().tempOffset, a.rh,
+                  a.dewPointC);
   if (a.baseValid)
     Serial.printf("   cloud base ~%.0f m (%s)  %.0f m above you\n", a.cloudBase,
                   a.baseFromThermal ? "from thermal air" : "rough, not yet from a thermal",
@@ -570,6 +574,8 @@ void loop() {
 
   pg::Command c;
   while (ble.popCommand(c)) handleCommand(c);
+  float remoteT, remoteRh;
+  while (ble.popAir(remoteT, remoteRh)) fc.onRemoteAir(now, remoteT, remoteRh);  // the remote's outside sensor
 
   FanetRx rx;
   if (lora.service(rx)) onFanet(rx);

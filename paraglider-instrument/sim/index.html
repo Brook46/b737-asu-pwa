@@ -191,7 +191,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       <div class="panel">
         <h2>World</h2>
         <canvas id="map" width="900" height="560" aria-label="Map: thermals, your track and the wind"></canvas>
-        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal source, dot size = chance now</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span><i style="background:#1b9e77"></i>thermal as the instrument fits it (core + size)</span><span><i style="background:#666"></i>other pilots (climb)</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
+        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core at your height (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal trigger (sun on the terrain, or your pack), dot size = strength</span><span><i style="background:#f09614"></i>ground the sun heats more than the area around it</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span><i style="background:#1b9e77"></i>thermal as the instrument fits it (core + size)</span><span><i style="background:#666"></i>other pilots (climb)</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
       </div>
 
       <div class="panel">
@@ -498,7 +498,30 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       map.beginPath(); map.moveTo(sx(st[49]), sy(st[50])); map.lineTo(sx(st[54]), sy(st[55])); map.stroke(); map.setLineDash([]);
       map.beginPath(); map.arc(sx(st[54]), sy(st[55]), 9, 0, 7); map.stroke();
       map.fillStyle = css("--ink"); map.font = "12px IBM Plex Mono, monospace";
-      map.fillText(`${Math.round(st[53] * 100)}% · +${fmt(st[56])} m`, sx(st[54]) + 12, sy(st[55]) + 4);
+      map.fillText(`${Math.round(st[53] * 100)}% · +${fmt(st[56])} m (column at your arrival height)`, sx(st[54]) + 12, sy(st[55]) + 4);
+    }
+    // the sun on the terrain (true heating grid), and where the sun is
+    if (ex.sim_heat) {
+      const N = 48, hv = new Float32Array(mem(), ex.sim_heat(), N * N + 4);
+      const gx = hv[N * N], gy = hv[N * N + 1], cell = 500;
+      // Relative heating: faces hotter than the area's average (what makes triggers).
+      let mean = 0, cnt = 0;
+      for (let k = 0; k < N * N; k++) if (hv[k] > 0) { mean += hv[k]; cnt++; }
+      mean = cnt ? mean / cnt : 0;
+      for (let j = 0; j < N; j++)
+        for (let i = 0; i < N; i++) {
+          const v = hv[j * N + i] - mean - 0.03;
+          if (v <= 0) continue;
+          map.fillStyle = `rgba(240,150,20,${Math.min(0.45, v * 2.5)})`;
+          const cx = gx + (i - 23.5) * cell, cy = gy + (j - 23.5) * cell;
+          map.fillRect(sx(cx - cell / 2), sy(cy + cell / 2), cell * scale + 1, cell * scale + 1);
+        }
+      const az = hv[N * N + 2] * Math.PI / 180, el = hv[N * N + 3];
+      // Sun gauge (top left): direction on the compass ring, elevation below.
+      map.strokeStyle = css("--ink"); map.lineWidth = 1; map.beginPath(); map.arc(50, 50, 26, 0, 7); map.stroke();
+      map.fillStyle = "#e0a020"; map.beginPath(); map.arc(50 + Math.sin(az) * 26, 50 - Math.cos(az) * 26, 7, 0, 7); map.fill();
+      map.fillStyle = css("--ink"); map.font = "11px IBM Plex Mono, monospace"; map.textAlign = "center";
+      map.fillText("N", 50, 20); map.fillText(`sun ${el.toFixed(0)}°`, 50, 94); map.textAlign = "left";
     }
     // task cylinders
     const nt = ex.sim_task_count();
@@ -525,8 +548,8 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       }
     }
     // thermals
-    const th = new Float32Array(mem(), ex.sim_thermals(), 14 * 4);
-    for (let i = 0; i < 14; i++) {
+    const nth = st[24] | 0, th = new Float32Array(mem(), ex.sim_thermals(), nth * 4);
+    for (let i = 0; i < nth; i++) {
       const x = th[i * 4], y = th[i * 4 + 1], r = th[i * 4 + 2], s = th[i * 4 + 3];
       if (s <= 0.05) continue;
       const a = Math.min(0.85, s / 4.5);

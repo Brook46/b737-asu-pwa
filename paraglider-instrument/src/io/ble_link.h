@@ -26,7 +26,7 @@ constexpr const char* kHm10Service = "FFE0";
 constexpr const char* kHm10Char = "FFE1";
 // Our own remote-command service (random v4 UUIDs, fixed here and in the remote).
 constexpr const char* kRemoteService = "7d2a0001-6c39-4b8e-9f4e-3a1c5b8e2f10";
-constexpr const char* kRemoteCommand = "7d2a0002-6c39-4b8e-9f4e-3a1c5b8e2f10";  // write, 1 byte
+constexpr const char* kRemoteCommand = "7d2a0002-6c39-4b8e-9f4e-3a1c5b8e2f10";  // write: 1-byte command or 5-byte air frame
 constexpr const char* kRemoteStatus = "7d2a0003-6c39-4b8e-9f4e-3a1c5b8e2f10";   // read/notify, text
 }  // namespace BleUuids
 
@@ -36,6 +36,8 @@ class BleLink {
   // Bytes received from the XCTracer since the last call.
   size_t readXct(uint8_t* buf, size_t cap);
   bool popCommand(pg::Command& c);
+  // Air data from the remote's temperature/humidity sensor (5-byte frames).
+  bool popAir(float& tempC, float& rhPct);
   void setStatusText(const char* text);  // readable by the remote / nRF Connect
 
   bool xctConnected() const { return xctConnected_; }
@@ -62,5 +64,6 @@ class BleLink {
   char allowed_[20] = "";
   void* stream_ = nullptr;  // StreamBufferHandle_t
   void* cmdQueue_ = nullptr;  // QueueHandle_t
+  void* airQueue_ = nullptr;  // QueueHandle_t of AirReading
   void* statusChr_ = nullptr;  // NimBLECharacteristic*
 };

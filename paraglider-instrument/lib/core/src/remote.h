@@ -27,6 +27,15 @@ enum class Command : uint8_t {
 };
 
 Command parseCommand(const uint8_t* data, size_t len);
+
+// Air data from a temperature/humidity sensor on the remote (e.g. an SHT40),
+// written to the same characteristic every ~2 s, 5 bytes little-endian:
+//   0xA1 | int16 °C × 100 | uint16 %RH × 100
+// Outside the case and in the airflow, it reads true air temperature within
+// seconds, so it replaces the case sensor for cloud base and stability.
+constexpr uint8_t kAirFrame = 0xA1;
+bool parseAirFrame(const uint8_t* data, size_t len, float& tempC, float& rhPct);
+size_t encodeAirFrame(float tempC, float rhPct, uint8_t* out);  // the remote's side; returns 5
 const char* commandName(Command c);
 
 // Canned messages, index matches SendOk..SendHelp. Short on purpose: FANET

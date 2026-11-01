@@ -53,6 +53,8 @@ class HotspotMap {
   bool dayInit_ = false;
 };
 
+enum class TargetKind : uint8_t { None, Home, History, Sun, Live };
+
 struct Target {
   bool valid = false;
   bool isHome = false;
@@ -64,6 +66,8 @@ struct Target {
   bool live = false;     // from another pilot climbing there (FANET), not history
   float liveClimb = 0;   // their climb, m/s
   int ageMin = 0;        // minutes since they were climbing there
+  TargetKind kind = TargetKind::None;
+  float driftM = 0;      // how far downwind of its ground trigger the climb is at your arrival height
 };
 
 // Score used to rank glide targets: chance, discounted by distance and by

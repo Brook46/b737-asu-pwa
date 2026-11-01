@@ -40,6 +40,7 @@ enum class Stability : uint8_t { Unknown, Inversion, Stable, Moderate, Unstable 
 struct AtmosphereState {
   float tempC = 0;        // corrected air temperature
   float rh = 0;           // %RH as measured in the case
+  bool ventilated = false; // from the remote's outside sensor (no case offset)
   float dewPointC = 0;
   bool haveAir = false;
   float cloudBase = 0;    // m, same altitude reference as the vario
@@ -59,8 +60,10 @@ class Atmosphere {
   void configure(const AtmosphereConfig& cfg) { cfg_ = cfg; }
   const AtmosphereConfig& config() const { return cfg_; }
   // One sensor sample (~1 Hz is plenty), with the flight state at that time.
+  // `ventilated`: the reading is outside air (the remote's sensor), not the
+  // warm case: no offset applied, and it doesn't disturb the case calibration.
   AtmosphereEvent update(TimeMs t, float altitude, float caseTempC, float rhPct, bool circling,
-                         float vario);
+                         float vario, bool ventilated = false);
   // "I'm at cloud base now": sets tempOffset so the spread is zero here.
   // Returns the new offset.
   float calibrateAtBase();

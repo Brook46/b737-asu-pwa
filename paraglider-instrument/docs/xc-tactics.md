@@ -61,6 +61,7 @@ climbs a knot too strong, costs a lot. ([Cochrane, *Flying Faster*][cochrane-ff]
 
 | Rule | Implementation |
 |---|---|
+| Where to glide | Live thermals (FANET) > KK7 history × today's sun > sun-on-terrain sources, each placed at its column at your arrival height |
 | MC = what you expect, set low | Auto-MC = 0.8 × the mean of your last three thermals; XC flies **0.75 ×** that |
 | Lower MC when low (uncertain lift, limited altitude) | Working band from 300 m AGL to cloud base (or your best top so far). MC × (0.25 + 0.75 × position in the band): near the floor you take anything and glide at best L/D |
 | Thermals die late in the day | XC: MC × 0.7 in the last 1.5 h before sunset |
@@ -74,6 +75,44 @@ climbs a knot too strong, costs a lot. ([Cochrane, *Flying Faster*][cochrane-ff]
 
 Constants are in `XcConfig` (trim speed, band floor, factors). Set
 `trimSpeed` and the polar to your own wing.
+
+## Where the next climb is (`sun.*`)
+
+With a terrain grid and the clock, the instrument works out where thermals
+start today, without a KK7 pack (and weights a pack's history by it):
+
+- **Where the sun is:** the real solar position for the date, time and place.
+- **Sun on each slope:** the angle between the sun and the slope. A ridge
+  between a cell and the sun casts shade. Water barely heats.
+- **Heating lags:** ground and air take about 45 minutes to respond, so the
+  morning's east faces stay warm into midday, and west faces take over in the
+  afternoon.
+- **Triggers:** strong heating, hotter than the surroundings, helped by
+  prominence (spurs and edges release the warm air). In wind, the warm air is
+  pushed up to the crest downwind, which becomes the release point. Wind over
+  ~20 km/h weakens thermals, and over ~45 km/h breaks them up.
+- **Drift with height:** a thermal leaves its trigger and rises (a bubble
+  rises at about 0.6 × its core updraft) while drifting with the wind in each
+  layer, measured as you fly (the profile). At your arrival height it is
+  downwind by wind × height ÷ rise speed. The glide target is that column,
+  not the trigger, and the same applies to another pilot's climb at a
+  different height.
+
+In the simulator, which has rising, drifting bubbles over the real Gilboa
+terrain and the true wind, every thermal that had lift at the pilot's height
+was compared with the prediction for its own trigger:
+
+| Wind | Distance from the predicted column | Distance from its trigger |
+|---|---|---|
+| 7 km/h | 578 m | 1109 m |
+| 14 km/h | 1293 m | 2274 m |
+| 25 km/h | 2278 m | 5288 m |
+
+The prediction roughly halves the miss. What's left is the uncertainty of
+when the bubble left the ground: a stream of bubbles spreads along the wind.
+So expect to search downwind of the predicted point rather than upwind.
+Limits: the terrain grid doesn't know what covers the ground (rock, fields,
+forest, towns), nor cloud shadow.
 
 ## Turning in the thermal (`thermal_model.*`)
 
@@ -96,7 +135,10 @@ thermal: core position, 1/e radius R, strength W, and the air around it.
   straightening.
 
 Why not temperature and humidity around the circle? The BME280 sits inside
-the case and lags by tens of seconds, far slower than a 20 s circle. It does
+the case and lags by tens of seconds, far slower than a 20 s circle. A
+sensor on the remote (docs/hardware.md) reacts in seconds and is used for
+cloud base and stability as soon as it's fitted; using it to map the core
+around the circle is a possible next step. It does
 feed the **profile** (temperature, dew point, wind and climb for every 100 m),
 which gives glide arrival heights with the winds below you and the PROFILE
 page.

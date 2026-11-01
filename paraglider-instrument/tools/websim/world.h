@@ -19,6 +19,7 @@
 #include "flight_computer.h"
 #include "hotspots.h"
 #include "sensors.h"
+#include "sun.h"
 #include "terrain.h"
 
 namespace world {
@@ -30,15 +31,32 @@ constexpr double kBeirutLat = 33.8209, kBeirutLon = 35.4884;  // where spoofers 
 
 enum class GpsMode : uint8_t { Normal = 0, Jammed = 1, Spoofed = 2, Noisy = 3 };
 
+// A thermal is a rising bubble: it leaves its trigger on the ground, rises
+// at its core speed and drifts with the wind. It has lift only between its
+// bottom and top, so it reaches your height some time after it left the
+// ground, downwind of the trigger; climb slower than it rises and you fall
+// out of its bottom.
 struct Thermal {
-  double x = 0, y = 0;   // m, east/north of the origin
-  float strength = 2.5f; // m/s at the core, before ramp
+  double x = 0, y = 0;   // m, east/north of the origin (drifts with the wind)
+  float strength = 2.5f; // m/s, updraft at the core
+  // A bubble rises slower than the air in its core (roughly half to two
+  // thirds of it): you can climb with it for a good while, then fall out of
+  // its bottom.
   float radius = 80;     // m, core 1/e radius
-  float age = 0, life = 900;  // s
-  float now() const {
-    const float ramp = age < 60 ? age / 60 : (life - age < 120 ? (life - age) / 120 : 1.0f);
-    return strength * (ramp < 0 ? 0 : ramp);
+  float age = 0;         // s since it left the ground
+  float z0 = 0;          // trigger elevation
+  double x0 = 0, y0 = 0; // trigger position
+  float depth = 800;     // m, bottom to top
+  float rise() const { return 0.6f * strength; }
+  float top() const { return z0 + rise() * age; }
+  float bottom() const { return top() - depth; }
+  // 0..1: how much of the bubble is at height z (150 m soft edges).
+  float at(float z) const {
+    const float a = (z - bottom()) / 150.0f, b = (top() - z) / 150.0f;
+    float f = a < b ? a : b;
+    return f <= 0 ? 0 : (f > 1 ? 1 : f);
   }
+  float now() const { return strength; }
 };
 
 struct Params {
@@ -62,7 +80,7 @@ struct Params {
 
 class World {
  public:
-  static constexpr int kThermals = 14;
+  static constexpr int kThermals = 28;
   static constexpr int kSpots = 160;
   // Start already off the ridge with some height (a ground launch and ridge
   // scratch is not what the simulator is for).
@@ -82,8 +100,9 @@ class World {
   Params p;
   Thermal th[kThermals];
   pg::Terrain terrain;
-  pg::HotspotMap spots;       // thermal sources: a loaded KK7 pack, or derived from terrain
+  pg::HotspotMap spots;       // a loaded KK7 pack (thermal sources from history)
   bool spotsFromPack = false;
+  pg::ThermalSources sunSrc;  // the true sun-on-terrain sources (true wind, true time)
   // pilot
   double x = 0, y = 0;
   float alt = 600, hdg = 0, airspeed = 10.5f;
@@ -121,54 +140,11 @@ class World {
   int utcOffsetMin() const { return (p.month >= 4 && p.month <= 10) ? 180 : 120; }
   int utcMin() const { return localMin() - utcOffsetMin(); }
 
-  // Thermal sources from the terrain: sun-facing slopes and high ground
-  // trigger, flat water doesn't. Used when no KK7 pack is loaded.
-  void deriveSpots() {
-    spots.clear();
-    spotsFromPack = false;
+  void updateSun() {
     if (!terrain.valid()) return;
-    struct Cand { double x, y; float score; };
-    static Cand c[2000];
-    int n = 0;
-    const float sunAz = 225 * pg::kDegToRad;  // early-afternoon sun, SW
-    for (double cy = -16000; cy <= 16000 && n < 2000; cy += 800)
-      for (double cx = -16000; cx <= 16000 && n < 2000; cx += 800) {
-        const float h = elevAt(cx, cy);
-        const float dzdx = (elevAt(cx + 100, cy) - elevAt(cx - 100, cy)) / 200;
-        const float dzdy = (elevAt(cx, cy + 100) - elevAt(cx, cy - 100)) / 200;
-        const float slope = std::sqrt(dzdx * dzdx + dzdy * dzdy);
-        if (h < -200 && slope < 0.01f) continue;  // the Kinneret / flat water
-        // Slope facing the sun: downhill direction is −gradient.
-        const float face = -(dzdx * std::sin(sunAz) + dzdy * std::cos(sunAz));
-        float around = 0;
-        for (int k = 0; k < 8; ++k) {
-          const float a = k * 0.785f;
-          around += elevAt(cx + 1500 * std::sin(a), cy + 1500 * std::cos(a));
-        }
-        const float prominence = h - around / 8;
-        const float score = 0.25f + 2.5f * (face > 0 ? face : 0) + (prominence > 0 ? prominence / 150 : 0);
-        c[n++] = {cx, cy, score};
-      }
-    // keep the best kSpots
-    for (int k = 0; k < kSpots && k < n; ++k) {
-      int bi = k;
-      for (int i = k + 1; i < n; ++i)
-        if (c[i].score > c[bi].score) bi = i;
-      const Cand tmp = c[k];
-      c[k] = c[bi];
-      c[bi] = tmp;
-      pg::Hotspot hs;
-      hs.lat = kOriginLat + c[k].y / kMPerDegLat;
-      hs.lon = kOriginLon + c[k].x / (kMPerDegLat * std::cos(kOriginLat * pg::kDegToRad));
-      const float pr = c[k].score / (c[0].score > 0 ? c[0].score : 1);
-      for (int s = 0; s < 4; ++s)
-        for (int sl = 0; sl < 3; ++sl) {
-          const float season = s == 2 ? 1.0f : (s == 0 ? 0.45f : 0.8f);
-          const float slot = sl == 0 ? 0.6f : (sl == 1 ? 1.0f : 0.85f);
-          hs.prob[s][sl] = static_cast<uint8_t>(90 * pr * season * slot);
-        }
-      spots.add(hs);
-    }
+    float wN, wE;
+    windVec(wN, wE);
+    sunSrc.update(terrain, lat(), lon(), p.year, p.month, p.day, utcMin(), wN, wE);
   }
 
   void reset(uint32_t seed) {
@@ -185,7 +161,8 @@ class World {
     climb = 0;
     started_ = false;
     caseT_ = 0;
-    if (!spotsFromPack) deriveSpots();
+    sunSrc.reset();
+    updateSun();
     for (auto& h : th) spawn(h, true);
     apRate = 17;
     straightUntil = 0;
@@ -224,9 +201,11 @@ class World {
     if (p.inversionAlt > 0 && z > p.inversionAlt + 30) return -0.4f;
     float w = -0.45f;
     for (const auto& h : th) {
+      const float vf = h.at(z);
+      if (vf <= 0) continue;
       const double dx = px - h.x, dy = py - h.y;
       const float d2 = static_cast<float>(dx * dx + dy * dy);
-      const float s = h.now();
+      const float s = h.strength * vf;
       w += s * std::exp(-d2 / (h.radius * h.radius));
       const float ring = (std::sqrt(d2) - 1.8f * h.radius) / (0.6f * h.radius);
       w -= 0.35f * s * std::exp(-ring * ring);
@@ -263,7 +242,7 @@ class World {
       h.x += wE * dt;
       h.y += wN * dt;
       const double dx = h.x - x, dy = h.y - y;
-      if (h.age > h.life || dx * dx + dy * dy > 7000.0 * 7000.0) spawn(h, false);
+      if (h.bottom() > cloudBase() || dx * dx + dy * dy > 7000.0 * 7000.0) spawn(h, false);
     }
 
     if (p.autopilot) autopilot(fc);
@@ -340,6 +319,7 @@ class World {
       fc.onAir(t, caseT_, pg::relativeHumidity(caseT_, td));
     }
     if (t % 60000 == 10) fc.setClock(p.year, p.month, p.day, utcMin());
+    if (t % 600000 == 0) updateSun();  // the sun moves: sources change through the day
   }
 
  private:
@@ -392,36 +372,64 @@ class World {
 
   void spawn(Thermal& h, bool initial) {
     visitedUntil_[&h - th] = 0;
-    // Pick a source: weighted by its chance now (KK7 pack or terrain).
+    // Pick a trigger: a KK7 pack if loaded (its chance now), else the sun on
+    // the terrain (its strength now). Weighted, within reach of the pilot.
     int pick = -1;
+    double px = 0, py = 0;
+    float srcStrength = 0.5f;
     const int um = utcMin();
-    for (int tries = 0; tries < 40 && spots.count() > 0; ++tries) {
-      const int i = static_cast<int>(uniform() * spots.count()) % spots.count();
+    for (int tries = 0; tries < 60; ++tries) {
       double sx, sy;
-      toXY(spots.at(i).lat, spots.at(i).lon, sx, sy);
+      float chance;
+      if (spotsFromPack && spots.count()) {
+        const int i = static_cast<int>(uniform() * spots.count()) % spots.count();
+        toXY(spots.at(i).lat, spots.at(i).lon, sx, sy);
+        chance = spots.chance(i, p.year, p.month, p.day, um);
+      } else if (sunSrc.count()) {
+        const int i = static_cast<int>(uniform() * sunSrc.count()) % sunSrc.count();
+        toXY(sunSrc.at(i).lat, sunSrc.at(i).lon, sx, sy);
+        chance = sunSrc.at(i).strength;
+      } else {
+        break;
+      }
       const double dx = sx - x, dy = sy - y;
       const double d = std::sqrt(dx * dx + dy * dy);
-      if (d > 4500 || (!initial && d < 600)) continue;
-      if (uniform() < spots.chance(i, p.year, p.month, p.day, um)) {
-        pick = i;
+      if (d > 5000 || (!initial && d < 500)) continue;
+      if (uniform() < chance) {
+        pick = tries;
+        px = sx + (uniform() - 0.5f) * 300;  // triggers aren't points
+        py = sy + (uniform() - 0.5f) * 300;
+        srcStrength = chance;
         break;
       }
     }
     if (pick >= 0) {
-      toXY(spots.at(pick).lat, spots.at(pick).lon, h.x, h.y);
+      h.x = px;
+      h.y = py;
     } else {  // nothing suitable: a random spot in the area
       const float ang = uniform() * 6.2832f;
       const float dist = initial ? 300 + uniform() * 2500 : 900 + uniform() * 2200;
       h.x = x + dist * std::sin(ang);
       h.y = y + dist * std::cos(ang);
+      srcStrength = 0.3f;
     }
-    // Weaker in the morning and late afternoon.
-    const float hrs = (localMin() - 6 * 60) / 60.0f;
-    const float tod = hrs < 2 ? 0.2f : (hrs < 5 ? 0.2f + 0.8f * (hrs - 2) / 3 : (hrs > 10 ? 0.5f : 1.0f));
-    h.strength = p.strength * tod * (0.55f + uniform() * 0.9f);
+    h.z0 = elevAt(h.x, h.y);
+    h.x0 = h.x;
+    h.y0 = h.y;
+    // Stronger from strongly heated triggers (the sun's height is in there).
+    h.strength = p.strength * (0.6f + 0.8f * srcStrength) * (0.75f + uniform() * 0.6f);
+    if (h.strength < 0.8f) h.strength = 0.8f;
     h.radius = 60 + uniform() * 60;
-    h.life = 600 + uniform() * 900;
-    h.age = initial ? uniform() * h.life * 0.6f : 0;
+    h.depth = 900 + uniform() * 700;  // a stream of bubbles, not one
+    // Initial bubbles are anywhere in their rise; new ones leave the ground now.
+    const float lifeS = (cloudBase() - h.z0 + h.depth) / h.rise();
+    h.age = initial ? uniform() * lifeS : 0;
+    if (initial) {  // and have drifted accordingly
+      float wN, wE;
+      windVec(wN, wE);
+      h.x += wE * h.age;
+      h.y += wN * h.age;
+    }
   }
 
   void autopilot(pg::FlightComputer& fc) {
@@ -529,6 +537,7 @@ class World {
             const double dx = th[i].x - a.x, dy = th[i].y - a.y;
             const float d = static_cast<float>(std::sqrt(dx * dx + dy * dy));
             if (d < 150 || th[i].now() < 0.8f || d > (a.alt - elevAt(a.x, a.y)) * 7) continue;
+            if (th[i].at(a.alt - d / 8.0f) < 0.5f) continue;
             const float sc = th[i].now() * 400 - d + uniform() * 300;
             if (sc > bs) {
               bs = sc;
@@ -604,6 +613,9 @@ class World {
       const float d = static_cast<float>(std::sqrt(dx * dx + dy * dy));
       // Like a pilot: only clouds you can reach (glide ~7:1 with margin).
       if (d > (alt - ground - 60) * 7.0f) continue;
+      // The pilot sees the cloud: a bubble that will be at the height you arrive.
+      const float zArr = alt - d / 8.0f;
+      if (th[i].at(zArr) < 0.5f) continue;
       float score = th[i].now() * 400.0f - d;
       if (courseValid_) score -= 6.0f * std::fabs(pg::angleDiffDeg(bearingTo(th[i]), course_));
       if (score > bs) {

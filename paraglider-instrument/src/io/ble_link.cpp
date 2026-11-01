@@ -50,6 +50,10 @@ class CommandCb : public NimBLECharacteristicCallbacks {
   }
 };
 
+struct AirReading {
+  float tempC, rh;
+};
+
 void taskEntry(void* arg) {
   static_cast<BleLink*>(arg)->centralTask();
 }
@@ -61,6 +65,7 @@ void BleLink::begin(const char* deviceName, const char* remoteAllowedAddr) {
   std::strncpy(allowed_, remoteAllowedAddr ? remoteAllowedAddr : "", sizeof allowed_ - 1);
   stream_ = xStreamBufferCreate(2048, 1);
   cmdQueue_ = xQueueCreate(16, sizeof(pg::Command));
+  airQueue_ = xQueueCreate(4, sizeof(AirReading));
 
   NimBLEDevice::init(deviceName);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -99,6 +104,11 @@ void BleLink::onXctBytes(const uint8_t* d, size_t n) {
 }
 
 void BleLink::onCommandBytes(const uint8_t* d, size_t n) {
+  AirReading a;
+  if (pg::parseAirFrame(d, n, a.tempC, a.rh)) {
+    if (airQueue_) xQueueSend(static_cast<QueueHandle_t>(airQueue_), &a, 0);  // drop if loop() is behind
+    return;
+  }
   const pg::Command c = pg::parseCommand(d, n);
   if (c != pg::Command::None && cmdQueue_)
     xQueueSend(static_cast<QueueHandle_t>(cmdQueue_), &c, 0);
@@ -107,6 +117,14 @@ void BleLink::onCommandBytes(const uint8_t* d, size_t n) {
 size_t BleLink::readXct(uint8_t* buf, size_t cap) {
   if (!stream_) return 0;
   return xStreamBufferReceive(static_cast<StreamBufferHandle_t>(stream_), buf, cap, 0);
+}
+
+bool BleLink::popAir(float& tempC, float& rhPct) {
+  AirReading a;
+  if (!airQueue_ || xQueueReceive(static_cast<QueueHandle_t>(airQueue_), &a, 0) != pdTRUE) return false;
+  tempC = a.tempC;
+  rhPct = a.rh;
+  return true;
 }
 
 bool BleLink::popCommand(pg::Command& c) {

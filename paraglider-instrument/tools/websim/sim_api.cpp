@@ -61,7 +61,7 @@ void newFlight() {
   fc().atmosphere().configure(ac);
   fc().setQnh(101325.0f);
   fc().setTerrain(gWorld.terrain.valid() ? &gWorld.terrain : nullptr);
-  fc().setHotspots(gWorld.spots.count() ? &gWorld.spots : nullptr);
+  fc().setHotspots(gWorld.spotsFromPack ? &gWorld.spots : nullptr);  // the instrument has its own sun model
   fc().setClock(gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
   // Demo task: exit a 3 km start around launch, Mt Tabor, Afula (goal).
   gTask.clear();
@@ -274,7 +274,7 @@ EXPORT(sim_state) const float* sim_state() {
   o[58] = s.assist.active ? 1 : 0;
   o[59] = s.assist.straightenNow ? 1 : 0;
   o[60] = gWorld.ridgeNow();
-  o[61] = static_cast<float>(gWorld.spots.count());
+  o[61] = static_cast<float>(gWorld.spotsFromPack ? gWorld.spots.count() : gWorld.sunSrc.count());
   o[62] = gWorld.spotsFromPack ? 1 : 0;
   o[63] = static_cast<float>(gWorld.p.gps);
   // Thermal model vs truth, XC layer, task.
@@ -328,7 +328,7 @@ EXPORT(sim_thermals) const float* sim_thermals() {
     gThermals[i * 4] = static_cast<float>(h.x);
     gThermals[i * 4 + 1] = static_cast<float>(h.y);
     gThermals[i * 4 + 2] = h.radius;
-    gThermals[i * 4 + 3] = h.now();
+    gThermals[i * 4 + 3] = h.strength * h.at(gWorld.alt);  // lift at your height only
   }
   return gThermals;
 }
@@ -344,19 +344,48 @@ EXPORT(sim_track) const float* sim_track() {
 }
 EXPORT(sim_track_len) int sim_track_len() { return gTrackN; }
 
-// Thermal sources (hotspots) in world metres plus their chance right now.
+// Thermal sources in world metres plus their chance right now: the loaded
+// pack, or the true sun-on-terrain sources.
 EXPORT(sim_spots) const float* sim_spots() {
-  static float out[world::World::kSpots * 3 > pg::HotspotMap::kMax * 3 ? world::World::kSpots * 3 : pg::HotspotMap::kMax * 3];
-  for (int i = 0; i < gWorld.spots.count(); ++i) {
-    double x, y;
-    gWorld.toXY(gWorld.spots.at(i).lat, gWorld.spots.at(i).lon, x, y);
-    out[i * 3] = static_cast<float>(x);
-    out[i * 3 + 1] = static_cast<float>(y);
-    out[i * 3 + 2] = gWorld.spots.chance(i, gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
+  static float out[pg::HotspotMap::kMax * 3];
+  if (gWorld.spotsFromPack) {
+    for (int i = 0; i < gWorld.spots.count(); ++i) {
+      double x, y;
+      gWorld.toXY(gWorld.spots.at(i).lat, gWorld.spots.at(i).lon, x, y);
+      out[i * 3] = static_cast<float>(x);
+      out[i * 3 + 1] = static_cast<float>(y);
+      out[i * 3 + 2] = gWorld.spots.chance(i, gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
+    }
+  } else {
+    for (int i = 0; i < gWorld.sunSrc.count(); ++i) {
+      double x, y;
+      gWorld.toXY(gWorld.sunSrc.at(i).lat, gWorld.sunSrc.at(i).lon, x, y);
+      out[i * 3] = static_cast<float>(x);
+      out[i * 3 + 1] = static_cast<float>(y);
+      out[i * 3 + 2] = gWorld.sunSrc.at(i).strength;
+    }
   }
   return out;
 }
-EXPORT(sim_spot_count) int sim_spot_count() { return gWorld.spots.count(); }
+EXPORT(sim_spot_count) int sim_spot_count() {
+  return gWorld.spotsFromPack ? gWorld.spots.count() : gWorld.sunSrc.count();
+}
+
+// Sun heating on the true-source grid (kN × kN, row 0 = south) and its geometry.
+EXPORT(sim_heat) const float* sim_heat() {
+  static float out[pg::ThermalSources::kN * pg::ThermalSources::kN + 4];
+  const auto& s = gWorld.sunSrc;
+  for (int j = 0; j < pg::ThermalSources::kN; ++j)
+    for (int i = 0; i < pg::ThermalSources::kN; ++i) out[j * pg::ThermalSources::kN + i] = s.cellHeat(i, j);
+  double x, y;
+  gWorld.toXY(s.centreLat(), s.centreLon(), x, y);
+  float* g = out + pg::ThermalSources::kN * pg::ThermalSources::kN;
+  g[0] = static_cast<float>(x);
+  g[1] = static_cast<float>(y);
+  g[2] = s.sun().azDeg;
+  g[3] = s.sun().elevDeg;
+  return out;
+}
 
 // Simulated pilots: x, y, alt, climb, circling for each.
 EXPORT(sim_pilots) const float* sim_pilots() {
@@ -386,3 +415,39 @@ EXPORT(sim_task) const float* sim_task() {
   return out;
 }
 EXPORT(sim_task_count) int sim_task_count() { return gTaskOn ? gTask.count() : 0; }
+
+// Check of the drift prediction: for every bubble that really has lift at
+// your height, the distance from its centre to (a) the column the instrument
+// predicts for its trigger (instrument's wind and rise estimate), and (b)
+// the trigger itself. out: [n, mean dist a, mean dist b, within 400 m a, b]
+EXPORT(sim_eval_drift) const float* sim_eval_drift() {
+  static float out[5];
+  const pg::Status& s = fc().status();
+  float rise = 0.6f * (fc().advisor().mc() / 0.8f + 1.7f);
+  rise = rise < 1.5f ? 1.5f : (rise > 5 ? 5 : rise);
+  const float wN = s.wind.valid ? s.wind.toN : 0, wE = s.wind.valid ? s.wind.toE : 0;
+  const float z = gWorld.alt;
+  float sa = 0, sb = 0;
+  int n = 0, ha = 0, hb = 0;
+  for (const auto& h : gWorld.th) {
+    if (h.at(z) < 0.5f || z - h.z0 < 300) continue;
+    const double tlat = world::kOriginLat + h.y0 / world::kMPerDegLat;
+    const double tlon = world::kOriginLon + h.x0 / (world::kMPerDegLat * std::cos(world::kOriginLat * pg::kDegToRad));
+    double cl, co, cx, cy;
+    pg::thermalColumnAt(tlat, tlon, h.z0, z, rise, s.profile, wN, wE, cl, co);
+    gWorld.toXY(cl, co, cx, cy);
+    const float a = static_cast<float>(std::hypot(h.x - cx, h.y - cy));
+    const float b = static_cast<float>(std::hypot(h.x - h.x0, h.y - h.y0));
+    sa += a;
+    sb += b;
+    ha += a < 400;
+    hb += b < 400;
+    ++n;
+  }
+  out[0] = static_cast<float>(n);
+  out[1] = n ? sa / n : 0;
+  out[2] = n ? sb / n : 0;
+  out[3] = static_cast<float>(ha);
+  out[4] = static_cast<float>(hb);
+  return out;
+}
