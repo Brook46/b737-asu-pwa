@@ -5,7 +5,7 @@
 // anchor carries a `confidence` score and the anchor-admin UI is the source of
 // truth — the user can add, correct or delete anything produced here.
 
-import { anchorTypeFor } from './manuals.js?v=42';
+import { anchorTypeFor } from './manuals.js?v=43';
 
 const RE_DECIMAL = /\b\d{1,2}\.\d{1,2}\.\d{1,3}\b/g;
 

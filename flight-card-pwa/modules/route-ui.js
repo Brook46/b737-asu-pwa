@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=206';
-import * as ri from './route-info.js?v=206';
-import { legTs, nearestHm } from './dates.js?v=206';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=206';
+import * as storage from './storage.js?v=207';
+import * as ri from './route-info.js?v=207';
+import { legTs, nearestHm } from './dates.js?v=207';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=207';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -299,7 +299,8 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <button type="button" data-ri-zoom="out" aria-label="Zoom out">−</button>
       <button type="button" data-ri-zoom="fit" aria-label="Whole route" title="Whole route">⤢</button>
       <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
-    </div></div>`;
+    </div>
+    <button type="button" class="ri-to-list" data-ri-list>Airports ↓</button></div>`;
 }
 
 const PIN_R = 9;
@@ -1016,6 +1017,8 @@ async function paint(model, showAll = false) {
   viewAnim++; previewing = null;     // nothing left over from the map just replaced
   listKey = '';
   renderList();
+  // Once it's flying, what was saved before departure is settled: the map gets the row.
+  $('ri-ready')?.classList.toggle('is-past', docked() && Date.now() > model.tm.takeoff);
   // The rows above the map first: what's left of the height is the map's.
   await paintReady();
   if (slot.isConnected) drawMap(slot);
@@ -1098,7 +1101,7 @@ async function paintReady() {
   el.innerHTML = `
     ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
     ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
-    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs failed' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}`;
+    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs not available' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}`;
   refit();     // a chip that wraps changes the room under it
 }
 // What the flight needs saved on the device besides the weather. ASU comes
@@ -1116,8 +1119,19 @@ export async function readiness(leg) {
   const c = readCache(leg);
   const db = await savedInCache('./data/divdb.json');
   const asu = !hostsAsu() || await savedInCache('../data/qrh-800.json');
+  // Both ends need a report of their own: a route set of 75 airports says
+  // nothing about the one you're landing at.
+  const have = new Set([...(c?.wx?.metars || []), ...(c?.wx?.tafs || [])].map(r => r.id));
+  let noWx = [];
+  if (c) {
+    const apDb = await ri.loadDb().catch(() => null);
+    noWx = apDb ? [leg.dep, leg.arr].filter(code => {
+      const ap = ri.findAirport(apDb, code);
+      return ap && !have.has(ap.icao);
+    }) : [];
+  }
   return {
-    wxAt: c ? c.at : 0, db, asu,
+    wxAt: c ? c.at : 0, db, asu, noWx,
     notams: !c ? 'none' : c.notamsErr ? 'failed' : c.notamsOff || !c.notams ? 'off' : 'ok',
   };
 }
@@ -1812,6 +1826,7 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
     const pk = e.target.closest('[data-ri-pick]');

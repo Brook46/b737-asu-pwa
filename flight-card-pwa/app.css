@@ -3315,6 +3315,15 @@ body {
 .ri-zoom button:active { background: var(--accent-soft); }
 .ri-zoom .ri-zoom-ac { display: none; font-size: 15px; color: var(--accent); }
 .ri-map-wrap.has-ac .ri-zoom-ac { display: block; }
+/* The map fills the screen in the In flight tab and full screen, and a drag on
+   it pans: this is the way down to the list. */
+.ri-to-list {
+  display: none; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
+  padding: 7px 14px; border: 0; border-radius: 999px; cursor: pointer; touch-action: manipulation;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--accent);
+  background: var(--bg-elev); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
+}
+:is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) .ri-to-list { display: block; }
 /* Station plot: sky cover fills the circle in the rating colour; the barb
    flies from the side the wind comes from (route-ui.js station()). */
 .ri-st-bg { fill: var(--bg-elev); }
@@ -3537,6 +3546,7 @@ body {
 /* Route info: what's saved for offline, and the one-tap fill. */
 .ri-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 2px 8px; }
 .ri-ready:empty { display: none; }
+#ri-ready.is-past { display: none; }
 .rr-item { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-sunk); color: var(--fg-mute); }
 .rr-item.ok { color: var(--good); }
 .rr-item.warn { color: var(--warn); }

@@ -12,8 +12,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=206';
-import { WORKER_BASE } from './proxy.js?v=206';
+import { lookup } from './airports.js?v=207';
+import { WORKER_BASE } from './proxy.js?v=207';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -49,7 +49,17 @@ function toIcao(code) {
   if (ap?.icao) return ap.icao;
   const c = String(code).toUpperCase().trim();
   if (/^[A-Z]{4}$/.test(c)) return c;
-  return null;
+  return iataToIcao?.get(c) || null;
+}
+// airports.js is a short list: a three-letter code outside it (OPO) is found
+// in the diversion database instead, which only loads on demand. Anything
+// that reads the weather synchronously (peekCachedWx) awaits this first.
+let iataToIcao = null, codesLoad = null;
+export function codesReady() {
+  codesLoad ||= import('./route-info.js?v=207').then(ri => ri.loadDb())
+    .then(db => { iataToIcao = db.byIata; })
+    .catch(() => { codesLoad = null; });
+  return codesLoad;
 }
 
 async function fetchMetar(icao) {
@@ -93,6 +103,7 @@ async function fetchDatis(icao) {
 // (the WX popup) still goes out for the rest.
 // opts.noAtis: METAR and TAF only, for the Brief tab; also marked partial.
 export async function fetchWx(code, opts) {
+  if (!toIcao(code)) await codesReady();
   const icao = toIcao(code);
   if (!icao) return null;
   const force = !!(opts && opts.force);

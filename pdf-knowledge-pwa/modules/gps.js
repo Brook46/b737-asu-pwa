@@ -4,7 +4,7 @@
 // NOTE: GPS altitude is geometric WGS-84, not barometric — adequate for a
 // coarse phase guess only. Manual phase selection always overrides it.
 
-import { phaseForAltitude } from './phases.js?v=42';
+import { phaseForAltitude } from './phases.js?v=43';
 
 const M_TO_FT = 3.28084;
 const HISTORY_MS = 30000;

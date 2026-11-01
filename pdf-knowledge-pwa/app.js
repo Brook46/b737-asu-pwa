@@ -1,21 +1,21 @@
 // B737 Pilot Companion — bootstrap, state, and event wiring.
 
-import * as storage from './modules/storage.js?v=42';
-import { extractPdf, makeFileId } from './modules/pdf-ingest.js?v=42';
-import * as searchMod from './modules/search.js?v=42';
-import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=42';
-import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=42';
-import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js?v=42';
-import { extractAnchors } from './modules/anchor-extract.js?v=42';
-import * as kg from './modules/knowledge-graph.js?v=42';
-import { renderAnchorAdmin } from './modules/anchor-admin.js?v=42';
-import { PHASES, TOGGLES, sectionsFor, phaseById } from './modules/phases.js?v=42';
-import * as gps from './modules/gps.js?v=42';
-import * as notes from './modules/annotations.js?v=42';
-import { initScratchpad } from './modules/scratchpad.js?v=42';
-import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js?v=42';
-import { paragraphsForPage, paragraphHash } from './modules/paragraphs.js?v=42';
-import { renderPreview } from './modules/page-preview.js?v=42';
+import * as storage from './modules/storage.js?v=43';
+import { extractPdf, makeFileId } from './modules/pdf-ingest.js?v=43';
+import * as searchMod from './modules/search.js?v=43';
+import { mountPdf, clearViewerCache, findQueryHighlight, setMarkupTool, setMarkupColor, setMarkupWidth, setSelectMode } from './modules/viewer.js?v=43';
+import { initTheme, toggleTheme, fmtBytes, fmtDate, escapeHtml } from './modules/ui.js?v=43';
+import { MANUAL_TYPES, guessManualType, manualLabel, anchorTypeFor } from './modules/manuals.js?v=43';
+import { extractAnchors } from './modules/anchor-extract.js?v=43';
+import * as kg from './modules/knowledge-graph.js?v=43';
+import { renderAnchorAdmin } from './modules/anchor-admin.js?v=43';
+import { PHASES, TOGGLES, sectionsFor, phaseById } from './modules/phases.js?v=43';
+import * as gps from './modules/gps.js?v=43';
+import * as notes from './modules/annotations.js?v=43';
+import { initScratchpad } from './modules/scratchpad.js?v=43';
+import { scanLep, relinkNotes, detectChangeBars } from './modules/revision.js?v=43';
+import { paragraphsForPage, paragraphHash } from './modules/paragraphs.js?v=43';
+import { renderPreview } from './modules/page-preview.js?v=43';
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -3645,7 +3645,7 @@ async function resetToCuratedBriefings() {
 // the desktop seed builder — here we only seed the structure.
 async function autoCatalogFromOutline(fileId, fileName) {
   try {
-    const { pdfjsLib } = await import('./modules/pdf-ingest.js');
+    const { pdfjsLib } = await import('./modules/pdf-ingest.js?v=43');
     const file = await storage.getFile(fileId);
     if (!file || !file.blob) return 0;
     const buf = await file.blob.arrayBuffer();
@@ -3753,7 +3753,7 @@ async function loadBundledTanchumOnce() {
   });
   if (!fileId) throw new Error('ingest failed');
   // Pull in the precomputed scenario tree.
-  const seedMod = await import('./seed-data/tanchum-seed.js');
+  const seedMod = await import('./seed-data/tanchum-seed.js?v=43');
   const seed = seedMod.TANCHUM_SEED;
   const btypes = await storage.listBriefingTypes();
   const btypeMap = {
