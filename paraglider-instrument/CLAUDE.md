@@ -46,10 +46,25 @@ workers, Pages deploy) apply here.
   `chr->setValue(const char*)`, since the template stores the pointer bytes.
   Use `setValue(ptr, len)`.
 
+## Display and simulator
+
+* `lib/core/src/display/` draws the optional 400 × 240 Sharp Memory LCD
+  (LS027B7DH01) into a 1-bit framebuffer in the LCD's own format. It's pure
+  logic; there's no firmware driver yet (the user may never fit the screen).
+  Fonts are generated: `python3 tools/fontgen/fontgen.py`.
+* `sim/` is the browser simulator. `sim/sim.wasm` is a **committed build
+  artifact** of lib/core + `tools/websim/`, so **rebuild it (`make websim`,
+  needs `pip install ziglang`) whenever lib/core changes**, or the simulator
+  will show stale behaviour. `make websim-native && build/sim_native 30 build
+  [inversion m]` runs the same world natively and writes PBM screenshots.
+* The simulator's autopilot obeys STAY/GLIDE on purpose. Use it to judge cue
+  quality, and fix what it finds in lib/core (with a test), not in the world.
+
 ## Commands
 
 ```sh
 make test                      # desktop tests (must stay green)
+make websim                    # rebuild the browser simulator (sim/sim.wasm)
 make sim && build/sim --synthetic | --xct capture.txt | [--mc X] [--csv] flight.igc
 pio run -e xiao_esp32s3        # firmware build
 ```

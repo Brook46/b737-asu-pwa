@@ -21,7 +21,10 @@ void Advisor::setMc(float mc) {
 }
 
 float Advisor::mc() const {
-  if (!cfg_.autoMc || nThermals_ == 0) return cfg_.mc;
+  if (!cfg_.autoMc) return cfg_.mc;
+  // Until a thermal has been measured, start modest: early in a flight it's
+  // better to take a weak climb than to glide past it.
+  if (nThermals_ == 0) return cfg_.autoMcStart;
   const int n = nThermals_ < kHistory ? nThermals_ : kHistory;
   float s = 0;
   for (int i = 0; i < n; ++i) s += history_[i];

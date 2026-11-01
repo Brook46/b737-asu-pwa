@@ -12,6 +12,8 @@
 #include "check.h"
 #include "circling.h"
 #include "dps310_comp.h"
+#include "display/gfx.h"
+#include "display/screens.h"
 #include "fanet.h"
 #include "flight_computer.h"
 #include "kalman_vario.h"
@@ -531,18 +533,31 @@ TEST("atmosphere: lapse rate from glides — unstable vs stable days") {
   }
 }
 
+TEST("atmosphere: no inversion cue from core/edge temperature swings while circling") {
+  Atmosphere a;
+  uint32_t t = 1000;
+  float alt = 1000;
+  bool cued = false;
+  for (int i = 0; i < 900; ++i, t += 1000, alt += 1.0f) {
+    // 9.8 °C/km thermal air, ±1 °C swing every 24 s circle, plus noise
+    const float temp = 20 - 9.8f * (alt - 1000) / 1000 + std::sin(i * 6.2832f / 24) + ((i * 7) % 5 - 2) * 0.05f;
+    cued |= a.update(t, alt, temp, 30, true, 1.0f) == AtmosphereEvent::Inversion;
+  }
+  EXPECT(!cued);
+}
+
 TEST("atmosphere: inversion cue when the climb starts warming with height") {
   Atmosphere a;
   uint32_t t = 1000;
   float alt = 1000;
   AtmosphereEvent seen = AtmosphereEvent::None;
-  for (int i = 0; i < 400; ++i, t += 1000, alt += 1.0f) {
+  for (int i = 0; i < 700; ++i, t += 1000, alt += 1.0f) {
     // Normal thermal cooling up to 1200 m, then +3 °C/km above it.
     const float temp = alt < 1200 ? 20 - 9.8f * (alt - 1000) / 1000 : 18.04f + 3.0f * (alt - 1200) / 1000;
     const AtmosphereEvent e = a.update(t, alt, temp, 30, true, 1.0f);
     if (e == AtmosphereEvent::Inversion && seen == AtmosphereEvent::None) {
       seen = e;
-      EXPECT(alt > 1200 && alt < 1450);
+      EXPECT(alt > 1250 && alt < 1500);
     }
   }
   EXPECT(seen == AtmosphereEvent::Inversion);
@@ -729,6 +744,63 @@ TEST("flight computer: same flight with IMU — gyro drives circling, same answe
   EXPECT(glideAt >= 300000 && glideAt <= 420000);
   EXPECT_NEAR(s.wind.speed * 3.6f, 14.4, 1.5);
   EXPECT_NEAR(s.altitude, fl.trueAltitude(), 1.0);
+}
+
+TEST("flight computer: a 900 m altitude glitch restarts the filter, no false cue") {
+  FlightComputerConfig cfg;
+  cfg.advisor.autoMc = false;
+  FlightComputer fc(cfg);
+  bool cue = false;
+  float maxVario = 0;
+  for (uint32_t t = 40; t < 120000; t += 40) {
+    float alt = 1000.0f - t / 1000.0f;           // steady 1 m/s sink
+    if (t >= 60000) alt += 900.0f;                // the glitch (or a relaunch)
+    BaroSample b{t, altitudeToPressure(alt), 20, true};
+    fc.onBaro(b);
+    if (t % 20 == 0 || true) {
+      const Outputs o = fc.tick(t);
+      cue |= o.alertStarted == Alert::Stay || o.alertStarted == Alert::Glide;
+      if (t > 15000 && std::fabs(fc.status().vario) > maxVario) maxVario = std::fabs(fc.status().vario);
+    }
+  }
+  EXPECT(!cue);
+  EXPECT(maxVario < 3.0f);
+  EXPECT_NEAR(fc.status().altitude, 1780, 2);
+}
+
+TEST("advisor: auto-MC starts modest before the first thermal") {
+  Advisor a;  // autoMc on by default
+  EXPECT_NEAR(a.mc(), 0.5, 1e-6);
+}
+
+TEST("display: every page renders from a live flight; text metrics are sane") {
+  FlightComputerConfig cfg;
+  FlightComputer fc(cfg);
+  auto script = synth::defaultScript();
+  script.air = true;
+  synth::Flight fl(script);
+  display::Model model;
+  while (fl.now() < 260000) {
+    fl.step(fc);
+    if (fl.now() % 20 == 0) {
+      const Outputs o = fc.tick(fl.now());
+      model.noteAlert(o.alertStarted, fl.now());
+      model.update(fl.now(), fc.status());
+    }
+  }
+  static gfx::Canvas c;
+  display::DeviceInfo d;
+  for (int p = 0; p < static_cast<int>(display::Page::Count); ++p) {
+    display::render(c, static_cast<display::Page>(p), fc.status(), model, d, fl.now());
+    int dark = 0;
+    for (int i = 0; i < gfx::kStride * gfx::kHeight; ++i)
+      for (int b = 0; b < 8; ++b) dark += (c.buffer()[i] >> b) & 1;
+    EXPECT(dark > 3000 && dark < 40000);  // drawn, and not a black screen
+    EXPECT(c.get(1, 1));                   // status bar is dark
+  }
+  EXPECT(model.traceCount() == display::Model::kTrace);
+  EXPECT(gfx::Canvas::textWidth("+1.6", gfx::kFontHuge) > gfx::Canvas::textWidth("+1.6", gfx::kFontLarge));
+  EXPECT(gfx::Canvas::textWidth("", gfx::kFontSmall) == 0);
 }
 
 int main() { return check::runAll(); }

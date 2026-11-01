@@ -9,6 +9,10 @@ constexpr float kA = 17.62f, kB = 243.12f;  // Magnus, over water
 constexpr float kMPerDegSpread = 125.0f;
 constexpr TimeMs kLapseEveryMs = 5000;
 constexpr int kLapseMinN = 20;
+constexpr float kInvTauS = 45.0f;   // smoothing, s (~2 circles)
+constexpr float kInvWarmC = 0.5f;   // warming above the climb's coldest point, °C
+constexpr float kInvGainM = 100.0f; // ...measured at least this much higher
+constexpr TimeMs kInvWarmupMs = 90000;  // ignore the first 90 s of a climb (2 × kInvTauS)
 
 // Least-squares slope of y over x.
 bool slope(const float* x, const float* y, int n, float& out, float& span) {
@@ -101,27 +105,31 @@ AtmosphereEvent Atmosphere::update(TimeMs t, float alt, float caseT, float rh, b
   if (!circling) addLapseSample(t, alt, st_.tempC);
   fitLapse(t);
 
-  // ---- inversion: inside a thermal, rising air cools ~9.8 °C/km. Warming
-  // with height over the climb means you've reached an inversion layer.
-  if (circling && vario > 0.2f) {
-    if (!climbTracking_) {
+  // ---- inversion: inside a thermal, rising air cools ~9.8 °C/km. Real
+  // warming with height means an inversion layer. Circling swings the reading
+  // by about a degree between core and edge, so the temperature is smoothed
+  // over ~2 circles and the cue needs ≥ kInvWarmC of warming above the
+  // coldest point of this climb, at least kInvGainM higher up.
+  if (dt > 0) {
+    const float k = 1.0f - std::exp(-dt / kInvTauS);
+    smoothT_ = smoothInit_ ? smoothT_ + k * (st_.tempC - smoothT_) : st_.tempC;
+  } else if (!smoothInit_) {
+    smoothT_ = st_.tempC;
+  }
+  smoothInit_ = true;
+  // Thermal air is warmer than the air around it, so the first minute or so
+  // of a climb reads as warming: start judging only once the smoothed value
+  // reflects thermal air.
+  if (circling && vario > 0.2f && t - circlingSince_ >= kInvWarmupMs) {
+    if (!climbTracking_ || smoothT_ < minT_) {
       climbTracking_ = true;
-      climbStartAlt_ = alt;
-      climbStartT_ = st_.tempC;
+      minT_ = smoothT_;
+      minTAlt_ = alt;
     }
-    const float gain = alt - climbStartAlt_;
-    if (gain >= 120.0f) {
-      const float perKm = (st_.tempC - climbStartT_) / gain * 1000.0f;  // + = warming with height
-      st_.inversion = perKm > 1.0f;
-      if (st_.inversion && !inversionCued_) {
-        inversionCued_ = true;
-        if (ev == AtmosphereEvent::None) ev = AtmosphereEvent::Inversion;
-      }
-      // Slide the reference up so the test covers the last ~120–240 m.
-      if (gain >= 240.0f) {
-        climbStartAlt_ = alt - 120.0f;
-        climbStartT_ = st_.tempC + perKm * 0.12f;
-      }
+    st_.inversion = smoothT_ - minT_ >= kInvWarmC && alt - minTAlt_ >= kInvGainM;
+    if (st_.inversion && !inversionCued_) {
+      inversionCued_ = true;
+      if (ev == AtmosphereEvent::None) ev = AtmosphereEvent::Inversion;
     }
   } else if (!circling) {
     climbTracking_ = false;

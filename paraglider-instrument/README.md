@@ -43,15 +43,28 @@ lib/core/src/        hardware-free logic — builds with desktop g++ and on the 
   bme280_comp.*        BME280/BMP280 calibration math (checked against Bosch's example)
   dps310_comp.*        DPS310 calibration math (fallback barometer)
   flight_computer.*    wires it all together; firmware and sim drive it the same way
+  display/             optional Sharp LCD: 1-bit canvas, fonts, four screen pages
 src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
   main.cpp             loop, serial console, settings
   drivers/             bme280 (also BMP280), dps310, lsm6ds3, gnss_l76k: all own drivers, no libraries
   io/                  ble_link (NimBLE central + peripheral), xctracer_source, lora_fanet (RadioLib), buzzer/LED
 include/             pins.h, build_config.h
 test/                desktop tests + synthetic flight generator
-tools/sim/           flight replay
+tools/sim/           flight replay (IGC, XCTracer captures, synthetic)
+tools/websim/        simulator world + C API, build.sh → sim/sim.wasm
+tools/fontgen/       generates the display fonts from DejaVu Sans
+sim/                 browser simulator (index.html + sim.wasm)
 docs/                hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
+
+## Simulator
+
+`sim/index.html` + `sim/sim.wasm`: the real flight logic and screen code,
+compiled to WebAssembly, flying a simulated thermal day. It shows the optional
+Sharp screen (four pages), plays the buzzer's actual tones, has the remote's
+buttons and a steerable glider (or an autopilot that obeys STAY/GLIDE), and
+compares every instrument number with the truth. Serve the folder over http
+(`python3 -m http.server -d sim`) or open it from GitHub Pages.
 
 ## Build
 

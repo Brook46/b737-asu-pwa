@@ -11,7 +11,8 @@
 //    learned with calibrateAtBase() when you are actually at cloud base.
 //  * The case slows the temperature response (tens of seconds). The lapse rate
 //    uses a regression over long glides, where a constant lag barely changes
-//    the slope; inversion cues arrive ~100 m late.
+//    the slope. Inversion cues need 0.5 °C of smoothed warming over 100 m
+//    of climb, so they arrive late (~150 m) but don't fire on core/edge swings.
 #pragma once
 #include "types.h"
 
@@ -81,8 +82,8 @@ class Atmosphere {
   int lHead_ = 0, lCount_ = 0;
   TimeMs lastLapseSample_ = 0;
   // inversion: temperature vs altitude inside the current climb
-  float climbStartAlt_ = 0, climbStartT_ = 0;
-  bool climbTracking_ = false;
+  float smoothT_ = 0, minT_ = 0, minTAlt_ = 0;
+  bool smoothInit_ = false, climbTracking_ = false;
   bool nearBaseCued_ = false, inversionCued_ = false;
 };
 

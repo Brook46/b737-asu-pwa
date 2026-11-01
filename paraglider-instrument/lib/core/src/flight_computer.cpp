@@ -12,7 +12,8 @@ constexpr TimeMs kImuStaleMs = 1000;
 constexpr TimeMs kGnssStaleMs = 3000;
 constexpr TimeMs kOnboardPreferMs = 2000;
 constexpr float kMcStep = 0.25f;
-constexpr TimeMs kSettleMs = 10000;  // filter start-up transients must not cue STAY/GLIDE
+constexpr TimeMs kSettleMs = 10000;
+constexpr float kMaxJumpM = 100.0f;  // filter start-up transients must not cue STAY/GLIDE
 }  // namespace
 
 FlightComputer::FlightComputer(const FlightComputerConfig& cfg)
@@ -44,9 +45,14 @@ void FlightComputer::onAltitude(TimeMs t, float alt, BaroOrigin origin) {
   // The onboard BMP390 wins while it's alive; the XCTracer stream is the backup.
   if (origin == BaroOrigin::XcTracer && lastOnboardBaro_ && t - lastOnboardBaro_ < kOnboardPreferMs)
     return;
-  if (origin != origin_) {
+  // A different sensor (different offset), or a reading far from where the
+  // filter expects to be (sensor glitch, bad I2C read): restart cleanly rather
+  // than turn the jump into a huge vario and a false cue. 100 m is far beyond
+  // anything a paraglider climbs or sinks between two samples.
+  const bool jump = kf_.initialized() && origin == origin_ && std::fabs(alt - kf_.altitude()) > kMaxJumpM;
+  if (origin != origin_ || jump) {
     origin_ = origin;
-    kf_.reset(alt);  // different sensor, different offset: restart cleanly
+    kf_.reset(alt);
     lastPredict_ = t;
     filterStart_ = t;
     return;

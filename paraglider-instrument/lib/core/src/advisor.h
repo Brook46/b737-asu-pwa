@@ -22,6 +22,7 @@ enum class Advice : uint8_t { None, Stay, Glide };
 struct AdvisorConfig {
   float mc = 1.0f;               // m/s, manual MacCready
   bool autoMc = true;
+  float autoMcStart = 0.5f;      // auto-MC before the first thermal of the flight
   float autoMcFactor = 0.8f;
   float mcMin = 0.3f, mcMax = 4.0f;
   TimeMs warmupMs = 40000;       // ignore a new thermal's first ~2 circles
