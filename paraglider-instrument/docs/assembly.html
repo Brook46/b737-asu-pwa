@@ -1,0 +1,568 @@
+<title>Instrument Assembly Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workshop manual on drafting paper. Title block, the wiring diagram as a plate, then tools, technique, the numbered build sequence, the battery, and fault-finding. */
+:root {
+  --paper: #f2f4f1;
+  --sheet: #fbfcfa;
+  --ink: #1f2a2c;
+  --ink-soft: #5d6b6d;
+  --rule: #c9d1cd;
+  --grid: #e4e9e5;
+  --accent: #b5481d;
+  --shell: #dfe5e2;
+  --shell-wall: #a9b5b1;
+  --plate: #edf0ec;
+  --pcb-xiao: #2c3236;
+  --pcb-ada: #23272a;
+  --pcb-sfe: #a8322d;
+  --pcb-icm: #4b3a8f;
+  --pcb-perf: #c9a46a;
+  --pcb-grove: #2f5f9e;
+  --pcb-l76k: #2c6e5a;
+  --on-board: #f3f5f4;
+  --metal: #b9c0c4;
+  --gold: #d4a52a;
+  --copper: #cf8a4e;
+  --ceramic: #d9cfb8;
+  --batt: #7d8b93;
+  --w-red: #d63333;
+  --w-gnd: #1f2a2c;
+  --w-sda: #1c6fc4;
+  --w-scl: #d39b00;
+  --w-sck: #2f9446;
+  --w-mosi: #6c46d8;
+  --w-miso: #0a8494;
+  --w-cs: #7f8a8f;
+  --w-pz: #cc2f6a;
+  --coax: #3b4447;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f; --grid: #1f2a2b;
+    --accent: #f08a5d; --shell: #263133; --shell-wall: #4d5c5d; --plate: #1d2628;
+    --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f; --pcb-grove: #3b6fb0; --pcb-l76k: #357d67;
+    --on-board: #f3f5f4; --metal: #8d979c; --gold: #c99a22; --copper: #b8794a; --ceramic: #8f8670; --batt: #5f6d75;
+    --w-red: #ff6b6b; --w-gnd: #dfe7e4; --w-sda: #4dabf7; --w-scl: #fcc419; --w-sck: #51cf66; --w-mosi: #9775fa;
+    --w-miso: #3bc9db; --w-cs: #adb5bd; --w-pz: #f06595; --coax: #aeb9bb;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f; --grid: #1f2a2b;
+  --accent: #f08a5d; --shell: #263133; --shell-wall: #4d5c5d; --plate: #1d2628;
+  --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f; --pcb-grove: #3b6fb0; --pcb-l76k: #357d67;
+  --on-board: #f3f5f4; --metal: #8d979c; --gold: #c99a22; --copper: #b8794a; --ceramic: #8f8670; --batt: #5f6d75;
+  --w-red: #ff6b6b; --w-gnd: #dfe7e4; --w-sda: #4dabf7; --w-scl: #fcc419; --w-sck: #51cf66; --w-mosi: #9775fa;
+  --w-miso: #3bc9db; --w-cs: #adb5bd; --w-pz: #f06595; --coax: #aeb9bb;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 28px;
+}
+
+/* Title block, like the corner box of a drawing sheet */
+.titleblock {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0;
+  border: 1.5px solid var(--ink);
+  background: var(--sheet);
+}
+.titleblock .name { padding: 16px 18px; border-right: 1.5px solid var(--ink); min-width: 0; }
+.titleblock h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.titleblock p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+.titleblock dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  font-family: var(--f-mono);
+  font-size: 12px;
+}
+.titleblock dt, .titleblock dd { margin: 0; padding: 7px 12px; border-bottom: 1px solid var(--rule); }
+.titleblock dt { color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; border-right: 1px solid var(--rule); }
+.titleblock dd { font-variant-numeric: tabular-nums; }
+.titleblock dt:nth-last-of-type(1), .titleblock dd:nth-last-of-type(1) { border-bottom: 0; }
+@media (max-width: 640px) {
+  .titleblock { grid-template-columns: 1fr; }
+  .titleblock .name { border-right: 0; border-bottom: 1.5px solid var(--ink); }
+}
+
+/* Plates */
+.plate { background: var(--sheet); border: 1px solid var(--rule); display: grid; gap: 0; }
+.plate header {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  padding: 12px 16px; border-bottom: 1px solid var(--rule);
+}
+.plate h2 {
+  font-family: var(--f-display); font-weight: 600; font-size: 26px; line-height: 1.1; margin: 0;
+  text-wrap: balance;
+}
+.plate .tag {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent); border: 1px solid currentColor; padding: 1px 6px;
+}
+.plate header p { margin: 0; color: var(--ink-soft); flex-basis: 100%; max-width: 75ch; }
+.drawing { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.drawing svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.scrollhint { display: none; font-family: var(--f-mono); font-size: 11px; color: var(--ink-soft); padding: 6px 16px 0; }
+@media (max-width: 780px) { .scrollhint { display: block; } }
+
+/* Legend */
+.legend {
+  display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 16px; border-top: 1px solid var(--rule);
+  font-family: var(--f-mono); font-size: 12px;
+}
+.legend span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.legend i { display: inline-block; width: 22px; height: 0; border-top: 3px solid; }
+.legend i.dash { border-top-style: dashed; }
+
+/* Notes + parts */
+.lower { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; }
+@media (max-width: 820px) { .lower { grid-template-columns: 1fr; } }
+.lower h3 {
+  font-family: var(--f-display); font-weight: 600; font-size: 21px; margin: 0 0 10px;
+  letter-spacing: 0.01em;
+}
+.notes ol { margin: 0; padding-left: 1.3em; display: grid; gap: 9px; max-width: 66ch; }
+.notes li::marker { font-family: var(--f-mono); color: var(--accent); }
+.notes b { font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: 12.5px; white-space: nowrap; }
+tfoot td { border-bottom: 0; font-weight: 600; }
+.small { font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+
+/* SVG styling (all sizes in mm, the viewBox unit) */
+svg text { font-family: var(--f-mono); fill: var(--ink); }
+.t-lbl { font-size: 2.15px; }
+.t-sm { font-size: 1.55px; }
+.t-xs { font-size: 1.1px; }
+.t-title { font-family: var(--f-display); font-size: 3.6px; font-weight: 600; letter-spacing: 0.02em; }
+.t-soft { fill: var(--ink-soft); }
+.t-on { fill: var(--on-board); }
+/* Colour classes on a <g> must reach its <text> children past `svg text`. */
+.t-on text { fill: var(--on-board); }
+.t-soft text { fill: var(--ink-soft); }
+.t-acc text { fill: var(--accent); }
+.t-acc { fill: var(--accent); }
+.gridline { stroke: var(--grid); stroke-width: 0.15; }
+.shell { fill: var(--shell); stroke: var(--shell-wall); stroke-width: 0.5; }
+.cavity { fill: var(--sheet); stroke: var(--shell-wall); stroke-width: 0.35; }
+.plate-fill { fill: var(--plate); stroke: var(--rule); stroke-width: 0.25; stroke-dasharray: 1 0.6; }
+.edge { stroke: var(--ink); stroke-width: 0.25; }
+.leader { stroke: var(--ink-soft); stroke-width: 0.18; fill: none; }
+.dim { stroke: var(--ink-soft); stroke-width: 0.18; fill: none; }
+.hidden-line { fill: none; stroke: var(--ink-soft); stroke-width: 0.25; stroke-dasharray: 1.1 0.7; }
+.accent-line { fill: none; stroke: var(--accent); stroke-width: 0.3; stroke-dasharray: 1.2 0.8; }
+.wire { fill: none; stroke-width: 0.42; stroke-linecap: round; stroke-linejoin: round; }
+.under { stroke-dasharray: 0.9 0.6; }
+.coax { fill: none; stroke: var(--coax); stroke-width: 0.75; stroke-linecap: round; }
+.bundle { fill: none; stroke: var(--ink-soft); stroke-width: 1.3; stroke-linecap: round; opacity: 0.55; }
+.pad { fill: var(--gold); }
+/* Assembly guide additions: a numbered build sequence, checks and warnings. */
+.prose { max-width: 72ch; display: grid; gap: 10px; }
+.prose p, .prose li { margin: 0; }
+.prose ul, .prose ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+.prose code, td code, li code { font-family: var(--f-mono); font-size: 0.9em; background: var(--plate); padding: 0 4px; border: 1px solid var(--rule); }
+.section-h { font-family: var(--f-display); font-weight: 600; font-size: 28px; line-height: 1.1; margin: 0; text-wrap: balance; }
+.block { background: var(--sheet); border: 1px solid var(--rule); padding: 18px 18px 20px; display: grid; gap: 14px; }
+.block > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
+.steps > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 14px; padding: 16px 0; border-top: 1px solid var(--rule); counter-increment: step; }
+.steps > li::before { content: counter(step, decimal-leading-zero); font-family: var(--f-display); font-weight: 700; font-size: 28px; color: var(--accent); line-height: 1; }
+.steps h4 { font-family: var(--f-body); font-weight: 600; font-size: 16.5px; margin: 0 0 6px; }
+.steps .body { display: grid; gap: 8px; min-width: 0; }
+.steps .body p { margin: 0; }
+.steps .body ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.check, .warn { border-left: 3px solid; padding: 6px 10px; font-size: 14px; }
+.check { border-color: var(--w-sck); background: color-mix(in srgb, var(--w-sck) 9%, transparent); }
+.warn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.check b, .warn b { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 6px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.cols > div { min-width: 0; }
+.cols h3 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0 0 8px; }
+.tablewrap { overflow-x: auto; }
+</style>
+
+<div class="wrap">
+
+  <section class="titleblock" aria-label="Guide title block">
+    <div class="name">
+      <h1>Assembly guide</h1>
+      <p>How to wire, solder and power the paragliding instrument from the Seeed parts you ordered. Work in this order, checking each step before moving on. The case comes later; this gets you to a working, tested board.</p>
+    </div>
+    <dl>
+      <dt>Skill</dt><dd>first soldering project OK</dd>
+      <dt>Time</dt><dd>one evening + checks</dd>
+      <dt>Joints</dt><dd>≈ 40</dd>
+      <dt>Power</dt><dd>1-cell LiPo, 3.7 V</dd>
+      <dt>Rule</dt><dd>wire + check, then flash</dd>
+    </dl>
+  </section>
+
+  <!-- ================= WIRING DIAGRAM ================= -->
+  <section class="plate" aria-labelledby="wd">
+    <header>
+      <span class="tag">Plate A</span>
+      <h2 id="wd">Wiring diagram</h2>
+      <p>Every wire in the build. The small distribution board is the trick that keeps this tidy: one wire from each XIAO pad goes to a strip, and every module draws its power and I²C from those strips. The XIAO's tiny pads never carry more than one wire. A dot means connected; lines that cross without a dot are not.</p>
+    </header>
+    <div class="scrollhint">Scroll sideways to see the whole diagram →</div>
+    <div class="drawing">
+      <svg viewBox="0 0 200 124" role="img" aria-label="Wiring diagram: XIAO pads to a four-strip distribution board, which feeds the BME280, LSM6DS3, L76K and buzzer; D6 and D7 go straight to the L76K; D0 to the buzzer; the battery runs through a switch to the BAT pads on the XIAO's underside">
+        <defs>
+          <pattern id="gA" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M5 0H0V5" class="gridline" fill="none"/></pattern>
+        </defs>
+        <rect width="200" height="124" fill="url(#gA)"/>
+
+        <!-- XIAO -->
+        <rect x="14" y="18" width="38" height="66" rx="2" fill="var(--pcb-xiao)" class="edge"/>
+        <rect x="9" y="45" width="7" height="10" rx="1.2" fill="var(--metal)" class="edge"/>
+        <rect x="22" y="36" width="20" height="18" rx="0.6" fill="var(--metal)"/>
+        <text x="32" y="44.4" text-anchor="middle" class="t-sm" fill="#2c3236">XIAO</text>
+        <text x="32" y="47.2" text-anchor="middle" class="t-xs" fill="#2c3236">ESP32-S3</text>
+        <text x="33" y="14.6" text-anchor="middle" class="t-sm">XIAO, top view, USB on the left</text>
+        <text x="12.5" y="50.6" text-anchor="middle" class="t-xs" fill="#2c3236" transform="rotate(-90 12.5 50)">USB-C</text>
+        <text x="33" y="79.6" text-anchor="middle" class="t-xs t-on">Wio-SX1262 underneath (B2B plug)</text>
+        <g class="t-sm t-on" text-anchor="end">
+          <text x="50" y="24.6">3V3</text><text x="50" y="30.6">GND</text><text x="50" y="38.6">D4 SDA</text><text x="50" y="44.6">D5 SCL</text>
+          <text x="50" y="54.6">D6 TX</text><text x="50" y="60.6">D7 RX</text><text x="50" y="68.6">D0</text>
+        </g>
+        <g class="pad">
+          <circle cx="52" cy="24" r="0.9"/><circle cx="52" cy="30" r="0.9"/><circle cx="52" cy="38" r="0.9"/><circle cx="52" cy="44" r="0.9"/>
+          <circle cx="52" cy="54" r="0.9"/><circle cx="52" cy="60" r="0.9"/><circle cx="52" cy="68" r="0.9"/>
+        </g>
+        <!-- BAT pads underside -->
+        <rect x="19" y="82.6" width="6" height="2.8" class="hidden-line"/><text x="25.6" y="89" class="t-sm">BAT−</text>
+        <rect x="37" y="82.6" width="6" height="2.8" class="hidden-line"/><text x="41.2" y="89" class="t-sm">BAT+</text>
+        <text x="54" y="88.6" class="t-xs t-soft">← pads on the underside;</text>
+        <text x="54" y="90.8" class="t-xs t-soft">BAT− is the one nearest USB</text>
+
+        <!-- distribution board -->
+        <rect x="66" y="18" width="24" height="32" rx="1" fill="var(--pcb-perf)" class="edge"/>
+        <text x="78" y="14.6" text-anchor="middle" class="t-sm">distribution board</text>
+        <g stroke-width="1.1" stroke-linecap="round">
+          <path d="M68 24H88" stroke="var(--w-red)"/><path d="M68 30H88" stroke="var(--w-gnd)"/>
+          <path d="M68 38H88" stroke="var(--w-sda)"/><path d="M68 44H88" stroke="var(--w-scl)"/>
+        </g>
+        <g class="t-xs" fill="#2c2416"><text x="78" y="22.6" text-anchor="middle">3V3</text><text x="78" y="28.6" text-anchor="middle">GND</text><text x="78" y="36.6" text-anchor="middle">SDA</text><text x="78" y="42.6" text-anchor="middle">SCL</text></g>
+
+        <!-- XIAO → board -->
+        <path d="M52 24H68" class="wire" stroke="var(--w-red)"/>
+        <path d="M52 30H68" class="wire" stroke="var(--w-gnd)"/>
+        <path d="M52 38H68" class="wire" stroke="var(--w-sda)"/>
+        <path d="M52 44H68" class="wire" stroke="var(--w-scl)"/>
+
+        <!-- modules -->
+        <rect x="128" y="8" width="44" height="18" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <text x="150" y="15.4" text-anchor="middle" class="t-sm t-on">BME280</text><text x="150" y="18.6" text-anchor="middle" class="t-xs t-on">Grove · 0x76</text>
+        <rect x="128" y="32" width="44" height="18" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <text x="150" y="39.4" text-anchor="middle" class="t-sm t-on">LSM6DS3</text><text x="150" y="42.6" text-anchor="middle" class="t-xs t-on">Grove · 0x6A</text>
+        <rect x="128" y="56" width="44" height="30" rx="1" fill="var(--pcb-l76k)" class="edge"/>
+        <text x="152" y="67" text-anchor="middle" class="t-sm t-on">L76K GNSS</text><text x="152" y="70.2" text-anchor="middle" class="t-xs t-on">same pad names</text><text x="152" y="72.6" text-anchor="middle" class="t-xs t-on">as the XIAO</text>
+        <rect x="128" y="92" width="44" height="18" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <text x="152" y="100.4" text-anchor="middle" class="t-sm t-on">Buzzer</text><text x="152" y="103.6" text-anchor="middle" class="t-xs t-on">Grove passive</text>
+
+        <!-- module pin labels -->
+        <g class="t-sm t-on">
+          <text x="129.2" y="11.6">SCL</text><text x="129.2" y="15.6">SDA</text><text x="129.2" y="19.6">VCC</text><text x="129.2" y="23.6">GND</text>
+          <text x="129.2" y="35.6">SCL</text><text x="129.2" y="39.6">SDA</text><text x="129.2" y="43.6">VCC</text><text x="129.2" y="47.6">GND</text>
+          <text x="129.2" y="60.6">3V3</text><text x="129.2" y="64.6">GND</text><text x="129.2" y="69.6">D6</text><text x="129.2" y="73.6">D7</text>
+          <text x="129.2" y="95.6">SIG</text><text x="129.2" y="99.6">NC</text><text x="129.2" y="103.6">VCC</text><text x="129.2" y="107.6">GND</text>
+        </g>
+        <g class="t-sm t-on" text-anchor="end"><text x="170.8" y="62.6">3V3</text><text x="170.8" y="72.6">D0</text><text x="170.8" y="80.6">D2</text></g>
+
+        <!-- board → BME280 -->
+        <path d="M88 44H114V11H128" class="wire" stroke="var(--w-scl)"/>
+        <path d="M88 38H116.5V15H128" class="wire" stroke="var(--w-sda)"/>
+        <path d="M88 24H119V19H128" class="wire" stroke="var(--w-red)"/>
+        <path d="M88 30H121.5V23H128" class="wire" stroke="var(--w-gnd)"/>
+        <!-- board → LSM6DS3 -->
+        <path d="M88 44H104V35H128" class="wire" stroke="var(--w-scl)"/>
+        <path d="M88 38H106.5V39H128" class="wire" stroke="var(--w-sda)"/>
+        <path d="M88 24H109V43H128" class="wire" stroke="var(--w-red)"/>
+        <path d="M88 30H111.5V47H128" class="wire" stroke="var(--w-gnd)"/>
+        <!-- board → L76K power -->
+        <path d="M88 24H99V60H128" class="wire" stroke="var(--w-red)"/>
+        <path d="M88 30H101.5V64H128" class="wire" stroke="var(--w-gnd)"/>
+        <!-- board → buzzer power -->
+        <path d="M88 24H94V103H128" class="wire" stroke="var(--w-red)"/>
+        <path d="M88 30H96.5V107H128" class="wire" stroke="var(--w-gnd)"/>
+        <!-- XIAO D6/D7 → L76K, D0 → buzzer -->
+        <path d="M52 54H92V69H128" class="wire" stroke="var(--w-mosi)"/>
+        <path d="M52 60H90V73H128" class="wire" stroke="var(--w-miso)"/>
+        <path d="M52 68H88V95H128" class="wire" stroke="var(--w-pz)"/>
+        <!-- buzzer NC: cut -->
+        <path d="M124 99H128" class="wire" stroke="#e9ecef" stroke-dasharray="0.6 0.6"/>
+        <text x="123.4" y="99.6" text-anchor="end" class="t-xs t-soft">white: cut, insulate</text>
+        <!-- junction dots on the board rails -->
+        <g fill="var(--ink)"><circle cx="88" cy="24" r="0.7"/><circle cx="88" cy="30" r="0.7"/><circle cx="88" cy="38" r="0.7"/><circle cx="88" cy="44" r="0.7"/></g>
+
+        <!-- L76K pull-ups -->
+        <path d="M172 62H184V80" class="wire" stroke="var(--w-red)"/>
+        <path d="M172 72H175L175.7 70.8L177 73.2L178.3 70.8L179.6 73.2L180.9 70.8L181.6 72H184" class="wire" stroke="var(--ink)" stroke-width="0.35"/>
+        <path d="M172 80H175L175.7 78.8L177 81.2L178.3 78.8L179.6 81.2L180.9 78.8L181.6 80H184" class="wire" stroke="var(--ink)" stroke-width="0.35"/>
+        <g fill="var(--ink)"><circle cx="184" cy="72" r="0.6"/><circle cx="184" cy="80" r="0.6"/></g>
+        <text x="186" y="68.4" class="t-xs">10 kΩ</text><text x="186" y="70.6" class="t-xs">× 2</text>
+        <text x="172" y="90" text-anchor="end" class="t-xs t-soft">pull D0 and D2 high (Seeed FAQ)</text>
+
+        <!-- antennas -->
+        <text x="14" y="8.6" class="t-xs t-soft">U.FL on the XIAO: Wi-Fi/BLE antenna · U.FL on the Wio: LoRa antenna · U.FL on the L76K: GNSS patch</text>
+
+        <!-- battery, switch -->
+        <rect x="14" y="100" width="30" height="14" rx="2" fill="var(--batt)" class="edge"/>
+        <text x="29" y="106.6" text-anchor="middle" class="t-sm t-on">LiPo 1S</text><text x="29" y="109.8" text-anchor="middle" class="t-xs t-on">with protection board</text>
+        <text x="46.5" y="103.2" class="t-xs">+</text><text x="9.4" y="111.2" class="t-xs">−</text>
+        <path d="M44 104H56" class="wire" stroke="var(--w-red)" stroke-width="0.6"/>
+        <rect x="56" y="101.6" width="9" height="4.8" rx="0.6" fill="var(--metal)" class="edge"/>
+        <rect x="57" y="102.6" width="3.4" height="2.8" fill="var(--ink)"/>
+        <text x="60.5" y="99.6" text-anchor="middle" class="t-xs">switch</text>
+        <path d="M65 104H70V96H40V85.4" class="wire" stroke="var(--w-red)" stroke-width="0.6"/>
+        <path d="M14 110H8V95H22V85.4" class="wire" stroke="var(--w-gnd)" stroke-width="0.6"/>
+        <rect x="45" y="102.4" width="3.4" height="3.2" fill="none" stroke="var(--ink)" stroke-width="0.25"/>
+        <text x="46.7" y="119" text-anchor="middle" class="t-xs t-soft">JST-PH plug: battery detachable, check polarity first</text>
+      </svg>
+    </div>
+    <div class="legend" aria-label="Wire colours">
+      <span><i style="border-color:var(--w-red)"></i>3V3 (Grove red)</span>
+      <span><i style="border-color:var(--w-gnd)"></i>GND (Grove black)</span>
+      <span><i style="border-color:var(--w-sda)"></i>SDA (Grove white)</span>
+      <span><i style="border-color:var(--w-scl)"></i>SCL (Grove yellow)</span>
+      <span><i style="border-color:var(--w-mosi)"></i>D6 → L76K D6</span>
+      <span><i style="border-color:var(--w-miso)"></i>D7 → L76K D7</span>
+      <span><i style="border-color:var(--w-pz)"></i>D0 → buzzer SIG (Grove yellow)</span>
+    </div>
+  </section>
+
+  <!-- ================= TOOLS + LOCAL PARTS ================= -->
+  <section class="block" aria-labelledby="tools">
+    <header><h2 class="section-h" id="tools">What you need on the bench</h2></header>
+    <div class="cols">
+      <div>
+        <h3>Tools</h3>
+        <ul class="prose">
+          <li><b>Temperature-controlled iron</b> (a Pinecil or TS101 is ideal and cheap), with a small conical or 1–1.6 mm chisel tip.</li>
+          <li><b>Solder</b>: 0.5–0.6 mm rosin-core. 63/37 leaded flows easiest at 330–350 °C; lead-free needs 360–380 °C.</li>
+          <li><b>Flux pen</b> (no-clean), <b>desoldering wick</b>, brass tip cleaner.</li>
+          <li><b>Multimeter</b> with a continuity beep. You'll use it more than the iron.</li>
+          <li>Fine wire strippers (26–30 AWG), flush cutters, tweezers.</li>
+          <li>Something to hold work: helping hands, or Blu-Tack on a tile.</li>
+          <li>Magnifier or phone camera zoom, to inspect joints.</li>
+          <li>Heat-shrink tubing (1.5 and 3 mm), Kapton tape, isopropyl alcohol and an old toothbrush.</li>
+          <li>Ventilation (a fan pulling fumes away) and safety glasses.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Buy locally</h3>
+        <ul class="prose">
+          <li><b>LiPo, 1 cell, 3.7 V, with a protection board</b>. Size it from the battery section below: 500 mAh is about 4–6 h of flying, 1000 mAh about 8–12 h. It must come with a 2-pin <b>JST-PH 2.0</b> plug, plus a matching socket lead for the XIAO side.</li>
+          <li><b>Small slide switch</b> (SPDT, 2–3 mm pitch), rated ≥ 0.5 A.</li>
+          <li><b>Stripboard</b> (copper strips, "Veroboard"), a 25 × 35 mm piece: the distribution board.</li>
+          <li><b>2 × 10 kΩ resistors</b>, ¼ W or 0603, for the L76K pull-ups.</li>
+          <li><b>Silicone wire</b>, 26–28 AWG, red and black, for the battery leads.</li>
+          <li>Optional: a <b>USB power meter</b>, to measure what the unit really draws.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TECHNIQUE ================= -->
+  <section class="block" aria-labelledby="tech">
+    <header><h2 class="section-h" id="tech">Soldering: the five-minute version</h2></header>
+    <div class="cols">
+      <div class="prose">
+        <p><b>Practise first.</b> Before you touch the XIAO, solder 20 wires to a scrap of the stripboard. That's when your joints start looking right.</p>
+        <ol>
+          <li><b>Tin the tip.</b> Melt a little solder on the clean hot tip. A shiny tip moves heat; a dull one doesn't.</li>
+          <li><b>Tin the wire.</b> Strip 2 mm, twist the strands, touch with flux, then iron and solder until the strands are coated.</li>
+          <li><b>Tin the pad</b> with a small bump of solder.</li>
+          <li><b>Join.</b> Hold the tinned wire on the pad and touch the iron to both for 1–2 seconds until they flow together. Lift the iron and hold the wire still for 2 seconds.</li>
+          <li><b>Inspect.</b> A good joint is shiny and smooth, with a slight concave fillet. A dull, grainy ball is a cold joint: add flux and reheat. Solder linking two pads is a bridge: add flux and drag it off with the iron or wick.</li>
+        </ol>
+      </div>
+      <div class="prose">
+        <p><b>Habits that save boards:</b></p>
+        <ul>
+          <li>Heat for seconds, not tens of seconds. If it doesn't flow in 3 s, stop, add flux, and try again.</li>
+          <li>Feed solder to the joint, not to the iron tip.</li>
+          <li>The XIAO's edge pads are castellated (half-holes). Lay the wire along the pad face and solder into the half-hole. It's stronger than a wire standing on top.</li>
+          <li>Never let solder touch the XIAO's metal shield or reach the next pad.</li>
+          <li>Joints are electrical, not mechanical. Once wires are soldered, tack them down with Kapton or a dab of hot glue so the joint never carries the cable's weight. Paragliders vibrate.</li>
+          <li>Clean flux off with alcohol when done, and look again under magnification.</li>
+          <li>Touch something grounded before handling boards (static).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= BUILD SEQUENCE ================= -->
+  <section class="block" aria-labelledby="seq">
+    <header><h2 class="section-h" id="seq">Build sequence</h2></header>
+    <ol class="steps">
+      <li><div class="body">
+        <h4>Unpack, identify, take photos</h4>
+        <p>Lay out every part. Photograph both sides of the XIAO, the L76K and each Grove board. The silkscreen labels are tiny, and photos are easier to zoom into than the boards.</p>
+        <p>Find the XIAO's <b>BAT+ / BAT−</b> pads on its underside (negative is the one nearest the USB port), and the L76K's pad names (3V3, GND, D0, D2, D6, D7).</p>
+      </div></li>
+      <li><div class="body">
+        <h4>Separate the radio from the XIAO</h4>
+        <p>The Wio-SX1262 plugs into the XIAO's underside through a small board-to-board (B2B) connector. Unclip both antennas (lift one side of the U.FL first, never pull straight on the cable), then ease the Wio off. Lift evenly, rocking gently along the connector's length. Solder the XIAO without it: no heat near the connector, and the battery pads underneath are reachable.</p>
+        <div class="warn"><b>Don't</b>Leave D8, D9 and D10 unconnected. They carry the radio's SPI bus through the B2B connector.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Make the distribution board</h4>
+        <p>Cut a 25 × 35 mm piece of stripboard with at least 4 copper strips. Strip 1 is <b>3V3</b>, 2 is <b>GND</b>, 3 is <b>SDA</b>, 4 is <b>SCL</b>. Mark them with a pen on the plain side. Each strip needs about 6 holes: one wire in from the XIAO, and the rest out to the modules.</p>
+        <div class="check"><b>Check</b>Continuity beep along each strip, and silence between neighbouring strips. Scrape any copper whiskers between strips with a knife.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Prepare the Grove cables</h4>
+        <p>Each Grove cable has a white Grove plug on one end and four female jumper sockets on the other. Keep the Grove plug, cut off the jumper end, strip 2 mm and tin each wire.</p>
+        <ul>
+          <li><b>BME280 and LSM6DS3</b>: 6–8 cm long. All four wires go to the distribution board, colour to strip: red 3V3, black GND, white SDA, yellow SCL.</li>
+          <li><b>Buzzer</b>: 12–15 cm, since it goes on the lid and needs slack to open it. Yellow is the signal, red is 3V3, black is GND. <b>White is unused</b>: cut it short and cover it with heat-shrink.</li>
+        </ul>
+        <div class="warn"><b>Check colours</b>Grove plugs are keyed, but confirm the colour order against each module's silkscreen (SCL, SDA, VCC, GND) before soldering.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Wire the XIAO</h4>
+        <p>Short wires (5–7 cm, 28 AWG or spare Grove wire) to the castellated pads:</p>
+        <ul>
+          <li><b>3V3, GND, D4, D5</b> → strips 3V3, GND, SDA, SCL on the distribution board.</li>
+          <li><b>D6, D7</b> → the L76K's D6 and D7 pads (step 6).</li>
+          <li><b>D0</b> → the buzzer cable's yellow wire. Join it with heat-shrink over the splice, or run it via a spare stripboard hole.</li>
+        </ul>
+        <div class="check"><b>Check</b>Under magnification, no solder links neighbouring pads. Beep each wire end to its pad.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Wire the L76K</h4>
+        <p>Don't solder its header sockets. Wire it beside the XIAO instead, so the XIAO's pads stay reachable. Match pad names exactly as if it were stacked: <b>XIAO D6 → L76K D6</b>, <b>XIAO D7 → L76K D7</b>. The module's own wiring handles which is TX and which is RX. Its <b>3V3</b> and <b>GND</b> come from the distribution board.</p>
+        <p>Then the pull-ups: one 10 kΩ resistor from the module's <b>D0</b> pad to its <b>3V3</b> pad, and another from <b>D2</b> to <b>3V3</b>. Seeed's FAQ says the module misbehaves if those two lines aren't held high. Bend the resistor legs flat along the board and sleeve them so they can't touch anything.</p>
+        <div class="warn"><b>Before power</b>Plug the GNSS patch antenna into the L76K's U.FL first. Seeed's guide says to attach it before use.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Connect the modules to the distribution board</h4>
+        <p>Solder the BME280 and LSM6DS3 cables (4 wires each), the L76K's 3V3/GND pair, and the buzzer's red/black pair to their strips. Then plug the Grove plugs into the modules.</p>
+        <div class="check"><b>Check</b>With nothing powered, beep each net end to end: XIAO 3V3 to every module's VCC; GND to every GND; D4 to both SDA; D5 to both SCL; D6 to D6; D7 to D7; D0 to the buzzer SIG. Then check 3V3 to GND: the meter should <b>not</b> beep. The reading may climb as capacitors charge; a steady reading under ~10 Ω means a short somewhere.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Battery leads and switch</h4>
+        <p>On the XIAO's underside, solder the battery-side socket lead: <b>black to BAT−</b> (the pad nearest the USB port), and <b>red to BAT+</b> through the slide switch. Cut the red wire, solder each end to the switch (common pin plus one side), and heat-shrink the switch legs. Route the leads flat along the board, away from where the Wio sits.</p>
+        <p>The full details and the polarity check are in the battery section below. Read it before plugging the battery in.</p>
+      </div></li>
+      <li><div class="body">
+        <h4>Reassemble</h4>
+        <p>Clip the Wio-SX1262 back onto the B2B connector, pressing evenly until it seats. Refit the antennas: put one side of each U.FL on first, then press the other side down. Wi-Fi/BLE goes on the XIAO, LoRa on the Wio, and the GNSS patch on the L76K. U.FL connectors survive about 30 matings, so don't keep swapping them.</p>
+      </div></li>
+      <li><div class="body">
+        <h4>First power: USB only, battery unplugged</h4>
+        <p>Plug USB-C into a computer. Measure the XIAO's 3V3 pad: about 3.3 V. Touch-test each board for 10 seconds; nothing should get warm. The red charge LED lights, then goes off after about 30 s with no battery (per Seeed).</p>
+        <div class="check"><b>Now flash</b>Everything is wired and checked, so this is the point your brief allows flashing: <code>pio run -t upload</code>, then <code>pio device monitor</code>. Run <code>health</code> and <code>i2c</code>, then follow <code>docs/bringup.md</code> from step 2.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Battery in</h4>
+        <p>Switch <b>off</b>, confirm polarity at the plug (next section), plug the battery in, switch <b>on</b>. The unit should boot exactly as on USB. Unplug USB: still running means battery power works.</p>
+      </div></li>
+      <li><div class="body">
+        <h4>Strain relief and a shake test</h4>
+        <p>Tack every wire bundle down with Kapton or small dabs of hot glue, near the joints but not on them. Then shake the board gently while watching the console: no resets and no sensor dropouts in <code>health</code>.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <!-- ================= BATTERY ================= -->
+  <section class="block" aria-labelledby="bat">
+    <header><h2 class="section-h" id="bat">The battery, properly</h2></header>
+    <div class="cols">
+      <div class="prose">
+        <h3>Connecting it</h3>
+        <ul>
+          <li><b>Use a cell with a protection board</b> (a small PCB under the tape at the wire end). It cuts off on over-discharge, overcharge and short circuit. The XIAO charges the cell but doesn't protect it from those.</li>
+          <li><b>Polarity is the one mistake that kills boards.</b> JST-PH leads are <i>not</i> standardised: some sellers wire them reversed. Before first connection, measure the battery plug with the meter. Then check that red on the battery side meets the wire going to BAT+.</li>
+          <li><b>Detachable, not soldered.</b> A JST-PH socket on the XIAO side lets you pull the battery for storage or replacement without heat near the cell. Never solder directly to a LiPo's tabs.</li>
+          <li><b>Cut one wire at a time</b> if you ever shorten battery leads. Cutting both at once with metal cutters shorts the cell.</li>
+          <li><b>The switch sits in the + lead, so it also controls charging.</b> The charger feeds the BAT pads, so switch <b>on</b> to charge.</li>
+        </ul>
+      </div>
+      <div class="prose">
+        <h3>Charging and sizing</h3>
+        <ul>
+          <li>The XIAO charges at <b>100 mA</b>. A 500 mAh cell takes about 5–6 h from empty, a 1000 mAh cell about 10–11 h: charge overnight. The red LED flashes while charging and goes out when full.</li>
+          <li><b>Estimated draw: 80–130 mA</b> with Bluetooth to the XCTracer, GPS (about 41 mA alone), the radio listening and the vario beeping. That's an estimate: measure yours at bring-up with a USB power meter (battery unplugged).</li>
+        </ul>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Cell</th><th class="num">Flight time</th><th class="num">≈ size, mm</th><th class="num">≈ g</th></tr></thead>
+            <tbody>
+              <tr><td>500 mAh (503035)</td><td class="num">4–6 h</td><td class="num">35 × 30 × 5</td><td class="num">10</td></tr>
+              <tr><td>1000 mAh (603450)</td><td class="num">8–12 h</td><td class="num">50 × 34 × 6</td><td class="num">20</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For long cross-country days, take the 1000 mAh if it fits the case. We'll size the case around whichever you buy.</p>
+      </div>
+      <div class="prose">
+        <h3>Safety</h3>
+        <ul>
+          <li>Never short, crush, puncture or bend the cell. Wrap it in Kapton where it touches anything hard.</li>
+          <li>A swollen ("puffy") cell is finished. Retire it at a battery-recycling point.</li>
+          <li>Charge only between 0 and 45 °C: not in a hot car or cockpit in the sun, not below freezing. Stay nearby for the first few charges.</li>
+          <li>Store at half charge (about 3.8 V) if unused for weeks.</li>
+          <li>Flying commercially: a 1000 mAh cell is about 3.7 Wh, far under airline limits, but it must travel in cabin baggage, not in checked baggage.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FAULTS ================= -->
+  <section class="block" aria-labelledby="flt">
+    <header><h2 class="section-h" id="flt">If something doesn't work</h2></header>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Usual cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td><code>i2c</code> finds nothing</td><td>SDA/SCL swapped, or a strip shorted to its neighbour</td><td>Beep D4→white and D5→yellow; inspect the stripboard gaps</td></tr>
+          <tr><td>Finds one Grove module, not the other</td><td>Loose Grove plug, or one wire not on its strip</td><td>Reseat the plug; beep that cable end to end</td></tr>
+          <tr><td>GNSS silent in <code>health</code></td><td>D6/D7 wired to the wrong pads, or no 3V3</td><td>Same name to same name; measure 3.3 V at the L76K</td></tr>
+          <tr><td>GNSS talks but never gets a fix</td><td>Antenna not seated, or indoors</td><td>Press the U.FL home; test outside with a clear sky</td></tr>
+          <tr><td>L76K green LED stays on</td><td>D0/D2 not pulled high</td><td>Check both 10 kΩ resistors to 3V3</td></tr>
+          <tr><td>Buzzer silent</td><td>Yellow and white swapped, or volume 0</td><td><code>tone 2700</code>, <code>vol 3</code>; beep D0 to the buzzer SIG</td></tr>
+          <tr><td>LoRa "not found"</td><td>Wio not fully seated on the B2B, or a pad bridged to D8–D10</td><td>Reseat evenly; inspect D8–D10 for solder</td></tr>
+          <tr><td>Resets when you touch wires</td><td>Cold joint, or a cable pulling on a joint</td><td>Reflow with flux; add strain relief</td></tr>
+          <tr><td>Runs on USB, dead on battery</td><td>Switch off, reversed polarity, or a flat or protected cell</td><td>Measure the cell; check BAT+ is red; charge with the switch on</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>

@@ -1,32 +1,31 @@
 # Bring-up, one milestone at a time
 
 Rule from the brief: **don't flash until the sensors are wired and
-confirmed.** Wire, check the wiring against `docs/hardware.md` with a meter
-(3V3 and GND not shorted, nothing on 5 V), then flash. The firmware tolerates
-missing parts. Anything absent is reported at boot and skipped, so you can
-add one module at a time and re-run the same image.
+confirmed.** Build everything with [assembly.html](assembly.html), do its
+meter checks, power on from USB once, and only then flash. The steps below
+then verify each part in turn on the running firmware. Anything absent is
+reported at boot and skipped, so a fault in one module doesn't block testing
+the others.
 
 Serial console: `pio device monitor` (115200, USB CDC). `help` lists the
 commands, `health` shows what's alive.
 
-## 0. Before anything is wired
+## 0. Before the hardware arrives, and once it's wired
 
 ```sh
 make test          # 46 cases, 0 failed
-pio run            # first real ESP32 build. Fix anything it finds before flashing.
+pio run            # first real ESP32 build. Fix anything it finds now.
 ```
 
-Flash the bare XIAO kit (Wio-SX1262 attached). Expect the boot banner,
-everything else "not found", `SX1262 ok (receive), IL918 918.5 MHz BW 125`,
-and `BLE advertising`.
+After assembly.html's checks pass, flash once: `pio run -t upload`. Expect
+the boot banner, each sensor reported, `SX1262 ok (receive), IL918 918.5 MHz
+BW 125`, and `BLE advertising`.
 
 ## 1. Toolchain, repo, CLAUDE.md
 
 Done in this folder. `pio run` must succeed.
 
 ## 2. BME280: altitude, vario, temperature, humidity
-
-Grove cable → D4 (white) / D5 (yellow) / 3V3 (red) / GND (black).
 
 * `i2c` → `0x76 (BME280?)`
 * reboot → `BME280 ok at 0x76 (pressure, temperature, humidity)`
@@ -40,8 +39,7 @@ Grove cable → D4 (white) / D5 (yellow) / 3V3 (red) / GND (black).
 
 ## 3. L76K: position and fix
 
-Plug the module onto the XIAO, oriented as the Seeed wiki shows, with the
-antenna attached and outside or at a window.
+Antenna attached, outside or at a window.
 
 * `health` → `gnss: L76K`, with the fix count rising.
 * `show nmea` → raw `$GNGGA` / `$GNRMC` sentences, five per second.
@@ -50,8 +48,6 @@ antenna attached and outside or at a window.
 * The LED goes from a slow blip (searching) to a 3-second heartbeat (ready).
 
 ## 4. LSM6DS3: accel and gyro
-
-Second Grove cable on the same four I²C wires.
 
 * `i2c` → also `0x6A (LSM6DS3?)`
 * reboot → `LSM6DS3 ok (WHO_AM_I 0x69)` or `0x6A` (the TR-C version)
@@ -70,8 +66,6 @@ In `XCTracerConfig.txt`, set the BLE protocol to XCTRC (or LK8EX1).
   phone to the XCTracer. Note whether both can hold the link.
 
 ## 6. Buzzer and LED
-
-Grove buzzer: yellow → D0, red → 3V3, black → GND.
 
 * `tone 2700` → loud (the buzzer's resonance). `tone 0` → off.
 * `vario 1.5` / `vario -3` / `vario` (back to live) → climb beeps / sink tone.

@@ -12,12 +12,13 @@
 //   the wiring table.
 #pragma once
 
-// ---- I2C (Grove cables): DPS310 (0x77) + LSM6DS3 (0x6A)
+// ---- I2C (Grove cables via the distribution board): BME280 (0x76) + LSM6DS3 (0x6A)
 #define PIN_I2C_SDA 5   // D4 — Grove white wire
 #define PIN_I2C_SCL 6   // D5 — Grove yellow wire
 #define I2C_FREQ_HZ 400000
 
-// ---- UART: L76K GNSS (the module plugs onto these XIAO pins)
+// ---- UART: L76K GNSS, wired beside the XIAO (same pad name to same pad name;
+// its D0/D2 pads get 10 kΩ pull-ups to 3V3, see docs/assembly.html)
 #define PIN_GNSS_RX 44  // D7 = XIAO RX, from the module's TX
 #define PIN_GNSS_TX 43  // D6 = XIAO TX, to the module's RX
 

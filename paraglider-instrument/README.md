@@ -7,7 +7,8 @@ stability from temperature and humidity, a brake-handle remote, and FANET
 (LoRa) messaging with other pilots.
 
 All electronics are Seeed Studio parts in one order: see
-[docs/hardware.md](docs/hardware.md) for the shopping list and wiring.
+[docs/hardware.md](docs/hardware.md) for the shopping list, and
+[docs/assembly.html](docs/assembly.html) for how to wire, solder and power it.
 
 No screen in v1. Everything is a sound from the buzzer or a blink of the LED.
 The XCTracer stays the primary vario. Its firmware is closed and untouched;
@@ -49,7 +50,7 @@ src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
 include/             pins.h, build_config.h
 test/                desktop tests + synthetic flight generator
 tools/sim/           flight replay
-docs/                hardware.md (wiring, BOM checks), bringup.md (milestone steps), build-sketch.html (to-scale layout, open and closed)
+docs/                hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
 
 ## Build

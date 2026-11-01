@@ -1,5 +1,8 @@
 # Hardware: parts, wiring, checks
 
+**Building it?** Follow [assembly.html](assembly.html): the wiring diagram,
+soldering technique, step-by-step build order and battery handling.
+
 Every electronic part comes from one Seeed Studio order. Buy the battery and
 switch locally in Israel (lithium cells ship slowly and awkwardly by air).
 Prices are approximate. Seeed shows the shipping cost to Israel at checkout.
@@ -21,8 +24,13 @@ Total about **$60** before shipping.
 
 ### Local (Israel)
 
-* LiPo 3.7 V, 400–500 mAh, **with protection circuit**, about 35 × 30 × 5 mm
-* Small slide switch for the battery's + lead
+* LiPo 1-cell 3.7 V **with a protection board** and a JST-PH 2.0 plug, plus a
+  matching socket lead. 500 mAh ≈ 4–6 h of flying, 1000 mAh ≈ 8–12 h (estimated
+  80–130 mA draw; measure yours). Take 1000 mAh for long XC days if it fits.
+* Small slide switch (SPDT, ≥ 0.5 A) for the battery's + lead
+* Stripboard, about 25 × 35 mm, for the distribution board
+* 2 × 10 kΩ resistors (L76K D0/D2 pull-ups)
+* 26–28 AWG silicone wire, heat-shrink, Kapton tape
 * Open-cell foam scrap for the vent, M2 screws, a 3D-printed case
 
 ### Alternatives the firmware also accepts
@@ -38,8 +46,8 @@ git history if you ever want it back.
 |---|---|---|---|
 | I²C SDA | D4 | 5 | BME280, LSM6DS3: Grove **white** |
 | I²C SCL | D5 | 6 | BME280, LSM6DS3: Grove **yellow** |
-| UART RX | D7 | 44 | L76K TX (the module plugs onto these pins) |
-| UART TX | D6 | 43 | L76K RX |
+| UART RX | D7 | 44 | L76K's D7 pad (wired, same name to same name) |
+| UART TX | D6 | 43 | L76K's D6 pad |
 | Buzzer | D0 | 1 | Grove Passive Buzzer SIG: **yellow** |
 | SPI SCK / MISO / MOSI | D8 / D9 / D10 | 7 / 8 / 9 | Wio-SX1262 (via the kit's B2B connector) |
 | LoRa NSS / DIO1 / RST / BUSY / RXEN | B2B | 41 / 39 / 42 / 40 / 38 | Wio-SX1262 |
@@ -52,23 +60,26 @@ a strapping pin.
 
 ## Wiring notes
 
-* **The stack**: the Wio-SX1262 sits under the XIAO on the B2B connector, and
-  the L76K plugs onto the XIAO's header pins above it. Seeed's Meshtastic
-  "4-layer sandwich" kit appears to use this stack; check its wiki photos
-  before soldering headers. Mind the L76K's
-  orientation: the wiki warns that plugging it in backwards can damage the
-  module or the XIAO.
-* **Grove modules**: cut a Grove-to-female-jumper cable short. Both I²C
-  modules share SDA/SCL/3V3/GND, so join their wires at the XIAO pins. The
-  modules have their own pull-ups, which is fine at 400 kHz on short wires.
+* **The L76K is wired, not stacked**: four wires, same pad name to same pad
+  name (3V3, GND, D6, D7), so the XIAO's pads stay free for the other wires.
+  The module's D0 and D2 pads each get a 10 kΩ pull-up to its 3V3, because
+  Seeed's FAQ says the module misbehaves when those lines aren't held high.
+* **The Wio-SX1262** sits under the XIAO on the B2B connector. Unplug it while
+  soldering the XIAO. D8–D10 carry its SPI bus: leave those pads alone.
+* **Grove modules**: keep the Grove plug end, cut off the jumper end. Power
+  and I²C go through a small stripboard distribution board (4 strips: 3V3,
+  GND, SDA, SCL), so no XIAO pad carries more than one wire. The modules have
+  their own I²C pull-ups, which is fine at 400 kHz on short wires.
 * **Barometer in the case**: put the BME280 right behind a Ø 3 mm vent hole
   with open-cell foam over it. The foam stops gusts, sun and rain while
   pressure passes through. Keep it as far as you can from the ESP32 and the
   battery charger, since they warm the air around the sensor.
 * **Buzzer**: face it at a ring of 1.6 mm holes in the lid. Volume is PWM
   duty, levels 0–3.
-* **Power**: XIAO BAT+/BAT− pads on the underside, with the slide switch in
-  the + lead. USB-C charges the cell.
+* **Power**: XIAO BAT+/BAT− pads on the underside (BAT− is the one nearest
+  the USB port), with the slide switch in the + lead. USB-C charges the cell
+  at 100 mA, and only while the switch is on. JST-PH polarity isn't
+  standardised: check it with a meter before the first connection.
 * **IMU mounting**: any orientation works, as long as it's power-on still.
 
 ## The case sensor and cloud base

@@ -171,6 +171,10 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
 .t-title { font-family: var(--f-display); font-size: 3.6px; font-weight: 600; letter-spacing: 0.02em; }
 .t-soft { fill: var(--ink-soft); }
 .t-on { fill: var(--on-board); }
+/* Colour classes on a <g> must reach its <text> children past `svg text`. */
+.t-on text { fill: var(--on-board); }
+.t-soft text { fill: var(--ink-soft); }
+.t-acc text { fill: var(--accent); }
 .t-acc { fill: var(--accent); }
 .gridline { stroke: var(--grid); stroke-width: 0.15; }
 .shell { fill: var(--shell); stroke: var(--shell-wall); stroke-width: 0.5; }
@@ -523,7 +527,7 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
         <li><b>The BME280 goes at the vent, away from the heat.</b> Its sensor end sits behind a 3 mm hole with open-cell foam over it. The foam lets pressure through but blocks gusts, sun and rain. Keep it away from the ESP32 shield and the battery: they warm the air the sensor reads.</li>
         <li><b>The case reads warm, and that's handled.</b> The dew point is right even inside a warm box. The temperature reads high, so the first time you're at cloud base, press the remote's at-base button (or type <code>base</code>) and the unit learns the offset.</li>
         <li><b>Antennas go on the lid, apart from each other.</b> The GNSS patch needs open sky above it. Keep the LoRa antenna at least 10 mm from it. The kit's Wi-Fi/Bluetooth antenna sticks to the tray wall, away from the battery.</li>
-        <li><b>The L76K sits beside the XIAO, not stacked on it.</b> It's made to plug onto the XIAO, but stacked it would cover the pins the Grove wires need. Four short wires do the same job: 3V3, GND, its TX to D7, its RX to D6. Check its schematic for which pads carry what.</li>
+        <li><b>The L76K sits beside the XIAO, not stacked on it.</b> It's made to plug onto the XIAO, but stacked it would cover the pins the Grove wires need. Four short wires do the same job, same pad name to same pad name: 3V3, GND, D6, D7. Its D0 and D2 pads each get a 10 kΩ pull-up to 3V3. The assembly guide has the details.</li>
         <li><b>Splice the I²C wires.</b> Both Grove modules share SDA, SCL, 3V3 and GND. Cut two Grove cables short and join them at the XIAO's pins.</li>
         <li><b>Add a power switch.</b> Put a small slide switch in the battery's + lead, before the XIAO's BAT pads.</li>
         <li><b>Power on with the unit still.</b> The IMU learns which way is up at boot. Mounting angle doesn't matter after that.</li>
