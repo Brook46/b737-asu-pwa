@@ -146,7 +146,13 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
+/* Never shorter than the screen. In a Home Screen app on iOS, a page no taller
+   than 100% (802 pt on an 834 pt iPad) shrinks the whole window to that size:
+   every fixed thing lifts off the bottom and a strip shows under the bar. The
+   In flight tab hides the page's content, so it was the one screen this hit.
+   100vh, not 100dvh: dvh shrinks with the window. */
 body {
+  min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   line-height: 1.35;
