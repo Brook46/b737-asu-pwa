@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=192';
-import * as ri from './route-info.js?v=192';
-import { legTs, nearestHm } from './dates.js?v=192';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=192';
+import * as storage from './storage.js?v=193';
+import * as ri from './route-info.js?v=193';
+import { legTs, nearestHm } from './dates.js?v=193';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=193';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -35,6 +35,7 @@ let mapWx = (() => { try { const v = localStorage.getItem('fc.routeMapWx'); retu
 let listOrder = null;      // 'gps' (nearest to the aircraft) | 'route'; default: gps once GPS has a fix
 let listKey = '';          // the order last drawn, so live GPS only redraws when it changes
 let busy = false;
+let mapTouching = false;   // a finger is on the map: a refresh waits for it (fingersUp)
 
 function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
 // The flight the screen was opened for. A calendar sync can move the app's
@@ -378,7 +379,7 @@ function shortName(ap) {
 function relabel() {
   const svg = $('ri-map');
   if (!svg || !mapGeom || !mapGeom.pins) return;
-  const rect = svg.getBoundingClientRect();
+  const rect = mapRect(svg);
   if (!rect.width) return;
   const v = getViewBox();
   const sx = rect.width / v.w, sy = rect.height / v.h;
@@ -942,6 +943,7 @@ async function paint(model, showAll = false) {
     <div id="ri-card-slot"></div>
     <div id="ri-list-wrap"></div>`;
   state = { model, showAll };
+  viewAnim++; previewing = null;     // nothing left over from the map just replaced
   listKey = '';
   renderList();
   paintReady();
@@ -1318,7 +1320,7 @@ function commitView() { if (previewing) setViewBox(previewing); }
 // however wide the map is drawn (a phone draws the 720-unit map at ~340 px,
 // which shrank them to dots). Pins are drawn at ~9 units, so k = units/px.
 function pinScale(svg, vbW) {
-  const px = svg.getBoundingClientRect().width || mapGeom?.W || 720;
+  const px = mapRect(svg).width || mapGeom?.W || 720;
   const k = Math.max(0.02, Math.min(2.4, vbW / px));
   svg.style.setProperty('--ri-k', k.toFixed(3));
 }
@@ -1348,6 +1350,7 @@ function zoomAbout(f, px, py, animate = true) {
 // The map's own buttons: + − fit, and ✈ (centre on the aircraft) with GPS.
 function mapZoom(kind) {
   if (!mapGeom) return;
+  closePick();
   if (kind === 'in') zoomAbout(0.5);
   else if (kind === 'out') zoomAbout(2);
   else if (kind === 'fit') animateViewBox({ x: 0, y: 0, w: mapGeom.W, h: mapGeom.H });
@@ -1357,7 +1360,29 @@ function mapZoom(kind) {
     animateViewBox({ x: x - w / 2, y: y - h / 2, w, h });
   }
 }
+// Airports too close to tell apart under a finger: a small list at the tap
+// to choose from, instead of guessing.
+function closePick() { $('ri-pick')?.remove(); }
+function showPick(list, cx, cy) {
+  closePick();
+  const wrap = document.querySelector('.ri-map-wrap');
+  if (!wrap || !state) return;
+  const rows = list.map(p => state.model.pool.find(c => c.ap.icao === p.icao)).filter(Boolean).map(c =>
+    `<button type="button" data-ri-pick="${esc(c.ap.icao)}"><span class="ri-score ri-b-${ri.band(c.r.score, c.r.excluded)}">${c.r.excluded ? '×' : c.r.score}</span><b>${esc(c.ap.icao)}</b> ${esc(shortName(c.ap))}</button>`).join('');
+  wrap.insertAdjacentHTML('beforeend', `<div id="ri-pick" class="ri-pick" role="menu" aria-label="Choose an airport">${rows}</div>`);
+  const el = $('ri-pick'), r = wrap.getBoundingClientRect();
+  el.style.left = Math.max(6, Math.min(r.width - el.offsetWidth - 6, cx - r.left + 14)) + 'px';
+  el.style.top = Math.max(6, Math.min(r.height - el.offsetHeight - 6, cy - r.top - el.offsetHeight / 2)) + 'px';
+}
+// Resolves when no finger is on the map (or after a few seconds regardless).
+function fingersUp() {
+  const t0 = Date.now();
+  return new Promise(res => { const tick = () => (!mapTouching || Date.now() - t0 > 4000) ? res() : setTimeout(tick, 80); tick(); });
+}
 function wireZoom(svg) {
+  // The fingers on the map, read from the browser's own list on every touch
+  // event rather than counted up and down — a count goes wrong the moment
+  // iOS drops an event, and then taps miss and drags zoom until a reload.
   const pts = new Map();
   let start = null, lastTap = { t: 0, x: 0, y: 0 }, down = null;
   let frame = 0, want = null, wheelT = 0;
@@ -1370,16 +1395,13 @@ function wireZoom(svg) {
     const r = mapRect(svg), v = currentView();
     return { x: v.x + (cx - r.left) / r.width * v.w, y: v.y + (cy - r.top) / r.height * v.h };
   };
-  // The pin nearest a tap, within reach of a fingertip.
-  const pinAt = (cx, cy) => {
-    if (!mapGeom || !mapGeom.pins) return null;
+  // The pins within reach of a fingertip, nearest first.
+  const pinsAt = (cx, cy) => {
+    if (!mapGeom || !mapGeom.pins) return [];
     const r = mapRect(svg), v = currentView();
-    let best = null, bd = 26;
-    for (const p of mapGeom.pins) {
-      const d = Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy);
-      if (d < bd) { bd = d; best = p.icao; }
-    }
-    return best;
+    return mapGeom.pins.map(p => ({ icao: p.icao,
+      d: Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy) }))
+      .filter(p => p.d < 30).sort((a, b) => a.d - b.d);
   };
   // With the whole route on screen there's nothing to pan: one finger up or
   // down scrolls the Route info sheet instead (with a little momentum), so
@@ -1416,28 +1438,46 @@ function wireZoom(svg) {
     show({ x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f, w: v.w * f, h: v.h * f });
     clearTimeout(wheelT); wheelT = setTimeout(() => { cancelAnimationFrame(frame); frame = 0; want = null; commitView(); }, 140);
   }, { passive: false });
-  svg.addEventListener('pointerdown', (e) => {
+  // The fingers now on the map. A thumb resting elsewhere on the screen isn't
+  // one of them.
+  const readTouches = (e) => {
+    pts.clear();
+    for (const t of e.touches) if (svg.contains(t.target)) pts.set(t.identifier, { x: t.clientX, y: t.clientY });
+    mapTouching = pts.size > 0;
+  };
+  // Put the last wanted view on screen now, not on the next frame.
+  const flush = () => {
+    if (frame) { cancelAnimationFrame(frame); frame = 0; if (want) previewView(want); }
+    want = null;
+  };
+  const baseline = (y) => { scroll0 = sheet()?.scrollTop || 0; vel = 0; lastY = y; lastT = performance.now(); };
+  const pressed = () => {
     viewAnim++;
     cancelAnimationFrame(coast);
-    // A new first finger: forget any pointer whose up/cancel never came (iOS
-    // drops them when the page scrolls or a card opens mid-gesture). A stale
-    // one turned the next tap into a "pinch" — taps missed, drags zoomed.
-    if (e.isPrimary) pts.clear();
-    try { svg.setPointerCapture(e.pointerId); } catch {}
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    down = pts.size === 1 ? { x: e.clientX, y: e.clientY, t: Date.now(), moved: false } : null;
+    closePick();
+    flush();
+    const [p] = pts.values();
+    down = pts.size === 1 ? { x: p.x, y: p.y, moved: false } : null;
     restart();
-    scroll0 = sheet()?.scrollTop || 0; vel = 0; lastY = e.clientY; lastT = performance.now();
-  });
-  svg.addEventListener('pointermove', (e) => {
-    if (!pts.has(e.pointerId) || !start) return;
-    e.preventDefault();
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    baseline(p.y);
+  };
+  const moved = () => {
+    if (!start || !pts.size) return;
+    // Whatever the fingers are now is the truth, whatever events were missed.
+    if (pts.size !== start.pts.size || [...pts.keys()].some(k => !start.pts.has(k))) { pressed(); if (down) down.moved = true; return; }
+    const [ka, kb] = pts.keys();
+    const a = pts.get(ka), b = pts.get(kb), a0 = start.pts.get(ka), b0 = start.pts.get(kb);
+    // A fingertip wanders on a tap (more so in turbulence): only a real drag
+    // counts, and the drag starts from there, so the map doesn't jump.
+    if (down && !down.moved) {
+      if (Math.hypot(a.x - down.x, a.y - down.y) <= 14) return;
+      down.moved = true;
+      restart();
+      baseline(a.y);
+      return;
+    }
     const r = mapRect(svg);
-    const [a, b] = [...pts.values()], [a0, b0] = [...start.pts.values()];
-    // A fingertip wanders a few pixels on a tap; only a real drag counts.
-    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 12) down.moved = true;
-    if (pts.size >= 2 && a0 && b0) {
+    if (b) {
       const d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y), d1 = Math.hypot(a.x - b.x, a.y - b.y);
       const f = d1 > 0 ? d0 / d1 : 1;
       // Zoom about the pinch's start midpoint and follow the midpoint as it moves.
@@ -1445,44 +1485,95 @@ function wireZoom(svg) {
       const v = start.v, w = v.w * f, h = v.h * f;
       const px = v.x + (m0x - r.left) / r.width * v.w, py = v.y + (m0y - r.top) / r.height * v.h;
       show({ x: px - (m1x - r.left) / r.width * w, y: py - (m1y - r.top) / r.height * h, w, h });
-    } else if (pts.size === 1 && a0 && down && down.moved) {
+    } else if (down) {
       if (atWhole()) {
         const sh = sheet(); if (!sh) return;
         sh.scrollTop = scroll0 - (a.y - a0.y);
         const now = performance.now();
-        if (now > lastT) vel = 0.8 * vel + 0.2 * ((e.clientY - lastY) / (now - lastT));
-        lastY = e.clientY; lastT = now;
+        if (now > lastT) vel = 0.8 * vel + 0.2 * ((a.y - lastY) / (now - lastT));
+        lastY = a.y; lastT = now;
       } else {
         const dx = (a.x - a0.x) / r.width * start.v.w, dy = (a.y - a0.y) / r.height * start.v.h;
         show({ ...start.v, x: start.v.x - dx, y: start.v.y - dy });
       }
     }
-  });
-  const end = (e) => {
-    const wasTap = down && !down.moved && pts.size === 1 && Date.now() - down.t < 600 && e.type === 'pointerup';
-    const scrolling = pts.size === 1 && down && down.moved && atWhole();
-    pts.delete(e.pointerId);
+  };
+  // `x, y`: where the finger left; `n`: fingers there were; `cancelled`: iOS
+  // took the touch away, which is never a tap.
+  const released = (x, y, n, cancelled) => {
+    const wasTap = !cancelled && n === 1 && down && !down.moved;
+    const scrolling = n === 1 && down && down.moved && atWhole();
     // Draw the map once, at the view the fingers left it.
-    if (frame) { cancelAnimationFrame(frame); frame = 0; if (want) previewView(want); }
-    want = null;
+    flush();
     restart();
     if (scrolling) coastOn();
-    if (!wasTap) { if (!pts.size) down = null; return; }
+    // Out of a pinch with one finger still down: it carries on as a drag.
+    if (pts.size === 1) {
+      const [p] = pts.values();
+      down = { x: p.x, y: p.y, moved: true };
+      baseline(p.y);
+      return;
+    }
+    if (pts.size) return;
     down = null;
-    // A tap: the nearest airport opens. Two quick taps on open map zoom in
-    // there (the + / − / fit buttons do the rest).
-    const icao = pinAt(e.clientX, e.clientY);
-    const now = Date.now();
-    if (icao) { lastTap = { t: 0 }; openCard(icao, { fromMap: true }); return; }
-    if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
-      const p = toSvg(e.clientX, e.clientY);
+    if (wasTap) tapped(x, y);
+  };
+  // A tap, however long the finger stayed: the airport there opens. Two
+  // quick taps on open map zoom in there (+ / − / fit do the rest).
+  const tapped = (x, y) => {
+    const near = pinsAt(x, y), now = Date.now();
+    if (near.length) {
+      lastTap = { t: 0 };
+      const under = near.filter(p => p.d < 18);
+      if (under.length > 1) showPick(under.slice(0, 5), x, y);
+      else openCard(near[0].icao, { fromMap: true });
+      return;
+    }
+    if (now - lastTap.t < 320 && Math.hypot(x - lastTap.x, y - lastTap.y) < 30) {
+      const p = toSvg(x, y);
       zoomAbout(0.5, p.x, p.y);
       lastTap = { t: 0 };
-    } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+    } else lastTap = { t: now, x, y };
   };
-  svg.addEventListener('pointerup', end);
-  svg.addEventListener('pointercancel', end);
-  svg.addEventListener('lostpointercapture', (e) => { if (pts.has(e.pointerId)) end(e); });
+  svg.addEventListener('touchstart', (e) => {
+    // Ours from the first moment, so iOS never takes it for a scroll or a
+    // text selection part-way through.
+    if (e.cancelable) e.preventDefault();
+    readTouches(e);
+    if (pts.size) pressed();
+  }, { passive: false });
+  svg.addEventListener('touchmove', (e) => {
+    if (e.cancelable) e.preventDefault();
+    readTouches(e);
+    moved();
+  }, { passive: false });
+  const touchEnd = (e) => {
+    const n = pts.size, t = e.changedTouches[0];
+    readTouches(e);
+    released(t.clientX, t.clientY, n, e.type === 'touchcancel');
+  };
+  svg.addEventListener('touchend', touchEnd);
+  svg.addEventListener('touchcancel', touchEnd);
+  // A mouse (desktop, or one paired with the iPad). Touch comes through above.
+  svg.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    try { svg.setPointerCapture(e.pointerId); } catch {}
+    pts.clear(); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pressed();
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || !pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved();
+  });
+  const mouseEnd = (e) => {
+    if (e.pointerType !== 'mouse' || !pts.has(e.pointerId)) return;
+    pts.clear();
+    released(e.clientX, e.clientY, 1, e.type !== 'pointerup');
+  };
+  svg.addEventListener('pointerup', mouseEnd);
+  svg.addEventListener('pointercancel', mouseEnd);
+  svg.addEventListener('lostpointercapture', mouseEnd);
 }
 
 // `legArg`: a specific flight (the logbook's "Route info") — otherwise the
@@ -1528,8 +1619,10 @@ export async function refresh(announce = true) {
     if (!$('route-overlay').classList.contains('hidden')) {
       // A background refresh must not throw away what's being looked at:
       // keep the open airport card and the map's zoom across the repaint.
+      // The new map replaces the old one, so never under a finger.
+      await fingersUp();
       const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
-      const vb = $('ri-map') ? getViewBox() : null;
+      const vb = $('ri-map') ? currentView() : null;
       const scroll = document.querySelector('.route-sheet')?.scrollTop || 0;
       await paint(model, state?.showAll);
       if (sel) openCard(sel, { keepView: true });
@@ -1609,6 +1702,10 @@ export function wire() {
   window.addEventListener('resize', () => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
   // Prepare for flight needs a connection: the button comes and goes with it.
   for (const ev of ['online', 'offline']) window.addEventListener(ev, () => { if (state) paintReady(); });
+  // A pinch with one finger off the map would zoom the whole page instead.
+  for (const ev of ['gesturestart', 'gesturechange']) {
+    $('route-overlay')?.addEventListener(ev, (e) => { if (e.target.closest?.('.ri-map-wrap')) e.preventDefault(); }, { passive: false });
+  }
   $('route-overlay')?.addEventListener('click', (e) => {
     if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
     if (e.target.closest('[data-ri-close]')) {
@@ -1621,6 +1718,8 @@ export function wire() {
     if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
+    const pk = e.target.closest('[data-ri-pick]');
+    if (pk) { closePick(); openCard(pk.dataset.riPick, { fromMap: true }); return; }
     const mw = e.target.closest('[data-ri-mapwx]');
     if (mw) { setMapWx(mw.dataset.riMapwx); return; }
     if (e.target.closest('#ri-map')) return;          // taps on the map: wireZoom

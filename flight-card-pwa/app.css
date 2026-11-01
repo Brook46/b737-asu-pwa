@@ -3289,14 +3289,26 @@ body {
 /* The map handles every touch itself (route-ui wireZoom): pinch, pan, and
    at the whole-route view a one-finger scroll of the sheet. While a finger
    moves it's slid as one GPU layer and redrawn when let go. */
-.ri-map { touch-action: none; }
+.ri-map { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Airports too close to tell apart: choose from a list at the tap. */
+.ri-pick {
+  position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  max-width: calc(100% - 12px); max-height: calc(100% - 12px); overflow-y: auto;
+  background: var(--bg-elev); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.28);
+}
+.ri-pick button {
+  display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 4px 10px 4px 6px;
+  border: 0; border-radius: 9px; background: transparent; color: var(--fg); font: inherit; font-size: 14px;
+  text-align: left; white-space: nowrap; cursor: pointer; touch-action: manipulation;
+}
+.ri-pick button:active { background: var(--accent-soft); }
 .ri-map.is-moving { will-change: transform; transform-origin: 0 0; }
 /* Map controls: + − fit, and ✈ while GPS has the aircraft. */
 .ri-map-wrap { position: relative; overflow: hidden; border-radius: var(--radius-ctl); margin-bottom: 8px; }
 .ri-map-wrap .ri-map { margin-bottom: 0; }
 .ri-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .ri-zoom button {
-  width: 34px; height: 34px; border: 0; border-radius: 10px; padding: 0; cursor: pointer;
+  width: 34px; height: 34px; border: 0; border-radius: 10px; padding: 0; cursor: pointer; touch-action: manipulation;
   font: inherit; font-size: 19px; font-weight: 600; line-height: 1; color: var(--fg);
   /* Solid: a blur over the map would be recomputed on every frame of a pan. */
   background: var(--bg-elev); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
@@ -3435,7 +3447,9 @@ body {
   position: fixed; inset: 0; max-width: none; width: 100%; max-height: none; height: 100%;
   border-radius: 0; margin: 0; padding-top: max(14px, env(safe-area-inset-top));
 }
-.route-sheet.is-full .ri-map { max-height: 62vh; }
+/* Capped by narrowing the frame, not by a max-height on the map: squeezed, an
+   SVG letterboxes inside its box and taps no longer land where pins are drawn. */
+.route-sheet.is-full .ri-map-wrap { max-width: calc(62vh * 720 / 420); margin-left: auto; margin-right: auto; }
 
 /* Runway ends v3: the designator in a box like the painted marking, its LDA
    beneath in small muted type — a boxed number is always a runway, a
