@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=196';
-import * as ri from './route-info.js?v=196';
-import { legTs, nearestHm } from './dates.js?v=196';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=196';
+import * as storage from './storage.js?v=197';
+import * as ri from './route-info.js?v=197';
+import { legTs, nearestHm } from './dates.js?v=197';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=197';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1015,8 +1015,8 @@ function renderList() {
 // ---------- Ready for offline ----------
 // What's actually on the device for this flight, checked rather than
 // assumed: the route's METARs / TAFs and how old, the Airspeed Unreliable
-// app, the airport database, NOTAMs. One tap fills any gap while there's
-// still a connection.
+// app, the airport database, NOTAMs. Gaps fill by themselves whenever there's
+// a connection (autoUpdate, open); nothing here needs a tap.
 async function savedInCache(path) {
   try { return !!(await caches.match(new URL(path, location.href).href)); } catch { return false; }
 }
@@ -1030,27 +1030,30 @@ async function paintReady() {
   const ageMin = c ? (Date.now() - c.at) / 60000 : Infinity;
   const wxOk = c && ageMin <= 60;
   const item = (ok, txt, warn) => `<span class="rr-item ${ok ? 'ok' : warn ? 'warn' : 'no'}">${ok ? '✓' : warn ? '!' : '–'} ${esc(txt)}</span>`;
-  const allOk = wxOk && db;
   el.innerHTML = `
     ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
     ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
-    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs failed' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}
-    ${allOk || navigator.onLine === false ? '' : `<button type="button" class="btn primary rr-go" data-ri-prepare>Prepare for flight</button>`}`;
+    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs failed' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}`;
 }
-async function prepareForFlight() {
-  if (navigator.onLine === false) { toast('No internet — prepare while you still have a connection'); return; }
-  const btn = document.querySelector('[data-ri-prepare]');
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
-  // ASU: its own worker (one level up) saves it into this app's storage.
-  if ('serviceWorker' in navigator && /\/flight-card-pwa\//.test(location.pathname)) {
+// What the flight needs saved on the device besides the weather. ASU comes
+// from its own worker, one level up, which saves it into this app's storage.
+const hostsAsu = () => /\/flight-card-pwa\//.test(location.pathname);
+export async function ensureSaved() {
+  if (navigator.onLine === false) return;
+  if ('serviceWorker' in navigator && hostsAsu()) {
     try { await navigator.serviceWorker.register('../sw.js', { scope: '../' }); } catch {}
   }
-  try { await fetch('./data/divdb.json'); } catch {}
-  await refresh(false);
-  // The ASU worker installs in the background; give it a moment to finish.
-  for (let i = 0; i < 10 && !(await savedInCache('../data/qrh-800.json')); i++) await new Promise(r => setTimeout(r, 1000));
-  await paintReady();
-  toast('Ready for offline');
+  if (!(await savedInCache('./data/divdb.json'))) { try { await fetch('./data/divdb.json'); } catch {} }
+}
+// Where a flight stands, for the Flight screen's one line.
+export async function readiness(leg) {
+  const c = readCache(leg);
+  const db = await savedInCache('./data/divdb.json');
+  const asu = !hostsAsu() || await savedInCache('../data/qrh-800.json');
+  return {
+    wxAt: c ? c.at : 0, db, asu,
+    notams: !c ? 'none' : c.notamsErr ? 'failed' : c.notamsOff || !c.notams ? 'off' : 'ok',
+  };
 }
 
 // `fromMap`: chosen by tapping the map — the map stays exactly where it is
@@ -1599,6 +1602,7 @@ export async function open(legArg = null, { focus = '' } = {}) {
     const hit = f && state.model.pool.find(c => c.ap.icao === f || c.ap.iata === f);
     if (hit) openCard(hit.ap.icao);
     else if (f) toast(`${f} isn't within an hour of this route`);
+    ensureSaved();
     if (stale && navigator.onLine !== false) await refresh(false);
   } catch (err) {
     $('route-body').innerHTML = `<p class="muted small" style="padding:18px 4px;">${esc(err.message || err)}</p>`;
@@ -1655,6 +1659,7 @@ export async function autoUpdate() {
   const now = Date.now();
   const end = Number.isFinite(sta) ? sta + 15 * 60000 : std + 12 * H;
   if (now < std - 12 * H || now > end) return;
+  await ensureSaved();
   const cache = readCache(leg);
   const every = now >= std - 65 * 60000 ? FRESH_MS : 30 * 60000;
   if (cache && now - cache.at < every) return;
@@ -1717,7 +1722,6 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
-    if (e.target.closest('[data-ri-prepare]')) { prepareForFlight(); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
     const pk = e.target.closest('[data-ri-pick]');

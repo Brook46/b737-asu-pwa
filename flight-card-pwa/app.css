@@ -3547,7 +3547,6 @@ body {
 .rr-item { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-sunk); color: var(--fg-mute); }
 .rr-item.ok { color: var(--good); }
 .rr-item.warn { color: var(--warn); }
-.rr-go { padding: 6px 14px; font-size: 13px; }
 
 /* ---------- "•••" ---------- */
 .more-menu { position: relative; }
@@ -3691,3 +3690,16 @@ body {
 .set-why[open] > summary { background: var(--accent); color: var(--on-accent); }
 .set-why p { margin: 8px 0 0; }
 .settings-group + .set-row { border-top: 0; }
+
+/* ---------- Ready for flight ---------- */
+.ready-line {
+  -webkit-appearance: none; appearance: none;
+  grid-column: 1 / -1; display: block; width: 100%; padding: 9px 12px;
+  border: 0; border-radius: var(--radius-card); background: var(--bg-elev); cursor: pointer;
+  color: var(--fg-mute); font: inherit; font-size: 13px; line-height: 1.35; text-align: start;
+}
+.ready-line[hidden] { display: none; }
+.ready-line b { font-weight: 700; color: var(--fg); }
+.ready-line.is-ok b { color: var(--good); }
+.ready-line.is-warn b { color: var(--warn); }
+.ready-line.is-bad b { color: var(--danger); }

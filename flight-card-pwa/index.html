@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=196" />
+  <link rel="stylesheet" href="./app.css?v=197" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -152,6 +152,9 @@
     </svg>
   </div>
   <main id="main" class="main">
+    <!-- How the flight stands: filled by paintReadyLine in app.js, only from
+         12 h before departure until arrival. Tap for Route info. -->
+    <button id="ready-line" data-action="route-info" class="ready-line" type="button" hidden></button>
     <!-- Checklist -->
     <section class="card" id="card-checklist" data-section="checklist">
       <header class="card-head">
@@ -538,7 +541,6 @@
         </div>
         <div class="settings-row-btns">
           <button id="lbpush-copy" class="btn primary">Copy link</button>
-          <button id="lbpush-now"  class="btn">Push now</button>
         </div>
         <p id="lbpush-status" class="muted small cal-status"></p>
         </div>
@@ -558,9 +560,6 @@
         </details>
         <label class="cal-row-label" for="social-url">Social feed URL</label>
         <input id="social-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://… .json" class="cal-url" aria-label="Social notes feed URL" />
-        <div class="settings-row-btns">
-          <button id="social-sync-now" class="btn">Sync now</button>
-        </div>
         <div id="social-sync-status" class="cal-status muted small"></div>
         </div>
       </details>
@@ -890,6 +889,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=196"></script>
+  <script type="module" src="./app.js?v=197"></script>
 </body>
 </html>
