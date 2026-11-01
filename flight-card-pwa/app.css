@@ -414,6 +414,11 @@ body.is-past-leg #card-data {
 .leg-edit { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
 .leg-edit[hidden] { display: none; }
 .leg-edit-row { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
+/* T/O, LDG and flight time: always on the strip. */
+.leg-quick { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; }
+.leg-ft { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+.leg-ft span { font-size: 11px; font-weight: 600; color: var(--fg-mute); white-space: nowrap; }
+.leg-ft .hdr-input { flex: 0 0 72px; width: 72px; padding: 5px 4px; }
 .leg-role-pill {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-elev);
@@ -2156,9 +2161,8 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
     gap: 12px;
     padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 16px);
   }
-  .phase-bar, #phase-air { grid-column: 1 / -1; }
   #card-data { grid-column: 1; grid-row: span 4; }
-  #checklist-open, #card-history, #phase-after { grid-column: 2; }
+  #checklist-open, #card-history, #before-wx { grid-column: 2; }
   .data-grid { grid-template-columns: repeat(2, 1fr); }
   .ocr-fields { grid-template-columns: repeat(3, 1fr); }
 }
@@ -3645,7 +3649,7 @@ body {
 /* ---------- Bottom bar ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   padding: 4px max(env(safe-area-inset-right, 0px), 6px) env(safe-area-inset-bottom, 0px) max(env(safe-area-inset-left, 0px), 6px);
   background: var(--glass-bg-strong);
   border-top: 0.5px solid var(--line);
@@ -3698,25 +3702,48 @@ body {
 .ready-line.is-warn b { color: var(--warn); }
 .ready-line.is-bad b { color: var(--danger); }
 
-/* ---------- The screen follows the flight ---------- */
-.view-switch.phase-bar { display: flex; }
-.phase-bar .vs-btn { flex: 1 1 0; min-width: 0; padding: 7px 4px; }
+/* ---------- The tabs ---------- */
 body[data-phase="air"] #card-data,
 body[data-phase="air"] #card-history,
 body[data-phase="air"] #checklist-open,
-body[data-phase="after"] #checklist-open,
-body[data-phase="before"] #card-history { display: none; }
-body[data-phase="after"] .data-group:not([data-group="g-flt"]):not([data-group="g-crew"]) { display: none; }
-.phase-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.phase-panel[hidden] { display: none; }
-.ph-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
-.ph-nums div { padding: 8px 10px; border-radius: 10px; background: var(--bg-sunk); }
-.ph-nums span { display: block; font-size: 12px; color: var(--fg-mute); }
-.ph-nums b { font-size: 17px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; }
+body[data-phase="air"] #ready-line,
+body[data-phase="before"] #card-history,
+body[data-phase="before"] #card-data > .card-head,
+body[data-phase="before"] .data-group:not([data-group="g-flt"]):not([data-group="g-crew"]) { display: none; }
+/* Before: crew first, then times, whatever order the All tab keeps them in;
+   both stay open, so their heads are labels. */
+body[data-phase="before"] #data-body { display: flex; flex-direction: column; }
+body[data-phase="before"] .data-group[data-group="g-crew"] { order: 1; }
+body[data-phase="before"] .data-group[data-group="g-flt"] { order: 2; }
+body[data-phase="before"] .data-group-head { pointer-events: none; }
+body[data-phase="before"] .data-group-head .chev { display: none; }
+.phase-note { padding: 18px 4px; }
+.phase-note[hidden] { display: none; }
+.before-wx { display: flex; flex-direction: column; gap: 10px; }
+.before-wx[hidden] { display: none; }
+.wx-end {
+  -webkit-appearance: none; appearance: none;
+  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px;
+  border: 0; border-radius: var(--radius-card); background: var(--bg-elev);
+  cursor: pointer; font: inherit; text-align: start; color: var(--fg);
+}
 .ph-h { font-size: 13px; font-weight: 600; color: var(--fg-mute); }
-.ph-wx { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.4; color: var(--fg); user-select: text; -webkit-user-select: text; }
-.ph-roles { display: flex; gap: 8px; }
-.ph-roles .leg-role-pill { flex: 1 1 0; padding: 8px 10px; font-size: 14px; }
+.ph-h b { color: var(--fg); font-weight: 700; }
+.ph-wx { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.4; color: var(--fg); }
+
+/* In flight: Route info in the page, between the bars. Its full screen ⤢
+   goes over both. */
+#route-overlay.is-docked {
+  top: var(--top-h, 120px); bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h));
+  z-index: 3; padding: 0; background: var(--bg); animation: none; display: block;
+}
+#route-overlay.is-docked.hidden { display: none; }
+#route-overlay.is-docked:has(.route-sheet.is-full) { z-index: 41; }
+#route-overlay.is-docked .route-sheet {
+  width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; box-shadow: none; animation: none;
+  background: var(--bg); padding-bottom: 12px;
+}
+#route-overlay.is-docked #route-close { display: none; }
 
 /* ---------- Checklist: a row, and the window it opens ---------- */
 .checklist-row {
@@ -3730,17 +3757,24 @@ body[data-phase="after"] .data-group:not([data-group="g-flt"]):not([data-group="
 .checklist-row-notes { flex-basis: 100%; font-size: 12px; color: var(--fg-mute); }
 .checklist-row-notes:empty { display: none; }
 .checklist-float {
-  position: fixed; z-index: 30; right: 12px; width: min(400px, calc(100vw - 24px));
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
-  height: min(70vh, 640px);
+  position: fixed; z-index: 30; left: 0; right: 0;
+  top: var(--top-h, 120px); bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h));
   display: flex; flex-direction: column;
-  background: var(--bg-elev); border-radius: var(--radius-card);
-  box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 0 0.5px var(--line);
+  background: var(--bg-elev);
 }
 .checklist-float[hidden] { display: none; }
+.checklist-float.is-float {
+  left: auto; right: 12px; top: auto; width: min(400px, calc(100vw - 24px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
+  height: min(70vh, 640px);
+  border-radius: var(--radius-card);
+  box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 0 0.5px var(--line);
+}
 .checklist-head {
   display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 14px;
-  border-bottom: 0.5px solid var(--line); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  border-bottom: 0.5px solid var(--line); user-select: none; -webkit-user-select: none;
 }
+.is-float .checklist-head { cursor: grab; touch-action: none; }
 .checklist-head .card-title { flex: 1 1 auto; }
 .checklist-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; -webkit-overflow-scrolling: touch; }
+#logbook-export-row[hidden] { display: none; }

@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=198';
-import * as ri from './route-info.js?v=198';
-import { legTs, nearestHm } from './dates.js?v=198';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=198';
+import * as storage from './storage.js?v=199';
+import * as ri from './route-info.js?v=199';
+import { legTs, nearestHm } from './dates.js?v=199';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=199';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1045,17 +1045,6 @@ export async function ensureSaved() {
   }
   if (!(await savedInCache('./data/divdb.json'))) { try { await fetch('./data/divdb.json'); } catch {} }
 }
-// The destination's saved METAR and TAF, for the In flight screen: read from
-// the device, because in the air that's all there is.
-export async function destWx(leg) {
-  const c = readCache(leg);
-  if (!c || !c.wx) return null;
-  const ap = ri.findAirport(await ri.loadDb(), leg.arr);
-  if (!ap) return null;
-  const hit = (list) => (list || []).find(x => x.id === ap.icao) || null;
-  const m = hit(c.wx.metars), t = hit(c.wx.tafs);
-  return m || t ? { metar: m ? m.raw : '', taf: t ? t.raw : '', at: c.at } : null;
-}
 // Where a flight stands, for the Flight screen's one line.
 export async function readiness(leg) {
   const c = readCache(leg);
@@ -1596,7 +1585,8 @@ function wireZoom(svg) {
 // leg on the main screen.
 // `focus`: an airport (ICAO or IATA) whose card opens straight away — from
 // the airport popup's "Diversion card" or the flight strip's nearest chip.
-export async function open(legArg = null, { focus = '' } = {}) {
+export async function open(legArg = null, { focus = '', keepDock = false } = {}) {
+  if (!keepDock) overlayEl().classList.remove('is-docked');
   const leg = legArg || activeLeg();
   pinned = leg ? idOf(leg) : null;
   pinnedLeg = legArg || null;
@@ -1699,33 +1689,55 @@ export function focusAirport(code) {
   else if (f) toast(`${f} isn't within an hour of this route`);
 }
 
+// The In flight tab: Route info in the page, between the top bar and the
+// bottom bar. Still the same overlay element, so everything that stacks on
+// it (notes, airport cards) keeps working; .is-docked is all that differs.
+const overlayEl = () => $('route-overlay');
+const docked = () => !!overlayEl()?.classList.contains('is-docked');
+export async function dock({ focus = '' } = {}) {
+  overlayEl().classList.add('is-docked');
+  applyFull(false);       // the tab always opens with the bars showing
+  await open(null, { focus, keepDock: true });
+}
+export function undock() {
+  overlayEl().classList.remove('is-docked');
+  stopGps();
+  hideOverlay('route-overlay');
+}
+function closeRoute() {
+  stopGps();
+  hideOverlay('route-overlay');
+  // Opened over the In flight tab (from the logbook): the tab comes back.
+  window.dispatchEvent(new CustomEvent('fc:route-closed'));
+}
+function applyFull(on, remember = false) {
+  document.querySelector('.route-sheet')?.classList.toggle('is-full', on);
+  const b = $('route-full');
+  if (b) { b.textContent = on ? '⤡' : '⤢'; b.setAttribute('aria-pressed', String(on)); }
+  if (remember) { try { localStorage.setItem('fc.route.full', on ? '1' : ''); } catch {} }
+  requestAnimationFrame(() => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
+}
+
 // Wiring — once, on first import.
 let wired = false;
 export function wire() {
   if (wired) return;
   wired = true;
-  $('route-close')?.addEventListener('click', () => { stopGps(); hideOverlay('route-overlay'); });
+  $('route-close')?.addEventListener('click', closeRoute);
   $('route-refresh')?.addEventListener('click', () => refresh(true));
   // Full screen, remembered on this device — like the notes.
   const sheet = document.querySelector('.route-sheet');
-  const setFull = (on) => {
-    sheet?.classList.toggle('is-full', on);
-    const b = $('route-full');
-    if (b) { b.textContent = on ? '⤡' : '⤢'; b.setAttribute('aria-pressed', String(on)); }
-    try { localStorage.setItem('fc.route.full', on ? '1' : ''); } catch {}
-    requestAnimationFrame(() => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
-  };
-  try { setFull(localStorage.getItem('fc.route.full') === '1'); } catch {}
-  $('route-full')?.addEventListener('click', () => setFull(!sheet.classList.contains('is-full')));
+  try { applyFull(localStorage.getItem('fc.route.full') === '1'); } catch {}
+  $('route-full')?.addEventListener('click', () => applyFull(!sheet.classList.contains('is-full'), true));
   window.addEventListener('resize', () => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
-  // Prepare for flight needs a connection: the button comes and goes with it.
+  // The saved-for-offline line follows the connection.
   for (const ev of ['online', 'offline']) window.addEventListener(ev, () => { if (state) paintReady(); });
   // A pinch with one finger off the map would zoom the whole page instead.
   for (const ev of ['gesturestart', 'gesturechange']) {
     $('route-overlay')?.addEventListener(ev, (e) => { if (e.target.closest?.('.ri-map-wrap')) e.preventDefault(); }, { passive: false });
   }
   $('route-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'route-overlay') { stopGps(); hideOverlay('route-overlay'); return; }
+    if (e.target.id === 'route-overlay') { if (!docked()) closeRoute(); return; }
     if (e.target.closest('[data-ri-close]')) {
       $('ri-card-slot').innerHTML = '';
       document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));

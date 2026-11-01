@@ -18,9 +18,9 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=198';
-import { dateTs, legTs } from './dates.js?v=198';
-import { CREW_FIELDS, crewShort } from './crew.js?v=198';
+import * as storage from './storage.js?v=199';
+import { dateTs, legTs } from './dates.js?v=199';
+import { CREW_FIELDS, crewShort } from './crew.js?v=199';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -145,6 +145,44 @@ export function buildIcs(legs, opts = {}) {
   }
   out.push('END:VCALENDAR');
   return out.join('\r\n');
+}
+
+// A spreadsheet of the same legs, one row each, oldest first. Times are UTC.
+// The leading BOM is what makes Excel read Hebrew names as UTF-8. A cell
+// starting with = + - @ would run as a formula in a spreadsheet, so it's quoted
+// with an apostrophe.
+const csvCell = (v) => {
+  let s = String(v ?? '');
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+export function buildCsv(legs, opts = {}) {
+  const displayCrew = opts.displayCrew || ((n) => storage.displayCrew(n));
+  // Only the crew positions these legs actually have, numbered when they repeat.
+  const crewKeys = CREW_FIELDS.filter(key => legs.some(l => l[key] || (l.dataCard || {})[key]));
+  const crewCols = crewKeys.map((key, i) => {
+    const name = crewShort(key);
+    const nth = crewKeys.slice(0, i + 1).filter(k => crewShort(k) === name).length;
+    return nth > 1 ? `${name} ${nth}` : name;
+  });
+  const head = ['Date', 'Flight', 'From', 'To', 'Tail', 'Type', 'STD', 'STA', 'Off block', 'On block',
+    'Block planned', 'Block actual', 'Airborne', 'T/O', 'LDG', 'Max G', 'SID', 'STAR', ...crewCols];
+  const rows = legs.map(leg => {
+    const d = leg.dataCard || {};
+    const dep = toUtcDate(leg.dep_date, leg.dep_time || '00:00', leg.dep_year);
+    return [
+      dep ? dep.toISOString().slice(0, 10) : '',
+      leg.flight ? `ELY${leg.flight}` : '', leg.dep, leg.arr,
+      leg.tail || d.tail, leg.ac_type || d.ac_type, leg.dep_time, leg.arr_time,
+      d.off_block, d.on_block, d.block_time || leg.flight_time, d.actual_block_time, d.actual_flight_time,
+      d.to_role, d.ldg_role, d.max_g, d.sid, d.star,
+      ...crewKeys.map(key => {
+        const name = leg[key] || d[key] || '';
+        return name && key !== 'dh' ? displayCrew(name) : name;
+      }),
+    ].map(csvCell).join(',');
+  });
+  return '\uFEFF' + [head.map(csvCell).join(','), ...rows].join('\r\n') + '\r\n';
 }
 
 // Convenience: every leg the user owns — current.legs[] + every leg inside
