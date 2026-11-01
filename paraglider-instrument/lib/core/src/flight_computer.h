@@ -4,6 +4,7 @@
 #pragma once
 #include "advisor.h"
 #include "ahrs.h"
+#include "atmosphere.h"
 #include "audio.h"
 #include "averager.h"
 #include "circling.h"
@@ -19,6 +20,7 @@ struct FlightComputerConfig {
   KalmanVarioConfig vario;
   KalmanVarioConfig varioWithImu{0.25f, 0.2f, 0.02f, true};
   CirclingConfig circling;
+  AtmosphereConfig air;
   AdvisorConfig advisor;
   VarioToneConfig tone;
   Polar polar = defaultParagliderPolar();
@@ -45,6 +47,7 @@ struct Status {
   GnssFix gnss;
   bool imu = false;
   BaroOrigin baro = BaroOrigin::None;
+  AtmosphereState air;
   int volume = 2;
   bool muted = false;
 };
@@ -65,6 +68,8 @@ class FlightComputer {
   void onAltitude(TimeMs t, float altitude, BaroOrigin origin);
   void onImu(const ImuSample& s);
   void onGnss(const GnssFix& f);
+  // Temperature and humidity from the case sensor (BME280), ~1 Hz.
+  void onAir(TimeMs t, float caseTempC, float rhPct);
   // Handles commands that are pure logic (MC, volume, mute, status). Returns
   // false for commands the firmware must act on (FANET sends, marks).
   bool onCommand(Command c, TimeMs t);
@@ -73,6 +78,7 @@ class FlightComputer {
   // Changing QNH shifts every altitude; restart the filter so the step doesn't
   // read as a vario spike (and a false STAY/GLIDE).
   void setQnh(float qnhPa);
+  Atmosphere& atmosphere() { return atmo_; }
 
   Outputs tick(TimeMs t);
   const Status& status() const { return st_; }
@@ -87,6 +93,7 @@ class FlightComputer {
   MahonyAhrs ahrs_;
   CirclingDetector circ_;
   WindEstimator wind_;
+  Atmosphere atmo_;
   Advisor advisor_;
   AudioEngine audio_;
   LedEngine led_;

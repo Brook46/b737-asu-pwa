@@ -1,9 +1,10 @@
 # CLAUDE.md: paraglider-instrument
 
-Firmware and logic for a headless paragliding flight instrument (XIAO ESP32-S3,
-BMP390, MAX-M10S, ICM-42688-P, Wio-SX1262, piezo). It sits beside an XCTracer
-Maxx II and reads its BLE stream. See README.md for the feature list and
-docs/ for wiring and bring-up.
+Firmware and logic for a headless paragliding flight instrument, all-Seeed
+parts: XIAO ESP32S3 + Wio-SX1262 kit, L76K GNSS (UART), Grove BME280
+(pressure, temperature, humidity, inside the case), Grove LSM6DS3 IMU, Grove
+passive buzzer. It sits beside an XCTracer Maxx II and reads its BLE stream.
+See README.md for the feature list and docs/ for wiring and bring-up.
 
 This is **not** a PWA. None of the repo-root PWA rules (stamp-version, service
 workers, Pages deploy) apply here.
@@ -34,6 +35,12 @@ workers, Pages deploy) apply here.
 * The XCTracer's firmware is closed. Only read its BLE stream.
 * Don't tell the user to flash before the sensors are wired and confirmed
   (docs/bringup.md).
+* The barometer is auto-detected at boot (BME280/BMP280, then DPS310). Keep
+  that: the user may swap sensors.
+* The BME280 is **inside the case**. Its dew point is trustworthy, but its
+  temperature reads warm. Cloud base depends on `Atmosphere`'s
+  `tempOffset`, which is learned by calibrateAtBase(). Don't present
+  cloud-base numbers as accurate before calibration.
 * Library versions are pinned exactly in `platformio.ini`, and the code was
   checked against those tags' headers. NimBLE 1.4 trap: never
   `chr->setValue(const char*)`, since the template stores the pointer bytes.

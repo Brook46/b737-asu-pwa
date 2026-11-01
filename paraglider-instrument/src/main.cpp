@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include "build_config.h"
+#include "drivers/bme280.h"
 #include "drivers/dps310.h"
 #include "drivers/gnss_l76k.h"
 #include "drivers/lsm6ds3.h"
@@ -25,7 +26,9 @@
 
 namespace {
 
-Dps310 baro;
+Bme280 bme;           // Grove BME280 (or a BMP280)
+Dps310 dps;           // fallback if one is fitted instead
+pg::BaroSource* baro = nullptr;  // whichever answered at boot
 GnssL76k gnss;
 Lsm6ds3 imu;
 BleLink ble;
@@ -52,6 +55,11 @@ void loadSettings() {
   a.autoMc = prefs.getBool("automc", true);
   fc.advisor().configure(a);
   fc.setVolume(prefs.getInt("vol", 2));
+  {
+    pg::AtmosphereConfig ac = fc.atmosphere().config();
+    ac.tempOffset = prefs.getFloat("toff", 0.0f);
+    fc.atmosphere().configure(ac);
+  }
   prefs.end();
 }
 
@@ -61,6 +69,7 @@ void saveSettings() {
   prefs.putFloat("mc", fc.advisor().config().mc);
   prefs.putBool("automc", fc.advisor().config().autoMc);
   prefs.putInt("vol", fc.status().volume);
+  prefs.putFloat("toff", fc.atmosphere().config().tempOffset);
   prefs.end();
 }
 
@@ -69,7 +78,7 @@ void i2cScan() {
   for (uint8_t a = 1; a < 127; ++a) {
     Wire.beginTransmission(a);
     if (Wire.endTransmission() == 0) {
-      const char* what = (a == 0x76 || a == 0x77) ? " (DPS310?)" : (a == 0x6A || a == 0x6B) ? " (LSM6DS3?)" : "";
+      const char* what = (a == 0x76 || a == 0x77) ? " (BME280?)" : (a == 0x6A || a == 0x6B) ? " (LSM6DS3?)" : "";
       Serial.printf("  0x%02X%s\n", a, what);
     }
   }
@@ -86,9 +95,37 @@ void printStatus() {
                   s.wind.fromDeg, s.airspeed * 3.6f, s.stf);
 }
 
+const char* stabilityName(pg::Stability s) {
+  switch (s) {
+    case pg::Stability::Inversion: return "inversion";
+    case pg::Stability::Stable: return "stable";
+    case pg::Stability::Moderate: return "moderate";
+    case pg::Stability::Unstable: return "unstable";
+    default: return "unknown";
+  }
+}
+
+void printAir() {
+  const pg::AtmosphereState& a = fc.status().air;
+  if (!a.haveAir) {
+    Serial.println("air: no humidity sensor data yet");
+    return;
+  }
+  Serial.printf("air: %.1f C (case %.1f, offset %.1f)  RH %.0f%%  dew point %.1f C\n", a.tempC,
+                a.tempC + fc.atmosphere().config().tempOffset, fc.atmosphere().config().tempOffset, a.rh,
+                a.dewPointC);
+  if (a.baseValid)
+    Serial.printf("   cloud base ~%.0f m (%s)  %.0f m above you\n", a.cloudBase,
+                  a.baseFromThermal ? "from thermal air" : "rough, not yet from a thermal",
+                  a.cloudBase - fc.status().altitude);
+  if (a.lapseValid)
+    Serial.printf("   lapse rate %.1f C/km (%s)%s\n", a.lapseRate, stabilityName(a.stability),
+                  a.inversion ? "  INVERSION in this climb" : "");
+}
+
 void printHealth() {
   Serial.printf("baro: %s (%lu samples)  gnss: %s (%lu)  imu: %s (%lu)\n",
-                baro.present() ? "DPS310" : "absent", static_cast<unsigned long>(baroCount),
+                baro ? baro->name() : "absent", static_cast<unsigned long>(baroCount),
                 gnss.present() ? "L76K" : "silent", static_cast<unsigned long>(gnssCount),
                 imu.present() ? "LSM6DS3" : "absent", static_cast<unsigned long>(imuCount));
   Serial.printf("xctracer: %s %s (%lu bytes, %lu ok / %lu bad sentences, batt %d%%)\n",
@@ -100,7 +137,7 @@ void printHealth() {
                 static_cast<unsigned long>(lora.rxCount()), static_cast<unsigned long>(lora.txCount()),
                 LoraFanet::txCompiledIn() ? "compiled in" : "compiled OUT",
                 lora.txArmed() ? ", ARMED" : "",
-                fc.status().baro == pg::BaroOrigin::Onboard   ? "DPS310"
+                fc.status().baro == pg::BaroOrigin::Onboard   ? "onboard"
                 : fc.status().baro == pg::BaroOrigin::XcTracer ? "XCTracer"
                                                                : "none");
 }
@@ -126,7 +163,14 @@ void handleCommand(pg::Command c) {
     if (c == pg::Command::McUp || c == pg::Command::McDown || c == pg::Command::VolumeUp ||
         c == pg::Command::VolumeDown)
       saveSettings();
-    if (c == pg::Command::Status) printStatus();
+    if (c == pg::Command::Status) {
+      printStatus();
+      printAir();
+    }
+    if (c == pg::Command::AtCloudBase) {
+      saveSettings();
+      Serial.printf("[air] calibrated at base: temperature offset %.1f C\n", fc.atmosphere().config().tempOffset);
+    }
     return;
   }
   switch (c) {
@@ -145,12 +189,14 @@ void handleCommand(pg::Command c) {
 void consoleHelp() {
   Serial.println(
       "commands:\n"
-      "  status | health | i2c | help\n"
+      "  status | health | air | i2c | help\n"
+      "  base                             I'm at cloud base now (learns the case temperature offset)\n"
+      "  toff <C>                         set the case temperature offset by hand\n"
       "  show baro|gnss|nmea|imu|fc|xct|off   periodic prints / raw streams for bring-up\n"
       "  mc <m/s> | automc on|off | vol <0-3> | mute | qnh <hPa>\n"
       "  beep stay|glide|msg|boot|err    play an alert\n"
       "  tone <Hz> | vario <m/s>          drive the piezo directly (bench)\n"
-      "  cmd <char>                       inject a remote command (+ - u d m o t l h s k)\n"
+      "  cmd <char>                       inject a remote command (+ - u d m o t l h s k b)\n"
       "  send <text>                      FANET message (needs TX compiled in + armed)\n"
       "  tx arm|disarm                    runtime TX gate (not saved)\n"
       "  rescan                           drop the XCTracer link and scan again");
@@ -176,6 +222,14 @@ void console() {
     const uint32_t now = millis();
     if (!strcmp(line, "help")) consoleHelp();
     else if (!strcmp(line, "status")) printStatus();
+    else if (!strcmp(line, "air")) printAir();
+    else if (!strcmp(line, "base")) handleCommand(pg::Command::AtCloudBase);
+    else if (!strcmp(line, "toff") && arg) {
+      pg::AtmosphereConfig ac = fc.atmosphere().config();
+      ac.tempOffset = atof(arg);
+      fc.atmosphere().configure(ac);
+      saveSettings();
+    }
     else if (!strcmp(line, "health")) printHealth();
     else if (!strcmp(line, "i2c")) i2cScan();
     else if (!strcmp(line, "rescan")) ble.rescan();
@@ -307,8 +361,16 @@ void setup() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, I2C_FREQ_HZ);
   SPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI);
 
-  Serial.printf("DPS310     %s\n", baro.begin(Wire) ? "ok" : "not found");
-  if (baro.present()) Serial.printf("           at 0x%02X\n", baro.address());
+  if (bme.begin(Wire)) {
+    baro = &bme;
+    Serial.printf("%s     ok at 0x%02X%s\n", bme.name(), bme.address(),
+                  bme.hasHumidity() ? " (pressure, temperature, humidity)" : " (no humidity)");
+  } else if (dps.begin(Wire)) {
+    baro = &dps;
+    Serial.printf("DPS310     ok at 0x%02X (no humidity)\n", dps.address());
+  } else {
+    Serial.println("barometer  not found");
+  }
   Serial.printf("LSM6DS3    %s (WHO_AM_I 0x%02X)\n", imu.begin(Wire) ? "ok" : "not found", imu.whoAmI());
   gnss.begin(Serial1, PIN_GNSS_RX, PIN_GNSS_TX, 5);
   Serial.println("L76K       configured on Serial1 (D7 RX / D6 TX); `health` shows if it talks");
@@ -330,7 +392,7 @@ void setup() {
   ble.begin(PG_BLE_NAME, PG_REMOTE_ALLOWED_ADDR);
   Serial.println("BLE        advertising for remote, scanning for XCTracer");
 
-  if (!baro.present()) Serial.println("note: no onboard baro — vario comes from the XCTracer once connected");
+  if (!baro) Serial.println("note: no onboard baro — vario comes from the XCTracer once connected");
   fc.notify(pg::Alert::Boot, millis());
   consoleHelp();
 }
@@ -339,10 +401,15 @@ void loop() {
   const uint32_t now = millis();
 
   pg::BaroSample b;
-  if (baro.poll(b)) {
+  if (baro && baro->poll(b)) {
     fc.onBaro(b, pg::BaroOrigin::Onboard);
     lastBaro = b;
     ++baroCount;
+  }
+  static uint32_t lastAir = 0;
+  if (baro == &bme && bme.hasHumidity() && now - lastAir >= 1000 && lastBaro.valid) {
+    lastAir = now;
+    fc.onAir(now, bme.tempC(), bme.humidity());
   }
   pg::ImuSample m;
   if (imu.poll(m)) {
@@ -393,10 +460,14 @@ void loop() {
 
   if (now - lastStatusText >= 2000) {
     lastStatusText = now;
-    char txt[48];
+    char txt[96];
     const pg::Status& s = fc.status();
-    snprintf(txt, sizeof txt, "%+.1f %.0fm mc%.1f %s", s.vario, s.altitude, s.advisor.mc,
-             s.advisor.advice == pg::Advice::Stay ? "STAY" : s.advisor.advice == pg::Advice::Glide ? "GLIDE" : "");
+    int n = snprintf(txt, sizeof txt, "%+.1f %.0fm mc%.1f %s", s.vario, s.altitude, s.advisor.mc,
+                     s.advisor.advice == pg::Advice::Stay ? "STAY" : s.advisor.advice == pg::Advice::Glide ? "GLIDE" : "");
+    if (s.air.baseValid && n > 0 && n < static_cast<int>(sizeof txt))
+      n += snprintf(txt + n, sizeof txt - n, " base%.0f", s.air.cloudBase);
+    if (s.air.lapseValid && n > 0 && n < static_cast<int>(sizeof txt))
+      snprintf(txt + n, sizeof txt - n, " lapse%.1f", s.air.lapseRate);
     ble.setStatusText(txt);
   }
 

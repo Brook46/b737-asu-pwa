@@ -5,7 +5,9 @@
 
 #include "advisor.h"
 #include "ahrs.h"
+#include "atmosphere.h"
 #include "audio.h"
+#include "bme280_comp.h"
 #include "averager.h"
 #include "check.h"
 #include "circling.h"
@@ -434,6 +436,137 @@ TEST("dps310: coefficient unpacking and sign extension") {
   EXPECT(dps310Raw24(neg) == -2);
   EXPECT(dps310ScaleFactor(3) == 7864320);
   EXPECT_NEAR(dps310Temperature(c, 0.0), -50.0, 1e-9);  // c0 / 2
+}
+
+TEST("bme280: Bosch datasheet worked example (BMP280 §3.12)") {
+  Bme280Calib c{};
+  c.t1 = 27504; c.t2 = 26435; c.t3 = -1000;
+  c.p1 = 36477; c.p2 = -10685; c.p3 = 3024; c.p4 = 2855; c.p5 = 140; c.p6 = -7;
+  c.p7 = 15500; c.p8 = -14600; c.p9 = 6000;
+  const Bme280Reading r = bme280Compensate(c, 519888, 415148, 0);
+  EXPECT_NEAR(r.tempC, 25.08, 0.01);
+  EXPECT_NEAR(r.pressurePa, 100653.27, 0.05);
+}
+
+TEST("bme280: humidity calibration nibble packing (H4/H5 share 0xE5)") {
+  uint8_t tp[26] = {};
+  tp[25] = 75;                                            // H1
+  const uint8_t hum[7] = {0x6A, 0x01, 0x00, 0x13, 0x25, 0x03, 0x1E};
+  const Bme280Calib c = bme280ParseCalib(tp, hum);
+  EXPECT(c.hasHumidity && c.h1 == 75 && c.h2 == 362 && c.h3 == 0);
+  EXPECT(c.h4 == (0x13 * 16 | 0x5));                      // 309
+  EXPECT(c.h5 == (0x03 * 16 | 0x2));                      // 50
+  EXPECT(c.h6 == 30);
+  const uint8_t neg[7] = {0, 0, 0, 0xFF, 0x0F, 0xFF, 0x80};
+  const Bme280Calib n = bme280ParseCalib(tp, neg);
+  EXPECT(n.h4 == -1 && n.h5 == -16 && n.h6 == -128);
+}
+
+// ---------------------------------------------------------------- atmosphere
+
+TEST("atmosphere: dew point and RH are inverses; known value") {
+  EXPECT_NEAR(dewPointC(20, 50), 9.3, 0.15);
+  EXPECT_NEAR(relativeHumidity(25, dewPointC(25, 63)), 63, 0.1);
+  EXPECT_NEAR(condensationHeight(28, 14), 1750, 1);
+  EXPECT_NEAR(condensationHeight(10, 12), 0, 1e-6);
+}
+
+TEST("atmosphere: dew point is the same inside a warm case") {
+  // Outside 20 °C / 50 %. The case is 3 °C warmer: lower RH, same moisture.
+  const float td = dewPointC(20, 50);
+  const float caseRh = relativeHumidity(23, td);
+  EXPECT(caseRh < 50);
+  EXPECT_NEAR(dewPointC(23, caseRh), td, 0.01);
+}
+
+// Feeds one minute of thermal air (parcel from a 28/14 °C surface) at alt.
+static AtmosphereEvent feedThermal(Atmosphere& a, uint32_t& t, float alt, float rate, float offset, int secs) {
+  AtmosphereEvent last = AtmosphereEvent::None;
+  for (int i = 0; i < secs; ++i, t += 1000, alt += rate) {
+    const float temp = 28 - 9.8f * alt / 1000, td = 14 - 1.8f * alt / 1000;
+    const AtmosphereEvent e = a.update(t, alt, temp + offset, relativeHumidity(temp + offset, td), true, rate);
+    if (e != AtmosphereEvent::None) last = e;
+  }
+  return last;
+}
+
+TEST("atmosphere: cloud base from thermal air; warm case biases it; calibration fixes it") {
+  Atmosphere a;
+  uint32_t t = 1000;
+  feedThermal(a, t, 900, 1.0f, 2.0f, 120);
+  EXPECT(a.state().baseValid && a.state().baseFromThermal);
+  EXPECT_NEAR(a.state().cloudBase, 1750 + 125 * 2.0, 40);  // 2 °C warm → 250 m high
+  // Climb to the real base and tell it so.
+  feedThermal(a, t, 1745, 0.5f, 2.0f, 5);
+  EXPECT_NEAR(a.calibrateAtBase(), 2.0, 0.1);
+  feedThermal(a, t, 1000, 1.0f, 2.0f, 240);
+  EXPECT_NEAR(a.state().cloudBase, 1750, 40);
+}
+
+TEST("atmosphere: near-base cue once per approach") {
+  Atmosphere a;
+  uint32_t t = 1000;
+  int cues = 0;
+  float alt = 1000;
+  for (int i = 0; i < 800; ++i, t += 1000, alt += 1.0f) {
+    const float temp = 28 - 9.8f * alt / 1000, td = 14 - 1.8f * alt / 1000;
+    if (alt > 1760) alt = 1700;  // pilot stays just under base
+    if (a.update(t, alt, temp, relativeHumidity(temp, td), true, 1.0f) == AtmosphereEvent::NearBase) ++cues;
+  }
+  EXPECT(cues == 1);
+}
+
+TEST("atmosphere: lapse rate from glides — unstable vs stable days") {
+  for (float lapse : {9.0f, 5.0f}) {
+    Atmosphere a;
+    uint32_t t = 1000;
+    float alt = 2200;
+    for (int i = 0; i < 900; ++i, t += 1000, alt -= 1.0f) {  // 15 min glide, 900 m
+      const float temp = 28 - lapse * alt / 1000 + 2.0f + ((i % 7) - 3) * 0.05f;
+      a.update(t, alt, temp, 40, false, -1.0f);
+    }
+    EXPECT(a.state().lapseValid);
+    EXPECT_NEAR(a.state().lapseRate, lapse, 0.2);
+    EXPECT(a.state().stability == (lapse > 8.5f ? Stability::Unstable : Stability::Stable));
+  }
+}
+
+TEST("atmosphere: inversion cue when the climb starts warming with height") {
+  Atmosphere a;
+  uint32_t t = 1000;
+  float alt = 1000;
+  AtmosphereEvent seen = AtmosphereEvent::None;
+  for (int i = 0; i < 400; ++i, t += 1000, alt += 1.0f) {
+    // Normal thermal cooling up to 1200 m, then +3 °C/km above it.
+    const float temp = alt < 1200 ? 20 - 9.8f * (alt - 1000) / 1000 : 18.04f + 3.0f * (alt - 1200) / 1000;
+    const AtmosphereEvent e = a.update(t, alt, temp, 30, true, 1.0f);
+    if (e == AtmosphereEvent::Inversion && seen == AtmosphereEvent::None) {
+      seen = e;
+      EXPECT(alt > 1200 && alt < 1450);
+    }
+  }
+  EXPECT(seen == AtmosphereEvent::Inversion);
+}
+
+TEST("flight computer: synthetic flight with air — base estimate and near-base cue") {
+  FlightComputerConfig cfg;
+  cfg.advisor.autoMc = false;
+  FlightComputer fc(cfg);
+  auto script = synth::defaultScript();
+  script.air = true;
+  synth::Flight fl(script);
+  uint32_t nearBaseAt = 0;
+  while (!fl.done()) {
+    fl.step(fc);
+    const Outputs o = fc.tick(fl.now());
+    if (o.alertStarted == Alert::NearBase && !nearBaseAt) nearBaseAt = fl.now();
+  }
+  const auto& air = fc.status().air;
+  std::printf("        base %.0f m (true 1750, case +2 °C → expect ~2000), near-base cue at %.0f s, %.0f m\n",
+              air.cloudBase, nearBaseAt / 1000.0, fc.status().altitude);
+  EXPECT(air.baseValid && air.baseFromThermal);
+  EXPECT_NEAR(air.cloudBase, 2000, 60);
+  EXPECT(nearBaseAt > 0);
 }
 
 // ---------------------------------------------------------------- fanet

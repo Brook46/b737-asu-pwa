@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "flight_computer.h"
+#include "atmosphere.h"
 #include "sensors.h"
 
 namespace synth {
@@ -24,6 +25,13 @@ struct Script {
   float baroNoise = 0.2f;     // m, 1σ
   float circlingSinkExtra = 0.25f;  // bank penalty on top of the straight polar
   bool imu = false;           // also emit 100 Hz IMU samples (level sensor, yaw from turn)
+  // Air: 1 Hz temperature/humidity as a case-mounted BME280 would see it.
+  // Surface (0 m) values; thermal air follows the dry adiabat (9.8 °C/km)
+  // and its dew point falls 1.8 °C/km, so cloud base = 125 m × spread.
+  bool air = false;
+  float surfaceT = 28.0f, surfaceTd = 14.0f;  // → cloud base 1750 m
+  float envLapse = 8.0f;     // °C/km between thermals
+  float caseOffset = 2.0f;   // case reads this much warm
   const Segment* segs = nullptr;
   int nSegs = 0;
 };
@@ -80,6 +88,14 @@ class Flight {
       m.valid = true;
       fc.onImu(m);
       accSum_ = 0;
+    }
+    if (s_.air && t_ % 1000 == 0) {
+      const float zKm = alt_ / 1000.0f;
+      const bool thermal = sg.turnRateDeg != 0 && lift > 0.5f;
+      const float temp = s_.surfaceT - (thermal ? 9.8f : s_.envLapse) * zKm;
+      const float td = s_.surfaceTd - 1.8f * zKm;
+      const float caseT = temp + s_.caseOffset;
+      fc.onAir(t_, caseT, pg::relativeHumidity(caseT, td < temp ? td : temp));
     }
     if (t_ % 200 == 0) {  // 5 Hz GNSS
       const float h = hdg_ * pg::kDegToRad;

@@ -41,6 +41,8 @@ enum class Alert : uint8_t {
   McDown,      // short falling blip
   Boot,
   Error,       // low double buzz: a sensor dropped out
+  NearBase,    // high double-double: within ~300 m of the estimated cloud base
+  Inversion,   // slow low warble: warming with height in the climb
 };
 
 struct ToneOut {

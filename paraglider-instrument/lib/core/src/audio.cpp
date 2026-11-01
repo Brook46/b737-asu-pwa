@@ -13,6 +13,8 @@ const Note kMcUp[] = {{1000, 50}, {1400, 50}};
 const Note kMcDown[] = {{1400, 50}, {1000, 50}};
 const Note kBoot[] = {{660, 80}, {880, 80}, {1100, 80}, {1320, 120}};
 const Note kError[] = {{300, 200}, {0, 100}, {300, 200}};
+const Note kNearBase[] = {{2200, 60}, {0, 40}, {2200, 60}, {0, 160}, {2200, 60}, {0, 40}, {2200, 60}};
+const Note kInversion[] = {{500, 150}, {420, 150}, {500, 150}, {420, 250}};
 template <std::size_t N>
 const Note* ret(const Note (&a)[N], int& c) {
   c = static_cast<int>(N);
@@ -31,6 +33,8 @@ const Note* alertNotes(Alert a, int& count) {
     case Alert::McDown: return ret(kMcDown, count);
     case Alert::Boot: return ret(kBoot, count);
     case Alert::Error: return ret(kError, count);
+    case Alert::NearBase: return ret(kNearBase, count);
+    case Alert::Inversion: return ret(kInversion, count);
     case Alert::None: break;
   }
   count = 0;

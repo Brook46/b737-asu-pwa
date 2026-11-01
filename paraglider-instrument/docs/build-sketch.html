@@ -21,6 +21,8 @@
   --pcb-sfe: #a8322d;
   --pcb-icm: #4b3a8f;
   --pcb-perf: #c9a46a;
+  --pcb-grove: #2f5f9e;
+  --pcb-l76k: #2c6e5a;
   --on-board: #f3f5f4;
   --metal: #b9c0c4;
   --gold: #d4a52a;
@@ -45,7 +47,7 @@
   :root:not([data-theme="light"]) {
     --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f; --grid: #1f2a2b;
     --accent: #f08a5d; --shell: #263133; --shell-wall: #4d5c5d; --plate: #1d2628;
-    --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f;
+    --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f; --pcb-grove: #3b6fb0; --pcb-l76k: #357d67;
     --on-board: #f3f5f4; --metal: #8d979c; --gold: #c99a22; --copper: #b8794a; --ceramic: #8f8670; --batt: #5f6d75;
     --w-red: #ff6b6b; --w-gnd: #dfe7e4; --w-sda: #4dabf7; --w-scl: #fcc419; --w-sck: #51cf66; --w-mosi: #9775fa;
     --w-miso: #3bc9db; --w-cs: #adb5bd; --w-pz: #f06595; --coax: #aeb9bb;
@@ -55,7 +57,7 @@
 :root[data-theme="dark"] {
   --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f; --grid: #1f2a2b;
   --accent: #f08a5d; --shell: #263133; --shell-wall: #4d5c5d; --plate: #1d2628;
-  --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f;
+  --pcb-xiao: #3a4247; --pcb-ada: #30363a; --pcb-sfe: #b5413b; --pcb-icm: #5b4aa6; --pcb-perf: #9b7d4f; --pcb-grove: #3b6fb0; --pcb-l76k: #357d67;
   --on-board: #f3f5f4; --metal: #8d979c; --gold: #c99a22; --copper: #b8794a; --ceramic: #8f8670; --batt: #5f6d75;
   --w-red: #ff6b6b; --w-gnd: #dfe7e4; --w-sda: #4dabf7; --w-scl: #fcc419; --w-sck: #51cf66; --w-mosi: #9775fa;
   --w-miso: #3bc9db; --w-cs: #adb5bd; --w-pz: #f06595; --coax: #aeb9bb;
@@ -191,12 +193,12 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
   <section class="titleblock" aria-label="Drawing title block">
     <div class="name">
       <h1>Headless flight instrument</h1>
-      <p>Layout sketch for the paragliding unit that rides beside the XCTracer Maxx II. It shows where each board, antenna and wire goes, and how it packs into a small printed case. Drawn to scale from published board sizes, so check them against your actual boards before printing a case.</p>
+      <p>Layout sketch for the all-Seeed build that rides beside the XCTracer Maxx II: where each board, antenna and cable goes, and how it packs into a small printed case. Drawn to scale from published sizes; Grove board sizes are approximate, so measure the parts in hand before printing a case.</p>
     </div>
     <dl>
       <dt>Case, outside</dt><dd>76 × 54 × 26 mm</dd>
       <dt>Wall / floor</dt><dd>2.5 mm PETG</dd>
-      <dt>All-up weight</dt><dd>≈ 62 g</dd>
+      <dt>All-up weight</dt><dd>≈ 65 g</dd>
       <dt>Units</dt><dd>mm, 1 : 1 scale</dd>
       <dt>Status</dt><dd>sketch, not checked on real boards</dd>
     </dl>
@@ -207,188 +209,177 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
     <header>
       <span class="tag">Plate 1</span>
       <h2 id="p1">Open: tray from above, lid flipped over</h2>
-      <p>The boards sit on a carrier plate, with the battery under it. Both antennas and the piezo go on the lid, so the GNSS patch looks at the sky and stays away from the ESP32 and the LoRa radio. Three leads cross over to the lid: the piezo pair, the LoRa coax and the GNSS coax.</p>
+      <p>The boards sit on a carrier plate, with the battery under it. The BME280 sits right behind the vent, away from the ESP32's heat. The GNSS patch, the LoRa antenna and the buzzer go on the lid; the Wi-Fi/Bluetooth antenna sticks to the tray wall. Grove cables carry I²C, and four short wires connect the L76K.</p>
     </header>
     <div class="scrollhint">Scroll sideways to see the whole drawing →</div>
     <div class="drawing">
-      <svg viewBox="0 0 182 86" role="img" aria-label="Top view of the open case: the tray with the boards and wiring on the left, and the lid flipped over on the right with the GNSS patch, LoRa antenna and piezo">
+      <svg viewBox="0 0 182 92" role="img" aria-label="Top view of the open case: the tray with the XIAO, L76K, LSM6DS3 and BME280 on the left, and the lid flipped over on the right with the GNSS patch, LoRa antenna and buzzer">
         <defs>
           <pattern id="g1" width="5" height="5" patternUnits="userSpaceOnUse">
             <path d="M5 0H0V5" class="gridline" fill="none"/>
           </pattern>
+          <pattern id="foam" width="1" height="1" patternUnits="userSpaceOnUse">
+            <circle cx="0.5" cy="0.5" r="0.28" fill="var(--ink-soft)" opacity="0.6"/>
+          </pattern>
           <marker id="arr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse">
             <path d="M0 0L6 3L0 6z" fill="var(--ink-soft)"/>
           </marker>
-          <marker id="arrA" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="3.4" markerHeight="3.4" orient="auto-start-reverse">
-            <path d="M0 0L6 3L0 6z" fill="var(--accent)"/>
-          </marker>
         </defs>
-        <rect x="0" y="0" width="182" height="86" fill="url(#g1)"/>
+        <rect x="0" y="0" width="182" height="92" fill="url(#g1)"/>
 
         <!-- ---------- TRAY ---------- -->
         <text x="5" y="5.2" class="t-title">TRAY · TOP VIEW</text>
         <rect x="5" y="8" width="76" height="54" rx="4" class="shell"/>
         <rect x="8" y="11" width="70" height="48" rx="2" class="cavity"/>
-        <!-- wall cut-outs: USB-C and vent on the left wall, switch on the top wall -->
         <rect x="4.6" y="18.9" width="3.8" height="10" fill="var(--sheet)"/>
-        <rect x="4.6" y="47.6" width="3.8" height="4.2" fill="var(--sheet)"/>
-        <rect x="32.5" y="7.6" width="7" height="3.8" fill="var(--sheet)"/>
+        <rect x="4.6" y="44.8" width="3.8" height="4.2" fill="var(--sheet)"/>
+        <rect x="58.5" y="7.6" width="7" height="3.8" fill="var(--sheet)"/>
         <rect x="9" y="12" width="68" height="46" rx="1.2" class="plate-fill"/>
 
         <!-- battery under the plate -->
         <rect x="40" y="13" width="35" height="30" rx="1.5" class="hidden-line"/>
-        <text x="64" y="22.4" text-anchor="middle" class="t-sm t-soft">LiPo 503035</text>
-        <text x="64" y="24.5" text-anchor="middle" class="t-sm t-soft">500 mAh, under the plate</text>
+        <text x="64" y="38.4" text-anchor="middle" class="t-xs t-soft">LiPo, under the plate</text>
 
-        <!-- slide switch -->
-        <rect x="33.4" y="8.4" width="5.2" height="2.6" rx="0.4" fill="var(--metal)" class="edge"/>
-        <rect x="34.4" y="7.3" width="1.6" height="1.6" fill="var(--ink)"/>
+        <!-- slide switch on the top wall -->
+        <rect x="59.4" y="8.4" width="5.2" height="2.6" rx="0.4" fill="var(--metal)" class="edge"/>
+        <rect x="60.4" y="7.3" width="1.6" height="1.6" fill="var(--ink)"/>
 
         <!-- XIAO ESP32-S3 (Wio-SX1262 under it) -->
-        <rect x="10" y="15" width="21" height="17.8" rx="1" fill="var(--pcb-xiao)" class="edge"/>
-        <rect x="16.4" y="18" width="12.6" height="11.8" rx="0.5" fill="var(--metal)"/>
-        <text x="22.7" y="23.4" text-anchor="middle" class="t-xs" fill="#2c3236">ESP32-S3</text>
-        <text x="22.7" y="25.2" text-anchor="middle" class="t-xs" fill="#2c3236">shield</text>
-        <rect x="8.4" y="19.45" width="6.6" height="8.9" rx="1.2" fill="var(--metal)" class="edge"/>
-        <text x="11.7" y="24.5" text-anchor="middle" class="t-xs" fill="#2c3236" transform="rotate(-90 11.7 24.2)">USB-C</text>
-        <circle cx="15.6" cy="29.6" r="0.6" fill="#ff9f43"/>
-        <!-- pin pads, top row: 5V GND 3V3 D10 D9 D8 D7 · bottom row: D0..D6 -->
+        <rect x="10" y="13" width="21" height="17.8" rx="1" fill="var(--pcb-xiao)" class="edge"/>
+        <rect x="16.4" y="16" width="12.6" height="11.8" rx="0.5" fill="var(--metal)"/>
+        <text x="22.7" y="21.4" text-anchor="middle" class="t-xs" fill="#2c3236">ESP32-S3</text>
+        <text x="22.7" y="23.2" text-anchor="middle" class="t-xs" fill="#2c3236">shield</text>
+        <rect x="8.4" y="17.45" width="6.6" height="8.9" rx="1.2" fill="var(--metal)" class="edge"/>
+        <text x="11.7" y="22.5" text-anchor="middle" class="t-xs" fill="#2c3236" transform="rotate(-90 11.7 22.2)">USB-C</text>
+        <circle cx="15.6" cy="27.6" r="0.6" fill="#ff9f43"/>
+        <circle cx="29.6" cy="15.4" r="0.8" fill="var(--gold)" class="edge"/>
         <g class="pad">
-          <circle cx="12.9" cy="16.2" r="0.55"/><circle cx="15.44" cy="16.2" r="0.55"/><circle cx="17.98" cy="16.2" r="0.55"/><circle cx="20.52" cy="16.2" r="0.55"/><circle cx="23.06" cy="16.2" r="0.55"/><circle cx="25.6" cy="16.2" r="0.55"/><circle cx="28.14" cy="16.2" r="0.55"/>
-          <circle cx="12.9" cy="31.6" r="0.55"/><circle cx="15.44" cy="31.6" r="0.55"/><circle cx="17.98" cy="31.6" r="0.55"/><circle cx="20.52" cy="31.6" r="0.55"/><circle cx="23.06" cy="31.6" r="0.55"/><circle cx="25.6" cy="31.6" r="0.55"/><circle cx="28.14" cy="31.6" r="0.55"/>
+          <circle cx="12.9" cy="14.2" r="0.55"/><circle cx="15.44" cy="14.2" r="0.55"/><circle cx="17.98" cy="14.2" r="0.55"/><circle cx="20.52" cy="14.2" r="0.55"/><circle cx="23.06" cy="14.2" r="0.55"/><circle cx="25.6" cy="14.2" r="0.55"/><circle cx="28.14" cy="14.2" r="0.55"/>
+          <circle cx="12.9" cy="29.6" r="0.55"/><circle cx="15.44" cy="29.6" r="0.55"/><circle cx="17.98" cy="29.6" r="0.55"/><circle cx="20.52" cy="29.6" r="0.55"/><circle cx="23.06" cy="29.6" r="0.55"/><circle cx="25.6" cy="29.6" r="0.55"/><circle cx="28.14" cy="29.6" r="0.55"/>
         </g>
         <g class="t-xs t-on" text-anchor="middle">
-          <text x="12.9" y="18.1">5V</text><text x="15.44" y="18.1">GND</text><text x="17.98" y="18.1">3V3</text><text x="20.52" y="18.1">D10</text><text x="23.06" y="18.1">D9</text><text x="25.6" y="18.1">D8</text><text x="28.14" y="18.1">D7</text>
-          <text x="12.9" y="30.4">D0</text><text x="17.98" y="30.4">D2</text><text x="20.52" y="30.4">D3</text><text x="23.06" y="30.4">D4</text><text x="25.6" y="30.4">D5</text><text x="28.14" y="30.4">D6</text>
+          <text x="15.44" y="16.1">GND</text><text x="17.98" y="16.1">3V3</text>
+          <text x="12.9" y="28.4">D0</text><text x="23.06" y="28.4">D4</text><text x="25.6" y="28.4">D5</text><text x="28.14" y="28.4">D6</text>
         </g>
-        <!-- BAT pads underside + U.FL on the Wio under the board -->
-        <rect x="18.6" y="26.6" width="1.6" height="1.2" class="hidden-line"/>
-        <rect x="21.4" y="26.6" width="1.6" height="1.2" class="hidden-line"/>
-        <circle cx="29.6" cy="29.4" r="0.9" class="hidden-line"/>
+        <!-- D7 is the top-right pad -->
+        <text x="28.14" y="16.1" text-anchor="middle" class="t-xs t-on">D7</text>
+        <rect x="18.6" y="24.6" width="1.6" height="1.2" class="hidden-line"/>
+        <rect x="21.4" y="24.6" width="1.6" height="1.2" class="hidden-line"/>
+        <circle cx="29.6" cy="27.4" r="0.9" class="hidden-line"/>
 
-        <!-- ICM-42688-P breakout -->
-        <rect x="37" y="14" width="15" height="13" rx="0.8" fill="var(--pcb-icm)" class="edge"/>
-        <rect x="44.6" y="18.2" width="4" height="4" fill="#15161a"/>
-        <g class="pad">
-          <circle cx="38.3" cy="15.5" r="0.5"/><circle cx="38.3" cy="17.5" r="0.5"/><circle cx="38.3" cy="19.5" r="0.5"/><circle cx="38.3" cy="21.5" r="0.5"/><circle cx="38.3" cy="23.5" r="0.5"/><circle cx="38.3" cy="25.5" r="0.5"/>
-        </g>
-        <g class="t-xs t-on">
-          <text x="39.3" y="15.9">VCC</text><text x="39.3" y="17.9">GND</text><text x="39.3" y="19.9">SCK</text><text x="39.3" y="21.9">MOSI</text><text x="39.3" y="23.9">MISO</text><text x="39.3" y="25.9">CS</text>
-        </g>
+        <!-- L76K GNSS, beside the XIAO -->
+        <rect x="34" y="13" width="21" height="18" rx="1" fill="var(--pcb-l76k)" class="edge"/>
+        <rect x="39.5" y="17.5" width="10" height="10" rx="0.4" fill="var(--metal)"/>
+        <text x="44.5" y="23" text-anchor="middle" class="t-xs" fill="#2c3236">L76K</text>
+        <circle cx="53.4" cy="15" r="0.8" fill="var(--gold)" class="edge"/>
 
-        <!-- BMP390 (Adafruit STEMMA QT) -->
-        <rect x="10" y="38" width="25.4" height="17.8" rx="1" fill="var(--pcb-ada)" class="edge"/>
-        <rect x="21.4" y="45.6" width="2.2" height="2.2" fill="var(--metal)"/>
-        <circle cx="22.5" cy="46.7" r="0.35" fill="#23272a"/>
-        <rect x="10.3" y="44.8" width="3.4" height="4.2" rx="0.3" fill="#f1f3f5" class="edge"/>
-        <rect x="31.7" y="44.8" width="3.4" height="4.2" rx="0.3" fill="#f1f3f5" class="edge"/>
-        <text x="22.5" y="52.7" text-anchor="middle" class="t-xs t-on">BMP390 · 0x77</text>
+        <!-- LSM6DS3 Grove -->
+        <rect x="57.5" y="13" width="20" height="20" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <rect x="65.5" y="20" width="4" height="4" fill="#15161a"/>
+        <rect x="65.5" y="29.4" width="4" height="3.4" rx="0.3" fill="#f1f3f5" class="edge"/>
+        <text x="67.5" y="18" text-anchor="middle" class="t-xs t-on">LSM6DS3</text>
 
-        <!-- piezo driver on a scrap of perfboard -->
-        <rect x="36" y="30.6" width="8.4" height="5.6" rx="0.4" fill="var(--pcb-perf)" class="edge"/>
-        <path d="M38.2 34.9 a1.3 1.3 0 0 1 2.6 0 z" fill="#1d1f21"/>
-        <rect x="41.4" y="32" width="2.2" height="0.9" rx="0.4" fill="#e9d8a6" class="edge"/>
-        <text x="40.2" y="32.4" text-anchor="middle" class="t-xs" fill="#2c2416">NPN</text>
+        <!-- BME280 Grove, chip at the vent end -->
+        <rect x="10" y="37" width="40" height="20" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <rect x="12.6" y="45.8" width="2.6" height="2.6" fill="var(--metal)"/>
+        <circle cx="13.9" cy="47.1" r="0.35" fill="#23272a"/>
+        <rect x="45.6" y="45" width="4" height="4.2" rx="0.3" fill="#f1f3f5" class="edge"/>
+        <text x="30" y="53.6" text-anchor="middle" class="t-xs t-on">BME280 · 0x76</text>
+        <!-- foam over the vent -->
+        <rect x="8.1" y="44" width="1.7" height="6" fill="url(#foam)" stroke="var(--ink-soft)" stroke-width="0.15"/>
 
-        <!-- MAX-M10S breakout -->
-        <rect x="46" y="33" width="25.4" height="25.4" rx="1" fill="var(--pcb-sfe)" class="edge"/>
-        <rect x="53.7" y="40.7" width="10" height="10" rx="0.5" fill="var(--metal)"/>
-        <text x="58.7" y="46.2" text-anchor="middle" class="t-xs" fill="#2c3236">MAX-M10S</text>
-        <circle cx="50.2" cy="54.2" r="2.4" fill="var(--metal)" class="edge"/>
-        <rect x="46.3" y="43.7" width="3.4" height="4.2" rx="0.3" fill="#f1f3f5" class="edge"/>
-        <rect x="71.2" y="43.2" width="5.4" height="5" rx="0.4" fill="var(--gold)" class="edge"/>
-        <text x="58.7" y="56.8" text-anchor="middle" class="t-xs t-on">GNSS · 0x42</text>
+        <!-- Wi-Fi / BLE antenna on the right wall -->
+        <rect x="76.2" y="35" width="1.6" height="18" rx="0.4" fill="var(--copper)" class="edge"/>
 
         <!-- ===== wiring ===== -->
-        <!-- SPI to the IMU (above the XIAO) -->
-        <path d="M15.44 16.2V11.6H35.9V17.5H38.3" class="wire" stroke="var(--w-gnd)"/>
-        <path d="M17.98 16.2V12.15H35.3V15.5H38.3" class="wire" stroke="var(--w-red)"/>
-        <path d="M20.52 16.2V12.7H34.7V21.5H38.3" class="wire" stroke="var(--w-mosi)"/>
-        <path d="M23.06 16.2V13.25H34.1V23.5H38.3" class="wire" stroke="var(--w-miso)"/>
-        <path d="M25.6 16.2V13.8H33.5V19.5H38.3" class="wire" stroke="var(--w-sck)"/>
-        <path d="M28.14 16.2V14.35H32.9V25.5H38.3" class="wire" stroke="var(--w-cs)"/>
-        <!-- I2C pigtail to the BMP390 (3V3/GND run under the XIAO) -->
-        <path d="M15.44 16.2V34.2H10.9V44.8" class="wire under" stroke="var(--w-gnd)"/>
-        <path d="M17.98 16.2V34.8H11.7V44.8" class="wire under" stroke="var(--w-red)"/>
-        <path d="M23.06 31.6V35.4H12.5V44.8" class="wire" stroke="var(--w-sda)"/>
-        <path d="M25.6 31.6V36H13.3V44.8" class="wire" stroke="var(--w-scl)"/>
-        <!-- Qwiic cable BMP390 → MAX-M10S -->
-        <path d="M35.1 46.9C39 47.4 42.5 45.9 46.3 45.8" class="bundle"/>
-        <!-- D0 → piezo driver -->
-        <path d="M12.9 31.6V33.4H36" class="wire" stroke="var(--w-pz)"/>
+        <!-- I2C Grove cable to BME280: 3V3, GND under the XIAO; SDA/SCL from D4/D5 -->
+        <path d="M15.44 14.2V33.6H45.9V45" class="wire under" stroke="var(--w-gnd)"/>
+        <path d="M17.98 14.2V34.2H46.9V45" class="wire under" stroke="var(--w-red)"/>
+        <path d="M23.06 29.6V34.8H47.9V45" class="wire" stroke="var(--w-sda)"/>
+        <path d="M25.6 29.6V35.4H48.9V45" class="wire" stroke="var(--w-scl)"/>
+        <!-- spliced on to the LSM6DS3 -->
+        <path d="M49 35.4H66.1V32.8" class="wire" stroke="var(--w-scl)"/>
+        <path d="M48 34.8H66.9V32.8" class="wire" stroke="var(--w-sda)"/>
+        <path d="M47 34.2H67.7V32.8" class="wire" stroke="var(--w-red)"/>
+        <path d="M46 33.6H68.5V32.8" class="wire" stroke="var(--w-gnd)"/>
+        <!-- L76K: TX→D7, RX←D6, 3V3, GND -->
+        <path d="M28.14 14.2V12.2H35.6V14" class="wire" stroke="var(--w-miso)"/>
+        <path d="M28.14 29.6V31.4H32.6V28.6H35.2" class="wire" stroke="var(--w-mosi)"/>
+        <path d="M17.98 14.2V11.7H36.6V14" class="wire" stroke="var(--w-red)"/>
+        <path d="M15.44 14.2V11.4H37.6V14" class="wire" stroke="var(--w-gnd)"/>
         <!-- battery → switch → BAT pads -->
-        <path d="M40.5 14.2C38.4 13 37.7 11.6 37.4 10.6" class="wire under" stroke="var(--w-red)" stroke-width="0.6"/>
-        <path d="M34.6 10.6C33 13.4 23 20 19.4 26.6" class="wire under" stroke="var(--w-red)" stroke-width="0.6"/>
-        <path d="M40.5 15.6C35 17 26 22 22.2 26.6" class="wire under" stroke="var(--w-gnd)" stroke-width="0.6"/>
-        <!-- leads that cross to the lid -->
-        <path d="M29.6 30.3C33 30.8 40 29.4 45 29.6S68 29.4 77.5 24.2C86 19.6 94 17.4 104.4 16.6" class="coax"/>
-        <path d="M76.6 45.7C86 45.9 96 45.5 108 45.5" class="coax"/>
-        <path d="M44.4 31.6C58 31 70 31.7 77.5 30.4C88 28.6 92 58 110 59.6H149C153.5 59.6 155.6 56.8 156.3 52.8" class="wire" stroke="var(--w-pz)"/>
-
+        <path d="M74 14C70 12.5 64.8 11.2 63.6 10.8" class="wire under" stroke="var(--w-red)" stroke-width="0.6"/>
+        <path d="M60.4 10.8C50 12 26 18 19.4 24.6" class="wire under" stroke="var(--w-red)" stroke-width="0.6"/>
+        <path d="M74 15.4C60 18 30 22 22.2 24.6" class="wire under" stroke="var(--w-gnd)" stroke-width="0.6"/>
+        <!-- XIAO Wi-Fi/BLE U.FL → wall antenna -->
+        <path d="M29.6 15.4C30.4 12 32 11.3 36 11.3H74.5C76.4 11.3 77 12.6 77 14.5V35" class="coax" stroke-width="0.5"/>
         <!-- tray labels -->
         <g class="t-sm">
-          <path d="M10.6 32.4L9.3 34V74.6H11" class="leader"/><text x="11.5" y="75.1">XIAO ESP32-S3, Wio-SX1262 under it</text>
-          <path d="M6.5 23.9H1.8" class="leader"/><text x="1.6" y="22.9" text-anchor="start">USB-C</text>
-          <path d="M6.5 49.7H1.8" class="leader"/><text x="1.6" y="48.7">vent</text>
-          <path d="M36 7.3V3.8H41" class="leader"/><text x="41.6" y="4.3">power switch</text>
+          <path d="M6.5 21.9H1.8" class="leader"/><text x="1.6" y="20.9">USB-C</text>
+          <path d="M6.5 46.9H1.8" class="leader"/><text x="1.6" y="45.9">vent</text>
+          <path d="M62 7.3V3.8H66.6" class="leader"/><text x="67.2" y="4.3">power switch</text>
+          <path d="M20 13V5.6H24" class="leader"/><text x="24.6" y="6.1">XIAO + Wio-SX1262 under it</text>
         </g>
         <g class="t-sm">
-          <path d="M44.5 27V65.2" class="leader"/><text x="44.5" y="67.3" text-anchor="middle">ICM-42688-P on SPI</text>
-          <path d="M22.5 55.8V65.2" class="leader"/><text x="22.5" y="67.3" text-anchor="middle">BMP390 on I²C</text>
-          <path d="M40.2 36.2V70.4" class="leader"/><text x="40.2" y="72.5" text-anchor="middle">piezo driver: 1 kΩ to the base, 1 kΩ across the piezo</text>
-          <path d="M62 58.4V65.2" class="leader"/><text x="64" y="67.3" text-anchor="middle">MAX-M10S on I²C</text>
+          <path d="M44.5 31V67.2" class="leader"/><text x="44.5" y="69.3" text-anchor="middle">L76K GNSS, 4 wires</text>
+          <path d="M67.5 33V67.2" class="leader"/><text x="70" y="69.3" text-anchor="middle">LSM6DS3 on I²C</text>
+          <path d="M22 57V67.2" class="leader"/><text x="22" y="69.3" text-anchor="middle">BME280 on I²C</text>
+          <text x="22" y="71.6" text-anchor="middle" class="t-xs t-soft">sensor end at the vent</text>
+          <path d="M77.8 44H80.4" class="leader"/>
+          <text x="5" y="77.6" class="t-xs t-soft">Wi-Fi/BLE antenna (kit) on the right wall · I²C wires spliced to both Grove modules · battery leads run under the plate</text>
         </g>
 
         <!-- fold arrow -->
-        <path d="M82.5 70C86 77 93 77 96.5 70" class="dim" marker-end="url(#arr)"/>
-        <text x="89.5" y="80.2" text-anchor="middle" class="t-sm t-soft">lid flips over</text>
+        <path d="M82.5 74C86 81 93 81 96.5 74" class="dim" marker-end="url(#arr)"/>
+        <text x="89.5" y="85.4" text-anchor="middle" class="t-sm t-soft">lid flips over</text>
 
         <!-- ---------- LID (inside face) ---------- -->
         <text x="98" y="5.2" class="t-title">LID · INSIDE FACE</text>
         <rect x="98" y="8" width="76" height="54" rx="4" class="shell"/>
         <rect x="101" y="11" width="70" height="48" rx="2" fill="var(--sheet)" stroke="var(--shell-wall)" stroke-width="0.3" stroke-dasharray="1 0.6"/>
 
-        <!-- LoRa flex antenna -->
-        <rect x="104" y="12.6" width="40" height="8" rx="0.8" fill="var(--copper)" class="edge"/>
-        <path d="M107 14.4H141V18.8H109V15.9H139V17.4H111" fill="none" stroke="#5a3418" stroke-width="0.35"/>
-        <circle cx="104.6" cy="16.6" r="0.9" fill="var(--gold)" class="edge"/>
-        <!-- GNSS patch, back side -->
-        <rect x="108" y="33" width="25" height="25" rx="0.8" fill="var(--metal)" class="edge"/>
-        <rect x="113" y="38" width="15" height="15" rx="0.4" fill="var(--ceramic)" opacity="0.5" stroke="var(--ink-soft)" stroke-width="0.2" stroke-dasharray="0.8 0.5"/>
-        <circle cx="108.6" cy="45.5" r="0.9" fill="var(--gold)" class="edge"/>
-        <!-- piezo over grille holes -->
-        <circle cx="158" cy="47" r="6" fill="#2b2f33" class="edge"/>
-        <circle cx="158" cy="47" r="4.1" fill="var(--gold)" opacity="0.85"/>
-        <circle cx="158" cy="47" r="1.2" fill="#2b2f33"/>
-        <!-- light pipe over the LED -->
-        <circle cx="163.4" cy="29.6" r="1.3" fill="#ffe8cc" stroke="#ff9f43" stroke-width="0.3"/>
-        <!-- keep-out between the two antennas -->
-        <path d="M104 25.5H144" class="accent-line"/>
-        <text x="124" y="28.2" text-anchor="middle" class="t-sm t-acc">≥ 10 mm between the two antennas</text>
+        <!-- GNSS patch (L76K's active antenna), back side -->
+        <rect x="108" y="12.5" width="25" height="25" rx="0.8" fill="var(--metal)" class="edge"/>
+        <rect x="113" y="17.5" width="15" height="15" rx="0.4" fill="var(--ceramic)" opacity="0.5" stroke="var(--ink-soft)" stroke-width="0.2" stroke-dasharray="0.8 0.5"/>
+        <circle cx="108.6" cy="24.5" r="0.9" fill="var(--gold)" class="edge"/>
+        <!-- buzzer Grove over the grille -->
+        <rect x="105" y="38.6" width="20" height="20" rx="1" fill="var(--pcb-grove)" class="edge"/>
+        <circle cx="115" cy="48.6" r="6" fill="#2b2f33"/>
+        <circle cx="115" cy="48.6" r="1.3" fill="#111"/>
+        <!-- LoRa antenna -->
+        <rect x="129" y="50" width="40" height="8" rx="0.8" fill="var(--copper)" class="edge"/>
+        <path d="M132 51.8H166V56.2H134V53.3H164V54.8H136" fill="none" stroke="#5a3418" stroke-width="0.35"/>
+        <circle cx="129.6" cy="54" r="0.9" fill="var(--gold)" class="edge"/>
+        <!-- light pipe -->
+        <circle cx="163.4" cy="27.6" r="1.3" fill="#ffe8cc" stroke="#ff9f43" stroke-width="0.3"/>
+        <!-- antenna separation -->
+        <path d="M134 44.5V49.4" class="accent-line"/>
+        <text x="135.2" y="47.6" class="t-xs t-acc">≥ 10 mm apart</text>
 
         <g class="t-sm">
-          <path d="M124 12.6V9.2H146" class="leader"/><text x="146.6" y="9.7">LoRa flex antenna, 868/915 band, U.FL</text>
-          <path d="M120.5 58V65.2" class="leader"/><text x="120.5" y="67.3" text-anchor="middle">GNSS patch 25 × 25 (back shown).</text>
-          <text x="120.5" y="69.6" text-anchor="middle">Ceramic faces up through the lid.</text>
-          <path d="M158 53V65.2" class="leader"/><text x="160" y="67.3" text-anchor="middle">Piezo Ø 12, glued</text>
-          <text x="160" y="69.6" text-anchor="middle">over the grille holes</text>
-          <path d="M163.4 30.9V35.6H165.6" class="leader"/><text x="166.1" y="36.1">light pipe</text>
-          <text x="166.1" y="38" class="t-xs t-soft">over the LED</text>
+          <path d="M120.5 12.5V9.4H138" class="leader"/><text x="138.6" y="9.9">GNSS patch (from the L76K), back shown</text>
+          <path d="M115 58.6V67.2" class="leader"/><text x="115" y="69.3" text-anchor="middle">Grove buzzer, facing</text>
+          <text x="115" y="71.6" text-anchor="middle">the grille holes</text>
+          <path d="M150 58V67.2" class="leader"/><text x="152" y="69.3" text-anchor="middle">LoRa antenna (kit)</text>
+          <path d="M163.4 29V34H166" class="leader"/><text x="166.4" y="34.5">light pipe</text>
         </g>
-        <text x="146" y="80.2" text-anchor="middle" class="t-xs t-soft">mirror image of the tray: the lid's left edge closes onto the tray's right edge</text>
+        <!-- leads that cross to the lid -->
+        <path d="M53.4 15C55.4 15.4 56.4 17 56.4 19V33.8C56.4 35 58 35.8 62 35.8H74C80 35.8 84 30 90 27C96 24.5 102 24.5 108 24.5" class="coax"/>
+        <path d="M29.6 28.3C31 31.8 40 32.2 50 32.2H55.6C58 32.2 60 34.6 66 34.6H75C82 34.6 88 38 95 38H127.2V52.2C127.2 53.4 128.2 54 129.4 54" class="coax"/>
+        <path d="M12.9 29.6V31.2C14 36 40 36.4 52 36.4C62 36.4 74 36.6 79 38.6C88 42 96 48.6 105 48.6" class="wire" stroke="var(--w-pz)"/>
+
+        <text x="136" y="85.4" text-anchor="middle" class="t-xs t-soft">mirror image of the tray: the lid's left edge closes onto the tray's right edge</text>
       </svg>
     </div>
     <div class="legend" aria-label="Wire colours">
-      <span><i style="border-color:var(--w-red)"></i>3V3 / battery +</span>
-      <span><i style="border-color:var(--w-gnd)"></i>GND</span>
-      <span><i style="border-color:var(--w-sda)"></i>SDA · D4</span>
-      <span><i style="border-color:var(--w-scl)"></i>SCL · D5</span>
-      <span><i style="border-color:var(--w-sck)"></i>SCK · D8</span>
-      <span><i style="border-color:var(--w-mosi)"></i>MOSI · D10</span>
-      <span><i style="border-color:var(--w-miso)"></i>MISO · D9</span>
-      <span><i style="border-color:var(--w-cs)"></i>IMU CS · D7</span>
-      <span><i style="border-color:var(--w-pz)"></i>Piezo · D0</span>
-      <span><i style="border-color:var(--coax)"></i>Coax (U.FL / SMA)</span>
+      <span><i style="border-color:var(--w-red)"></i>3V3 / battery + (Grove red)</span>
+      <span><i style="border-color:var(--w-gnd)"></i>GND (Grove black)</span>
+      <span><i style="border-color:var(--w-sda)"></i>SDA · D4 (Grove white)</span>
+      <span><i style="border-color:var(--w-scl)"></i>SCL · D5 (Grove yellow)</span>
+      <span><i style="border-color:var(--w-miso)"></i>GNSS TX → D7</span>
+      <span><i style="border-color:var(--w-mosi)"></i>D6 → GNSS RX</span>
+      <span><i style="border-color:var(--w-pz)"></i>Buzzer · D0</span>
+      <span><i style="border-color:var(--coax)"></i>Coax (U.FL)</span>
       <span><i class="dash" style="border-color:var(--ink-soft)"></i>Hidden or underneath</span>
     </div>
   </section>
@@ -423,35 +414,30 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
         <text x="8" y="5.2" class="t-title">TOP · CLOSED</text>
         <rect x="8" y="8" width="76" height="54" rx="4" class="shell"/>
         <rect x="9.6" y="9.6" width="72.8" height="50.8" rx="3" fill="none" stroke="var(--shell-wall)" stroke-width="0.25"/>
-        <!-- screws -->
         <g fill="var(--metal)" stroke="var(--ink)" stroke-width="0.2">
           <circle cx="12" cy="12" r="1.3"/><circle cx="80" cy="12" r="1.3"/><circle cx="12" cy="58" r="1.3"/><circle cx="80" cy="58" r="1.3"/>
         </g>
         <g stroke="var(--ink)" stroke-width="0.25">
           <path d="M11.2 12H12.8"/><path d="M79.2 12H80.8"/><path d="M11.2 58H12.8"/><path d="M79.2 58H80.8"/>
         </g>
-        <!-- what's under the lid (same positions as the tray) -->
-        <rect x="49" y="33" width="25" height="25" rx="0.8" class="accent-line"/>
-        <text x="61.5" y="44.6" text-anchor="middle" class="t-sm t-acc">GNSS patch</text>
-        <text x="61.5" y="46.8" text-anchor="middle" class="t-sm t-acc">under here</text>
-        <rect x="38" y="12.6" width="40" height="8" rx="0.8" class="hidden-line"/>
-        <text x="58" y="17.4" text-anchor="middle" class="t-xs t-soft">LoRa antenna under the lid</text>
-        <!-- piezo grille -->
+        <!-- under the lid (tray coordinates, shifted +3 in x) -->
+        <rect x="49" y="12.5" width="25" height="25" rx="0.8" class="accent-line"/>
+        <text x="61.5" y="24" text-anchor="middle" class="t-sm t-acc">GNSS patch</text>
+        <text x="61.5" y="26.2" text-anchor="middle" class="t-sm t-acc">under here</text>
+        <rect x="13" y="50" width="40" height="8" rx="0.8" class="hidden-line"/>
+        <text x="33" y="54.8" text-anchor="middle" class="t-xs t-soft">LoRa antenna under the lid</text>
+        <!-- buzzer grille over tray (64,47) -->
         <g fill="var(--ink)">
-          <circle cx="24" cy="47" r="0.8"/><circle cx="21.4" cy="47" r="0.8"/><circle cx="26.6" cy="47" r="0.8"/>
-          <circle cx="22.7" cy="44.75" r="0.8"/><circle cx="25.3" cy="44.75" r="0.8"/><circle cx="22.7" cy="49.25" r="0.8"/><circle cx="25.3" cy="49.25" r="0.8"/>
+          <circle cx="67" cy="48.6" r="0.8"/><circle cx="64.4" cy="48.6" r="0.8"/><circle cx="69.6" cy="48.6" r="0.8"/>
+          <circle cx="65.7" cy="46.35" r="0.8"/><circle cx="68.3" cy="46.35" r="0.8"/><circle cx="65.7" cy="50.85" r="0.8"/><circle cx="68.3" cy="50.85" r="0.8"/>
         </g>
-        <!-- light pipe -->
-        <circle cx="18.6" cy="29.6" r="1.3" fill="#ffe8cc" stroke="#ff9f43" stroke-width="0.3"/>
-        <!-- sky arrow / engraving -->
-        <text x="30" y="25.5" class="t-lbl" font-weight="500">SKY ↑ THIS FACE UP</text>
-        <!-- labels -->
+        <circle cx="18.6" cy="27.6" r="1.3" fill="#ffe8cc" stroke="#ff9f43" stroke-width="0.3"/>
+        <text x="14" y="41.5" class="t-lbl" font-weight="500">SKY ↑ THIS FACE UP</text>
         <g class="t-sm">
-          <path d="M24 50.2V66" class="leader"/><text x="24" y="68.2" text-anchor="middle">piezo grille</text>
-          <path d="M18.6 31V36.2H23.4" class="leader"/><text x="24" y="36.7">LED light pipe</text>
-          <path d="M80 59.3V66" class="leader"/><text x="80" y="68.2" text-anchor="middle">M2 × 6 screws (4)</text>
+          <path d="M67 51.8V66" class="leader"/><text x="67" y="68.2" text-anchor="middle">buzzer grille</text>
+          <path d="M18.6 29V33.6H23.4" class="leader"/><text x="24" y="34.1">LED light pipe</text>
+          <path d="M12 59.3V66H14" class="leader"/><text x="14.5" y="66.5">M2 × 6 screws (4)</text>
         </g>
-        <!-- dimensions -->
         <path d="M8 74H84" class="dim" marker-start="url(#arr2)" marker-end="url(#arr2)"/>
         <path d="M8 63V75.4M84 63V75.4" class="dim"/>
         <text x="46" y="77.6" text-anchor="middle" class="t-lbl">76</text>
@@ -463,71 +449,69 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
         <text x="100" y="5.2" class="t-title">END · USB SIDE</text>
         <rect x="100" y="8" width="54" height="26" rx="2" class="shell"/>
         <path d="M100 10.5H154" stroke="var(--shell-wall)" stroke-width="0.3"/>
-        <rect x="111.45" y="17.8" width="8.9" height="3.4" rx="1.6" fill="var(--sheet)" stroke="var(--ink)" stroke-width="0.25"/>
-        <rect x="113" y="18.9" width="5.8" height="1.2" rx="0.5" fill="var(--metal)"/>
-        <circle cx="142" cy="22" r="1.6" fill="var(--sheet)" stroke="var(--ink)" stroke-width="0.25"/>
-        <circle cx="142" cy="22" r="1.1" fill="url(#hatch)"/>
+        <!-- USB-C: tray y 17.45–26.35 → end x 109.45–118.35; ~14.5 mm up -->
+        <rect x="109.45" y="17.8" width="8.9" height="3.4" rx="1.6" fill="var(--sheet)" stroke="var(--ink)" stroke-width="0.25"/>
+        <rect x="111" y="18.9" width="5.8" height="1.2" rx="0.5" fill="var(--metal)"/>
+        <!-- vent: tray y 46.9 → end x 138.9; level with the BME280 (~12 mm up) -->
+        <circle cx="138.9" cy="22" r="1.6" fill="var(--sheet)" stroke="var(--ink)" stroke-width="0.25"/>
+        <circle cx="138.9" cy="22" r="1.1" fill="url(#hatch)"/>
         <g class="t-sm">
-          <path d="M115.9 21.2V38" class="leader"/><text x="115.9" y="40.2" text-anchor="middle">USB-C (charge + console)</text>
-          <path d="M142 23.6V38" class="leader"/><text x="142" y="40.2" text-anchor="middle">vent Ø 3, foam behind it</text>
+          <path d="M113.9 21.2V38" class="leader"/><text x="113.9" y="40.2" text-anchor="middle">USB-C (charge + console)</text>
+          <path d="M138.9 23.6V38" class="leader"/><text x="140" y="40.2" text-anchor="middle">vent Ø 3, foam behind it</text>
           <path d="M154 10.5H158" class="leader"/><text x="158.6" y="11">lid seam</text>
         </g>
         <path d="M100 44H154" class="dim" marker-start="url(#arr2)" marker-end="url(#arr2)"/>
         <text x="127" y="46.6" text-anchor="middle" class="t-lbl">54</text>
-        <path d="M158 8V34" class="dim" marker-start="url(#arr2)" marker-end="url(#arr2)"/>
-        <path d="M155 8H159.4M155 34H159.4" class="dim"/>
-        <text x="161.6" y="21.8" class="t-lbl">26</text>
+        <path d="M162 8V34" class="dim" marker-start="url(#arr2)" marker-end="url(#arr2)"/>
+        <path d="M159 8H163.4M159 34H163.4" class="dim"/>
+        <text x="165" y="21.8" class="t-lbl">26</text>
 
         <!-- ---------- SIDE SECTION (stack) ---------- -->
         <text x="100" y="57.2" class="t-title">SIDE · STACK</text>
-        <!-- shell walls (hatched), floor y=86..88.5 (z 0..2.5), lid z 23.5..26 -->
         <g transform="translate(95 0)">
-          <!-- outer -->
           <path d="M5 62.5H81V88.5H5Z" fill="none" stroke="var(--shell-wall)" stroke-width="0.4"/>
           <rect x="5" y="86" width="76" height="2.5" fill="url(#hatch)" stroke="var(--shell-wall)" stroke-width="0.3"/>
           <rect x="5" y="62.5" width="76" height="2.5" fill="url(#hatch)" stroke="var(--shell-wall)" stroke-width="0.3"/>
           <rect x="5" y="65" width="2.5" height="21" fill="url(#hatch)" stroke="var(--shell-wall)" stroke-width="0.3"/>
           <rect x="78.5" y="65" width="2.5" height="21" fill="url(#hatch)" stroke="var(--shell-wall)" stroke-width="0.3"/>
-          <!-- USB opening in the left wall -->
           <rect x="4.6" y="72.9" width="3.3" height="3.4" fill="var(--sheet)"/>
-          <!-- velcro strip under the floor -->
           <rect x="14" y="88.7" width="58" height="1.4" rx="0.3" fill="var(--ink-soft)" opacity="0.6"/>
           <!-- battery z 2.5..7.5 -->
           <rect x="40" y="81" width="35" height="5" rx="1" fill="var(--batt)" class="edge"/>
           <!-- standoffs + carrier plate z 8.5..10 -->
           <rect x="12" y="80" width="1.6" height="6" fill="var(--metal)"/>
           <rect x="36" y="80" width="1.6" height="6" fill="var(--metal)"/>
-          <rect x="76" y="80" width="1.6" height="6" fill="var(--metal)" opacity="0"/>
           <rect x="9" y="78.5" width="68" height="1.5" fill="var(--plate)" stroke="var(--ink-soft)" stroke-width="0.25"/>
-          <!-- Wio-SX1262 z 10..13.5, XIAO z 13.5..15, shield to 17.5, USB-C -->
+          <!-- XIAO on Wio, USB-C through the wall -->
           <rect x="10" y="75" width="21" height="3.5" fill="var(--pcb-xiao)" opacity="0.75" class="edge"/>
           <rect x="10" y="73.5" width="21" height="1.5" fill="var(--pcb-xiao)" class="edge"/>
           <rect x="16.4" y="71" width="12.6" height="2.5" fill="var(--metal)" class="edge"/>
           <rect x="8.4" y="73" width="6.6" height="3.2" rx="1" fill="var(--metal)" class="edge"/>
-          <!-- GNSS board z 10..11.6, module to 13.6, SMA -->
-          <rect x="46" y="76.9" width="25.4" height="1.6" fill="var(--pcb-sfe)" class="edge"/>
-          <rect x="53.7" y="74.9" width="10" height="2" fill="var(--metal)" class="edge"/>
-          <rect x="71.2" y="74.4" width="5.4" height="4.1" rx="0.4" fill="var(--gold)" class="edge"/>
-          <!-- lid parts: patch z 19.5..23.5, piezo z 21..23.5, flex antenna -->
+          <!-- L76K, LSM6DS3 flat on the plate -->
+          <rect x="34" y="76.9" width="21" height="1.6" fill="var(--pcb-l76k)" class="edge"/>
+          <rect x="39.5" y="74.9" width="10" height="2" fill="var(--metal)" class="edge"/>
+          <rect x="57.5" y="76.9" width="20" height="1.6" fill="var(--pcb-grove)" class="edge"/>
+          <!-- lid parts: patch z 19.5..23.5, buzzer hangs 10 mm, LoRa antenna -->
           <rect x="49" y="65" width="25" height="4" fill="var(--ceramic)" class="edge"/>
           <rect x="49" y="68.4" width="25" height="0.6" fill="var(--metal)"/>
-          <rect x="18" y="65" width="12" height="2.5" fill="#2b2f33" class="edge"/>
-          <rect x="38" y="65" width="9" height="0.5" fill="var(--copper)"/>
-          <!-- grille holes through the lid -->
-          <g fill="var(--sheet)"><rect x="20.6" y="62.5" width="1" height="2.5"/><rect x="23.5" y="62.5" width="1" height="2.5"/><rect x="26.4" y="62.5" width="1" height="2.5"/></g>
+          <rect x="13" y="65" width="40" height="0.5" fill="var(--copper)"/>
+          <!-- grille holes -->
+          <rect x="54" y="65" width="20" height="10" rx="0.6" class="hidden-line"/>
+          <text x="64" y="73.8" text-anchor="middle" class="t-xs t-soft">buzzer (behind)</text>
+          <g fill="var(--sheet)"><rect x="61" y="62.5" width="1" height="2.5"/><rect x="63.5" y="62.5" width="1" height="2.5"/><rect x="66" y="62.5" width="1" height="2.5"/></g>
           <!-- sky arrow -->
           <path d="M61.5 61.6V56.4" stroke="var(--accent)" stroke-width="0.4" marker-end="url(#arrS)"/>
           <text x="63" y="58.2" class="t-sm t-acc">sky</text>
         </g>
         <g class="t-sm">
-          <text x="178.5" y="64.6">lid · patch · piezo</text>
-          <text x="178.5" y="75.6">XIAO on Wio · GNSS</text>
+          <text x="178.5" y="64.6">lid · patch · antenna</text>
+          <text x="178.5" y="75.6">XIAO on Wio · L76K · IMU</text>
           <text x="178.5" y="79.9">carrier plate</text>
           <text x="178.5" y="84.1">LiPo, 5 mm</text>
           <text x="178.5" y="89.6">floor · velcro</text>
         </g>
         <path d="M95 93.4H171" class="dim" marker-start="url(#arr2)" marker-end="url(#arr2)"/>
-        <text x="133" y="95.7" text-anchor="middle" class="t-sm">76 · stack is schematic, not one straight cut</text>
+        <text x="133" y="95.7" text-anchor="middle" class="t-sm">76 · schematic stack: the patch and the buzzer sit side by side under the lid</text>
       </svg>
     </div>
   </section>
@@ -536,13 +520,14 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
     <div class="notes">
       <h3>Build notes</h3>
       <ol>
-        <li><b>Antennas go on the lid, apart from each other.</b> The GNSS patch needs open sky above it and is easily swamped by the ESP32 and the LoRa radio, so it sits over the GNSS board, as far as possible from the XIAO. Keep the LoRa flex antenna at least 10 mm from the patch, and keep both clear of the battery.</li>
-        <li><b>Check the antenna band.</b> FANET in Israel runs at 918.5 MHz. Pick a LoRa antenna rated for the 868/915 band, not a narrow 868-only one.</li>
-        <li><b>The vent matters.</b> The BMP390 needs still air at outside pressure. A 3 mm hole with open-cell foam behind it lets pressure through but blocks gusts, sun on the sensor and rain. Without a vent, the closed box reads a slow, smoothed pressure. Keep the barometer clear of the ESP32's warm shield.</li>
-        <li><b>Add a power switch.</b> It's not in the parts list yet: a small slide switch in the battery's + lead, before the XIAO's BAT pads. Without one, the unit is always on and drains the LiPo in the bag.</li>
-        <li><b>Piezo on the lid, behind holes.</b> Glue it over a ring of 1.6 mm holes. Put the 1 kΩ resistor across it on the driver board, or it goes quiet after the first note.</li>
+        <li><b>The BME280 goes at the vent, away from the heat.</b> Its sensor end sits behind a 3 mm hole with open-cell foam over it. The foam lets pressure through but blocks gusts, sun and rain. Keep it away from the ESP32 shield and the battery: they warm the air the sensor reads.</li>
+        <li><b>The case reads warm, and that's handled.</b> The dew point is right even inside a warm box. The temperature reads high, so the first time you're at cloud base, press the remote's at-base button (or type <code>base</code>) and the unit learns the offset.</li>
+        <li><b>Antennas go on the lid, apart from each other.</b> The GNSS patch needs open sky above it. Keep the LoRa antenna at least 10 mm from it. The kit's Wi-Fi/Bluetooth antenna sticks to the tray wall, away from the battery.</li>
+        <li><b>The L76K sits beside the XIAO, not stacked on it.</b> It's made to plug onto the XIAO, but stacked it would cover the pins the Grove wires need. Four short wires do the same job: 3V3, GND, its TX to D7, its RX to D6. Check its schematic for which pads carry what.</li>
+        <li><b>Splice the I²C wires.</b> Both Grove modules share SDA, SCL, 3V3 and GND. Cut two Grove cables short and join them at the XIAO's pins.</li>
+        <li><b>Add a power switch.</b> Put a small slide switch in the battery's + lead, before the XIAO's BAT pads.</li>
         <li><b>Power on with the unit still.</b> The IMU learns which way is up at boot. Mounting angle doesn't matter after that.</li>
-        <li><b>Check the stack heights against your boards.</b> The 26 mm height assumes the Wio-SX1262 kit sits about 3.5 mm under the XIAO, and the XIAO's shield is the tallest part under the lid.</li>
+        <li><b>Future: an outside air sensor.</b> A second BME280 on a 30–50 cm Grove cable, in shade and airflow, gives true air temperature. It goes on the same I²C bus at address 0x77.</li>
       </ol>
     </div>
     <div>
@@ -550,20 +535,19 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
       <table>
         <thead><tr><th>Part</th><th class="num">Size, mm</th><th class="num">≈ g</th></tr></thead>
         <tbody>
-          <tr><td>XIAO ESP32-S3</td><td class="num">21 × 17.8</td><td class="num">3</td></tr>
-          <tr><td>Wio-SX1262 kit (under the XIAO)</td><td class="num">21 × 17.8</td><td class="num">3</td></tr>
-          <tr><td>Adafruit BMP390</td><td class="num">25.4 × 17.8</td><td class="num">1.5</td></tr>
-          <tr><td>SparkFun MAX-M10S + SMA</td><td class="num">25.4 × 25.4</td><td class="num">4</td></tr>
-          <tr><td>ICM-42688-P breakout</td><td class="num">15 × 13</td><td class="num">1</td></tr>
-          <tr><td>GNSS patch antenna</td><td class="num">25 × 25 × 4</td><td class="num">9</td></tr>
-          <tr><td>LoRa flex antenna</td><td class="num">40 × 8</td><td class="num">1</td></tr>
-          <tr><td>Piezo + driver</td><td class="num">Ø 12</td><td class="num">2</td></tr>
+          <tr><td>XIAO ESP32-S3 + Wio-SX1262 (kit)</td><td class="num">21 × 17.8</td><td class="num">6</td></tr>
+          <tr><td>L76K GNSS for XIAO</td><td class="num">21 × 18</td><td class="num">3</td></tr>
+          <tr><td>L76K active patch antenna</td><td class="num">25 × 25 × 4</td><td class="num">9</td></tr>
+          <tr><td>Grove BME280</td><td class="num">≈ 40 × 20</td><td class="num">3</td></tr>
+          <tr><td>Grove LSM6DS3</td><td class="num">≈ 20 × 20</td><td class="num">2</td></tr>
+          <tr><td>Grove passive buzzer</td><td class="num">20 × 20 × 10</td><td class="num">3</td></tr>
+          <tr><td>LoRa + Wi-Fi/BLE antennas (kit)</td><td class="num">—</td><td class="num">3</td></tr>
           <tr><td>LiPo 503035, 500 mAh</td><td class="num">35 × 30 × 5</td><td class="num">10</td></tr>
           <tr><td>Case, plate, screws, wire</td><td class="num">76 × 54 × 26</td><td class="num">27</td></tr>
         </tbody>
-        <tfoot><tr><td>Total</td><td></td><td class="num">≈ 62</td></tr></tfoot>
+        <tfoot><tr><td>Total</td><td></td><td class="num">≈ 66</td></tr></tfoot>
       </table>
-      <p class="small">Sizes are from the vendors' published board outlines. Weights are estimates. Measure the boards in hand before you design the case.</p>
+      <p class="small">Grove board sizes and all weights are estimates. Measure the boards in hand before you design the case.</p>
     </div>
   </section>
 

@@ -23,6 +23,7 @@ enum class Command : uint8_t {
   SendHelp = 0x09,      // 'h'  canned FANET message 3 — needs a double press on the remote
   Status = 0x0A,        // 's'  beep out MC and wind
   MarkThermal = 0x0B,   // 'k'
+  AtCloudBase = 0x0C,   // 'b'  "I'm at cloud base": calibrates the temperature offset
 };
 
 Command parseCommand(const uint8_t* data, size_t len);

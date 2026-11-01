@@ -16,7 +16,7 @@ constexpr TimeMs kSettleMs = 10000;  // filter start-up transients must not cue 
 }  // namespace
 
 FlightComputer::FlightComputer(const FlightComputerConfig& cfg)
-    : cfg_(cfg), kf_(cfg.vario), circ_(cfg.circling), advisor_(cfg.advisor), audio_(cfg.tone) {
+    : cfg_(cfg), kf_(cfg.vario), circ_(cfg.circling), atmo_(cfg.air), advisor_(cfg.advisor), audio_(cfg.tone) {
   if (cfg_.audioAvgMs) audioAvg_.setWindow(cfg_.audioAvgMs);
 }
 
@@ -121,6 +121,16 @@ void FlightComputer::onGnss(const GnssFix& f) {
   st_.airspeed = as;
 }
 
+void FlightComputer::onAir(TimeMs t, float caseTempC, float rhPct) {
+  if (!kf_.initialized()) return;  // cloud base is relative to the vario altitude
+  const AtmosphereEvent ev =
+      atmo_.update(t, st_.altitude, caseTempC, rhPct, circ_.circling(), st_.vario);
+  st_.air = atmo_.state();
+  if (t - filterStart_ < kSettleMs) return;
+  if (ev == AtmosphereEvent::NearBase) notify(Alert::NearBase, t);
+  else if (ev == AtmosphereEvent::Inversion) notify(Alert::Inversion, t);
+}
+
 void FlightComputer::notify(Alert a, TimeMs t) {
   audio_.play(a, t);
   pending_ = a;
@@ -163,6 +173,15 @@ bool FlightComputer::onCommand(Command c, TimeMs t) {
       notify(Alert::RemoteAck, t);
       return true;
     case Command::Status:
+      notify(Alert::RemoteAck, t);
+      return true;
+    case Command::AtCloudBase:
+      if (!st_.air.haveAir) {
+        notify(Alert::Error, t);
+        return true;
+      }
+      atmo_.calibrateAtBase();
+      st_.air = atmo_.state();
       notify(Alert::RemoteAck, t);
       return true;
     default:
