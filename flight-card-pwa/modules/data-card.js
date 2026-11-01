@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=195';
-import * as wx from './wx.js?v=195';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=195';
+import * as storage from './storage.js?v=196';
+import * as wx from './wx.js?v=196';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=196';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -42,9 +42,10 @@ export const FIELDS = [
     // CTOT input. Up to 4 digits → last two are minutes.
     { key: 'flight_time', label: 'Flight time', kind: 'hhmm' },
     // What was actually flown. Nothing can derive these — no free source knows
-    // the cleared procedure — so they're typed, here or in the logbook row.
-    { key: 'sid',         label: 'SID',         kind: 'text' },
-    { key: 'star',        label: 'STAR',        kind: 'text' },
+    // the cleared procedure — so they're typed in the logbook row, and only
+    // shown here once they hold something.
+    { key: 'sid',         label: 'SID',         kind: 'text', onlyIfSet: true },
+    { key: 'star',        label: 'STAR',        kind: 'text', onlyIfSet: true },
     // Logbook fields — block_time is the scheduled snapshot at first sync
     // (read-only), actual_flight_time fills automatically from GPS in
     // Phase 4 but is also manually editable.
@@ -165,7 +166,7 @@ export function render(root) {
     // Crew group: render only filled slots when at least one is filled,
     // unless the "+ add" toggle is on. When nothing is filled, show all so
     // a fresh leg's crew can be typed in.
-    let renderCells = group.cells;
+    let renderCells = group.cells.filter(c => !c.onlyIfSet || has(data[c.key]));
     let crewAddBtn = '';
     if (group.id === 'g-crew' && filled > 0 && !crewShowAll) {
       renderCells = group.cells.filter(c => has(data[c.key]));

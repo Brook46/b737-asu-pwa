@@ -17,6 +17,7 @@
      breathing room. One variable so the header, the PA sheet and the update
      banner can never disagree about where "below the blur" is. */
   --top-clear: calc(env(safe-area-inset-top, 0px) + 12px);
+  --tabbar-h: 54px;
   /* iOS system colours (Human Interface Guidelines), light appearance.
      Grouped background + white cells, labels in black and Apple's
      translucent greys, one tint for everything interactive. */
@@ -482,7 +483,7 @@ body.is-past-leg #card-checklist {
 
 /* ---------- Main + cards ---------- */
 .main {
-  padding: 12px 10px calc(env(safe-area-inset-bottom, 0) + 16px);
+  padding: 12px 10px calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 16px);
   display: flex; flex-direction: column; gap: 12px;
 }
 .card {
@@ -1338,7 +1339,7 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
 
 /* ---------- Toast ---------- */
 .toast {
-  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 14px);
   transform: translateX(-50%);
   background: rgba(13,17,23,0.92); color: #fff;
   padding: 8px 14px; border-radius: 20px;
@@ -1353,7 +1354,6 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
 .hidden { display: none !important; }
 
 /* ---------- Settings sheet ---------- */
-.settings-section { display: flex; flex-direction: column; gap: 10px; }
 .settings-h {
   margin: 0; font-size: 12px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--fg-mute); font-weight: 700;
@@ -3079,13 +3079,12 @@ body {
   line-height: 1.45; max-height: 50vh; overflow: auto;
 }
 
-/* Settings: the group heading above the link / backup sections. */
+/* Settings: the heading above the Advanced rows. */
 .settings-group {
   margin: 14px 2px -4px;
   font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
   text-transform: uppercase; color: var(--fg-mute);
 }
-.settings-section + .settings-section { border-top: 0.5px solid var(--line); padding-top: 14px; }
 
 /* ---------- Analytics search (iOS search field + suggestion list) ---------- */
 .an-search { position: relative; margin: 0 2px 12px; }
@@ -3550,15 +3549,7 @@ body {
 .rr-item.warn { color: var(--warn); }
 .rr-go { padding: 6px 14px; font-size: 13px; }
 
-/* ---------- Header v2: labelled tools + "•••" ---------- */
-.actions .btn.tool-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 36px; padding: 0 12px; border-radius: 999px;
-  background: var(--bg-sunk); color: var(--fg);
-  font-size: 14px; font-weight: 600;
-}
-.actions .btn.tool-btn svg { flex: none; }
-.actions .btn.tool-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+/* ---------- "•••" ---------- */
 .more-menu { position: relative; }
 .more-menu > summary { list-style: none; cursor: pointer; }
 .more-menu > summary::-webkit-details-marker { display: none; }
@@ -3608,10 +3599,6 @@ body {
 .ptr.is-done .ptr-arc { stroke-dasharray: 100 0; }
 .ptr.is-done .ptr-ok { opacity: 1; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
-/* On a phone the three labels shorten to icons + short words still. */
-@media (max-width: 430px) {
-  .actions .btn.tool-btn { padding: 0 10px; font-size: 13px; gap: 5px; }
-}
 
 /* ---------- Top bar on a phone ----------
    The 72 px on the left is for the iPad's window controls; a phone has none,
@@ -3661,3 +3648,46 @@ body {
 .clear-row + .clear-row { border-top: 0.5px solid var(--line); }
 .clear-row input { width: 20px; height: 20px; accent-color: var(--danger); }
 .clear-go { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+/* ---------- Bottom bar ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  padding: 4px max(env(safe-area-inset-right, 0px), 6px) env(safe-area-inset-bottom, 0px) max(env(safe-area-inset-left, 0px), 6px);
+  background: var(--glass-bg-strong);
+  border-top: 0.5px solid var(--line);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+}
+.tab {
+  -webkit-appearance: none; appearance: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  height: calc(var(--tabbar-h) - 4px); padding: 0; border: 0; background: transparent; cursor: pointer;
+  color: var(--fg-mute); font: inherit; font-size: 11px; font-weight: 600;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.tab svg { flex: none; width: 24px; height: 24px; }
+.tab.is-on { color: var(--accent); }
+.tab:active { color: var(--accent); }
+
+/* ---------- Settings: one row each, opened on request ---------- */
+.set-row { border-top: 0.5px solid var(--line); }
+.set-row > summary {
+  display: flex; align-items: center; gap: 10px; padding: 13px 2px;
+  list-style: none; cursor: pointer; font-size: 16px; color: var(--fg);
+}
+.set-row > summary::-webkit-details-marker { display: none; }
+.set-row > summary::after { content: "›"; color: var(--fg-dim); font-size: 18px; line-height: 1; transition: transform .15s ease; }
+.set-row[open] > summary::after { transform: rotate(90deg); }
+.set-name { flex: none; margin-right: auto; }
+.set-status { flex: 0 1 auto; min-width: 0; font-size: 13px; color: var(--fg-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-body { display: flex; flex-direction: column; gap: 10px; padding: 0 2px 14px; }
+.set-why > summary {
+  width: 22px; height: 22px; border-radius: 50%; list-style: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-sunk); color: var(--fg-mute); font-size: 13px; font-weight: 700;
+}
+.set-why > summary::-webkit-details-marker { display: none; }
+.set-why[open] > summary { background: var(--accent); color: var(--on-accent); }
+.set-why p { margin: 8px 0 0; }
+.settings-group + .set-row { border-top: 0; }
