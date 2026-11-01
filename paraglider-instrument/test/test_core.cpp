@@ -20,6 +20,11 @@
 #include "hotspots.h"
 #include "terrain.h"
 #include "thermal_assist.h"
+#include "thermal_model.h"
+#include "task.h"
+#include "traffic.h"
+#include "profile.h"
+#include "xc.h"
 #include "flight_computer.h"
 #include "kalman_vario.h"
 #include "nmea.h"
@@ -1112,6 +1117,307 @@ TEST("flight computer: the clock runs on between GPS time fixes") {
   for (TimeMs t = 1020; t <= 1020 + 45 * 60000; t += 1000) fc.tick(t);  // anchored at the first tick
   EXPECT(fc.status().clockValid);
   EXPECT(fc.status().utcMin == 10 * 60 + 15);
+}
+
+// ---------------------------------------------------------------- thermal model
+
+namespace {
+// Flies circles of radius r (optionally varying) around (ox, oy) in a round
+// thermal W·exp(−d²/R²) + B centred at the origin; returns the model's view.
+TurnView flyModel(float W, float R, float B, float ox, float oy, float r0, float rVar, float seconds,
+                  float noise = 0.15f) {
+  ThermalModel m(defaultParagliderPolar());
+  const float v = 9.6f;
+  float hdg = 0, x = ox, y = oy - r0;  // start south of the centre heading east… (right turn)
+  uint32_t rng = 7;
+  auto gauss = [&]() {
+    float s = 0;
+    for (int i = 0; i < 4; ++i) {
+      rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+      s += (rng & 0xFFFF) / 65536.0f;
+    }
+    return (s - 2) * 1.732f;
+  };
+  // Right turn around a fixed centre (ox, oy): the centre is 90° right of
+  // the heading, so pos = centre − r·(cos h, −sin h).
+  for (TimeMs t = 200; t <= static_cast<TimeMs>(seconds * 1000); t += 200) {
+    const float r = r0 + rVar * std::sin(t / 47000.0f * 6.283f);
+    const float rate = v / r * kRadToDeg;  // deg/s, right turn
+    hdg = std::fmod(hdg + rate * 0.2f, 360.0f);
+    x = ox - r * std::cos(hdg * kDegToRad);
+    y = oy + r * std::sin(hdg * kDegToRad);
+    const float w = W * std::exp(-(x * x + y * y) / (R * R)) + B;
+    const float vario = w - m.turnSink(v, r) + noise * gauss();
+    m.add(t, x, y, hdg, v, rate, vario);
+    m.update(t, true);
+  }
+  return m.view();
+}
+}  // namespace
+
+TEST("thermal model: off-centre circle → MOVE toward the core, core found within 15 m") {
+  // Circle centred 60 m east of a 3 m/s, 70 m core.
+  const TurnView v = flyModel(3.0f, 70, -0.5f, 60, 0, 30, 0, 100);
+  std::printf("        core (%.0f, %.0f) R %.0f W %.1f q %.2f → %s, dist %.0f m, bearing %.0f, gain %+.1f\n",
+              static_cast<double>(v.fit.cx), static_cast<double>(v.fit.cy), static_cast<double>(v.fit.radius),
+              static_cast<double>(v.fit.strength), static_cast<double>(v.fit.quality), turnAdviceName(v.advice),
+              static_cast<double>(v.coreDist), static_cast<double>(v.coreBearing), static_cast<double>(v.gain));
+  EXPECT(v.fit.valid);
+  EXPECT(std::hypot(v.fit.cx, v.fit.cy) < 15);
+  EXPECT(v.advice == TurnAdvice::Move);
+  EXPECT(std::fabs(angleDiffDeg(v.coreBearing, 270)) < 25);  // the core is west of the circle
+}
+
+TEST("thermal model: centred in a narrow strong core → TIGHTEN") {
+  const TurnView v = flyModel(3.5f, 40, -0.6f, 0, 0, 40, 8, 120);
+  std::printf("        R %.0f W %.1f → %s: radius %.0f → %.0f m, bank %.0f° → %.0f°, gain %+.2f\n",
+              static_cast<double>(v.fit.radius), static_cast<double>(v.fit.strength), turnAdviceName(v.advice),
+              static_cast<double>(v.myRadius), static_cast<double>(v.bestRadius), static_cast<double>(v.bankNow),
+              static_cast<double>(v.bankBest), static_cast<double>(v.gain));
+  EXPECT(v.advice == TurnAdvice::Tighten);
+  EXPECT(v.bankBest > v.bankNow);
+}
+
+TEST("thermal model: centred in a broad weak thermal, circling steep → WIDEN") {
+  const TurnView v = flyModel(1.2f, 200, -0.3f, 0, 0, 16, 3, 120);
+  std::printf("        R %.0f W %.1f → %s: radius %.0f → %.0f m, bank %.0f° → %.0f°, gain %+.2f\n",
+              static_cast<double>(v.fit.radius), static_cast<double>(v.fit.strength), turnAdviceName(v.advice),
+              static_cast<double>(v.myRadius), static_cast<double>(v.bestRadius), static_cast<double>(v.bankNow),
+              static_cast<double>(v.bankBest), static_cast<double>(v.gain));
+  EXPECT(v.advice == TurnAdvice::Widen || v.advice == TurnAdvice::None);  // "none" = honest: can't tell
+  EXPECT(v.advice != TurnAdvice::Tighten);
+}
+
+TEST("thermal model: a steady centred circle can't tell the core size → no radius advice") {
+  const TurnView v = flyModel(2.5f, 70, -0.5f, 0, 0, 30, 0, 90, 0.05f);
+  std::printf("        → %s (R fit %.0f)\n", turnAdviceName(v.advice), static_cast<double>(v.fit.radius));
+  EXPECT(v.advice != TurnAdvice::Tighten && v.advice != TurnAdvice::Widen && v.advice != TurnAdvice::Move);
+}
+
+// ---------------------------------------------------------------- XC tactics
+
+TEST("xc: MC drops as you get low in the band; race flies fuller MC than XC") {
+  XcAdvisor xc;
+  const Polar p = defaultParagliderPolar();
+  XcInput in;
+  in.aglValid = true;
+  in.ceilingValid = true;
+  in.altMsl = 2000;
+  in.ceilingMsl = 2100;
+  in.mcBase = 2.0f;
+  in.agl = 1800;  // near the top
+  const float high = xc.update(in, p).mc;
+  in.agl = 350;
+  in.altMsl = 550;  // ground 200, near the floor
+  const float low = xc.update(in, p).mc;
+  in.race = true;
+  const float lowRace = xc.update(in, p).mc;
+  in.agl = 1800;
+  in.altMsl = 2000;
+  const float highRace = xc.update(in, p).mc;
+  std::printf("        XC: high %.2f low %.2f   race: high %.2f low %.2f\n", static_cast<double>(high),
+              static_cast<double>(low), static_cast<double>(highRace), static_cast<double>(lowRace));
+  EXPECT(high > 1.2f && high <= 1.5f);  // ≈ 0.75 × 2
+  EXPECT(low < 0.6f);                   // survival
+  EXPECT(highRace > high && lowRace > low);
+}
+
+TEST("xc: bar — none in still air at low MC, more into headwind and sink, capped near ground / in turbulence") {
+  XcAdvisor xc;
+  const Polar p = defaultParagliderPolar();
+  XcInput in;
+  in.aglValid = true;
+  in.agl = 1200;
+  in.altMsl = 1400;
+  in.mcBase = 0.5f;
+  const float calm = xc.update(in, p).bar;
+  in.headwind = 6;
+  in.netto = -1.5f;
+  in.mcBase = 2.0f;
+  const float hard = xc.update(in, p).bar;
+  in.agl = 250;
+  in.altMsl = 450;
+  const XcOutput low = xc.update(in, p);
+  in.agl = 1200;
+  in.altMsl = 1400;
+  in.turbulence = 3;
+  const XcOutput turb = xc.update(in, p);
+  in.turbulence = 0;
+  in.agl = 100;
+  in.altMsl = 300;
+  const XcOutput ground = xc.update(in, p);
+  std::printf("        calm %.2f  headwind+sink %.2f  low %.2f (%s)  turbulent %.2f  ground %.2f\n",
+              static_cast<double>(calm), static_cast<double>(hard), static_cast<double>(low.bar),
+              barLimitName(low.barLimit), static_cast<double>(turb.bar), static_cast<double>(ground.bar));
+  EXPECT(calm == 0);
+  EXPECT(hard >= 0.75f);
+  EXPECT(low.bar <= 0.5f && low.barLimit == BarLimit::Low);
+  EXPECT(turb.bar <= 0.25f && turb.barLimit == BarLimit::Turbulence);
+  EXPECT(ground.bar == 0);
+}
+
+TEST("xc: leave reasons — final glide (race leaves at once), measured base, better lift nearby") {
+  XcAdvisor xc;
+  const Polar p = defaultParagliderPolar();
+  XcInput in;
+  in.circling = true;
+  in.finalGlide = true;
+  in.race = true;
+  EXPECT(xc.update(in, p).leave == LeaveReason::FinalGlide);
+  in.race = false;
+  EXPECT(xc.update(in, p).leave == LeaveReason::None);  // XC: not before the thermal is judged
+  in.thermalWarm = true;
+  EXPECT(xc.update(in, p).leave == LeaveReason::FinalGlide);
+  in.finalGlide = false;
+  in.ceilingValid = in.ceilingIsBase = true;
+  in.ceilingMsl = 2000;
+  in.altMsl = 1950;
+  EXPECT(xc.update(in, p).leave == LeaveReason::Base);
+  in.ceilingIsBase = false;  // only the best top so far: keep climbing
+  EXPECT(xc.update(in, p).leave == LeaveReason::None);
+  in.betterNearby = true;
+  EXPECT(xc.update(in, p).leave == LeaveReason::Better);
+}
+
+TEST("task: reads an XCTrack .xctsk, skips takeoff, exit start, turnpoints, final glide") {
+  const char* json = R"({"taskType":"CLASSIC","version":1,"earthModel":"WGS84",
+    "turnpoints":[
+      {"type":"TAKEOFF","radius":400,"waypoint":{"name":"Gilboa","lat":32.4585,"lon":35.412,"altSmoothed":480}},
+      {"type":"SSS","radius":3000,"waypoint":{"name":"Start","lat":32.4585,"lon":35.412,"altSmoothed":480}},
+      {"radius":1000,"waypoint":{"name":"Tabor","description":"x","lat":32.687,"lon":35.390,"altSmoothed":550}},
+      {"type":"ESS","radius":1000,"waypoint":{"name":"Afula","lat":32.607,"lon":35.289,"altSmoothed":60}}],
+    "sss":{"type":"RACE","direction":"EXIT","timeGates":["10:00:00Z"]},"goal":{"type":"CYLINDER"}})";
+  Task task;
+  EXPECT(task.parseXctsk(json, std::strlen(json)));
+  EXPECT(task.count() == 4);
+  EXPECT(task.next() == 1);  // takeoff skipped
+  EXPECT(std::strcmp(task.at(2).name, "Tabor") == 0);
+  EXPECT_NEAR(task.at(1).radius, 3000, 1e-3);
+  // Inside the start, then out of it: started.
+  EXPECT(!task.update(32.4585, 35.412));
+  EXPECT(task.update(32.49, 35.412));  // 3.5 km north: exited
+  EXPECT(task.next() == 2);
+  const float rem = task.remaining(32.49, 35.412);
+  std::printf("        remaining %.1f km\n", static_cast<double>(rem / 1000));
+  EXPECT(rem > 30000 && rem < 40000);
+  const Polar p = defaultParagliderPolar();
+  const float need0 = task.requiredAltitude(p, 32.49, 35.412, 0, 0, 0, nullptr, 150);
+  const float need2 = task.requiredAltitude(p, 32.49, 35.412, 2, 0, 0, nullptr, 150);
+  const float needHead = task.requiredAltitude(p, 32.49, 35.412, 0, -4, 0, nullptr, 150);  // wind from the north
+  std::printf("        final glide needs %.0f m (MC 0), %.0f m (MC 2), %.0f m (MC 0, 14 km/h headwind)\n",
+              static_cast<double>(need0), static_cast<double>(need2), static_cast<double>(needHead));
+  EXPECT(need2 > need0);
+  EXPECT(needHead > need0);
+  EXPECT(task.update(32.687, 35.392));  // Tabor
+  EXPECT(task.next() == 3);
+}
+
+TEST("traffic: a pilot turning and climbing marks a live thermal; FC offers it as the target") {
+  Traffic tr;
+  fanet::Tracking t;
+  t.lat = 32.50;
+  t.lon = 35.45;
+  t.altitude = 1200;
+  t.climb = 2.4f;
+  t.hasTurnRate = true;
+  t.turnRateDeg = 18;
+  tr.onTracking(1000, 0xFC1234, t);
+  tr.onTracking(4000, 0xFC1234, t);
+  EXPECT(tr.pilots() == 1);
+  EXPECT(tr.thermals() == 1);
+  EXPECT_NEAR(tr.thermal(0).climb, 2.4, 0.01);
+  t.turnRateDeg = 0;  // gliding pilots don't mark
+  tr.onTracking(5000, 0xFC9999, t);
+  EXPECT(tr.thermals() == 1);
+  tr.expire(5000 + 21 * 60000);
+  EXPECT(tr.thermals() == 0 && tr.pilots() == 0);
+
+  // Through the FlightComputer: trusted GPS here, a climbing pilot 4 km away.
+  FlightComputer fc;
+  for (TimeMs ms = 0; ms <= 30000; ms += 20) {
+    if (ms % 40 == 0) {
+      BaroSample b{ms, altitudeToPressure(1500), 20, true};
+      fc.onBaro(b);
+    }
+    if (ms % 200 == 0) fc.onGnss(fixAt(ms, 32.47, 35.42, 1500, 0, 10));
+    if (ms % 3000 == 0) {
+      fanet::Tracking o;
+      o.lat = 32.50;
+      o.lon = 35.44;
+      o.altitude = 1300;
+      o.climb = 2.5f;
+      o.hasTurnRate = true;
+      o.turnRateDeg = -20;
+      fc.onTraffic(ms, 0xFC0001, o);
+    }
+    fc.tick(ms);
+  }
+  const Target& b = fc.status().best;
+  std::printf("        target live %d climb %.1f at %.1f km, arrive %+.0f m\n", b.live, static_cast<double>(b.liveClimb),
+              static_cast<double>(b.distM / 1000), static_cast<double>(b.arrivalAgl));
+  EXPECT(b.valid && b.live);
+  EXPECT(fc.status().nearCount == 1);
+}
+
+TEST("profile: winds by altitude, mean between two heights") {
+  Profile pr;
+  pr.addWind(0, 450, 0, 2);   // band 4: 2 m/s toward east
+  pr.addWind(0, 1450, 0, 6);  // band 14: 6 m/s
+  float n, e;
+  EXPECT(pr.windBetween(1500, 400, n, e));
+  EXPECT_NEAR(e, 4, 1e-3);
+  EXPECT(!pr.windBetween(2500, 2000, n, e));
+  EXPECT(pr.lowest() == 4 && pr.highest() == 14);
+}
+
+TEST("flight computer: thermal model drives TIGHTEN/MOVE sounds in a synthetic circle off the core") {
+  // Fly circles (gyro + baro only) 70 m from a 3 m/s core: expect a MOVE cue.
+  FlightComputer fc;
+  const float v = 9.6f, r = 32;
+  const float rate = v / r * kRadToDeg;
+  float hdg = 90, x = 70, y = 0, alt = 1000;
+  float cx = 70, cy = 0;  // circle centre (moves when straightening)
+  bool move = false, again = false, straight = false;
+  TimeMs straightUntil = 0;
+  for (TimeMs t = 10; t <= 240000; t += 10) {
+    const bool turning = t >= straightUntil;
+    if (turning) {
+      hdg = std::fmod(hdg + rate * 0.01f, 360.0f);
+      x = cx - r * std::cos(hdg * kDegToRad);
+      y = cy + r * std::sin(hdg * kDegToRad);
+    } else {
+      x += v * std::sin(hdg * kDegToRad) * 0.01f;
+      y += v * std::cos(hdg * kDegToRad) * 0.01f;
+      cx = x + r * std::cos(hdg * kDegToRad);
+      cy = y - r * std::sin(hdg * kDegToRad);
+    }
+    const float w = 3.0f * std::exp(-(x * x + y * y) / (70.0f * 70)) - 0.5f;
+    alt += (w - (turning ? 1.25f : 1.1f)) * 0.01f;
+    if (t % 40 == 0) {
+      BaroSample b{t, altitudeToPressure(alt), 20, true};
+      fc.onBaro(b);
+    }
+    ImuSample m;
+    m.t = t;
+    m.az = kGravity;
+    m.gz = turning ? -rate * kDegToRad : 0;
+    m.valid = true;
+    fc.onImu(m);
+    const Outputs o = fc.tick(t);
+    if (o.alertStarted == Alert::Move && !move) {
+      move = true;
+      // obey: straighten for the advised time
+      straightUntil = t + static_cast<TimeMs>(fc.status().turn.moveSeconds * 1000);
+      straight = true;
+    }
+    if (o.alertStarted == Alert::TurnAgain) again = true;
+  }
+  const TurnView& tv = fc.status().turn;
+  std::printf("        MOVE %d, TURN AGAIN %d; end: circle centre %.0f m from core, advice %s, climb %+.1f\n", move,
+              again, static_cast<double>(std::hypot(cx, cy)), turnAdviceName(tv.advice),
+              static_cast<double>(fc.status().advisor.circleClimb));
+  EXPECT(move && again && straight);
+  EXPECT(std::hypot(cx, cy) < 45);  // following the advice moved the circle onto the core
 }
 
 int main() { return check::runAll(); }

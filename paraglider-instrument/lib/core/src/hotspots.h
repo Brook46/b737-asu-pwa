@@ -28,6 +28,7 @@ struct Hotspot {
 // Approximate sunrise, minutes after 00:00 UTC, for the date and place
 // (NOAA solar-position approximation; good to a few minutes).
 int sunriseUtcMin(int year, int month, int day, double lat, double lon);
+int sunsetUtcMin(int year, int month, int day, double lat, double lon);
 int seasonOf(int month);
 int slotOf(float hoursAfterSunrise);
 
@@ -60,7 +61,14 @@ struct Target {
   float bearingDeg = 0, distM = 0;
   float arrivalAgl = 0;  // m above the ground there, at best glide in this wind
   float chance = 0;      // 0..1
+  bool live = false;     // from another pilot climbing there (FANET), not history
+  float liveClimb = 0;   // their climb, m/s
+  int ageMin = 0;        // minutes since they were climbing there
 };
+
+// Score used to rank glide targets: chance, discounted by distance and by
+// arriving low. Shared by historical and live thermals.
+float targetScore(float chance, float arrivalAgl, float distM, float minArrival);
 
 // Glide arrival height (m AGL) at a point, flying best L/D through the wind.
 float arrivalAgl(const Polar& p, const Terrain* terr, double lat, double lon, float alt, double tLat,

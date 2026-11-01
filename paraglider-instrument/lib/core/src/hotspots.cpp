@@ -18,7 +18,25 @@ int dayOfYear(int y, int m, int d) {
 }
 }  // namespace
 
+namespace {
+// Solar noon and the half-day hour angle (minutes, degrees).
+void solarDay(int year, int month, int day, double lat, double lon, double& noonMin, double& ha);
+}  // namespace
+
 int sunriseUtcMin(int year, int month, int day, double lat, double lon) {
+  double noon, ha;
+  solarDay(year, month, day, lat, lon, noon, ha);
+  return static_cast<int>(std::lround(noon - 4.0 * ha));
+}
+
+int sunsetUtcMin(int year, int month, int day, double lat, double lon) {
+  double noon, ha;
+  solarDay(year, month, day, lat, lon, noon, ha);
+  return static_cast<int>(std::lround(noon + 4.0 * ha));
+}
+
+namespace {
+void solarDay(int year, int month, int day, double lat, double lon, double& noonMin, double& haOut) {
   const double g = 2 * kPiD / 365.0 * (dayOfYear(year, month, day) - 1);
   const double eqt = 229.18 * (0.000075 + 0.001868 * std::cos(g) - 0.032077 * std::sin(g) -
                                0.014615 * std::cos(2 * g) - 0.040849 * std::sin(2 * g));
@@ -28,9 +46,10 @@ int sunriseUtcMin(int year, int month, int day, double lat, double lon) {
   double c = std::cos(90.833 * kPiD / 180.0) / (std::cos(la) * std::cos(decl)) - std::tan(la) * std::tan(decl);
   if (c > 1) c = 1;
   if (c < -1) c = -1;
-  const double ha = std::acos(c) * 180.0 / kPiD;
-  return static_cast<int>(std::lround(720.0 - 4.0 * (lon + ha) - eqt));
+  haOut = std::acos(c) * 180.0 / kPiD;
+  noonMin = 720.0 - 4.0 * lon - eqt;
 }
+}  // namespace
 
 int seasonOf(int month) {
   if (month == 12 || month <= 2) return 0;
@@ -105,6 +124,12 @@ float arrivalAgl(const Polar& p, const Terrain* terr, double lat, double lon, fl
   return alt - p.sink(v) * dist / gs - ground;
 }
 
+float targetScore(float chance, float arr, float dist, float minArrival) {
+  float reach = (arr - minArrival) / 300.0f + 0.5f;
+  if (reach > 1) reach = 1;
+  return chance * reach / (1.0f + dist / 6000.0f);
+}
+
 Target bestHotspot(const HotspotMap& m, const Polar& p, const Terrain* terr, double lat, double lon, float alt,
                    float wN, float wE, int year, int month, int day, int utcMin, float minArrival) {
   Target best;
@@ -115,9 +140,7 @@ Target bestHotspot(const HotspotMap& m, const Polar& p, const Terrain* terr, dou
     float brg, dist;
     const float arr = arrivalAgl(p, terr, lat, lon, alt, m.at(i).lat, m.at(i).lon, wN, wE, brg, dist);
     if (dist < 400 || arr < minArrival) continue;
-    float reach = (arr - minArrival) / 300.0f + 0.5f;
-    if (reach > 1) reach = 1;
-    const float score = ch * reach / (1.0f + dist / 6000.0f);
+    const float score = targetScore(ch, arr, dist, minArrival);
     if (score > bestScore) {
       bestScore = score;
       best = {true, false, i, m.at(i).lat, m.at(i).lon, brg, dist, arr, ch};

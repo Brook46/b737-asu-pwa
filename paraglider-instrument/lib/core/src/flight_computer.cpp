@@ -17,7 +17,14 @@ constexpr float kMaxJumpM = 100.0f;  // filter start-up transients must not cue 
 }  // namespace
 
 FlightComputer::FlightComputer(const FlightComputerConfig& cfg)
-    : cfg_(cfg), kf_(cfg.vario), circ_(cfg.circling), atmo_(cfg.air), advisor_(cfg.advisor), audio_(cfg.tone) {
+    : cfg_(cfg),
+      kf_(cfg.vario),
+      circ_(cfg.circling),
+      atmo_(cfg.air),
+      model_(cfg.polar),
+      xc_(cfg.xc),
+      advisor_(cfg.advisor),
+      audio_(cfg.tone) {
   if (cfg_.audioAvgMs) audioAvg_.setWindow(cfg_.audioAvgMs);
 }
 
@@ -27,6 +34,20 @@ void FlightComputer::reset() {
   relHdg_ = 0;
   guard_.reset();
   assist_.reset();
+  model_.reset();
+  xc_.reset();
+  traffic_.reset();
+  profile_.reset();
+  airX_ = airY_ = 0;
+  lastAirStep_ = lastCirclingT_ = circStart_ = 0;
+  nettoAvg_ = accMean_ = accVar_ = 0;
+  thermalTop_ = curTop_ = 0;
+  betterNearby_ = finalCued_ = false;
+  lastWindFed_ = 0;
+  candAdv_ = cuedAdv_ = TurnAdvice::None;
+  candSince_ = lastTurnCue_ = lastMoveCue_ = moveEnd_ = 0;
+  cuedBar_ = candBar_ = 0;
+  barSince_ = lastBarCue_ = leftThermal_ = 0;
   gyroSinceFix_ = 0;
   haveMslOffset_ = false;
   prevGps_ = GpsState::NoData;
@@ -112,6 +133,10 @@ void FlightComputer::onImu(const ImuSample& s) {
   constexpr float kMaxAcc = 2.0f * kGravity;
   if (accelUp_ > kMaxAcc) accelUp_ = kMaxAcc;
   if (accelUp_ < -kMaxAcc) accelUp_ = -kMaxAcc;
+  // Turbulence: RMS of vertical acceleration about its ~2 s mean.
+  accMean_ += 0.005f * (accelUp_ - accMean_);
+  accVar_ += 0.01f * ((accelUp_ - accMean_) * (accelUp_ - accMean_) - accVar_);
+  st_.turbulence = std::sqrt(accVar_);
   if (kf_.initialized() && lastPredict_ && s.t > lastPredict_) {
     kf_.predict((s.t - lastPredict_) / 1000.0f, accelUp_);
     lastPredict_ = s.t;
@@ -179,6 +204,28 @@ void FlightComputer::onGnss(const GnssFix& f) {
     if (as > cfg_.polar.vMax()) as = cfg_.polar.vMax();
   }
   st_.airspeed = as;
+}
+
+void FlightComputer::onTraffic(TimeMs t, uint32_t id, const fanet::Tracking& tr) {
+  // Someone else's GPS can be spoofed too: ignore reports far from us.
+  if (st_.pos.valid && !st_.pos.deadReckoned) {
+    float n, e;
+    offsetMeters(st_.pos.lat, st_.pos.lon, tr.lat, tr.lon, n, e);
+    if (n * n + e * e > 60000.0f * 60000.0f) return;
+  }
+  traffic_.onTracking(t, id, tr);
+  // A pilot in our thermal: their climb is a sample of the lift where they
+  // are. Needs our trusted position and north to place them in our air frame.
+  if (st_.circling && st_.gps == GpsState::Ok && st_.headingValid && st_.pos.valid) {
+    float n, e;
+    offsetMeters(st_.pos.lat, st_.pos.lon, tr.lat, tr.lon, n, e);
+    if (n * n + e * e < 400.0f * 400.0f && std::fabs(tr.altitude - st_.altMsl) < 300) {
+      const float d = (st_.assistHeading - st_.heading) * kDegToRad;  // true → assist frame
+      const float x = airX_ + e * std::cos(d) + n * std::sin(d);
+      const float y = airY_ - e * std::sin(d) + n * std::cos(d);
+      model_.addOther(t, x, y, tr.climb);
+    }
+  }
 }
 
 void FlightComputer::onAir(TimeMs t, float caseTempC, float rhPct) {
@@ -251,25 +298,122 @@ bool FlightComputer::onCommand(Command c, TimeMs t) {
 
 void FlightComputer::runAdvisor(TimeMs t) {
   // Netto = what the air is doing = our climb + our own sink at this airspeed.
+  // No GPS yet (or jammed from the start): airspeed unknown → assume trim, not 0.
+  if (st_.airspeed <= 0) st_.airspeed = cfg_.polar.bestGlideSpeed();
   st_.netto = st_.vario + cfg_.polar.sink(st_.airspeed);
+  const bool circling = circ_.circling();
+  if (!circling) nettoAvg_ += 0.067f * (st_.netto - nettoAvg_);  // ~3 s: don't chase gusts
+
+  // Course: the next turnpoint when racing a task, else where you're heading.
+  float headwind = 0;
+  const bool onTask = st_.task.active && !st_.task.finished && st_.gps == GpsState::Ok;
+  if (st_.wind.valid && (st_.headingValid || onTask)) {
+    const float tr = (onTask ? st_.task.nextBearing : st_.heading) * kDegToRad;
+    headwind = -(st_.wind.toN * std::cos(tr) + st_.wind.toE * std::sin(tr));
+  }
+  XcInput xi;
+  xi.t = t;
+  xi.circling = circling;
+  xi.altMsl = st_.altMsl;
+  xi.agl = st_.agl;
+  xi.aglValid = st_.aglValid;
+  xi.ceilingMsl = st_.ceilingMsl;
+  xi.ceilingValid = st_.ceilingValid;
+  xi.ceilingIsBase = st_.ceilingIsBase;
+  xi.mcBase = advisor_.mc();
+  xi.netto = nettoAvg_;
+  xi.headwind = headwind;
+  if (st_.clockValid && st_.pos.valid) {
+    const int sr = sunriseUtcMin(st_.year, st_.month, st_.day, st_.pos.lat, st_.pos.lon);
+    const int ss = sunsetUtcMin(st_.year, st_.month, st_.day, st_.pos.lat, st_.pos.lon);
+    (void)sr;
+    xi.hoursToSunset = (ss - st_.utcMin) / 60.0f;
+  }
+  bool hasStart = false;
+  if (task_)
+    for (int i = 0; i < task_->count(); ++i)
+      if (task_->at(i).type == TpType::Start) hasStart = true;
+  xi.race = onTask && st_.task.started && hasStart;
+  xi.finalGlide = onTask && st_.task.finalValid && st_.task.finalSurplus >= 0;
+  xi.circleClimb = st_.advisor.circleClimb;
+  xi.thermalWarm = circling && circStart_ && t - circStart_ >= 40000;
+  xi.betterNearby = betterNearby_;
+  xi.turbulence = st_.turbulence;
+  st_.xc = xc_.update(xi, cfg_.polar);
+
   AdvisorInput in;
   in.t = t;
-  in.circling = circ_.circling();
+  in.circling = circling;
   in.leaving = circ_.mode() == FlightMode::MaybeCruise;
   in.altitude = st_.altitude;
   in.vario = st_.vario;
   in.netto = st_.netto;
+  in.mcEffective = st_.xc.mc;
+  in.leaveNow = st_.xc.leave != LeaveReason::None;
   st_.advisor = advisor_.update(in);
   if (st_.advisor.changed) {
-    notify(st_.advisor.advice == Advice::Stay ? Alert::Stay : Alert::Glide, t);
+    if (st_.advisor.advice == Advice::Glide) {
+      st_.leave = st_.xc.leave != LeaveReason::None ? st_.xc.leave : LeaveReason::Weak;
+      notify(st_.leave == LeaveReason::FinalGlide ? Alert::FinalGlide : Alert::Glide, t);
+    } else {
+      notify(Alert::Stay, t);
+    }
+  }
+  st_.stf = st_.xc.stf * 3.6f;
+}
+
+// Thermal-model and speed-bar sounds, rate-limited so they guide rather than nag.
+void FlightComputer::runCues(TimeMs t) {
+  const bool busy = audio_.alertActive();
+  const TurnView& tv = st_.turn;
+  if (cfg_.turnCues && st_.circling) {
+    if (moveEnd_ && t >= moveEnd_) {
+      if (!busy) notify(Alert::TurnAgain, t);
+      moveEnd_ = 0;
+    }
+    // One move, then a full new circle (the model waits for it) and 25 s.
+    if (tv.advice == TurnAdvice::Move && tv.moveNow && !moveEnd_ && t - lastMoveCue_ >= 25000 && !busy) {
+      notify(Alert::Move, t);
+      lastMoveCue_ = t;
+      float secs = tv.moveSeconds < 2 ? 2 : (tv.moveSeconds > 8 ? 8 : tv.moveSeconds);
+      moveEnd_ = t + static_cast<TimeMs>(secs * 1000);
+    }
+    if (tv.advice != candAdv_) {
+      candAdv_ = tv.advice;
+      candSince_ = t;
+    }
+    const bool radius = candAdv_ == TurnAdvice::Tighten || candAdv_ == TurnAdvice::Widen;
+    if (radius && t - candSince_ >= 4000 && tv.gain >= 0.2f && !busy &&
+        (t - lastTurnCue_ >= 20000 || (candAdv_ != cuedAdv_ && t - lastTurnCue_ >= 8000))) {
+      notify(candAdv_ == TurnAdvice::Tighten ? Alert::Tighten : Alert::Widen, t);
+      cuedAdv_ = candAdv_;
+      lastTurnCue_ = t;
+    }
+  } else {
+    moveEnd_ = 0;
+    candAdv_ = cuedAdv_ = TurnAdvice::None;
   }
 
-  float headwind = 0;
-  if (st_.wind.valid && st_.headingValid) {
-    const float tr = st_.heading * kDegToRad;
-    headwind = -(st_.wind.toN * std::cos(tr) + st_.wind.toE * std::sin(tr));
+  // Bar: released in the thermal; on glide, cue changes of a quarter or more
+  // once they've held for 6 s, at most every 30 s (not in the first 8 s
+  // after leaving a thermal). The screen shows the exact step meanwhile.
+  if (st_.circling) {
+    cuedBar_ = candBar_ = 0;
+    leftThermal_ = t;
+    return;
   }
-  st_.stf = cfg_.polar.speedToFly(st_.advisor.mc, 0, headwind) * 3.6f;
+  if (!cfg_.barCues) return;
+  const float b = st_.xc.bar;
+  if (b != candBar_) {
+    candBar_ = b;
+    barSince_ = t;
+  }
+  if (candBar_ != cuedBar_ && t - barSince_ >= 6000 && t - lastBarCue_ >= 30000 && t - leftThermal_ >= 8000 &&
+      !busy) {
+    notify(candBar_ > cuedBar_ ? Alert::BarMore : Alert::BarLess, t);
+    cuedBar_ = candBar_;
+    lastBarCue_ = t;
+  }
 }
 
 Outputs FlightComputer::tick(TimeMs t) {
@@ -300,9 +444,38 @@ Outputs FlightComputer::tick(TimeMs t) {
     // 5 Hz into a 128-slot buffer covers the full 20 s (25 Hz would not).
     avg20_.add(t, st_.vario);
     st_.avg = avg20_.mean();
+    // Air-mass-frame position: gyro heading × airspeed. The thermal drifts
+    // with the air, so in this frame it stands still. While circling with
+    // the wind unknown (or GPS out), assume a typical circling airspeed.
+    const float dt = lastAirStep_ ? (t - lastAirStep_) / 1000.0f : 0.0f;
+    lastAirStep_ = t;
+    const bool airKnown = st_.wind.valid && st_.gps == GpsState::Ok;
+    const float as = st_.circling && !airKnown ? cfg_.polar.minSinkSpeed() * 1.05f
+                                                : (st_.airspeed > 0 ? st_.airspeed : cfg_.polar.bestGlideSpeed());
+    if (st_.assistHeadingValid && dt > 0 && dt < 1) {
+      airX_ += as * std::sin(st_.assistHeading * kDegToRad) * dt;
+      airY_ += as * std::cos(st_.assistHeading * kDegToRad) * dt;
+    }
+    if (st_.circling) {
+      if (!circStart_) circStart_ = t;
+      lastCirclingT_ = t;
+      if (st_.altMsl > curTop_) curTop_ = st_.altMsl;
+      profile_.addClimb(t, st_.altMsl, st_.vario);
+    } else {
+      circStart_ = 0;
+      if (curTop_ > thermalTop_) thermalTop_ = curTop_;  // best top of finished thermals
+      curTop_ = 0;
+    }
+    // Straightening for a few seconds to move the circle mustn't erase the map.
+    const bool inThermal = st_.circling || (lastCirclingT_ && t - lastCirclingT_ < 15000);
+    if (st_.circling && st_.assistHeadingValid)
+      model_.add(t, airX_, airY_, st_.assistHeading, as, st_.turnRate, st_.vario);
+    model_.update(t, inThermal);
+    st_.turn = model_.view();
     runAdvisor(t);
     if (st_.assistHeadingValid) assist_.update(t, st_.circling, st_.assistHeading, circ_.direction(), st_.vario);
     st_.assist = assist_.view();
+    runCues(t);
   }
 
   audio_.setVario(cfg_.audioAvgMs ? audioAvg_.mean() : st_.vario);
@@ -351,20 +524,112 @@ void FlightComputer::updateNav(TimeMs t) {
 
   if (t - lastNav_ < 1000) return;  // terrain and targets at 1 Hz
   lastNav_ = t;
+  st_.profile = &profile_;
+  traffic_.expire(t);
+  // Ceiling: cloud base if the air sensor has one, else the best top today.
+  st_.ceilingIsBase = st_.air.baseValid && st_.air.baseFromThermal;
+  if (st_.air.baseValid) {
+    st_.ceilingMsl = st_.air.cloudBase + (st_.altMsl - st_.altitude);
+    st_.ceilingValid = true;
+  } else if (thermalTop_ > 0) {
+    st_.ceilingMsl = thermalTop_;
+    st_.ceilingValid = true;
+  }
+  if (st_.wind.valid && st_.wind.t != lastWindFed_) {
+    lastWindFed_ = st_.wind.t;
+    profile_.addWind(t, st_.altMsl, st_.wind.toN, st_.wind.toE);
+  }
+  if (st_.air.haveAir) profile_.addAir(t, st_.altMsl, st_.air.tempC, st_.air.dewPointC);
   st_.aglValid = false;
   float ground;
   if (terrain_ && st_.pos.valid && terrain_->elevation(st_.pos.lat, st_.pos.lon, ground)) {
     st_.agl = st_.altMsl - ground;
     st_.aglValid = true;
   }
+  // Glides descend through the layers below: use their winds when known.
+  float gN = wN, gE = wE;
+  const float floorAlt = st_.aglValid ? st_.altMsl - st_.agl : st_.altMsl - 500;
+  profile_.windBetween(st_.altMsl, floorAlt, gN, gE);
   if (st_.home.valid && st_.pos.valid) {
     st_.home.arrivalAgl = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, st_.home.lat,
-                                     st_.home.lon, wN, wE, st_.home.bearingDeg, st_.home.distM);
+                                     st_.home.lon, gN, gE, st_.home.bearingDeg, st_.home.distM);
   }
   st_.best = Target{};
+  float bestScore = 0;
   if (hotspots_ && st_.clockValid && st_.pos.valid) {
-    st_.best = bestHotspot(*hotspots_, cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, wN, wE, st_.year,
+    st_.best = bestHotspot(*hotspots_, cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, gN, gE, st_.year,
                            st_.month, st_.day, st_.utcMin, 250.0f);
+    if (st_.best.valid) bestScore = targetScore(st_.best.chance, st_.best.arrivalAgl, st_.best.distM, 250.0f);
+  }
+  // Live thermals (other pilots climbing) beat history. They drift with the wind.
+  betterNearby_ = false;
+  st_.nearCount = 0;
+  if (st_.gps == GpsState::Ok && st_.pos.valid) {
+    for (int i = 0; i < traffic_.thermals(); ++i) {
+      const LiveThermal& h = traffic_.thermal(i);
+      const float age = (t - h.t) / 1000.0f;
+      const double lat = h.lat + wN * age / 111195.0;
+      const double lon = h.lon + wE * age / (111195.0 * std::cos(h.lat * kDegToRad));
+      float brg, dist;
+      const float arr = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, lat, lon, gN, gE, brg,
+                                   dist);
+      if (dist < 400 || arr < 250) continue;
+      float ch = (0.5f + 0.15f * h.climb) * std::exp(-age / 900.0f);
+      if (ch > 0.95f) ch = 0.95f;
+      const float sc = targetScore(ch, arr, dist, 250.0f);
+      if (sc > bestScore) {
+        bestScore = sc;
+        st_.best = Target{true, false, -1, lat, lon, brg, dist, arr, ch, true, h.climb, static_cast<int>(age / 60)};
+      }
+      // Leave a weak thermal for a clearly better one you can reach high.
+      if (st_.circling && age < 300 && arr > 300 && h.climb > st_.advisor.circleClimb + cfg_.xc.betterBy)
+        betterNearby_ = true;
+    }
+    for (int i = 0; i < traffic_.pilots() && st_.nearCount < 8; ++i) {
+      const OtherPilot& p = traffic_.pilot(i);
+      NearPilot& np = st_.near[st_.nearCount];
+      offsetMeters(st_.pos.lat, st_.pos.lon, p.lat, p.lon, np.north, np.east);
+      if (np.north * np.north + np.east * np.east > 5000.0f * 5000.0f) continue;
+      np.dAlt = p.alt - st_.altMsl;
+      np.climb = p.climbAvg;
+      np.turning = p.turning;
+      ++st_.nearCount;
+    }
+  }
+
+  // Task: advance turnpoints (trusted GPS only), final glide.
+  if (task_ && task_->count() >= 2) {
+    if (st_.gps == GpsState::Ok && st_.pos.valid && task_->update(st_.pos.lat, st_.pos.lon)) notify(Alert::Turnpoint, t);
+    if (st_.pos.valid) {
+      st_.task = task_->view(st_.pos.lat, st_.pos.lon);
+      if (!st_.task.finished) {
+        const float mc = st_.xc.mc;
+        const float need = task_->requiredAltitude(cfg_.polar, st_.pos.lat, st_.pos.lon, mc, gN, gE, terrain_, 150);
+        st_.task.finalValid = need < 1e5f;
+        st_.task.finalSurplus = st_.altMsl - need;
+        // MC that exactly uses the height: the speed you can afford to goal.
+        st_.task.finalMc = 0;
+        if (st_.task.finalValid &&
+            st_.altMsl >= task_->requiredAltitude(cfg_.polar, st_.pos.lat, st_.pos.lon, 0, gN, gE, terrain_, 150)) {
+          float lo = 0, hi = 5;
+          for (int k = 0; k < 14; ++k) {
+            const float m = (lo + hi) / 2;
+            if (task_->requiredAltitude(cfg_.polar, st_.pos.lat, st_.pos.lon, m, gN, gE, terrain_, 150) <= st_.altMsl)
+              lo = m;
+            else
+              hi = m;
+          }
+          st_.task.finalMc = lo;
+        }
+        if (st_.task.finalValid && st_.task.finalSurplus >= 0 && !finalCued_ && !st_.circling) {
+          notify(Alert::FinalGlide, t);
+          finalCued_ = true;
+        }
+        if (st_.task.finalSurplus < -100) finalCued_ = false;
+      }
+    }
+  } else {
+    st_.task = TaskView{};
   }
 }
 

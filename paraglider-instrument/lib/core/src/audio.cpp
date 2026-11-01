@@ -17,6 +17,14 @@ const Note kNearBase[] = {{2200, 60}, {0, 40}, {2200, 60}, {0, 160}, {2200, 60},
 const Note kInversion[] = {{500, 150}, {420, 150}, {500, 150}, {420, 250}};
 const Note kGpsLost[] = {{700, 120}, {0, 60}, {560, 120}, {0, 60}, {440, 300}};
 const Note kGpsBack[] = {{560, 90}, {0, 50}, {840, 140}};
+const Note kTighten[] = {{1300, 40}, {1750, 60}, {0, 70}, {1300, 40}, {1750, 60}};
+const Note kWiden[] = {{900, 40}, {620, 60}, {0, 70}, {900, 40}, {620, 60}};
+const Note kMove[] = {{1050, 380}};
+const Note kTurnAgain[] = {{1450, 60}, {0, 50}, {1450, 60}};
+const Note kBarMore[] = {{480, 90}, {0, 30}, {720, 130}};
+const Note kBarLess[] = {{720, 90}, {0, 30}, {480, 130}};
+const Note kFinalGlide[] = {{880, 90}, {1100, 90}, {1320, 90}, {1760, 260}};
+const Note kTurnpoint[] = {{1200, 70}, {1600, 70}, {2000, 150}};
 template <std::size_t N>
 const Note* ret(const Note (&a)[N], int& c) {
   c = static_cast<int>(N);
@@ -39,6 +47,14 @@ const Note* alertNotes(Alert a, int& count) {
     case Alert::Inversion: return ret(kInversion, count);
     case Alert::GpsLost: return ret(kGpsLost, count);
     case Alert::GpsBack: return ret(kGpsBack, count);
+    case Alert::Tighten: return ret(kTighten, count);
+    case Alert::Widen: return ret(kWiden, count);
+    case Alert::Move: return ret(kMove, count);
+    case Alert::TurnAgain: return ret(kTurnAgain, count);
+    case Alert::BarMore: return ret(kBarMore, count);
+    case Alert::BarLess: return ret(kBarLess, count);
+    case Alert::FinalGlide: return ret(kFinalGlide, count);
+    case Alert::Turnpoint: return ret(kTurnpoint, count);
     case Alert::None: break;
   }
   count = 0;

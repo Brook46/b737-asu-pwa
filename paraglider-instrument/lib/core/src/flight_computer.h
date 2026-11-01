@@ -12,7 +12,12 @@
 #include "heading.h"
 #include "hotspots.h"
 #include "terrain.h"
+#include "profile.h"
+#include "task.h"
 #include "thermal_assist.h"
+#include "thermal_model.h"
+#include "traffic.h"
+#include "xc.h"
 #include "kalman_vario.h"
 #include "polar.h"
 #include "remote.h"
@@ -32,6 +37,15 @@ struct FlightComputerConfig {
   float qnhPa = 101325.0f;
   TimeMs audioAvgMs = 0;  // >0: beep the N-ms average instead of the instant vario
   bool useImu = true;     // IMU-assisted vario + gyro turn rate when an IMU is present
+  XcConfig xc;
+  bool turnCues = true;   // TIGHTEN / WIDEN / MOVE sounds
+  bool barCues = true;    // speed-bar sounds on glide
+};
+
+// Another pilot within 5 km, relative to you (only while our GPS is trusted).
+struct NearPilot {
+  float north = 0, east = 0, dAlt = 0, climb = 0;
+  bool turning = false;
 };
 
 enum class BaroOrigin : uint8_t { None, Onboard, XcTracer };
@@ -72,6 +86,17 @@ struct Status {
   Target home;               // first trusted fix of the flight
   Target best;               // best hotspot to glide to (needs a hotspot pack + date)
   AssistView assist;
+  TurnView turn;             // thermal model: core, size, TIGHTEN / WIDEN / MOVE
+  XcOutput xc;               // effective MC, working band, speed bar
+  LeaveReason leave = LeaveReason::None;  // why the last GLIDE was given
+  TaskView task;
+  float ceilingMsl = 0;      // cloud base (MSL) if known, else the best top today
+  bool ceilingValid = false;
+  bool ceilingIsBase = false; // cloud base measured in thermal air (not a guess from tops)
+  float turbulence = 0;      // RMS vertical acceleration, m/s²
+  NearPilot near[8];
+  int nearCount = 0;
+  const Profile* profile = nullptr;
   bool clockValid = false;
   int year = 0, month = 0, day = 0, utcMin = 0;
 };
@@ -106,6 +131,12 @@ class FlightComputer {
   // (thermal chances). Both must outlive the FlightComputer.
   void setTerrain(const Terrain* t) { terrain_ = t; }
   void setHotspots(const HotspotMap* h) { hotspots_ = h; }
+  // Optional task (XCTrack .xctsk); the FlightComputer advances its turnpoints.
+  void setTask(Task* task) { task_ = task; }
+  // Another pilot's FANET tracking report.
+  void onTraffic(TimeMs t, uint32_t id, const fanet::Tracking& tr);
+  const Traffic& traffic() const { return traffic_; }
+  const Profile& profile() const { return profile_; }
   // UTC date and time (from GPS while it's trusted, or the RTC).
   void setClock(int year, int month, int day, int utcMin);
   Atmosphere& atmosphere() { return atmo_; }
@@ -131,6 +162,22 @@ class FlightComputer {
   float relHdg_ = 0;  // gyro-integrated, snapped to heading_ when trusted and not circling
   GnssGuard guard_;
   ThermalAssist assist_;
+  ThermalModel model_;
+  XcAdvisor xc_;
+  Traffic traffic_;
+  Profile profile_;
+  Task* task_ = nullptr;
+  float airX_ = 0, airY_ = 0;   // air-mass-frame position (gyro × airspeed)
+  TimeMs lastAirStep_ = 0, lastCirclingT_ = 0, circStart_ = 0;
+  float nettoAvg_ = 0, accMean_ = 0, accVar_ = 0;
+  float thermalTop_ = 0, curTop_ = 0;
+  bool betterNearby_ = false, finalCued_ = false;
+  TimeMs lastWindFed_ = 0;
+  TurnAdvice candAdv_ = TurnAdvice::None, cuedAdv_ = TurnAdvice::None;
+  TimeMs candSince_ = 0, lastTurnCue_ = 0, lastMoveCue_ = 0, moveEnd_ = 0;
+  float cuedBar_ = 0, candBar_ = 0;
+  TimeMs barSince_ = 0, lastBarCue_ = 0, leftThermal_ = 0;
+  void runCues(TimeMs t);
   const Terrain* terrain_ = nullptr;
   const HotspotMap* hotspots_ = nullptr;
   float gyroSinceFix_ = 0;

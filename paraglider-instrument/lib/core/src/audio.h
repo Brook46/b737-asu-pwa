@@ -45,6 +45,14 @@ enum class Alert : uint8_t {
   Inversion,   // slow low warble: warming with height in the climb
   GpsLost,     // three falling low notes: GPS jammed or spoofed, now dead-reckoning
   GpsBack,     // two rising notes: GPS trusted again
+  Tighten,     // two quick up-chirps: steeper, smaller circle
+  Widen,       // two quick down-chirps: flatter, bigger circle
+  Move,        // one long tone: straighten now, toward the core
+  TurnAgain,   // double blip: resume circling
+  BarMore,     // low rising pair: push more bar
+  BarLess,     // low falling pair: ease off the bar
+  FinalGlide,  // rising four-note run: goal is made from here, go
+  Turnpoint,   // three rising notes: cylinder reached
 };
 
 struct ToneOut {

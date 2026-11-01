@@ -169,6 +169,16 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
           <span class="note" id="packnote" style="margin:0">none: thermals come from the terrain</span>
         </div>
         <label class="check"><input type="checkbox" id="auto" checked> Autopilot: circles on STAY, leaves on GLIDE</label>
+        <div class="ctl">
+          <label class="label" for="pilotmode">In thermals</label>
+          <select id="pilotmode">
+            <option value="1" selected>follows the instrument (MOVE, TIGHTEN, WIDEN, bar)</option>
+            <option value="2">steady circles, ignores the advice</option>
+            <option value="0">perfect pilot who feels the core</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="task"> Task: start 3 km round Gilboa, Mt Tabor, goal Afula (on New day)</label>
+        <label class="check"><input type="checkbox" id="others" checked> Other pilots sending FANET</label>
         <div class="steer" aria-label="Manual steering">
           <button data-t="-17">◀◀ circle</button><button data-t="-6">◀ turn</button><button data-t="0">straight</button><button data-t="6">turn ▶</button><button data-t="17">circle ▶▶</button>
         </div>
@@ -181,7 +191,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       <div class="panel">
         <h2>World</h2>
         <canvas id="map" width="900" height="560" aria-label="Map: thermals, your track and the wind"></canvas>
-        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal source, dot size = chance now</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
+        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal source, dot size = chance now</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span><i style="background:#1b9e77"></i>thermal as the instrument fits it (core + size)</span><span><i style="background:#666"></i>other pilots (climb)</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
       </div>
 
       <div class="panel">
@@ -201,7 +211,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
 
       <div class="panel">
         <h2>Cue log</h2>
-        <div class="log" id="log"><span class="empty">Cues appear here as the instrument gives them: STAY, GLIDE, NEAR BASE, INVERSION, GPS LOST / GPS OK.</span></div>
+        <div class="log" id="log"><span class="empty">Cues appear here as the instrument gives them: STAY, GLIDE (and why), MOVE / TIGHTEN / WIDEN, BAR + / −, FINAL GLIDE, TURNPOINT, NEAR BASE, INVERSION, GPS LOST / OK.</span></div>
       </div>
     </div>
   </div>
@@ -222,7 +232,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     return;
   }
   const mem = () => ex.memory.buffer;
-  const state = () => new Float32Array(mem(), ex.sim_state(), 64);
+  const state = () => new Float32Array(mem(), ex.sim_state(), 96);
 
   // ---------------- weather knobs ----------------
   const KNOBS = [
@@ -262,6 +272,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     ex.sim_set(13, +$("month").value);
     ex.sim_set(14, 15);
     ex.sim_set(15, +$("start").value);
+    ex.sim_set(16, +$("pilotmode").value);
+    ex.sim_set(17, $("task").checked ? 1 : 0);
+    ex.sim_set(18, $("others").checked ? 1 : 0);
     ex.sim_reset((Math.random() * 1e9) | 0);
     ex.sim_set(12, gpsMode);
     for (const n of KNOBS) n.apply();
@@ -386,6 +399,8 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
   }
   $("reset").onclick = newDay;
   $("auto").onchange = (e) => ex.sim_set(8, e.target.checked ? 1 : 0);
+  $("pilotmode").onchange = (e) => ex.sim_set(16, +e.target.value);
+  $("others").onchange = (e) => ex.sim_set(18, e.target.checked ? 1 : 0);
   const steer = (deg) => { $("auto").checked = false; ex.sim_set(8, 0); ex.sim_set(9, deg); };
   for (const b of document.querySelectorAll(".steer button")) b.onclick = () => steer(+b.dataset.t);
   $("bar").oninput = (e) => { ex.sim_set(10, +e.target.value); $("o-bar").textContent = `${Math.round(e.target.value * 100)} %`; };
@@ -485,6 +500,30 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       map.fillStyle = css("--ink"); map.font = "12px IBM Plex Mono, monospace";
       map.fillText(`${Math.round(st[53] * 100)}% · +${fmt(st[56])} m`, sx(st[54]) + 12, sy(st[55]) + 4);
     }
+    // task cylinders
+    const nt = ex.sim_task_count();
+    if (nt) {
+      const tk = new Float32Array(mem(), ex.sim_task(), nt * 3);
+      map.strokeStyle = css("--ink"); map.lineWidth = 1.5; map.setLineDash([3, 4]);
+      map.beginPath();
+      for (let i = 0; i < nt; i++) { const X = sx(tk[i * 3]), Y = sy(tk[i * 3 + 1]); i ? map.lineTo(X, Y) : map.moveTo(X, Y); }
+      map.stroke(); map.setLineDash([]);
+      for (let i = 0; i < nt; i++) {
+        map.lineWidth = i === st[80] ? 3 : 1.5;
+        map.beginPath(); map.arc(sx(tk[i * 3]), sy(tk[i * 3 + 1]), tk[i * 3 + 2] * scale, 0, 7); map.stroke();
+      }
+    }
+    // other pilots
+    const np = ex.sim_pilot_count();
+    if (np) {
+      const pl = new Float32Array(mem(), ex.sim_pilots(), np * 5);
+      map.font = "11px IBM Plex Mono, monospace";
+      for (let i = 0; i < np; i++) {
+        const X = sx(pl[i * 5]), Y = sy(pl[i * 5 + 1]);
+        map.fillStyle = "#666"; map.beginPath(); map.moveTo(X, Y - 6); map.lineTo(X + 5, Y + 4); map.lineTo(X - 5, Y + 4); map.closePath(); map.fill();
+        map.fillText(`${pl[i * 5 + 3] >= 0 ? "+" : ""}${pl[i * 5 + 3].toFixed(1)}`, X + 7, Y + 4);
+      }
+    }
     // thermals
     const th = new Float32Array(mem(), ex.sim_thermals(), 14 * 4);
     for (let i = 0; i < 14; i++) {
@@ -497,6 +536,13 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       map.beginPath(); map.arc(sx(x), sy(y), Math.max(2, r * scale), 0, 7); map.fill();
       map.fillStyle = css("--ink-soft"); map.font = "12px IBM Plex Mono, monospace";
       map.fillText(s.toFixed(1), sx(x) + r * scale + 4, sy(y) + 4);
+    }
+    // the instrument's fitted thermal: core and 1/e size
+    if (st[65]) {
+      map.strokeStyle = "#1b9e77"; map.lineWidth = 2; map.setLineDash([5, 4]);
+      map.beginPath(); map.arc(sx(st[66]), sy(st[67]), Math.max(4, st[68] * scale), 0, 7); map.stroke(); map.setLineDash([]);
+      map.beginPath(); map.moveTo(sx(st[66]) - 6, sy(st[67])); map.lineTo(sx(st[66]) + 6, sy(st[67]));
+      map.moveTo(sx(st[66]), sy(st[67]) - 6); map.lineTo(sx(st[66]), sy(st[67]) + 6); map.stroke();
     }
     // track
     const n = ex.sim_track_len(), tr = new Float32Array(mem(), ex.sim_track(), n * 2);
@@ -541,7 +587,11 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     ["Height above ground, m", (s) => (s[42] > -9000 ? fmt(s[42]) : "--"), (s) => fmt(s[41])],
     ["GPS", (s) => ["no data", "ok", "LOST", "SPOOFED"][s[43] | 0] + (s[43] >= 2 ? ` (${REASONS[s[44] | 0]})` : ""), (s) => ["normal", "jammed", "spoofed to Beirut", "noisy"][s[63] | 0]],
     ["Position error, m", (s) => (!s[45] ? "no position" : s[46] ? `±${fmt(s[47])} est.` : "GPS"), (s) => (s[48] >= 0 ? fmt(s[48]) : "no position")],
-    ["MacCready, m/s", (s) => fmt(s[12], 1), () => "–"],
+    ["Turn advice", (s) => ["–", "centred", "MOVE", "TIGHTEN", "WIDEN"][s[64] | 0] + (s[64] >= 3 ? ` (bank ${fmt(s[71])}→${fmt(s[72])}°)` : ""), (s) => `circle ${fmt(s[70])} m, rate ${fmt(s[88])}°/s`],
+    ["Thermal core, m off / size", (s) => (s[65] ? `fit ${fmt(Math.hypot(s[66] - s[84], s[67] - s[85]))} off · R ${fmt(s[68])} · ${fmt(s[69], 1)} m/s` : "–"), (s) => `R ${fmt(s[86])} · ${fmt(s[87], 1)} m/s`],
+    ["MacCready: flown (base)", (s) => `${fmt(s[74], 1)} (${fmt(s[94], 1)})` + (s[77] >= 0 ? ` · band ${Math.round(s[77] * 100)}%` : ""), () => "–"],
+    ["Speed bar", (s) => `${["off", "1/4", "1/2", "3/4", "full"][Math.round(s[75] * 4)]} · STF ${fmt(s[90])} km/h` + (s[76] ? ` · ${["", "low", "turbulent", "in lift", "circling"][s[76] | 0]}` : ""), () => "–"],
+    ["Task", (s) => (s[79] ? (s[93] ? "goal!" : `TP ${(s[80] | 0) + 1} in ${(s[81] / 1000).toFixed(1)} km` + (s[82] && s[83] > -800 ? ` · goal ${fmt(s[83], 0, true)} m` : "")) : "none"), () => "–"],
     ["Air under you, m/s", () => "–", (s) => fmt(s[6], 1, true)],
   ];
   const REASONS = ["", "no fix", "weak", "position jump", "impossible speed", "altitude ≠ baro", "track ≠ gyro"];
@@ -557,7 +607,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
   // ---------------- cue log ----------------
   const log = $("log");
   let lastAlertT = -1, logEmpty = true;
-  const NAMES = { 1: "STAY", 2: "GLIDE", 3: "MESSAGE", 4: "ack", 5: "MC +", 6: "MC −", 8: "error", 9: "NEAR BASE", 10: "INVERSION", 11: "GPS LOST", 12: "GPS OK" };
+  const NAMES = { 1: "STAY", 2: "GLIDE", 3: "MESSAGE", 4: "ack", 5: "MC +", 6: "MC −", 8: "error", 9: "NEAR BASE", 10: "INVERSION", 11: "GPS LOST", 12: "GPS OK",
+    13: "TIGHTEN", 14: "WIDEN", 15: "MOVE", 16: "turn again", 17: "BAR +", 18: "BAR −", 19: "FINAL GLIDE", 20: "TURNPOINT" };
+  const LEAVE = ["", "climb below MC", "at cloud base", "final glide", "better lift nearby"];
   function drawLog(st) {
     if (st[30] === lastAlertT || !st[29]) return;
     lastAlertT = st[30];
@@ -566,12 +618,18 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     if (logEmpty) { log.innerHTML = ""; logEmpty = false; }
     const mm = Math.floor(st[30] / 60), ss = Math.floor(st[30] % 60);
     const row = document.createElement("div");
-    const detail = a === 1 || a === 2 ? `alt ${fmt(st[1])} m · vario ${fmt(st[2], 1, true)} · true air ${fmt(st[6], 1, true)} · MC ${fmt(st[12], 1)}`
+    const detail = a === 2 ? `${LEAVE[st[78] | 0]} · alt ${fmt(st[1])} m · MC ${fmt(st[12], 1)}`
+      : a === 1 ? `alt ${fmt(st[1])} m · vario ${fmt(st[2], 1, true)} · true air ${fmt(st[6], 1, true)} · MC ${fmt(st[12], 1)}`
       : a === 9 ? `alt ${fmt(st[1])} m · base est ${fmt(st[16])} (true ${fmt(st[18])})`
       : a === 10 ? `alt ${fmt(st[1])} m`
       : a === 11 ? `${["", "", "lost", "spoofed"][st[43] | 0]}: ${REASONS[st[44] | 0]} · dead reckoning from gyro + airspeed + wind`
-      : a === 12 ? `position trusted again · error was ${fmt(st[48])} m` : "";
-    row.innerHTML = `<span>${mm}:${String(ss).padStart(2, "0")}</span><span class="${a <= 2 || a >= 9 ? "cue" : ""}">${NAMES[a]}</span><span>${detail}</span>`;
+      : a === 12 ? `position trusted again · error was ${fmt(st[48])} m`
+      : a === 13 || a === 14 ? `bank ${fmt(st[71])}° → ${fmt(st[72])}° for ${fmt(st[73], 1, true)} m/s`
+      : a === 15 ? `core ${fmt(Math.hypot(st[66] - st[7], st[67] - st[8]))} m away · straighten`
+      : a === 17 || a === 18 ? `now ${["off", "1/4", "1/2", "3/4", "full"][Math.round(st[75] * 4)]} · MC ${fmt(st[74], 1)}`
+      : a === 19 ? `${fmt(st[83], 0, true)} m over the glide to goal`
+      : "";
+    row.innerHTML = `<span>${mm}:${String(ss).padStart(2, "0")}</span><span class="${a <= 2 || (a >= 9 && a !== 16) ? "cue" : ""}">${NAMES[a]}</span><span>${detail}</span>`;
     log.prepend(row);
   }
 

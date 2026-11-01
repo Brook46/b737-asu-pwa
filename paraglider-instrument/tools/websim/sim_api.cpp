@@ -28,7 +28,9 @@ bool gLed = false;
 uint32_t gNextTick = 0;
 int gLastAlert = 0;
 uint32_t gLastAlertT = 0;
-float gState[64];
+float gState[96];
+pg::Task gTask;
+bool gTaskOn = false;
 // Buffers the page fills before sim_load_terrain / sim_load_pack (the
 // Terrain and HotspotMap read from them in place).
 uint8_t gTerrainBuf[400 * 1024];
@@ -61,6 +63,17 @@ void newFlight() {
   fc().setTerrain(gWorld.terrain.valid() ? &gWorld.terrain : nullptr);
   fc().setHotspots(gWorld.spots.count() ? &gWorld.spots : nullptr);
   fc().setClock(gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
+  // Demo task: exit a 3 km start around launch, Mt Tabor, Afula (goal).
+  gTask.clear();
+  if (gTaskOn) {
+    static const char* kTask = R"({"taskType":"CLASSIC","version":1,"turnpoints":[
+      {"type":"SSS","radius":3000,"waypoint":{"name":"Gilboa","lat":32.4585,"lon":35.412,"altSmoothed":480}},
+      {"radius":1000,"waypoint":{"name":"Tabor","lat":32.687,"lon":35.390,"altSmoothed":550}},
+      {"type":"ESS","radius":1000,"waypoint":{"name":"Afula","lat":32.607,"lon":35.289,"altSmoothed":60}}],
+      "sss":{"type":"RACE","direction":"EXIT"}})";
+    gTask.parseXctsk(kTask, std::strlen(kTask));
+  }
+  fc().setTask(gTaskOn ? &gTask : nullptr);
   gModel = pg::display::Model();
   gNextTick = gWorld.t;
 }
@@ -79,7 +92,9 @@ EXPORT(sim_reset) void sim_reset(uint32_t seed) {
 // 7 IMU on, 8 autopilot on, 9 manual turn (deg/s, + right), 10 speed bar 0..1,
 // 11 inversion altitude (m, 0 = none), 12 GPS mode (0 ok, 1 jammed, 2 spoofed
 // to Beirut, 3 noisy), 13 month, 14 day, 15 local start time (minutes).
-// Date/time take effect on the next reset.
+// Date/time take effect on the next reset. 16 autopilot: 0 perfect pilot,
+// 1 follows the turn advice, 2 steady circles ignoring it, 17 demo task on/off (next reset),
+// 18 simulated pilots on/off.
 EXPORT(sim_set) void sim_set(int key, float v) {
   world::Params& p = gWorld.p;
   switch (key) {
@@ -99,6 +114,9 @@ EXPORT(sim_set) void sim_set(int key, float v) {
     case 13: p.month = static_cast<int>(v); break;
     case 14: p.day = static_cast<int>(v); break;
     case 15: p.startLocalMin = static_cast<int>(v); break;
+    case 16: p.followAdvice = static_cast<int>(v); break;
+    case 17: gTaskOn = v != 0; break;
+    case 18: p.otherPilots = v != 0; break;
     default: break;
   }
 }
@@ -148,6 +166,7 @@ EXPORT(sim_step) void sim_step(int ms) {
       gTone = o.toneHz;
       gLed = o.led;
       if (o.alertStarted != pg::Alert::None) {
+        gWorld.onAlert(o.alertStarted, fc());
         gModel.noteAlert(o.alertStarted, gWorld.t);
         gLastAlert = static_cast<int>(o.alertStarted);
         gLastAlertT = gWorld.t;
@@ -258,6 +277,48 @@ EXPORT(sim_state) const float* sim_state() {
   o[61] = static_cast<float>(gWorld.spots.count());
   o[62] = gWorld.spotsFromPack ? 1 : 0;
   o[63] = static_cast<float>(gWorld.p.gps);
+  // Thermal model vs truth, XC layer, task.
+  const pg::TurnView& tv = s.turn;
+  o[64] = static_cast<float>(tv.advice);
+  o[65] = tv.fit.valid ? 1 : 0;
+  o[66] = static_cast<float>(gWorld.x) + tv.coreRelX;
+  o[67] = static_cast<float>(gWorld.y) + tv.coreRelY;
+  o[68] = tv.fit.radius;
+  o[69] = tv.fit.strength;
+  o[70] = tv.myRadius;
+  o[71] = tv.bankNow;
+  o[72] = tv.bankBest;
+  o[73] = tv.gain;
+  o[74] = s.xc.mc;
+  o[75] = s.xc.bar;
+  o[76] = static_cast<float>(s.xc.barLimit);
+  o[77] = s.xc.bandValid ? s.xc.band : -1;
+  o[78] = static_cast<float>(s.leave);
+  o[79] = s.task.active ? 1 : 0;
+  o[80] = static_cast<float>(s.task.next);
+  o[81] = s.task.nextDist;
+  o[82] = s.task.finalValid ? 1 : 0;
+  o[83] = s.task.finalSurplus;
+  {
+    int bi = -1;
+    double bd = 1e18;
+    for (int i = 0; i < world::World::kThermals; ++i) {
+      const double dx = gWorld.th[i].x - gWorld.x, dy = gWorld.th[i].y - gWorld.y, d = dx * dx + dy * dy;
+      if (d < bd) bd = d, bi = i;
+    }
+    o[84] = static_cast<float>(gWorld.th[bi].x);
+    o[85] = static_cast<float>(gWorld.th[bi].y);
+    o[86] = gWorld.th[bi].radius;
+    o[87] = gWorld.th[bi].now();
+  }
+  o[88] = gWorld.apRate;
+  o[89] = s.turbulence;
+  o[90] = s.xc.stf * 3.6f;
+  o[91] = static_cast<float>(fc().traffic().pilots());
+  o[92] = static_cast<float>(s.nearCount);
+  o[93] = s.task.finished ? 1 : 0;
+  o[94] = s.advisor.mcBase;
+  o[95] = s.task.finalMc;
   return gState;
 }
 
@@ -296,3 +357,32 @@ EXPORT(sim_spots) const float* sim_spots() {
   return out;
 }
 EXPORT(sim_spot_count) int sim_spot_count() { return gWorld.spots.count(); }
+
+// Simulated pilots: x, y, alt, climb, circling for each.
+EXPORT(sim_pilots) const float* sim_pilots() {
+  static float out[world::World::kAi * 5];
+  for (int i = 0; i < world::World::kAi; ++i) {
+    const auto& a = gWorld.ai[i];
+    out[i * 5] = static_cast<float>(a.x);
+    out[i * 5 + 1] = static_cast<float>(a.y);
+    out[i * 5 + 2] = a.alt;
+    out[i * 5 + 3] = a.climbAvg;
+    out[i * 5 + 4] = a.circ ? 1 : 0;
+  }
+  return out;
+}
+EXPORT(sim_pilot_count) int sim_pilot_count() { return gWorld.p.otherPilots ? world::World::kAi : 0; }
+
+// Task turnpoints in world metres: x, y, radius.
+EXPORT(sim_task) const float* sim_task() {
+  static float out[pg::Task::kMax * 3];
+  for (int i = 0; i < gTask.count(); ++i) {
+    double x, y;
+    gWorld.toXY(gTask.at(i).lat, gTask.at(i).lon, x, y);
+    out[i * 3] = static_cast<float>(x);
+    out[i * 3 + 1] = static_cast<float>(y);
+    out[i * 3 + 2] = gTask.at(i).radius;
+  }
+  return out;
+}
+EXPORT(sim_task_count) int sim_task_count() { return gTaskOn ? gTask.count() : 0; }

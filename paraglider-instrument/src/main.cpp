@@ -46,7 +46,8 @@ pg::FlightComputer fc;
 // (hotspots.pghs, sim/pack.html). Both optional.
 pg::Terrain terrain;
 pg::HotspotMap hotspots;
-char terrainName[32] = "none", packName[32] = "none";
+pg::Task task;  // optional: an XCTrack task file (*.xctsk) in data/
+char terrainName[32] = "none", packName[32] = "none", taskName[32] = "none";
 
 // Bring-up print toggles (console: `show baro|gnss|nmea|imu|xct|fc|off`).
 bool showBaro = false, showGnss = false, showImu = false, showFc = true;
@@ -232,6 +233,13 @@ void loadAreaData() {
       } else if (buf) {
         free(buf);
       }
+    } else if (endsWith(name, ".xctsk") && task.count() == 0) {
+      uint8_t* buf = readFile(f, len);
+      if (buf && task.parseXctsk(reinterpret_cast<const char*>(buf), len)) {
+        snprintf(taskName, sizeof taskName, "%s", name);
+        fc.setTask(&task);
+      }
+      free(buf);  // Task copies the turnpoints
     } else if (endsWith(name, ".pghs") && !hotspots.count()) {
       uint8_t* buf = readFile(f, len);
       if (buf && hotspots.load(buf, len) && hotspots.count()) {
@@ -244,6 +252,7 @@ void loadAreaData() {
   Serial.printf("terrain    %s%s\n", terrainName,
                 terrain.valid() ? "" : " (no AGL; arrival heights above sea level)");
   Serial.printf("thermals   %s (%d sources)\n", packName, hotspots.count());
+  Serial.printf("task       %s (%d turnpoints)\n", taskName, task.count());
 }
 
 void printGps() {
@@ -268,10 +277,41 @@ void printGps() {
                   s.home.arrivalAgl);
 }
 
+void printXc() {
+  const pg::Status& s = fc.status();
+  Serial.printf("xc: MC flown %.1f (base %.1f%s)%s  band %d%%\n", s.xc.mc, s.advisor.mcBase,
+                fc.advisor().config().autoMc ? ", auto" : "", s.task.active && s.task.started ? " RACE" : " XC",
+                s.xc.bandValid ? static_cast<int>(s.xc.band * 100) : -1);
+  Serial.printf("   speed to fly %.0f km/h, bar %.2f%s%s, turbulence %.1f m/s2\n", s.xc.stf * 3.6f, s.xc.bar,
+                s.xc.barLimit != pg::BarLimit::None ? " limited: " : "", pg::barLimitName(s.xc.barLimit), s.turbulence);
+  const pg::TurnView& tv = s.turn;
+  if (tv.fit.valid)
+    Serial.printf("   thermal: core %.0f m off your circle, R %.0f m, %.1f m/s, %s%s  (circle %.0f m, bank %.0f->%.0f)\n",
+                  tv.coreDist, tv.fit.radius, tv.fit.strength, pg::turnAdviceName(tv.advice),
+                  tv.settled ? "" : " (settling)", tv.myRadius, tv.bankNow, tv.bankBest);
+  Serial.printf("   traffic: %d pilots, %d live thermals; ceiling %.0f m%s\n", fc.traffic().pilots(),
+                fc.traffic().thermals(), s.ceilingMsl, s.ceilingIsBase ? " (cloud base)" : " (best top)");
+}
+
+void printTask() {
+  if (task.count() < 2) {
+    Serial.println("task: none (put an XCTrack .xctsk in data/ and uploadfs)");
+    return;
+  }
+  const pg::TaskView& v = fc.status().task;
+  for (int i = 0; i < task.count(); ++i)
+    Serial.printf("  %c %d %-15s %.5f,%.5f r %.0f\n", i == task.next() ? '>' : ' ', i + 1, task.at(i).name,
+                  task.at(i).lat, task.at(i).lon, task.at(i).radius);
+  if (v.finished) Serial.println("   GOAL");
+  else
+    Serial.printf("   next %s %.1f km (brg %03.0f), %.1f km to goal, final glide %+.0f m (MC %.1f affordable)\n",
+                  v.nextName, v.nextDist / 1000, v.nextBearing, v.toGoal / 1000, v.finalSurplus, v.finalMc);
+}
+
 void consoleHelp() {
   Serial.println(
       "commands:\n"
-      "  status | health | air | gps | pack | i2c | help\n"
+      "  status | health | air | gps | xc | task | pack | i2c | help\n"
       "  base                             I'm at cloud base now (learns the case temperature offset)\n"
       "  toff <C>                         set the case temperature offset by hand\n"
       "  show baro|gnss|nmea|imu|fc|xct|off   periodic prints / raw streams for bring-up\n"
@@ -306,6 +346,8 @@ void console() {
     else if (!strcmp(line, "status")) printStatus();
     else if (!strcmp(line, "air")) printAir();
     else if (!strcmp(line, "gps")) printGps();
+    else if (!strcmp(line, "xc")) printXc();
+    else if (!strcmp(line, "task")) printTask();
     else if (!strcmp(line, "pack")) {
       Serial.printf("terrain %s, thermal pack %s (%d sources)\n", terrainName, packName, hotspots.count());
     }
@@ -389,8 +431,11 @@ void onFanet(const FanetRx& rx) {
     }
   } else if (f.type == pg::fanet::kTracking) {
     pg::fanet::Tracking t;
-    if (pg::fanet::decodeTracking(f.payload, f.payloadLen, t))
+    if (pg::fanet::decodeTracking(f.payload, f.payloadLen, t)) {
       Serial.printf("[fanet]   %.5f,%.5f %d m %+.1f m/s %.0f km/h\n", t.lat, t.lon, t.altitude, t.climb, t.speedKmh);
+      // Other pilots: live thermals and lift samples for the thermal model.
+      fc.onTraffic(millis(), (static_cast<uint32_t>(f.src.manufacturer) << 16) | f.src.id, t);
+    }
   }
 }
 

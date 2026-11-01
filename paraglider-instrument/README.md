@@ -18,7 +18,7 @@ this unit only *listens* to its Bluetooth stream.
 
 | Part | State |
 |---|---|
-| Logic layer (`lib/core`) | Written, **63 desktop tests pass** (`make test`) |
+| Logic layer (`lib/core`) | Written, **74 desktop tests pass** (`make test`) |
 | Flight replay tool (`tools/sim`) | Works on IGC files, XCTracer captures, synthetic flights |
 | Firmware (`src/`) | Written against pinned library versions; every library call was checked against those tags' headers, and a host compile against signature stubs is clean. **Not yet built with the real ESP32 toolchain, not flashed.** |
 | Thermal pack builder (`sim/pack.html`) | Written and tested against mocked replies; **not yet run against live KK7** (this build environment can't reach it) |
@@ -42,14 +42,19 @@ lib/core/src/        hardware-free logic — builds with desktop g++ and on the 
   terrain.*            elevation grid (.ter) → height above ground, arrival heights
   heading.*            gyro heading, bias learned from GPS while GPS is trusted
   gnss_guard.*         GPS jamming / spoofing detector + dead reckoning while it's out
-  thermal_assist.*     maps lift around the circle (gyro only) → where the core is
+  thermal_assist.*     maps lift around the circle (gyro only) → lift dots on the screen
+  thermal_model.*      fits a round thermal in the air-mass frame → MOVE / TIGHTEN / WIDEN
+  xc.*                 XC tactics: MC by height band, XC vs race, when to leave, speed bar
+  task.*               XCTrack .xctsk tasks: turnpoints, final glide
+  traffic.*            other pilots (FANET): live thermals, pilots in your thermal
+  profile.*            wind, climb, temperature and dew point per 100 m
   hotspots.*           thermal pack (KK7 history × day forecast), best reachable thermal
   fanet.*              FANET frame/tracking/message codec, region table (IL918, EU868, …)
   remote.*             brake-handle remote command bytes
   bme280_comp.*        BME280/BMP280 calibration math (checked against Bosch's example)
   dps310_comp.*        DPS310 calibration math (fallback barometer)
   flight_computer.*    wires it all together; firmware and sim drive it the same way
-  display/             optional Sharp LCD: 1-bit canvas, fonts, flight + info pages
+  display/             optional Sharp LCD: 1-bit canvas, fonts, flight / info / profile pages
 src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
   main.cpp             loop, serial console, settings
   drivers/             bme280 (also BMP280), dps310, lsm6ds3, gnss_l76k: all own drivers, no libraries
@@ -62,7 +67,7 @@ tools/fontgen/       generates the display fonts from DejaVu Sans
 tools/terrain/       build_terrain.py: AWS Terrain Tiles → .ter grid for an area
 data/                files for the device's LittleFS (`pio run -t uploadfs`): gilboa.ter, hotspots.pghs
 sim/                 browser simulator (index.html + sim.wasm + terrain.ter), pack.html (thermal pack builder)
-docs/                hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
+docs/                xc-tactics.md (speed to fly, when to leave, bar: sources and rules), hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
 
 ## Simulator
@@ -107,6 +112,20 @@ pio device monitor
 
 ## What it does in flight
 
+Made for cross-country: when to stop, when to leave, how much bar, and how
+to turn in the thermal, mostly by sound (the screen is optional). The
+reasoning and sources are in [docs/xc-tactics.md](docs/xc-tactics.md).
+
+| Sound | Means |
+|---|---|
+| two rising notes | **STAY**: this air beats MC, turn here |
+| three falling notes | **GLIDE**: leave (climb below MC, at cloud base, or better lift nearby) |
+| one long tone | **MOVE**: straighten now, toward the core; a double blip = turn again |
+| two up-chirps / down-chirps | **TIGHTEN** / **WIDEN** the circle |
+| low rising / falling pair | **more bar** / **less bar** |
+| rising four-note run | **FINAL GLIDE**: goal is made from here |
+| three rising notes | turnpoint reached |
+
 * **Vario tone**: beeps above +0.15 m/s; pitch and rate rise with climb.
   Continuous low tone below −2.5 m/s. All in `VarioToneConfig`.
 * **STAY** (two rising notes): gliding through air whose netto lift, minus
@@ -139,9 +158,24 @@ pio device monitor
   of consistent fixes (two rising notes). A spoofed position is never used:
   not for the FANET region, not in tracking or "Thermal here" messages.
   Console: `gps`.
-* **Thermal assistant** (thermal page): lift around the circle, heading up,
-  with an arrow to the core and STRAIGHTEN when you're pointing at it. Uses
-  only the gyro, so it works jammed, even jammed from takeoff.
+* **Thermal assistant**: lift around the circle, heading up, and a fitted
+  thermal (core and size) to the scale of your circle. It says MOVE (with how
+  many seconds to straighten), TIGHTEN or WIDEN (with the bank now → best),
+  and stays quiet when the data can't tell. Uses only the gyro and airspeed,
+  so it works jammed, even jammed from takeoff. Pilots near you (FANET) add
+  their climbs to the fit.
+* **Speed to fly and bar**: MacCready speed for the air you're in and the
+  headwind on course, shown and sounded as bar in quarters. Never near the
+  ground or in turbulence. MC is the effective one: set below your recent
+  climbs, lower when you're low in the band, lower late in the day; a task
+  race flies fuller MC.
+* **Tasks** (optional): an XCTrack `.xctsk` in `data/`. Turnpoint cylinders,
+  start, distance to the next one, and final glide (height over the glide to
+  goal at your MC, and the MC you can afford). Console: `task`, `xc`.
+* **Other pilots** (FANET receive): a pilot turning and climbing marks a live
+  thermal, preferred over history as the glide target.
+* **Profile page**: climb, wind, temperature and dew point at every 100 m
+  you've flown through. Glide arrival heights use these winds.
 * **Terrain**: height above ground, and glide arrival heights at home and at
   the suggested thermal, subtracting the ground there.
 * **FANET**: tracking from other pilots and messages are received and logged;

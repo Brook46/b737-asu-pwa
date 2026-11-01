@@ -5,6 +5,8 @@
 //     assistant first), gliding → the glide page (where to go, can I get there).
 //   * INFO (Page button): the slower numbers: cloud base, stability, wind,
 //     home, GPS detail.
+//   * PROFILE (Page again): the day by altitude: where the climbs were, the
+//     wind and the air at each height.
 // Every page: a status bar that turns loud when GPS is jammed or spoofed, and
 // a bottom banner for cues (STAY, GLIDE, cloud base, GPS).
 //
@@ -16,7 +18,7 @@
 
 namespace pg::display {
 
-enum class Page : uint8_t { Flight = 0, Info, Count };
+enum class Page : uint8_t { Flight = 0, Info, Profile, Count };
 const char* pageName(Page p);
 
 // Things the screen shows that aren't in the flight computer's Status.

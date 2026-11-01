@@ -69,6 +69,20 @@ workers, Pages deploy) apply here.
   is unverified against live data (blocked from the build environment);
   don't describe it as verified until the user confirms a real pack.
 
+## XC advice
+
+* The instrument is for **cross-country** (long XC first, competition tasks
+  when loaded). Advice rules and their sources live in `docs/xc-tactics.md`;
+  change the doc with the code (`xc.*`, `advisor.*`, `thermal_model.*`).
+* Every decision uses the **effective MC** (`status().xc.mc`), not the
+  advisor's base MC: band, XC/race and time of day are applied there once.
+* The thermal model must stay honest: no TIGHTEN/WIDEN unless every radius
+  hypothesis that fits agrees, and nothing before the fit settles. Judge
+  changes with `FOLLOW=1` vs `FOLLOW=2` (follows advice vs ignores it) over
+  several seeds in `build/sim_native`; following must beat ignoring.
+* Sounds are rate-limited in `FlightComputer::runCues`; the device is mostly
+  headless, so a new cue must not nag.
+
 ## Display and simulator
 
 * `lib/core/src/display/` draws the optional 400 × 240 Sharp Memory LCD
@@ -79,9 +93,9 @@ workers, Pages deploy) apply here.
   artifact** of lib/core + `tools/websim/`, so **rebuild it (`make websim`,
   needs `pip install ziglang`) whenever lib/core changes**, or the simulator
   will show stale behaviour. `make websim-native && build/sim_native 30 build
-  [inversion m] [gps mode] [at min]` (run from this folder; SEED=n env) runs the same world natively and writes PBM screenshots.
+  [inversion m] [gps mode] [at min]` (run from this folder; env SEED=n, FOLLOW=0|1|2, TASK=1) runs the same world natively and writes PBM screenshots.
 * Pages: FLIGHT (switches itself: thermal page while circling, glide page
-  otherwise) and INFO. Keep them sparse: the user asked for fewer, more
+  otherwise), INFO and PROFILE. Keep them sparse: the user asked for fewer, more
   useful numbers.
 * The simulator's world (`tools/websim/world.h`) is real terrain with ridge
   lift and terrain-triggered thermals; GPS modes (sim_set 12) jam/spoof it.

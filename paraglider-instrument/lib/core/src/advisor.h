@@ -42,12 +42,19 @@ struct AdvisorInput {
   float vario = 0;      // filtered instantaneous climb, m/s
   float netto = 0;      // airmass vertical speed (vario + own sink at current airspeed)
   bool leaving = false; // circling, but already flying straight (exit hysteresis)
+  // Effective MC from the XC layer (height band, XC/race, time of day);
+  // < 0 = use the advisor's own MC.
+  float mcEffective = -1;
+  // A reason to leave now regardless of the climb (final glide, base, better
+  // lift nearby): GLIDE after the thermal's first 20 s.
+  bool leaveNow = false;
 };
 
 struct AdvisorOutput {
   Advice advice = Advice::None;
   bool changed = false;     // advice differs from the previous update → play a cue
-  float mc = 0;             // MC actually in use
+  float mc = 0;             // MC actually in use (effective)
+  float mcBase = 0;         // the advisor's own (auto/manual) MC
   float circleClimb = 0;    // last ~circle average while circling, m/s
   float thermalAvg = 0;     // since thermal start, m/s
   float thermalGain = 0;    // m

@@ -48,7 +48,7 @@ void Advisor::finishThermal(TimeMs t, float alt) {
 AdvisorOutput Advisor::update(const AdvisorInput& in) {
   AdvisorOutput out;
   const Advice before = advice_;
-  const float m = mc();
+  const float m = in.mcEffective >= 0 ? in.mcEffective : mc();
 
   if (in.circling && !wasCircling_) {
     thermal_.start(in.t, in.altitude);
@@ -67,7 +67,8 @@ AdvisorOutput Advisor::update(const AdvisorInput& in) {
   if (in.circling) {
     circle_.add(in.t, in.vario);
     const bool warm = thermal_.elapsed(in.t) >= cfg_.warmupMs && circle_.full();
-    if (warm) {
+    if (in.leaveNow && thermal_.elapsed(in.t) >= 20000 && advice_ != Advice::Glide) advice_ = Advice::Glide;
+    if (warm && !in.leaveNow) {
       const float cc = circle_.mean();
       if (cc < cfg_.leaveRatio * m) {
         if (!belowActive_) {
@@ -107,6 +108,7 @@ AdvisorOutput Advisor::update(const AdvisorInput& in) {
   out.changed = (advice_ != before && advice_ != Advice::None) || recue;
   if (out.changed) lastCue_ = in.t;
   out.mc = m;
+  out.mcBase = mc();
   return out;
 }
 

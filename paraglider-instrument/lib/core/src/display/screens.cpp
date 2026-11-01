@@ -17,6 +17,7 @@ const char* pageName(Page p) {
   switch (p) {
     case Page::Flight: return "FLIGHT";
     case Page::Info: return "INFO";
+    case Page::Profile: return "PROFILE";
     default: return "";
   }
 }
@@ -39,7 +40,7 @@ void Model::update(TimeMs t, const Status& s) {
 void Model::noteAlert(Alert a, TimeMs t) {
   switch (a) {
     case Alert::NearBase: case Alert::Inversion: case Alert::Message: case Alert::GpsLost:
-    case Alert::GpsBack: case Alert::Stay: case Alert::Glide:
+    case Alert::GpsBack: case Alert::Stay: case Alert::Glide: case Alert::FinalGlide: case Alert::Turnpoint:
       banner_ = a;
       bannerT_ = t;
       break;
@@ -48,7 +49,8 @@ void Model::noteAlert(Alert a, TimeMs t) {
 }
 
 Alert Model::banner(TimeMs t) const {
-  const TimeMs hold = banner_ == Alert::Stay || banner_ == Alert::Glide ? 15000 : 10000;
+  const TimeMs hold =
+      banner_ == Alert::Stay || banner_ == Alert::Glide || banner_ == Alert::FinalGlide ? 15000 : 10000;
   return banner_ != Alert::None && t - bannerT_ < hold ? banner_ : Alert::None;
 }
 
@@ -188,7 +190,20 @@ bool bannerArea(Canvas& c, const Status& s, const Model& m, TimeMs t) {
       if (s.advisor.advice != Advice::Glide) break;
       big = "GLIDE";
       fmtSigned(b2, sizeof b2, s.advisor.circleClimb);
-      std::snprintf(b, sizeof b, "circle %s < MC %.1f", b2, static_cast<double>(s.advisor.mc));
+      // Why: the climb fell below MC, or something better than climbing on.
+      if (s.leave == LeaveReason::Base) std::snprintf(b, sizeof b, "at cloud base");
+      else if (s.leave == LeaveReason::Better && s.best.live)
+        std::snprintf(b, sizeof b, "pilot %+.1f, %.1f km", static_cast<double>(s.best.liveClimb),
+                      static_cast<double>(s.best.distM / 1000));
+      else std::snprintf(b, sizeof b, "circle %s < MC %.1f", b2, static_cast<double>(s.advisor.mc));
+      break;
+    case Alert::FinalGlide:
+      big = "FINAL GLIDE";
+      std::snprintf(b, sizeof b, "%+.0f m", static_cast<double>(s.task.finalSurplus));
+      break;
+    case Alert::Turnpoint:
+      big = "TURNPOINT";
+      std::snprintf(b, sizeof b, "next %s", s.task.nextName);
       break;
     case Alert::NearBase:
       big = "CLOUD BASE";
@@ -260,14 +275,60 @@ void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
     polar(cx, cy, -90.0f * a.dir, static_cast<float>(R), gx, gy);
     c.fillCircle(gx, gy, 9, false);
     glider(c, gx, gy, 0, 8);
-    // Starts clear of the number in the middle.
-    if (a.strength > 0.15f) arrow(c, cx, cy, a.coreDeg - hdg, 30, 36 + a.strength * (R - 48), 4, 8);
+    const TurnView& tv = s.turn;
+    const float pxPerM = tv.myRadius > 5 ? R / tv.myRadius : 0;
+    if (tv.fit.valid && pxPerM > 0) {
+      // The thermal as fitted: its core (+) and its 1/e size, to the scale of
+      // your circle. You see whether you're on it and how big it is.
+      int kx, ky;
+      polar(cx, cy, tv.coreBearing - hdg, tv.coreDist * pxPerM, kx, ky);
+      const int kr = static_cast<int>(tv.fit.radius * pxPerM);
+      if (kr < 160) dottedCircle(c, kx, ky, kr, kr > 60 ? 4 : 8);
+      c.line(kx - 6, ky, kx + 6, ky, true, 2);
+      c.line(kx, ky - 6, kx, ky + 6, true, 2);
+      if (tv.advice == TurnAdvice::Move) arrow(c, cx, cy, tv.coreBearing - hdg, 30, R - 14.0f, 4, 8);
+    } else if (a.strength > 0.15f) {
+      arrow(c, cx, cy, a.coreDeg - hdg, 30, 36 + a.strength * (R - 48), 4, 8);  // starts clear of the number
+    }
+    // Other pilots in the thermal (their climb in tenths), when we know north.
+    if (s.headingValid && pxPerM > 0) {
+      for (int i = 0; i < s.nearCount; ++i) {
+        const NearPilot& np = s.near[i];
+        const float d = std::sqrt(np.north * np.north + np.east * np.east) * pxPerM;
+        if (d > R + 20) continue;
+        int px, py;
+        polar(cx, cy, std::atan2(np.east, np.north) / kD2R - s.heading, d, px, py);
+        c.circle(px, py, 4);
+        std::snprintf(b, sizeof b, "%+.1f", static_cast<double>(np.climb));
+        label(c, px + 6, py - 6, b);
+      }
+    }
     fmtSigned(b, sizeof b, s.advisor.thermalAvg);
     c.text(cx, cy + 10, b, kFontMedium, Align::Center);
-    if (a.straightenNow) {
-      const int w = Canvas::textWidth("STRAIGHTEN", kFontSmall) + 14;
-      c.fillRect(cx - w / 2, cy + 36, w, 18);
-      c.text(cx, cy + 37, "STRAIGHTEN", kFontSmall, Align::Center, false);
+    // What to do: one word, plus the number that goes with it.
+    const char* word = nullptr;
+    b2[0] = 0;
+    switch (tv.advice) {
+      case TurnAdvice::Move:
+        word = tv.moveNow ? "STRAIGHTEN" : "MOVE";
+        std::snprintf(b2, sizeof b2, tv.moveNow ? "%.0f s" : "%.0f m", tv.moveNow ? static_cast<double>(tv.moveSeconds)
+                                                                                  : static_cast<double>(tv.coreDist));
+        break;
+      case TurnAdvice::Tighten:
+      case TurnAdvice::Widen:
+        word = tv.advice == TurnAdvice::Tighten ? "TIGHTEN" : "WIDEN";
+        std::snprintf(b2, sizeof b2, "bank %.0f\x7f > %.0f\x7f  %+.1f", static_cast<double>(tv.bankNow),
+                      static_cast<double>(tv.bankBest), static_cast<double>(tv.gain));
+        break;
+      case TurnAdvice::Good: word = "CENTRED"; break;
+      default: break;
+    }
+    if (word) {
+      const bool loud = tv.advice != TurnAdvice::Good;
+      const int w = Canvas::textWidth(word, kFontSmall) + 14;
+      if (loud) c.fillRect(cx - w / 2, cy + 34, w, 18);
+      c.text(cx, cy + 35, word, kFontSmall, Align::Center, !loud);
+      if (b2[0]) c.text(cx, cy + 54, b2, kFontTiny, Align::Center);
     }
   } else {
     c.text(cx, cy - 8, s.assistHeadingValid ? "assistant" : "no heading", kFontSmall, Align::Center);
@@ -302,33 +363,60 @@ void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
 void pageGlide(Canvas& c, const Status& s, const Model& m, TimeMs t) {
   char b[64], b2[32];
   const float hdg = s.headingValid ? s.heading : 0.0f;
-  // Where to go: the best thermal by history and today's chances, else home.
-  const Target& tg = s.best.valid ? s.best : s.home;
   const int cx = 112, cy = 132, R = 62;
-  if (s.best.valid) std::snprintf(b, sizeof b, "THERMAL %.0f%%", static_cast<double>(s.best.chance * 100));
-  else std::snprintf(b, sizeof b, s.home.valid ? "HOME" : "NO TARGET");
-  label(c, 8, 20, b);
-  if (tg.valid && s.pos.valid) {
-    fmtKm(b2, sizeof b2, tg.distM);
-    if (tg.arrivalAgl > -9000) std::snprintf(b, sizeof b, "%s  %+.0f m", b2, static_cast<double>(tg.arrivalAgl));
-    else std::snprintf(b, sizeof b, "%s  out of reach", b2);
+  const bool onTask = s.task.active && !s.task.finished;
+  // Where to go: the next turnpoint on a task; else a live thermal (another
+  // pilot climbing), a likely thermal (history × today), or home.
+  const Target& tg = s.best.valid ? s.best : s.home;
+  if (onTask) {
+    std::snprintf(b, sizeof b, "TP %d %s", s.task.next + 1, s.task.nextName);
+    label(c, 8, 20, b);
+    fmtKm(b2, sizeof b2, s.task.nextDist);
+    // Goal height only once it's near: far out, it's just a big negative number.
+    if (s.task.finalValid && s.task.finalSurplus > -500)
+      std::snprintf(b, sizeof b, "%s  goal %+.0f", b2, static_cast<double>(s.task.finalSurplus));
+    else
+      std::snprintf(b, sizeof b, "%s", b2);
     c.text(8, 30, b, kFontMedium);
+  } else {
+    if (s.best.valid && s.best.live)
+      std::snprintf(b, sizeof b, "PILOT %+.1f  %d'", static_cast<double>(s.best.liveClimb), s.best.ageMin);
+    else if (s.best.valid) std::snprintf(b, sizeof b, "THERMAL %.0f%%", static_cast<double>(s.best.chance * 100));
+    else std::snprintf(b, sizeof b, s.home.valid ? "HOME" : "NO TARGET");
+    label(c, 8, 20, b);
+    if (tg.valid && s.pos.valid) {
+      fmtKm(b2, sizeof b2, tg.distM);
+      if (tg.arrivalAgl > -9000) std::snprintf(b, sizeof b, "%s  %+.0f m", b2, static_cast<double>(tg.arrivalAgl));
+      else std::snprintf(b, sizeof b, "%s  out of reach", b2);
+      c.text(8, 30, b, kFontMedium);
+    }
   }
   dottedCircle(c, cx, cy, R, 8);
   c.fillTriangle(cx, cy - R - 6, cx - 6, cy - R + 4, cx + 6, cy - R + 4);  // your heading
   int nx, ny;
   polar(cx, cy, -hdg, R + 10, nx, ny);
   c.text(nx, ny - 6, "N", kFontTiny, Align::Center);
-  if (tg.valid && s.pos.valid) {
+  if (onTask && s.pos.valid && s.headingValid) {
+    arrow(c, cx, cy, s.task.nextBearing - hdg, -R * 0.55f, R - 8.0f, 5, 10);
+    if (s.best.valid) arrow(c, cx, cy, s.best.bearingDeg - hdg, 0, R - 16.0f, 1, 6);  // thermal on the way
+    if (s.task.finalValid && s.task.finalSurplus >= 0) {
+      std::snprintf(b, sizeof b, "FINAL GLIDE  MC %.1f", static_cast<double>(s.task.finalMc));
+      c.text(cx, cy + R + 8, b, kFontSmall, Align::Center);
+    }
+  } else if (tg.valid && s.pos.valid) {
     arrow(c, cx, cy, tg.bearingDeg - hdg, -R * 0.55f, R - 8.0f, 5, 10);
-    if (tg.arrivalAgl < 0) c.text(cx, cy + R + 10, "CAN'T REACH", kFontSmall, Align::Center);
+    // Short of it at best glide in this wind: how much height you still need.
+    if (tg.arrivalAgl < 0 && tg.arrivalAgl > -9000) {
+      std::snprintf(b, sizeof b, "NEED +%.0f m", static_cast<double>(-tg.arrivalAgl));
+      c.text(cx, cy + R + 8, b, kFontSmall, Align::Center);
+    }
   } else {
     c.text(cx, cy - 8, s.pos.valid ? "no target" : "no position", kFontSmall, Align::Center);
   }
   if (s.pos.deadReckoned && s.pos.valid) {
     fmtKm(b2, sizeof b2, s.pos.errorM);
     std::snprintf(b, sizeof b, "estimated ~%s", b2);
-    c.text(cx, cy + R + 10, b, kFontTiny, Align::Center);
+    c.text(cx, cy + R + 24, b, kFontTiny, Align::Center);
   }
 
   // Right column.
@@ -345,19 +433,102 @@ void pageGlide(Canvas& c, const Status& s, const Model& m, TimeMs t) {
   if (m.glideRatio(ld)) std::snprintf(b, sizeof b, ld >= 99 ? "--" : "%.1f", static_cast<double>(ld));
   else std::snprintf(b, sizeof b, "...");
   row(c, 236, 398, 108, "L/D", b);
-  // Speed to fly, with which way to go from where you are.
-  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.stf));
-  row(c, 236, 398, 138, "STF km/h", b);
-  const float diff = s.stf - s.airspeed * 3.6f;
-  if (std::fabs(diff) > 3) {
-    const int ax = 300, ay = 158;
-    if (diff > 0) c.fillTriangle(ax, ay - 7, ax - 6, ay + 3, ax + 6, ay + 3);
-    else c.fillTriangle(ax, ay + 7, ax - 6, ay - 3, ax + 6, ay - 3);
-    label(c, ax + 9, ay - 6, diff > 0 ? "bar" : "slow");
-  }
+  // Speed bar: the MacCready speed for this air and headwind, in quarters,
+  // capped near the ground and in turbulence.
+  const float bar = s.xc.bar;
+  const char* bv = bar <= 0 ? (s.xc.slow ? "SLOW" : "OFF") : bar < 0.3f ? "1/4" : bar < 0.6f ? "1/2" : bar < 0.9f ? "3/4" : "FULL";
+  if (s.xc.barLimit == BarLimit::Low || s.xc.barLimit == BarLimit::Turbulence)
+    std::snprintf(b2, sizeof b2, "BAR  %s", barLimitName(s.xc.barLimit));
+  else
+    std::snprintf(b2, sizeof b2, "BAR  MC %.1f", static_cast<double>(s.xc.mc));
+  row(c, 236, 398, 138, b2, bv);
   label(c, 236, 170, "WIND");
   windSmall(c, 286, 186, s);
   bannerArea(c, s, m, t);
+}
+
+// The day by altitude: climb found (bars), wind (arrows, north up), and air
+// temperature / dew point, for each height band flown through.
+void pageProfile(Canvas& c, const Status& s) {
+  char b[32];
+  const Profile* pr = s.profile;
+  if (!pr || pr->highest() < 0) {
+    c.text(200, 100, "PROFILE", kFontMedium, Align::Center);
+    c.text(200, 130, "builds as you climb and glide", kFontSmall, Align::Center);
+    return;
+  }
+  int lo = pr->lowest(), hi = pr->highest();
+  const int ceilBand = s.ceilingValid ? static_cast<int>(s.ceilingMsl / Profile::kBandM) : -1;
+  if (ceilBand > hi && ceilBand < Profile::kBands) hi = ceilBand;
+  const int group = (hi - lo + 1) > 22 ? 2 : 1;  // rows of 100 or 200 m
+  const int rows = (hi - lo) / group + 1;
+  const int top = 22, bottom = 200;
+  const int rh = (bottom - top) / (rows > 0 ? rows : 1) > 16 ? 16 : (bottom - top) / (rows > 0 ? rows : 1);
+  label(c, 4, top - 2, "m");
+  label(c, 96, top - 2, "climb");
+  label(c, 236, top - 2, "wind");
+  label(c, 316, top - 2, "air/dew");
+  int lastText = -100;  // keep text rows at least 11 px apart
+  for (int r = 0; r < rows; ++r) {
+    const int b0 = hi - r * group;
+    const int y = top + 10 + r * rh;
+    float climb = 0, wn = 0, we = 0, temp = 0, dew = 0;
+    int nc = 0, nw = 0, na = 0;
+    for (int g = 0; g < group && b0 - g >= 0; ++g) {
+      const ProfileBand& pb = pr->band(b0 - g);
+      if (pb.nClimb) climb += pb.climb, ++nc;
+      if (pb.nWind) wn += pb.windN, we += pb.windE, ++nw;
+      if (pb.nAir) temp += pb.temp, dew += pb.dew, ++na;
+    }
+    const bool text = y - lastText >= 11;
+    if (text && (r % 2 == 0 || rh >= 12)) {
+      std::snprintf(b, sizeof b, "%d", b0 * 100);
+      label(c, 4, y, b);
+    }
+    bool wrote = false;
+    if (nc) {
+      climb /= nc;
+      int w = static_cast<int>(climb * 30);
+      if (w > 120) w = 120;
+      if (w > 0) c.fillRect(96, y + 2, w, rh > 4 ? rh - 3 : 2);
+      else c.hline(96, y + rh / 2, 3);
+      std::snprintf(b, sizeof b, "%.1f", static_cast<double>(climb));
+      if (rh >= 10) label(c, 100 + (w > 0 ? w : 0) + 2, y, b);
+    }
+    if (nw) {
+      wn /= nw;
+      we /= nw;
+      const float spd = std::sqrt(wn * wn + we * we);
+      // Arrow shows where the air goes (north up).
+      if (text) {
+        if (spd > 0.5f) arrow(c, 248, y + 5, std::atan2(we, wn) / kD2R, -6, 6, 1, 3);
+        std::snprintf(b, sizeof b, "%.0f", static_cast<double>(spd * 3.6f));
+        label(c, 260, y, b);
+        wrote = true;
+      }
+    }
+    if (na && text) {
+      std::snprintf(b, sizeof b, "%.0f/%.0f", static_cast<double>(temp / na), static_cast<double>(dew / na));
+      label(c, 316, y, b);
+      wrote = true;
+    }
+    if (wrote) {
+      lastText = y;
+      if (!(text && (r % 2 == 0 || rh >= 12))) {  // data rows always get their height
+        std::snprintf(b, sizeof b, "%d", b0 * 100);
+        label(c, 4, y, b);
+      }
+    }
+    if (b0 == ceilBand) c.text(392, y, "BASE", kFontTiny, Align::Right);
+  }
+  // You are here.
+  const int me = static_cast<int>(s.altMsl / Profile::kBandM);
+  if (me >= lo && me <= hi) {
+    const int y = top + 10 + ((hi - me) / group) * rh + rh / 2;
+    c.fillTriangle(82, y, 90, y - 5, 90, y + 5);
+  }
+  c.hline(0, 204, 400);
+  c.text(200, 214, "PROFILE  -  Page returns to flight", kFontSmall, Align::Center);
 }
 
 void pageInfo(Canvas& c, const Status& s, const DeviceInfo& d) {
@@ -385,8 +556,9 @@ void pageInfo(Canvas& c, const Status& s, const DeviceInfo& d) {
     std::snprintf(b, sizeof b, "%.0f from %03.0f", static_cast<double>(s.wind.speed * 3.6f), static_cast<double>(s.wind.fromDeg));
   else std::snprintf(b, sizeof b, "--");
   row(c, L0, L1, 130, "WIND km/h", b);
-  std::snprintf(b, sizeof b, "%.1f%s", static_cast<double>(s.advisor.mc), "");
-  row(c, L0, L1, 166, "MACCREADY", b);
+  // Effective MC (band, XC/race, time of day) and what it's built from.
+  std::snprintf(b, sizeof b, "%.1f (%.1f)", static_cast<double>(s.xc.mc), static_cast<double>(s.advisor.mcBase));
+  row(c, L0, L1, 166, s.task.active && s.task.started ? "MC  race (base)" : "MC  XC (base)", b);
 
   if (s.home.valid && s.pos.valid) {
     fmtKm(b2, sizeof b2, s.home.distM);
@@ -409,7 +581,7 @@ void pageInfo(Canvas& c, const Status& s, const DeviceInfo& d) {
   row(c, R0, R1, 166, "BATTERY", b);
   c.vline(200, 22, 176);
   c.hline(0, 204, 400);
-  c.text(200, 214, "INFO  -  Page returns to flight", kFontSmall, Align::Center);
+  c.text(200, 214, "INFO  -  Page: profile", kFontSmall, Align::Center);
 }
 
 }  // namespace
@@ -418,6 +590,7 @@ void render(Canvas& c, Page p, const Status& s, const Model& m, const DeviceInfo
   c.clear();
   statusBar(c, s, d, t);
   if (p == Page::Info) pageInfo(c, s, d);
+  else if (p == Page::Profile) pageProfile(c, s);
   else if (s.circling) pageThermal(c, s, m, t);
   else pageGlide(c, s, m, t);
 }

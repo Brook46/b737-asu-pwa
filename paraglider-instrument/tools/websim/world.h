@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "atmosphere.h"
+#include "fanet.h"
 #include "flight_computer.h"
 #include "hotspots.h"
 #include "sensors.h"
@@ -50,6 +51,10 @@ struct Params {
   float strength = 2.8f;      // mean core strength, m/s
   bool imu = true;
   bool autopilot = true;
+  // Autopilot pilots by the instrument only: MOVE / TIGHTEN / WIDEN and the
+  // speed bar. Off = a perfect pilot who feels the core (the old behaviour).
+  int followAdvice = 1;  // 0 perfect pilot, 1 follows the instrument, 2 steady circles ignoring advice
+  bool otherPilots = true;    // simulated pilots sending FANET tracking
   GpsMode gps = GpsMode::Normal;
   int year = 2026, month = 7, day = 15;
   int startLocalMin = 12 * 60;  // clock at reset
@@ -62,6 +67,17 @@ class World {
   // Start already off the ridge with some height (a ground launch and ridge
   // scratch is not what the simulator is for).
   static constexpr float kLaunchAgl = 450;
+  static constexpr int kAi = 6;
+  struct Ai {
+    double x = 0, y = 0;
+    float alt = 0, hdg = 0, rate = 0, climb = 0, climbAvg = 0;
+    int target = -1;
+    bool circ = false;
+    uint32_t id = 0, nextTx = 0;
+  };
+  Ai ai[kAi];
+  float apRate = 17;            // autopilot's circling rate, adjusted by TIGHTEN / WIDEN
+  uint32_t straightUntil = 0;   // obeying MOVE
   bool relaunched = false;
   Params p;
   Thermal th[kThermals];
@@ -171,6 +187,18 @@ class World {
     caseT_ = 0;
     if (!spotsFromPack) deriveSpots();
     for (auto& h : th) spawn(h, true);
+    apRate = 17;
+    straightUntil = 0;
+    for (int i = 0; i < kAi; ++i) {
+      Ai& a = ai[i];
+      a = Ai{};
+      a.id = 0xFC0100 + i;
+      a.x = (uniform() - 0.5f) * 2000;
+      a.y = (uniform() - 0.5f) * 2000;
+      a.alt = elevAt(a.x, a.y) + 300 + uniform() * 500;
+      a.hdg = uniform() * 360;
+      a.nextTx = 1000 + i * 500;
+    }
   }
 
   // Air temperature and dew point the case sees (`f` = 0 environment … 1
@@ -253,7 +281,12 @@ class World {
       ridge_ = ridgeLift(x, y, alt);
     }
     lift = thermalLift(x, y, alt) + ridge_ + turb_;
-    const float sink = fc.config().polar.sink(airspeed) + (turning ? 0.25f + std::fabs(turnCmd) * 0.004f : 0.0f);
+    // Sink in a turn: polar sink / cos^1.5(bank), bank from airspeed × turn rate.
+    float sink = fc.config().polar.sink(airspeed);
+    if (turning) {
+      const float cb = std::cos(std::atan(airspeed * std::fabs(turnCmd) * pg::kDegToRad / pg::kGravity));
+      sink = sink / (cb * std::sqrt(cb)) + 0.08f;
+    }
     const float prevClimb = started_ ? climb : lift - sink;
     started_ = true;
     climb = lift - sink;
@@ -296,6 +329,7 @@ class World {
       }
     }
     if (t % 200 == 0) gnss(fc, vN, vE);
+    if (p.otherPilots && t % 100 == 0) stepAi(fc, wN, wE);
     if (t % 1000 == 0) {
       float f = (lift + 0.45f) / 2.5f;
       f = f < 0 ? 0 : (f > 1 ? 1 : f);
@@ -404,6 +438,8 @@ class World {
       if (adv == pg::Advice::Stay && t > apIgnoreUntil) {
         apCircling = true;
         apTarget = nearest(-1);
+        apRate = 17;
+        straightUntil = 0;
       }
     } else {
       const bool nearBase = alt > cloudBase() - 120;
@@ -416,25 +452,130 @@ class World {
       }
     }
     if (apCircling) {
+      speedBar = 0;
+      if (p.followAdvice) {  // only what the instrument says
+        turnCmd = t < straightUntil ? 0.0f : apRate;
+        return;
+      }
       float base = 17.0f;
       if (apTarget >= 0) {
         const float diff = pg::angleDiffDeg(hdg, bearingTo(th[apTarget]));
         base = 17.0f - 7.0f * std::cos(diff * pg::kDegToRad);
       }
       turnCmd = base;
-      speedBar = 0;
       return;
     }
     // Low over the ground with nothing below: soar the ridge if it works,
     // otherwise head for the best thermal anyway.
+    // On a task, prefer clouds on course (the pilot reads the next turnpoint
+    // off the instrument).
+    courseValid_ = s.task.active && !s.task.finished && s.gps == pg::GpsState::Ok;
+    course_ = s.task.nextBearing;
     if (apTarget < 0 || th[apTarget].now() < 0.6f) apTarget = best(apLeft);
-    if (apTarget >= 0) {
-      const float diff = pg::angleDiffDeg(hdg, bearingTo(th[apTarget]));
+    float want = -1;
+    if (apTarget >= 0) want = bearingTo(th[apTarget]);
+    else if (courseValid_) want = course_;
+    if (want >= 0) {
+      const float diff = pg::angleDiffDeg(hdg, want);
       turnCmd = diff > 4 ? 12.0f : (diff < -4 ? -12.0f : diff * 2.0f);
     } else {
       turnCmd = 0;
     }
-    speedBar = s.stf > 45 ? 0.6f : 0.0f;
+    speedBar = p.followAdvice ? s.xc.bar : (s.stf > 45 ? 0.6f : 0.0f);
+  }
+
+ public:
+  // The instrument's sounds, as the autopilot hears them.
+  void onAlert(pg::Alert a, const pg::FlightComputer& fc) {
+    if (!p.autopilot || p.followAdvice != 1 || !apCircling) return;
+    const pg::TurnView& tv = fc.status().turn;
+    if (a == pg::Alert::Move) {
+      float sec = tv.moveSeconds < 2 ? 2 : (tv.moveSeconds > 8 ? 8 : tv.moveSeconds);
+      straightUntil = t + static_cast<uint32_t>(sec * 1000);
+    } else if (a == pg::Alert::Tighten) {
+      apRate = apRate + 4 > 30 ? 30 : apRate + 4;
+    } else if (a == pg::Alert::Widen) {
+      apRate = apRate - 4 < 9 ? 9 : apRate - 4;
+    }
+  }
+
+ private:
+  bool courseValid_ = false;
+  float course_ = 0;
+
+  // Simulated pilots: decent thermal pilots (they feel the core), gliding to
+  // the best cloud and climbing to near base. They report over FANET.
+  void stepAi(pg::FlightComputer& fc, float wN, float wE) {
+    const float dt = 0.1f;
+    for (Ai& a : ai) {
+      const float aLift = thermalLift(a.x, a.y, a.alt);
+      if (a.circ) {
+        float r = 18;
+        if (a.target >= 0) {
+          const float brg = std::atan2(static_cast<float>(th[a.target].x - a.x), static_cast<float>(th[a.target].y - a.y)) *
+                            pg::kRadToDeg;
+          r = 18.0f - 6.0f * std::cos(pg::angleDiffDeg(a.hdg, brg) * pg::kDegToRad);
+        }
+        a.rate = r;
+        if ((a.climbAvg < 0.3f && a.alt > elevAt(a.x, a.y) + 200) || a.alt > cloudBase() - 150) {
+          a.circ = false;
+          a.target = -1;
+          a.hdg += uniform() * 60 - 30;
+        }
+      } else {
+        if (a.target < 0 || th[a.target].now() < 0.6f) {
+          float bs = -1e9f;
+          for (int i = 0; i < kThermals; ++i) {
+            const double dx = th[i].x - a.x, dy = th[i].y - a.y;
+            const float d = static_cast<float>(std::sqrt(dx * dx + dy * dy));
+            if (d < 150 || th[i].now() < 0.8f || d > (a.alt - elevAt(a.x, a.y)) * 7) continue;
+            const float sc = th[i].now() * 400 - d + uniform() * 300;
+            if (sc > bs) {
+              bs = sc;
+              a.target = i;
+            }
+          }
+        }
+        a.rate = 0;
+        if (a.target >= 0) {
+          const double dx = th[a.target].x - a.x, dy = th[a.target].y - a.y;
+          const float brg = std::atan2(static_cast<float>(dx), static_cast<float>(dy)) * pg::kRadToDeg;
+          const float diff = pg::angleDiffDeg(a.hdg, brg);
+          a.rate = diff > 4 ? 12.0f : (diff < -4 ? -12.0f : diff * 2);
+          if (dx * dx + dy * dy < 60.0 * 60.0) a.circ = true;
+        }
+      }
+      a.hdg = std::fmod(a.hdg + a.rate * dt + 360.0f, 360.0f);
+      const float v = a.circ ? 9.6f : 10.5f;
+      a.x += (v * std::sin(a.hdg * pg::kDegToRad) + wE) * dt;
+      a.y += (v * std::cos(a.hdg * pg::kDegToRad) + wN) * dt;
+      a.climb = aLift - (a.circ ? 1.25f : 1.15f);
+      a.climbAvg += 0.02f * (a.climb - a.climbAvg);
+      a.alt += a.climb * dt;
+      if (a.alt < elevAt(a.x, a.y) + 5) {  // landed: back to launch
+        a.x = (uniform() - 0.5f) * 800;
+        a.y = (uniform() - 0.5f) * 800;
+        a.alt = elevAt(a.x, a.y) + kLaunchAgl;
+        a.circ = false;
+        a.target = -1;
+      }
+      if (t >= a.nextTx) {  // FANET tracking every ~3 s
+        a.nextTx = t + 2500 + static_cast<uint32_t>(uniform() * 1000);
+        const double dx = a.x - x, dy = a.y - y;
+        if (dx * dx + dy * dy < 15000.0 * 15000.0) {
+          pg::fanet::Tracking tr;
+          tr.lat = kOriginLat + a.y / kMPerDegLat;
+          tr.lon = kOriginLon + a.x / (kMPerDegLat * std::cos(kOriginLat * pg::kDegToRad));
+          tr.altitude = static_cast<int>(a.alt);
+          tr.climb = a.climbAvg;
+          tr.speedKmh = (a.circ ? 9.6f : 10.5f) * 3.6f;
+          tr.headingDeg = a.hdg;
+          tr.hasTurnRate = true;
+          tr.turnRateDeg = a.rate;
+          fc.onTraffic(t, a.id, tr);
+        }
+      }
+    }
   }
 
   float bearingTo(const Thermal& h) const {
@@ -463,7 +604,8 @@ class World {
       const float d = static_cast<float>(std::sqrt(dx * dx + dy * dy));
       // Like a pilot: only clouds you can reach (glide ~7:1 with margin).
       if (d > (alt - ground - 60) * 7.0f) continue;
-      const float score = th[i].now() * 400.0f - d;
+      float score = th[i].now() * 400.0f - d;
+      if (courseValid_) score -= 6.0f * std::fabs(pg::angleDiffDeg(bearingTo(th[i]), course_));
       if (score > bs) {
         bs = score;
         bi = i;
