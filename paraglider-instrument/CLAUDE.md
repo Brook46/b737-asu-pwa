@@ -61,7 +61,9 @@ workers, Pages deploy) apply here.
 * Terrain (`*.ter`, `tools/terrain/build_terrain.py`) and the thermal pack
   (`hotspots.pghs`, `sim/pack.html`) live in `data/` → LittleFS
   (`pio run -t uploadfs`). Both optional. `sim/terrain.ter` is a copy of
-  `data/gilboa.ter` for the browser simulator.
+  `data/gilboa.ter` for the browser simulator; `sim/terrain.png/.json` are the
+  same grid for the published artifact, which can't serve binaries
+  (`python3 tools/terrain/ter2png.py`). Regenerate both when the terrain changes.
 * KK7 hotspot data is CC BY-NC-SA 4.0: keep the attribution in pack.html and
   never bundle KK7-derived packs in the repo. The pack builder's KK7 reader
   is unverified against live data (blocked from the build environment);

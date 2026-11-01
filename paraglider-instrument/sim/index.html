@@ -276,7 +276,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
   // ---------------- terrain ----------------
   let terr = null, shade = null;
   try {
-    const tb = new Uint8Array(await (await fetch("terrain.ter")).arrayBuffer());
+    const tb = await loadTerrain();
     new Uint8Array(mem(), ex.sim_terrain_buffer(), tb.length).set(tb);
     if (ex.sim_terrain_load(tb.length)) {
       const dv = new DataView(tb.buffer);
@@ -288,6 +288,37 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       shade = hillshade(terr);
     }
   } catch (e) { /* flat world */ }
+  // terrain.ter where binary files are served (GitHub Pages, local); else the
+  // same grid as a lossless PNG + JSON (tools/terrain/ter2png.py).
+  async function loadTerrain() {
+    try {
+      const r = await fetch("terrain.ter");
+      if (r.ok) {
+        const b = new Uint8Array(await r.arrayBuffer());
+        if (b.length > 44 && b[0] === 0x50 && b[1] === 0x47 && b[2] === 0x54 && b[3] === 0x52) return b;
+      }
+    } catch (e) { /* fall through */ }
+    const meta = await (await fetch("terrain.json")).json();
+    const img = new Image();
+    img.src = "terrain.png";
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = meta.cols; c.height = meta.rows;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const px = g.getImageData(0, 0, meta.cols, meta.rows).data;
+    const out = new Uint8Array(44 + meta.rows * meta.cols * 2), dv = new DataView(out.buffer);
+    "PGTR".split("").forEach((ch, i) => dv.setUint8(i, ch.charCodeAt(0)));
+    dv.setUint16(4, 1, true); dv.setUint16(6, meta.rows, true); dv.setUint16(8, meta.cols, true);
+    dv.setFloat64(12, meta.south, true); dv.setFloat64(20, meta.west, true);
+    dv.setFloat64(28, meta.dlat, true); dv.setFloat64(36, meta.dlon, true);
+    for (let r = 0; r < meta.rows; r++)
+      for (let k = 0; k < meta.cols; k++) {
+        const i = ((meta.rows - 1 - r) * meta.cols + k) * 4;
+        dv.setInt16(44 + (r * meta.cols + k) * 2, px[i] * 256 + px[i + 1] - 32768, true);
+      }
+    return out;
+  }
   // Hillshade + elevation tint, one pixel per grid cell (row 0 = south).
   function hillshade(t) {
     const c = document.createElement("canvas");
