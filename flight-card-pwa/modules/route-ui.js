@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=202';
-import * as ri from './route-info.js?v=202';
-import { legTs, nearestHm } from './dates.js?v=202';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=202';
+import * as storage from './storage.js?v=203';
+import * as ri from './route-info.js?v=203';
+import { legTs, nearestHm } from './dates.js?v=203';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=203';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -485,6 +485,17 @@ function colourRaw(raw, rwys) {
           || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || null;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
   }).join('');
+}
+
+// The same colouring for the Brief tab: a report at one airport, by its code.
+// With the airport data not loaded yet, wind just stays uncoloured.
+export async function colouredReports(code, reports) {
+  let rwys = [];
+  try {
+    const ap = ri.findAirport(await ri.loadDb(), code);
+    if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
+  } catch {}
+  return reports.map(raw => colourRaw(raw, rwys));
 }
 
 function wxSummary(w, xw) {
