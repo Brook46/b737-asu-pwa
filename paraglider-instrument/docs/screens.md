@@ -92,6 +92,24 @@ else straight ahead.
 - **Below the view:** where you'll hit the ground, or by how much you clear
   it.
 
+### Climb plan (SIDE page while circling)
+
+![climb plan landscape](screens/climb_landscape.png) ![climb plan portrait](screens/climb_portrait.png)
+
+While you circle, the side view answers the question you have in a thermal:
+**how high before I leave?**
+
+- **Your thermal:** a column (leaning with the wind) with you on it.
+- **LEAVE AT:** the height that reaches the next target with margin, in this
+  wind. The target is the next turnpoint, else the next thermal (arrive 250
+  m above its ground), else home (150 m).
+- **The glide:** dashed, from that height to the target.
+- **The answer in words:** "CLIMB +315 m (15') then Tabor", or "HIGH ENOUGH:
+  Tabor +225 m". The minutes come from this thermal's average climb.
+
+The same line is shown under the circle on the thermal page, so you get the
+answer without changing page.
+
 ### Info and Profile
 
 ![info landscape](screens/info_landscape.png) ![info portrait](screens/info_portrait.png)
@@ -117,6 +135,7 @@ position error. Everything that doesn't need GPS carries on.
   otherwise. It **keeps the thermal page** while you straighten to MOVE and
   for 10 s after rolling out, unless the advice was GLIDE.
 - **Page** (the remote's button) cycles FLIGHT → SIDE → INFO → PROFILE.
+  SIDE shows the way ahead while gliding and the climb plan while circling.
 - A manual page **returns to FLIGHT after 20 s**, or at once on STAY, GLIDE,
   MOVE, TIGHTEN, WIDEN, FINAL GLIDE, a turnpoint or GPS LOST.
 - Cues show in a banner at the bottom for 10–15 s.

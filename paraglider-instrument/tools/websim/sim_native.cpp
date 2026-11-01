@@ -103,6 +103,11 @@ int main(int argc, char** argv) {
       shot |= bit;
       sim_page(0);
       shotBoth(out + (bit == 1 ? "/thermal" : bit == 2 ? "/glide" : "/gpslost"));
+      if (bit == 1) {  // the climb plan at the same moment
+        sim_page(1);
+        shotBoth(out + "/climb");
+        sim_page(0);
+      }
       if (bit == 2) {  // the side view at the same moment
         sim_page(1);
         shotBoth(out + "/side");

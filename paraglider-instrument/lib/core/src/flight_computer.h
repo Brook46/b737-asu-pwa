@@ -43,6 +43,21 @@ struct FlightComputerConfig {
   bool barCues = true;    // speed-bar sounds on glide
 };
 
+// While climbing: how high to climb before leaving for the next target
+// (next turnpoint on a task, else the glide target, else home), arriving
+// with margin at best glide in this wind.
+struct ClimbPlan {
+  bool valid = false;
+  const char* what = "";       // "Tabor", "thermal", "sun", "pilot", "home"
+  float leaveAt = 0;           // m MSL to leave at
+  float need = 0;              // m still to climb (≤ 0 = high enough now)
+  float minutes = 0;           // at the current thermal's climb
+  float arriveNow = 0;         // arrival height there if you left now (m AGL)
+  float margin = 0;            // the arrival height planned for
+  float distM = 0, bearingDeg = 0, targetGround = 0;
+  bool aboveCeiling = false;   // even cloud base isn't high enough
+};
+
 // Another pilot within 5 km, relative to you (only while our GPS is trusted).
 struct NearPilot {
   float north = 0, east = 0, dAlt = 0, climb = 0;
@@ -91,6 +106,7 @@ struct Status {
   XcOutput xc;               // effective MC, working band, speed bar
   LeaveReason leave = LeaveReason::None;  // why the last GLIDE was given
   TaskView task;
+  ClimbPlan plan;
   float ceilingMsl = 0;      // cloud base (MSL) if known, else the best top today
   bool ceilingValid = false;
   bool ceilingIsBase = false; // cloud base measured in thermal air (not a guess from tops)

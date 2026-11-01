@@ -688,6 +688,48 @@ void FlightComputer::updateNav(TimeMs t) {
     }
   }
 
+  // Climb plan: from here, how high before leaving for the next target.
+  st_.plan = ClimbPlan{};
+  if (st_.pos.valid) {
+    double tLat = 0, tLon = 0;
+    float margin = 0;
+    const char* what = nullptr;
+    if (task_ && st_.task.active && !st_.task.finished && task_->next() < task_->count()) {
+      tLat = task_->at(task_->next()).lat;
+      tLon = task_->at(task_->next()).lon;
+      margin = 150;
+      what = task_->at(task_->next()).name;
+    } else if (st_.best.valid) {
+      tLat = st_.best.lat;
+      tLon = st_.best.lon;
+      margin = 250;  // arrive high enough to work a thermal
+      what = st_.best.kind == TargetKind::Live ? "pilot" : (st_.best.kind == TargetKind::Sun ? "sun" : "thermal");
+    } else if (st_.home.valid) {
+      tLat = st_.home.lat;
+      tLon = st_.home.lon;
+      margin = 150;
+      what = "home";
+    }
+    if (what) {
+      ClimbPlan& p = st_.plan;
+      p.arriveNow = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, tLat, tLon, gN, gE,
+                               p.bearingDeg, p.distM);
+      if (p.arriveNow > -9000) {
+        p.valid = true;
+        p.what = what;
+        p.margin = margin;
+        p.need = margin - p.arriveNow;  // glide loss doesn't change with start height
+        p.leaveAt = st_.altMsl + p.need;
+        float g = 0;
+        if (terrain_) terrain_->elevation(tLat, tLon, g);
+        p.targetGround = g;
+        const float climb = st_.advisor.thermalAvg > 0.2f ? st_.advisor.thermalAvg : 0.2f;
+        p.minutes = p.need > 0 ? p.need / climb / 60.0f : 0;
+        p.aboveCeiling = st_.ceilingValid && p.leaveAt > st_.ceilingMsl;
+      }
+    }
+  }
+
   // Task: advance turnpoints (trusted GPS only), final glide.
   if (task_ && task_->count() >= 2) {
     if (st_.gps == GpsState::Ok && st_.pos.valid && task_->update(st_.pos.lat, st_.pos.lon)) notify(Alert::Turnpoint, t);

@@ -343,10 +343,12 @@ void assistant(Canvas& c, const Status& s, int cx, int cy, int R) {
   const float pxPerM = tv.myRadius > 5 ? R / tv.myRadius : 0;
   if (tv.fit.valid && pxPerM > 0) {
     int kx, ky;
-    polar(cx, cy, tv.coreBearing - hdg, tv.coreDist * pxPerM, kx, ky);
+    // A far core is pinned just outside the circle (the MOVE arrow says where).
+    const float kd = tv.coreDist * pxPerM;
+    polar(cx, cy, tv.coreBearing - hdg, kd > R + 12 ? R + 12.0f : kd, kx, ky);
     const int kr = static_cast<int>(tv.fit.radius * pxPerM);
     // Its size, when it fits around the circle (a big outline would cover the numbers).
-    if (kr <= R + 12 && std::abs(kx - cx) + kr <= R + 16 && std::abs(ky - cy) + kr <= R + 16)
+    if (kd <= R + 12 && kr <= R + 12 && std::abs(kx - cx) + kr <= R + 16 && std::abs(ky - cy) + kr <= R + 16)
       dottedCircle(c, kx, ky, kr, kr > 60 ? 4 : 8);
     c.line(kx - 6, ky, kx + 6, ky, true, 2);
     c.line(kx, ky - 6, kx, ky + 6, true, 2);
@@ -363,7 +365,9 @@ void assistant(Canvas& c, const Status& s, int cx, int cy, int R) {
       polar(cx, cy, std::atan2(np.east, np.north) / kD2R - s.heading, d, px, py);
       c.circle(px, py, 4);
       std::snprintf(b, sizeof b, "%+.1f", static_cast<double>(np.climb));
-      label(c, px + 6, py - 6, b);
+      // label toward the centre so it stays off the numbers beside the circle
+      if (px > cx) label(c, px - 6, py - 6, b, Align::Right);
+      else label(c, px + 6, py - 6, b);
     }
   }
   fmtSigned(b, sizeof b, s.advisor.thermalAvg);
@@ -579,6 +583,121 @@ SideResult sideView(Canvas& c, const Status& s, int x0, int y0, int w, int h, bo
   return r;
 }
 
+// While climbing, the side view answers "how high before I leave?": your
+// thermal as a column you're climbing, a LEAVE AT mark at the height that
+// reaches the next target with margin, and the glide from there.
+void climbPlanText(const Status& s, char* b, size_t n) {
+  const ClimbPlan& p = s.plan;
+  b[0] = 0;
+  if (!p.valid) return;
+  if (p.aboveCeiling) std::snprintf(b, n, "%s: out of reach even from base", p.what);
+  else if (p.need > 20)
+    std::snprintf(b, n, "CLIMB +%.0f m (%.0f') then %s", static_cast<double>(p.need), static_cast<double>(p.minutes),
+                  p.what);
+  else std::snprintf(b, n, "HIGH ENOUGH: %s %+.0f m", p.what, static_cast<double>(p.arriveNow));
+}
+
+void climbView(Canvas& c, const Status& s, int x0, int y0, int w, int h) {
+  c.rect(x0, y0, w, h);
+  const ClimbPlan& p = s.plan;
+  if (!p.valid || !s.pos.valid) {
+    c.text(x0 + w / 2, y0 + h / 2 - 8, s.pos.valid ? "no target" : "no position", kFontSmall, Align::Center);
+    return;
+  }
+  const float range = p.distM * 1.12f + 300;
+  const float ub = std::sin(p.bearingDeg * kD2R), vb = std::cos(p.bearingDeg * kD2R);
+  const double mLon = kMPerDeg * std::cos(s.pos.lat * kD2R);
+  // Ground along the way.
+  int n = w - 2;
+  if (n > 398) n = 398;
+  static float g[398];
+  float gmin = 1e9f, gmax = -1e9f;
+  for (int i = 0; i < n; ++i) {
+    const float d = range * i / (n - 1);
+    float e = NAN;
+    if (s.terrain && !s.terrain->elevation(s.pos.lat + vb * d / kMPerDeg, s.pos.lon + ub * d / mLon, e)) e = NAN;
+    g[i] = e;
+    if (!std::isnan(e)) {
+      if (e < gmin) gmin = e;
+      if (e > gmax) gmax = e;
+    }
+  }
+  if (gmin > gmax) gmin = gmax = p.targetGround;
+  float zlo = gmin - 50, zhi = (p.leaveAt > s.altMsl ? p.leaveAt : s.altMsl) + 150;
+  if (s.ceilingValid && s.ceilingMsl + 60 > zhi && s.ceilingMsl < zhi + 1000) zhi = s.ceilingMsl + 60;
+  if (gmax + 100 > zhi) zhi = gmax + 100;
+  const int top = y0 + 2, bot = y0 + h - 12, left = x0 + 1;
+  auto X = [&](float d) { return left + static_cast<int>(d / range * (n - 1)); };
+  auto Y = [&](float z) {
+    int y = bot - static_cast<int>((z - zlo) / (zhi - zlo) * (bot - top));
+    return y < top ? top : (y > bot ? bot : y);
+  };
+  for (int i = 0; i < n; ++i) {
+    if (std::isnan(g[i])) continue;
+    const int x = left + i, yg = Y(g[i]);
+    for (int y = yg; y <= bot; ++y)
+      if (((x + y) & 3) == 0) c.pixel(x, y);
+    c.pixel(x, yg);
+    c.pixel(x, yg + 1);
+  }
+  if (s.ceilingValid && s.ceilingMsl < zhi) {
+    const int yb = Y(s.ceilingMsl);
+    for (int x = left; x < left + n; x += 6) c.hline(x, yb, 3);
+    label(c, left + n - 2, yb - 12, s.ceilingIsBase ? "base" : "top", Align::Right);
+  }
+  // Your thermal: a column from the ground up to the ceiling, leaning with
+  // the wind along this direction (the part above you drifts downwind).
+  const float wN = s.wind.valid ? s.wind.toN : 0, wE = s.wind.valid ? s.wind.toE : 0;
+  const float along = wE * ub + wN * vb;
+  const float zTop = s.ceilingValid ? s.ceilingMsl : s.altMsl + 800;
+  const float g0 = std::isnan(g[0]) ? zlo : g[0];
+  for (float z = g0; z < zTop; z += 50) {
+    const float d = 300 + along * (z - s.altMsl) / s.thermalRise;  // you circle ~300 m into the plot
+    const int x = X(d < 0 ? 0 : d), y = Y(z);
+    const int gi = x - left;
+    if (gi >= 0 && gi < n && !std::isnan(g[gi]) && z < g[gi]) continue;  // not inside the hill
+    c.fillRect(x - 8, y, 2, 2);
+    c.fillRect(x + 7, y, 2, 2);
+  }
+  const int cx = X(300);
+  // You, and an up arrow while there's height to gain.
+  glider(c, cx, Y(s.altMsl), 0, 6);
+  // LEAVE AT: the height that reaches the target with margin.
+  if (!p.aboveCeiling) {
+    if (p.need > 20) {  // still to climb: the mark to leave at, and the way up
+      const int yl = Y(p.leaveAt);
+      c.hline(cx - 14, yl, 28);
+      c.hline(cx - 14, yl + 1, 28);
+      char b[24];
+      std::snprintf(b, sizeof b, "leave %.0f", static_cast<double>(p.leaveAt));
+      label(c, cx + 16, yl - 6, b);
+      arrow(c, cx, Y(s.altMsl) - 8, 0, 0, static_cast<float>(Y(s.altMsl) - 8 - yl), 2, 4);
+    }
+    // The glide from there to the target, arriving with the margin.
+    const float zFrom = p.need > 0 ? p.leaveAt : s.altMsl;
+    const int tx = X(p.distM), ty = Y(p.targetGround + p.margin + (p.need > 0 ? 0 : p.arriveNow - p.margin));
+    int lx = cx, ly = Y(zFrom);
+    for (int k = 1; k <= 40; ++k) {
+      const int x = cx + (tx - cx) * k / 40, y = Y(zFrom) + (ty - Y(zFrom)) * k / 40;
+      if (k % 2) c.line(lx, ly, x, y, true, 2);
+      lx = x;
+      ly = y;
+    }
+  }
+  // The target: a column if it's a thermal, a flag otherwise.
+  const int tx = X(p.distM);
+  if (s.best.valid && s.best.kind != TargetKind::Home && !(s.task.active && !s.task.finished)) {
+    for (int y = Y(p.targetGround); y > Y(zTop); y -= 3) c.pixel(tx, y);
+  } else {
+    const int ty = Y(p.targetGround);
+    c.vline(tx, ty - 14, 14);
+    c.fillTriangle(tx, ty - 14, tx + 8, ty - 10, tx, ty - 6);
+  }
+  char b[24];
+  fmtKm(b, sizeof b, p.distM);
+  label(c, tx, bot, b, Align::Center);
+}
+
 // ---------------------------------------------------------------- pages
 
 void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
@@ -606,6 +725,8 @@ void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
                     static_cast<double>(s.air.cloudBase - s.altitude));
     else std::snprintf(b, sizeof b, "--");
     row(c, 232, 398, 174, "TO BASE m", b);
+    climbPlanText(s, b, sizeof b);
+    if (b[0]) c.text(6, 214, b, kFontSmall);
   } else {
     // Portrait: the vario across the top, the circle big, heights underneath.
     fmtSigned(b, sizeof b, s.vario);
@@ -632,6 +753,11 @@ void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
     cell(c, 200, 304, "TO BASE", b);
     c.vline(80, 302, 36);
     c.vline(160, 302, 36);
+    climbPlanText(s, b, sizeof b);
+    if (b[0]) {
+      const bool fits = Canvas::textWidth(b, kFontSmall) <= 232;
+      c.text(120, 346, b, fits ? kFontSmall : kFontTiny, Align::Center);
+    }
   }
   bannerArea(c, s, m, t);
 }
@@ -774,8 +900,17 @@ void pageSide(Canvas& c, const Status& s, const Model& m, TimeMs t) {
   char b[64], b2[24];
   const int W = c.width(), H = c.height();
   const int h = c.portrait() ? H - 18 - 74 : H - 18 - 40;
-  const SideResult r = sideView(c, s, 0, 18, W, h, true);
   const int y = 18 + h + 4;
+  if (m.thermalView()) {  // climbing: the climb plan instead of the way ahead
+    climbView(c, s, 0, 18, W, h);
+    climbPlanText(s, b, sizeof b);
+    const bool fits = Canvas::textWidth(b, kFontSmall) <= W - 8;
+    c.text(4, y, b, fits ? kFontSmall : kFontTiny);
+    label(c, 4, y + 20, c.portrait() ? "CLIMB PLAN - Page: info" : "CLIMB PLAN  -  Page: info");
+    bannerArea(c, s, m, t);
+    return;
+  }
+  const SideResult r = sideView(c, s, 0, 18, W, h, true);
   if (r.ok) {
     fmtKm(b2, sizeof b2, r.range);
     std::snprintf(b, sizeof b, "to %s", r.what);
