@@ -100,7 +100,8 @@ workers, Pages deploy) apply here.
   will show stale behaviour. `make websim-native && build/sim_native 30 build
   [inversion m] [gps mode] [at min]` (run from this folder; env SEED=n, FOLLOW=0|1|2, TASK=1) runs the same world natively and writes PBM screenshots.
 * Pages: FLIGHT (switches itself: thermal while circling, held through MOVE
-  and 10 s after roll-out; glide otherwise, with a side-view strip), SIDE,
+  and 10 s after roll-out; glide otherwise, with a side-view strip), SIDE (way
+  ahead when gliding; the climb plan, `status().plan`, while circling),
   INFO, PROFILE. Manual pages return to FLIGHT after 20 s or on a cue
   (`display::Model`). Keep them sparse: the user asked for fewer, more
   useful numbers.
