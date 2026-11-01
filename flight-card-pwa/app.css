@@ -397,28 +397,16 @@ body.is-past-leg #card-data {
   display: flex; gap: 4px;
   flex-shrink: 0;
 }
-/* The strip's top line, and the drawer it opens. */
-.leg-sum {
-  -webkit-appearance: none; appearance: none;
-  display: flex; align-items: center; gap: 6px; max-width: 100%;
-  padding: 0; border: 0; background: transparent; cursor: pointer;
-  font: inherit; color: var(--accent); text-align: start; white-space: nowrap;
-}
-.leg-sum-txt {
-  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-  font-size: 11px; font-weight: 600; color: var(--fg-mute);
-}
-#leg-sum-vals { overflow: hidden; text-overflow: ellipsis; }
-.leg-sum-chev { font-size: 10px; color: var(--accent); transition: transform .15s ease; }
-.leg-sum[aria-expanded="true"] .leg-sum-chev { transform: rotate(180deg); }
-.leg-edit { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
-.leg-edit[hidden] { display: none; }
-.leg-edit-row { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
-/* T/O, LDG and flight time: always on the strip. */
-.leg-quick { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; }
-.leg-ft { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
-.leg-ft span { font-size: 11px; font-weight: 600; color: var(--fg-mute); white-space: nowrap; }
-.leg-ft .hdr-input { flex: 0 0 72px; width: 72px; padding: 5px 4px; }
+/* The strip's top line: date, STD and the PAST / next tag. */
+.leg-sum { display: flex; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; }
+.leg-sum-txt { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+/* T/O, LDG, flight number, aircraft, flight time: always on one row. */
+.leg-quick { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; }
+.leg-quick .leg-roles { flex: none; }
+.leg-quick .leg-role-pill { min-width: 0; padding: 6px 7px; font-size: 11.5px; white-space: nowrap; }
+.leg-quick .hdr-input { padding: 6px 2px; }
+.leg-quick .hdr-input::placeholder { font-size: 10px; letter-spacing: .02em; }
+.leg-flightno { display: none; }
 .leg-role-pill {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-elev);
@@ -454,7 +442,6 @@ body.is-past-leg #card-data {
 }
 .leg-pos   { font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; opacity: .85; }
 .leg-route { font-size: 13px; font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; }
-.leg-flightno { color: var(--fg-mute); }
 .leg-arrow  { color: var(--fg-mute); }
 /* Tappable Dep / Arr airport codes — pill buttons that open the airport
    info popup. Underline-dotted so it reads as interactive at a glance. */
@@ -3763,6 +3750,10 @@ body[data-phase="before"] .data-group-head .chev { display: none; }
   background: var(--bg-elev);
 }
 .checklist-float[hidden] { display: none; }
+/* iPad: the right-hand half, with the card usable on the left. */
+@media (min-width: 600px) {
+  .checklist-float:not(.is-float) { left: 50%; box-shadow: -0.5px 0 0 var(--line); }
+}
 .checklist-float.is-float {
   left: auto; right: 12px; top: auto; width: min(400px, calc(100vw - 24px));
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
