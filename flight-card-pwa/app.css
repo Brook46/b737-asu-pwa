@@ -157,8 +157,9 @@ body {
 }
 
 /* ---------- Header ---------- */
+.app-top { position: sticky; top: 0; z-index: 5; }
 .app-header {
-  position: sticky; top: 0; z-index: 5;
+  position: relative; z-index: 1;   /* the ••• menu opens over the strip */
   display: flex; flex-direction: column;
   gap: 6px;
   /* Left padding leaves room for the iOS Slide Over / Stage Manager
@@ -212,7 +213,7 @@ body {
   width: 46px; min-width: 0;
   text-align: center;
 }
-.hdr-ctot input::placeholder { color: var(--fg-dim); font-weight: 600; font-size: 10px; letter-spacing: .08em; }
+.hdr-ctot input::placeholder { color: var(--fg-dim); font-weight: 600; }
 .hdr-ctot input:focus { outline: none; }
 .hdr-ctot button {
   -webkit-appearance: none; appearance: none;
@@ -367,13 +368,11 @@ body.is-past-leg #card-checklist {
 
 /* ---------- Leg switcher (multi-flight roster) ---------- */
 .leg-switcher {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex; align-items: center; gap: 6px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 4px 8px;
   background: var(--accent-soft);
   border-bottom: 1px solid var(--accent);
-  padding: 8px 10px;
+  padding: 6px 10px;
   color: var(--accent);
 }
 .leg-switcher.hidden { display: none; }
@@ -382,11 +381,11 @@ body.is-past-leg #card-checklist {
   background: var(--bg-elev);
   border: 1px solid var(--accent);
   border-radius: 8px;
-  padding: 6px 12px;
-  font: inherit; font-size: 14px; font-weight: 800;
+  padding: 4px 0;
+  font: inherit; font-size: 13px; font-weight: 800;
   color: var(--accent);
   min-height: 36px;
-  min-width: 44px;
+  min-width: 34px;
   cursor: pointer;
 }
 .leg-btn:active { background: var(--accent); color: #fff; }
@@ -395,9 +394,26 @@ body.is-past-leg #card-checklist {
    they need to fit on the leg-switcher row next to the leg info + arrows.
    Same PF / PM / none state colours as the old role-pill cell. */
 .leg-roles {
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; gap: 4px;
   flex-shrink: 0;
 }
+/* The strip's top line, and the drawer it opens. */
+.leg-sum {
+  -webkit-appearance: none; appearance: none;
+  display: flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 0; border: 0; background: transparent; cursor: pointer;
+  font: inherit; color: var(--accent); text-align: start; white-space: nowrap;
+}
+.leg-sum-txt {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 11px; font-weight: 600; color: var(--fg-mute);
+}
+#leg-sum-vals { overflow: hidden; text-overflow: ellipsis; }
+.leg-sum-chev { font-size: 10px; color: var(--accent); transition: transform .15s ease; }
+.leg-sum[aria-expanded="true"] .leg-sum-chev { transform: rotate(180deg); }
+.leg-edit { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
+.leg-edit[hidden] { display: none; }
+.leg-edit-row { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
 .leg-role-pill {
   -webkit-appearance: none; appearance: none;
   background: var(--bg-elev);
@@ -431,8 +447,8 @@ body.is-past-leg #card-checklist {
   font-variant-numeric: tabular-nums;
   text-align: left;
 }
-.leg-pos   { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
-.leg-route { font-size: 13px; font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.leg-pos   { font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; opacity: .85; }
+.leg-route { font-size: 13px; font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; }
 .leg-flightno { color: var(--fg-mute); }
 .leg-arrow  { color: var(--fg-mute); }
 /* Tappable Dep / Arr airport codes — pill buttons that open the airport
@@ -1494,18 +1510,6 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
 }
 .data-cell.metar-cell.is-empty .metar-text { color: var(--fg-dim); font-style: italic; }
 
-.data-group-reset {
-  -webkit-appearance: none; appearance: none;
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  width: 28px; height: 28px;
-  padding: 0;
-  font: inherit; font-size: 14px; font-weight: 700;
-  color: var(--fg-mute);
-  cursor: pointer;
-}
-.data-group-reset:active { background: var(--bg-sunk); color: var(--danger); }
 
 /* CTOT pill ↗ Flightaware link */
 .hdr-ctot button#hdr-ctot-fa {
@@ -2294,7 +2298,7 @@ body {
   color: var(--fg);
 }
 .actions .btn.icon-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.data-group-action, .data-group-reset {
+.data-group-action {
   border: 0;
   background: var(--bg-sunk);
   color: var(--accent);
@@ -3609,24 +3613,12 @@ body {
   .actions .btn.tool-btn { padding: 0 10px; font-size: 13px; gap: 5px; }
 }
 
-/* ---------- Flight strip on a phone ----------
-   Side by side, the role pills and the ◀ ● ▶ buttons left the route ~140 px:
-   the destination dropped to its own line and the Ben Gurion line took
-   three. On a narrow screen the route gets the full width on top, and the
-   pills and buttons share one row beneath it. */
+/* ---------- Top bar on a phone ----------
+   The 72 px on the left is for the iPad's window controls; a phone has none,
+   and needs the width. */
 @media (max-width: 560px) {
-  .leg-switcher {
-    display: grid; grid-template-columns: 1fr auto;
-    grid-template-areas: "info info" "roles ctrls";
-    row-gap: 6px; align-items: center;
-  }
-  .leg-info  { grid-area: info; }
-  .leg-roles { grid-area: roles; flex-direction: row; }
-  .leg-ctrls { grid-area: ctrls; }
-  .leg-role-pill { min-width: 0; padding: 4px 10px; }
-  .leg-route { flex-wrap: nowrap; white-space: nowrap; }
-  .leg-board, .leg-ctrls .leg-btn { white-space: nowrap; }
-  .leg-board { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .app-header { padding-left: max(env(safe-area-inset-left, 0px), 10px); }
+  .leg-board { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* Flight strip: nearest airport by time (in the air with GPS). */
@@ -3658,3 +3650,14 @@ body {
 .ri-mapwx { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 2px 8px; font-size: 12px; color: var(--fg-mute); }
 .ri-mapwx .vs-btn { min-width: 0; padding: 5px 11px; font-size: 13px; white-space: nowrap; }
 .ri-mapwx-note { margin-top: -2px; }
+
+/* ---------- Clear this flight ---------- */
+.clear-btn { color: var(--danger); }
+.clear-rows { display: flex; flex-direction: column; }
+.clear-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 4px;
+  font-size: 16px; color: var(--fg); cursor: pointer;
+}
+.clear-row + .clear-row { border-top: 0.5px solid var(--line); }
+.clear-row input { width: 20px; height: 20px; accent-color: var(--danger); }
+.clear-go { background: var(--danger); border-color: var(--danger); color: #fff; }

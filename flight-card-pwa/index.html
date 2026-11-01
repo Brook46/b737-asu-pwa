@@ -20,15 +20,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=194" />
+  <link rel="stylesheet" href="./app.css?v=195" />
 </head>
 <body>
+  <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
+  <div class="app-top">
   <header class="app-header">
     <div class="hdr-row hdr-row-1">
       <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
       <button id="net-pill" class="net-pill" type="button" hidden title="No internet — showing saved data">Offline</button>
       <div class="hdr-ctot">
-        <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="CTOT" aria-label="CTOT (UTC)" />
+        <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="—" aria-label="CTOT (UTC)" />
         <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
         <button id="hdr-ctot-bell" data-action="ctot-bell" type="button" class="hdr-ctot-bell is-off" title="Enable CTOT alerts (20 / 10 / now)" aria-label="Toggle CTOT alerts">🔕</button>
       </div>
@@ -105,31 +107,17 @@
         </details>
       </div>
     </div>
-    <div class="hdr-row hdr-row-2">
-      <!-- Flight time mirrors the Flight group's "Flight time" cell — edit
-           either one and both update (see syncHeaderInputs + the flight_time
-           branch in dataCard.setOnChange). Sits left of the tail, under CTOT. -->
-      <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" aria-label="Flight time (HH:MM)" />
-      <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
-      <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
-    </div>
   </header>
 
   <div id="leg-switcher" class="leg-switcher hidden" role="region" aria-label="Flight leg switcher">
-    <!-- T/O & LDG role pills. Always present; renderLegSwitcher paints PF/PM/—
-         from the active leg's dataCard. data-role-key wires into the document-
-         level [data-role-key] click delegate. Moved here in Phase 13 — used to
-         live as two cells inside the Flight group of the data card. -->
-    <div class="leg-roles">
-      <button id="leg-to-role"  class="leg-role-pill is-none"
-              data-role-key="to_role"  type="button"
-              aria-label="Takeoff role: none; tap to cycle PF / PM / none">T/O&nbsp;—</button>
-      <button id="leg-ldg-role" class="leg-role-pill is-none"
-              data-role-key="ldg_role" type="button"
-              aria-label="Landing role: none; tap to cycle PF / PM / none">LDG&nbsp;—</button>
-    </div>
     <div class="leg-info">
-      <span id="leg-pos"   class="leg-pos">Leg 1 / 1</span>
+      <!-- The strip's top line: date and STD, flight time, tail. Tap it for the
+           drawer below, which edits them. -->
+      <button id="leg-sum" data-action="leg-edit" class="leg-sum" type="button" aria-expanded="false" aria-controls="leg-edit" title="Edit flight time, tail, flight number and T/O and landing roles">
+        <span id="leg-pos" class="leg-pos">Leg 1 / 1</span>
+        <span id="leg-sum-txt" class="leg-sum-txt"><span id="leg-sum-vals"></span></span>
+        <span class="leg-sum-chev" aria-hidden="true">▾</span>
+      </button>
       <span id="leg-route" class="leg-route">
         <span id="leg-flightno" class="leg-flightno"></span>
         <button id="leg-dep" class="leg-apt" type="button" hidden aria-label="Departure airport info">—</button>
@@ -155,6 +143,28 @@
       </button>
       <button id="leg-next" data-action="leg-next" class="leg-btn" aria-label="Next leg">▶</button>
     </div>
+    <!-- Drawer: everything about the flight that isn't read at a glance. -->
+    <div id="leg-edit" class="leg-edit" hidden>
+      <div class="leg-edit-row">
+        <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" aria-label="Flight time (HH:MM)" />
+        <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
+        <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
+      </div>
+    <!-- T/O & LDG role pills. Always present; renderLegSwitcher paints PF/PM/—
+         from the active leg's dataCard. data-role-key wires into the document-
+         level [data-role-key] click delegate. Moved here in Phase 13 — used to
+         live as two cells inside the Flight group of the data card. -->
+      <div class="leg-roles">
+      <button id="leg-to-role"  class="leg-role-pill is-none"
+              data-role-key="to_role"  type="button"
+              aria-label="Takeoff role: none; tap to cycle PF / PM / none">T/O&nbsp;—</button>
+      <button id="leg-ldg-role" class="leg-role-pill is-none"
+              data-role-key="ldg_role" type="button"
+              aria-label="Landing role: none; tap to cycle PF / PM / none">LDG&nbsp;—</button>
+      </div>
+    </div>
+  </div>
+
   </div>
 
   <!-- Pull-to-refresh: a round badge that slides out from under the header,
@@ -175,7 +185,6 @@
           <span class="chev">▾</span>
           <span class="card-title">Checklist</span>
         </button>
-        <button id="checklist-reset" data-action="checklist-reset" class="btn ghost-btn" title="Reset checklist (uncheck all)" aria-label="Reset checklist">↻</button>
         <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print kneeboard cards" aria-label="Print checklist cards">🖨</button>
         <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
       </header>
@@ -193,7 +202,7 @@
           <span class="chev">▾</span>
           <span class="card-title">Data card</span>
         </button>
-        <button id="data-reset-all" data-action="data-reset-all" class="btn ghost-btn" title="Reset SOB, ATIS, Takeoff &amp; Fuel (keeps Flight + Crew)" aria-label="Reset data card">↻</button>
+        <button id="data-reset-all" data-action="clear-flight" class="btn ghost-btn clear-btn" title="Choose what to clear on this flight">Clear…</button>
         <button id="data-edit" class="btn ghost-btn" aria-pressed="false" title="Arrange the data card" aria-label="Arrange the data card">✎</button>
       </header>
       <div class="card-body" id="data-body"></div>
@@ -377,10 +386,23 @@
           <span class="nf-sub">Add flights from your duty bulletin</span>
         </button>
         <button id="newflight-reset" class="btn block">
-          <span class="nf-h">Reset current flight</span>
-          <span class="nf-sub">Clear takeoff numbers, fuel, ATIS, SOB and uncheck everything</span>
+          <span class="nf-h">Clear this flight…</span>
+          <span class="nf-sub">Choose what to clear: takeoff numbers, fuel, ATIS, SOB, ticks</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- "Clear this flight": the one place the main screen erases anything.
+       Rows are filled by openClearSheet in app.js. -->
+  <div id="clear-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="clear-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="clear-label" class="pad-label">Clear this flight</span>
+        <button id="clear-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="clear-rows" class="clear-rows"></div>
+      <button id="clear-go" class="btn block clear-go" type="button">Clear selected</button>
     </div>
   </div>
 
@@ -850,6 +872,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=194"></script>
+  <script type="module" src="./app.js?v=195"></script>
 </body>
 </html>

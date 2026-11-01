@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=194';
-import * as wx from './wx.js?v=194';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=194';
+import * as storage from './storage.js?v=195';
+import * as wx from './wx.js?v=195';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=195';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -95,7 +95,6 @@ let crewNoteOpen = '';
 
 let onChange = null;
 let onOptFmc = null;
-let onResetGroup = null;
 let onEditDone = null;     // edit mode's Done — the card head's ✎ un-presses
 // Flaps picker collapsed by default — tap to open the 5-chip row.
 let flapsPickerOpen = false;
@@ -104,7 +103,6 @@ let flapsPickerOpen = false;
 let lastRoot = null;
 export function setOnChange(fn) { onChange = fn; }
 export function setOnOptFmc(fn) { onOptFmc = fn; }
-export function setOnResetGroup(fn) { onResetGroup = fn; }
 
 // Crew group: when any crew slot is filled, hide the empty ones by default
 // — the pilot wanted the box to show "all crew members and positions + DH
@@ -185,9 +183,6 @@ export function render(root) {
     }
     const summary = renderSummary(group, data);
     const cells = renderCells.map(c => renderCell(c, data[c.key])).join('');
-    const resetBtn = group.resettable
-      ? `<button type="button" class="data-group-reset" data-reset-group="${group.id}" title="Reset ${escape(group.group)}" aria-label="Reset ${escape(group.group)}">↻</button>`
-      : '';
     const optBtn = group.hasOptFmc
       ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
       : '';
@@ -203,7 +198,6 @@ export function render(root) {
             <span class="data-group-name">${escape(group.group)}</span>
             <span class="data-group-meta">${groupMeta(group, data, filled, countCells.length)}</span>
           </button>
-          ${editMode ? '' : resetBtn}
           ${editMode ? '' : optBtn}
           ${editMode ? '' : crewAddBtn}
         </div>
@@ -655,15 +649,6 @@ function wire(root) {
       e.stopPropagation();
       e.preventDefault();
       if (onOptFmc) onOptFmc();
-    });
-  });
-  // Per-group reset — currently only on the TO performance group. Clears
-  // every cell value in that group via the onResetGroup callback.
-  root.querySelectorAll('[data-reset-group]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      if (onResetGroup) onResetGroup(btn.dataset.resetGroup);
     });
   });
   // Crew group: "+ add" / "− hide empty" toggle — flips crewShowAll so the
