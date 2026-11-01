@@ -98,6 +98,10 @@ struct Status {
   NearPilot near[8];
   int nearCount = 0;
   const Profile* profile = nullptr;
+  const Terrain* terrain = nullptr;       // for the side view
+  const Polar* polar = nullptr;           // the wing (side view glide line)
+  const ThermalSources* sun = nullptr;    // today's predicted triggers
+  float thermalRise = 2;                  // m/s, how fast thermals are assumed to rise
   bool clockValid = false;
   int year = 0, month = 0, day = 0, utcMin = 0;
 };

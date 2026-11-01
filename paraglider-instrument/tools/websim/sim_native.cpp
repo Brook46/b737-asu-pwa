@@ -11,6 +11,7 @@
 #include "display/gfx.h"
 
 extern "C" {
+void sim_command(int);
 void sim_reset(uint32_t);
 void sim_set(int, float);
 void sim_step(int);
@@ -21,12 +22,39 @@ uint8_t* sim_terrain_buffer();
 int sim_terrain_load(int);
 }
 
+// Portrait screens are stored turned on the panel; write them upright.
+static void writePbmPortrait(const std::string& path, const uint8_t* fb) {
+  FILE* f = std::fopen(path.c_str(), "wb");
+  if (!f) return;
+  const int W = pg::gfx::kHeight, H = pg::gfx::kWidth;  // 240 × 400
+  std::fprintf(f, "P4\n%d %d\n", W, H);
+  for (int y = 0; y < H; ++y)
+    for (int xb = 0; xb < W / 8; ++xb) {
+      uint8_t byte = 0;
+      for (int k = 0; k < 8; ++k) {
+        const int x = xb * 8 + k;
+        const int px = y, py = pg::gfx::kHeight - 1 - x;  // logical → panel
+        if (fb[py * pg::gfx::kStride + (px >> 3)] & (0x80 >> (px & 7))) byte |= 0x80 >> k;
+      }
+      std::fputc(byte, f);
+    }
+  std::fclose(f);
+}
+
 static void writePbm(const std::string& path, const uint8_t* fb) {
   FILE* f = std::fopen(path.c_str(), "wb");
   if (!f) return;
   std::fprintf(f, "P4\n%d %d\n", pg::gfx::kWidth, pg::gfx::kHeight);
   std::fwrite(fb, 1, pg::gfx::kStride * pg::gfx::kHeight, f);
   std::fclose(f);
+}
+
+static void shotBoth(const std::string& base) {
+  sim_set(19, 0);
+  writePbm(base + "_l.pbm", sim_render());
+  sim_set(19, 1);
+  writePbmPortrait(base + "_p.pbm", sim_render());
+  sim_set(19, 0);
 }
 
 int main(int argc, char** argv) {
@@ -74,7 +102,12 @@ int main(int argc, char** argv) {
       const int bit = !(shot & 1) && circ && st[64] >= 2 ? 1 : (!(shot & 2) && !circ && s > 600 && st[75] > 0 ? 2 : 4);
       shot |= bit;
       sim_page(0);
-      writePbm(out + (bit == 1 ? "/thermal.pbm" : bit == 2 ? "/glide.pbm" : "/gpslost.pbm"), sim_render());
+      shotBoth(out + (bit == 1 ? "/thermal" : bit == 2 ? "/glide" : "/gpslost"));
+      if (bit == 2) {  // the side view at the same moment
+        sim_page(1);
+        shotBoth(out + "/side");
+        sim_page(0);
+      }
     }
     if (st[10] > 0) {  // circling: distance to the true core, fit error
       circDist += std::hypot(st[7] - st[84], st[8] - st[85]);
@@ -104,12 +137,12 @@ int main(int argc, char** argv) {
               circN ? circDist / circN : 0.0, fitN ? fitErr / fitN : 0.0);
   std::printf("%d STAY, %d GLIDE cues; thermals counted %.0f; MC %.2f; base est %.0f vs true %.0f (offset %.1f)\n", stays,
               glides, st[38], st[12], st[16], st[18], st[21]);
-  sim_page(1);
-  writePbm(out + "/info.pbm", sim_render());
   sim_page(2);
-  writePbm(out + "/profile.pbm", sim_render());
+  shotBoth(out + "/info");
+  sim_page(3);
+  shotBoth(out + "/profile");
   sim_page(0);
-  writePbm(out + "/flight.pbm", sim_render());
-  std::printf("screens: %s/{thermal,glide,gpslost,info,profile,flight}.pbm\n", out.c_str());
+  shotBoth(out + "/flight");
+  std::printf("screens: %s/{thermal,glide,side,gpslost,info,profile,flight}_{l,p}.pbm\n", out.c_str());
   return 0;
 }

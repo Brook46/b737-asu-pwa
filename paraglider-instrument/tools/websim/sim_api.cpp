@@ -22,7 +22,7 @@ pg::FlightComputer* gFc = nullptr;
 world::World gWorld;
 pg::gfx::Canvas gCanvas;
 pg::display::Model gModel;
-pg::display::Page gPage = pg::display::Page::Flight;
+bool gPortrait = false;
 uint16_t gTone = 0;
 bool gLed = false;
 uint32_t gNextTick = 0;
@@ -94,7 +94,7 @@ EXPORT(sim_reset) void sim_reset(uint32_t seed) {
 // to Beirut, 3 noisy), 13 month, 14 day, 15 local start time (minutes).
 // Date/time take effect on the next reset. 16 autopilot: 0 perfect pilot,
 // 1 follows the turn advice, 2 steady circles ignoring it, 17 demo task on/off (next reset),
-// 18 simulated pilots on/off.
+// 18 simulated pilots on/off, 19 portrait screen.
 EXPORT(sim_set) void sim_set(int key, float v) {
   world::Params& p = gWorld.p;
   switch (key) {
@@ -117,6 +117,7 @@ EXPORT(sim_set) void sim_set(int key, float v) {
     case 16: p.followAdvice = static_cast<int>(v); break;
     case 17: gTaskOn = v != 0; break;
     case 18: p.otherPilots = v != 0; break;
+    case 19: gPortrait = v != 0; break;  // screen orientation
     default: break;
   }
 }
@@ -143,14 +144,14 @@ EXPORT(sim_pack_load) int sim_pack_load(int len) {
 // Remote / button commands: the pg::Command bytes, plus 0x20 = next page.
 EXPORT(sim_command) void sim_command(int code) {
   if (code == 0x20) {
-    gPage = static_cast<pg::display::Page>((static_cast<int>(gPage) + 1) % static_cast<int>(pg::display::Page::Count));
+    gModel.nextPage(gWorld.t);
     return;
   }
   fc().onCommand(static_cast<pg::Command>(code), gWorld.t);
 }
 
 EXPORT(sim_page) void sim_page(int p) {
-  if (p >= 0 && p < static_cast<int>(pg::display::Page::Count)) gPage = static_cast<pg::display::Page>(p);
+  if (p >= 0 && p < static_cast<int>(pg::display::Page::Count)) gModel.setPage(static_cast<pg::display::Page>(p), gWorld.t);
 }
 
 EXPORT(sim_step) void sim_step(int ms) {
@@ -192,7 +193,8 @@ EXPORT(sim_render) const uint8_t* sim_render() {
   d.flightMin = static_cast<int>(gWorld.t / 60000);
   d.simulated = true;
   d.baroName = "BME280";
-  render(gCanvas, gPage, fc().status(), gModel, d, gWorld.t);
+  d.portrait = gPortrait;
+  render(gCanvas, gModel.page(gWorld.t), fc().status(), gModel, d, gWorld.t);
   return gCanvas.buffer();
 }
 
@@ -228,7 +230,7 @@ EXPORT(sim_state) const float* sim_state() {
   o[22] = s.stf;
   o[23] = s.gnss.groundSpeed * 3.6f;
   o[24] = static_cast<float>(world::World::kThermals);
-  o[25] = static_cast<float>(gPage);
+  o[25] = static_cast<float>(gModel.page(gWorld.t));
   o[26] = static_cast<float>(s.volume);
   o[27] = s.muted ? 1 : 0;
   o[28] = gWorld.p.autopilot ? 1 : 0;

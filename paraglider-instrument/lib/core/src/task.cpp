@@ -241,6 +241,8 @@ TaskView Task::view(double lat, double lon) const {
   float d, b;
   legTo(lat, lon, tp_[next_].lat, tp_[next_].lon, d, b);
   v.nextDist = d > tp_[next_].radius ? d - tp_[next_].radius : 0;
+  v.insideStart = tp_[next_].type == TpType::Start && startExit_ && d <= tp_[next_].radius;
+  if (v.insideStart) v.nextDist = tp_[next_].radius - d;  // to the edge you must cross
   v.nextBearing = b;
   v.toGoal = remaining(lat, lon);
   return v;

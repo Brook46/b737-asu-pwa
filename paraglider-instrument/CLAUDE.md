@@ -99,9 +99,16 @@ workers, Pages deploy) apply here.
   needs `pip install ziglang`) whenever lib/core changes**, or the simulator
   will show stale behaviour. `make websim-native && build/sim_native 30 build
   [inversion m] [gps mode] [at min]` (run from this folder; env SEED=n, FOLLOW=0|1|2, TASK=1) runs the same world natively and writes PBM screenshots.
-* Pages: FLIGHT (switches itself: thermal page while circling, glide page
-  otherwise), INFO and PROFILE. Keep them sparse: the user asked for fewer, more
+* Pages: FLIGHT (switches itself: thermal while circling, held through MOVE
+  and 10 s after roll-out; glide otherwise, with a side-view strip), SIDE,
+  INFO, PROFILE. Manual pages return to FLIGHT after 20 s or on a cue
+  (`display::Model`). Keep them sparse: the user asked for fewer, more
   useful numbers.
+* **Every page has a landscape and a portrait layout** (`Canvas::setPortrait`,
+  `DeviceInfo::portrait`): a new page or element needs both, checked in
+  `build/sim_native` screenshots (`*_l.pbm`, `*_p.pbm`). `docs/screens.md`
+  holds the images (`docs/screens/`) and the comparison with Flymaster and
+  Naviter; regenerate the images when pages change.
 * The simulator's world (`tools/websim/world.h`) is real terrain with ridge
   lift and thermals as rising, drifting bubbles from the true sun-on-terrain
   sources (true wind and time; the instrument computes its own with its

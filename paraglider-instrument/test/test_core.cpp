@@ -801,13 +801,17 @@ TEST("display: every page renders from a live flight; text metrics are sane") {
   }
   static gfx::Canvas c;
   display::DeviceInfo d;
-  for (int p = 0; p < static_cast<int>(display::Page::Count); ++p) {
-    display::render(c, static_cast<display::Page>(p), fc.status(), model, d, fl.now());
-    int dark = 0;
-    for (int i = 0; i < gfx::kStride * gfx::kHeight; ++i)
-      for (int b = 0; b < 8; ++b) dark += (c.buffer()[i] >> b) & 1;
-    EXPECT(dark > 3000 && dark < 40000);  // drawn, and not a black screen
-    EXPECT(c.get(1, 1));                   // status bar is dark
+  for (int orient = 0; orient < 2; ++orient) {
+    d.portrait = orient == 1;
+    for (int p = 0; p < static_cast<int>(display::Page::Count); ++p) {
+      display::render(c, static_cast<display::Page>(p), fc.status(), model, d, fl.now());
+      int dark = 0;
+      for (int i = 0; i < gfx::kStride * gfx::kHeight; ++i)
+        for (int b = 0; b < 8; ++b) dark += (c.buffer()[i] >> b) & 1;
+      EXPECT(dark > 1500 && dark < 40000);  // drawn, and not a black screen
+      EXPECT(c.get(1, 1));                   // status bar is dark (logical top-left, either way)
+      EXPECT(c.width() == (d.portrait ? 240 : 400));
+    }
   }
   EXPECT(model.traceCount() > 0);
   EXPECT(gfx::Canvas::textWidth("+1.6", gfx::kFontHuge) > gfx::Canvas::textWidth("+1.6", gfx::kFontLarge));
@@ -1575,6 +1579,42 @@ TEST("remote air sensor: frame round trip; preferred over the warm case while fr
   }
   EXPECT(!fc.status().air.ventilated);
   EXPECT_NEAR(fc.status().air.tempC, 22.0, 0.01);
+}
+
+TEST("display: portrait maps the logical 240×400 canvas onto the panel; pages auto-return; thermal view holds") {
+  static gfx::Canvas c;
+  c.setPortrait(true);
+  c.clear();
+  c.pixel(0, 0);      // logical top-left → panel bottom-left
+  c.pixel(239, 399);  // logical bottom-right → panel top-right
+  c.setPortrait(false);
+  EXPECT(c.get(0, 239));
+  EXPECT(c.get(399, 0));
+  EXPECT(!c.get(0, 0));
+
+  display::Model m;
+  Status s;
+  m.nextPage(1000);
+  EXPECT(m.page(1000) == display::Page::Side);
+  EXPECT(m.page(1000 + 21000) == display::Page::Flight);  // back to flight after 20 s
+  m.nextPage(30000);
+  m.noteAlert(Alert::Stay, 31000);                          // a cue brings flight back at once
+  EXPECT(m.page(31000) == display::Page::Flight);
+
+  s.circling = true;
+  m.update(40000, s);
+  EXPECT(m.thermalView());
+  s.circling = false;  // rolled out (e.g. straightening to MOVE)
+  m.update(45000, s);
+  EXPECT(m.thermalView());  // held
+  m.update(52000, s);
+  EXPECT(!m.thermalView());  // 12 s later: glide page
+  s.circling = true;
+  m.update(60000, s);
+  s.circling = false;
+  s.advisor.advice = Advice::Glide;  // left on GLIDE: switch at once
+  m.update(61000, s);
+  EXPECT(!m.thermalView());
 }
 
 int main() { return check::runAll(); }

@@ -8,6 +8,12 @@ namespace pg::gfx {
 void Canvas::fill(bool dark) { std::memset(buf_, dark ? 0xFF : 0x00, sizeof buf_); }
 
 void Canvas::pixel(int x, int y, bool dark) {
+  if (portrait_) {  // logical 240 × 400 → panel: x' = y, y' = 239 − x
+    if (x < 0 || y < 0 || x >= kHeight || y >= kWidth) return;
+    const int px = y, py = kHeight - 1 - x;
+    x = px;
+    y = py;
+  }
   if (x < 0 || y < 0 || x >= kWidth || y >= kHeight) return;
   uint8_t& b = buf_[y * kStride + (x >> 3)];
   const uint8_t m = static_cast<uint8_t>(0x80 >> (x & 7));
@@ -16,6 +22,12 @@ void Canvas::pixel(int x, int y, bool dark) {
 }
 
 bool Canvas::get(int x, int y) const {
+  if (portrait_) {
+    if (x < 0 || y < 0 || x >= kHeight || y >= kWidth) return false;
+    const int px = y, py = kHeight - 1 - x;
+    x = px;
+    y = py;
+  }
   if (x < 0 || y < 0 || x >= kWidth || y >= kHeight) return false;
   return buf_[y * kStride + (x >> 3)] & (0x80 >> (x & 7));
 }

@@ -587,6 +587,10 @@ void FlightComputer::updateNav(TimeMs t) {
   // the sink around it (~1.7 m/s); the bubble itself rises at about 0.6 × that.
   float rise = 0.6f * (advisor_.mc() / 0.8f + 1.7f);
   rise = rise < 1.5f ? 1.5f : (rise > 5 ? 5 : rise);
+  st_.thermalRise = rise;
+  st_.terrain = terrain_;
+  st_.polar = &cfg_.polar;
+  st_.sun = sun_.valid() ? &sun_ : nullptr;
   auto consider = [&](double tLat, double tLon, float fromAlt, float chance, TargetKind kind, float liveClimb,
                       int ageMin) {
     // Two passes: the arrival height decides where the column is, and that
@@ -630,6 +634,9 @@ void FlightComputer::updateNav(TimeMs t) {
     tg.liveClimb = liveClimb;
     tg.ageMin = ageMin;
     tg.driftM = std::sqrt(dn * dn + de * de);
+    tg.trigLat = tLat;
+    tg.trigLon = tLon;
+    tg.trigAlt = fromAlt;
     st_.best = tg;
   };
   if (st_.pos.valid) {

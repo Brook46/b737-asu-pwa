@@ -68,6 +68,8 @@ struct Target {
   int ageMin = 0;        // minutes since they were climbing there
   TargetKind kind = TargetKind::None;
   float driftM = 0;      // how far downwind of its ground trigger the climb is at your arrival height
+  double trigLat = 0, trigLon = 0;  // the trigger (or, for a live thermal, where they were climbing)
+  float trigAlt = 0;     // its ground (or their altitude)
 };
 
 // Score used to rank glide targets: chance, discounted by distance and by

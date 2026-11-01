@@ -41,6 +41,7 @@ struct TaskView {
   const char* nextName = "";
   float nextDist = 0;      // m to the next cylinder's edge
   float nextBearing = 0;   // deg true, to its centre
+  bool insideStart = false; // next is an exit start and you're inside it
   float toGoal = 0;        // m, remaining task distance
   bool finalValid = false;
   float finalSurplus = 0;  // m above the final-glide line at the current MC (+ = on glide)

@@ -18,7 +18,7 @@ this unit only *listens* to its Bluetooth stream.
 
 | Part | State |
 |---|---|
-| Logic layer (`lib/core`) | Written, **79 desktop tests pass** (`make test`) |
+| Logic layer (`lib/core`) | Written, **80 desktop tests pass** (`make test`) |
 | Flight replay tool (`tools/sim`) | Works on IGC files, XCTracer captures, synthetic flights |
 | Firmware (`src/`) | Written against pinned library versions; every library call was checked against those tags' headers, and a host compile against signature stubs is clean. **Not yet built with the real ESP32 toolchain, not flashed.** |
 | Thermal pack builder (`sim/pack.html`) | Written and tested against mocked replies; **not yet run against live KK7** (this build environment can't reach it) |
@@ -55,7 +55,8 @@ lib/core/src/        hardware-free logic — builds with desktop g++ and on the 
   bme280_comp.*        BME280/BMP280 calibration math (checked against Bosch's example)
   dps310_comp.*        DPS310 calibration math (fallback barometer)
   flight_computer.*    wires it all together; firmware and sim drive it the same way
-  display/             optional Sharp LCD: 1-bit canvas, fonts, flight / info / profile pages
+  display/             optional Sharp LCD: 1-bit canvas, fonts; flight / side / info / profile pages,
+                       each in landscape and portrait (docs/screens.md)
 src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
   main.cpp             loop, serial console, settings
   drivers/             bme280 (also BMP280), dps310, lsm6ds3, gnss_l76k: all own drivers, no libraries
@@ -68,7 +69,7 @@ tools/fontgen/       generates the display fonts from DejaVu Sans
 tools/terrain/       build_terrain.py: AWS Terrain Tiles → .ter grid for an area
 data/                files for the device's LittleFS (`pio run -t uploadfs`): gilboa.ter, hotspots.pghs
 sim/                 browser simulator (index.html + sim.wasm + terrain.ter), pack.html (thermal pack builder)
-docs/                xc-tactics.md (speed to fly, when to leave, bar: sources and rules), hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
+docs/                screens.md (every page, both orientations, vs Flymaster/Naviter), xc-tactics.md (speed to fly, when to leave, bar: sources and rules), hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
 
 ## Simulator

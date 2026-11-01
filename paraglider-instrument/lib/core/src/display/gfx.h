@@ -17,6 +17,13 @@ enum class Align : uint8_t { Left, Center, Right };
 
 class Canvas {
  public:
+  // Portrait: you draw on a 240 × 400 canvas, turned onto the 400 × 240
+  // panel (the panel mounted with its long side vertical, its left edge up).
+  // The framebuffer stays in the panel's own format either way.
+  void setPortrait(bool p) { portrait_ = p; }
+  bool portrait() const { return portrait_; }
+  int width() const { return portrait_ ? kHeight : kWidth; }
+  int height() const { return portrait_ ? kWidth : kHeight; }
   void clear() { fill(false); }
   void fill(bool dark);
   void pixel(int x, int y, bool dark = true);
@@ -40,6 +47,7 @@ class Canvas {
 
  private:
   uint8_t buf_[kStride * kHeight] = {};
+  bool portrait_ = false;
 };
 
 }  // namespace pg::gfx
