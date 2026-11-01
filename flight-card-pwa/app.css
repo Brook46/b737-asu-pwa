@@ -3747,6 +3747,7 @@ body[data-phase="air"] #ready-line { display: none; }
   .checklist-float:not(.is-float) { left: 50%; box-shadow: -0.5px 0 0 var(--line); }
 }
 .checklist-float.is-float {
+  z-index: 90;   /* over every screen, PA, ASU and Logbook included; under the toast */
   left: auto; right: 12px; top: auto; width: min(400px, calc(100vw - 24px));
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
   height: min(70vh, 640px);

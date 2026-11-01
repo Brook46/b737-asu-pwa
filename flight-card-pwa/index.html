@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=201" />
+  <link rel="stylesheet" href="./app.css?v=202" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -179,14 +179,15 @@
     </section>
   </main>
 
-  <!-- The checklist: fills the page between the bars when opened. The ⧉ icon
-       turns it into a window that can be dragged, with the card usable behind. -->
+  <!-- The checklist: a page on a phone, the right-hand side on an iPad. The ⧉
+       icon floats it: a window that can be dragged, on top of every screen,
+       and it stays floating until the icon is tapped again. -->
   <section id="card-checklist" class="checklist-float" aria-label="Checklist" hidden>
     <header id="checklist-head" class="checklist-head">
       <span class="card-title">Checklist</span>
       <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print kneeboard cards" aria-label="Print checklist cards">🖨</button>
       <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
-      <button id="checklist-float-btn" data-action="checklist-float" class="btn ghost-btn" aria-pressed="false" title="Floating window" aria-label="Floating window">
+      <button id="checklist-float-btn" data-action="checklist-float" class="btn ghost-btn" aria-pressed="false" title="Floating on top of every screen; tap again for the normal checklist" aria-label="Floating window">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="8.5" width="12" height="12" rx="2"/><path d="M8.5 8.5v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3"/></svg>
       </button>
       <button data-action="checklist-close" class="btn ghost-btn" aria-label="Close checklist">✕</button>
@@ -879,6 +880,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=201"></script>
+  <script type="module" src="./app.js?v=202"></script>
 </body>
 </html>
