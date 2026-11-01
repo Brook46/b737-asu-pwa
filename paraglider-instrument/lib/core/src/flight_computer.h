@@ -8,6 +8,11 @@
 #include "audio.h"
 #include "averager.h"
 #include "circling.h"
+#include "gnss_guard.h"
+#include "heading.h"
+#include "hotspots.h"
+#include "terrain.h"
+#include "thermal_assist.h"
 #include "kalman_vario.h"
 #include "polar.h"
 #include "remote.h"
@@ -50,6 +55,25 @@ struct Status {
   AtmosphereState air;
   int volume = 2;
   bool muted = false;
+  // Position and navigation (all survive GPS jamming, with growing error).
+  GpsState gps = GpsState::NoData;
+  GpsReason gpsReason = GpsReason::None;
+  TimeMs gpsSince = 0;
+  GuardedPosition pos;       // GPS when trusted, dead-reckoned otherwise
+  float heading = 0;         // deg true, gyro (GPS-corrected while trusted)
+  bool headingValid = false;
+  // Frame the thermal assistant works in: the gyro alone, so it works with no
+  // GPS at all (then its zero is arbitrary and north is unknown).
+  float assistHeading = 0;
+  bool assistHeadingValid = false;
+  float altMsl = 0;          // vario altitude aligned to GPS altitude while GPS is trusted
+  float agl = 0;             // above terrain, if a terrain grid is loaded
+  bool aglValid = false;
+  Target home;               // first trusted fix of the flight
+  Target best;               // best hotspot to glide to (needs a hotspot pack + date)
+  AssistView assist;
+  bool clockValid = false;
+  int year = 0, month = 0, day = 0, utcMin = 0;
 };
 
 struct Outputs {
@@ -78,6 +102,12 @@ class FlightComputer {
   // Changing QNH shifts every altitude; restart the filter so the step doesn't
   // read as a vario spike (and a false STAY/GLIDE).
   void setQnh(float qnhPa);
+  // Optional data: terrain grid (AGL, arrival heights) and a hotspot pack
+  // (thermal chances). Both must outlive the FlightComputer.
+  void setTerrain(const Terrain* t) { terrain_ = t; }
+  void setHotspots(const HotspotMap* h) { hotspots_ = h; }
+  // UTC date and time (from GPS while it's trusted, or the RTC).
+  void setClock(int year, int month, int day, int utcMin);
   Atmosphere& atmosphere() { return atmo_; }
 
   Outputs tick(TimeMs t);
@@ -94,6 +124,21 @@ class FlightComputer {
   CirclingDetector circ_;
   WindEstimator wind_;
   Atmosphere atmo_;
+  HeadingEstimator heading_;
+  int clockBaseMin_ = 0;
+  TimeMs clockAt_ = 0;
+  bool clockFresh_ = false;
+  float relHdg_ = 0;  // gyro-integrated, snapped to heading_ when trusted and not circling
+  GnssGuard guard_;
+  ThermalAssist assist_;
+  const Terrain* terrain_ = nullptr;
+  const HotspotMap* hotspots_ = nullptr;
+  float gyroSinceFix_ = 0;
+  float mslOffset_ = 0;
+  bool haveMslOffset_ = false;
+  GpsState prevGps_ = GpsState::NoData;
+  TimeMs lastNav_ = 0;
+  void updateNav(TimeMs t);
   Advisor advisor_;
   AudioEngine audio_;
   LedEngine led_;

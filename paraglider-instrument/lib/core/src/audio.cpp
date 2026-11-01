@@ -15,6 +15,8 @@ const Note kBoot[] = {{660, 80}, {880, 80}, {1100, 80}, {1320, 120}};
 const Note kError[] = {{300, 200}, {0, 100}, {300, 200}};
 const Note kNearBase[] = {{2200, 60}, {0, 40}, {2200, 60}, {0, 160}, {2200, 60}, {0, 40}, {2200, 60}};
 const Note kInversion[] = {{500, 150}, {420, 150}, {500, 150}, {420, 250}};
+const Note kGpsLost[] = {{700, 120}, {0, 60}, {560, 120}, {0, 60}, {440, 300}};
+const Note kGpsBack[] = {{560, 90}, {0, 50}, {840, 140}};
 template <std::size_t N>
 const Note* ret(const Note (&a)[N], int& c) {
   c = static_cast<int>(N);
@@ -35,6 +37,8 @@ const Note* alertNotes(Alert a, int& count) {
     case Alert::Error: return ret(kError, count);
     case Alert::NearBase: return ret(kNearBase, count);
     case Alert::Inversion: return ret(kInversion, count);
+    case Alert::GpsLost: return ret(kGpsLost, count);
+    case Alert::GpsBack: return ret(kGpsBack, count);
     case Alert::None: break;
   }
   count = 0;

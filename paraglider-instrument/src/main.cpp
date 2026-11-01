@@ -5,6 +5,7 @@
 // sensor is reported at boot and skipped, so the board can be brought up one
 // breakout at a time (docs/bringup.md). Serial console: type `help`.
 #include <Arduino.h>
+#include <LittleFS.h>
 #include <Preferences.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -17,12 +18,14 @@
 #include "drivers/gnss_l76k.h"
 #include "drivers/lsm6ds3.h"
 #include "flight_computer.h"
+#include "hotspots.h"
 #include "io/ble_link.h"
 #include "io/buzzer.h"
 #include "io/lora_fanet.h"
 #include "io/xctracer_source.h"
 #include "pins.h"
 #include "remote.h"
+#include "terrain.h"
 
 namespace {
 
@@ -38,6 +41,12 @@ Buzzer buzzer;
 StatusLed led;
 Preferences prefs;
 pg::FlightComputer fc;
+// Area data from the file system (data/ → `pio run -t uploadfs`): a terrain
+// grid (*.ter, tools/terrain/build_terrain.py) and a thermal pack
+// (hotspots.pghs, sim/pack.html). Both optional.
+pg::Terrain terrain;
+pg::HotspotMap hotspots;
+char terrainName[32] = "none", packName[32] = "none";
 
 // Bring-up print toggles (console: `show baro|gnss|nmea|imu|xct|fc|off`).
 bool showBaro = false, showGnss = false, showImu = false, showFc = true;
@@ -146,9 +155,11 @@ void sendCanned(int idx) {
   const char* text = pg::kCannedMessages[idx];
   char buf[64];
   const pg::Status& s = fc.status();
-  if (idx == 1 && s.gnss.valid()) {
+  if (idx == 1 && s.pos.valid) {
     // "Thermal here" carries the spot: other pilots' FANET devices show text only.
-    snprintf(buf, sizeof buf, "%s %.5f,%.5f %+.1f", text, s.gnss.lat, s.gnss.lon, s.advisor.thermalAvg);
+    // Guarded position: never a spoofed one; "~" while dead reckoning.
+    snprintf(buf, sizeof buf, "%s %s%.5f,%.5f %+.1f", text, s.pos.deadReckoned ? "~" : "", s.pos.lat, s.pos.lon,
+             s.advisor.thermalAvg);
     text = buf;
   }
   const bool sent = lora.sendMessage(text);
@@ -179,17 +190,88 @@ void handleCommand(pg::Command c) {
     case pg::Command::SendLanding: sendCanned(2); break;
     case pg::Command::SendHelp: sendCanned(3); break;
     case pg::Command::MarkThermal:
-      Serial.printf("[mark] %.6f,%.6f alt %.0f\n", fc.status().gnss.lat, fc.status().gnss.lon, fc.status().altitude);
+      Serial.printf("[mark] %.6f,%.6f%s alt %.0f\n", fc.status().pos.lat, fc.status().pos.lon,
+                    fc.status().pos.deadReckoned ? " (dead reckoned)" : "", fc.status().altitude);
       fc.notify(pg::Alert::RemoteAck, now);
       break;
     default: break;
   }
 }
 
+// Reads a whole file into PSRAM (or heap); the Terrain/HotspotMap keep pointing at it.
+uint8_t* readFile(File& f, size_t& len) {
+  len = f.size();
+  uint8_t* buf = static_cast<uint8_t*>(ps_malloc(len));
+  if (!buf) buf = static_cast<uint8_t*>(malloc(len));
+  if (!buf) return nullptr;
+  if (f.read(buf, len) != len) {
+    free(buf);
+    return nullptr;
+  }
+  return buf;
+}
+
+void loadAreaData() {
+  if (!LittleFS.begin(false)) {
+    Serial.println("area data no file system (pio run -t uploadfs to add terrain / thermal pack)");
+    return;
+  }
+  auto endsWith = [](const char* s, const char* suf) {
+    const size_t a = strlen(s), b = strlen(suf);
+    return a >= b && !strcasecmp(s + a - b, suf);
+  };
+  File root = LittleFS.open("/");
+  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+    const char* name = f.name();
+    size_t len = 0;
+    if (endsWith(name, ".ter") && !terrain.valid()) {
+      uint8_t* buf = readFile(f, len);
+      if (buf && terrain.load(buf, len)) {
+        snprintf(terrainName, sizeof terrainName, "%s", name);
+        fc.setTerrain(&terrain);
+      } else if (buf) {
+        free(buf);
+      }
+    } else if (endsWith(name, ".pghs") && !hotspots.count()) {
+      uint8_t* buf = readFile(f, len);
+      if (buf && hotspots.load(buf, len) && hotspots.count()) {
+        snprintf(packName, sizeof packName, "%s", name);
+        fc.setHotspots(&hotspots);
+      }
+      free(buf);  // HotspotMap copies the records
+    }
+  }
+  Serial.printf("terrain    %s%s\n", terrainName,
+                terrain.valid() ? "" : " (no AGL; arrival heights above sea level)");
+  Serial.printf("thermals   %s (%d sources)\n", packName, hotspots.count());
+}
+
+void printGps() {
+  const pg::Status& s = fc.status();
+  Serial.printf("gps: %s (%s)  receiver: fix %d, %u sats, hAcc %.0f m\n", pg::gpsStateName(s.gps), pg::gpsReasonName(s.gpsReason),
+                static_cast<int>(lastFix.fix), lastFix.sats, lastFix.hAcc);
+  if (s.pos.valid && s.pos.deadReckoned)
+    Serial.printf("   position %.5f,%.5f DEAD RECKONED, +/-%.0f m\n", s.pos.lat, s.pos.lon, s.pos.errorM);
+  else if (s.pos.valid)
+    Serial.printf("   position %.5f,%.5f trusted\n", s.pos.lat, s.pos.lon);
+  else
+    Serial.println("   position unknown");
+  if (s.headingValid) Serial.printf("   heading %03.0f (%s)", s.heading, s.imu ? "gyro" : "GPS track");
+  else Serial.printf("   heading unknown%s", s.assistHeadingValid ? " (gyro-relative only: assistant works)" : "");
+  if (s.aglValid) Serial.printf("  AGL %.0f m", s.agl);
+  Serial.printf("  clock %s\n", s.clockValid ? "set" : "unset");
+  if (s.best.valid)
+    Serial.printf("   best thermal %.0f%% at %.1f km, bearing %03.0f, arrive %+.0f m AGL\n", s.best.chance * 100,
+                  s.best.distM / 1000, s.best.bearingDeg, s.best.arrivalAgl);
+  if (s.home.valid)
+    Serial.printf("   home %.1f km, bearing %03.0f, arrive %+.0f m\n", s.home.distM / 1000, s.home.bearingDeg,
+                  s.home.arrivalAgl);
+}
+
 void consoleHelp() {
   Serial.println(
       "commands:\n"
-      "  status | health | air | i2c | help\n"
+      "  status | health | air | gps | pack | i2c | help\n"
       "  base                             I'm at cloud base now (learns the case temperature offset)\n"
       "  toff <C>                         set the case temperature offset by hand\n"
       "  show baro|gnss|nmea|imu|fc|xct|off   periodic prints / raw streams for bring-up\n"
@@ -223,6 +305,10 @@ void console() {
     if (!strcmp(line, "help")) consoleHelp();
     else if (!strcmp(line, "status")) printStatus();
     else if (!strcmp(line, "air")) printAir();
+    else if (!strcmp(line, "gps")) printGps();
+    else if (!strcmp(line, "pack")) {
+      Serial.printf("terrain %s, thermal pack %s (%d sources)\n", terrainName, packName, hotspots.count());
+    }
     else if (!strcmp(line, "base")) handleCommand(pg::Command::AtCloudBase);
     else if (!strcmp(line, "toff") && arg) {
       pg::AtmosphereConfig ac = fc.atmosphere().config();
@@ -314,7 +400,9 @@ void updateRegion(uint32_t now) {
   if (now - last < 30000) return;
   last = now;
   const pg::GnssFix& g = fc.status().gnss;
-  if (!g.valid()) return;
+  // Only from a trusted fix: a spoofer must not move us onto another
+  // country's frequency.
+  if (!g.valid() || fc.status().gps != pg::GpsState::Ok) return;
   const pg::fanet::Region& r = pg::fanet::regionFor(g.lat, g.lon);
   if (&r == &lora.region()) return;
   Serial.printf("[fanet] region %s → %s (%.1f MHz)\n", lora.region().name, r.name, r.freqMHz);
@@ -328,7 +416,8 @@ void maybeSendTracking(uint32_t now) {
   if (!PG_FANET_TRACK_PERIOD_S || !lora.txArmed()) return;
   if (now - lastTrack < PG_FANET_TRACK_PERIOD_S * 1000UL) return;
   const pg::Status& s = fc.status();
-  if (!s.gnss.valid()) return;
+  // Never broadcast a position the guard doesn't trust (jammed or spoofed).
+  if (!s.gnss.valid() || s.gps != pg::GpsState::Ok) return;
   lastTrack = now;
   pg::fanet::Tracking t;
   t.lat = s.gnss.lat;
@@ -392,6 +481,8 @@ void setup() {
   ble.begin(PG_BLE_NAME, PG_REMOTE_ALLOWED_ADDR);
   Serial.println("BLE        advertising for remote, scanning for XCTracer");
 
+  loadAreaData();
+
   if (!baro) Serial.println("note: no onboard baro — vario comes from the XCTracer once connected");
   fc.notify(pg::Alert::Boot, millis());
   consoleHelp();
@@ -439,6 +530,14 @@ void loop() {
   if (lora.service(rx)) onFanet(rx);
   updateRegion(now);
   maybeSendTracking(now);
+  // Date and time for the thermal chances: from RMC, only while GPS is trusted
+  // (a spoofer can fake the time too). Kept running by the FC between fixes.
+  static uint32_t lastClock = 0;
+  int yy, mo, dd, hh, mi, ss;
+  if (now - lastClock >= 60000 && fc.status().gps == pg::GpsState::Ok && gnss.utc(yy, mo, dd, hh, mi, ss)) {
+    lastClock = now;
+    fc.setClock(yy, mo, dd, hh * 60 + mi);
+  }
 
   console();
 

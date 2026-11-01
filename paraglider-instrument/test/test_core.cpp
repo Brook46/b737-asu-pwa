@@ -15,6 +15,11 @@
 #include "display/gfx.h"
 #include "display/screens.h"
 #include "fanet.h"
+#include "gnss_guard.h"
+#include "heading.h"
+#include "hotspots.h"
+#include "terrain.h"
+#include "thermal_assist.h"
 #include "flight_computer.h"
 #include "kalman_vario.h"
 #include "nmea.h"
@@ -798,9 +803,315 @@ TEST("display: every page renders from a live flight; text metrics are sane") {
     EXPECT(dark > 3000 && dark < 40000);  // drawn, and not a black screen
     EXPECT(c.get(1, 1));                   // status bar is dark
   }
-  EXPECT(model.traceCount() == display::Model::kTrace);
+  EXPECT(model.traceCount() > 0);
   EXPECT(gfx::Canvas::textWidth("+1.6", gfx::kFontHuge) > gfx::Canvas::textWidth("+1.6", gfx::kFontLarge));
   EXPECT(gfx::Canvas::textWidth("", gfx::kFontSmall) == 0);
+}
+
+// ---------------------------------------------------------------- terrain, hotspots
+
+TEST("sunrise: Gilboa on 1 Nov ≈ 03:58 UTC (05:58 local), 21 Jun ≈ 02:32 UTC") {
+  EXPECT(std::abs(sunriseUtcMin(2026, 11, 1, 32.5, 35.4) - (3 * 60 + 58)) <= 6);
+  EXPECT(std::abs(sunriseUtcMin(2026, 6, 21, 32.5, 35.4) - (2 * 60 + 32)) <= 6);
+  EXPECT(seasonOf(1) == 0 && seasonOf(4) == 1 && seasonOf(7) == 2 && seasonOf(10) == 3 && seasonOf(12) == 0);
+  EXPECT(slotOf(3) == 0 && slotOf(7) == 1 && slotOf(9.5f) == 2);
+}
+
+static std::vector<uint8_t> makeTerrain() {
+  // 3×3 grid, 0.01° cells from (32.0, 35.0): a 300 m hill in the middle.
+  std::vector<uint8_t> d(44 + 18, 0);
+  std::memcpy(d.data(), "PGTR", 4);
+  d[4] = 1; d[6] = 3; d[8] = 3;
+  const double hdr[4] = {32.0, 35.0, 0.01, 0.01};
+  std::memcpy(d.data() + 12, hdr, 32);
+  const int16_t z[9] = {100, 100, 100, 100, 400, 100, 100, 100, 100};
+  std::memcpy(d.data() + 44, z, 18);
+  return d;
+}
+
+TEST("terrain: loads a grid and interpolates") {
+  static std::vector<uint8_t> d = makeTerrain();
+  Terrain t;
+  EXPECT(t.load(d.data(), d.size()));
+  float e;
+  EXPECT(t.elevation(32.01, 35.01, e));
+  EXPECT_NEAR(e, 400, 0.01);
+  EXPECT(t.elevation(32.005, 35.01, e));
+  EXPECT_NEAR(e, 250, 0.01);
+  EXPECT(!t.elevation(31.9, 35.01, e));
+  const uint8_t junk[50] = {};
+  EXPECT(!t.load(junk, sizeof junk));
+}
+
+TEST("hotspots: pack parse, chance by season/slot × day factor, best target") {
+  std::vector<uint8_t> d(36 + 2 * 20, 0);
+  std::memcpy(d.data(), "PGHS", 4);
+  d[4] = 1; d[6] = 2;
+  for (int h = 0; h < 24; ++h) d[8 + h] = 255;
+  d[8 + 13] = 50;                  // 13:00 local: half as good as usual today
+  d[32] = 120;                     // UTC+2
+  auto put = [&](int i, double lat, double lon, uint8_t p) {
+    uint8_t* q = d.data() + 36 + i * 20;
+    const int32_t a = static_cast<int32_t>(lat * 1e6), b = static_cast<int32_t>(lon * 1e6);
+    std::memcpy(q, &a, 4);
+    std::memcpy(q + 4, &b, 4);
+    for (int k = 0; k < 12; ++k) q[8 + k] = p;
+  };
+  put(0, 32.50, 35.40, 80);
+  put(1, 32.55, 35.45, 40);
+  static HotspotMap m;
+  EXPECT(m.load(d.data(), d.size()));
+  EXPECT(m.count() == 2);
+  // 1 Nov, 11:00 UTC = 13:00 local, ~7 h after sunrise → 0.8 × 0.5
+  EXPECT_NEAR(m.chance(0, 2026, 11, 1, 11 * 60), 0.40, 0.01);
+  // 12:00 UTC = 14:00 local, unknown day factor → plain 0.8
+  EXPECT_NEAR(m.chance(0, 2026, 11, 1, 12 * 60), 0.80, 0.01);
+  EXPECT_NEAR(m.chance(0, 2026, 11, 1, 4 * 60), 0.0, 1e-6);  // just after sunrise
+  const Polar p = defaultParagliderPolar();
+  const Target t = bestHotspot(m, p, nullptr, 32.47, 35.40, 1500, 0, 0, 2026, 11, 1, 12 * 60, 250);
+  EXPECT(t.valid && t.index == 0);
+  EXPECT_NEAR(t.bearingDeg, 0, 1);
+  EXPECT_NEAR(t.distM, 3336, 20);
+  // Too low to reach either with 250 m to spare → nothing
+  EXPECT(!bestHotspot(m, p, nullptr, 32.47, 35.40, 500, 0, 0, 2026, 11, 1, 12 * 60, 250).valid);
+}
+
+TEST("arrival height: tailwind helps, headwind hurts, terrain subtracts") {
+  const Polar p = defaultParagliderPolar();
+  float b, dist;
+  const float still = arrivalAgl(p, nullptr, 32.0, 35.0, 1500, 32.05, 35.0, 0, 0, b, dist);
+  const float tail = arrivalAgl(p, nullptr, 32.0, 35.0, 1500, 32.05, 35.0, 5, 0, b, dist);
+  const float head = arrivalAgl(p, nullptr, 32.0, 35.0, 1500, 32.05, 35.0, -5, 0, b, dist);
+  EXPECT(tail > still && still > head);
+  EXPECT_NEAR(dist, 5560, 10);
+  static std::vector<uint8_t> d = makeTerrain();
+  Terrain t;
+  t.load(d.data(), d.size());
+  EXPECT_NEAR(arrivalAgl(p, &t, 32.0, 35.0, 1500, 32.01, 35.01, 0, 0, b, dist),
+              arrivalAgl(p, nullptr, 32.0, 35.0, 1500, 32.01, 35.01, 0, 0, b, dist) - 400, 0.5);
+}
+
+// ---------------------------------------------------------------- heading, assist
+
+TEST("heading: integrates the gyro and learns its bias from GPS") {
+  HeadingEstimator h;
+  h.correct(90);
+  // Truth: straight on 090. Gyro reads +0.5 °/s bias. GPS heading at 5 Hz.
+  for (int i = 0; i < 100 * 120; ++i) {
+    h.onYawRate(0.01f, 0.5f);
+    if (i % 20 == 0) h.correct(90);
+  }
+  EXPECT_NEAR(h.biasDegS(), 0.5, 0.05);
+  EXPECT_NEAR(h.heading(), 90, 1.0);
+  // Now GPS is gone: 60 s on the gyro alone stays within a few degrees.
+  for (int i = 0; i < 100 * 60; ++i) h.onYawRate(0.01f, 0.5f);
+  EXPECT_NEAR(h.heading(), 90, 4.0);
+}
+
+TEST("thermal assist: finds the core side of a right-hand circle") {
+  ThermalAssist a;
+  // Right turn at 15 °/s. Lift is best when the glider is on the north side of
+  // the circle, i.e. (right turn: position = heading − 90°) heading ≈ 090.
+  uint32_t t = 0;
+  for (int i = 0; i < 5 * 60; ++i, t += 200) {
+    const float hdg = std::fmod(i * 3.0f, 360.0f);
+    const float posDeg = hdg - 90.0f;
+    const float vario = 1.0f + 1.2f * std::cos(posDeg * kDegToRad);
+    a.update(t, true, hdg, +1, vario);
+  }
+  const AssistView& v = a.view();
+  EXPECT(v.active);
+  EXPECT(std::fabs(angleDiffDeg(v.coreDeg, 0)) < 15);  // core is north of the circle centre
+  EXPECT(v.strength > 0.5f);
+  EXPECT_NEAR(v.best, 2.2, 0.3);
+  a.update(t, false, 0, 0, 0);
+  EXPECT(!a.view().active);
+}
+
+// ---------------------------------------------------------------- GPS guard
+
+static GnssFix fixAt(uint32_t t, double lat, double lon, float alt, float vN, float vE, uint8_t sats = 10) {
+  GnssFix f;
+  f.t = t;
+  f.lat = lat;
+  f.lon = lon;
+  f.altMsl = alt;
+  f.velN = vN;
+  f.velE = vE;
+  f.groundSpeed = std::hypot(vN, vE);
+  f.trackDeg = std::fmod(std::atan2(vE, vN) * kRadToDeg + 360.0f, 360.0f);
+  f.sats = sats;
+  f.hAcc = 3;
+  f.fix = FixType::Fix3D;
+  return f;
+}
+
+TEST("gps guard: good fixes trusted; jamming (no fix) → LOST, dead reckoning, recovery") {
+  GnssGuard g;
+  double lat = 32.5, lon = 35.4;
+  uint32_t t = 0;
+  // 30 s of good straight flight north at 10 m/s.
+  for (int i = 0; i < 150; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 1500, 10, 0), 1450, 0);
+    g.propagate(t, 0, 10, 0, 0);
+  }
+  EXPECT(g.state() == GpsState::Ok && g.trusted());
+  // Jamming: no fix for 60 s. DR keeps flying north on the gyro heading.
+  GnssFix none;
+  for (int i = 0; i < 300; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    none.t = t;
+    g.check(none, 1450, 0);
+    g.propagate(t, 0, 10, 0, 0);
+  }
+  EXPECT(g.state() == GpsState::Lost && g.reason() == GpsReason::NoFix);
+  EXPECT(g.position().deadReckoned && g.position().valid);
+  EXPECT_NEAR(g.position().lat, lat, 30.0 / 111195.0);   // DR within 30 m of truth here
+  EXPECT(g.position().errorM > 100);                     // and honest about its error
+  // GPS returns: trusted again only after ~20 s of consistent fixes.
+  uint32_t back = 0;
+  for (int i = 0; i < 150; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 1500, 10, 0), 1450, 0);
+    g.propagate(t, 0, 10, 0, 0);
+    if (!back && g.trusted()) back = t;
+  }
+  EXPECT(g.trusted());
+  EXPECT(back > 0 && back - 60000 - 30000 >= 19000);
+}
+
+TEST("gps guard: spoofing to Beirut (altitude + jump + gyro) → SPOOFED, no position jump") {
+  GnssGuard g;
+  double lat = 32.5, lon = 35.4;
+  uint32_t t = 0;
+  for (int i = 0; i < 150; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 1500, 10, 0), 1450, 0);
+    g.propagate(t, 0, 10, 0, 0);
+  }
+  EXPECT(g.trusted());
+  bool everTrusted = false;
+  double maxDrift = 0;
+  for (int i = 0; i < 300; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    // Spoofer: Beirut airport, sea level, standing still; the gyro says we circle.
+    g.check(fixAt(t, 33.8209, 35.4884, 25, 0, 0), 1450, 3.0f);
+    g.propagate(t, 0, 10, 0, 0);
+    if (i >= 5) everTrusted |= g.trusted();  // 3 bad fixes (0.4 s) to trip
+    const double d = std::fabs(g.position().lat - lat) * 111195.0;
+    if (d > maxDrift) maxDrift = d;
+  }
+  EXPECT(g.state() == GpsState::Spoofed || g.state() == GpsState::Lost);
+  EXPECT(!everTrusted);
+  EXPECT(maxDrift < 200);  // the instrument never believed it was in Beirut
+}
+
+TEST("gps guard: a consistent spoof that matches altitude is caught by the gyro") {
+  GnssGuard g;
+  double lat = 32.5, lon = 35.4;
+  uint32_t t = 0;
+  for (int i = 0; i < 150; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 1500, 10, 0), 1450, 0);
+  }
+  // A clever spoof continues smoothly north at the right altitude, but we are
+  // actually circling (gyro +15 °/s = 3° per fix).
+  bool caught = false;
+  for (int i = 0; i < 200 && !caught; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 1500, 10, 0), 1450, 3.0f);
+    caught = g.state() == GpsState::Spoofed;
+  }
+  EXPECT(caught);
+  EXPECT(g.reason() == GpsReason::Motion);
+}
+
+TEST("flight computer: GPS spoofed mid-flight — vario, circling and assist carry on") {
+  FlightComputerConfig cfg;
+  cfg.advisor.autoMc = false;
+  FlightComputer fc(cfg);
+  auto script = synth::defaultScript();
+  script.imu = true;
+  synth::Flight fl(script);
+  int lostCues = 0;
+  bool assistDuringSpoof = false;
+  float maxVarioErr = 0;
+  while (!fl.done()) {
+    fl.step(fc);
+    const Outputs o = fc.tick(fl.now());
+    if (o.alertStarted == Alert::GpsLost) ++lostCues;
+    if (fl.now() > 150000 && fl.now() < 400000) {
+      // Inject: from 150 s on, the receiver reports Beirut.
+      if (fl.now() % 200 == 0) {
+        GnssFix f = fixAt(fl.now(), 33.8209, 35.4884, 30, 0, 0);
+        fc.onGnss(f);
+      }
+      if (fc.status().assist.active && fc.status().assist.strength >= 0) assistDuringSpoof = true;
+      const float e = std::fabs(fc.status().vario - fl.trueClimb());
+      if (fl.now() % 1000 == 0 && fl.now() % 75000 > 5000 && e > maxVarioErr) maxVarioErr = e;
+    }
+  }
+  EXPECT(lostCues >= 1);
+  EXPECT(assistDuringSpoof);
+  EXPECT(maxVarioErr < 0.5f);
+  EXPECT(fc.status().pos.lat < 33.0);  // never adopted the spoofed position
+}
+
+TEST("flight computer: jammed from takeoff — no fix ever, the assistant still maps the thermal") {
+  FlightComputerConfig cfg;
+  FlightComputer fc(cfg);
+  auto script = synth::defaultScript();
+  script.imu = true;
+  script.gnss = false;
+  synth::Flight fl(script);
+  bool stay = false, assist = false, north = false;
+  while (!fl.done()) {
+    fl.step(fc);
+    const Outputs o = fc.tick(fl.now());
+    if (o.alertStarted == Alert::Stay) stay = true;
+    const Status& s = fc.status();
+    if (s.assist.active && s.assist.strength > 0.1f) assist = true;
+    if (s.headingValid) north = true;
+  }
+  EXPECT(stay);    // the vario and cues need no GPS
+  EXPECT(assist);  // nor does the assistant: it runs in the gyro's own frame
+  EXPECT(!north);  // but it never claims to know where north is
+  EXPECT(!fc.status().pos.valid);
+}
+
+TEST("flight computer: a single 8 g knock on the IMU doesn't ring the vario") {
+  FlightComputerConfig cfg;
+  FlightComputer fc(cfg);
+  float worst = 0;
+  for (TimeMs t = 10; t <= 40000; t += 10) {
+    const float alt = 1000.0f - 1.0f * t / 1000.0f;  // steady −1 m/s
+    if (t % 40 == 0) {
+      BaroSample b;
+      b.t = t;
+      b.pressurePa = altitudeToPressure(alt);
+      b.valid = true;
+      fc.onBaro(b);
+    }
+    ImuSample m;
+    m.t = t;
+    m.az = kGravity + (t == 20010 ? 8 * kGravity : 0.0f);  // between baro samples
+    m.valid = true;
+    fc.onImu(m);
+    fc.tick(t);
+    if (t > 15000) worst = std::max(worst, std::fabs(fc.status().vario + 1.0f));
+  }
+  std::printf("        worst vario error after the knock %.2f m/s\n", static_cast<double>(worst));
+  EXPECT(worst < 0.4f);  // unclamped: ~0.8
+}
+
+TEST("flight computer: the clock runs on between GPS time fixes") {
+  FlightComputer fc;
+  fc.tick(1000);
+  fc.setClock(2026, 7, 15, 9 * 60 + 30);
+  for (TimeMs t = 1020; t <= 1020 + 45 * 60000; t += 1000) fc.tick(t);  // anchored at the first tick
+  EXPECT(fc.status().clockValid);
+  EXPECT(fc.status().utcMin == 10 * 60 + 15);
 }
 
 int main() { return check::runAll(); }

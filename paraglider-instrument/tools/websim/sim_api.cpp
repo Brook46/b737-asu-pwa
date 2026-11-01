@@ -2,6 +2,7 @@
 // for the native harness (sim_native.cpp). Everything here is glue: the
 // instrument behaviour is the real lib/core code.
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 
 #include "display/gfx.h"
@@ -21,13 +22,17 @@ pg::FlightComputer* gFc = nullptr;
 world::World gWorld;
 pg::gfx::Canvas gCanvas;
 pg::display::Model gModel;
-pg::display::Page gPage = pg::display::Page::Thermal;
+pg::display::Page gPage = pg::display::Page::Flight;
 uint16_t gTone = 0;
 bool gLed = false;
 uint32_t gNextTick = 0;
 int gLastAlert = 0;
 uint32_t gLastAlertT = 0;
-float gState[48];
+float gState[64];
+// Buffers the page fills before sim_load_terrain / sim_load_pack (the
+// Terrain and HotspotMap read from them in place).
+uint8_t gTerrainBuf[400 * 1024];
+uint8_t gPackBuf[16 * 1024];
 float gThermals[world::World::kThermals * 4];
 constexpr int kTrack = 900;
 float gTrack[kTrack * 2];
@@ -42,7 +47,8 @@ pg::FlightComputer& fc() {
 
 }  // namespace
 
-EXPORT(sim_reset) void sim_reset(uint32_t seed) {
+// A new flight on the instrument (keeps the world).
+void newFlight() {
   fc().reset();
   pg::AdvisorConfig a = fc().advisor().config();
   a.autoMc = true;
@@ -52,8 +58,16 @@ EXPORT(sim_reset) void sim_reset(uint32_t seed) {
   ac.tempOffset = 0;
   fc().atmosphere().configure(ac);
   fc().setQnh(101325.0f);
-  gWorld.reset(seed);
+  fc().setTerrain(gWorld.terrain.valid() ? &gWorld.terrain : nullptr);
+  fc().setHotspots(gWorld.spots.count() ? &gWorld.spots : nullptr);
+  fc().setClock(gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
   gModel = pg::display::Model();
+  gNextTick = gWorld.t;
+}
+
+EXPORT(sim_reset) void sim_reset(uint32_t seed) {
+  gWorld.reset(seed);
+  newFlight();
   gNextTick = 0;
   gLastAlert = 0;
   gTrackHead = gTrackN = 0;
@@ -63,7 +77,9 @@ EXPORT(sim_reset) void sim_reset(uint32_t seed) {
 // Parameters: 0 wind from (deg), 1 wind speed (km/h), 2 surface temp, 3 surface
 // dew point, 4 env lapse (°C/km), 5 case offset, 6 thermal strength (m/s),
 // 7 IMU on, 8 autopilot on, 9 manual turn (deg/s, + right), 10 speed bar 0..1,
-// 11 inversion altitude (m, 0 = none).
+// 11 inversion altitude (m, 0 = none), 12 GPS mode (0 ok, 1 jammed, 2 spoofed
+// to Beirut, 3 noisy), 13 month, 14 day, 15 local start time (minutes).
+// Date/time take effect on the next reset.
 EXPORT(sim_set) void sim_set(int key, float v) {
   world::Params& p = gWorld.p;
   switch (key) {
@@ -79,8 +95,31 @@ EXPORT(sim_set) void sim_set(int key, float v) {
     case 9: gWorld.turnCmd = v; break;
     case 10: gWorld.speedBar = v; break;
     case 11: p.inversionAlt = v; break;
+    case 12: p.gps = static_cast<world::GpsMode>(static_cast<int>(v) & 3); break;
+    case 13: p.month = static_cast<int>(v); break;
+    case 14: p.day = static_cast<int>(v); break;
+    case 15: p.startLocalMin = static_cast<int>(v); break;
     default: break;
   }
+}
+
+// Terrain (.ter) and hotspot pack (PGHS): the page copies the file into the
+// buffer returned by *_buffer(), then calls *_load(len).
+EXPORT(sim_terrain_buffer) uint8_t* sim_terrain_buffer() { return gTerrainBuf; }
+EXPORT(sim_terrain_load) int sim_terrain_load(int len) {
+  if (len <= 0 || len > static_cast<int>(sizeof gTerrainBuf)) return 0;
+  return gWorld.terrain.load(gTerrainBuf, static_cast<size_t>(len)) ? 1 : 0;
+}
+EXPORT(sim_pack_buffer) uint8_t* sim_pack_buffer() { return gPackBuf; }
+// len 0 = drop the pack and go back to terrain-derived sources.
+EXPORT(sim_pack_load) int sim_pack_load(int len) {
+  if (len <= 0 || len > static_cast<int>(sizeof gPackBuf)) {
+    gWorld.spotsFromPack = false;
+    return 0;
+  }
+  const bool ok = gWorld.spots.load(gPackBuf, static_cast<size_t>(len));
+  gWorld.spotsFromPack = ok;
+  return ok ? gWorld.spots.count() : 0;
 }
 
 // Remote / button commands: the pg::Command bytes, plus 0x20 = next page.
@@ -99,6 +138,10 @@ EXPORT(sim_page) void sim_page(int p) {
 EXPORT(sim_step) void sim_step(int ms) {
   for (int i = 0; i < ms / 10; ++i) {
     gWorld.step(fc());
+    if (gWorld.relaunched) {
+      gWorld.relaunched = false;
+      newFlight();
+    }
     if (gWorld.t >= gNextTick) {
       gNextTick = gWorld.t + 20;
       const pg::Outputs o = fc().tick(gWorld.t);
@@ -126,7 +169,8 @@ EXPORT(sim_render) const uint8_t* sim_render() {
   pg::display::DeviceInfo d;
   d.batteryPct = 100 - static_cast<int>(gWorld.t / 1000 / 300);  // ~1 %/5 min, cosmetic
   if (d.batteryPct < 5) d.batteryPct = 5;
-  d.clockMin = 12 * 60 + static_cast<int>(gWorld.t / 60000);
+  d.clockMin = gWorld.localMin() % 1440;
+  d.flightMin = static_cast<int>(gWorld.t / 60000);
   d.simulated = true;
   d.baroName = "BME280";
   render(gCanvas, gPage, fc().status(), gModel, d, gWorld.t);
@@ -180,6 +224,40 @@ EXPORT(sim_state) const float* sim_state() {
   o[37] = s.air.baseFromThermal ? 1 : 0;
   o[38] = static_cast<float>(fc().advisor().thermalCount());
   o[39] = gWorld.p.envLapse;
+  // terrain, GPS guard, targets
+  o[40] = gWorld.ground;
+  o[41] = gWorld.alt - gWorld.ground;
+  o[42] = s.aglValid ? s.agl : -9999;
+  o[43] = static_cast<float>(s.gps);
+  o[44] = static_cast<float>(s.gpsReason);
+  o[45] = s.pos.valid ? 1 : 0;
+  o[46] = s.pos.deadReckoned ? 1 : 0;
+  o[47] = s.pos.errorM;
+  {
+    // how far the instrument's position is from the truth
+    double ex, ey;
+    gWorld.toXY(s.pos.lat, s.pos.lon, ex, ey);
+    o[48] = s.pos.valid ? static_cast<float>(std::sqrt((ex - gWorld.x) * (ex - gWorld.x) + (ey - gWorld.y) * (ey - gWorld.y))) : -1;
+    o[49] = static_cast<float>(ex);
+    o[50] = static_cast<float>(ey);
+  }
+  o[51] = s.headingValid ? s.heading : -1;
+  o[52] = s.best.valid ? 1 : 0;
+  o[53] = s.best.valid ? s.best.chance : 0;
+  {
+    double bx = 0, by = 0;
+    if (s.best.valid) gWorld.toXY(s.best.lat, s.best.lon, bx, by);
+    o[54] = static_cast<float>(bx);
+    o[55] = static_cast<float>(by);
+  }
+  o[56] = s.best.arrivalAgl;
+  o[57] = static_cast<float>(gWorld.localMin() % 1440);
+  o[58] = s.assist.active ? 1 : 0;
+  o[59] = s.assist.straightenNow ? 1 : 0;
+  o[60] = gWorld.ridgeNow();
+  o[61] = static_cast<float>(gWorld.spots.count());
+  o[62] = gWorld.spotsFromPack ? 1 : 0;
+  o[63] = static_cast<float>(gWorld.p.gps);
   return gState;
 }
 
@@ -204,3 +282,17 @@ EXPORT(sim_track) const float* sim_track() {
   return lin;
 }
 EXPORT(sim_track_len) int sim_track_len() { return gTrackN; }
+
+// Thermal sources (hotspots) in world metres plus their chance right now.
+EXPORT(sim_spots) const float* sim_spots() {
+  static float out[world::World::kSpots * 3 > pg::HotspotMap::kMax * 3 ? world::World::kSpots * 3 : pg::HotspotMap::kMax * 3];
+  for (int i = 0; i < gWorld.spots.count(); ++i) {
+    double x, y;
+    gWorld.toXY(gWorld.spots.at(i).lat, gWorld.spots.at(i).lon, x, y);
+    out[i * 3] = static_cast<float>(x);
+    out[i * 3 + 1] = static_cast<float>(y);
+    out[i * 3 + 2] = gWorld.spots.chance(i, gWorld.p.year, gWorld.p.month, gWorld.p.day, gWorld.utcMin());
+  }
+  return out;
+}
+EXPORT(sim_spot_count) int sim_spot_count() { return gWorld.spots.count(); }

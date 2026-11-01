@@ -15,10 +15,8 @@ using gfx::kFontTiny;
 
 const char* pageName(Page p) {
   switch (p) {
-    case Page::Thermal: return "THERMAL";
-    case Page::Glide: return "GLIDE";
-    case Page::Air: return "AIR";
-    case Page::System: return "SYSTEM";
+    case Page::Flight: return "FLIGHT";
+    case Page::Info: return "INFO";
     default: return "";
   }
 }
@@ -28,46 +26,45 @@ const char* pageName(Page p) {
 void Model::update(TimeMs t, const Status& s) {
   if (lastSample_ && t - lastSample_ < 1000) return;
   lastSample_ = t;
-  tr_[(head_ + n_) % kTrace] = s.vario;
-  if (n_ < kTrace) ++n_;
-  else head_ = (head_ + 1) % kTrace;
-
+  ++n_;
   const int gi = (gHead_ + gN_) % kGlideN;
   gAlt_[gi] = s.altitude;
-  gLat_[gi] = s.gnss.lat;
-  gLon_[gi] = s.gnss.lon;
-  gCircling_[gi] = s.circling || !s.gnss.valid();
+  gLat_[gi] = s.pos.lat;
+  gLon_[gi] = s.pos.lon;
+  gBad_[gi] = s.circling || !s.pos.valid || s.pos.deadReckoned;
   if (gN_ < kGlideN) ++gN_;
   else gHead_ = (gHead_ + 1) % kGlideN;
 }
 
 void Model::noteAlert(Alert a, TimeMs t) {
-  if (a == Alert::NearBase || a == Alert::Inversion || a == Alert::Message) {
-    banner_ = a;
-    bannerT_ = t;
+  switch (a) {
+    case Alert::NearBase: case Alert::Inversion: case Alert::Message: case Alert::GpsLost:
+    case Alert::GpsBack: case Alert::Stay: case Alert::Glide:
+      banner_ = a;
+      bannerT_ = t;
+      break;
+    default: break;
   }
 }
 
 Alert Model::banner(TimeMs t) const {
-  return banner_ != Alert::None && t - bannerT_ < 10000 ? banner_ : Alert::None;
+  const TimeMs hold = banner_ == Alert::Stay || banner_ == Alert::Glide ? 15000 : 10000;
+  return banner_ != Alert::None && t - bannerT_ < hold ? banner_ : Alert::None;
 }
-
-float Model::trace(int i) const { return tr_[(head_ + i) % kTrace]; }
 
 bool Model::glideRatio(float& ld) const {
   if (gN_ < kGlideN) return false;
   for (int i = 0; i < gN_; ++i)
-    if (gCircling_[(gHead_ + i) % kGlideN]) return false;
+    if (gBad_[(gHead_ + i) % kGlideN]) return false;
   const int a = gHead_, b = (gHead_ + gN_ - 1) % kGlideN;
   const double dN = (gLat_[b] - gLat_[a]) * 111195.0;
   const double dE = (gLon_[b] - gLon_[a]) * 111195.0 * std::cos(gLat_[a] * 0.0174533);
-  const double dist = std::sqrt(dN * dN + dE * dE);
   const float loss = gAlt_[a] - gAlt_[b];
   if (loss < 3.0f) {
-    ld = 99.0f;  // climbing or level: show as "--"
+    ld = 99.0f;  // climbing or level
     return true;
   }
-  ld = static_cast<float>(dist / loss);
+  ld = static_cast<float>(std::sqrt(dN * dN + dE * dE) / loss);
   return true;
 }
 
@@ -75,357 +72,354 @@ bool Model::glideRatio(float& ld) const {
 
 namespace {
 
+constexpr float kD2R = 0.0174533f;
+
 void fmtSigned(char* b, size_t n, float v) {
   if (std::fabs(v) < 0.05f) v = 0.0f;
   std::snprintf(b, n, "%+.1f", static_cast<double>(v));
 }
-
-// Wind: arrow pointing where the air goes, inside a ring.
-void windArrow(Canvas& c, int cx, int cy, int r, const WindEstimate& w) {
-  c.circle(cx, cy, r);
-  c.pixel(cx, cy - r - 2);  // north tick
-  c.vline(cx, cy - r - 4, 3);
-  if (!w.valid) {
-    c.text(cx, cy - kFontSmall.lineHeight / 2, "?", kFontSmall, Align::Center);
-    return;
-  }
-  const float to = (w.fromDeg + 180.0f) * 0.0174533f;
-  const float sx = std::sin(to), sy = -std::cos(to);
-  const int tipX = cx + static_cast<int>(sx * (r - 3)), tipY = cy + static_cast<int>(sy * (r - 3));
-  const int tailX = cx - static_cast<int>(sx * (r - 5)), tailY = cy - static_cast<int>(sy * (r - 5));
-  c.line(tailX, tailY, tipX, tipY, true, 3);
-  const float px = -sy, py = sx;  // perpendicular
-  const int bx = cx + static_cast<int>(sx * (r - 13)), by = cy + static_cast<int>(sy * (r - 13));
-  c.fillTriangle(tipX, tipY, bx + static_cast<int>(px * 7), by + static_cast<int>(py * 7),
-                 bx - static_cast<int>(px * 7), by - static_cast<int>(py * 7));
+void fmtKm(char* b, size_t n, float m) {
+  if (m < 1000) std::snprintf(b, n, "%.0f m", static_cast<double>(m));
+  else std::snprintf(b, n, "%.1f km", static_cast<double>(m / 1000));
 }
 
-void statusBar(Canvas& c, Page p, const Status& s, const DeviceInfo& d) {
-  c.fillRect(0, 0, gfx::kWidth, 17);
-  c.text(4, 2, pageName(p), kFontTiny, Align::Left, false);
-  // page dots
-  for (int i = 0; i < static_cast<int>(Page::Count); ++i) {
-    const int x = 74 + i * 9;
-    if (i == static_cast<int>(p)) c.fillRect(x, 6, 6, 6, false);
-    else c.rect(x, 6, 6, 6, false);
-  }
-  char b[48];
-  if (d.clockMin >= 0) {
-    std::snprintf(b, sizeof b, "%02d:%02d", d.clockMin / 60 % 24, d.clockMin % 60);
-    c.text(200, 2, b, kFontTiny, Align::Center, false);
-  }
-  int x = 396;
-  if (d.batteryPct >= 0) {
-    // battery icon
-    c.rect(x - 22, 4, 20, 9, false);
-    c.fillRect(x - 2, 6, 2, 5, false);
-    c.fillRect(x - 20, 6, (16 * (d.batteryPct > 100 ? 100 : d.batteryPct)) / 100, 5, false);
-    std::snprintf(b, sizeof b, "%d%%", d.batteryPct);
-    x -= 26;
-    x -= c.text(x, 2, b, kFontTiny, Align::Right, false) + 8;
-  }
-  if (s.gnss.valid()) std::snprintf(b, sizeof b, "GPS %u", s.gnss.sats);
-  else std::snprintf(b, sizeof b, "GPS --");
-  x -= c.text(x, 2, b, kFontTiny, Align::Right, false) + 8;
-  if (d.xctLinked) x -= c.text(x, 2, "XCT", kFontTiny, Align::Right, false) + 8;
-  if (s.muted) x -= c.text(x, 2, "MUTE", kFontTiny, Align::Right, false) + 8;
-  if (d.simulated) c.text(x, 2, "SIM", kFontTiny, Align::Right, false);
+// Screen point at `angle` (deg, 0 = up, clockwise) and radius r from (cx, cy).
+void polar(int cx, int cy, float angle, float r, int& x, int& y) {
+  x = cx + static_cast<int>(std::lround(r * std::sin(angle * kD2R)));
+  y = cy - static_cast<int>(std::lround(r * std::cos(angle * kD2R)));
 }
 
-// Vertical vario bar on the left: ±5 m/s, filled from zero.
-void varioBar(Canvas& c, float v, float avg) {
-  const int x = 2, w = 20, top = 22, bot = 236, mid = (top + bot) / 2;
-  const float pxPer = (mid - top) / 5.0f;
-  c.rect(x, top, w, bot - top);
-  for (int i = -5; i <= 5; ++i) {
-    const int y = mid - static_cast<int>(i * pxPer);
-    c.hline(x, y, i == 0 ? w : 5);
-  }
-  float vc = v > 5 ? 5 : (v < -5 ? -5 : v);
-  const int vy = mid - static_cast<int>(vc * pxPer);
-  if (vy < mid) c.fillRect(x + 6, vy, w - 9, mid - vy);
-  else c.fillRect(x + 6, mid, w - 9, vy - mid + 1);
-  float ac = avg > 5 ? 5 : (avg < -5 ? -5 : avg);
-  const int ay = mid - static_cast<int>(ac * pxPer);
-  c.fillTriangle(x + w + 1, ay, x + w + 7, ay - 5, x + w + 7, ay + 5);
+void arrow(Canvas& c, int cx, int cy, float angle, float r0, float r1, int thick, int head) {
+  int x0, y0, x1, y1, xb, yb;
+  polar(cx, cy, angle, r0, x0, y0);
+  polar(cx, cy, angle, r1, x1, y1);
+  polar(cx, cy, angle, r1 - head * 1.6f, xb, yb);
+  c.line(x0, y0, xb, yb, true, thick);
+  int xl, yl, xr, yr;
+  polar(xb, yb, angle - 90, static_cast<float>(head), xl, yl);
+  polar(xb, yb, angle + 90, static_cast<float>(head), xr, yr);
+  c.fillTriangle(x1, y1, xl, yl, xr, yr);
 }
 
-void trace(Canvas& c, const Model& m, int x, int y, int w, int h) {
-  const int mid = y + h / 2;
-  const float pxPer = (h / 2) / 4.0f;  // ±4 m/s
-  c.dotted(x, mid, w, 2);
-  c.dotted(x, mid - static_cast<int>(2 * pxPer), w, 6);
-  c.dotted(x, mid + static_cast<int>(2 * pxPer), w, 6);
-  const int n = m.traceCount();
-  for (int i = 0; i < n && i < w; ++i) {
-    float v = m.trace(n - 1 - i);
-    v = v > 4 ? 4 : (v < -4 ? -4 : v);
-    const int px = x + w - 1 - i;
-    const int vy = mid - static_cast<int>(v * pxPer);
-    if (v > 0) c.vline(px, vy, mid - vy);
-    else c.pixel(px, vy);  // sink: just the outline, so climbs stand out
-  }
-  c.text(x, y, "+4", kFontTiny);
-  c.text(x, y + h - kFontTiny.lineHeight, "-4", kFontTiny);
+void glider(Canvas& c, int x, int y, float angle, int s) {
+  int x0, y0, x1, y1, x2, y2;
+  polar(x, y, angle, static_cast<float>(s), x0, y0);
+  polar(x, y, angle + 140, static_cast<float>(s), x1, y1);
+  polar(x, y, angle - 140, static_cast<float>(s), x2, y2);
+  c.fillTriangle(x0, y0, x1, y1, x2, y2);
 }
 
-void banner(Canvas& c, int x, int y, int w, int h, const char* big, const char* small) {
-  c.fillRect(x, y, w, h);
-  c.text(x + 10, y + (h - kFontLarge.lineHeight) / 2 + 1, big, kFontLarge, Align::Left, false);
-  if (small) c.text(x + w - 8, y + (h - kFontSmall.lineHeight) / 2, small, kFontSmall, Align::Right, false);
+void dottedCircle(Canvas& c, int cx, int cy, int r, int stepDeg) {
+  for (int a = 0; a < 360; a += stepDeg) {
+    int x, y;
+    polar(cx, cy, static_cast<float>(a), static_cast<float>(r), x, y);
+    c.pixel(x, y);
+    c.pixel(x + 1, y);
+  }
 }
 
 void label(Canvas& c, int x, int y, const char* s, Align a = Align::Left) { c.text(x, y, s, kFontTiny, a); }
 
+// Label over a value, right-aligned value.
+void row(Canvas& c, int x0, int x1, int y, const char* name, const char* val) {
+  label(c, x0, y, name);
+  c.text(x1, y + 8, val, kFontMedium, Align::Right);
+}
+
+void statusBar(Canvas& c, const Status& s, const DeviceInfo& d, TimeMs t) {
+  c.fillRect(0, 0, gfx::kWidth, 16);
+  char b[64];
+  int x = 4;
+  if (d.clockMin >= 0) {
+    std::snprintf(b, sizeof b, "%02d:%02d", d.clockMin / 60 % 24, d.clockMin % 60);
+    x += c.text(x, 2, b, kFontTiny, Align::Left, false) + 10;
+  }
+  if (d.flightMin >= 0) {
+    std::snprintf(b, sizeof b, "%d:%02d", d.flightMin / 60, d.flightMin % 60);
+    c.text(x, 2, b, kFontTiny, Align::Left, false);
+  }
+  // GPS: quiet when fine, loud (inverted, centred) when not.
+  if (s.gps == GpsState::Lost || s.gps == GpsState::Spoofed) {
+    const int mins = static_cast<int>((t - s.gpsSince) / 60000);
+    if (s.pos.valid) {
+      char e[16];
+      fmtKm(e, sizeof e, s.pos.errorM);
+      std::snprintf(b, sizeof b, "GPS %s %d' - est. ~%s", s.gps == GpsState::Spoofed ? "SPOOFED" : "LOST", mins, e);
+    } else {
+      std::snprintf(b, sizeof b, "GPS %s %d'", s.gps == GpsState::Spoofed ? "SPOOFED" : "LOST", mins);
+    }
+    const int w = Canvas::textWidth(b, kFontTiny) + 12;
+    c.fillRect(200 - w / 2, 1, w, 14, false);
+    c.text(200, 2, b, kFontTiny, Align::Center, true);
+  } else if (s.gps == GpsState::NoData) {
+    // In the air with nothing yet is jamming, not a cold start.
+    c.text(200, 2, d.flightMin >= 1 ? "NO GPS - gyro + baro" : "GPS searching", kFontTiny, Align::Center, false);
+  } else {
+    std::snprintf(b, sizeof b, "GPS %u", s.gnss.sats);
+    c.text(200, 2, b, kFontTiny, Align::Center, false);
+  }
+  int r = 396;
+  if (d.batteryPct >= 0) {
+    c.rect(r - 20, 4, 18, 9, false);
+    c.fillRect(r - 2, 6, 2, 5, false);
+    c.fillRect(r - 18, 6, (14 * (d.batteryPct > 100 ? 100 : d.batteryPct)) / 100, 5, false);
+    std::snprintf(b, sizeof b, "%d%%", d.batteryPct);
+    r -= 24;
+    r -= c.text(r, 2, b, kFontTiny, Align::Right, false) + 8;
+  }
+  if (s.muted) r -= c.text(r, 2, "MUTE", kFontTiny, Align::Right, false) + 8;
+  if (d.simulated) c.text(r, 2, "SIM", kFontTiny, Align::Right, false);
+}
+
+// Bottom banner: cue events, then GPS trouble.
+bool bannerArea(Canvas& c, const Status& s, const Model& m, TimeMs t) {
+  char b[64], b2[32];
+  const char* big = nullptr;
+  const char* small = b;
+  b[0] = 0;
+  switch (m.banner(t)) {
+    case Alert::Stay:
+      if (s.advisor.advice != Advice::Stay) break;
+      big = "STAY";
+      fmtSigned(b2, sizeof b2, s.circling ? s.advisor.circleClimb : s.advisor.expectedClimb);
+      std::snprintf(b, sizeof b, "%s %s", s.circling ? "circle" : "expect", b2);
+      break;
+    case Alert::Glide:
+      if (s.advisor.advice != Advice::Glide) break;
+      big = "GLIDE";
+      fmtSigned(b2, sizeof b2, s.advisor.circleClimb);
+      std::snprintf(b, sizeof b, "circle %s < MC %.1f", b2, static_cast<double>(s.advisor.mc));
+      break;
+    case Alert::NearBase:
+      big = "CLOUD BASE";
+      std::snprintf(b, sizeof b, "%+.0f m", static_cast<double>(s.air.cloudBase - s.altitude));
+      break;
+    case Alert::Inversion: big = "INVERSION"; small = "top of lift"; break;
+    case Alert::Message: big = "MESSAGE"; small = "FANET"; break;
+    case Alert::GpsLost: big = "GPS LOST"; small = "vario + assist fine"; break;
+    case Alert::GpsBack: big = "GPS OK"; small = "position trusted again"; break;
+    default: break;
+  }
+  if (!big) return false;
+  c.fillRect(0, 206, 400, 34);
+  c.text(10, 206, big, kFontLarge, Align::Left, false);
+  c.text(392, 214, small, kFontSmall, Align::Right, false);
+  return true;
+}
+
+// Wind arrow relative to your heading: shows which way the air carries you.
+void windSmall(Canvas& c, int cx, int cy, const Status& s) {
+  if (!s.headingValid) return;  // can't point a wind arrow without north
+  if (!s.wind.valid) {
+    label(c, cx - 4, cy - 6, "--");
+    return;
+  }
+  const float to = s.wind.fromDeg + 180.0f - (s.headingValid ? s.heading : 0.0f);
+  c.circle(cx, cy, 12);
+  arrow(c, cx, cy, to, -9, 11, 2, 4);
+  char b[16];
+  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.wind.speed * 3.6f));
+  label(c, cx + 16, cy - 6, b);
+}
+
 // ---------------------------------------------------------------- pages
 
 void pageThermal(Canvas& c, const Status& s, const Model& m, TimeMs t) {
-  char b[96], b2[32];
-  varioBar(c, s.vario, s.avg);
+  char b[64], b2[32];
+  const AssistView& a = s.assist;
+  const int cx = 116, cy = 122, R = 84;
+  // Heading-up in the assistant's gyro frame; north only when it's known.
+  const float hdg = s.assistHeading;
 
-  // Big vario number.
+  dottedCircle(c, cx, cy, R, 6);
+  // North tick, so a heading-up view still has a reference.
+  int nx, ny;
+  // (skipped where the glider marker sits, at 90° to the side of the turn)
+  if (s.headingValid && (!a.active || std::fabs(angleDiffDeg(-90.0f * a.dir, -hdg)) > 25.0f)) {
+    polar(cx, cy, -hdg, R + 9, nx, ny);
+    c.text(nx, ny - 6, "N", kFontTiny, Align::Center);
+  }
+
+  if (a.active) {
+    for (int i = 0; i < 36; ++i) {
+      if (!a.have[i]) continue;
+      const float onCircle = i * 10.0f + 5.0f - 90.0f * a.dir - hdg;
+      int x, y;
+      polar(cx, cy, onCircle, static_cast<float>(R), x, y);
+      const float l = a.lift[i];
+      if (l > 0.1f) {
+        int r = static_cast<int>(2 + l * 2.6f);
+        if (r > 11) r = 11;
+        c.fillCircle(x, y, r);
+      } else {
+        c.circle(x, y, 3);
+      }
+    }
+    // You, heading up, on your side of the circle.
+    int gx, gy;
+    polar(cx, cy, -90.0f * a.dir, static_cast<float>(R), gx, gy);
+    c.fillCircle(gx, gy, 9, false);
+    glider(c, gx, gy, 0, 8);
+    // Starts clear of the number in the middle.
+    if (a.strength > 0.15f) arrow(c, cx, cy, a.coreDeg - hdg, 30, 36 + a.strength * (R - 48), 4, 8);
+    fmtSigned(b, sizeof b, s.advisor.thermalAvg);
+    c.text(cx, cy + 10, b, kFontMedium, Align::Center);
+    if (a.straightenNow) {
+      const int w = Canvas::textWidth("STRAIGHTEN", kFontSmall) + 14;
+      c.fillRect(cx - w / 2, cy + 36, w, 18);
+      c.text(cx, cy + 37, "STRAIGHTEN", kFontSmall, Align::Center, false);
+    }
+  } else {
+    c.text(cx, cy - 8, s.assistHeadingValid ? "assistant" : "no heading", kFontSmall, Align::Center);
+    c.text(cx, cy + 8, s.assistHeadingValid ? "maps the lift" : "(needs IMU or GPS)", kFontTiny, Align::Center);
+  }
+  windSmall(c, 18, 34, s);
+
+  // Right column: vario, average, then the heights that matter in a climb.
   fmtSigned(b, sizeof b, s.vario);
-  c.text(246, 16, b, kFontHuge, Align::Right);
-  label(c, 250, 70, "m/s");
+  c.text(398, 14, b, kFontHuge, Align::Right);
   fmtSigned(b2, sizeof b2, s.avg);
   std::snprintf(b, sizeof b, "avg %s", b2);
-  c.text(36, 88, b, kFontMedium);
-  if (s.circling && s.advisor.thermalGain != 0.0f) {
-    fmtSigned(b2, sizeof b2, s.advisor.thermalAvg);
-    std::snprintf(b, sizeof b, "thermal %s m/s  gain %+.0f m", b2, static_cast<double>(s.advisor.thermalGain));
-    c.text(36, 110, b, kFontSmall);
+  c.text(398, 82, b, kFontMedium, Align::Right);
+  if (s.circling && std::fabs(s.advisor.thermalGain) >= 0.5f) {
+    std::snprintf(b, sizeof b, "gain %+.0f", static_cast<double>(s.advisor.thermalGain));
+    label(c, 232, 88, b);
+  }
+  c.hline(228, 110, 172);
+  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.altMsl));
+  row(c, 232, 398, 114, "ALT m", b);
+  if (s.aglValid) std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.agl));
+  else std::snprintf(b, sizeof b, "--");
+  row(c, 232, 398, 144, "AGL m", b);
+  // "~" until a thermal top has confirmed the estimate.
+  if (s.air.baseValid)
+    std::snprintf(b, sizeof b, "%s%+.0f", s.air.baseFromThermal ? "" : "~", static_cast<double>(s.air.cloudBase - s.altitude));
+  else std::snprintf(b, sizeof b, "--");
+  row(c, 232, 398, 174, "TO BASE m", b);
+  bannerArea(c, s, m, t);
+}
+
+void pageGlide(Canvas& c, const Status& s, const Model& m, TimeMs t) {
+  char b[64], b2[32];
+  const float hdg = s.headingValid ? s.heading : 0.0f;
+  // Where to go: the best thermal by history and today's chances, else home.
+  const Target& tg = s.best.valid ? s.best : s.home;
+  const int cx = 112, cy = 132, R = 62;
+  if (s.best.valid) std::snprintf(b, sizeof b, "THERMAL %.0f%%", static_cast<double>(s.best.chance * 100));
+  else std::snprintf(b, sizeof b, s.home.valid ? "HOME" : "NO TARGET");
+  label(c, 8, 20, b);
+  if (tg.valid && s.pos.valid) {
+    fmtKm(b2, sizeof b2, tg.distM);
+    if (tg.arrivalAgl > -9000) std::snprintf(b, sizeof b, "%s  %+.0f m", b2, static_cast<double>(tg.arrivalAgl));
+    else std::snprintf(b, sizeof b, "%s  out of reach", b2);
+    c.text(8, 30, b, kFontMedium);
+  }
+  dottedCircle(c, cx, cy, R, 8);
+  c.fillTriangle(cx, cy - R - 6, cx - 6, cy - R + 4, cx + 6, cy - R + 4);  // your heading
+  int nx, ny;
+  polar(cx, cy, -hdg, R + 10, nx, ny);
+  c.text(nx, ny - 6, "N", kFontTiny, Align::Center);
+  if (tg.valid && s.pos.valid) {
+    arrow(c, cx, cy, tg.bearingDeg - hdg, -R * 0.55f, R - 8.0f, 5, 10);
+    if (tg.arrivalAgl < 0) c.text(cx, cy + R + 10, "CAN'T REACH", kFontSmall, Align::Center);
+  } else {
+    c.text(cx, cy - 8, s.pos.valid ? "no target" : "no position", kFontSmall, Align::Center);
+  }
+  if (s.pos.deadReckoned && s.pos.valid) {
+    fmtKm(b2, sizeof b2, s.pos.errorM);
+    std::snprintf(b, sizeof b, "estimated ~%s", b2);
+    c.text(cx, cy + R + 10, b, kFontTiny, Align::Center);
   }
 
   // Right column.
-  c.vline(268, 20, 182);
-  label(c, 276, 20, "ALT m");
-  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.altitude));
-  c.text(396, 28, b, kFontLarge, Align::Right);
-  c.hline(272, 68, 128);
-  label(c, 276, 72, s.advisor.mc > 0 ? "MC" : "MC");
-  std::snprintf(b, sizeof b, "%.1f", static_cast<double>(s.advisor.mc));
-  c.text(352, 76, b, kFontMedium, Align::Right);
-  label(c, 358, 82, "auto");
-  c.hline(272, 102, 128);
-  windArrow(c, 296, 132, 20, s.wind);
-  if (s.wind.valid) {
-    std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.wind.speed * 3.6f));
-    c.text(394, 114, b, kFontMedium, Align::Right);
-    label(c, 394, 138, "km/h", Align::Right);
-  } else {
-    label(c, 394, 124, "wind ...", Align::Right);
-  }
-  c.hline(272, 160, 128);
-  label(c, 276, 164, "BASE m");
-  if (s.air.baseValid) {
-    std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.air.cloudBase));
-    c.text(396, 172, b, kFontMedium, Align::Right);
-    std::snprintf(b, sizeof b, "%+.0f", static_cast<double>(s.air.cloudBase - s.altitude));
-    label(c, 276, 184, b);
-    if (!s.air.baseFromThermal) label(c, 330, 164, "rough");
-  } else {
-    label(c, 396, 178, "--", Align::Right);
-  }
-
-  // Vario trace.
-  trace(c, m, 36, 128, 226, 74);
-
-  // Bottom: advice / event banner / info line.
-  const Alert ev = m.banner(t);
-  if (ev == Alert::NearBase) {
-    std::snprintf(b, sizeof b, "%+.0f m", static_cast<double>(s.air.cloudBase - s.altitude));
-    banner(c, 30, 206, 368, 32, "CLOUD BASE", b);
-  } else if (ev == Alert::Inversion) {
-    banner(c, 30, 206, 368, 32, "INVERSION", "top of lift near");
-  } else if (ev == Alert::Message) {
-    banner(c, 30, 206, 368, 32, "MESSAGE", "FANET");
-  } else if (s.advisor.advice == Advice::Stay) {
-    if (s.circling) {
-      fmtSigned(b2, sizeof b2, s.advisor.circleClimb);
-      std::snprintf(b, sizeof b, "circle %s", b2);
-    } else {
-      fmtSigned(b2, sizeof b2, s.advisor.expectedClimb);
-      std::snprintf(b, sizeof b, "expect %s", b2);
-    }
-    banner(c, 30, 206, 368, 32, "STAY", b);
-  } else if (s.advisor.advice == Advice::Glide) {
-    fmtSigned(b2, sizeof b2, s.advisor.circleClimb);
-    std::snprintf(b, sizeof b, "circle %s < MC %.1f", b2, static_cast<double>(s.advisor.mc));
-    banner(c, 30, 206, 368, 32, "GLIDE", b);
-  } else {
-    c.hline(30, 206, 368);
-    std::snprintf(b, sizeof b, "STF %.0f km/h", static_cast<double>(s.stf));
-    c.text(36, 214, b, kFontMedium);
-    fmtSigned(b2, sizeof b2, s.netto);
-    std::snprintf(b, sizeof b, "netto %s", b2);
-    c.text(396, 216, b, kFontSmall, Align::Right);
-  }
-}
-
-void pageGlide(Canvas& c, const Status& s, const Model& m) {
-  char b[96], b2[32];
-  label(c, 8, 22, "SPEED TO FLY km/h");
-  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.stf));
-  c.text(8, 32, b, kFontHuge);
-  std::snprintf(b, sizeof b, "MC %.1f", static_cast<double>(s.advisor.mc));
-  c.text(8, 102, b, kFontMedium);
-
-  // Right: values
-  struct Row { const char* name; char val[16]; };
-  Row rows[4];
-  rows[0].name = "GROUND km/h";
-  std::snprintf(rows[0].val, sizeof rows[0].val, "%.0f", static_cast<double>(s.gnss.groundSpeed * 3.6f));
-  rows[1].name = "AIR km/h (est)";
-  std::snprintf(rows[1].val, sizeof rows[1].val, "%.0f", static_cast<double>(s.airspeed * 3.6f));
-  rows[2].name = "NETTO m/s";
-  fmtSigned(rows[2].val, sizeof rows[2].val, s.netto);
-  rows[3].name = "GLIDE L/D 30 s";
-  float ld;
-  if (m.glideRatio(ld)) {
-    if (ld >= 99.0f) std::snprintf(rows[3].val, sizeof rows[3].val, "--");
-    else std::snprintf(rows[3].val, sizeof rows[3].val, "%.1f", static_cast<double>(ld));
-  } else {
-    std::snprintf(rows[3].val, sizeof rows[3].val, s.circling ? "circ" : "...");
-  }
-  c.vline(214, 20, 120);
-  for (int i = 0; i < 4; ++i) {
-    const int y = 22 + i * 30;
-    label(c, 222, y, rows[i].name);
-    c.text(396, y + 6, rows[i].val, kFontMedium, Align::Right);
-    if (i < 3) c.dotted(222, y + 28, 176, 3);
-  }
-
-  // Bottom: wind and vario.
-  c.hline(0, 146, 400);
-  windArrow(c, 52, 192, 36, s.wind);
-  label(c, 100, 152, "WIND");
-  if (s.wind.valid) {
-    std::snprintf(b, sizeof b, "%.0f km/h", static_cast<double>(s.wind.speed * 3.6f));
-    c.text(100, 166, b, kFontMedium);
-    std::snprintf(b, sizeof b, "from %03.0f\x7f", static_cast<double>(s.wind.fromDeg));
-    c.text(100, 190, b, kFontSmall);
-  } else {
-    c.text(100, 170, "circle once", kFontSmall);
-  }
-  label(c, 396, 152, "VARIO m/s", Align::Right);
   fmtSigned(b, sizeof b, s.vario);
-  c.text(396, 164, b, kFontLarge, Align::Right);
+  c.text(398, 16, b, kFontLarge, Align::Right);
   fmtSigned(b2, sizeof b2, s.avg);
   std::snprintf(b, sizeof b, "avg %s", b2);
-  c.text(396, 206, b, kFontSmall, Align::Right);
+  c.text(398, 52, b, kFontSmall, Align::Right);
+  c.hline(232, 74, 168);
+  if (s.aglValid) std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.agl));
+  else std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.altMsl));
+  row(c, 236, 398, 78, s.aglValid ? "AGL m" : "ALT m", b);
+  float ld;
+  if (m.glideRatio(ld)) std::snprintf(b, sizeof b, ld >= 99 ? "--" : "%.1f", static_cast<double>(ld));
+  else std::snprintf(b, sizeof b, "...");
+  row(c, 236, 398, 108, "L/D", b);
+  // Speed to fly, with which way to go from where you are.
+  std::snprintf(b, sizeof b, "%.0f", static_cast<double>(s.stf));
+  row(c, 236, 398, 138, "STF km/h", b);
+  const float diff = s.stf - s.airspeed * 3.6f;
+  if (std::fabs(diff) > 3) {
+    const int ax = 300, ay = 158;
+    if (diff > 0) c.fillTriangle(ax, ay - 7, ax - 6, ay + 3, ax + 6, ay + 3);
+    else c.fillTriangle(ax, ay + 7, ax - 6, ay - 3, ax + 6, ay - 3);
+    label(c, ax + 9, ay - 6, diff > 0 ? "bar" : "slow");
+  }
+  label(c, 236, 170, "WIND");
+  windSmall(c, 286, 186, s);
+  bannerArea(c, s, m, t);
 }
 
-void pageAir(Canvas& c, const Status& s, const FlightComputerConfig* /*unused*/) {
-  char b[96];
+void pageInfo(Canvas& c, const Status& s, const DeviceInfo& d) {
+  char b[64], b2[32];
+  const int L0 = 8, L1 = 194, R0 = 208, R1 = 394;
   const AtmosphereState& a = s.air;
-  label(c, 8, 22, "CLOUD BASE m");
-  if (a.baseValid) {
-    std::snprintf(b, sizeof b, "%.0f", static_cast<double>(a.cloudBase));
-    c.text(8, 30, b, kFontHuge);
-    std::snprintf(b, sizeof b, "%+.0f m from you", static_cast<double>(a.cloudBase - s.altitude));
-    c.text(8, 98, b, kFontMedium);
-    c.text(8, 122, a.baseFromThermal ? "from thermal air" : "rough: not from a thermal yet", kFontSmall);
-  } else {
-    c.text(8, 40, "--", kFontHuge);
-    c.text(8, 122, a.haveAir ? "waiting for altitude" : "no humidity sensor", kFontSmall);
-  }
-
-  c.vline(240, 20, 124);
-  struct Row { const char* name; char val[16]; };
-  Row rows[3];
-  rows[0].name = "AIR \x7f" "C";
-  rows[1].name = "DEW POINT \x7f" "C";
-  rows[2].name = "HUMIDITY %";
-  if (a.haveAir) {
-    std::snprintf(rows[0].val, 16, "%.1f", static_cast<double>(a.tempC));
-    std::snprintf(rows[1].val, 16, "%.1f", static_cast<double>(a.dewPointC));
-    std::snprintf(rows[2].val, 16, "%.0f", static_cast<double>(a.rh));
-  } else {
-    for (auto& r : rows) std::snprintf(r.val, 16, "--");
-  }
-  for (int i = 0; i < 3; ++i) {
-    const int y = 22 + i * 40;
-    label(c, 248, y, rows[i].name);
-    c.text(396, y + 10, rows[i].val, kFontMedium, Align::Right);
-  }
-
-  // Lapse-rate gauge 0..12 °C/km with the stable / unstable marks.
-  c.hline(0, 148, 400);
-  label(c, 8, 154, "LAPSE RATE \x7f" "C/km");
-  const int gx = 8, gy = 196, gw = 384, gh = 14;
-  c.rect(gx, gy, gw, gh);
-  auto px = [&](float v) { return gx + static_cast<int>(v / 12.0f * gw); };
-  c.vline(px(6.5f), gy - 4, gh + 8);
-  c.vline(px(8.5f), gy - 4, gh + 8);
-  c.vline(px(9.8f), gy - 2, gh + 4);
-  label(c, px(6.5f) - 40, gy + gh + 4, "stable");
-  label(c, px(8.5f) + 4, gy + gh + 4, "unstable");
-  label(c, px(9.8f) - 6, gy - 16, "dry");
+  if (a.baseValid)
+    std::snprintf(b, sizeof b, "%.0f%s", static_cast<double>(a.cloudBase + (s.altMsl - s.altitude)),
+                  a.baseFromThermal ? "" : "?");
+  else std::snprintf(b, sizeof b, "--");
+  row(c, L0, L1, 22, "CLOUD BASE m", b);
   if (a.lapseValid) {
-    float v = a.lapseRate < 0 ? 0 : (a.lapseRate > 12 ? 12 : a.lapseRate);
-    c.fillRect(gx + 2, gy + 2, px(v) - gx - 2, gh - 4);
     const char* st = a.stability == Stability::Unstable ? "unstable"
                      : a.stability == Stability::Moderate ? "moderate"
                      : a.stability == Stability::Stable ? "stable" : "inversion";
-    std::snprintf(b, sizeof b, "%.1f  %s", static_cast<double>(a.lapseRate), st);
-    c.text(396, 160, b, kFontMedium, Align::Right);
+    std::snprintf(b, sizeof b, "%.1f %s", static_cast<double>(a.lapseRate), st);
   } else {
-    c.text(396, 164, "glide 250 m+ to measure", kFontSmall, Align::Right);
+    std::snprintf(b, sizeof b, "--");
   }
-  if (a.inversion) {
-    c.fillRect(0, 226, 400, 14);
-    c.text(200, 226, "INVERSION IN THIS CLIMB", kFontTiny, Align::Center, false);
-  }
-}
+  row(c, L0, L1, 58, "LAPSE \x7f" "C/km", b);
+  if (a.haveAir) std::snprintf(b, sizeof b, "%.0f / %.0f", static_cast<double>(a.tempC), static_cast<double>(a.dewPointC));
+  else std::snprintf(b, sizeof b, "--");
+  row(c, L0, L1, 94, "AIR / DEW \x7f" "C", b);
+  if (s.wind.valid)
+    std::snprintf(b, sizeof b, "%.0f from %03.0f", static_cast<double>(s.wind.speed * 3.6f), static_cast<double>(s.wind.fromDeg));
+  else std::snprintf(b, sizeof b, "--");
+  row(c, L0, L1, 130, "WIND km/h", b);
+  std::snprintf(b, sizeof b, "%.1f%s", static_cast<double>(s.advisor.mc), "");
+  row(c, L0, L1, 166, "MACCREADY", b);
 
-void pageSystem(Canvas& c, const Status& s, const DeviceInfo& d) {
-  char b[64];
-  struct Row { const char* name; char val[40]; };
-  Row r[8];
-  r[0].name = "GPS";
-  if (s.gnss.valid())
-    std::snprintf(r[0].val, 40, "%s  %u sats  ±%.0f m", s.gnss.fix == FixType::Fix3D ? "3D" : "2D", s.gnss.sats,
-                  static_cast<double>(s.gnss.hAcc));
-  else std::snprintf(r[0].val, 40, "searching");
-  r[1].name = "BARO";
-  std::snprintf(r[1].val, 40, "%s  %s", s.baro == BaroOrigin::Onboard ? d.baroName
-                                       : s.baro == BaroOrigin::XcTracer ? "XCTracer" : "none",
-                s.air.haveAir ? "+ humidity" : "");
-  r[2].name = "IMU";
-  std::snprintf(r[2].val, 40, "%s", s.imu ? "LSM6DS3 on" : "off");
-  r[3].name = "XCTRACER";
-  std::snprintf(r[3].val, 40, "%s", d.xctLinked ? "linked" : "not linked");
-  r[4].name = "FANET";
-  std::snprintf(r[4].val, 40, "%s  rx %lu  tx %s", d.fanetRegion, static_cast<unsigned long>(d.fanetRx),
-                d.txEnabled ? "ON" : "off");
-  r[5].name = "AUDIO";
-  std::snprintf(r[5].val, 40, "volume %d%s", s.volume, s.muted ? "  muted" : "");
-  r[6].name = "WIND FIT";
-  if (s.wind.valid) std::snprintf(r[6].val, 40, "quality %.2f", static_cast<double>(s.wind.quality));
-  else std::snprintf(r[6].val, 40, "--");
-  r[7].name = "THERMALS";
-  std::snprintf(r[7].val, 40, "MC %.1f", static_cast<double>(s.advisor.mc));
-  for (int i = 0; i < 8; ++i) {
-    const int y = 24 + i * 26;
-    c.text(8, y, r[i].name, kFontSmall);
-    c.text(396, y, r[i].val, kFontSmall, Align::Right);
-    c.dotted(8, y + 21, 384, 3);
+  if (s.home.valid && s.pos.valid) {
+    fmtKm(b2, sizeof b2, s.home.distM);
+    std::snprintf(b, sizeof b, "%s %+.0f", b2, static_cast<double>(s.home.arrivalAgl));
+  } else {
+    std::snprintf(b, sizeof b, "--");
   }
-  (void)b;
+  row(c, R0, R1, 22, "HOME  dist / arrive", b);
+  if (s.gps == GpsState::Ok) std::snprintf(b, sizeof b, "ok, %u sats", s.gnss.sats);
+  else if (s.gps == GpsState::NoData) std::snprintf(b, sizeof b, "searching");
+  else std::snprintf(b, sizeof b, "%s", gpsStateName(s.gps));
+  row(c, R0, R1, 58, s.gps == GpsState::Lost || s.gps == GpsState::Spoofed ? gpsReasonName(s.gpsReason) : "GPS", b);
+  std::snprintf(b, sizeof b, "%s", s.imu ? "gyro" : (s.headingValid ? "GPS track" : "--"));
+  row(c, R0, R1, 94, "HEADING", b);
+  if (d.flightMin >= 0) std::snprintf(b, sizeof b, "%d:%02d", d.flightMin / 60, d.flightMin % 60);
+  else std::snprintf(b, sizeof b, "--");
+  row(c, R0, R1, 130, "FLIGHT TIME", b);
+  if (d.batteryPct >= 0) std::snprintf(b, sizeof b, "%d%%", d.batteryPct);
+  else std::snprintf(b, sizeof b, "--");
+  row(c, R0, R1, 166, "BATTERY", b);
+  c.vline(200, 22, 176);
+  c.hline(0, 204, 400);
+  c.text(200, 214, "INFO  -  Page returns to flight", kFontSmall, Align::Center);
 }
 
 }  // namespace
 
 void render(Canvas& c, Page p, const Status& s, const Model& m, const DeviceInfo& d, TimeMs t) {
   c.clear();
-  statusBar(c, p, s, d);
-  switch (p) {
-    case Page::Thermal: pageThermal(c, s, m, t); break;
-    case Page::Glide: pageGlide(c, s, m); break;
-    case Page::Air: pageAir(c, s, nullptr); break;
-    case Page::System: pageSystem(c, s, d); break;
-    default: break;
-  }
+  statusBar(c, s, d, t);
+  if (p == Page::Info) pageInfo(c, s, d);
+  else if (s.circling) pageThermal(c, s, m, t);
+  else pageGlide(c, s, m, t);
 }
 
 }  // namespace pg::display

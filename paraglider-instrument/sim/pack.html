@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thermal Pack Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Builds the instrument's pre-flight "area pack" (PGHS, see
+   lib/core/src/hotspots.h) from KK7 thermal hotspots and an Open-Meteo
+   forecast. Runs entirely in the browser: both services allow cross-origin
+   requests. Open this page from GitHub Pages or a local server. */
+:root {
+  --bg: #e9ebe6; --panel: #f7f8f5; --ink: #1d2422; --ink-soft: #5c6863; --rule: #cfd5cf;
+  --accent: #b8551f; --good: #2f7d4f; --bad: #b3261e;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141917; --panel: #1b2220; --ink: #e2e8e3; --ink-soft: #94a39c; --rule: #2e3835;
+    --accent: #ec8a52; --good: #5cc28a; --bad: #f08a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --panel: #1b2220; --ink: #e2e8e3; --ink-soft: #94a39c; --rule: #2e3835;
+  --accent: #ec8a52; --good: #5cc28a; --bad: #f08a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 18px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(28px, 5vw, 38px); line-height: 1; margin: 0; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 22px; margin: 0 0 10px; }
+p { margin: 0 0 10px; }
+.sub { color: var(--ink-soft); max-width: 68ch; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+label { display: grid; gap: 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+input, select, button { font: inherit; font-size: 15px; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 9px; text-transform: none; letter-spacing: 0; }
+button { cursor: pointer; background: var(--ink); color: var(--panel); border-color: var(--ink); font-weight: 600; padding: 9px 16px; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.ghost { background: transparent; color: var(--ink); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+.log { font-family: var(--f-mono); font-size: 13px; white-space: pre-wrap; color: var(--ink-soft); max-height: 260px; overflow: auto; margin: 0; }
+.ok { color: var(--good); } .bad { color: var(--bad); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 500; }
+.scroll { overflow-x: auto; }
+.note { font-size: 13px; color: var(--ink-soft); }
+code { font-family: var(--f-mono); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Thermal pack builder</h1>
+    <p class="sub">Builds the instrument's area pack: where thermals have historically been (KK7), how likely by season and time of day, and how good the chosen day looks (Open-Meteo). Copy the file to the instrument before flying; it can't reach the internet in the air.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Area and day</h2>
+    <div class="form">
+      <label>Centre latitude<input id="lat" type="number" step="0.0001" value="32.4585"></label>
+      <label>Centre longitude<input id="lon" type="number" step="0.0001" value="35.4120"></label>
+      <label>Radius, km<input id="rad" type="number" min="5" max="40" step="1" value="20"></label>
+      <label>Flying day<input id="day" type="date"></label>
+    </div>
+    <div class="row">
+      <button id="build">Build pack</button>
+      <button id="dl" class="ghost" disabled>Download hotspots.pghs</button>
+      <span class="note" id="summary"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Progress</h2>
+    <pre class="log" id="log">Ready. Default centre: the Gilboa launch.</pre>
+  </div>
+
+  <div class="panel" id="dayPanel" hidden>
+    <h2>The day, hour by hour</h2>
+    <p class="note">Day factor scales every hotspot's historical chance: 1.0 is a typical thermal day, above is better, 0 means don't expect thermals. It comes from boundary-layer depth, sunshine, low cloud and rain.</p>
+    <div class="scroll"><table id="dayTable"></table></div>
+  </div>
+
+  <div class="panel" id="spotPanel" hidden>
+    <h2>Strongest sources</h2>
+    <div class="scroll"><table id="spotTable"></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>Getting it onto the instrument</h2>
+    <p>Put <code>hotspots.pghs</code> in <code>paraglider-instrument/data/</code> and upload the file system: <code>pio run -e xiao_esp32s3 -t uploadfs</code>. The instrument loads it at boot (console: <code>pack</code> shows what it loaded). In the simulator, use “Thermal pack” to try it.</p>
+    <p class="note">Status: the KK7 reader is written from KK7's published layer names and hasn't been checked against a live download yet. If the log says “0 hotspots”, the format differs: send the log.</p>
+    <p class="note">Thermal hotspots © <a href="https://thermal.kk7.ch" target="_blank" rel="noopener">thermal.kk7.ch</a> (Michael von Känel), CC BY-NC-SA 4.0: non-commercial use, with attribution. Weather: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a>, CC BY 4.0.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const log = (msg, cls) => {
+    const el = $("log");
+    if (el.dataset.fresh !== "1") { el.textContent = ""; el.dataset.fresh = "1"; }
+    const s = document.createElement("span");
+    if (cls) s.className = cls;
+    s.textContent = msg + "\n";
+    el.appendChild(s);
+    el.scrollTop = el.scrollHeight;
+  };
+  const tomorrow = new Date(Date.now() + 86400000);
+  $("day").value = tomorrow.toISOString().slice(0, 10);
+
+  // KK7 layers: thermals_<season>_<hours after sunrise>. Our seasons are
+  // Dec–Feb, Mar–May, Jun–Aug, Sep–Nov; KK7's jan/apr/jul/oct represent them.
+  // Our slots: < 5.5 h, 5.5–8.5 h, later ↔ KK7's 04 / 07 / 10.
+  const SEASONS = ["jan", "apr", "jul", "oct"];
+  const SLOTS = ["04", "07", "10"];
+  const ZOOM = 11;
+
+  const lon2x = (lon, z) => Math.floor((lon + 180) / 360 * 2 ** z);
+  const lat2y = (lat, z) => {
+    const r = lat * Math.PI / 180;
+    return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z);
+  };
+
+  // Tolerant KML reader: any Placemark with a Point; the chance is the first
+  // percentage (or 0..1 probability) found in its name, description or data.
+  function parseKml(text) {
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.querySelector("parsererror")) return [];
+    const out = [];
+    for (const pm of doc.getElementsByTagName("Placemark")) {
+      const c = pm.getElementsByTagName("coordinates")[0];
+      if (!c) continue;
+      const [lo, la] = c.textContent.trim().split(/[\s,]+/).map(Number);
+      if (!isFinite(la) || !isFinite(lo)) continue;
+      const txt = pm.textContent;
+      let p = NaN;
+      const pct = txt.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
+      if (pct) p = +pct[1];
+      else {
+        const prob = txt.match(/prob\w*\D{0,12}(0?\.\d+|1(?:\.0+)?)/i);
+        if (prob) p = +prob[1] * 100;
+      }
+      out.push({ lat: la, lon: lo, p: isFinite(p) ? Math.min(100, p) : 50 });
+    }
+    return out;
+  }
+
+  async function fetchLayer(layer, tiles) {
+    const pts = [];
+    for (const [x, y] of tiles) {
+      // KK7 tiles are TMS (y counted from the south); try that first, then XYZ.
+      const tms = 2 ** ZOOM - 1 - y;
+      let got = null;
+      for (const yy of [tms, y]) {
+        try {
+          const r = await fetch(`https://thermal.kk7.ch/api/kml/${layer}/${ZOOM}/${x}/${yy}`);
+          if (!r.ok) continue;
+          const p = parseKml(await r.text());
+          if (p.length) { got = p; break; }
+        } catch (e) { /* network/CORS: reported below */ }
+      }
+      if (got) pts.push(...got);
+    }
+    return pts;
+  }
+
+  // Merge points from all 12 layers onto ~300 m cells.
+  function merge(layers, lat0, lon0, radKm) {
+    const cells = new Map();
+    const mLat = 111195, mLon = mLat * Math.cos(lat0 * Math.PI / 180);
+    layers.forEach((pts, li) => {
+      const s = Math.floor(li / 3), sl = li % 3;
+      for (const q of pts) {
+        const dy = (q.lat - lat0) * mLat, dx = (q.lon - lon0) * mLon;
+        if (Math.hypot(dx, dy) > radKm * 1000) continue;
+        const key = `${Math.round(dx / 300)},${Math.round(dy / 300)}`;
+        let c = cells.get(key);
+        if (!c) { c = { lat: 0, lon: 0, n: 0, prob: [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]] }; cells.set(key, c); }
+        c.lat += q.lat; c.lon += q.lon; c.n++;
+        c.prob[s][sl] = Math.max(c.prob[s][sl], Math.round(q.p));
+      }
+    });
+    const list = [...cells.values()].map((c) => ({ lat: c.lat / c.n, lon: c.lon / c.n, prob: c.prob, best: Math.max(...c.prob.flat()) }));
+    list.sort((a, b) => b.best - a.best);
+    return list.slice(0, 600);  // HotspotMap::kMax
+  }
+
+  // Day factor per local hour from the forecast.
+  async function dayFactors(lat, lon, day) {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&hourly=boundary_layer_height,shortwave_radiation,cloud_cover_low,precipitation,cape` +
+      `&timezone=auto&start_date=${day}&end_date=${day}`;
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
+    const j = await r.json();
+    const h = j.hourly, f = [], rows = [];
+    for (let i = 0; i < 24; i++) {
+      const blh = h.boundary_layer_height?.[i], sw = h.shortwave_radiation?.[i];
+      const low = h.cloud_cover_low?.[i] ?? 0, rain = h.precipitation?.[i] ?? 0;
+      if (blh == null || sw == null) { f.push(-1); rows.push([i, "–", "–", "–", "–", "unknown"]); continue; }
+      let k = Math.min(1.8, blh / 1400);              // deeper mixing, higher and stronger thermals
+      k *= Math.min(1, sw / 350);                       // needs sun on the ground
+      k *= 1 - 0.6 * Math.min(1, low / 100);            // low overcast shuts it down
+      if (rain > 0.2) k *= 0.2;
+      f.push(Math.max(0, Math.min(2, k)));
+      rows.push([i, Math.round(blh), Math.round(sw), Math.round(low), rain.toFixed(1), f[i].toFixed(2)]);
+    }
+    return { f, rows, utcOffsetMin: Math.round((j.utc_offset_seconds || 0) / 60) };
+  }
+
+  function pack(spots, f, utcOffsetMin) {
+    const buf = new ArrayBuffer(36 + spots.length * 20), dv = new DataView(buf);
+    "PGHS".split("").forEach((ch, i) => dv.setUint8(i, ch.charCodeAt(0)));
+    dv.setUint16(4, 1, true);
+    dv.setUint16(6, spots.length, true);
+    for (let i = 0; i < 24; i++) dv.setUint8(8 + i, f[i] < 0 ? 255 : Math.round(f[i] * 100));
+    dv.setInt16(32, utcOffsetMin, true);
+    dv.setUint16(34, 0, true);
+    spots.forEach((s, i) => {
+      const o = 36 + i * 20;
+      dv.setInt32(o, Math.round(s.lat * 1e6), true);
+      dv.setInt32(o + 4, Math.round(s.lon * 1e6), true);
+      for (let a = 0; a < 4; a++) for (let b = 0; b < 3; b++) dv.setUint8(o + 8 + a * 3 + b, Math.min(100, s.prob[a][b]));
+    });
+    return new Uint8Array(buf);
+  }
+
+  let blob = null;
+  $("build").onclick = async () => {
+    $("log").dataset.fresh = "0";
+    $("build").disabled = true;
+    $("dl").disabled = true;
+    const lat = +$("lat").value, lon = +$("lon").value, rad = +$("rad").value, day = $("day").value;
+    try {
+      const dLat = rad / 111.195, dLon = rad / (111.195 * Math.cos(lat * Math.PI / 180));
+      const x0 = lon2x(lon - dLon, ZOOM), x1 = lon2x(lon + dLon, ZOOM);
+      const y0 = lat2y(lat + dLat, ZOOM), y1 = lat2y(lat - dLat, ZOOM);
+      const tiles = [];
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) tiles.push([x, y]);
+      log(`KK7: ${tiles.length} tiles × 12 layers (zoom ${ZOOM})`);
+      const layers = [];
+      for (const s of SEASONS) for (const sl of SLOTS) {
+        const name = `thermals_${s}_${sl}`;
+        const pts = await fetchLayer(name, tiles);
+        log(`  ${name}: ${pts.length} hotspots`, pts.length ? "" : "bad");
+        layers.push(pts);
+      }
+      const spots = merge(layers, lat, lon, rad);
+      if (!spots.length) throw new Error("0 hotspots from KK7 — blocked, offline, or a different format");
+      log(`merged into ${spots.length} sources within ${rad} km`, "ok");
+
+      let f = new Array(24).fill(-1), off = 120;
+      try {
+        const d = await dayFactors(lat, lon, day);
+        f = d.f; off = d.utcOffsetMin;
+        log(`Open-Meteo: forecast for ${day}, UTC${off >= 0 ? "+" : ""}${off / 60}`, "ok");
+        const t = $("dayTable");
+        t.innerHTML = "<tr><th>Hour</th><th>Mixing m</th><th>Sun W/m²</th><th>Low cloud %</th><th>Rain mm</th><th>Day factor</th></tr>" +
+          d.rows.filter((r) => r[0] >= 6 && r[0] <= 19).map((r) => `<tr><td>${String(r[0]).padStart(2, "0")}:00</td>${r.slice(1).map((v) => `<td>${v}</td>`).join("")}</tr>`).join("");
+        $("dayPanel").hidden = false;
+      } catch (e) {
+        log(`Open-Meteo failed (${e.message}): pack has history only, no day factor`, "bad");
+      }
+
+      const bytes = pack(spots, f, off);
+      blob = new Blob([bytes], { type: "application/octet-stream" });
+      $("dl").disabled = false;
+      $("summary").textContent = `${spots.length} sources · ${(bytes.length / 1024).toFixed(1)} KB`;
+      const SN = ["Dec–Feb", "Mar–May", "Jun–Aug", "Sep–Nov"];
+      $("spotTable").innerHTML = "<tr><th>Lat, lon</th>" + SN.map((s) => `<th>${s}</th>`).join("") + "</tr>" +
+        spots.slice(0, 15).map((s) => `<tr><td>${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}</td>${s.prob.map((p) => `<td>${p.join(" / ")}</td>`).join("")}</tr>`).join("");
+      $("spotPanel").hidden = false;
+      log("done: download hotspots.pghs", "ok");
+    } catch (e) {
+      log(e.message, "bad");
+    } finally {
+      $("build").disabled = false;
+    }
+  };
+  $("dl").onclick = () => {
+    if (!blob) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "hotspots.pghs";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+})();
+</script>
+</body>
+</html>

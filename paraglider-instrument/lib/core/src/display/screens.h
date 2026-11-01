@@ -1,4 +1,13 @@
-// Screen pages for the optional Sharp Memory display (400 × 240, 1-bit).
+// Screens for the optional Sharp Memory display (400 × 240, 1-bit).
+//
+// Two pages, chosen for the moment rather than browsed:
+//   * FLIGHT (default) switches itself: circling → the thermal page (thermal
+//     assistant first), gliding → the glide page (where to go, can I get there).
+//   * INFO (Page button): the slower numbers: cloud base, stability, wind,
+//     home, GPS detail.
+// Every page: a status bar that turns loud when GPS is jammed or spoofed, and
+// a bottom banner for cues (STAY, GLIDE, cloud base, GPS).
+//
 // Pure logic: renders a FlightComputer Status into a gfx::Canvas. The
 // browser simulator and (later) the firmware call exactly this code.
 #pragma once
@@ -7,7 +16,7 @@
 
 namespace pg::display {
 
-enum class Page : uint8_t { Thermal = 0, Glide, Air, System, Count };
+enum class Page : uint8_t { Flight = 0, Info, Count };
 const char* pageName(Page p);
 
 // Things the screen shows that aren't in the flight computer's Status.
@@ -19,35 +28,32 @@ struct DeviceInfo {
   uint32_t fanetRx = 0;
   bool txEnabled = false;
   int clockMin = -1;         // minutes since midnight, local; -1 = unknown
+  int flightMin = -1;        // minutes since takeoff; -1 = unknown
   bool simulated = false;
 };
 
-// History the pages draw from: a 1 Hz vario trace, a glide-ratio window and
+// Short history the pages draw from: glide ratio over the last 30 s and
 // recent event banners. Feed it every tick.
 class Model {
  public:
-  static constexpr int kTrace = 225;  // seconds of vario trace (1 px each)
   void update(TimeMs t, const Status& s);
   void noteAlert(Alert a, TimeMs t);
-  float trace(int i) const;           // i = 0 oldest … kTrace-1 newest
-  int traceCount() const { return n_; }
   bool glideRatio(float& ld) const;   // over the last 30 s of straight flight
-  Alert banner(TimeMs t) const;       // NearBase / Inversion / Message shown for a while
+  Alert banner(TimeMs t) const;       // event banners shown for a while
+  int traceCount() const { return n_; }
 
  private:
-  float tr_[kTrace] = {};
-  int head_ = 0, n_ = 0;
+  int n_ = 0;
   TimeMs lastSample_ = 0;
   static constexpr int kGlideN = 31;
   float gAlt_[kGlideN] = {};
   double gLat_[kGlideN] = {}, gLon_[kGlideN] = {};
-  bool gCircling_[kGlideN] = {};
+  bool gBad_[kGlideN] = {};
   int gHead_ = 0, gN_ = 0;
   Alert banner_ = Alert::None;
   TimeMs bannerT_ = 0;
 };
 
-void render(gfx::Canvas& c, Page p, const Status& s, const Model& m, const DeviceInfo& d,
-            TimeMs t);
+void render(gfx::Canvas& c, Page p, const Status& s, const Model& m, const DeviceInfo& d, TimeMs t);
 
 }  // namespace pg::display

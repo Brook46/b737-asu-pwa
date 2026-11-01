@@ -46,6 +46,27 @@ workers, Pages deploy) apply here.
   `chr->setValue(const char*)`, since the template stores the pointer bytes.
   Use `setValue(ptr, len)`.
 
+## GPS guard, terrain, thermal packs
+
+* **GPS is untrusted by default.** `GnssGuard` decides; FlightComputer only
+  uses a fix (position, wind, heading correction, home, clock) when
+  `status().gps == GpsState::Ok`. Anything that sends, stores or acts on a
+  position (FANET region/tracking/messages, marks) must use the guarded
+  `status().pos` or check the GPS state: never `status().gnss` raw. The user
+  flies where GPS jamming and spoofing (to Beirut) are routine.
+* Vario, STAY/GLIDE, circling, cloud base and the thermal assistant must keep
+  working with no GPS at all (test: "jammed from takeoff"). The assistant uses
+  `assistHeading`, a gyro-only frame; north (`headingValid`) is only claimed
+  once GPS has given it.
+* Terrain (`*.ter`, `tools/terrain/build_terrain.py`) and the thermal pack
+  (`hotspots.pghs`, `sim/pack.html`) live in `data/` → LittleFS
+  (`pio run -t uploadfs`). Both optional. `sim/terrain.ter` is a copy of
+  `data/gilboa.ter` for the browser simulator.
+* KK7 hotspot data is CC BY-NC-SA 4.0: keep the attribution in pack.html and
+  never bundle KK7-derived packs in the repo. The pack builder's KK7 reader
+  is unverified against live data (blocked from the build environment);
+  don't describe it as verified until the user confirms a real pack.
+
 ## Display and simulator
 
 * `lib/core/src/display/` draws the optional 400 × 240 Sharp Memory LCD
@@ -56,7 +77,13 @@ workers, Pages deploy) apply here.
   artifact** of lib/core + `tools/websim/`, so **rebuild it (`make websim`,
   needs `pip install ziglang`) whenever lib/core changes**, or the simulator
   will show stale behaviour. `make websim-native && build/sim_native 30 build
-  [inversion m]` runs the same world natively and writes PBM screenshots.
+  [inversion m] [gps mode] [at min]` (run from this folder; SEED=n env) runs the same world natively and writes PBM screenshots.
+* Pages: FLIGHT (switches itself: thermal page while circling, glide page
+  otherwise) and INFO. Keep them sparse: the user asked for fewer, more
+  useful numbers.
+* The simulator's world (`tools/websim/world.h`) is real terrain with ridge
+  lift and terrain-triggered thermals; GPS modes (sim_set 12) jam/spoof it.
+  A landing relaunches and starts a new flight on the instrument.
 * The simulator's autopilot obeys STAY/GLIDE on purpose. Use it to judge cue
   quality, and fix what it finds in lib/core (with a test), not in the world.
 

@@ -151,6 +151,23 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
           </span>
           <button id="reset">New day</button>
         </div>
+        <div class="ctl"><span class="label">GPS</span>
+          <span class="seg" id="gps" role="group" aria-label="GPS condition">
+            <button data-g="0" class="on">Normal</button><button data-g="1">Jammed</button><button data-g="2">Spoofed</button><button data-g="3">Noisy</button>
+          </span>
+        </div>
+        <div class="ctl">
+          <label class="label" for="month">Date</label>
+          <select id="month"><option value="1">Jan 15</option><option value="2">Feb 15</option><option value="3">Mar 15</option><option value="4">Apr 15</option><option value="5">May 15</option><option value="6">Jun 15</option><option value="7" selected>Jul 15</option><option value="8">Aug 15</option><option value="9">Sep 15</option><option value="10">Oct 15</option><option value="11">Nov 15</option><option value="12">Dec 15</option></select>
+          <label class="label" for="start">start</label>
+          <select id="start"><option value="420">07:00</option><option value="480">08:00</option><option value="540">09:00</option><option value="600">10:00</option><option value="660">11:00</option><option value="720" selected>12:00</option><option value="780">13:00</option><option value="840">14:00</option><option value="900">15:00</option><option value="960">16:00</option><option value="1020">17:00</option></select>
+          <span class="note" style="margin:0">applies on New day</span>
+        </div>
+        <div class="ctl">
+          <label class="label" for="pack">Thermal pack</label>
+          <input type="file" id="pack" accept=".pghs,.bin,application/octet-stream">
+          <span class="note" id="packnote" style="margin:0">none: thermals come from the terrain</span>
+        </div>
         <label class="check"><input type="checkbox" id="auto" checked> Autopilot: circles on STAY, leaves on GLIDE</label>
         <div class="steer" aria-label="Manual steering">
           <button data-t="-17">◀◀ circle</button><button data-t="-6">◀ turn</button><button data-t="0">straight</button><button data-t="6">turn ▶</button><button data-t="17">circle ▶▶</button>
@@ -164,7 +181,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
       <div class="panel">
         <h2>World</h2>
         <canvas id="map" width="900" height="560" aria-label="Map: thermals, your track and the wind"></canvas>
-        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core (stronger = darker)</span><span><i style="background:#2a6fb0"></i>you and your track</span><span>Grid 1 km · map follows you</span></div>
+        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal source, dot size = chance now</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
       </div>
 
       <div class="panel">
@@ -184,7 +201,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
 
       <div class="panel">
         <h2>Cue log</h2>
-        <div class="log" id="log"><span class="empty">Cues appear here as the instrument gives them: STAY, GLIDE, NEAR BASE, INVERSION.</span></div>
+        <div class="log" id="log"><span class="empty">Cues appear here as the instrument gives them: STAY, GLIDE, NEAR BASE, INVERSION, GPS LOST / GPS OK.</span></div>
       </div>
     </div>
   </div>
@@ -205,11 +222,11 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     return;
   }
   const mem = () => ex.memory.buffer;
-  const state = () => new Float32Array(mem(), ex.sim_state(), 40);
+  const state = () => new Float32Array(mem(), ex.sim_state(), 64);
 
   // ---------------- weather knobs ----------------
   const KNOBS = [
-    { k: 0, id: "wdir", name: "Wind from", min: 0, max: 359, step: 5, v: 270, fmt: (v) => `${v}°` },
+    { k: 0, id: "wdir", name: "Wind from", min: 0, max: 359, step: 5, v: 300, fmt: (v) => `${v}°` },
     { k: 1, id: "wspd", name: "Wind speed", min: 0, max: 35, step: 1, v: 14, fmt: (v) => `${v} km/h` },
     { k: 6, id: "str", name: "Thermal strength", min: 1, max: 5, step: 0.1, v: 2.8, fmt: (v) => `${(+v).toFixed(1)} m/s` },
     { k: 2, id: "t", name: "Surface temperature", min: 15, max: 40, step: 0.5, v: 30, fmt: (v) => `${(+v).toFixed(1)} °C` },
@@ -237,12 +254,16 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
   $("imu").addEventListener("change", (e) => ex.sim_set(7, e.target.checked ? 1 : 0));
   function baseNote() {
     const t = +$("k-t").value, td = +$("k-td").value;
-    const base = 200 + 125 * Math.max(0, t - td);
-    $("basenote").textContent = `Ground 200 m. True cloud base = 200 + 125 × (${t.toFixed(1)} − ${td.toFixed(1)}) = ${base.toFixed(0)} m. The case's warm bias pushes the instrument's estimate up by about 125 m per °C until you press "At base" while really at base.`;
+    const base = 125 * Math.max(0, t - td);
+    $("basenote").textContent = `Valley air near sea level: true cloud base ≈ 125 × (${t.toFixed(1)} − ${td.toFixed(1)}) = ${base.toFixed(0)} m MSL. The case's warm bias pushes the instrument's estimate up by about 125 m per °C until you press "At base" while really at base.`;
   }
 
   function newDay() {
+    ex.sim_set(13, +$("month").value);
+    ex.sim_set(14, 15);
+    ex.sim_set(15, +$("start").value);
     ex.sim_reset((Math.random() * 1e9) | 0);
+    ex.sim_set(12, gpsMode);
     for (const n of KNOBS) n.apply();
     ex.sim_set(7, $("imu").checked ? 1 : 0);
     ex.sim_set(8, $("auto").checked ? 1 : 0);
@@ -251,6 +272,67 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     lastAlertT = -1;
     logEmpty = true;
   }
+
+  // ---------------- terrain ----------------
+  let terr = null, shade = null;
+  try {
+    const tb = new Uint8Array(await (await fetch("terrain.ter")).arrayBuffer());
+    new Uint8Array(mem(), ex.sim_terrain_buffer(), tb.length).set(tb);
+    if (ex.sim_terrain_load(tb.length)) {
+      const dv = new DataView(tb.buffer);
+      terr = { rows: dv.getUint16(6, true), cols: dv.getUint16(8, true), s: dv.getFloat64(12, true), w: dv.getFloat64(20, true),
+               dlat: dv.getFloat64(28, true), dlon: dv.getFloat64(36, true) };
+      const n = terr.rows * terr.cols, z = new Int16Array(n);
+      for (let i = 0; i < n; i++) z[i] = dv.getInt16(44 + i * 2, true);
+      terr.z = z;
+      shade = hillshade(terr);
+    }
+  } catch (e) { /* flat world */ }
+  // Hillshade + elevation tint, one pixel per grid cell (row 0 = south).
+  function hillshade(t) {
+    const c = document.createElement("canvas");
+    c.width = t.cols; c.height = t.rows;
+    const g = c.getContext("2d"), im = g.createImageData(t.cols, t.rows), d = im.data;
+    const cell = t.dlat * 111195, at = (r, k) => t.z[Math.max(0, Math.min(t.rows - 1, r)) * t.cols + Math.max(0, Math.min(t.cols - 1, k))];
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    for (let r = 0; r < t.rows; r++)
+      for (let k = 0; k < t.cols; k++) {
+        const dzdx = (at(r, k + 1) - at(r, k - 1)) / (2 * cell), dzdy = (at(r + 1, k) - at(r - 1, k)) / (2 * cell);
+        // light from the north-west
+        let l = 0.6 + (-dzdx * 0.7 + dzdy * 0.7) * 1.4;
+        l = Math.max(0.15, Math.min(1.15, l));
+        const h = at(r, k);
+        let base = h < -150 && Math.abs(dzdx) + Math.abs(dzdy) < 0.004 ? [150, 185, 205]  // the Kinneret
+          : h < 0 ? [205, 210, 180] : h < 300 ? [214, 208, 178] : h < 500 ? [200, 188, 160] : [184, 170, 148];
+        if (dark) base = base.map((v) => v * 0.42);
+        const i = ((t.rows - 1 - r) * t.cols + k) * 4;
+        d[i] = base[0] * l; d[i + 1] = base[1] * l; d[i + 2] = base[2] * l; d[i + 3] = 255;
+      }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  const ORIGIN = { lat: 32.4585, lon: 35.4120 };
+  const MPD = 111195, MPDLON = MPD * Math.cos(ORIGIN.lat * Math.PI / 180);
+
+  // ---------------- GPS / thermal pack ----------------
+  let gpsMode = 0;
+  for (const b of $("gps").querySelectorAll("button")) {
+    b.onclick = () => {
+      gpsMode = +b.dataset.g;
+      ex.sim_set(12, gpsMode);
+      for (const o of $("gps").querySelectorAll("button")) o.classList.toggle("on", o === b);
+    };
+  }
+  $("pack").onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) { ex.sim_pack_load(0); $("packnote").textContent = "none: thermals come from the terrain"; newDay(); return; }
+    const b = new Uint8Array(await f.arrayBuffer());
+    if (b.length > 16384) { $("packnote").textContent = "too big (max 16 KB)"; return; }
+    new Uint8Array(mem(), ex.sim_pack_buffer(), b.length).set(b);
+    const n = ex.sim_pack_load(b.length);
+    $("packnote").textContent = n ? `${f.name}: ${n} sources` : "not a PGHS pack";
+    newDay();
+  };
 
   // ---------------- remote ----------------
   const cmd = (c) => ex.sim_command(c);
@@ -346,10 +428,32 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     const W = mapC.width, H = mapC.height, px = st[7], py = st[8];
     const sx = (x) => W / 2 + (x - px) * scale, sy = (y) => H / 2 - (y - py) * scale;
     map.fillStyle = css("--map-bg"); map.fillRect(0, 0, W, H);
+    if (shade) {
+      const x0 = (terr.w - ORIGIN.lon) * MPDLON, y1 = (terr.s + (terr.rows - 1) * terr.dlat - ORIGIN.lat) * MPD;
+      const wM = (terr.cols - 1) * terr.dlon * MPDLON, hM = (terr.rows - 1) * terr.dlat * MPD;
+      map.imageSmoothingEnabled = true;
+      map.drawImage(shade, sx(x0), sy(y1), wM * scale, hM * scale);
+    }
     map.strokeStyle = css("--map-grid"); map.lineWidth = 1;
     const g0x = Math.floor((px - W / 2 / scale) / 1000) * 1000, g0y = Math.floor((py - H / 2 / scale) / 1000) * 1000;
     for (let x = g0x; x < px + W / 2 / scale + 1000; x += 1000) { map.beginPath(); map.moveTo(sx(x), 0); map.lineTo(sx(x), H); map.stroke(); }
     for (let y = g0y; y < py + H / 2 / scale + 1000; y += 1000) { map.beginPath(); map.moveTo(0, sy(y)); map.lineTo(W, sy(y)); map.stroke(); }
+    // thermal sources (terrain-derived or a loaded pack), sized by chance now
+    const ns = ex.sim_spot_count(), sp = new Float32Array(mem(), ex.sim_spots(), ns * 3);
+    map.fillStyle = "rgba(123,94,167,0.75)";
+    for (let i = 0; i < ns; i++) {
+      const c = sp[i * 3 + 2];
+      if (c < 0.05) continue;
+      map.beginPath(); map.arc(sx(sp[i * 3]), sy(sp[i * 3 + 1]), 1.5 + c * 4, 0, 7); map.fill();
+    }
+    // the instrument's suggested thermal
+    if (st[52]) {
+      map.strokeStyle = "#7b5ea7"; map.lineWidth = 2; map.setLineDash([6, 5]);
+      map.beginPath(); map.moveTo(sx(st[49]), sy(st[50])); map.lineTo(sx(st[54]), sy(st[55])); map.stroke(); map.setLineDash([]);
+      map.beginPath(); map.arc(sx(st[54]), sy(st[55]), 9, 0, 7); map.stroke();
+      map.fillStyle = css("--ink"); map.font = "12px IBM Plex Mono, monospace";
+      map.fillText(`${Math.round(st[53] * 100)}% · +${fmt(st[56])} m`, sx(st[54]) + 12, sy(st[55]) + 4);
+    }
     // thermals
     const th = new Float32Array(mem(), ex.sim_thermals(), 14 * 4);
     for (let i = 0; i < 14; i++) {
@@ -373,6 +477,14 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     map.save(); map.translate(W / 2, H / 2); map.rotate(h);
     map.fillStyle = "#2a6fb0"; map.beginPath(); map.moveTo(0, -11); map.lineTo(8, 7); map.lineTo(0, 3); map.lineTo(-8, 7); map.closePath(); map.fill();
     map.restore();
+    // where the instrument thinks you are, while it dead-reckons
+    if (st[46] && st[45]) {
+      const X = sx(st[49]), Y = sy(st[50]);
+      map.strokeStyle = "#d1342f"; map.lineWidth = 2;
+      map.beginPath(); map.arc(X, Y, 7, 0, 7); map.stroke();
+      map.globalAlpha = 0.35; map.beginPath(); map.arc(X, Y, Math.max(8, st[47] * scale), 0, 7); map.stroke(); map.globalAlpha = 1;
+      map.beginPath(); map.moveTo(X - 10, Y); map.lineTo(X + 10, Y); map.moveTo(X, Y - 10); map.lineTo(X, Y + 10); map.stroke();
+    }
     // wind arrow (true)
     const wf = st[32] * Math.PI / 180, ws = st[31];
     const cx = W - 54, cy = 54;
@@ -395,21 +507,26 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     ["Wind, km/h from", (s) => (s[15] ? `${fmt(s[13])} / ${fmt(s[14])}°` : "circle once"), (s) => `${fmt(s[31])} / ${fmt(s[32])}°`],
     ["Cloud base, m", (s) => (s[17] ? fmt(s[16]) + (s[37] ? "" : " rough") : "--"), (s) => fmt(s[18])],
     ["Lapse rate, °C/km", (s) => (s[20] ? fmt(s[19], 1) : "glide more"), (s) => fmt(s[39], 1)],
+    ["Height above ground, m", (s) => (s[42] > -9000 ? fmt(s[42]) : "--"), (s) => fmt(s[41])],
+    ["GPS", (s) => ["no data", "ok", "LOST", "SPOOFED"][s[43] | 0] + (s[43] >= 2 ? ` (${REASONS[s[44] | 0]})` : ""), (s) => ["normal", "jammed", "spoofed to Beirut", "noisy"][s[63] | 0]],
+    ["Position error, m", (s) => (!s[45] ? "no position" : s[46] ? `±${fmt(s[47])} est.` : "GPS"), (s) => (s[48] >= 0 ? fmt(s[48]) : "no position")],
     ["MacCready, m/s", (s) => fmt(s[12], 1), () => "–"],
     ["Air under you, m/s", () => "–", (s) => fmt(s[6], 1, true)],
   ];
+  const REASONS = ["", "no fix", "weak", "position jump", "impossible speed", "altitude ≠ baro", "track ≠ gyro"];
   const tb = $("truth");
   tb.innerHTML = rows.map((r, i) => `<tr><td>${r[0]}</td><td class="n" id="ri${i}"></td><td class="n" id="rt${i}"></td></tr>`).join("");
   function drawTruth(st) {
     rows.forEach((r, i) => { $("ri" + i).textContent = r[1](st); $("rt" + i).textContent = r[2](st); });
     const adv = ["—", "STAY", "GLIDE"][st[11] | 0];
-    $("statusline").textContent = `${st[10] ? "Circling" : "Gliding"} · advice ${adv} · temperature offset learned ${st[21].toFixed(1)} °C · thermals measured ${st[38] | 0}` + (st[33] ? ` · landed out ${st[33] | 0}× (relaunched)` : "");
+    const hh = Math.floor(st[57] / 60), mm = Math.floor(st[57] % 60);
+    $("statusline").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${st[10] ? "Circling" : "Gliding"} · advice ${adv} · temperature offset learned ${st[21].toFixed(1)} °C · thermals measured ${st[38] | 0} · ridge lift ${fmt(st[60], 1, true)} m/s` + (st[33] ? ` · landed out ${st[33] | 0}× (relaunched)` : "");
   }
 
   // ---------------- cue log ----------------
   const log = $("log");
   let lastAlertT = -1, logEmpty = true;
-  const NAMES = { 1: "STAY", 2: "GLIDE", 3: "MESSAGE", 4: "ack", 5: "MC +", 6: "MC −", 8: "error", 9: "NEAR BASE", 10: "INVERSION" };
+  const NAMES = { 1: "STAY", 2: "GLIDE", 3: "MESSAGE", 4: "ack", 5: "MC +", 6: "MC −", 8: "error", 9: "NEAR BASE", 10: "INVERSION", 11: "GPS LOST", 12: "GPS OK" };
   function drawLog(st) {
     if (st[30] === lastAlertT || !st[29]) return;
     lastAlertT = st[30];
@@ -420,7 +537,9 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     const row = document.createElement("div");
     const detail = a === 1 || a === 2 ? `alt ${fmt(st[1])} m · vario ${fmt(st[2], 1, true)} · true air ${fmt(st[6], 1, true)} · MC ${fmt(st[12], 1)}`
       : a === 9 ? `alt ${fmt(st[1])} m · base est ${fmt(st[16])} (true ${fmt(st[18])})`
-      : a === 10 ? `alt ${fmt(st[1])} m` : "";
+      : a === 10 ? `alt ${fmt(st[1])} m`
+      : a === 11 ? `${["", "", "lost", "spoofed"][st[43] | 0]}: ${REASONS[st[44] | 0]} · dead reckoning from gyro + airspeed + wind`
+      : a === 12 ? `position trusted again · error was ${fmt(st[48])} m` : "";
     row.innerHTML = `<span>${mm}:${String(ss).padStart(2, "0")}</span><span class="${a <= 2 || a >= 9 ? "cue" : ""}">${NAMES[a]}</span><span>${detail}</span>`;
     log.prepend(row);
   }

@@ -18,9 +18,10 @@ this unit only *listens* to its Bluetooth stream.
 
 | Part | State |
 |---|---|
-| Logic layer (`lib/core`) | Written, **46 desktop tests pass** (`make test`) |
+| Logic layer (`lib/core`) | Written, **63 desktop tests pass** (`make test`) |
 | Flight replay tool (`tools/sim`) | Works on IGC files, XCTracer captures, synthetic flights |
 | Firmware (`src/`) | Written against pinned library versions; every library call was checked against those tags' headers, and a host compile against signature stubs is clean. **Not yet built with the real ESP32 toolchain, not flashed.** |
+| Thermal pack builder (`sim/pack.html`) | Written and tested against mocked replies; **not yet run against live KK7** (this build environment can't reach it) |
 | LoRa transmit | **Compiled out** (`PG_LORA_TX_ENABLED=0`) until the legal check in Israel is done. Receive works. |
 
 ## Layout
@@ -38,12 +39,17 @@ lib/core/src/        hardware-free logic — builds with desktop g++ and on the 
   audio.*              vario tones, alert jingles, LED patterns (pure state machines)
   nmea.*               LK8EX1 / XCTRC parsers, GNSS GGA/RMC parser, line reassembly
   atmosphere.*         dew point, cloud base, lapse rate, inversion detection
+  terrain.*            elevation grid (.ter) → height above ground, arrival heights
+  heading.*            gyro heading, bias learned from GPS while GPS is trusted
+  gnss_guard.*         GPS jamming / spoofing detector + dead reckoning while it's out
+  thermal_assist.*     maps lift around the circle (gyro only) → where the core is
+  hotspots.*           thermal pack (KK7 history × day forecast), best reachable thermal
   fanet.*              FANET frame/tracking/message codec, region table (IL918, EU868, …)
   remote.*             brake-handle remote command bytes
   bme280_comp.*        BME280/BMP280 calibration math (checked against Bosch's example)
   dps310_comp.*        DPS310 calibration math (fallback barometer)
   flight_computer.*    wires it all together; firmware and sim drive it the same way
-  display/             optional Sharp LCD: 1-bit canvas, fonts, four screen pages
+  display/             optional Sharp LCD: 1-bit canvas, fonts, flight + info pages
 src/                 firmware (Arduino-ESP32 2.0.17 via PlatformIO)
   main.cpp             loop, serial console, settings
   drivers/             bme280 (also BMP280), dps310, lsm6ds3, gnss_l76k: all own drivers, no libraries
@@ -53,18 +59,38 @@ test/                desktop tests + synthetic flight generator
 tools/sim/           flight replay (IGC, XCTracer captures, synthetic)
 tools/websim/        simulator world + C API, build.sh → sim/sim.wasm
 tools/fontgen/       generates the display fonts from DejaVu Sans
-sim/                 browser simulator (index.html + sim.wasm)
+tools/terrain/       build_terrain.py: AWS Terrain Tiles → .ter grid for an area
+data/                files for the device's LittleFS (`pio run -t uploadfs`): gilboa.ter, hotspots.pghs
+sim/                 browser simulator (index.html + sim.wasm + terrain.ter), pack.html (thermal pack builder)
 docs/                hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
 
 ## Simulator
 
 `sim/index.html` + `sim/sim.wasm`: the real flight logic and screen code,
-compiled to WebAssembly, flying a simulated thermal day. It shows the optional
-Sharp screen (four pages), plays the buzzer's actual tones, has the remote's
+compiled to WebAssembly, flying a simulated thermal day over the real terrain
+around the Gilboa: ridge lift from the wind against the slopes, thermals that
+rise from sun-facing slopes and high ground (or from a loaded thermal pack),
+none over the Kinneret, weaker in the morning and in winter. It shows the
+optional Sharp screen, plays the buzzer's actual tones, has the remote's
 buttons and a steerable glider (or an autopilot that obeys STAY/GLIDE), and
-compares every instrument number with the truth. Serve the folder over http
+compares every instrument number with the truth. The GPS can be **jammed,
+spoofed to Beirut or made noisy** to watch the instrument cope. Serve the folder over http
 (`python3 -m http.server -d sim`) or open it from GitHub Pages.
+
+## Thermal packs
+
+`sim/pack.html` builds `hotspots.pghs` for an area and a day, in your browser:
+KK7's thermal hotspots (by season and by hours after sunrise) give each
+source a historical chance; an Open-Meteo forecast for the day (mixing depth,
+sunshine, low cloud, rain) scales it hour by hour. Copy the file into `data/`
+and `pio run -t uploadfs`. In the air the instrument points to the best
+thermal it can reach with 250 m to spare. KK7 data is CC BY-NC-SA 4.0:
+personal, non-commercial use, with attribution. Without a pack, the
+simulator derives sources from the terrain; the device just shows home.
+
+New area: `python3 tools/terrain/build_terrain.py south west north east [step_m] data/site.ter`
+(the device loads the first `.ter` it finds).
 
 ## Build
 
@@ -102,6 +128,22 @@ pio device monitor
   8.5 °C/km is unstable (good thermals), below 6.5 is stable. A low warble
   when the climb starts warming with height, meaning an inversion and the top
   of the lift is near. Both show in `air` and the remote's status text.
+* **GPS jamming and spoofing**: every fix is checked against the other
+  sensors. No fix, weak fixes, jumps, impossible speed, an altitude that
+  disagrees with the barometer, or a track that disagrees with the gyro's
+  turning all mark GPS as untrusted (LOST or SPOOFED, three falling notes).
+  The instrument then keeps going on the barometer, IMU and wind: the vario,
+  STAY/GLIDE, circling, the thermal assistant and cloud base need no GPS at
+  all; position is dead reckoned from gyro heading, airspeed and the last
+  wind, with a growing error shown ("~300 m"). GPS comes back only after 20 s
+  of consistent fixes (two rising notes). A spoofed position is never used:
+  not for the FANET region, not in tracking or "Thermal here" messages.
+  Console: `gps`.
+* **Thermal assistant** (thermal page): lift around the circle, heading up,
+  with an arrow to the core and STRAIGHTEN when you're pointing at it. Uses
+  only the gyro, so it works jammed, even jammed from takeoff.
+* **Terrain**: height above ground, and glide arrival heights at home and at
+  the suggested thermal, subtracting the ground there.
 * **FANET**: tracking from other pilots and messages are received and logged;
   a message to you chirps three times. Canned messages from the remote ("OK",
   "Thermal here" + position + climb, "Landing", "NEED HELP") go out only when

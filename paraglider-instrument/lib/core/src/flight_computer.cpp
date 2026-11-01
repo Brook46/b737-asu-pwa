@@ -23,6 +23,14 @@ FlightComputer::FlightComputer(const FlightComputerConfig& cfg)
 
 void FlightComputer::reset() {
   kf_ = KalmanVario(cfg_.vario);
+  heading_.reset();
+  relHdg_ = 0;
+  guard_.reset();
+  assist_.reset();
+  gyroSinceFix_ = 0;
+  haveMslOffset_ = false;
+  prevGps_ = GpsState::NoData;
+  lastNav_ = 0;
   ahrs_.reset();
   circ_.reset();
   wind_.reset();
@@ -32,6 +40,16 @@ void FlightComputer::reset() {
   st_ = Status{};
   haveImu_ = false;
   origin_ = BaroOrigin::None;
+}
+
+void FlightComputer::setClock(int year, int month, int day, int utcMin) {
+  st_.clockValid = year > 2000 && month >= 1 && month <= 12;
+  st_.year = year;
+  st_.month = month;
+  st_.day = day;
+  st_.utcMin = utcMin;
+  clockBaseMin_ = utcMin;
+  clockFresh_ = true;  // anchored to the tick clock on the next updateNav
 }
 
 void FlightComputer::setQnh(float qnhPa) {
@@ -88,6 +106,12 @@ void FlightComputer::onImu(const ImuSample& s) {
     kf_.configure(cfg_.varioWithImu);
   }
   accelUp_ = ahrs_.verticalAccel(s.ax, s.ay, s.az);
+  // Shocks (a knock on the harness, touchdown, a collapse) can read 5–10 g for
+  // one sample; flying never sustains more than ~2 g. Unclamped, one such
+  // sample rings the vario for seconds.
+  constexpr float kMaxAcc = 2.0f * kGravity;
+  if (accelUp_ > kMaxAcc) accelUp_ = kMaxAcc;
+  if (accelUp_ < -kMaxAcc) accelUp_ = -kMaxAcc;
   if (kf_.initialized() && lastPredict_ && s.t > lastPredict_) {
     kf_.predict((s.t - lastPredict_) / 1000.0f, accelUp_);
     lastPredict_ = s.t;
@@ -96,19 +120,49 @@ void FlightComputer::onImu(const ImuSample& s) {
   // counter-clockwise from above, so negate for "+ = right turn".
   float ux, uy, uz;
   ahrs_.upVector(ux, uy, uz);
-  gyroTurnSum_ += -(s.gx * ux + s.gy * uy + s.gz * uz) * kRadToDeg;
+  const float yaw = -(s.gx * ux + s.gy * uy + s.gz * uz) * kRadToDeg;
+  gyroTurnSum_ += yaw;
   ++gyroTurnN_;
+  heading_.onYawRate(dt, yaw);
+  relHdg_ = std::fmod(relHdg_ + heading_.rate() * dt + 360.0f, 360.0f);
+  gyroSinceFix_ += heading_.rate() * dt;
   st_.imu = true;
 }
 
 void FlightComputer::onGnss(const GnssFix& f) {
   st_.gnss = f;
-  if (!f.valid()) return;
-  lastGnss_ = f.t;
   GnssFix g = f;
   if (g.velN == 0 && g.velE == 0 && g.groundSpeed > 0) {
     g.velN = g.groundSpeed * std::cos(g.trackDeg * kDegToRad);
     g.velE = g.groundSpeed * std::sin(g.trackDeg * kDegToRad);
+  }
+  // The guard decides whether this fix is believable (jamming, spoofing).
+  const float baroAlt = kf_.initialized() ? st_.altitude : NAN;
+  const float gyro = haveImu_ ? gyroSinceFix_ : NAN;
+  gyroSinceFix_ = 0;
+  if (!guard_.check(g, baroAlt, gyro)) return;
+  lastGnss_ = f.t;
+
+  // GPS is trusted: align the vario altitude to it, and correct the heading.
+  if (kf_.initialized()) {
+    const float off = g.altMsl - st_.altitude;
+    mslOffset_ = haveMslOffset_ ? mslOffset_ + 0.01f * (off - mslOffset_) : off;
+    haveMslOffset_ = true;
+  }
+  if (g.groundSpeed > 3.0f) {
+    float ref = g.trackDeg, weight = 0.3f;  // track ≈ heading only roughly, without wind
+    if (st_.wind.valid) {
+      ref = std::fmod(std::atan2(g.velE - st_.wind.toE, g.velN - st_.wind.toN) * kRadToDeg + 360.0f, 360.0f);
+      weight = 1.0f;
+    }
+    if (haveImu_) heading_.correct(ref, weight);
+    else heading_.setDirect(ref);
+  }
+  if (!st_.home.valid) {
+    st_.home.valid = true;
+    st_.home.isHome = true;
+    st_.home.lat = g.lat;
+    st_.home.lon = g.lon;
   }
   // Below walking pace the track is noise.
   if (g.groundSpeed > 2.0f && !(haveImu_ && cfg_.useImu)) {
@@ -211,8 +265,8 @@ void FlightComputer::runAdvisor(TimeMs t) {
   }
 
   float headwind = 0;
-  if (st_.wind.valid && st_.gnss.valid() && st_.gnss.groundSpeed > 2.0f) {
-    const float tr = st_.gnss.trackDeg * kDegToRad;
+  if (st_.wind.valid && st_.headingValid) {
+    const float tr = st_.heading * kDegToRad;
     headwind = -(st_.wind.toN * std::cos(tr) + st_.wind.toE * std::sin(tr));
   }
   st_.stf = cfg_.polar.speedToFly(st_.advisor.mc, 0, headwind) * 3.6f;
@@ -239,6 +293,7 @@ Outputs FlightComputer::tick(TimeMs t) {
   st_.circling = circ_.circling();
   st_.mode = circ_.mode();
   st_.turnRate = circ_.turnRate();
+  updateNav(t);
 
   if (kf_.initialized() && t - filterStart_ >= kSettleMs && t - lastAdvisor_ >= kAdvisorPeriodMs) {
     lastAdvisor_ = t;
@@ -246,6 +301,8 @@ Outputs FlightComputer::tick(TimeMs t) {
     avg20_.add(t, st_.vario);
     st_.avg = avg20_.mean();
     runAdvisor(t);
+    if (st_.assistHeadingValid) assist_.update(t, st_.circling, st_.assistHeading, circ_.direction(), st_.vario);
+    st_.assist = assist_.view();
   }
 
   audio_.setVario(cfg_.audioAvgMs ? audioAvg_.mean() : st_.vario);
@@ -259,6 +316,56 @@ Outputs FlightComputer::tick(TimeMs t) {
   out.alertStarted = pending_;
   pending_ = Alert::None;
   return out;
+}
+
+void FlightComputer::updateNav(TimeMs t) {
+  // The clock runs on between setClock calls (e.g. while GPS is jammed).
+  if (clockFresh_) {
+    clockAt_ = t;
+    clockFresh_ = false;
+  }
+  if (st_.clockValid) st_.utcMin = (clockBaseMin_ + static_cast<int>((t - clockAt_) / 60000)) % 1440;
+  st_.headingValid = heading_.valid() && (haveImu_ || guard_.trusted());
+  st_.heading = heading_.heading();
+  if (haveImu_) {
+    if (st_.headingValid && !st_.circling) relHdg_ = st_.heading;
+    st_.assistHeading = relHdg_;
+    st_.assistHeadingValid = true;
+  } else {
+    st_.assistHeading = st_.heading;
+    st_.assistHeadingValid = st_.headingValid;
+  }
+  const float wN = st_.wind.valid ? st_.wind.toN : 0, wE = st_.wind.valid ? st_.wind.toE : 0;
+  const float as = st_.airspeed > 0 ? st_.airspeed : cfg_.polar.bestGlideSpeed();
+  guard_.propagate(t, st_.headingValid && haveImu_ ? st_.heading : NAN, as, wN, wE);
+  st_.gps = guard_.state();
+  st_.gpsReason = guard_.reason();
+  st_.gpsSince = guard_.since();
+  st_.pos = guard_.position();
+  if (prevGps_ == GpsState::Ok && (st_.gps == GpsState::Lost || st_.gps == GpsState::Spoofed))
+    notify(Alert::GpsLost, t);
+  else if ((prevGps_ == GpsState::Lost || prevGps_ == GpsState::Spoofed) && st_.gps == GpsState::Ok)
+    notify(Alert::GpsBack, t);
+  prevGps_ = st_.gps;
+  st_.altMsl = st_.altitude + (haveMslOffset_ ? mslOffset_ : 0);
+
+  if (t - lastNav_ < 1000) return;  // terrain and targets at 1 Hz
+  lastNav_ = t;
+  st_.aglValid = false;
+  float ground;
+  if (terrain_ && st_.pos.valid && terrain_->elevation(st_.pos.lat, st_.pos.lon, ground)) {
+    st_.agl = st_.altMsl - ground;
+    st_.aglValid = true;
+  }
+  if (st_.home.valid && st_.pos.valid) {
+    st_.home.arrivalAgl = arrivalAgl(cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, st_.home.lat,
+                                     st_.home.lon, wN, wE, st_.home.bearingDeg, st_.home.distM);
+  }
+  st_.best = Target{};
+  if (hotspots_ && st_.clockValid && st_.pos.valid) {
+    st_.best = bestHotspot(*hotspots_, cfg_.polar, terrain_, st_.pos.lat, st_.pos.lon, st_.altMsl, wN, wE, st_.year,
+                           st_.month, st_.day, st_.utcMin, 250.0f);
+  }
 }
 
 }  // namespace pg

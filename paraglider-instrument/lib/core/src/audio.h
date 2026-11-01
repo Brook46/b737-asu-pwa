@@ -43,6 +43,8 @@ enum class Alert : uint8_t {
   Error,       // low double buzz: a sensor dropped out
   NearBase,    // high double-double: within ~300 m of the estimated cloud base
   Inversion,   // slow low warble: warming with height in the climb
+  GpsLost,     // three falling low notes: GPS jammed or spoofed, now dead-reckoning
+  GpsBack,     // two rising notes: GPS trusted again
 };
 
 struct ToneOut {

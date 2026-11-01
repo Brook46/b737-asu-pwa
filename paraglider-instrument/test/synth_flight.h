@@ -25,6 +25,7 @@ struct Script {
   float baroNoise = 0.2f;     // m, 1σ
   float circlingSinkExtra = 0.25f;  // bank penalty on top of the straight polar
   bool imu = false;           // also emit 100 Hz IMU samples (level sensor, yaw from turn)
+  bool gnss = true;           // false = jammed from the start: the receiver never gets a fix
   // Air: 1 Hz temperature/humidity as a case-mounted BME280 would see it.
   // Surface (0 m) values; thermal air follows the dry adiabat (9.8 °C/km)
   // and its dew point falls 1.8 °C/km, so cloud base = 125 m × spread.
@@ -97,7 +98,11 @@ class Flight {
       const float caseT = temp + s_.caseOffset;
       fc.onAir(t_, caseT, pg::relativeHumidity(caseT, td < temp ? td : temp));
     }
-    if (t_ % 200 == 0) {  // 5 Hz GNSS
+    if (t_ % 200 == 0 && !s_.gnss) {  // jammed: "no fix" epochs
+      pg::GnssFix g;
+      g.t = t_;
+      fc.onGnss(g);
+    } else if (t_ % 200 == 0) {  // 5 Hz GNSS
       const float h = hdg_ * pg::kDegToRad;
       pg::GnssFix g;
       g.t = t_;
