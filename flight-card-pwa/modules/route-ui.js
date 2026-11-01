@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=204';
-import * as ri from './route-info.js?v=204';
-import { legTs, nearestHm } from './dates.js?v=204';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=204';
+import * as storage from './storage.js?v=205';
+import * as ri from './route-info.js?v=205';
+import { legTs, nearestHm } from './dates.js?v=205';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=205';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -164,8 +164,64 @@ async function build(leg, { doFetch = false } = {}) {
 }
 
 // ---------- Map ----------
-function mapSvg(m, list, world, md) {
-  const W = 720, H2 = 420;
+// The map is always MAP_W wide in drawing units; its height sets its shape.
+const MAP_W = 720, MAP_H = 420;
+const MAP_PEEK = 36;      // px of what's below the map left showing under it
+const MAP_MIN_PX = 240;   // a phone on its side: the map, then scroll for the rest
+
+// In the In flight tab and full screen the map takes all the height left in
+// the sheet, on any screen and either way up, so nothing of it is ever behind
+// the bottom bar (a drag on the map pans it, so it couldn't be scrolled into
+// view). One row stays showing under it: it says there's more below, and it's
+// somewhere to scroll from. The shape comes from the drawing, not from
+// squeezing the frame: squeezed, an SVG letterboxes inside its box and taps no
+// longer land where pins are drawn.
+function mapHeight(frame) {
+  const sheet = document.querySelector('.route-sheet');
+  const r = frame.getBoundingClientRect();
+  if (!r.width || !(docked() || sheet.classList.contains('is-full'))) return MAP_H;
+  const top = r.top - sheet.getBoundingClientRect().top + sheet.scrollTop;
+  const room = sheet.clientHeight - top - parseFloat(getComputedStyle(sheet).paddingBottom) - MAP_PEEK;
+  return Math.round(MAP_W * Math.max(room, Math.min(sheet.clientHeight - 8, MAP_MIN_PX)) / r.width);
+}
+// Draw the map into its place, whatever stands there: the empty slot of a
+// fresh screen or the map being replaced.
+function drawMap(frame) {
+  const { model, list, world, md } = state;
+  frame.outerHTML = mapSvg(model, list, world, md, mapHeight(frame));
+  const svg = $('ri-map');
+  if (svg) { wireZoom(svg); pinScale(svg, mapGeom.W); relabel(); }
+  paintMapWx();
+  livePaintAt = 0;
+  paintLive();
+}
+// The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
+// the new shape, still looking at the same place at the same scale.
+async function refit() {
+  const svg = $('ri-map');
+  if (!svg || !state || !mapGeom) return;
+  if (Math.abs(mapHeight(svg.parentElement) - mapGeom.H) >= 4) {
+    await fingersUp();
+    const frame = $('ri-map')?.parentElement;
+    if (!frame) return;
+    const was = mapGeom, v = currentView();
+    const lon = was.view.cLon + ((v.x + v.w / 2) / was.W - 0.5) * was.view.spanLon;
+    const lat = was.view.cLat - ((v.y + v.h / 2) / was.H - 0.5) * was.view.spanLat;
+    const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
+    viewAnim++; previewing = null;
+    drawMap(frame);
+    if (sel) openCard(sel, { keepView: true });
+    if (v.w < was.W * 0.98) {
+      const w = v.w * was.view.spanLon / mapGeom.view.spanLon, h = w * mapGeom.H / mapGeom.W;
+      setViewBox({ x: mapGeom.proj.x(lon) - w / 2, y: mapGeom.proj.y(lat) - h / 2, w, h });
+    }
+    return;
+  }
+  pinScale(svg, getViewBox().w);
+  relabel();
+}
+function mapSvg(m, list, world, md, H2 = MAP_H) {
+  const W = MAP_W;
   const pts = m.route.pts.map(p => [p.lon, p.lat]).concat(list.map(c => [c.lonDraw, c.ap.lat]));
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
   for (const [lon, lat] of pts) {
@@ -225,7 +281,7 @@ function mapSvg(m, list, world, md) {
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
         <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g></g>`;
   }).join('');
-  mapGeom = { W, H: H2, proj, pins: pinData };
+  mapGeom = { W, H: H2, proj, view, pins: pinData };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
       <rect width="${W}" height="${H2}" class="lb-sea"/>
       ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
@@ -928,11 +984,6 @@ async function paint(model, showAll = false) {
   const fl = model.leg && model.leg.flight ? `${String(model.leg.flight).replace(/^0+/, '')} · ` : '';
   $('route-sub').textContent = `${fl}${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${model.mode === 'browse' ? day(model.tm.takeoff) : ''}${hm(model.tm.takeoff)}`;
   $('route-body').innerHTML = `
-    <div class="ri-status">
-      Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
-      NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
-      within an hour (${ri.RADIUS_NM} nm) of the great-circle route
-    </div>
     <div id="ri-ready" class="ri-ready"></div>
     ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
       `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
@@ -942,8 +993,13 @@ async function paint(model, showAll = false) {
         <button type="button" class="vs-btn" role="tab" data-ri-mapwx="metar">Now · METAR</button>
         <button type="button" class="vs-btn" role="tab" data-ri-mapwx="taf">At ETA · TAF</button>
       </div></div>
-    ${mapSvg(model, list, world, md)}
+    <div id="ri-map-slot" class="ri-map-wrap"></div>
     <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
+    <div class="ri-status">
+      Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
+      NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
+      within an hour (${ri.RADIUS_NM} nm) of the great-circle route
+    </div>
     <div class="ri-legend">
       <span><i class="ri-dot ri-b-a"></i>8–10 ${counts.a}</span><span><i class="ri-dot ri-b-b"></i>6–7 ${counts.b}</span>
       <span><i class="ri-dot ri-b-c"></i>4–5 ${counts.c}</span><span><i class="ri-dot ri-b-d"></i>1–3 ${counts.d}</span>
@@ -955,16 +1011,14 @@ async function paint(model, showAll = false) {
     <div id="ri-near"></div>
     <div id="ri-card-slot"></div>
     <div id="ri-list-wrap"></div>`;
-  state = { model, showAll };
+  const slot = $('ri-map-slot');
+  state = { model, showAll, list, world, md };
   viewAnim++; previewing = null;     // nothing left over from the map just replaced
   listKey = '';
   renderList();
-  paintReady();
-  const svg = $('ri-map');
-  if (svg) { wireZoom(svg); pinScale(svg, mapGeom ? mapGeom.W : 720); relabel(); }
-  paintMapWx();
-  livePaintAt = 0;
-  paintLive();
+  // The rows above the map first: what's left of the height is the map's.
+  await paintReady();
+  if (slot.isConnected) drawMap(slot);
 }
 // The airport list: in route order (time abeam), or — with a GPS fix —
 // nearest to the aircraft first, with distance and where it lies from you.
@@ -1045,6 +1099,7 @@ async function paintReady() {
     ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
     ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
     ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs failed' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}`;
+  refit();     // a chip that wraps changes the room under it
 }
 // What the flight needs saved on the device besides the weather. ASU comes
 // from its own worker, one level up, which saves it into this app's storage.
@@ -1740,7 +1795,8 @@ export function wire() {
   const sheet = document.querySelector('.route-sheet');
   try { applyFull(localStorage.getItem('fc.route.full') === '1'); } catch {}
   $('route-full')?.addEventListener('click', () => applyFull(!sheet.classList.contains('is-full'), true));
-  window.addEventListener('resize', () => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
+  let fitT = 0;
+  new ResizeObserver(() => { clearTimeout(fitT); fitT = setTimeout(refit, 120); }).observe(sheet);
   // The saved-for-offline line follows the connection.
   for (const ev of ['online', 'offline']) window.addEventListener(ev, () => { if (state) paintReady(); });
   // A pinch with one finger off the map would zoom the whole page instead.

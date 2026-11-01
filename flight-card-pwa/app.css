@@ -3440,9 +3440,6 @@ body {
   position: fixed; inset: 0; max-width: none; width: 100%; max-height: none; height: 100%;
   border-radius: 0; margin: 0; padding-top: max(14px, env(safe-area-inset-top));
 }
-/* Capped by narrowing the frame, not by a max-height on the map: squeezed, an
-   SVG letterboxes inside its box and taps no longer land where pins are drawn. */
-.route-sheet.is-full .ri-map-wrap { max-width: calc(62vh * 720 / 420); margin-left: auto; margin-right: auto; }
 
 /* Runway ends v3: the designator in a box like the painted marking, its LDA
    beneath in small muted type — a boxed number is always a runway, a
@@ -3733,6 +3730,21 @@ body[data-phase="air"] #ready-line { display: none; }
   background: var(--bg); padding-bottom: 12px;
 }
 #route-overlay.is-docked #route-close { display: none; }
+/* In flight and full screen the height is the map's (mapHeight): the flight
+   line shares its row with the buttons, and on an iPad the saved chips share
+   theirs with the weather switch. */
+#route-overlay.is-docked .route-sheet, .route-sheet.is-full {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; gap: 8px 10px;
+}
+:is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) .pad-head { grid-column: 2; grid-row: 1; }
+:is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) #route-label { display: none; }
+:is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) #route-sub { grid-column: 1; grid-row: 1; align-self: center; margin: 0 2px; }
+:is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) #route-body { grid-column: 1 / -1; min-width: 0; }
+@media (min-width: 600px) {
+  :is(#route-overlay.is-docked .route-sheet, .route-sheet.is-full) :is(.ri-ready:not(:empty), .ri-mapwx) {
+    display: inline-flex; vertical-align: middle; margin-right: 14px;
+  }
+}
 
 /* ---------- Checklist ---------- */
 .checklist-float {
