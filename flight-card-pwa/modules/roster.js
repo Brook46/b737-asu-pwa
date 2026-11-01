@@ -19,8 +19,8 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=203';
-import { RELIEF_SLOTS, CABIN_SLOTS, CREW_FIELDS } from './crew.js?v=203';
+import { yearNear } from './dates.js?v=204';
+import { RELIEF_SLOTS, CABIN_SLOTS, CREW_FIELDS } from './crew.js?v=204';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
@@ -213,10 +213,12 @@ export function parseRoster(text, opts = {}) {
         // Anchor the bare dd.mm to the event's real year when we have one.
         if (Number.isFinite(anchorMs)) {
           cur.dep_year = yearNear(cur.dep_date, anchorMs) || '';
-          // An arrival earlier in the calendar than its departure means the
-          // leg crossed into the next year (31.12 → 01.01).
+          // An arrival in an earlier month than its departure means the leg
+          // crossed into the next year (31.12 → 01.01). Numbers, not the
+          // "dd.mm" strings: as text, 01.11 sorts before 31.10, and every
+          // overnight leg over a month end landed a year late.
           cur.arr_year = cur.dep_year;
-          if (cur.dep_year && cur.arr_date < cur.dep_date) cur.arr_year = cur.dep_year + 1;
+          if (cur.dep_year && +tm[5] < +tm[2]) cur.arr_year = cur.dep_year + 1;
         }
         // ctot intentionally left empty — the roster's dep_time is the
         // scheduled out-time, not a Eurocontrol slot.

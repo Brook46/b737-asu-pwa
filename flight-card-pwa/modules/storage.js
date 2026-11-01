@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=203';
-import { dateTs, legTs } from './dates.js?v=203';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=203';
+import { flipName } from './roster.js?v=204';
+import { dateTs, legTs } from './dates.js?v=204';
+import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=204';
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -50,7 +50,10 @@ const KEY = 'fc.state';
 // to_role / ldg_role (PF / PM / ''), max_g (peak landing G). Migration
 // seeds block_time = current flight_time on every existing leg so the
 // logbook export has consistent block numbers from day one.
-const VERSION = 16;
+// v17: an overnight leg over a month end (31.10 → 01.11) had arr_year one too
+// high, from a text comparison in roster.js. Such a leg "landed" a year later,
+// so it stayed the leg for now and never counted as flown. Repaired in place.
+const VERSION = 17;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -395,6 +398,19 @@ function migrate(s) {
         });
       }
       delete d.relief;
+    }
+  }
+  // v16 → v17: see the note at VERSION. Only a real new year keeps a later
+  // arrival year: 31.12 → 01.01 has an earlier month.
+  if (s.v && s.v < 17) {
+    const bags = [...(current.legs || [])];
+    for (const f of (s.history || [])) bags.push(...(f.legs || []));
+    for (const leg of (s.imported || [])) bags.push(leg);
+    for (const leg of bags) {
+      const dy = Number(leg && leg.dep_year), ay = Number(leg && leg.arr_year);
+      if (!dy || !ay || ay === dy) continue;
+      const month = (ddmm) => Number(String(ddmm || '').split('.')[1]);
+      leg.arr_year = month(leg.arr_date) < month(leg.dep_date) ? dy + 1 : dy;
     }
   }
   if (s.v && s.v < 14) {
