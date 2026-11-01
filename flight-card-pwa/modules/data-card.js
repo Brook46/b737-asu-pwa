@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=200';
-import * as wx from './wx.js?v=200';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=200';
+import * as storage from './storage.js?v=201';
+import * as wx from './wx.js?v=201';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=201';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -71,33 +71,29 @@ const CELL_INDEX = (() => {
   return m;
 })();
 
-// Which groups are folded. The pilot's own choice is remembered on this
-// device (a view setting, like the group order below), so a reload or a
-// refresh opens the card the way it was left.
-const DEFAULT_COLLAPSED = new Set(['g-flt', 'g-crew']);
-const COLLAPSED_KEY = 'fc.dataCard.collapsed';
-let collapsed = loadCollapsed();
-function loadCollapsed() {
+// The Brief tab: Crew and Flight are always open; the rest are a summary line
+// until opened, which is remembered on this device, so a reload or a refresh
+// leaves the card the way it was.
+const ALWAYS_OPEN = new Set(['g-flt', 'g-crew']);
+const OPENED_KEY = 'fc.dataCard.opened';
+let opened = loadOpened();
+function loadOpened() {
   try {
-    const v = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || 'null');
+    const v = JSON.parse(localStorage.getItem(OPENED_KEY) || 'null');
     if (Array.isArray(v)) return new Set(v);
   } catch {}
-  return new Set(DEFAULT_COLLAPSED);
+  return new Set();
 }
-function saveCollapsed() {
-  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed])); } catch {}
+function saveOpened() {
+  try { localStorage.setItem(OPENED_KEY, JSON.stringify([...opened])); } catch {}
 }
 // The one crew member whose note is showing. Notes stay folded until asked
 // for, and opening one folds the other.
 let crewNoteOpen = '';
-// The Before tab shows these groups open, whatever their fold state.
-let forceOpen = new Set();
-export function setForceOpen(ids) {
-  const next = new Set(ids);
-  if (next.size === forceOpen.size && [...next].every(i => forceOpen.has(i))) return false;
-  forceOpen = next;
-  return true;
-}
+// Both ends' weather: the Brief tab's own element, placed after the Flight
+// group each render. It survives the render, listeners and all.
+let wxNode = null;
+export function setWxNode(el) { wxNode = el; }
 
 // ATIS cell is now a launcher into the wx (D-ATIS + METAR) overlay.
 // Live letter comes from the popup; manual letter still allowed there.
@@ -162,7 +158,12 @@ export function setEditing(on) {
 
 export function render(root) {
   const data = storage.getCurrent().dataCard;
-  const html = orderedGroups().map(group => {
+  // Crew, Flight, weather, then the pilot's own order; while arranging, just
+  // their order, so what's dragged is what's seen.
+  const groups = orderedGroups();
+  const shown = editMode ? groups
+    : [...groups].sort((a, b) => ALWAYS_OPEN.has(b.id) - ALWAYS_OPEN.has(a.id) || (a.id === 'g-crew' ? -1 : b.id === 'g-crew' ? 1 : 0));
+  const html = shown.map(group => {
     // Edit mode shows every group folded to its head, so the list is short
     // enough to drag through — like the print layout's field list. The
     // pilot's own fold state is untouched and comes back on Done.
@@ -170,7 +171,7 @@ export function render(root) {
     // the filled count or denominator that the collapsed head shows.
     const countCells = group.cells.filter(c => c.kind !== 'metar');
     const filled = countCells.filter(c => has(data[c.key])).length;
-    const isCol = editMode || (collapsed.has(group.id) && !forceOpen.has(group.id));
+    const isCol = editMode || !(ALWAYS_OPEN.has(group.id) || opened.has(group.id));
     // Crew group: render only filled slots when at least one is filled,
     // unless the "+ add" toggle is on. When nothing is filled, show all so
     // a fresh leg's crew can be typed in.
@@ -222,6 +223,7 @@ export function render(root) {
       <button type="button" class="btn primary data-edit-done" data-edit-done>Done</button>
     </div>` : '';
   root.innerHTML = html + editBar;
+  if (wxNode && !editMode) root.querySelector('[data-group="g-flt"]')?.after(wxNode);
   lastRoot = root;
   wire(root);
   wireDrag(root);
@@ -646,9 +648,10 @@ function wire(root) {
       e.preventDefault();
       if (editMode) return;              // heads are drag rows while editing
       const id = btn.dataset.toggle;
-      if (collapsed.has(id)) collapsed.delete(id);
-      else collapsed.add(id);
-      saveCollapsed();
+      if (ALWAYS_OPEN.has(id)) return;
+      if (opened.has(id)) opened.delete(id);
+      else opened.add(id);
+      saveOpened();
       render(root);
     });
   });
@@ -893,9 +896,9 @@ export function applyExternal(fields, root) {
   }
   storage.setDataBulk(out);
   for (const k of Object.keys(out)) {
-    for (const g of FIELDS) if (g.cells.some(c => c.key === k)) collapsed.delete(g.id);
+    for (const g of FIELDS) if (g.cells.some(c => c.key === k)) opened.add(g.id);
   }
-  saveCollapsed();
+  saveOpened();
   if (root) render(root);
 }
 

@@ -2148,8 +2148,13 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
     gap: 12px;
     padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 16px);
   }
-  #card-data { grid-column: 1; grid-row: span 4; }
-  #checklist-open, #card-history, #before-wx { grid-column: 2; }
+  #card-data, #card-history { grid-column: 1 / -1; }
+  /* Crew and Flight on the left; weather and the rest on the right, the side
+     the checklist opens over. */
+  #data-body { display: block; columns: 2; column-gap: 12px; }
+  #data-body .data-group { break-inside: avoid; }
+  #data-body .data-group[data-group="g-flt"] { break-after: column; }
+  #data-body .data-group.is-editing { break-after: auto; }
   .data-grid { grid-template-columns: repeat(2, 1fr); }
   .ocr-fields { grid-template-columns: repeat(3, 1fr); }
 }
@@ -3692,26 +3697,23 @@ body {
 /* ---------- The tabs ---------- */
 body[data-phase="air"] #card-data,
 body[data-phase="air"] #card-history,
-body[data-phase="air"] #checklist-open,
-body[data-phase="air"] #ready-line,
-body[data-phase="before"] #card-history,
-body[data-phase="before"] #card-data > .card-head,
-body[data-phase="before"] .data-group:not([data-group="g-flt"]):not([data-group="g-crew"]) { display: none; }
-/* Before: crew first, then times, whatever order the All tab keeps them in;
-   both stay open, so their heads are labels. */
-body[data-phase="before"] #data-body { display: flex; flex-direction: column; }
-body[data-phase="before"] .data-group[data-group="g-crew"] { order: 1; }
-body[data-phase="before"] .data-group[data-group="g-flt"] { order: 2; }
-body[data-phase="before"] .data-group-head { pointer-events: none; }
-body[data-phase="before"] .data-group-head .chev { display: none; }
+body[data-phase="air"] #ready-line { display: none; }
+/* Clear and arrange go under the card: the page opens on the crew. */
+#card-data { display: flex; flex-direction: column; }
+#card-data > .card-head { order: 2; border-bottom: 0; }
+#card-data > .card-head .card-toggle { visibility: hidden; }
+.data-group[data-group="g-flt"]:not(.is-editing) .data-group-head,
+.data-group[data-group="g-crew"]:not(.is-editing) .data-group-head { pointer-events: none; }
+.data-group[data-group="g-flt"]:not(.is-editing) .chev,
+.data-group[data-group="g-crew"]:not(.is-editing) .chev { display: none; }
 .phase-note { padding: 18px 4px; }
 .phase-note[hidden] { display: none; }
-.before-wx { display: flex; flex-direction: column; gap: 10px; }
+.before-wx { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; break-inside: avoid; }
 .before-wx[hidden] { display: none; }
 .wx-end {
   -webkit-appearance: none; appearance: none;
   display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px;
-  border: 0; border-radius: var(--radius-card); background: var(--bg-elev);
+  border: 0; border-radius: 10px; background: var(--bg-sunk);
   cursor: pointer; font: inherit; text-align: start; color: var(--fg);
 }
 .ph-h { font-size: 13px; font-weight: 600; color: var(--fg-mute); }
@@ -3732,17 +3734,7 @@ body[data-phase="before"] .data-group-head .chev { display: none; }
 }
 #route-overlay.is-docked #route-close { display: none; }
 
-/* ---------- Checklist: a row, and the window it opens ---------- */
-.checklist-row {
-  -webkit-appearance: none; appearance: none;
-  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; width: 100%; padding: 12px;
-  border: 0; border-radius: var(--radius-card); background: var(--bg-elev); cursor: pointer;
-  color: var(--fg); font: inherit; text-align: start;
-}
-.checklist-row-t { font-size: 15px; font-weight: 600; }
-.checklist-row-n { margin-left: auto; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
-.checklist-row-notes { flex-basis: 100%; font-size: 12px; color: var(--fg-mute); }
-.checklist-row-notes:empty { display: none; }
+/* ---------- Checklist ---------- */
 .checklist-float {
   position: fixed; z-index: 30; left: 0; right: 0;
   top: var(--top-h, 120px); bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h));

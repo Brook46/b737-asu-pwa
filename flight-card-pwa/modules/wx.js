@@ -12,8 +12,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=200';
-import { WORKER_BASE } from './proxy.js?v=200';
+import { lookup } from './airports.js?v=201';
+import { WORKER_BASE } from './proxy.js?v=201';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -91,7 +91,7 @@ async function fetchDatis(icao) {
 // no point asking atis.info (which 404s for most non-US airports) or the TAF
 // proxy every ten minutes. Such an entry is marked partial, so a full fetch
 // (the WX popup) still goes out for the rest.
-// opts.noAtis: METAR and TAF only, for the Before tab; also marked partial.
+// opts.noAtis: METAR and TAF only, for the Brief tab; also marked partial.
 export async function fetchWx(code, opts) {
   const icao = toIcao(code);
   if (!icao) return null;

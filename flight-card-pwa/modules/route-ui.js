@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=200';
-import * as ri from './route-info.js?v=200';
-import { legTs, nearestHm } from './dates.js?v=200';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=200';
+import * as storage from './storage.js?v=201';
+import * as ri from './route-info.js?v=201';
+import { legTs, nearestHm } from './dates.js?v=201';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=201';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
