@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=193';
-import * as ri from './route-info.js?v=193';
-import { legTs, nearestHm } from './dates.js?v=193';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=193';
+import * as storage from './storage.js?v=194';
+import * as ri from './route-info.js?v=194';
+import { legTs, nearestHm } from './dates.js?v=194';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=194';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -113,8 +113,10 @@ async function build(leg, { doFetch = false } = {}) {
   if (doFetch) {
     const ids = pool.map(c => c.ap.icao);
     const wx = await ri.fetchWeather(ids);
-    // NOTAMs for the best 30 — the API is per airport.
-    const top = pool.filter(c => !c.r.excluded).sort((a, b) => b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
+    // NOTAMs for 30 — the API is per airport: the major ones round each end
+    // first, then the best.
+    const key = ri.keyAtEnds(pool, route);
+    const top = pool.filter(c => !c.r.excluded).sort((a, b) => key.has(b) - key.has(a) || b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
     // A failed NOTAM fetch keeps the last good set (marked with its age)
     // rather than blanking what the pilot already had.
     let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();

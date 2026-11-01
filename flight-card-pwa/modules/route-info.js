@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=193';
+import { WORKER_BASE } from './proxy.js?v=194';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -405,9 +405,28 @@ export function candidates(db, route) {
   return out;
 }
 
-// The ones worth showing: departure and destination, then the best few in
-// each stretch of the route so the whole way is covered rather than just
-// the busiest corner of the map. `perSeg` per ~1/12 of the route.
+// The major airports round each end of the flight, always on the list: the
+// alternates a pilot expects to see (Lisbon for Porto, Munich for Zurich).
+// Chosen on what doesn't change — never on the rating, so one with bad weather
+// stays in view with its low score instead of quietly dropping off, and never
+// on distance off the route, which favours whatever lies nearest the track.
+// The data's "large" is generous (58 within 300 nm of Zurich), so a 9,000 ft
+// runway comes first, then the nearest; the rest only fill what's left.
+const END_NM = 300, KEEP_DEST = 8, KEEP_DEP = 4;
+export function keyAtEnds(rated, route) {
+  const around = (p, n) => rated
+    .filter(c => !c.isEnd && !c.r.excluded && c.ap.size === 2 && c.ap.rwy.some(r => r[1] >= 5500))
+    .map(c => ({ c, d: hav(c.ap.lat, c.lonDraw, p.lat, p.lon), long: c.ap.rwy.some(r => r[1] >= 9000) ? 1 : 0 }))
+    .filter(x => x.d <= END_NM)
+    .sort((a, b) => b.long - a.long || a.d - b.d)
+    .slice(0, n).map(x => x.c);
+  return new Set([...around(route.pts[0], KEEP_DEP), ...around(route.pts.at(-1), KEEP_DEST)]);
+}
+
+// The ones worth showing: departure and destination, the major airports round
+// them, then the best few in each stretch of the route so the whole way is
+// covered rather than just the busiest corner of the map. `perSeg` per ~1/12
+// of the route.
 export function pickShown(rated, route, perSeg = 4) {
   const segs = 12, len = Math.max(1, route.total);
   const bySeg = new Map();
@@ -418,13 +437,14 @@ export function pickShown(rated, route, perSeg = 4) {
   }
   const keep = new Set();
   for (const list of bySeg.values()) {
-    list.sort((a, b) => b.r.score - a.r.score || a.distNm - b.distNm);
+    list.sort((a, b) => b.r.score - a.r.score || b.ap.size - a.ap.size || a.distNm - b.distNm);
     list.filter(c => !c.r.excluded).slice(0, perSeg).forEach(c => keep.add(c));
     // Excluded countries close to the route stay visible, grey — knowing
     // where NOT to go is part of the picture.
     list.filter(c => c.r.excluded && c.distNm < 120).slice(0, 2).forEach(c => keep.add(c));
   }
   for (const c of rated) if (c.isEnd) keep.add(c);
+  for (const c of keyAtEnds(rated, route)) keep.add(c);
   return [...keep].sort((a, b) => a.along - b.along);
 }
 

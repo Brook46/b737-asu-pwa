@@ -31,9 +31,17 @@ if (!dirArg || !/^\d+$/.test(verArg || '')) {
 const root = resolve(dirArg);
 const V = verArg;
 
-/** Every relative `.js` specifier gets exactly one ?v= — never two. */
-const stampImports = (src) =>
-  src.replace(/(from\s+["'])(\.\.?\/[^"']+?\.js)(\?v=\d+)?(["'])/g, `$1$2?v=${V}$4`);
+/**
+ * Every relative `.js` specifier gets exactly one ?v= — never two. That means
+ * `import('./x.js')` as well as `from './x.js'`: an unstamped dynamic import
+ * misses the precache (which holds the stamped URL), so after an update that
+ * module isn't on the device — it fails offline — and, fetched within the ten
+ * minutes, the old copy is what gets kept for the whole version. A specifier
+ * built at run time (`'./x.js' + V`) carries its own stamp and is left alone.
+ */
+const stampImports = (src) => src
+  .replace(/(from\s+["'])(\.\.?\/[^"']+?\.js)(\?v=\d+)?(["'])/g, `$1$2?v=${V}$4`)
+  .replace(/(\bimport\(\s*["'])(\.\.?\/[^"']+?\.js)(\?v=\d+)?(["'])(?=\s*[,)])/g, `$1$2?v=${V}$4`);
 
 const changed = [];
 const save = (path, before, after) => {
