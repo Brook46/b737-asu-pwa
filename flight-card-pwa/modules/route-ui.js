@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=197';
-import * as ri from './route-info.js?v=197';
-import { legTs, nearestHm } from './dates.js?v=197';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=197';
+import * as storage from './storage.js?v=198';
+import * as ri from './route-info.js?v=198';
+import { legTs, nearestHm } from './dates.js?v=198';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=198';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1044,6 +1044,17 @@ export async function ensureSaved() {
     try { await navigator.serviceWorker.register('../sw.js', { scope: '../' }); } catch {}
   }
   if (!(await savedInCache('./data/divdb.json'))) { try { await fetch('./data/divdb.json'); } catch {} }
+}
+// The destination's saved METAR and TAF, for the In flight screen: read from
+// the device, because in the air that's all there is.
+export async function destWx(leg) {
+  const c = readCache(leg);
+  if (!c || !c.wx) return null;
+  const ap = ri.findAirport(await ri.loadDb(), leg.arr);
+  if (!ap) return null;
+  const hit = (list) => (list || []).find(x => x.id === ap.icao) || null;
+  const m = hit(c.wx.metars), t = hit(c.wx.tafs);
+  return m || t ? { metar: m ? m.raw : '', taf: t ? t.raw : '', at: c.at } : null;
 }
 // Where a flight stands, for the Flight screen's one line.
 export async function readiness(leg) {

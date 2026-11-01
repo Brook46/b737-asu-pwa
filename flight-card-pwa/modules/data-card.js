@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=197';
-import * as wx from './wx.js?v=197';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=197';
+import * as storage from './storage.js?v=198';
+import * as wx from './wx.js?v=198';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=198';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -90,6 +90,16 @@ function saveCollapsed() {
 // The one crew member whose note is showing. Notes stay folded until asked
 // for, and opening one folds the other.
 let crewNoteOpen = '';
+// Before a flight, a group that's complete folds to its summary line, until
+// the pilot opens it again (this session only: the choice above is untouched).
+let autoFold = false;
+const handOpen = new Set();
+export function setAutoFold(on) {
+  if (autoFold === !!on) return false;
+  autoFold = !!on;
+  handOpen.clear();
+  return true;
+}
 
 // ATIS cell is now a launcher into the wx (D-ATIS + METAR) overlay.
 // Live letter comes from the popup; manual letter still allowed there.
@@ -152,17 +162,22 @@ export function setEditing(on) {
   if (lastRoot) render(lastRoot);
 }
 
+function isFolded(group, filled, total) {
+  return autoFold && group.resettable && total > 0 && filled === total && !handOpen.has(group.id);
+}
+
 export function render(root) {
   const data = storage.getCurrent().dataCard;
   const html = orderedGroups().map(group => {
     // Edit mode shows every group folded to its head, so the list is short
     // enough to drag through — like the print layout's field list. The
     // pilot's own fold state is untouched and comes back on Done.
-    const isCol = editMode || collapsed.has(group.id);
     // METAR is a derived/cached value, not user data — don't include it in
     // the filled count or denominator that the collapsed head shows.
     const countCells = group.cells.filter(c => c.kind !== 'metar');
     const filled = countCells.filter(c => has(data[c.key])).length;
+    const folded = isFolded(group, filled, countCells.length);
+    const isCol = editMode || collapsed.has(group.id) || folded;
     // Crew group: render only filled slots when at least one is filled,
     // unless the "+ add" toggle is on. When nothing is filled, show all so
     // a fresh leg's crew can be typed in.
@@ -194,7 +209,7 @@ export function render(root) {
       <div class="data-group ${isCol ? 'collapsed' : ''}${editMode ? ' is-editing' : ''}" data-group="${group.id}">
         <div class="data-group-head-row">
           ${grip}
-          <button type="button" class="data-group-head" data-toggle="${group.id}"${editMode ? ' tabindex="-1"' : ''}>
+          <button type="button" class="data-group-head" data-toggle="${group.id}"${folded && !collapsed.has(group.id) ? ' data-folded="1"' : ''}${editMode ? ' tabindex="-1"' : ''}>
             <span class="chev">${isCol ? '▸' : '▾'}</span>
             <span class="data-group-name">${escape(group.group)}</span>
             <span class="data-group-meta">${groupMeta(group, data, filled, countCells.length)}</span>
@@ -638,7 +653,8 @@ function wire(root) {
       e.preventDefault();
       if (editMode) return;              // heads are drag rows while editing
       const id = btn.dataset.toggle;
-      if (collapsed.has(id)) collapsed.delete(id);
+      if (btn.dataset.folded) handOpen.add(id);
+      else if (collapsed.has(id)) collapsed.delete(id);
       else collapsed.add(id);
       saveCollapsed();
       render(root);

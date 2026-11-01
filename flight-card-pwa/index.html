@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=197" />
+  <link rel="stylesheet" href="./app.css?v=198" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -155,22 +155,24 @@
     <!-- How the flight stands: filled by paintReadyLine in app.js, only from
          12 h before departure until arrival. Tap for Route info. -->
     <button id="ready-line" data-action="route-info" class="ready-line" type="button" hidden></button>
-    <!-- Checklist -->
-    <section class="card" id="card-checklist" data-section="checklist">
-      <header class="card-head">
-        <button class="card-toggle" data-target="checklist" aria-expanded="true">
-          <span class="chev">▾</span>
-          <span class="card-title">Checklist</span>
-        </button>
-        <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print kneeboard cards" aria-label="Print checklist cards">🖨</button>
-        <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
-      </header>
-      <!-- Tiny summary line that shows item notes when the card is
-           collapsed. Filled by paintChecklistCardSummary in app.js;
-           hidden via CSS when the card is open or when no notes exist. -->
-      <div id="checklist-card-notes" class="card-summary" aria-live="polite"></div>
-      <div class="card-body" id="checklist-body"></div>
-    </section>
+
+    <!-- Which part of the flight this screen shows. Time and GPS choose;
+         a tap overrides for this leg (paintPhase in app.js). -->
+    <div id="phase-bar" class="view-switch phase-bar" role="group" aria-label="Part of the flight">
+      <button type="button" class="vs-btn" data-phase-set="before">Before</button>
+      <button type="button" class="vs-btn" data-phase-set="air">In flight</button>
+      <button type="button" class="vs-btn" data-phase-set="after">After</button>
+      <button type="button" class="vs-btn" data-phase-set="all">All</button>
+    </div>
+
+    <button id="checklist-open" data-action="checklist-open" class="checklist-row" type="button">
+      <span class="checklist-row-t">Checklist</span>
+      <span id="checklist-count" class="checklist-row-n"></span>
+      <span id="checklist-card-notes" class="checklist-row-notes"></span>
+    </button>
+
+    <section id="phase-air" class="card phase-panel" hidden></section>
+    <section id="phase-after" class="card phase-panel" hidden></section>
 
     <!-- Data card -->
     <section class="card" id="card-data" data-section="data">
@@ -196,6 +198,18 @@
       <div class="card-body" id="history-body"></div>
     </section>
   </main>
+
+  <!-- The checklist: a window over the page, closed until asked for, so the
+       data card stays usable underneath. Drag it by its head. -->
+  <section id="card-checklist" class="checklist-float" aria-label="Checklist" hidden>
+    <header id="checklist-head" class="checklist-head">
+      <span class="card-title">Checklist</span>
+      <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print kneeboard cards" aria-label="Print checklist cards">🖨</button>
+      <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
+      <button data-action="checklist-close" class="btn ghost-btn" aria-label="Close checklist">✕</button>
+    </header>
+    <div class="checklist-scroll" id="checklist-body"></div>
+  </section>
 
   <!-- The five things used in the air, in thumb reach. Sits under the windows
        (z-index), so a window's ✕ is always the way back. -->
@@ -889,6 +903,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=197"></script>
+  <script type="module" src="./app.js?v=198"></script>
 </body>
 </html>

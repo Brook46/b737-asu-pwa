@@ -276,8 +276,7 @@ body {
      glance which leg you're looking at is already done.
    Deliberately NO full-body wash and NO overlay banner — those caused
    button-blocking / parse bugs last time. */
-body.is-past-leg #card-data,
-body.is-past-leg #card-checklist {
+body.is-past-leg #card-data {
   opacity: 0.85;
   filter: saturate(0.5);
   transition: opacity 0.25s ease, filter 0.25s ease;
@@ -295,7 +294,7 @@ body.is-past-leg #card-checklist {
   vertical-align: 1px;
 }
 .leg-past-tag { background: #c0392b; }   /* red — already flown */
-.leg-next-tag { background: var(--good); } /* green — upcoming */
+.leg-next-tag { background: var(--good); width: 8px; height: 8px; padding: 0; border-radius: 50%; } /* green dot — upcoming */
 
 .actions {
   display: flex; gap: 3px; align-items: center;
@@ -2152,22 +2151,17 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
   .main {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    grid-auto-flow: dense;
+    align-items: start;
     gap: 12px;
-    padding: 12px;
+    padding: 12px 12px calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 16px);
   }
-  #card-data    { grid-column: 1; grid-row: 1; }
-  #card-checklist { grid-column: 2; grid-row: 1 / span 2; }
-  #card-history { grid-column: 1; grid-row: 2; }
+  .phase-bar, #phase-air { grid-column: 1 / -1; }
+  #card-data { grid-column: 1; grid-row: span 4; }
+  #checklist-open, #card-history, #phase-after { grid-column: 2; }
   .data-grid { grid-template-columns: repeat(2, 1fr); }
   .ocr-fields { grid-template-columns: repeat(3, 1fr); }
 }
-@media (min-width: 900px) {
-  .main { grid-template-columns: 1fr 1fr 1fr; }
-  #card-data    { grid-column: 1; grid-row: 1 / span 2; }
-  #card-checklist { grid-column: 2 / span 2; grid-row: 1; }
-  #card-history { grid-column: 2; grid-row: 2; }
-}
-
 /* ==========================================================================
    APPLE LAYER
    Apple Human Interface Guidelines over the layout rules above: San
@@ -3703,3 +3697,50 @@ body {
 .ready-line.is-ok b { color: var(--good); }
 .ready-line.is-warn b { color: var(--warn); }
 .ready-line.is-bad b { color: var(--danger); }
+
+/* ---------- The screen follows the flight ---------- */
+.view-switch.phase-bar { display: flex; }
+.phase-bar .vs-btn { flex: 1 1 0; min-width: 0; padding: 7px 4px; }
+body[data-phase="air"] #card-data,
+body[data-phase="air"] #card-history,
+body[data-phase="air"] #checklist-open,
+body[data-phase="after"] #checklist-open,
+body[data-phase="before"] #card-history { display: none; }
+body[data-phase="after"] .data-group:not([data-group="g-flt"]):not([data-group="g-crew"]) { display: none; }
+.phase-panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.phase-panel[hidden] { display: none; }
+.ph-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.ph-nums div { padding: 8px 10px; border-radius: 10px; background: var(--bg-sunk); }
+.ph-nums span { display: block; font-size: 12px; color: var(--fg-mute); }
+.ph-nums b { font-size: 17px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ph-h { font-size: 13px; font-weight: 600; color: var(--fg-mute); }
+.ph-wx { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.4; color: var(--fg); user-select: text; -webkit-user-select: text; }
+.ph-roles { display: flex; gap: 8px; }
+.ph-roles .leg-role-pill { flex: 1 1 0; padding: 8px 10px; font-size: 14px; }
+
+/* ---------- Checklist: a row, and the window it opens ---------- */
+.checklist-row {
+  -webkit-appearance: none; appearance: none;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; width: 100%; padding: 12px;
+  border: 0; border-radius: var(--radius-card); background: var(--bg-elev); cursor: pointer;
+  color: var(--fg); font: inherit; text-align: start;
+}
+.checklist-row-t { font-size: 15px; font-weight: 600; }
+.checklist-row-n { margin-left: auto; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.checklist-row-notes { flex-basis: 100%; font-size: 12px; color: var(--fg-mute); }
+.checklist-row-notes:empty { display: none; }
+.checklist-float {
+  position: fixed; z-index: 30; right: 12px; width: min(400px, calc(100vw - 24px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
+  height: min(70vh, 640px);
+  display: flex; flex-direction: column;
+  background: var(--bg-elev); border-radius: var(--radius-card);
+  box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 0 0.5px var(--line);
+}
+.checklist-float[hidden] { display: none; }
+.checklist-head {
+  display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 14px;
+  border-bottom: 0.5px solid var(--line); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.checklist-head .card-title { flex: 1 1 auto; }
+.checklist-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; -webkit-overflow-scrolling: touch; }
