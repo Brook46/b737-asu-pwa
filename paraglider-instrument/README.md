@@ -65,11 +65,13 @@ include/             pins.h, build_config.h
 test/                desktop tests + synthetic flight generator
 tools/sim/           flight replay (IGC, XCTracer captures, synthetic)
 tools/websim/        simulator world + C API, build.sh → sim/sim.wasm
+hardware/enclosure/  OpenSCAD models: case + lids (headless / screen), strap plate, remote, sensor shield;
+                     build.sh exports hardware/stl/ and renders docs/build/
 tools/fontgen/       generates the display fonts from DejaVu Sans
 tools/terrain/       build_terrain.py: AWS Terrain Tiles → .ter grid for an area
 data/                files for the device's LittleFS (`pio run -t uploadfs`): gilboa.ter, hotspots.pghs
 sim/                 browser simulator (index.html + sim.wasm + terrain.ter), pack.html (thermal pack builder)
-docs/                screens.md (every page, both orientations, vs Flymaster/Naviter), xc-tactics.md (speed to fly, when to leave, bar: sources and rules), hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
+docs/                physical-build.html (print, buy, build, mount), screens.md (every page, both orientations, vs Flymaster/Naviter), xc-tactics.md (speed to fly, when to leave, bar: sources and rules), hardware.md (parts, pins), assembly.html (wiring diagram, soldering, battery), bringup.md (milestone tests), build-sketch.html (to-scale layout)
 ```
 
 ## Simulator

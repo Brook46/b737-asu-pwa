@@ -7,7 +7,7 @@ const char* const kCannedMessages[4] = {"OK", "Thermal here", "Landing", "NEED H
 Command parseCommand(const uint8_t* data, size_t len) {
   if (!data || len == 0) return Command::None;
   const uint8_t b = data[0];
-  if (b >= 0x01 && b <= 0x0C) return static_cast<Command>(b);
+  if (b >= 0x01 && b <= 0x0D) return static_cast<Command>(b);
   switch (b) {
     case '+': return Command::McUp;
     case '-': return Command::McDown;
@@ -21,6 +21,7 @@ Command parseCommand(const uint8_t* data, size_t len) {
     case 's': return Command::Status;
     case 'k': return Command::MarkThermal;
     case 'b': return Command::AtCloudBase;
+    case 'p': return Command::NextPage;
     default: return Command::None;
   }
 }
@@ -40,6 +41,7 @@ const char* commandName(Command c) {
     case Command::Status: return "status";
     case Command::MarkThermal: return "mark";
     case Command::AtCloudBase: return "at-cloud-base";
+    case Command::NextPage: return "next-page";
   }
   return "?";
 }

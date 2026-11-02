@@ -1,7 +1,10 @@
 # Hardware: parts, wiring, checks
 
 **Building it?** Follow [assembly.html](assembly.html): the wiring diagram,
-soldering technique, step-by-step build order and battery handling.
+soldering technique, step-by-step build order and battery handling. Then
+[physical-build.html](physical-build.html): the printed case (headless or
+with the screen), strap mount, brake-handle remote and sensor shield. The
+models are in `hardware/enclosure/` (OpenSCAD) and the STLs in `hardware/stl/`.
 
 Every electronic part comes from one Seeed Studio order. Buy the battery and
 switch locally in Israel (lithium cells ship slowly and awkwardly by air).

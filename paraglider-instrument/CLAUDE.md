@@ -118,6 +118,19 @@ workers, Pages deploy) apply here.
 * The simulator's autopilot obeys STAY/GLIDE on purpose. Use it to judge cue
   quality, and fix what it finds in lib/core (with a test), not in the world.
 
+## Physical build
+
+* Printed parts are OpenSCAD in `hardware/enclosure/` (parameters at the top
+  of each file; sizes marked MEASURE are from listings, not boards in hand).
+  After any change run `hardware/enclosure/build.sh` (OpenSCAD; renders via
+  xvfb-run) to regenerate `hardware/stl/` and `docs/build/`, and keep every
+  part free of OpenSCAD's "not a valid 2-manifold" warning.
+* The GNSS patch never goes under the screen board (its ground plane shades
+  it). The vent and BME280 stay at the end away from the XIAO and battery.
+* Remote buttons: the command bytes live in `lib/core/src/remote.h`
+  (`NextPage` 0x0D included); the press map is in docs/physical-build.html.
+  The remote's own firmware (XIAO ESP32-C6, Arduino 3.x) doesn't exist yet.
+
 ## Commands
 
 ```sh

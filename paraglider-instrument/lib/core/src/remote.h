@@ -24,6 +24,7 @@ enum class Command : uint8_t {
   Status = 0x0A,        // 's'  beep out MC and wind
   MarkThermal = 0x0B,   // 'k'
   AtCloudBase = 0x0C,   // 'b'  "I'm at cloud base": calibrates the temperature offset
+  NextPage = 0x0D,      // 'p'  next screen page (only with a screen fitted)
 };
 
 Command parseCommand(const uint8_t* data, size_t len);

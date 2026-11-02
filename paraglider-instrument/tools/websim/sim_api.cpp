@@ -143,7 +143,7 @@ EXPORT(sim_pack_load) int sim_pack_load(int len) {
 
 // Remote / button commands: the pg::Command bytes, plus 0x20 = next page.
 EXPORT(sim_command) void sim_command(int code) {
-  if (code == 0x20) {
+  if (code == 0x20 || code == static_cast<int>(pg::Command::NextPage)) {
     gModel.nextPage(gWorld.t);
     return;
   }
