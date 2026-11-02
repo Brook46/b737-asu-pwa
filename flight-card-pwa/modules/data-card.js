@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=207';
-import * as wx from './wx.js?v=207';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=207';
+import * as storage from './storage.js?v=208';
+import * as wx from './wx.js?v=208';
+import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=208';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -58,7 +58,7 @@ export const FIELDS = [
   // app.js + the .leg-role-pill markup). Two pills next to the leg arrows
   // are easier to spot at a glance than a row buried inside the Flight
   // group. The dataCard fields stay the same (to_role / ldg_role).
-  // Crew slots come from crew.js — CPT, FO, relief pilots, cabin crew,
+  // Crew slots come from crew.js — captains, first officers, cabin crew,
   // deadhead — so the card can never disagree with the roster parser about
   // how many people a flight can carry.
   { id: 'g-crew',  group: 'Crew',      cells:
@@ -164,6 +164,8 @@ export function render(root) {
   const shown = editMode ? groups
     : [...groups].sort((a, b) => ALWAYS_OPEN.has(b.id) - ALWAYS_OPEN.has(a.id) || (a.id === 'g-crew' ? -1 : b.id === 'g-crew' ? 1 : 0));
   const html = shown.map(group => {
+    // Crew labels follow this flight: CPT 1 / CPT 2 only with two captains.
+    if (group.id === 'g-crew') group = { ...group, cells: group.cells.map(c => ({ ...c, label: crewLabel(c.key, k => has(data[k])) })) };
     // Edit mode shows every group folded to its head, so the list is short
     // enough to drag through — like the print layout's field list. The
     // pilot's own fold state is untouched and comes back on Done.
@@ -179,11 +181,11 @@ export function render(root) {
     let crewAddBtn = '';
     if (group.id === 'g-crew' && filled > 0 && !crewShowAll) {
       renderCells = group.cells.filter(c => has(data[c.key]));
-      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Add a crew member, relief pilot or deadhead">+ add</button>`;
+      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Add a crew member, pilot or deadhead">+ add</button>`;
     } else if (group.id === 'g-crew') {
       // "+ add" mode, or a leg with no crew yet: the filled slots plus ONE
       // free slot of each kind and Deadhead (crew.js slotsToShow). Showing
-      // every empty slot was fine at eight cabin crew; at sixteen plus relief
+      // every empty slot was fine at eight cabin crew; at sixteen plus extra
       // pilots it would be twenty-odd blank inputs.
       const show = new Set(slotsToShow(k => has(data[k])));
       renderCells = group.cells.filter(c => show.has(c.key));

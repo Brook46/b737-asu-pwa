@@ -11,9 +11,9 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=207';
-import { dateTs, legTs, yearPast, legPlanActual } from './dates.js?v=207';
-import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=207';
+import * as storage from './storage.js?v=208';
+import { dateTs, legTs, yearPast, legPlanActual } from './dates.js?v=208';
+import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=208';
 
 const HOME = new Set(['TLV', 'LLBG']);
 
@@ -325,7 +325,7 @@ export function punctuality(legs, year = null) {
 }
 
 // ---------- Search ----------
-// What a flight can be found by. Crew includes relief pilots, cabin and
+// What a flight can be found by. Crew includes every pilot, cabin and
 // deadheads (one comma-separated field); destination is either end of the
 // leg, so "AMS" finds the way out and the way home; aircraft is the tail and
 // the type.

@@ -6,9 +6,9 @@
 // colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=207';
-import { cityName } from './airports.js?v=207';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=207';
+import * as storage from './storage.js?v=208';
+import { cityName } from './airports.js?v=208';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=208';
 
 let activeId = null;
 let editing = false;
@@ -26,17 +26,19 @@ let lastFocusedTa = null;
 // keeps naming everyone correctly on every leg without re-editing.
 const INSERT_TOKENS = [
   '@crew', '@cockpit', '@cabin',
-  '@cpt', '@fo', '@rp1', '@rp2', '@PU', '@cc2', '@cc3', '@cc4', '@cc5', '@cc6', '@cc7', '@cc8',
+  '@cpt', '@cpt2', '@fo', '@fo2', '@PU', '@cc2', '@cc3', '@cc4', '@cc5', '@cc6', '@cc7', '@cc8',
   '@flight', '@tail', '@dep', '@arr', '@flighttime',
   '@time', '@utc', '@date', '@tod',
 ];
 
 // @token → data-card field key. (PU = purser = CC1.)
-// Every crew slot is a token (crew.js): @rp1..@rp3, @cc9..@cc16 work when
+// Every crew slot is a token (crew.js): @fo3, @cc9..@cc16 work when
 // typed even though only the commoner ones get an insert chip above.
 const VAR_MAP = {
   ...Object.fromEntries(CREW_KEYS.map(k => [k, k])),
   pu:     'cc1',
+  // The old relief-pilot tokens, in PAs written before ranks: first officers.
+  rp1: 'fo2', rp2: 'fo3', rp3: 'fo3',
   tail:   'tail',
   flight: 'flight',
   flt:    'flight',
@@ -190,8 +192,8 @@ function todBucket(date = new Date()) {
 // the crew changes. Role titles are prefixed for the three slots that have
 // one; CC2–CC5 are named only. Names go through storage.displayCrew so saved
 // nicknames win, same as the single-crew tokens.
-const CREW_ROLES_EN = { cpt: 'Captain', fo: 'First Officer', cc1: 'Purser' };
-const CREW_ROLES_HE = { cpt: 'קברניט',  fo: 'קצין ראשון',   cc1: 'ממונה'  };
+const CREW_ROLES_EN = { cpt: 'Captain', cpt2: 'Captain', fo: 'First Officer', fo2: 'First Officer', fo3: 'First Officer', cc1: 'Purser' };
+const CREW_ROLES_HE = { cpt: 'קברניט', cpt2: 'קברניט', fo: 'קצין ראשון', fo2: 'קצין ראשון', fo3: 'קצין ראשון', cc1: 'ממונה' };
 
 function crewList(data, lang, keys) {
   const roles = lang === 'he' ? CREW_ROLES_HE : CREW_ROLES_EN;
@@ -227,7 +229,7 @@ function dynamicValue(token, data, lang = 'en') {
     const b = todBucket(now);
     return (lang === 'he' ? TOD_BUCKETS_HE : TOD_BUCKETS_EN)[b];
   }
-  // @cockpit is every pilot flying it, relief pilots included.
+  // @cockpit is every pilot flying it, second captain and FOs included.
   if (t === 'crew')    return crewList(data, lang, CREW_KEYS);
   if (t === 'cockpit') return crewList(data, lang, PILOT_KEYS);
   if (t === 'cabin')   return crewList(data, lang, CABIN_KEYS);

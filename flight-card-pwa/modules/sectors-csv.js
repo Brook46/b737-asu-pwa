@@ -19,7 +19,7 @@
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
-import { RELIEF_KEYS } from './crew.js?v=207';
+import { EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=208';
 
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
@@ -132,6 +132,9 @@ export function parseSectors(text) {
     });
 
   const owner = detectOwner(records);
+  // Who sat in the left seat anywhere in the file: a third pilot who did is a
+  // captain, anyone else flying cruise relief is a first officer.
+  const captains = new Set(records.map(r => tidyName(r.lefthandseatpilot).toUpperCase()).filter(Boolean));
   const legs = [];
   let skippedDeadhead = 0, skippedBad = 0;
   let from = Infinity, to = -Infinity;
@@ -156,21 +159,19 @@ export function parseSectors(text) {
     const cpt = tidyName(r.lefthandseatpilot);
     const fo  = tidyName(r.righthandseatpilot);
 
-    // Any operating pilot who wasn't in a seat is cruise relief — into the
-    // relief-pilot slots (crew.js), not a cc* slot, which the whole app reads
-    // as cabin crew. More than the slots hold share the last one.
+    // Any operating pilot who wasn't in a seat flew cruise relief — into the
+    // extra captain / FO slots by rank (crew.js), not a cc* slot, which the
+    // whole app reads as cabin crew. More than the slots hold share the last.
     const reliefNames = String(r.operatingcrew || '').split(',')
       .map(s => s.trim()).filter(Boolean)
       .filter(s => !hasSurname(cpt, s.toUpperCase())
                 && !hasSurname(fo, s.toUpperCase())
                 && !(owner && s.toUpperCase() === owner))
       .map(tidyName);
-    const relief = {};
-    RELIEF_KEYS.forEach((k, i) => {
-      const v = i === RELIEF_KEYS.length - 1
-        ? reliefNames.slice(i).join(', ') : (reliefNames[i] || '');
-      if (v) relief[k] = v;
-    });
+    const relief = Object.fromEntries(Object.entries({
+      ...intoSlots(reliefNames.filter(n => captains.has(n.toUpperCase())), EXTRA_CPT_KEYS),
+      ...intoSlots(reliefNames.filter(n => !captains.has(n.toUpperCase())), EXTRA_FO_KEYS),
+    }).filter(([, v]) => v));
 
     // PF/PM for THIS pilot: was the owner the one flying that take-off or
     // that landing? Left blank when the column is empty (~10% of rows) or the

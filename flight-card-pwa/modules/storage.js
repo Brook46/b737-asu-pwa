@@ -9,9 +9,11 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=207';
-import { dateTs, legTs } from './dates.js?v=207';
-import { CREW_KEYS, CREW_FIELDS, RELIEF_KEYS, CABIN_KEYS } from './crew.js?v=207';
+import { flipName } from './roster.js?v=208';
+import { dateTs, legTs } from './dates.js?v=208';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=208';
+// The relief-pilot slots before v18 (see the v18 migration).
+const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
 const KEY = 'fc.state';
 // v7: per-leg dataCard/ticks/notes. Each leg in current.legs[] owns its own
@@ -53,7 +55,10 @@ const KEY = 'fc.state';
 // v17: an overnight leg over a month end (31.10 → 01.11) had arr_year one too
 // high, from a text comparison in roster.js. Such a leg "landed" a year later,
 // so it stayed the leg for now and never counted as flown. Repaired in place.
-const VERSION = 17;
+// v18: no relief pilots — pilots are captains and first officers (crew.js).
+// rp1..rp3 move to cpt2 when that name sat as captain on any stored leg,
+// otherwise to fo2 / fo3.
+const VERSION = 18;
 const HISTORY_MAX = 20;
 
 // Fields whose values are tied to the leg's *identity* (route, schedule,
@@ -412,7 +417,30 @@ function migrate(s) {
       const month = (ddmm) => Number(String(ddmm || '').split('.')[1]);
       leg.arr_year = month(leg.arr_date) < month(leg.dep_date) ? dy + 1 : dy;
     }
+  }  // v17 → v18: see the note at VERSION.
+  if (s.v && s.v < 18) {
+    const bags = [...(current.legs || [])];
+    for (const f of (s.history || [])) bags.push(...(f.legs || []));
+    for (const leg of (s.imported || [])) bags.push(leg);
+    const up = (n) => String(n || '').trim().toUpperCase();
+    const captains = new Set();
+    for (const leg of bags) for (const n of [leg && leg.cpt, leg && leg.dataCard && leg.dataCard.cpt]) if (up(n)) captains.add(up(n));
+    for (const leg of bags) {
+      if (!leg) continue;
+      for (const bag of [leg, leg.dataCard].filter(Boolean)) {
+        const names = RELIEF_KEYS.flatMap(k => String(bag[k] || '').split(/\s*,\s*/)).filter(Boolean);
+        RELIEF_KEYS.forEach(k => { delete bag[k]; });
+        if (!names.length) continue;
+        const keep = (keys) => keys.flatMap(k => String(bag[k] || '').split(/\s*,\s*/)).filter(Boolean);
+        const cpt = [...keep(EXTRA_CPT_KEYS), ...names.filter(n => captains.has(up(n)))];
+        const fo  = [...keep(EXTRA_FO_KEYS),  ...names.filter(n => !captains.has(up(n)))];
+        for (const [k, v] of Object.entries({ ...intoSlots(cpt, EXTRA_CPT_KEYS), ...intoSlots(fo, EXTRA_FO_KEYS) })) {
+          if (v) bag[k] = v; else delete bag[k];
+        }
+      }
+    }
   }
+
   if (s.v && s.v < 14) {
     if (current.legs.length) {
       for (const leg of current.legs) {
@@ -1318,7 +1346,7 @@ function mergeLeg(target, source) {
   }
   // Crew: when the incoming leg names ANYONE, its list is the whole crew.
   // Merging only non-empty values meant a slot was never cleared — someone
-  // taken off the roster (a swap, a dropped relief pilot, a smaller cabin)
+  // taken off the roster (a swap, a dropped extra pilot, a smaller cabin)
   // stayed on the card for good beside their replacement. An incoming leg
   // with no crew at all (a provisional roster entry) leaves the crew alone.
   //
@@ -1655,9 +1683,11 @@ const K_SHORT = {
   // without one: deadheads never made it into a shared flight at all.
   cpt: 'cp', fo: 'fo', dh: 'dh',
   ...Object.fromEntries(CABIN_KEYS.map((k, i) => [k, 'c' + (i + 1)])),
-  ...Object.fromEntries(RELIEF_KEYS.map((k, i) => [k, 'r' + (i + 1)])),
+  cpt2: 'p2', fo2: 'f2', fo3: 'f3',
 };
 const K_LONG = Object.fromEntries(Object.entries(K_SHORT).map(([l, s]) => [s, l]));
+// Links shared before v18 carried relief pilots as r1..r3: first officers.
+Object.assign(K_LONG, { r1: 'fo2', r2: 'fo3', r3: 'fo3' });
 
 function packLeg(leg) {
   const out = {};

@@ -19,8 +19,8 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=207';
-import { RELIEF_SLOTS, CABIN_SLOTS, CREW_FIELDS } from './crew.js?v=207';
+import { yearNear } from './dates.js?v=208';
+import { CABIN_SLOTS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=208';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
@@ -43,7 +43,7 @@ const ACTUAL_LINE_RE   = /^Actual\s*:\s*\[([^\]]+)\]/i;
 //   status id  rank name                 tail
 // There used to be a separate pattern per section, each demanding status OPR
 // and a rank from a short fixed list. A line with any other status (a
-// deadheading crew member, say) or rank (a relief pilot, a cabin rank not on
+// deadheading crew member, say) or rank (a cruise-relief pilot, a cabin rank not on
 // the list) matched nothing and was dropped without a trace — the person
 // simply never appeared. Now every crew line is read, and the section and
 // the status/rank decide where it goes.
@@ -253,7 +253,7 @@ export function parseRoster(text, opts = {}) {
     } else if (section === 'cabin') {
       // A same-day turnaround lists Cockpit AND Cabin once, before "Slip
       // details": that cabin works every leg. It used to fall through to the
-      // line below and turn the whole cabin into relief pilots.
+      // line below and turn the whole cabin into pilots.
       duty.cabin.push({ name, rank });
     } else {
       duty.pilots.push({ name, rank });   // crew before any leg, no header: cockpit
@@ -267,9 +267,7 @@ export function parseRoster(text, opts = {}) {
   // dropped: anyone past the last slot shares it, comma-separated.
   for (const f of flights) {
     const pilots = assignPilots(f.pilots && f.pilots.length ? f.pilots : duty.pilots);
-    f.cpt = pilots.cpt;
-    f.fo = pilots.fo;
-    Object.assign(f, fillSlots(pilots.relief, 'rp', RELIEF_SLOTS));
+    Object.assign(f, intoSlots(pilots.cpt, ['cpt', ...EXTRA_CPT_KEYS]), intoSlots(pilots.fo, ['fo', ...EXTRA_FO_KEYS]));
     const cabin = (f.cabin.length ? f.cabin : duty.cabin).slice();
     // cc1 is labelled Purser: put the purser there even if listed later.
     const pi = cabin.findIndex(p => PURSER_RANKS.has(p.rank));
@@ -283,24 +281,18 @@ export function parseRoster(text, opts = {}) {
   }
 
   const dutyPilots = assignPilots(duty.pilots);
-  return { flights, cpt: dutyPilots.cpt, fo: dutyPilots.fo, phones };
+  return { flights, cpt: dutyPilots.cpt[0] || '', fo: dutyPilots.fo[0] || '', phones };
 }
 
-// Captain = the first captain-rank pilot, FO = the first FO-rank pilot, the
-// rest are relief pilots in roster order. A pilot with a rank this doesn't
-// know still fills an empty seat before anyone is called relief — so an
-// unfamiliar rank costs the label, never the person.
+// Pilots by rank, in roster order: captains, then first officers (cruise
+// relief ranks — CRP, RP, SO — are first officers). A pilot with a rank this
+// doesn't know fills an empty seat first, captain's then FO's, else joins
+// the FOs — an unfamiliar rank costs the label, never the person.
 function assignPilots(list) {
-  let cpt = '', fo = '';
-  const rest = [];
-  for (const p of list || []) {
-    if (!cpt && CAPT_RANKS.has(p.rank)) cpt = p.name;
-    else if (!fo && FO_RANKS.has(p.rank)) fo = p.name;
-    else rest.push(p.name);
-  }
-  if (!cpt && rest.length) cpt = rest.shift();
-  if (!fo && rest.length) fo = rest.shift();
-  return { cpt, fo, relief: rest };
+  const cpt = [], fo = [], other = [];
+  for (const p of list || []) (CAPT_RANKS.has(p.rank) ? cpt : FO_RANKS.has(p.rank) ? fo : other).push(p.name);
+  for (const n of other) (!cpt.length ? cpt : fo).push(n);
+  return { cpt, fo };
 }
 
 // names -> { prefix1: …, prefixN: … }. Overflow joins the LAST slot rather
@@ -389,21 +381,20 @@ function parseJsonRoster(arr) {
       ctot:        '',
       // Per-leg crew (the JSON shape carries crew on every leg, so
       // captain/FO can change between legs of the same duty period).
-      cpt: flipName(crew.CPT || ''),
-      fo:  flipName(crew.FO  || ''),
       // PU (purser) -> cc1; the JSON skips a CC1 key and goes PU, CC2, CC3…
-      // Relief pilots and cabin crew past the fixed slots are filled below,
+      // Pilots and cabin crew are filled into their slots below,
       // from the same crew.js list the slip-text parser uses.
       // Deadhead positioning crew — the JSON shape carries them either as
       // crew.DH (array or string) or as a comma-separated DHC field. Be
       // tolerant of both so we don't drop names on a schema tweak.
       dh: normaliseDhField(crew.DH ?? crew.DHC ?? crew.dh ?? ''),
     };
-    // Relief pilots: whatever the export calls them, in a stable order.
-    const relief = ['RP1', 'RP2', 'RP3', 'RP', 'CRP', 'SO', 'CPT2', 'FO2']
-      .flatMap(k => [].concat(crew[k] || []))
+    // Pilots by rank. Cruise relief (RP, CRP, SO) is a first officer.
+    const names = (keys) => keys.flatMap(k => [].concat(crew[k] || []))
       .map(n => flipName(String(n))).filter(Boolean);
-    Object.assign(leg, fillSlots(relief, 'rp', RELIEF_SLOTS));
+    Object.assign(leg,
+      intoSlots(names(['CPT', 'CPT2']), ['cpt', ...EXTRA_CPT_KEYS]),
+      intoSlots(names(['FO', 'FO2', 'FO3', 'RP1', 'RP2', 'RP3', 'RP', 'CRP', 'SO']), ['fo', ...EXTRA_FO_KEYS]));
     const cabin = [crew.PU, ...Array.from({ length: 40 }, (_, i) => crew['CC' + (i + 2)])]
       .filter(Boolean).map(n => flipName(String(n)));
     Object.assign(leg, fillSlots(cabin, 'cc', CABIN_SLOTS));

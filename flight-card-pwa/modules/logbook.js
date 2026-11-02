@@ -18,9 +18,9 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=207';
-import { dateTs, legTs } from './dates.js?v=207';
-import { CREW_FIELDS, crewShort } from './crew.js?v=207';
+import * as storage from './storage.js?v=208';
+import { dateTs, legTs } from './dates.js?v=208';
+import { CREW_FIELDS, crewShort } from './crew.js?v=208';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
@@ -97,7 +97,7 @@ function describeLeg(leg, { displayCrew = (n) => n } = {}) {
   const crewLines = [];
   for (const key of CREW_FIELDS) {
     const name = leg[key] || d[key] || '';
-    if (name) crewLines.push(`${crewShort(key)}: ${key === 'dh' ? name : displayCrew(name)}`);
+    if (name) crewLines.push(`${crewShort(key, k => !!(leg[k] || d[k]))}: ${key === 'dh' ? name : displayCrew(name)}`);
   }
   const lines = [
     tail ? `Tail: ${tail}` : '',
@@ -160,11 +160,7 @@ export function buildCsv(legs, opts = {}) {
   const displayCrew = opts.displayCrew || ((n) => storage.displayCrew(n));
   // Only the crew positions these legs actually have, numbered when they repeat.
   const crewKeys = CREW_FIELDS.filter(key => legs.some(l => l[key] || (l.dataCard || {})[key]));
-  const crewCols = crewKeys.map((key, i) => {
-    const name = crewShort(key);
-    const nth = crewKeys.slice(0, i + 1).filter(k => crewShort(k) === name).length;
-    return nth > 1 ? `${name} ${nth}` : name;
-  });
+  const crewCols = crewKeys.map(key => crewShort(key, k => crewKeys.includes(k)));
   const head = ['Date', 'Flight', 'From', 'To', 'Tail', 'Type', 'STD', 'STA', 'Off block', 'On block',
     'Block planned', 'Block actual', 'Airborne', 'T/O', 'LDG', 'Max G', 'SID', 'STAR', ...crewCols];
   const rows = legs.map(leg => {
