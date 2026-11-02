@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=212';
-import { PILOT_KEYS } from './crew.js?v=212';
+import { legPlanActual } from './dates.js?v=213';
+import { PILOT_KEYS } from './crew.js?v=213';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -76,6 +76,19 @@ export function tableCRow(hour) { return TABLE_C.indexOf(rowFor(TABLE_C, hour));
 function legKey(l) { return [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].join('|'); }
 function crewOf(l, k) { return String((l.dataCard && l.dataCard[k]) || l[k] || '').trim(); }
 
+// The rest facility a fleet has (7.4.1): the 737 is class 3 (business-class
+// seats), the 787 and 777 class 1 (crew bunk). From the type string when the
+// leg carries one, else the 4X-E? registration block — EK/EH 737, ED/ER 787,
+// EC 777. Unknown is taken as a 737.
+export function restClassOf(leg) {
+  const type = String((leg.dataCard && leg.dataCard.ac_type) || leg.ac_type || '');
+  if (/7[78]7/.test(type)) return 1;
+  if (/737/.test(type)) return 3;
+  const reg = String((leg.dataCard && leg.dataCard.tail) || leg.tail || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const m = /^4XE([A-Z])/.exec(reg);
+  return m && 'DRC'.includes(m[1]) ? 1 : 3;
+}
+
 // Every stored leg as times: plan (STD/STA) and, once flown, the actual
 // off-block / on-block. Duplicates (a leg in both current and history) once.
 export function legTimes(legs) {
@@ -94,6 +107,7 @@ export function legTimes(legs) {
       end: flown ? p.ibt : p.sta,
       flown,
       pilots: PILOT_KEYS.filter(k => crewOf(leg, k)).length,
+      restClass: restClassOf(leg),
     });
   }
   return out.sort((a, b) => a.std - b.std);
@@ -121,6 +135,7 @@ export function groupFdps(times) {
     f.plannedFt = f.legs.reduce((s, l) => s + (l.sta - l.std), 0);
     f.ft = f.legs.reduce((s, l) => s + (l.end - l.start), 0);
     f.pilots = Math.max(...f.legs.map(l => l.pilots), 0);
+    f.restClass = Math.max(...f.legs.map(l => l.restClass));   // the poorer facility rules
   }
   return fdps;
 }
@@ -142,7 +157,7 @@ export function limitsFor(fdp, opts = {}) {
   const hour = israelHour(fdp.report);
   const pilots = Math.min(4, Math.max(2, opts.pilots || fdp.pilots || 2));
   const augmented = pilots >= 3;
-  const restClass = [1, 2, 3].includes(opts.restClass) ? opts.restClass : 3;
+  const restClass = [1, 2, 3].includes(opts.restClass) ? opts.restClass : (fdp.restClass || 3);
   let notAccl = opts.notAcclimated;
   if (notAccl == null) {
     // Acclimated to Israel; a departure more than 60° of longitude away is
@@ -256,6 +271,30 @@ export function cumulative(fdps, at) {
 // How far back the stored legs go — a 365-day total is only as good as that.
 export function earliestLeg(fdps) { return fdps.length ? fdps[0].report : null; }
 
+// When the duty will actually end, as far as can be told now: a flown leg's
+// on-blocks; else the plan, pushed later by the latest delay seen — a leg
+// that blocked out or in late, or one still on the ground after its STD.
+// The delay carries to the end; a turnaround that absorbs it shows up once
+// that leg is flown.
+export function projectedEnd(fdp, now = Date.now()) {
+  let delay = 0;
+  for (const l of fdp.legs) {
+    if (l.flown) { delay = l.end - l.sta; continue; }
+    const p = legPlanActual(l.leg);
+    if (Number.isFinite(p.obt)) delay = Math.max(p.obt - l.std, 0);
+    else if (now > l.std) delay = Math.max(delay, now - l.std);
+    break;
+  }
+  return fdp.flown ? fdp.end : fdp.plannedEnd + Math.max(0, delay);
+}
+
+// Spare FDP for a duty: max FDP against its projected end, in hours
+// (negative = over). null when there's no duty near now worth showing.
+export function spareNow(fdp, lim, now = Date.now()) {
+  const end = projectedEnd(fdp, now);
+  return { end, spare: (lim.limit - end) / H, spareExt: (lim.limitExt - end) / H, planned: lim.maxFdp - lim.plannedFdp };
+}
+
 export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now = Date.now() }) {
   const fdps = groupFdps(legTimes(legs));
   if (!fdps.length) return { fdps, empty: true };
@@ -267,6 +306,7 @@ export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now 
     ltts: legLtts(fdp, lim, taxiOf),
     rest: restFor(fdps, i, duties),
     cum: cumulative(fdps, fdp.end),
+    proj: spareNow(fdp, lim, now),
     since: earliestLeg(fdps),
     live: now >= fdp.report && now <= fdp.release ? { elapsed: (now - fdp.report) / H, left: (lim.limit - now) / H } : null,
   };

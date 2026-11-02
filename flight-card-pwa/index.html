@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=212" />
+  <link rel="stylesheet" href="./app.css?v=213" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -98,6 +98,8 @@
       </span>
       <!-- Ben Gurion's own flight board for this leg (modules/tlv-board.js). -->
       <span id="leg-board" class="leg-board" hidden></span>
+      <!-- Spare FDP for this duty, coloured by how close (paintFdpChip). -->
+      <button id="leg-fdp" class="leg-fdp" type="button" data-action="fdp-chip" hidden></button>
       <!-- In the air with GPS: the airport quickest to reach (Route info). -->
       <button id="leg-near" class="leg-near" type="button" hidden></button>
       <!-- Off-block target worked out from the CTOT (paintOffBlock in app.js).
@@ -893,6 +895,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=212"></script>
+  <script type="module" src="./app.js?v=213"></script>
 </body>
 </html>
