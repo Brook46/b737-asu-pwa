@@ -3730,6 +3730,23 @@ body[data-phase="air"] #ready-line { display: none; }
 .ph-h { font-size: 13px; font-weight: 600; color: var(--fg-mute); }
 .ph-h b { color: var(--fg); font-weight: 700; }
 .ph-wx { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.4; color: var(--fg); }
+/* METAR, a line, then the TAF. */
+.ph-wx + .ph-wx { border-top: 1px solid var(--line); padding-top: 6px; }
+/* The alternate: the same tile, with Change in its corner. */
+.wx-altn { position: relative; }
+.wx-altn-change {
+  position: absolute; top: 8px; right: 8px; padding: 4px 10px; border: 0; border-radius: 999px;
+  background: var(--bg-elev); color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.wx-altn-add {
+  padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; background: transparent;
+  color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; text-align: start; cursor: pointer;
+}
+.wx-altn-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wx-altn-form input {
+  flex: 1 1 180px; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-sunk); color: var(--fg); font: inherit; font-size: 16px; text-transform: uppercase;
+}
 
 /* In flight: Route info in the page, between the bars. Its full screen ⤢
    goes over both. */
