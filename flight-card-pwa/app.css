@@ -3898,3 +3898,5 @@ body[data-phase="air"] #ready-line { display: none; }
 .leg-fdp.is-good { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
 .leg-fdp.is-warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .leg-fdp.is-bad  { background: var(--danger); color: #fff; }
+.ftl-ext-tag { margin-left: 10px; font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--warn); vertical-align: middle; }
+.ftl-ctl .view-switch [data-ftl-ext] { padding: 6px 8px; }

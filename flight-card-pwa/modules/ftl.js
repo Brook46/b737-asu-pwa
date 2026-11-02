@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=213';
-import { PILOT_KEYS } from './crew.js?v=213';
+import { legPlanActual } from './dates.js?v=214';
+import { PILOT_KEYS } from './crew.js?v=214';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -178,12 +178,16 @@ export function limitsFor(fdp, opts = {}) {
     maxFt = rowFor(TABLE_A, hour)[2];
   }
   if (notAccl) maxFdp -= NOT_ACCL_CUT_H;
+  // An extension the PIC has taken (7.2.10), up to 2 h, recorded per duty.
+  const baseFdp = maxFdp;
+  const extH = Math.min(EXT_MAX_H, Math.max(0, (opts.extOf ? Number(opts.extOf(fdp)) || 0 : 0) / 60));
+  maxFdp += extH;
   const limit = fdp.report + maxFdp * H;
   return {
-    hour, pilots, augmented, restClass, notAccl, row, col,
+    hour, pilots, augmented, restClass, notAccl, row, col, baseFdp, extH,
     maxFdp, maxFt,
     limit,                                 // latest on-blocks
-    limitExt: limit + EXT_MAX_H * H,       // with the 2 h extension
+    limitExt: fdp.report + (baseFdp + EXT_MAX_H) * H,   // with the full 2 h extension
     plannedFdp: (fdp.plannedEnd - fdp.report) / H,
     actualFdp: fdp.flown ? (fdp.end - fdp.report) / H : null,
     tooManySegments: augmented && fdp.segments > AUG_MAX_SEGMENTS,
@@ -198,7 +202,7 @@ export function legLtts(fdp, lim, taxiOf = () => 15) {
   return fdp.legs.map(l => {
     const taxi = taxiOf(String(l.leg.dep || '').toUpperCase());
     const off = lim.limit - (lastSta - l.std);
-    return { off, ltt: off + taxi * MIN, lttExt: off + taxi * MIN + EXT_MAX_H * H, taxi };
+    return { off, ltt: off + taxi * MIN, lttExt: off + taxi * MIN + (lim.limitExt - lim.limit), taxi };
   });
 }
 

@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=213';
-import * as wx from './wx.js?v=213';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow } from './crew.js?v=213';
+import * as storage from './storage.js?v=214';
+import * as wx from './wx.js?v=214';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow } from './crew.js?v=214';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
