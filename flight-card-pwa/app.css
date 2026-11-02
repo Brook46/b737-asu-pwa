@@ -3715,10 +3715,8 @@ body[data-phase="air"] #ready-line { display: none; }
 #card-data { display: flex; flex-direction: column; }
 #card-data > .card-head { order: 2; border-bottom: 0; }
 #card-data > .card-head .card-toggle { visibility: hidden; }
-.data-group[data-group="g-flt"]:not(.is-editing) .data-group-head,
-.data-group[data-group="g-crew"]:not(.is-editing) .data-group-head { pointer-events: none; }
-.data-group[data-group="g-flt"]:not(.is-editing) .chev,
-.data-group[data-group="g-crew"]:not(.is-editing) .chev { display: none; }
+.data-group[data-group="g-flt"]:not(.is-editing) .data-group-head { pointer-events: none; }
+.data-group[data-group="g-flt"]:not(.is-editing) .chev { display: none; }
 .phase-note { padding: 18px 4px; }
 .phase-note[hidden] { display: none; }
 .before-wx { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; break-inside: avoid; }

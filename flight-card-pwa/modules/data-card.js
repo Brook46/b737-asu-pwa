@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=208';
-import * as wx from './wx.js?v=208';
-import { CREW_KEYS, CREW_FIELDS, crewLabel, slotsToShow } from './crew.js?v=208';
+import * as storage from './storage.js?v=209';
+import * as wx from './wx.js?v=209';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow } from './crew.js?v=209';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -58,11 +58,18 @@ export const FIELDS = [
   // app.js + the .leg-role-pill markup). Two pills next to the leg arrows
   // are easier to spot at a glance than a row buried inside the Flight
   // group. The dataCard fields stay the same (to_role / ldg_role).
-  // Crew slots come from crew.js — captains, first officers, cabin crew,
-  // deadhead — so the card can never disagree with the roster parser about
-  // how many people a flight can carry.
-  { id: 'g-crew',  group: 'Crew',      cells:
-    CREW_FIELDS.map(key => ({ key, label: crewLabel(key), kind: 'text', wide: true })) },
+  // Crew slots come from crew.js — captains, first officers, cabin crew —
+  // so the card can never disagree with the roster parser about how many
+  // people a flight can carry. Three groups, each folding on its own.
+  // Deadheads are one comma-separated field (storage, roster, logbook) shown
+  // as a row per person, like the working crew.
+  { id: 'g-crew',  group: 'Flight crew', crew: true, cells:
+    PILOT_KEYS.map(key => ({ key, label: crewLabel(key), kind: 'text', wide: true })) },
+  { id: 'g-cabin', group: 'Cabin crew',  crew: true, cells:
+    CABIN_KEYS.map(key => ({ key, label: crewLabel(key), kind: 'text', wide: true })) },
+  { id: 'g-dh',    group: 'Deadhead',    crew: true, cells: [
+    { key: 'dh', label: 'Deadhead', kind: 'text', wide: true },
+  ]},
 ];
 
 const CELL_INDEX = (() => {
@@ -71,18 +78,28 @@ const CELL_INDEX = (() => {
   return m;
 })();
 
-// The Brief tab: Crew and Flight are always open; the rest are a summary line
-// until opened, which is remembered on this device, so a reload or a refresh
+// The Brief tab: Flight is always open; the crew groups and the rest fold,
+// and what's open is remembered on this device, so a reload or a refresh
 // leaves the card the way it was.
-const ALWAYS_OPEN = new Set(['g-flt', 'g-crew']);
+const ALWAYS_OPEN = new Set(['g-flt']);
+const CREW_GROUPS = ['g-crew', 'g-cabin', 'g-dh'];
 const OPENED_KEY = 'fc.dataCard.opened';
 let opened = loadOpened();
 function loadOpened() {
+  let set = new Set();
   try {
     const v = JSON.parse(localStorage.getItem(OPENED_KEY) || 'null');
-    if (Array.isArray(v)) return new Set(v);
+    if (Array.isArray(v)) set = new Set(v);
   } catch {}
-  return new Set();
+  // Crew was one always-open group until v209: its three parts start open.
+  try {
+    if (!localStorage.getItem('fc.dataCard.crewSplit')) {
+      CREW_GROUPS.forEach(id => set.add(id));
+      localStorage.setItem(OPENED_KEY, JSON.stringify([...set]));
+      localStorage.setItem('fc.dataCard.crewSplit', '1');
+    }
+  } catch {}
+  return set;
 }
 function saveOpened() {
   try { localStorage.setItem(OPENED_KEY, JSON.stringify([...opened])); } catch {}
@@ -109,14 +126,12 @@ let lastRoot = null;
 export function setOnChange(fn) { onChange = fn; }
 export function setOnOptFmc(fn) { onOptFmc = fn; }
 
-// Crew group: when any crew slot is filled, hide the empty ones by default
-// — the pilot wanted the box to show "all crew members and positions + DH
-// if there are any", not seven mostly-empty inputs. The "+ add" toggle in
-// the group head expands to show every slot when they need to fill in
-// another role. State is in-memory only — switching legs resets the flag,
-// which is fine because the new leg either has its own filled crew (so
-// "+ add" is needed again) or none (so all cells show automatically).
-let crewShowAll = false;
+// Crew groups: only the filled slots by default — the pilot wanted to see
+// the crew, not a column of mostly-empty inputs. "+ add" in a group's head
+// shows one free slot of each kind to fill in (crew.js slotsToShow); with
+// nobody in a group yet, just the usual seats. Per group, in memory only.
+const crewShowAll = new Set();
+const EMPTY_CREW = { 'g-crew': ['cpt', 'fo'], 'g-cabin': ['cc1'] };
 
 // ---------- Layout: the pilot's own order of the groups ----------
 // Set by dragging in edit mode (✎ in the card head), the same way the print
@@ -161,11 +176,12 @@ export function render(root) {
   // Crew, Flight, weather, then the pilot's own order; while arranging, just
   // their order, so what's dragged is what's seen.
   const groups = orderedGroups();
-  const shown = editMode ? groups
-    : [...groups].sort((a, b) => ALWAYS_OPEN.has(b.id) - ALWAYS_OPEN.has(a.id) || (a.id === 'g-crew' ? -1 : b.id === 'g-crew' ? 1 : 0));
+  const rank = (id) => CREW_GROUPS.includes(id) ? CREW_GROUPS.indexOf(id) : id === 'g-flt' ? 3 : 4;
+  const shown = editMode ? groups : [...groups].sort((a, b) => rank(a.id) - rank(b.id));
   const html = shown.map(group => {
     // Crew labels follow this flight: CPT 1 / CPT 2 only with two captains.
     if (group.id === 'g-crew') group = { ...group, cells: group.cells.map(c => ({ ...c, label: crewLabel(c.key, k => has(data[k])) })) };
+    const dhNames = group.id === 'g-dh' ? String(data.dh || '').split(',').map(s => s.trim()).filter(Boolean) : [];
     // Edit mode shows every group folded to its head, so the list is short
     // enough to drag through — like the print layout's field list. The
     // pilot's own fold state is untouched and comes back on Done.
@@ -174,27 +190,24 @@ export function render(root) {
     const countCells = group.cells.filter(c => c.kind !== 'metar');
     const filled = countCells.filter(c => has(data[c.key])).length;
     const isCol = editMode || !(ALWAYS_OPEN.has(group.id) || opened.has(group.id));
-    // Crew group: render only filled slots when at least one is filled,
-    // unless the "+ add" toggle is on. When nothing is filled, show all so
-    // a fresh leg's crew can be typed in.
     let renderCells = group.cells.filter(c => !c.onlyIfSet || has(data[c.key]));
     let crewAddBtn = '';
-    if (group.id === 'g-crew' && filled > 0 && !crewShowAll) {
-      renderCells = group.cells.filter(c => has(data[c.key]));
-      crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all title="Add a crew member, pilot or deadhead">+ add</button>`;
-    } else if (group.id === 'g-crew') {
-      // "+ add" mode, or a leg with no crew yet: the filled slots plus ONE
-      // free slot of each kind and Deadhead (crew.js slotsToShow). Showing
-      // every empty slot was fine at eight cabin crew; at sixteen plus extra
-      // pilots it would be twenty-odd blank inputs.
-      const show = new Set(slotsToShow(k => has(data[k])));
-      renderCells = group.cells.filter(c => show.has(c.key));
-      if (filled > 0) {
-        crewAddBtn = `<button type="button" class="data-group-action" data-crew-show-all data-collapse-empties title="Hide empty crew slots">− hide empty</button>`;
-      }
+    const showAll = crewShowAll.has(group.id);
+    if (group.crew && !(group.id === 'g-dh' && !dhNames.length)) {   // no deadheads: the empty row is the way to add
+      crewAddBtn = showAll
+        ? `<button type="button" class="data-group-action" data-crew-show-all title="Hide empty slots">− hide empty</button>`
+        : `<button type="button" class="data-group-action" data-crew-show-all title="Add someone">+ add</button>`;
+    }
+    if (group.crew && group.id !== 'g-dh') {
+      const show = showAll ? new Set(slotsToShow(k => has(data[k]))) : filled ? null : new Set(EMPTY_CREW[group.id]);
+      renderCells = group.cells.filter(c => show ? show.has(c.key) : has(data[c.key]));
     }
     const summary = renderSummary(group, data);
-    const cells = renderCells.map(c => renderCell(c, data[c.key])).join('');
+    // Deadheads: a row each, and one empty row to add someone.
+    const dhRows = [...dhNames, ...(showAll || !dhNames.length ? [''] : [])];
+    const cells = group.id === 'g-dh'
+      ? dhRows.map((n, i) => renderCell({ ...group.cells[0], label: dhRows.length > 1 ? `Deadhead ${i + 1}` : 'Deadhead', dhIdx: i }, n)).join('')
+      : renderCells.map(c => renderCell(c, data[c.key])).join('');
     const optBtn = group.hasOptFmc
       ? `<button type="button" class="data-group-action" data-opt-fmc title="Auto-fill from OPT / FMC screenshot">⌖ OPT / FMC</button>`
       : '';
@@ -390,7 +403,8 @@ function renderCell(c, raw) {
   // never accidentally overwrites the canonical key.
   let displayValue = v;
   let inputReadonly = c.readonly ? ' readonly' : '';
-  if (CREW_CELL_KEYS.has(c.key) && v) {
+  const isCrew = CREW_CELL_KEYS.has(c.key) || c.dhIdx != null;
+  if (isCrew && v) {
     const display = storage.displayCrew(v);
     if (display && display !== v.toUpperCase()) {
       displayValue = display;
@@ -399,7 +413,7 @@ function renderCell(c, raw) {
   }
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
-  if (CREW_CELL_KEYS.has(c.key) && v) cls.push('crew-cell');
+  if (isCrew && v) cls.push('crew-cell');
   const inputmode = c.kind === 'text' ? 'text'
                   : c.kind === 'hhmm' ? 'numeric'
                   : 'decimal';
@@ -407,7 +421,7 @@ function renderCell(c, raw) {
   const labelStr = c.label + (c.suffix ? ' (' + c.suffix + ')' : '');
   const placeholder = c.kind === 'hhmm' ? 'HH:MM' : '—';
   const maxlen = '';      // no maxlength: a full HH:MM box must still take digits (formatHHMM)
-  const chips = CREW_CELL_KEYS.has(c.key) ? renderCrewChips(v) : '';
+  const chips = isCrew ? renderCrewChips(v) : '';
   const inputHtml = `
       <input
         type="text"
@@ -417,7 +431,7 @@ function renderCell(c, raw) {
         autocorrect="off"
         spellcheck="false"
         data-key="${c.key}"
-        data-kind="${c.kind}"
+        data-kind="${c.kind}"${c.dhIdx != null ? ` data-dh-idx="${c.dhIdx}" data-raw="${escapeAttr(v)}"` : ''}
         value="${escapeAttr(displayValue)}"
         placeholder="${placeholder}"${maxlen}${inputReadonly}
       />`;
@@ -622,17 +636,15 @@ const PHONETIC = {
 };
 function atisPhonetic(L) { return PHONETIC[L.toUpperCase()] || L; }
 
-// Group head count. "filled/total" for every group except Crew: with 22
-// crew slots "7/22" reads as fifteen people missing. Crew shows people — a
-// slot can hold several comma-separated names (overflow, deadheads) — with
-// deadheads counted apart, since they're riding, not working.
+// Group head count. "filled/total" for every group except the crew groups:
+// with sixteen cabin slots "5/16" reads as eleven people missing. They show
+// people — a slot can hold several comma-separated names (overflow,
+// deadheads).
 function groupMeta(group, data, filled, total) {
-  if (group.id !== 'g-crew') return `${filled}/${total}`;
+  if (!group.crew) return `${filled}/${total}`;
   const people = (k) => String(data[k] || '').split(',').filter(x => x.trim()).length;
-  const crew = CREW_KEYS.reduce((n, k) => n + people(k), 0);
-  const dh = people('dh');
-  if (!crew && !dh) return '—';
-  return dh ? `${crew} + ${dh} DH` : String(crew);
+  const n = group.cells.reduce((sum, c) => sum + people(c.key), 0);
+  return n ? String(n) : '—';
 }
 
 function renderSummary(group, data) {
@@ -665,13 +677,15 @@ function wire(root) {
       if (onOptFmc) onOptFmc();
     });
   });
-  // Crew group: "+ add" / "− hide empty" toggle — flips crewShowAll so the
-  // empty slots reveal/hide. Re-render straight away.
+  // Crew groups: "+ add" / "− hide empty" — that group's free slots
+  // reveal/hide. Re-render straight away.
   root.querySelectorAll('[data-crew-show-all]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
-      crewShowAll = !crewShowAll;
+      const id = btn.closest('.data-group')?.dataset.group;
+      if (crewShowAll.has(id)) crewShowAll.delete(id); else crewShowAll.add(id);
+      if (!opened.has(id)) { opened.add(id); saveOpened(); }
       render(root);
     });
   });
@@ -686,6 +700,15 @@ function wire(root) {
     inp.addEventListener('input', () => {
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
+      // A deadhead row: the field is every row, joined.
+      if (inp.dataset.dhIdx != null) {
+        const names = [...root.querySelectorAll('input[data-dh-idx]')]
+          .map(x => normalize(def, x.readOnly ? x.dataset.raw : x.value)).filter(Boolean);
+        storage.setDataField(key, names.join(', '));
+        updateGroupMeta(root, key);
+        if (onChange) onChange(key);
+        return;
+      }
       const normalized = normalize(def, inp.value);
       // Live-format utctime + hhmm so the colon appears as the user types
       if ((def.kind === 'utctime' || def.kind === 'hhmm') && inp.value !== normalized) {
@@ -698,6 +721,7 @@ function wire(root) {
       if (onChange) onChange(key);
     });
     inp.addEventListener('blur', () => {
+      if (inp.dataset.dhIdx != null) return;     // one row of the joined field
       const key = inp.dataset.key;
       const def = CELL_INDEX.get(key);
       let raw = storage.getCurrent().dataCard[key];
