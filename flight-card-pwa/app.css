@@ -3553,6 +3553,10 @@ body {
 
 /* ---------- "•••" ---------- */
 .more-menu { position: relative; }
+/* The top bar is its own layer (z-index 5), so the menu inside it can only
+   rise as far as the bar does: lift the bar while the menu is open — over the
+   checklist, floating or not, and every window; under the toast. */
+.app-top:has(.more-menu[open]) { z-index: 95; }
 .more-menu > summary { list-style: none; cursor: pointer; }
 .more-menu > summary::-webkit-details-marker { display: none; }
 .more-menu[open] > summary { background: var(--accent); color: var(--on-accent); }
@@ -3794,14 +3798,33 @@ body[data-phase="air"] #ready-line { display: none; }
   left: auto; right: 12px; top: auto; width: min(400px, calc(100vw - 24px));
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 12px);
   height: min(70vh, 640px);
-  border-radius: var(--radius-card);
-  box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 0 0.5px var(--line);
+  /* An iPadOS floating window: continuous corners, a soft layered shadow
+     and a hairline edge instead of a hard one. */
+  border-radius: 20px; overflow: hidden;
+  box-shadow: 0 0 0 0.5px var(--line), 0 2px 6px rgba(0,0,0,.10), 0 18px 50px rgba(0,0,0,.30);
 }
 .checklist-head {
-  display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 14px;
+  position: relative;
+  display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 16px;
   border-bottom: 0.5px solid var(--line); user-select: none; -webkit-user-select: none;
 }
-.is-float .checklist-head { cursor: grab; touch-action: none; }
-.checklist-head .card-title { flex: 1 1 auto; }
+.is-float .checklist-head { cursor: grab; touch-action: none; padding-top: 16px; border-bottom-color: transparent; }
+.is-float .checklist-head:active { cursor: grabbing; }
+/* The grabber: says "drag me", like a sheet's. */
+.is-float .checklist-head::before {
+  content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px;
+  border-radius: 3px; background: var(--fg-mute); opacity: .45;
+}
+.checklist-head .card-title { flex: 1 1 auto; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; text-transform: none; color: var(--fg); }
+/* Header buttons as iOS circular glyph buttons. */
+.checklist-head .btn.ghost-btn {
+  width: 30px; height: 30px; min-height: 30px; padding: 0; border: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-sunk); color: var(--fg-mute); font-size: 14px; line-height: 1;
+}
+.checklist-head .btn.ghost-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.checklist-head .btn.ghost-btn:active { opacity: .6; }
+/* Floating ⇄ page: the window morphs (app.js morphChecklist). */
+@media (prefers-reduced-motion: reduce) { .checklist-float { animation: none !important; } }
 .checklist-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; -webkit-overflow-scrolling: touch; }
 #logbook-export-row[hidden] { display: none; }
