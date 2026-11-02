@@ -2,7 +2,7 @@
 // the 2.7" Sharp Memory screen), and a strap plate for riser mounting.
 //
 // Render one part:   openscad -D 'part="tray"' -o tray.stl instrument.scad
-// Parts: tray, lid_headless, lid_screen, strap_plate, assembly (preview only)
+// Parts: tray, lid_headless, lid_screen, strap_plate, assembly / layout (previews)
 // `screen=true` makes the tray long enough for the screen lid.
 //
 // All sizes in mm. Board sizes marked MEASURE are from datasheets/listings,
@@ -61,12 +61,16 @@ bo = wall + 3.0;      // bosses overlap the walls a little (a clean, printable u
 boss = [[bo, bo], [L - bo, bo], [bo, W - bo], [L - bo, W - bo]];
 
 // Layout inside (x along the length, y across, from the inner corner)
-xiaoAt = [innerL - xiaoStack[0], 2];          // USB-C end wall at +x
-l76kAt = [innerL - l76k[0], innerW - l76k[1] - 2];
-batAt = [2, 2];
-bmeAt = [0.5, innerW - bme[1] - 0.5];          // sensor end at the vent wall (-x)
-ventY = innerW - bme[1] / 2;
-ventZ = floorT + 4;
+xiaoAt = [innerL - xiaoStack[0], 6.5];        // USB-C end wall at +x, clear of the corner boss
+l76kAt = [innerL - l76k[0], innerW - l76k[1] - 6.5];
+// Floor plan (inner coords): BME280 front-left with its sensor end at the
+// vent, battery behind it, XIAO stack and L76K at the USB-C end, the
+// distribution board in the strip between.
+bmeAt = [6.5, 0.3];                             // just past the vent's foam pocket
+batAt = [7, innerW - battery[1] - 1.4];         // behind the BME280, which stops it at the front
+distAt = [43, 26];                              // 4-strip stripboard, ~10 × 18
+ventY = bmeAt[1] + bme[1] / 2;
+ventZ = floorT + 1;
 
 module tray() {
   difference() {
@@ -90,13 +94,15 @@ module tray() {
           translate([1.2, 1.2, -1]) cube([l76k[0] + 1, l76k[1], 4]);
           translate([5, -1, -1]) cube([l76k[0] - 10, l76k[1] + 5, 4]);
         }
-        // Battery bay ribs
-        translate([batAt[0] - 1.2, batAt[1] - 1.2, 0]) difference() {
-          cube([battery[0] + 2.4, battery[1] + 2.4, 2.5]);
-          translate([1.2, 1.2, -1]) cube([battery[0], battery[1], 5]);
+        // Battery bay ribs: back and ends (the BME280 board is its front stop)
+        translate([batAt[0] - 1.2, batAt[1], 0]) difference() {
+          cube([battery[0] + 2.4, battery[1] + 1.2, 2.5]);
+          translate([1.2, -1, -1]) cube([battery[0], battery[1] + 1, 5]);
           translate([6, -1, -1]) cube([battery[0] - 12, battery[1] + 5, 5]);
           translate([-1, 6, -1]) cube([battery[0] + 5, battery[1] - 12, 5]);
         }
+        // BME280: a stop at its far end (the battery holds its back edge)
+        translate([bmeAt[0] + bme[0] + 0.3, bmeAt[1], 0]) cube([1.2, bme[1] / 2, 2]);
         // Foam pocket around the vent on the inside of the -x wall
         translate([-0.01, ventY - 6, 0]) difference() {
           cube([5, 12, 10]);
@@ -246,6 +252,7 @@ module ghosts() {
     color("Orange", 0.6) translate([batAt[0], batAt[1], 0]) cube(battery);
     color("Purple", 0.6) translate([bmeAt[0], bmeAt[1], 0]) cube([bme[0], bme[1], 4]);
     color("Teal", 0.6) translate([batAt[0] + 8, batAt[1] + 6, battery[2] + 0.5]) cube([imu[0], imu[1], 4]);
+    color("Peru", 0.6) translate([distAt[0], distAt[1], 0]) cube([10, 18, 3]);
   }
 }
 
@@ -253,6 +260,10 @@ if (part == "tray") tray();
 else if (part == "lid_headless") lid_headless();
 else if (part == "lid_screen") lid_screen();
 else if (part == "strap_plate") strap_plate();
+else if (part == "layout") {  // top view for the assembly guide: tray and boards, no lid
+  color("WhiteSmoke") tray();
+  ghosts();
+}
 else if (part == "assembly") {
   color("WhiteSmoke") tray();
   ghosts();

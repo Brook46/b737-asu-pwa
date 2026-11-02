@@ -27,6 +27,10 @@ render instrument_screen_open.png instrument.scad 54,28,18,55,0,30,320 -D 'part=
 render lid_headless_inside.png instrument.scad 40,28,0,35,0,20,220 -D 'part="lid_headless"'
 render lid_screen_inside.png instrument.scad 54,28,0,35,0,20,280 -D 'part="lid_screen"' -D 'screen=true'
 render lid_screen_outside.png instrument.scad 54,28,0,145,0,20,280 -D 'part="lid_screen"' -D 'screen=true'
+# floor plan: straight down, orthographic
+x=""; command -v xvfb-run >/dev/null && x="xvfb-run -a"
+$x openscad -o "$IMG/layout_top.png" --imgsize=1200,860 --colorscheme=Tomorrow --camera=40.2,28.2,0,0,0,0,190 \
+  --projection=o -D 'part="layout"' instrument.scad 2>&1 | grep -E "ERROR" || true
 render tray_back.png instrument.scad 40,28,10,130,0,30,240 -D 'part="tray"'
 render strap_plate.png instrument.scad 0,0,0,45,0,30,140 -D 'part="strap_plate"'
 render remote_open.png remote.scad 30,17,14,55,0,30,200 -D 'part="assembly"'

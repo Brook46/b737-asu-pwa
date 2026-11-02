@@ -205,6 +205,19 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
 .steps .body { display: grid; gap: 8px; min-width: 0; }
 .steps .body p { margin: 0; }
 .steps .body ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.jt { overflow-x: auto; padding: 4px 16px 0; }
+.jt table { min-width: 640px; }
+.jt td.n, .jt th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jt tr.grp td { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); padding-top: 14px; }
+.plate-foot { margin: 0; padding: 10px 16px 14px; font-size: 14px; color: var(--ink-soft); max-width: 80ch; }
+.incase { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; padding: 14px 16px 16px; align-items: start; }
+@media (max-width: 820px) { .incase { grid-template-columns: 1fr; } }
+.incase figure { margin: 0; border: 1px solid var(--rule); background: #f8f8f8; }
+.incase img { display: block; width: 100%; height: auto; }
+.keylist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.keylist li { position: relative; padding-left: 24px; }
+.keylist li:last-child { padding-left: 0; }
+.keylist i { position: absolute; left: 0; top: 3px; width: 14px; height: 14px; border: 1px solid var(--rule); }
 .check, .warn { border-left: 3px solid; padding: 6px 10px; font-size: 14px; }
 .check { border-color: var(--w-sck); background: color-mix(in srgb, var(--w-sck) 9%, transparent); }
 .warn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
@@ -220,13 +233,14 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
   <section class="titleblock" aria-label="Guide title block">
     <div class="name">
       <h1>Assembly guide</h1>
-      <p>How to wire, solder and power the paragliding instrument from the Seeed parts you ordered. Work in this order, checking each step before moving on. The case comes later; this gets you to a working, tested board.</p>
+      <p>How to wire, solder and power the headless paragliding instrument (no screen) from the Seeed parts you ordered, and fit it into its printed case. Work in this order, checking each step before moving on: a working, tested board first, then the case.</p>
     </div>
     <dl>
       <dt>Skill</dt><dd>first soldering project OK</dd>
       <dt>Time</dt><dd>one evening + checks</dd>
       <dt>Joints</dt><dd>≈ 40</dd>
       <dt>Power</dt><dd>1-cell LiPo, 3.7 V</dd>
+      <dt>Case</dt><dd>printed, 80 × 56 × 24 mm</dd>
       <dt>Rule</dt><dd>wire + check, then flash</dd>
     </dl>
   </section>
@@ -366,6 +380,72 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
   </section>
 
   <!-- ================= TOOLS + LOCAL PARTS ================= -->
+  <section class="plate" aria-labelledby="joints">
+    <header>
+      <span class="tag">Plate B</span>
+      <h2 id="joints">Every joint</h2>
+      <p>The same wiring as a list, in the order you'll do it. "Strip" means the distribution board. Lengths suit the case layout in Plate C, with a little slack; cut to fit. Everything under "Plug" needs no soldering.</p>
+    </header>
+    <div class="jt">
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>Wire</th><th class="n">≈ cm</th><th>How</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="5">XIAO ESP32-S3 (Wio-SX1262 unplugged while you solder)</td></tr>
+          <tr><td>XIAO <b>3V3</b> pad</td><td>Strip 3V3</td><td>28 AWG red</td><td class="n">6</td><td>Solder both ends</td></tr>
+          <tr><td>XIAO <b>GND</b> pad</td><td>Strip GND</td><td>28 AWG black</td><td class="n">6</td><td>Solder both ends</td></tr>
+          <tr><td>XIAO <b>D4</b> (SDA)</td><td>Strip SDA</td><td>28 AWG, any colour (mark it)</td><td class="n">6</td><td>Solder both ends</td></tr>
+          <tr><td>XIAO <b>D5</b> (SCL)</td><td>Strip SCL</td><td>28 AWG, any colour (mark it)</td><td class="n">6</td><td>Solder both ends</td></tr>
+          <tr><td>XIAO <b>D6</b></td><td>L76K <b>D6</b> pad</td><td>28 AWG</td><td class="n">5</td><td>Same name to same name</td></tr>
+          <tr><td>XIAO <b>D7</b></td><td>L76K <b>D7</b> pad</td><td>28 AWG</td><td class="n">5</td><td>Same name to same name</td></tr>
+          <tr><td>XIAO <b>D0</b></td><td>Buzzer cable, <b>yellow</b> (SIG)</td><td>28 AWG, spliced</td><td class="n">5</td><td>Splice + heat-shrink</td></tr>
+          <tr><td>XIAO <b>BAT−</b> (underside, nearest the USB)</td><td>JST-PH socket lead, black</td><td>26 AWG silicone</td><td class="n">6</td><td>Solder; polarity check first</td></tr>
+          <tr><td>XIAO <b>BAT+</b> (underside)</td><td>Slide switch, common pin</td><td>26 AWG silicone, red</td><td class="n">5</td><td>Solder; sleeve the pins</td></tr>
+          <tr><td>Slide switch, one side pin</td><td>JST-PH socket lead, red</td><td>26 AWG silicone, red</td><td class="n">4</td><td>Solder; sleeve the pins</td></tr>
+          <tr class="grp"><td colspan="5">L76K GNSS (beside the XIAO, not stacked)</td></tr>
+          <tr><td>L76K <b>3V3</b> pad</td><td>Strip 3V3</td><td>28 AWG red</td><td class="n">5</td><td>Solder both ends</td></tr>
+          <tr><td>L76K <b>GND</b> pad</td><td>Strip GND</td><td>28 AWG black</td><td class="n">5</td><td>Solder both ends</td></tr>
+          <tr><td>L76K <b>D0</b> pad</td><td>L76K <b>3V3</b> pad</td><td>10 kΩ resistor</td><td class="n">—</td><td>Legs flat, sleeved</td></tr>
+          <tr><td>L76K <b>D2</b> pad</td><td>L76K <b>3V3</b> pad</td><td>10 kΩ resistor</td><td class="n">—</td><td>Legs flat, sleeved</td></tr>
+          <tr class="grp"><td colspan="5">Grove modules (cut cables: keep the white Grove plug, solder the cut end)</td></tr>
+          <tr><td>BME280 cable red / black / white / yellow</td><td>Strips 3V3 / GND / SDA / SCL</td><td>Grove cable</td><td class="n">10</td><td>Solder to strips</td></tr>
+          <tr><td>LSM6DS3 cable red / black / white / yellow</td><td>Strips 3V3 / GND / SDA / SCL</td><td>Grove cable</td><td class="n">10</td><td>Solder to strips</td></tr>
+          <tr><td>Buzzer cable red / black</td><td>Strips 3V3 / GND</td><td>Grove cable</td><td class="n">15</td><td>Solder to strips; it rides on the lid, needs slack</td></tr>
+          <tr><td>Buzzer cable white</td><td>Nothing</td><td>—</td><td class="n">—</td><td>Cut short, heat-shrink</td></tr>
+          <tr class="grp"><td colspan="5">Plug (no soldering)</td></tr>
+          <tr><td>Wio-SX1262</td><td>XIAO underside, B2B connector</td><td>—</td><td class="n">—</td><td>Press evenly until it seats</td></tr>
+          <tr><td>GNSS patch antenna</td><td>L76K U.FL</td><td>its 10 cm coax</td><td class="n">—</td><td>Before first power</td></tr>
+          <tr><td>LoRa antenna</td><td>Wio-SX1262 U.FL</td><td>kit antenna</td><td class="n">—</td><td>Before first power</td></tr>
+          <tr><td>Wi-Fi/BLE antenna</td><td>XIAO U.FL</td><td>kit antenna</td><td class="n">—</td><td>Before first power</td></tr>
+          <tr><td>Grove plugs</td><td>BME280, LSM6DS3, buzzer</td><td>—</td><td class="n">—</td><td>Keyed: one way only</td></tr>
+          <tr><td>Battery JST-PH plug</td><td>Socket lead</td><td>—</td><td class="n">—</td><td>Switch off; check polarity first</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="plate-foot">Leave alone: D1 and D3 (free for later; D1 will be the screen's chip select), D2 (a boot pin), D8–D10 (the radio's SPI bus, through the B2B connector). The battery level isn't measured yet, so charge before every flight.</p>
+  </section>
+
+  <section class="plate" aria-labelledby="incase">
+    <header>
+      <span class="tag">Plate C</span>
+      <h2 id="incase">Where it sits in the case</h2>
+      <p>Seen from above with the lid off. The front edge is at the bottom of the picture, the USB-C end on the right, the pressure vent on the left.</p>
+    </header>
+    <div class="incase">
+      <figure>
+        <img src="build/layout_top.png" alt="Top view of the open case: BME280 front-left at the vent, battery behind it with the IMU on top, the distribution board in the middle, XIAO stack front-right at the USB-C hole, L76K behind it at the switch window">
+      </figure>
+      <ul class="keylist">
+        <li><i style="background:#7d2b7a"></i><b>BME280</b> front-left, flat on the floor, its sensor end against the foam at the vent. It stays away from the XIAO, which warms in flight.</li>
+        <li><i style="background:#d4901f"></i><b>Battery</b> behind it, in the bay ribs, its lead toward the middle. The BME280 board is its front stop.</li>
+        <li><i style="background:#22695c"></i><b>LSM6DS3</b> on foam tape on top of the battery, any way round.</li>
+        <li><i style="background:#a7744a"></i><b>Distribution board</b> in the middle strip, flat, strips running front to back.</li>
+        <li><i style="background:#4b7398"></i><b>XIAO + Wio-SX1262</b> front-right in its cradle, USB-C through the end wall.</li>
+        <li><i style="background:#3d7a58"></i><b>L76K</b> behind the XIAO in its guides. The slide switch sits in the end-wall window beside it.</li>
+        <li><b>In the lid:</b> the GNSS patch over the front-left (ceramic side to the sky), the buzzer over the battery under its hole ring, the LoRa antenna taped at least 10 mm from the patch. The Wi-Fi/BLE antenna goes on a tray wall, away from the battery.</li>
+      </ul>
+    </div>
+  </section>
+
   <section class="block" aria-labelledby="tools">
     <header><h2 class="section-h" id="tools">What you need on the bench</h2></header>
     <div class="cols">
@@ -388,10 +468,11 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
         <ul class="prose">
           <li><b>LiPo, 1 cell, 3.7 V, with a protection board</b>. Size it from the battery section below: 500 mAh is about 4–6 h of flying, 1000 mAh about 8–12 h. It must come with a 2-pin <b>JST-PH 2.0</b> plug, plus a matching socket lead for the XIAO side.</li>
           <li><b>Small slide switch</b> (SPDT, 2–3 mm pitch), rated ≥ 0.5 A.</li>
-          <li><b>Stripboard</b> (copper strips, "Veroboard"), a 25 × 35 mm piece: the distribution board.</li>
+          <li><b>Stripboard</b> (copper strips, "Veroboard"): a 4-strip piece, 7 holes long (about 10 × 18 mm), for the distribution board.</li>
           <li><b>2 × 10 kΩ resistors</b>, ¼ W or 0603, for the L76K pull-ups.</li>
           <li><b>Silicone wire</b>, 26–28 AWG, red and black, for the battery leads.</li>
           <li>Optional: a <b>USB power meter</b>, to measure what the unit really draws.</li>
+          <li><b>For the case:</b> the printed tray and headless lid (PETG, light colour), 4 × M2 heat-set inserts, 4 × M2 × 6 countersunk screws, a 10 × 10 mm piece of open-cell foam, double-sided foam tape, and a cord to tie it to the harness. Strap plate and its 2 × M2 × 4 screws if it goes on a riser. Details in the case and remote guide.</li>
         </ul>
       </div>
     </div>
@@ -442,7 +523,7 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
       </div></li>
       <li><div class="body">
         <h4>Make the distribution board</h4>
-        <p>Cut a 25 × 35 mm piece of stripboard with at least 4 copper strips. Strip 1 is <b>3V3</b>, 2 is <b>GND</b>, 3 is <b>SDA</b>, 4 is <b>SCL</b>. Mark them with a pen on the plain side. Each strip needs about 6 holes: one wire in from the XIAO, and the rest out to the modules.</p>
+        <p>Cut a piece of stripboard 4 copper strips wide and 7 holes long (about 10 × 18 mm), to fit the middle of the case. Strip 1 is <b>3V3</b>, 2 is <b>GND</b>, 3 is <b>SDA</b>, 4 is <b>SCL</b>. Mark them with a pen on the plain side. Each strip takes one wire in from the XIAO and the rest out to the modules: 3V3 and GND carry five wires each, SDA and SCL three.</p>
         <div class="check"><b>Check</b>Continuity beep along each strip, and silence between neighbouring strips. Scrape any copper whiskers between strips with a knife.</div>
       </div></li>
       <li><div class="body">
@@ -497,6 +578,26 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
         <h4>Strain relief and a shake test</h4>
         <p>Tack every wire bundle down with Kapton or small dabs of hot glue, near the joints but not on them. Then shake the board gently while watching the console: no resets and no sensor dropouts in <code>health</code>.</p>
       </div></li>
+      <li><div class="body">
+        <h4>Prepare the case</h4>
+        <p>Print the tray and the headless lid. Press the four M2 inserts into the corner bosses with the iron at about 220 °C, keeping them square. Test-fit the lid empty: the skirt slides in without force and the screws pull it flat. Push the foam into the pocket behind the vent hole.</p>
+      </div></li>
+      <li><div class="body">
+        <h4>Into the case, in this order</h4>
+        <ul>
+          <li>Battery into its bay on foam tape, with Kapton over its top. Switch off, battery unplugged.</li>
+          <li>BME280 flat in front of it, sensor end against the foam.</li>
+          <li>XIAO stack into its cradle. Check the USB-C plug goes in through the hole before anything is taped.</li>
+          <li>L76K into its guides, and the slide switch into the end-wall window with a drop of glue from inside.</li>
+          <li>Distribution board flat in the middle; LSM6DS3 on foam tape on the battery.</li>
+          <li>In the lid: GNSS patch in its frame (ceramic side against the lid), buzzer in its frame, LoRa antenna taped at least 10 mm from the patch.</li>
+        </ul>
+        <div class="check"><b>Check</b>Lid resting on, not screwed: switch on, run <code>health</code>. Everything still reports and nothing is pinched.</div>
+      </div></li>
+      <li><div class="body">
+        <h4>Close up and test outside</h4>
+        <p>Screw the lid down. Outside with a clear sky, the GNSS should fix within a minute or two with the lid on. Run <code>beep stay</code> where you'll mount it. Tie the tether before the first flight.</p>
+      </div></li>
     </ol>
   </section>
 
@@ -529,7 +630,7 @@ svg text { font-family: var(--f-mono); fill: var(--ink); }
             </tbody>
           </table>
         </div>
-        <p>For long cross-country days, take the 1000 mAh if it fits the case. We'll size the case around whichever you buy.</p>
+        <p>The case is drawn for the 500 mAh cell (503035). A 1000 mAh cell (603450, 50 × 34 × 6) needs a longer case: set <code>battery</code> and the case length in <code>hardware/enclosure/instrument.scad</code> and re-export.</p>
       </div>
       <div class="prose">
         <h3>Safety</h3>
