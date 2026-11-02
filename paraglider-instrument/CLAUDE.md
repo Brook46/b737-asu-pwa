@@ -126,7 +126,8 @@ workers, Pages deploy) apply here.
   xvfb-run) to regenerate `hardware/stl/` and `docs/build/`, and keep every
   part free of OpenSCAD's "not a valid 2-manifold" warning.
 * The GNSS patch never goes under the screen board (its ground plane shades
-  it). The vent and BME280 stay at the end away from the XIAO and battery.
+  it). The vent and BME280 stay at the end away from the XIAO (it warms in
+  flight; the battery only warms while charging on the ground).
 * Remote buttons: the command bytes live in `lib/core/src/remote.h`
   (`NextPage` 0x0D included); the press map is in docs/physical-build.html.
   The remote's own firmware (XIAO ESP32-C6, Arduino 3.x) doesn't exist yet.
