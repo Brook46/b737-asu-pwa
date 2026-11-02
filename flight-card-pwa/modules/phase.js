@@ -4,7 +4,7 @@
 // only runs while the app is open) the clock decides, with any CTOT delay
 // added on, so a held aircraft isn't called airborne. It can only guess, which
 // is why the screen's switch overrides it for the leg.
-import { legTs, nearestHm } from './dates.js?v=211';
+import { legTs, nearestHm } from './dates.js?v=212';
 
 const TAXI_MS = 25 * 60000;     // STD → airborne, near enough
 const ARRIVE_MS = 20 * 60000;   // STA → back on the ground

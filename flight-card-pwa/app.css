@@ -3828,3 +3828,49 @@ body[data-phase="air"] #ready-line { display: none; }
 @media (prefers-reduced-motion: reduce) { .checklist-float { animation: none !important; } }
 .checklist-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px; -webkit-overflow-scrolling: touch; }
 #logbook-export-row[hidden] { display: none; }
+
+/* ---------- Flight time limits (OM A 7.2) ---------- */
+.ftl-nav { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.ftl-nav-mid { text-align: center; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ftl-nav-mid small { display: block; font-size: 12px; font-weight: 400; color: var(--fg-mute); }
+.ftl-nav .btn:disabled { opacity: .3; }
+.ftl-rows { display: flex; flex-direction: column; margin-top: 10px; }
+.ftl-row, .ftl-leg {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 8px 0; border-top: 1px solid var(--line-soft);
+}
+.ftl-row span, .ftl-leg > span:first-child { font-size: 14px; }
+.ftl-row small, .ftl-leg small, .ftl-ltt small { display: block; font-size: 11px; color: var(--fg-mute); }
+.ftl-row b, .ftl-ltt b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.ftl-ltt { text-align: right; font-variant-numeric: tabular-nums; }
+.ftl-rows .is-good, .ftl-live.is-good { color: var(--good); }
+.ftl-rows .is-warn, .ftl-live.is-warn, .ftl-bar.is-warn .an-bar-count { color: var(--warn); }
+.ftl-rows .is-bad, .ftl-live.is-bad, .ftl-ltt.is-bad, .ftl-bar.is-bad .an-bar-count { color: var(--danger); }
+.ftl-bar.is-warn .an-bar-fill { background: var(--warn); }
+.ftl-bar.is-bad .an-bar-fill { background: var(--danger); }
+.ftl-live { margin-top: 8px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ftl-warn { margin: 10px 0 0; padding: 8px 10px; border-radius: var(--radius-ctl); background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); font-size: 13px; font-weight: 600; }
+.ftl-ctls { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.ftl-ctl { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; }
+.ftl-ctl .view-switch { margin: 0; }
+.ftl-ctl .vs-btn { min-width: 0; padding: 6px 12px; font-size: 13px; }
+.ftl-check { justify-content: flex-start; color: var(--fg-mute); font-size: 13px; }
+.ftl-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.ftl-note { margin: 10px 0 0; font-size: 12px; color: var(--fg-mute); }
+.ftl-foot { text-align: center; margin: 0; }
+.ftl-rules summary { list-style: none; cursor: pointer; }
+.ftl-rules summary::-webkit-details-marker { display: none; }
+.ftl-rules summary h4 { margin: 0; }
+.ftl-rules summary h4::after { content: ' ›'; }
+.ftl-rules[open] summary h4::after { content: ' ⌄'; }
+.ftl-cap { margin: 14px 0 6px; font-size: 12px; color: var(--fg-mute); }
+.ftl-scroll { overflow-x: auto; }
+.ftl-tbl { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; }
+.ftl-tbl-a { width: auto; }
+.ftl-tbl th, .ftl-tbl td { padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--line-soft); }
+.ftl-tbl th { color: var(--fg-mute); font-weight: 500; white-space: nowrap; }
+.ftl-tbl td.is-on { background: var(--accent); color: var(--on-accent); font-weight: 700; border-radius: 6px; }
+.ftl-list { margin: 12px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.ftl-list li + li { margin-top: 6px; }
+.ftl-bar { grid-template-columns: 132px 1fr 56px; }
+.ftl-bar .an-bar-track { background: var(--bg-sunk); }

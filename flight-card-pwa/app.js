@@ -1,15 +1,15 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=211';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=211';
-import * as storage from './modules/storage.js?v=211';
-import * as dataCard from './modules/data-card.js?v=211';
-import * as checklist from './modules/checklist.js?v=211';
-import * as speeches from './modules/speeches.js?v=211';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=211';
-import { autoPhase } from './modules/phase.js?v=211';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=211';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=211';
+import { DUTY_KINDS } from './modules/duties.js?v=212';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=212';
+import * as storage from './modules/storage.js?v=212';
+import * as dataCard from './modules/data-card.js?v=212';
+import * as checklist from './modules/checklist.js?v=212';
+import * as speeches from './modules/speeches.js?v=212';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=212';
+import { autoPhase } from './modules/phase.js?v=212';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=212';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=212';
 
 const $ = (id) => document.getElementById(id);
 
@@ -242,6 +242,7 @@ let histShowAllPast = false;
 // paintPrintPreview reads it too, and a let still in its temporal dead zone
 // throws even under typeof.
 let pdfReady = null;
+let ftlIdx = null, ftlOpts = {};   // Flight time limits sheet: duty shown, hand-set options
 let pdfModule = null;   // print-pdf.js once loaded, so a ready PDF shares with no await first
 // Social-note highlighter: the last selection made inside the Social note, as
 // character offsets. Kept because on iPad, tapping a colour button can clear
@@ -292,7 +293,7 @@ queueMicrotask(maybeAutoJumpToCurrentLeg);
 // Logbook auto-push (hosted .ics the calendar apps subscribe to) — wired
 // off the critical path; the module further defers its first push by 8s
 // and only hits the network when the calendar content actually changed.
-import('./modules/logbook-push.js?v=211').then(m => m.init())
+import('./modules/logbook-push.js?v=212').then(m => m.init())
   .catch(err => console.warn('logbook-push init failed', err));
 // If this load came from tapping the header ↻, refresh every remote source
 // too. Deferred so it never competes with first paint (and so the functions
@@ -309,7 +310,7 @@ async function consumeRosterFromUrl() {
   const raw = q.get('roster');
   if (!raw) return;
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=211');
+    const { parseRoster } = await import('./modules/roster.js?v=212');
     const parsed = parseRoster(raw);
     if (parsed) {
       await applyRoster(parsed);
@@ -437,7 +438,7 @@ async function syncRouteDock(key, focus) {
   const was = dockedKey;
   dockedKey = key;
   try {
-    const ru = await import('./modules/route-ui.js?v=211');
+    const ru = await import('./modules/route-ui.js?v=212');
     ru.wire();
     if (key && key === was) ru.focusAirport(focus);
     else if (key) await ru.dock({ focus });
@@ -472,8 +473,8 @@ async function paintBeforeWx(leg, force = false) {
     .map(([src, name, code]) => [src, name, String(code || '').toUpperCase()]).filter(e => e[2]);
   let wx, ru;
   try {
-    wx = await import('./modules/wx.js?v=211');
-    ru = await import('./modules/route-ui.js?v=211');
+    wx = await import('./modules/wx.js?v=212');
+    ru = await import('./modules/route-ui.js?v=212');
     await wx.codesReady();
   } catch { return; }
   // Coloured by the Route card's own rules, so the two always agree.
@@ -530,7 +531,7 @@ $('before-wx').addEventListener('submit', async (e) => {
   if (code) {
     // An airport the app knows (either code), or any four letters.
     let known = /^[A-Z]{4}$/.test(code);
-    try { const ri = await import('./modules/route-info.js?v=211'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
+    try { const ri = await import('./modules/route-info.js?v=212'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
     if (!known) { toast(`${code} isn't an airport the app knows`); return; }
   }
   setAltn(arr, code);
@@ -639,7 +640,7 @@ async function paintTlvBoard(force = false) {
   const seq = (paintTlvBoard.seq = (paintTlvBoard.seq || 0) + 1);
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   let tb = null;
-  try { tb = await import('./modules/tlv-board.js?v=211'); } catch {}
+  try { tb = await import('./modules/tlv-board.js?v=212'); } catch {}
   if (!leg || !tb || !tb.applies(leg)) { el.hidden = true; return; }
   const b = await tb.boardFor(leg, { force });
   if (seq !== paintTlvBoard.seq) return;          // the leg changed meanwhile
@@ -1418,6 +1419,7 @@ const TOP_ACTIONS = {
   'radar':           () => navigator.onLine === false ? toast('Radar needs internet') : doRadar(),
   'asu':             () => doAirspeedUnreliable(),
   'systems':         () => doSystems(),
+  'ftl':             () => openFtl(),
   'pa-toggle':       () => speeches.open(),
   'settings':        () => openSettingsSheet(),
   'leg-prev':        () => pickLeg(storage.getLegIndex() - 1),
@@ -1491,7 +1493,7 @@ $('clear-overlay').addEventListener('click', (e) => {
 let printMod = null;
 async function openPrintSheet() {
   try {
-    printMod = printMod || await import('./modules/print.js?v=211');
+    printMod = printMod || await import('./modules/print.js?v=212');
   } catch (err) {
     console.warn('print module failed to load', err);
     toast('Print unavailable — check connection');
@@ -1887,7 +1889,7 @@ $('print-pdf').addEventListener('click', async () => {
   btn.textContent = 'Preparing PDF\u2026';
   let pdfMod;
   try {
-    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=211');
+    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=212');
   } catch {
     resetPdfButton();
     toast('PDF unavailable \u2014 check connection');
@@ -2060,7 +2062,7 @@ async function paintSettingsStatus() {
     const m = Math.round((Date.now() - ms) / 60000);
     return m < 2 ? 'just now' : m < 90 ? `${m} min ago` : m < 2160 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
   };
-  const cal = await import('./modules/calendar.js?v=211');
+  const cal = await import('./modules/calendar.js?v=212');
   const at = cal.getLastSyncAt();
   put('calendar', !cal.isConfigured() ? 'Not set up' : at ? `Synced ${ago(at)}` : 'Not synced yet');
   await paintSensorsPanel();
@@ -2137,11 +2139,11 @@ $('roster-parse').addEventListener('click', async () => {
   const text = $('roster-text').value || '';
   if (!text.trim()) { toast('Paste your roster first'); return; }
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=211');
+    const { parseRoster } = await import('./modules/roster.js?v=212');
     const parsed = parseRoster(text);
     if (!parsed || !parsed.flights?.length) {
       // Not a roster — maybe the slot message (ACARS SAM, dispatch text).
-      const { parseFmcText } = await import('./modules/ocr.js?v=211');
+      const { parseFmcText } = await import('./modules/ocr.js?v=212');
       const ctot = parseFmcText(text).ctot;
       if (ctot) {
         storage.setDataField('ctot', ctot);
@@ -2191,7 +2193,7 @@ $('settings-overlay').addEventListener('click', (e) => {
 // the calendar module's setCalendarUrl helper. paintCalendarSection
 // loads any previously-saved URL back into the field when the sheet opens.
 async function paintCalendarSection() {
-  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=211');
+  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=212');
   const input = $('cal-url');
   if (input && document.activeElement !== input) input.value = getCalendarUrl();
   const status = $('cal-status');
@@ -2204,7 +2206,7 @@ async function paintCalendarSection() {
   }
   // Logbook auto-push panel — URL + last-push status.
   try {
-    const lp = await import('./modules/logbook-push.js?v=211');
+    const lp = await import('./modules/logbook-push.js?v=212');
     const urlInput = $('lbpush-url');
     if (urlInput) urlInput.value = lp.subscribeUrls().https;
     paintLbPushStatus(lp.lastPushedAt());
@@ -2221,7 +2223,7 @@ function paintLbPushStatus(at, errText = '') {
 }
 $('lbpush-copy').addEventListener('click', async () => {
   try {
-    const lp = await import('./modules/logbook-push.js?v=211');
+    const lp = await import('./modules/logbook-push.js?v=212');
     // Copy the https form — iOS Settings' "Add Subscribed Calendar" wants
     // a URL it can paste; webcal:// only helps as a tappable link.
     await navigator.clipboard.writeText(lp.subscribeUrls().https);
@@ -2233,7 +2235,7 @@ $('lbpush-copy').addEventListener('click', async () => {
 });
 $('cal-url').addEventListener('input', async () => {
   try {
-    const { setCalendarUrl } = await import('./modules/calendar.js?v=211');
+    const { setCalendarUrl } = await import('./modules/calendar.js?v=212');
     setCalendarUrl($('cal-url').value);
   } catch (err) {
     console.warn('cal url save failed', err);
@@ -2256,7 +2258,7 @@ async function runCalendarSync(source) {
   }
   calSyncRunning = true;
   try {
-    const cal = await import('./modules/calendar.js?v=211');
+    const cal = await import('./modules/calendar.js?v=212');
     // Save current input first in case the user just edited but didn't blur.
     if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
     // NOT `source` — this function's own parameter is called `source`, and a
@@ -2374,14 +2376,14 @@ async function runFullSync({ quiet = false } = {}) {
   if (!quiet) toast('Refreshing…');
   const done = [];
   try {
-    const { isConfigured } = await import('./modules/calendar.js?v=211');
+    const { isConfigured } = await import('./modules/calendar.js?v=212');
     if (isConfigured() && await runCalendarSync('auto')) done.push('calendar');
   } catch (err) { console.warn('refresh: calendar sync failed', err); }
   try {
     if (await maybeSyncSocialNotes(true)) done.push('notes');
   } catch (err) { console.warn('refresh: social sync failed', err); }
   try {
-    const lp = await import('./modules/logbook-push.js?v=211');
+    const lp = await import('./modules/logbook-push.js?v=212');
     const res = await lp.pushNow({ force: true });
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
@@ -2393,7 +2395,7 @@ async function runFullSync({ quiet = false } = {}) {
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
     if (leg && leg.dep && leg.arr && Number.isFinite(std) && Date.now() < std + 20 * 3600000) {
-      const ru = await import('./modules/route-ui.js?v=211');
+      const ru = await import('./modules/route-ui.js?v=212');
       ru.wire();
       await ru.ensureSaved();
       if (await ru.refresh(false)) done.push('route weather');
@@ -2507,7 +2509,7 @@ const AUTO_SYNC_WINDOW_MS   = 3 * 60 * 60 * 1000;   // 3h pre-departure
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;       // at most once / hr
 async function maybeAutoSyncCalendar() {
   try {
-    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=211');
+    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=212');
     if (!isConfigured()) return;
     const now = Date.now();
     if (now - getLastSyncAt() < AUTO_SYNC_COOLDOWN_MS) return;
@@ -2562,7 +2564,7 @@ $('airport-route')?.addEventListener('click', async () => {
   const code = airportNoteFor;
   const leg = routeReturnLeg;
   try {
-    const ru = await import('./modules/route-ui.js?v=211');
+    const ru = await import('./modules/route-ui.js?v=212');
     ru.wire();
     if (!$('route-overlay').classList.contains('hidden')) {
       flushAirportNotes();
@@ -2607,7 +2609,7 @@ async function updateNearChip() {
   nearPrevFix = fix;
   const g = { lat: fix.lat, lon: fix.lon, altFt: (fix.altM || 0) * 3.28084, gs: (fix.speedMps || 0) * 1.94384, trk: trk ?? 0, airborne: true };
   try {
-    const ru = await import('./modules/route-ui.js?v=211');
+    const ru = await import('./modules/route-ui.js?v=212');
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const n = await ru.nearestNow(leg, g);
     if (!n) return hide();
@@ -2623,7 +2625,7 @@ async function routeAutoUpdate() {
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
   if (!Number.isFinite(std) || Date.now() < std - 12 * 3600000 || Date.now() > std + 20 * 3600000) return;
-  const ru = await import('./modules/route-ui.js?v=211');
+  const ru = await import('./modules/route-ui.js?v=212');
   ru.wire();
   await ru.autoUpdate();
   paintReadyLine();
@@ -2648,7 +2650,7 @@ async function paintReadyLine() {
   }
   let r = null;
   try {
-    const ru = await import('./modules/route-ui.js?v=211');
+    const ru = await import('./modules/route-ui.js?v=212');
     r = await ru.readiness(leg);
   } catch (err) { console.warn('readiness skipped', err); }
   if (seq !== paintReadyLine.seq) return;
@@ -2680,13 +2682,13 @@ setInterval(() => { try { paintReadyLine(); paintPhase(); } catch {} }, 60 * 100
   const ex = $('div-exclude'), pen = $('div-penalty');
   if (!ex || !pen) return;
   const load = async () => {
-    const ri = await import('./modules/route-info.js?v=211');
+    const ri = await import('./modules/route-info.js?v=212');
     const r = ri.getCountryRules();
     ex.value = r.exclude.join(' ');
     pen.value = Object.entries(r.penalty).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ');
   };
   const save = async () => {
-    const ri = await import('./modules/route-info.js?v=211');
+    const ri = await import('./modules/route-info.js?v=212');
     const exclude = (ex.value.toUpperCase().match(/\b[A-Z]{2}\b/g) || []);
     const penalty = {};
     for (const m of pen.value.toUpperCase().matchAll(/\b([A-Z]{2})\s*([+-]?\d+(?:\.\d+)?)/g)) penalty[m[1]] = Number(m[2]);
@@ -2743,7 +2745,7 @@ $('logbook-export-btn').addEventListener('click', () => {
   $('logbook-export-btn').setAttribute('aria-expanded', String(!row.hidden));
 });
 async function exportLogbook(ext, type, build) {
-  const lb = await import('./modules/logbook.js?v=211');
+  const lb = await import('./modules/logbook.js?v=212');
   const legs = lb.allStoredLegs();
   if (!legs.length) { toast('No flights to export yet'); return; }
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -2785,9 +2787,9 @@ async function paintAnalytics() {
   const keepScroll = body.closest('.ocr-sheet')?.scrollTop || 0;
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
-    const an = await import('./modules/analytics.js?v=211');
-    const airports = await import('./modules/airports.js?v=211');
-    const world = await import('./modules/worldmap.js?v=211');
+    const an = await import('./modules/analytics.js?v=212');
+    const airports = await import('./modules/airports.js?v=212');
+    const world = await import('./modules/worldmap.js?v=212');
     const data = an.snapshot(anYear, anFilters);
     data.routeLegs = an.flownRoutes(data.pool);
     data.heatFrom = an.heatFrom;
@@ -2918,7 +2920,7 @@ async function openLogbook(focusKey = '') {
   const body = $('logbook-body');
   body.innerHTML = '<p class="lb-empty">Loading…</p>';
   try {
-    const lb = await import('./modules/logbook.js?v=211');
+    const lb = await import('./modules/logbook.js?v=212');
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
     await ensureLbAirports();
     // Past duties only: the logbook is what happened.
@@ -2949,6 +2951,195 @@ $('duty-overlay').addEventListener('click', (e) => {
 });
 $('logbook-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'logbook-overlay') hideOverlay('logbook-overlay');
+});
+
+// ---------- Flight time limits (OM A 7.2) ----------
+// From the ••• menu for now. modules/ftl.js does the sums; this paints them.
+// ftlIdx / ftlOpts (declared at the top) hold the duty shown and any
+// pilot-count, rest-class or acclimation the pilot set by hand for it.
+async function openFtl() {
+  ftlIdx = null; ftlOpts = {};
+  showOverlay('ftl-overlay'); raiseOverlay('ftl-overlay');
+  $('ftl-body').innerHTML = '<p class="lb-empty">Working it out…</p>';
+  await paintFtl();
+}
+async function paintFtl() {
+  const body = $('ftl-body');
+  try {
+    const ftl = await import('./modules/ftl.js?v=212');
+    let lonOf = null;
+    try {
+      const ri = await import('./modules/route-info.js?v=212');
+      const db = await ri.loadDb();
+      lonOf = (c) => ri.findAirport(db, c)?.lon;
+    } catch {}
+    const r = ftl.evaluate({
+      legs: storage.everyLeg(), duties: storage.getDuties(),
+      activeLeg: storage.getLegs()[storage.getLegIndex()],
+      idx: ftlIdx, opts: { ...ftlOpts, lonOf }, taxiOf: taxiMinutes,
+    });
+    ftlIdx = r.empty ? null : r.i;
+    body.innerHTML = r.empty
+      ? '<p class="lb-empty">No flights stored yet — sync the calendar or add a roster first.</p>'
+      : renderFtl(ftl, r);
+  } catch (err) {
+    console.warn('ftl failed', err);
+    body.innerHTML = '<p class="lb-empty">Couldn\'t work out the limits.</p>';
+  }
+}
+function ftlH(h) {
+  if (h == null || !Number.isFinite(h)) return '—';
+  const m = Math.round(Math.abs(h) * 60);
+  return `${h < 0 ? '−' : ''}${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+}
+function ftlZ(ms) {
+  const d = new Date(ms);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}Z`;
+}
+function ftlDay(ms) {
+  const d = new Date(ms);
+  return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+// Margin left against a limit: green with an hour to spare, amber inside
+// the hour, red past it.
+function ftlSpare(left) { return left < 0 ? `${ftlH(-left)} over` : `${ftlH(left)} spare`; }
+function ftlTone(left) { return left < 0 ? 'is-bad' : left < 1 ? 'is-warn' : 'is-good'; }
+function ftlRow(label, value, tone = '', sub = '') {
+  return `<div class="ftl-row"><span>${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><b class="${tone}">${value}</b></div>`;
+}
+function renderFtl(ftl, r) {
+  const { fdp, lim, rest, cum, ltts } = r;
+  const first = fdp.legs[0].leg;
+  const route = [first.dep, ...fdp.legs.map(l => l.leg.arr)].map(c => esc(c || '—')).join('–');
+  const now = Date.now();
+  const state = fdp.flown ? 'flown' : now >= fdp.report ? 'on duty' : 'planned';
+  const nav = `<div class="ftl-nav">
+      <button type="button" class="btn icon-btn" data-ftl-step="-1" ${r.i ? '' : 'disabled'} aria-label="Previous duty">◀</button>
+      <div class="ftl-nav-mid"><b>${ftlDay(fdp.report)}</b> ${route}<small>${state} · duty ${r.i + 1} of ${r.fdps.length}</small></div>
+      <button type="button" class="btn icon-btn" data-ftl-step="1" ${r.i < r.fdps.length - 1 ? '' : 'disabled'} aria-label="Next duty">▶</button>
+    </div>`;
+
+  const fdpLeft = lim.maxFdp - (lim.actualFdp ?? lim.plannedFdp);
+  const ftUsed = (fdp.flown ? fdp.ft : fdp.plannedFt) / 3600000;
+  const table = lim.augmented
+    ? `Table C · ${lim.pilots} pilots · class ${lim.restClass} rest`
+    : `Table B · ${fdp.segments} segment${fdp.segments === 1 ? '' : 's'}`;
+  const warns = [];
+  if (lim.tooManySegments) warns.push(`Augmented duty is limited to ${ftl.AUG_MAX_SEGMENTS} segments.`);
+  if (lim.plannedFdp > lim.maxFdp) warns.push('The planned FDP is over the limit.');
+  if (fdp.plannedFt / 3600000 > lim.maxFt) warns.push('The planned flight time is over the limit.');
+  const live = r.live && !fdp.flown
+    ? `<div class="ftl-live ${ftlTone(r.live.left)}">On duty ${ftlH(r.live.elapsed)} · ${ftlH(r.live.left)} to the limit</div>` : '';
+  const vs = (attr, vals, on, label) => `<div class="ftl-ctl"><span>${label}</span><div class="view-switch">${vals.map(([v, t]) =>
+    `<button type="button" class="vs-btn${v === on ? ' is-on' : ''}" ${attr}="${v}">${t}</button>`).join('')}</div></div>`;
+  const ctls = `<div class="ftl-ctls">
+      ${vs('data-ftl-pilots', [[2, '2'], [3, '3'], [4, '4']], lim.pilots, 'Pilots')}
+      ${lim.augmented ? vs('data-ftl-class', [[1, 'Class 1'], [2, 'Class 2'], [3, 'Class 3']], lim.restClass, 'Rest facility') : ''}
+      <label class="ftl-ctl ftl-check"><input type="checkbox" data-ftl-accl ${lim.notAccl ? 'checked' : ''}> Not acclimated to the departure station (−0:30)</label>
+    </div>`;
+  const fdpCard = `<div class="an-card">
+      <h4>Flight duty period</h4>
+      <div class="an-big">${ftlH(lim.maxFdp)}</div>
+      <div class="an-big-sub">Max FDP · ${table} · report ${israelHmSafe(ftl, fdp.report)} Israel</div>
+      ${live}
+      <div class="ftl-rows">
+        ${ftlRow('Report', ftlZ(fdp.report), '', `STD − ${ftl.REPORT_MIN}′`)}
+        ${ftlRow('Latest on-blocks', ftlZ(lim.limit), '', 'report + max FDP')}
+        ${ftlRow('With extension', ftlZ(lim.limitExt), '', '+2:00, PIC and FOO')}
+        ${ftlRow(fdp.flown ? 'Actual FDP' : 'Planned FDP', ftlH(lim.actualFdp ?? lim.plannedFdp), ftlTone(fdpLeft), ftlSpare(fdpLeft))}
+        ${ftlRow('Max flight time', ftlH(lim.maxFt), '', lim.augmented ? `${lim.pilots} pilots` : 'Table A')}
+        ${ftlRow(fdp.flown ? 'Flight time (block)' : 'Planned flight time', ftlH(ftUsed), ftlTone(lim.maxFt - ftUsed), ftlSpare(lim.maxFt - ftUsed))}
+      </div>
+      ${warns.map(w => `<p class="ftl-warn">${esc(w)}</p>`).join('')}
+      ${ctls}
+    </div>`;
+
+  const legRows = fdp.legs.map((l, k) => {
+    const t = ltts[k];
+    const timeTxt = l.flown ? `${ftlZ(l.start)}–${ftlZ(l.end)}` : `${ftlZ(l.std)}–${ftlZ(l.sta)}`;
+    const late = !l.flown && (l.std + t.taxi * 60000) > t.ltt;
+    return `<div class="ftl-leg">
+        <span><b>${esc(displayFlight(l.leg.flight) || l.leg.flight || '—')}</b> ${esc(l.leg.dep || '')}–${esc(l.leg.arr || '')}<small>${l.flown ? 'block' : 'sched'} ${timeTxt}</small></span>
+        <span class="ftl-ltt ${l.flown ? '' : late ? 'is-bad' : ''}">${l.flown ? '<small>flown</small>' : `LTT <b>${ftlZ(t.ltt)}</b><small>ext ${ftlZ(t.lttExt)} · taxi ${t.taxi}′</small>`}</span>
+      </div>`;
+  }).join('');
+  const lttCard = `<div class="an-card">
+      <h4>Latest take-off</h4>
+      ${legRows}
+      <p class="ftl-note">Keeps the rest of the duty on its scheduled block and ground times. Notify's LTT is the official one.</p>
+    </div>`;
+
+  const restRows = [];
+  if (rest.before == null) restRows.push(ftlRow('Rest before this duty', '—', '', 'no earlier duty stored'));
+  else restRows.push(ftlRow('Rest before this duty', ftlH(rest.before), ftlTone(rest.before - ftl.MIN_REST_H), `min ${ftl.MIN_REST_H}:00 from release`));
+  restRows.push(ftlRow('Longest free, past 168 h', ftlH(rest.free168), ftlTone(rest.free168 - ftl.FREE_IN_168_H), `min ${ftl.FREE_IN_168_H}:00`));
+  restRows.push(ftlRow('Released', ftlZ(fdp.release), '', `on-blocks + ${ftl.POST_FLIGHT_MIN}′`));
+  restRows.push(ftlRow('Earliest next report', `${ftlDay(rest.earliestNext)} ${ftlZ(rest.earliestNext)}`, '', `release + ${ftl.MIN_REST_H}:00`));
+  if (rest.next) restRows.push(ftlRow('Next duty report', `${ftlDay(rest.next.report)} ${ftlZ(rest.next.report)}`, ftlTone(rest.after - ftl.MIN_REST_H), `${ftlH(rest.after)} rest`));
+  const restCard = `<div class="an-card"><h4>Rest</h4><div class="ftl-rows">${restRows.join('')}</div></div>`;
+
+  const bars = cum.map(c => {
+    const pct = Math.min(100, Math.max(0, c.used / c.max * 100));
+    const tone = c.left < 0 ? 'is-bad' : pct >= 90 ? 'is-warn' : '';
+    return `<div class="an-bar-row ftl-bar ${tone}">
+        <span class="an-bar-label">${esc(c.label)}<span class="an-bar-sub">${esc(c.span)} · max ${c.max}</span></span>
+        <div class="an-bar-track"><div class="an-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <span class="an-bar-count">${ftlH(c.used)}</span>
+      </div>`;
+  }).join('');
+  const short = r.since && r.since > fdp.end - 365 * 86400000;
+  const cumCard = `<div class="an-card">
+      <h4>Cumulative, to the end of this duty</h4>
+      <div class="an-bars">${bars}</div>
+      <p class="ftl-note">${short ? `Stored flights start ${ftlDay(r.since)}.${new Date(r.since).getUTCFullYear()}, so longer windows may read low. Import the sector CSV in the Logbook to fill them. ` : ''}Your own deadhead sectors aren't stored, so they're not counted.</p>
+    </div>`;
+
+  return nav + fdpCard + lttCard + restCard + cumCard + renderFtlTables(ftl, lim) +
+    `<p class="ftl-note ftl-foot">A planning aid from ${esc(ftl.OMA_REV)}. Crew Assignment, OCC and Notify are the authority.</p>`;
+}
+function israelHmSafe(ftl, ms) { try { return ftl.israelHm(ms); } catch { return '—'; } }
+// The OM A tables, the cell in use marked.
+function renderFtlTables(ftl, lim) {
+  const span = (a, b) => `${String(a).padStart(2, '0')}:00–${String(b).padStart(2, '0')}:59`;
+  const num = (v) => String(v).replace('.5', '½');
+  const tb = ftl.TABLE_B.map(([a, b, vals], i) => `<tr><th>${span(a, b)}</th>${vals.map((v, j) =>
+    `<td class="${!lim.augmented && i === lim.row && j === lim.col ? 'is-on' : ''}">${num(v)}</td>`).join('')}</tr>`).join('');
+  const tc = ftl.TABLE_C.map(([a, b, vals], i) => `<tr><th>${span(a, b)}</th>${vals.map((v, j) =>
+    `<td class="${lim.augmented && i === lim.row && j === lim.col ? 'is-on' : ''}">${num(v)}</td>`).join('')}</tr>`).join('');
+  const ta = ftl.TABLE_A.map(([a, b, v]) => `<tr><th>${span(a, b)}</th><td class="${!lim.augmented && lim.hour >= a && lim.hour <= b ? 'is-on' : ''}">${v}</td></tr>`).join('');
+  return `<details class="an-card ftl-rules">
+      <summary><h4>OM A tables and rules</h4></summary>
+      <p class="ftl-cap">Table B · max FDP, 2 pilots · report hour (Israel) × segments</p>
+      <div class="ftl-scroll"><table class="ftl-tbl"><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7+</th></tr>${tb}</table></div>
+      <p class="ftl-cap">Table A · max flight time, 2 pilots</p>
+      <table class="ftl-tbl ftl-tbl-a">${ta}</table>
+      <p class="ftl-cap">Table C · max FDP, augmented (3 segments at most) · rest class × pilots</p>
+      <div class="ftl-scroll"><table class="ftl-tbl"><tr><th></th><th>1·3</th><th>1·4</th><th>2·3</th><th>2·4</th><th>3·3</th><th>3·4</th></tr>${tc}</table></div>
+      <p class="ftl-cap">Augmented flight time: 13 h with 3 pilots, 17 h with 4. The 737 with business class is class 3 (first business row); without it, no rest facility.</p>
+      <ul class="ftl-list">
+        <li>Not acclimated to the departure station: max FDP 30 min less.</li>
+        <li>Report 60 min before STD on the 737, at Tel Aviv and outstations. Post-flight duty 15 min. Deadhead duty starts 20 min before STD, and it isn't a segment.</li>
+        <li>Rest before an FDP: 10 h from release, with 8 h sleep opportunity. 30 h free in any 168 h. After more than 60° of longitude and 168 h away: 56 h at base, with 3 physiological nights.</li>
+        <li>Cumulative: flight time 100 h in 672 h and 1,000 h in 365 days; FDP 60 h in 168 h and 190 h in 672 h.</li>
+        <li>Extension, unforeseen circumstances, before take-off: up to 2 h with PIC and FOO. More than 30 min only once before 30 h free. Cumulative FDP limits still apply. Over 30 min is reported to the CAAI.</li>
+        <li>After take-off: as far as needed to land safely at destination or alternate.</li>
+        <li>Short-call reserve: RAP up to 14 h; RAP + FDP no more than Table B + 4 h or 16 h, whichever is less.</li>
+        <li>Up to 3 consecutive nights into the WOCL (02:00–05:59) freely; up to 5 with a 2 h sleep opportunity in suitable accommodation.</li>
+      </ul>
+    </details>`;
+}
+$('ftl-close').addEventListener('click', () => hideOverlay('ftl-overlay'));
+$('ftl-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ftl-overlay') { hideOverlay('ftl-overlay'); return; }
+  const step = e.target.closest('[data-ftl-step]');
+  if (step) { ftlIdx = (ftlIdx || 0) + Number(step.dataset.ftlStep); ftlOpts = {}; paintFtl(); return; }
+  const p = e.target.closest('[data-ftl-pilots]');
+  if (p) { ftlOpts.pilots = Number(p.dataset.ftlPilots); paintFtl(); return; }
+  const c = e.target.closest('[data-ftl-class]');
+  if (c) { ftlOpts.restClass = Number(c.dataset.ftlClass); paintFtl(); }
+});
+$('ftl-overlay').addEventListener('change', (e) => {
+  if (e.target.matches('[data-ftl-accl]')) { ftlOpts.notAcclimated = e.target.checked; paintFtl(); }
 });
 
 function lbMonthKey(leg) {
@@ -3133,8 +3324,8 @@ function lbKeyOf(o) {
 }
 async function ensureLbAirports() {
   try {
-    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=211');
-    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=211');
+    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=212');
+    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=212');
   } catch (err) { console.warn('map data unavailable', err); }
   return lbAirports;
 }
@@ -3408,7 +3599,7 @@ function wireLogbookRows(body) {
         (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
       if (!leg) { toast('Flight not found'); return; }
       hideOverlay('logbook-overlay');
-      import('./modules/route-ui.js?v=211').then(ru => { ru.wire(); return ru.open(leg); })
+      import('./modules/route-ui.js?v=212').then(ru => { ru.wire(); return ru.open(leg); })
         .catch(err => { console.warn('route info failed', err); toast('Route info failed to load'); });
       return;
     }
@@ -3707,7 +3898,7 @@ async function repaintAnMap() {
   }
   const inRange = legs.filter(r => r.ts >= fromTs && r.ts <= toTs);
   try {
-    const an = await import('./modules/analytics.js?v=211');
+    const an = await import('./modules/analytics.js?v=212');
     const heat = an.heatFrom(inRange);
     $('an-map').innerHTML = heatSvgInner(heat, airports, world, W, H);
     $('an-map-key').textContent = heat.length
@@ -3943,7 +4134,7 @@ $('sectors-csv').addEventListener('change', async (e) => {
   if (status) status.textContent = `Reading ${f.name}…`;
   try {
     const text = await f.text();
-    const { parseSectors } = await import('./modules/sectors-csv.js?v=211');
+    const { parseSectors } = await import('./modules/sectors-csv.js?v=212');
     const res = parseSectors(text);
     const span = (res.from && res.to) ? `\n${fmtDay(res.from)} → ${fmtDay(res.to)}` : '';
     const dh = res.skippedDeadhead
@@ -4012,8 +4203,8 @@ let gpsMod = null;  // lazily imported gps module
 let gMod   = null;  // lazily imported g module
 let gpsActive = false;
 async function loadSensorMods() {
-  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=211');
-  if (!gMod)   gMod   = await import('./modules/g.js?v=211');
+  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=212');
+  if (!gMod)   gMod   = await import('./modules/g.js?v=212');
   return { gps: gpsMod, g: gMod };
 }
 
@@ -4346,7 +4537,7 @@ async function loadWx(opts) {
   refreshBtn.disabled = true;
   refreshBtn.textContent = '…';
   try {
-    const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js?v=211');
+    const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js?v=212');
     const res = await fetchWx(code, opts);
     if (!res) {
       paintWx({ icao: code, letter: '', metar: null, taf: null, datis: null, ts: 0 });
@@ -4637,7 +4828,7 @@ async function showAirportInfo(icao) {
   // Show BOTH codes — IATA · ICAO (e.g. "TLV · LLBG") — plus the city.
   let city = '', codes = k;
   try {
-    const { lookup } = await import('./modules/airports.js?v=211');
+    const { lookup } = await import('./modules/airports.js?v=212');
     const a = lookup(k);
     if (a) {
       city = a.city || '';
@@ -5136,7 +5327,7 @@ async function maybeSyncSocialNotes(force = false) {
       // the leg uses. airports.lookup resolves the pair.
       let expanded = data;
       try {
-        const { lookup } = await import('./modules/airports.js?v=211');
+        const { lookup } = await import('./modules/airports.js?v=212');
         expanded = {};
         for (const [code, val] of Object.entries(data)) {
           const a = lookup(code);
@@ -5231,7 +5422,7 @@ async function handleOcrFile(file) {
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
-    const { ocrImage } = await import('./modules/ocr.js?v=211');
+    const { ocrImage } = await import('./modules/ocr.js?v=212');
     // 90s timeout — if Tesseract or its language data refuses to load (offline
     // first run, blocked CDN, weirdly large image) we bail with a clean error
     // instead of sitting on a spinner forever.
@@ -5258,7 +5449,7 @@ async function handleOcrFile(file) {
 
 async function runParse(text) {
   // Roster first — if the pasted text is a duty roster, take that branch.
-  const { parseRoster } = await import('./modules/roster.js?v=211');
+  const { parseRoster } = await import('./modules/roster.js?v=212');
   const roster = parseRoster(text);
   if (roster) {
     await applyRoster(roster);
@@ -5268,7 +5459,7 @@ async function runParse(text) {
     if (details) details.open = true;
     return;
   }
-  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=211');
+  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=212');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
   // dep / arr deliberately excluded — the roster already sets them and a
