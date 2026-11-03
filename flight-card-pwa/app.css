@@ -3967,9 +3967,17 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 .mynotes-edit-hint { font-size: 12px; color: var(--fg-mute); margin-top: -4px; }
 .mynotes-edit-hint[hidden] { display: none; }
 #mynotes-tabs.is-editing .pa-tab { position: relative; touch-action: none; cursor: grab; animation: mynote-wiggle .28s ease-in-out infinite alternate; }
+#mynotes-tabs.is-editing { -webkit-user-select: none; user-select: none; }
 #mynotes-tabs.is-editing .pa-tab:nth-child(2n) { animation-delay: -.14s; }
-#mynotes-tabs .pa-tab.is-dragging { animation: none; transform: scale(1.06); box-shadow: 0 6px 18px rgba(0,0,0,.18); z-index: 2; }
-@keyframes mynote-wiggle { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+/* Lifted: a touch bigger, a soft shadow, above the rest, no wiggle. The
+   wiggle uses the rotate property, so the glide (transform) and the follow
+   (translate) never fight it. */
+#mynotes-tabs .pa-tab.is-dragging {
+  animation: none; scale: 1.08; z-index: 3; cursor: grabbing;
+  box-shadow: 0 10px 28px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.12);
+  transition: scale .18s cubic-bezier(.25,1,.5,1), box-shadow .18s ease;
+}
+@keyframes mynote-wiggle { from { rotate: -1.2deg; } to { rotate: 1.2deg; } }
 @media (prefers-reduced-motion: reduce) { #mynotes-tabs.is-editing .pa-tab { animation: none; } }
 .mynote-x {
   position: absolute; top: -7px; left: -7px; width: 20px; height: 20px; border-radius: 50%;
