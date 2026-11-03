@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=219';
-import * as ri from './route-info.js?v=219';
-import { legTs, nearestHm } from './dates.js?v=219';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=219';
+import * as storage from './storage.js?v=220';
+import * as ri from './route-info.js?v=220';
+import { legTs, nearestHm } from './dates.js?v=220';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=220';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -47,6 +47,23 @@ let pinned = null;
 // list (an earlier duty, the CSV backfill) — keep the object itself too.
 let pinnedLeg = null;
 const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => String(v ?? '')).join('|');
+// The alternate for this leg's destination, chosen by hand and kept per
+// destination on this device — the same store the Brief's Alternate row
+// uses (fc.altn, keyed by the arrival code). Either code may be stored.
+function altnOf(leg) {
+  try { return String((JSON.parse(localStorage.getItem('fc.altn') || '{}'))[String(leg?.arr || '').toUpperCase()] || '').toUpperCase(); } catch { return ''; }
+}
+function isAltn(ap, leg) { const a = altnOf(leg); return !!a && (a === ap.icao || a === ap.iata); }
+function setAltnFor(leg, code) {
+  try {
+    const all = JSON.parse(localStorage.getItem('fc.altn') || '{}');
+    const k = String(leg?.arr || '').toUpperCase();
+    if (!k) return;
+    if (code) all[k] = code; else delete all[k];
+    localStorage.setItem('fc.altn', JSON.stringify(all));
+  } catch {}
+  window.dispatchEvent(new CustomEvent('fc:altn-changed'));
+}
 function screenLeg() {
   if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
     const hit = storage.getLegs().find(l => idOf(l) === pinned);
@@ -112,11 +129,15 @@ async function build(leg, { doFetch = false } = {}) {
   let cache = readCache(leg);
   if (doFetch) {
     const ids = pool.map(c => c.ap.icao);
+    const alt = altnOf(leg) && ri.findAirport(db, altnOf(leg));
+    if (alt && !ids.includes(alt.icao)) ids.push(alt.icao);
     const wx = await ri.fetchWeather(ids);
     // NOTAMs for 30 — the API is per airport: the major ones round each end
     // first, then the best.
     const key = ri.keyAtEnds(pool, route);
     const top = pool.filter(c => !c.r.excluded).sort((a, b) => key.has(b) - key.has(a) || b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
+    // The alternate's NOTAMs always, whatever its rank.
+    if (alt && !top.includes(alt.icao)) top.unshift(alt.icao);
     // A failed NOTAM fetch keeps the last good set (marked with its age)
     // rather than blanking what the pilot already had.
     let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();
@@ -154,7 +175,8 @@ async function build(leg, { doFetch = false } = {}) {
     mode,
     dbDate: db.v,
     leg, A, B, route, tm, pool, gaps: gaps.filter(g => g.to - g.from > 40),
-    shown: ri.pickShown(pool, route, 4),
+    // The alternate is always on the map and in the list.
+    shown: (() => { const sh = ri.pickShown(pool, route, 4); const a = pool.find(c => isAltn(c.ap, leg)); return a && !sh.includes(a) ? [...sh, a] : sh; })(),
     fetchedAt: cache?.at || 0,
     notamsOff: !cache || cache.notamsOff || !cache.notams,
     notamsErr: cache?.notamsErr || '',
@@ -274,12 +296,13 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
                    nameLen: shortName(c.ap).length, windLen: st && st.label ? st.label.len : 0 });
     // A wide invisible disc under each pin makes it easy to hit with a
     // finger; taps go to the NEAREST pin anyway (wireZoom).
-    return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    const alt = isAltn(c.ap, m.leg);
+    return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}${alt ? ' is-altn' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
-        <circle class="ri-sel-ring" r="${rad + 5}"/>
+        <circle class="ri-sel-ring" r="${rad + 5}"/>${alt ? `<rect class="ri-altn-ring" x="${-rad - 4}" y="${-rad - 4}" width="${2 * rad + 8}" height="${2 * rad + 8}" rx="3" transform="rotate(45)"/>` : ''}
         <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
-        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g></g>`;
+        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 6},${-rad - 4})"><rect x="0" y="-8" width="27" height="11" rx="3"/><text x="13.5" y="0.6">ALTN</text></g>` : ''}</g>`;
   }).join('');
   mapGeom = { W, H: H2, proj, view, pins: pinData };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
@@ -713,8 +736,11 @@ function runwayDiagram(c) {
 // The big NOTAM items, as red tags under the diagram: aerodrome closed,
 // runways closed, ILS / LOC / GP out. Everything else stays in the list.
 function bigNotamTags(c) {
-  const f = c.r.flags;
-  if (!f) return '';
+  const tags = notamTagList(c.r.flags);
+  return tags.length ? `<div class="rd-tags">${tags.map(t => `<span class="rd-tag">⛔ ${esc(t)}</span>`).join('')}</div>` : '';
+}
+function notamTagList(f) {
+  if (!f) return [];
   const tags = [];
   if (f.adClosed) tags.push('AERODROME CLOSED');
   for (const rw of f.rwyClosed) tags.push(`RWY ${rw} CLOSED`);
@@ -724,7 +750,18 @@ function bigNotamTags(c) {
     const rwy = m ? (/^\d/.test(m[1]) ? m[1] : m[2]) : '';
     tags.push(`${sys}${rwy ? ' ' + rwy : ''} U/S`);
   }
-  return tags.length ? `<div class="rd-tags">${[...new Set(tags)].map(t => `<span class="rd-tag">⛔ ${esc(t)}</span>`).join('')}</div>` : '';
+  return [...new Set(tags)];
+}
+// The NOTAMs saved with this leg's route weather for one airport, for the
+// Brief: how many, the big items, and when. null when none are saved.
+export async function notamsFor(leg, code) {
+  const db = await ri.loadDb();
+  const ap = ri.findAirport(db, code);
+  const c = ap && readCache(leg);
+  const n = c?.notams?.[ap.icao];
+  if (!Array.isArray(n)) return null;
+  const r = ri.rate(ap, { distNm: 0, eta: Date.now(), wxEntry: null, notams: n, rules: ri.getCountryRules() });
+  return { icao: ap.icao, count: n.length, tags: notamTagList(r.flags), at: c.notamsAt || c.at };
 }
 function surfaceText(rw) {
   const SURF = { ASP: 'asphalt', ASPH: 'asphalt', ASPHALT: 'asphalt', CON: 'concrete', CONC: 'concrete', CONCRETE: 'concrete', PEM: 'part asphalt / concrete', BIT: 'bitumen', MAC: 'macadam' };
@@ -927,6 +964,9 @@ function cardHtml(c, m) {
           <div class="ri-sub">${esc(ap.city)}${ap.city ? ', ' : ''}${esc(ap.country)} · ${ap.size === 2 ? 'large' : 'medium'} airport · elev ${ap.elev.toLocaleString('en-US')} ft</div></div>
         <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
       </div>
+      ${ap.icao === m.A.icao || ap.icao === m.B.icao ? '' : isAltn(ap, m.leg)
+        ? `<button type="button" class="ri-altn-btn is-on" data-ri-altn="">✓ Alternate for ${esc(m.B.iata || m.B.icao)} · remove</button>`
+        : `<button type="button" class="ri-altn-btn" data-ri-altn="${esc(ap.icao)}">Set as alternate for ${esc(m.B.iata || m.B.icao)}</button>`}
       <div class="view-switch" role="tablist" aria-label="Airport view">
         <button type="button" class="vs-btn" role="tab" aria-selected="false" data-ri-notes>Notes</button>
         <button type="button" class="vs-btn is-on" role="tab" aria-selected="true">Diversion</button>
@@ -994,6 +1034,7 @@ async function paint(model, showAll = false) {
         <button type="button" class="vs-btn" role="tab" data-ri-mapwx="metar">Now · METAR</button>
         <button type="button" class="vs-btn" role="tab" data-ri-mapwx="taf">At ETA · TAF</button>
       </div></div>
+    <div id="ri-cpdlc" class="ri-cpdlc" hidden></div>
     <div id="ri-map-slot" class="ri-map-wrap"></div>
     <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
     <div class="ri-status">
@@ -1283,8 +1324,34 @@ function stopGps() {
   if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} }
   gpsWatch = null;
 }
+// Above the map, airborne with GPS: the FIR we're in, the next one along
+// the way to the destination and its CPDLC log-on (cpdlc.js). Only when
+// it changes does the DOM.
+let cpdlcMod = null;
+async function paintCpdlc(g) {
+  const el = $('ri-cpdlc');
+  if (!el) return;
+  if (!g || !g.airborne || !state) { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=220'); } catch { el.hidden = true; return; }
+  const B = state.model.B;
+  const r = cpdlcMod.nextFir(g, B, g.gs);
+  const tag = (id) => {
+    if (!id) return '';
+    const c = cpdlcMod.cpdlcOf(id);
+    return c.on ? `<span class="ri-cpdlc-on">CPDLC <b>${esc(c.code)}</b></span>${c.note ? ` <small>${esc(c.note)}</small>` : ''}`
+      : `<span class="ri-cpdlc-off">${esc(c.note)}</span>`;
+  };
+  const html = r.next
+    ? `<span class="ri-cpdlc-h">Next</span> <b class="ri-cpdlc-fir">${esc(r.next)}</b> ${tag(r.next)}
+       <span class="ri-cpdlc-when">in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}</span>
+       ${r.here ? `<span class="ri-cpdlc-now">now ${esc(r.here)}${cpdlcMod.cpdlcOf(r.here).on ? ' · ' + esc(cpdlcMod.cpdlcOf(r.here).code) : ''}</span>` : ''}`
+    : r.here ? `<span class="ri-cpdlc-h">In</span> <b class="ri-cpdlc-fir">${esc(r.here)}</b> ${tag(r.here)} <span class="ri-cpdlc-when">to the destination</span>` : '';
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+  el.hidden = !html;
+}
 function paintLive() {
   livePaintAt = Date.now();
+  paintCpdlc(gpsFix).catch(() => {});
   const iso = $('ri-iso'), ac = $('ri-ac'), near = $('ri-near');
   if (!iso || !ac || !mapGeom || !state) return;
   const g = gpsFix;
@@ -1826,6 +1893,16 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const ab = e.target.closest('[data-ri-altn]');
+    if (ab && state) {
+      const icao = ab.closest('.ri-card')?.dataset.icao;
+      setAltnFor(state.model.leg, ab.dataset.riAltn);
+      toast(ab.dataset.riAltn ? `${ab.dataset.riAltn} is the alternate — on the Brief page` : 'Alternate removed');
+      // Rebuild so the alternate joins the map (and its NOTAMs come with
+      // the next update), then reopen its card.
+      build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
+      return;
+    }
     if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }

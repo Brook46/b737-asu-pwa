@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=219" />
+  <link rel="stylesheet" href="./app.css?v=220" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -708,10 +708,12 @@
             <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
             <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
-            <button type="button" class="apt-color" data-apt-color="#e5484d" style="--swatch:#e5484d" title="Red"    aria-label="Red text"></button>
-            <button type="button" class="apt-color" data-apt-color="#f5a524" style="--swatch:#f5a524" title="Amber"  aria-label="Amber text"></button>
-            <button type="button" class="apt-color" data-apt-color="#30a46c" style="--swatch:#30a46c" title="Green"  aria-label="Green text"></button>
-            <button type="button" class="apt-color" data-apt-color="#3b82f6" style="--swatch:#3b82f6" title="Blue"   aria-label="Blue text"></button>
+            <span class="apt-hl-label">Highlight</span>
+            <button type="button" class="apt-color" data-apt-mark="yellow" style="--swatch:#facc15" title="Yellow" aria-label="Highlight yellow"></button>
+            <button type="button" class="apt-color" data-apt-mark="green"  style="--swatch:#30a46c" title="Green"  aria-label="Highlight green"></button>
+            <button type="button" class="apt-color" data-apt-mark="pink"   style="--swatch:#ec4899" title="Pink"   aria-label="Highlight pink"></button>
+            <button type="button" class="apt-color" data-apt-mark="blue"   style="--swatch:#3b82f6" title="Blue"   aria-label="Highlight blue"></button>
+            <button type="button" class="apt-fmt-btn" data-apt-mark="" title="Remove highlight" aria-label="Remove highlight">⌫</button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <button type="button" class="apt-fmt-btn" data-apt-fmt="removeFormat" title="Clear formatting" aria-label="Clear formatting">✕</button>
           </div>
@@ -895,6 +897,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=219"></script>
+  <script type="module" src="./app.js?v=220"></script>
 </body>
 </html>

@@ -131,5 +131,8 @@ function paths(set, boxes, proj, view, close) {{
 }}
 export function borderPaths(proj, view) {{ return paths(BORDERS, BOX_B, proj, view, false); }}
 export function firPaths(proj, view) {{ return paths(FIRS, BOX_F, proj, view, true); }}
+// Each FIR ring decoded ([lon, lat, ...] flat) with its box — for 'which
+// FIR is this point in' (cpdlc.js).
+export function firRings() {{ return FIRS.map((p, i) => ({{ pts: decode(p), box: BOX_F[i] }})); }}
 """)
 print(f'{len(borders)} border lines, {len(firs)} FIR rings, {len(labels)} labels, {os.path.getsize(out) // 1024} KB -> {out}')

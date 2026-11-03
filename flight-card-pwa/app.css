@@ -3738,8 +3738,14 @@ body[data-phase="air"] #ready-line { display: none; }
 .ph-wx + .ph-wx { border-top: 1px solid var(--line); padding-top: 6px; }
 /* The alternate: the same tile, with Change in its corner. */
 .wx-altn { position: relative; }
+.wx-altn-btns { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.wx-altn-notam {
+  padding: 4px 10px; border: 0; border-radius: 999px; background: var(--bg-elev);
+  color: var(--fg-mute); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.wx-altn-notam.is-bad { color: var(--danger); }
 .wx-altn-change {
-  position: absolute; top: 8px; right: 8px; padding: 4px 10px; border: 0; border-radius: 999px;
+  padding: 4px 10px; border: 0; border-radius: 999px;
   background: var(--bg-elev); color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
 }
 .wx-altn-add {
@@ -3911,3 +3917,39 @@ body[data-phase="air"] #ready-line { display: none; }
 }
 .ftl-calc .view-switch [data-ftl-csec], .ftl-calc .view-switch [data-ftl-cext] { padding: 6px 8px; }
 .ftl-top { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+
+/* Route info: the chosen alternate — a magenta diamond round the pin and
+   an ALTN tag, the way an alternate is drawn on a chart. */
+.ri-pin .ri-altn-ring { fill: none; stroke: #d6336c; stroke-width: 2.4; }
+.ri-pin .ri-altn-tag rect { fill: #d6336c; }
+.ri-pin .ri-altn-tag text { fill: #fff; font: 700 8px var(--font-label); text-anchor: middle; letter-spacing: .04em; }
+.ri-altn-btn {
+  display: block; width: 100%; margin: 8px 0 10px; padding: 9px 12px;
+  border: 1.5px solid #d6336c; border-radius: var(--radius-ctl);
+  background: transparent; color: #d6336c; font: 600 14px var(--font-label); cursor: pointer;
+}
+.ri-altn-btn.is-on { background: #d6336c; color: #fff; }
+/* Next FIR and its CPDLC log-on, above the in-flight map. */
+.ri-cpdlc {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  margin: 0 0 8px; padding: 8px 12px; border-radius: var(--radius-ctl);
+  background: var(--bg-sunk); font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.ri-cpdlc[hidden] { display: none; }
+.ri-cpdlc-h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-mute); }
+.ri-cpdlc-fir { font-size: 16px; }
+.ri-cpdlc-on { color: var(--good); font-weight: 600; }
+.ri-cpdlc-on b { font-size: 16px; }
+.ri-cpdlc-off { color: var(--warn); font-weight: 600; }
+.ri-cpdlc small { color: var(--fg-mute); font-size: 12px; }
+.ri-cpdlc-when { color: var(--fg); }
+.ri-cpdlc-now { margin-left: auto; color: var(--fg-mute); font-size: 12px; }
+
+/* Crew card: group messages, above Flight crew. */
+.crew-chat-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.crew-chat {
+  flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 12px; border: 0; border-radius: var(--radius-ctl);
+  background: var(--accent-soft); color: var(--accent); font: 600 14px var(--font-label); cursor: pointer;
+}
+.crew-chat:active { background: var(--accent); color: var(--on-accent); }
