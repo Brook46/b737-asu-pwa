@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=220" />
+  <link rel="stylesheet" href="./app.css?v=221" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -708,26 +708,31 @@
             <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
             <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
-            <span class="apt-hl-label">Highlight</span>
-            <button type="button" class="apt-color" data-apt-mark="yellow" style="--swatch:#facc15" title="Yellow" aria-label="Highlight yellow"></button>
-            <button type="button" class="apt-color" data-apt-mark="green"  style="--swatch:#30a46c" title="Green"  aria-label="Highlight green"></button>
-            <button type="button" class="apt-color" data-apt-mark="pink"   style="--swatch:#ec4899" title="Pink"   aria-label="Highlight pink"></button>
-            <button type="button" class="apt-color" data-apt-mark="blue"   style="--swatch:#3b82f6" title="Blue"   aria-label="Highlight blue"></button>
-            <button type="button" class="apt-fmt-btn" data-apt-mark="" title="Remove highlight" aria-label="Remove highlight">⌫</button>
+            <span class="apt-hl-label">Brush</span>
+            <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+            <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <button type="button" class="apt-fmt-btn" data-apt-fmt="removeFormat" title="Clear formatting" aria-label="Clear formatting">✕</button>
           </div>
-          <!-- Highlighter — Social tab only. Select words, tap a colour. Kept
+          <!-- Highlighter — Social tab only. Pick a brush, then select words. Kept
                on THIS device only: never sent to the feed or to Apple Notes,
                and re-applied after every sync (see hlRender in app.js). -->
           <div id="apt-hl" class="apt-fmt-bar apt-hl-bar hidden" role="toolbar" aria-label="Highlight">
-            <span class="apt-hl-label">Highlight</span>
-            <button type="button" class="apt-color" data-apt-hl="yellow" style="--swatch:#facc15" title="Yellow" aria-label="Highlight yellow"></button>
-            <button type="button" class="apt-color" data-apt-hl="green"  style="--swatch:#30a46c" title="Green"  aria-label="Highlight green"></button>
-            <button type="button" class="apt-color" data-apt-hl="pink"   style="--swatch:#ec4899" title="Pink"   aria-label="Highlight pink"></button>
-            <button type="button" class="apt-color" data-apt-hl="blue"   style="--swatch:#3b82f6" title="Blue"   aria-label="Highlight blue"></button>
+            <span class="apt-hl-label">Brush</span>
+            <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
-            <button type="button" class="apt-fmt-btn" data-apt-hl="" title="Remove highlight" aria-label="Remove highlight">⌫</button>
+            <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+            <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
             <span class="apt-hl-note muted small">This iPad only</span>
           </div>
           <!-- Personal note — hand-edited by the pilot. contenteditable (not a
@@ -897,6 +902,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=220"></script>
+  <script type="module" src="./app.js?v=221"></script>
 </body>
 </html>

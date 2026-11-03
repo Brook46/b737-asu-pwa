@@ -8,10 +8,10 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=220';
-import * as ri from './route-info.js?v=220';
-import { legTs, nearestHm } from './dates.js?v=220';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=220';
+import * as storage from './storage.js?v=221';
+import * as ri from './route-info.js?v=221';
+import { legTs, nearestHm } from './dates.js?v=221';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=221';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -302,7 +302,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
         <circle class="ri-sel-ring" r="${rad + 5}"/>${alt ? `<rect class="ri-altn-ring" x="${-rad - 4}" y="${-rad - 4}" width="${2 * rad + 8}" height="${2 * rad + 8}" rx="3" transform="rotate(45)"/>` : ''}
         <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
-        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 6},${-rad - 4})"><rect x="0" y="-8" width="27" height="11" rx="3"/><text x="13.5" y="0.6">ALTN</text></g>` : ''}</g>`;
+        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 5},${-rad - 3})"><rect x="0" y="-7" width="22" height="9" rx="2.5"/><text x="11" y="0.3">ALTN</text></g>` : ''}</g>`;
   }).join('');
   mapGeom = { W, H: H2, proj, view, pins: pinData };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
@@ -1332,7 +1332,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=220'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=221'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const r = cpdlcMod.nextFir(g, B, g.gs);
   const tag = (id) => {

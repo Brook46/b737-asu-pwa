@@ -3918,17 +3918,17 @@ body[data-phase="air"] #ready-line { display: none; }
 .ftl-calc .view-switch [data-ftl-csec], .ftl-calc .view-switch [data-ftl-cext] { padding: 6px 8px; }
 .ftl-top { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
 
-/* Route info: the chosen alternate — a magenta diamond round the pin and
-   an ALTN tag, the way an alternate is drawn on a chart. */
-.ri-pin .ri-altn-ring { fill: none; stroke: #d6336c; stroke-width: 2.4; }
-.ri-pin .ri-altn-tag rect { fill: #d6336c; }
-.ri-pin .ri-altn-tag text { fill: #fff; font: 700 8px var(--font-label); text-anchor: middle; letter-spacing: .04em; }
+/* Route info: the chosen alternate — a fine magenta diamond round the pin
+   and a small outlined ALTN tag, the way a chart marks an alternate. */
+.ri-pin .ri-altn-ring { fill: none; stroke: #d6336c; stroke-width: 1.2; opacity: .8; }
+.ri-pin .ri-altn-tag rect { fill: var(--bg-elev); stroke: #d6336c; stroke-width: .7; opacity: .92; }
+.ri-pin .ri-altn-tag text { fill: #d6336c; font: 600 6.5px var(--font-label); text-anchor: middle; letter-spacing: .06em; }
 .ri-altn-btn {
-  display: block; width: 100%; margin: 8px 0 10px; padding: 9px 12px;
-  border: 1.5px solid #d6336c; border-radius: var(--radius-ctl);
-  background: transparent; color: #d6336c; font: 600 14px var(--font-label); cursor: pointer;
+  display: block; width: 100%; margin: 8px 0 10px; padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, #d6336c 45%, transparent); border-radius: var(--radius-ctl);
+  background: transparent; color: #d6336c; font: 500 13px var(--font-label); cursor: pointer;
 }
-.ri-altn-btn.is-on { background: #d6336c; color: #fff; }
+.ri-altn-btn.is-on { background: color-mix(in srgb, #d6336c 10%, transparent); }
 /* Next FIR and its CPDLC log-on, above the in-flight map. */
 .ri-cpdlc {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
@@ -3945,11 +3945,10 @@ body[data-phase="air"] #ready-line { display: none; }
 .ri-cpdlc-when { color: var(--fg); }
 .ri-cpdlc-now { margin-left: auto; color: var(--fg-mute); font-size: 12px; }
 
-/* Crew card: group messages, above Flight crew. */
-.crew-chat-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
-.crew-chat {
-  flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 12px; border: 0; border-radius: var(--radius-ctl);
-  background: var(--accent-soft); color: var(--accent); font: 600 14px var(--font-label); cursor: pointer;
-}
-.crew-chat:active { background: var(--accent); color: var(--on-accent); }
+
+/* Highlighter brush: the one in hand is ringed and lifted. */
+.apt-color[data-brush].is-on { border-color: var(--fg); transform: scale(1.18); box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--fg); }
+.apt-fmt-btn[data-brush].is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.apt-fmt-btn:disabled { opacity: .35; cursor: default; }
+.apt-color[data-brush] { transition: transform .15s var(--ease-sheet); }
+.airport-notes.is-brush { cursor: text; border-color: var(--accent); border-style: dashed; }
