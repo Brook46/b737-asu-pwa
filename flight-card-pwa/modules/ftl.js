@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=216';
-import { PILOT_KEYS } from './crew.js?v=216';
+import { legPlanActual } from './dates.js?v=217';
+import { PILOT_KEYS } from './crew.js?v=217';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -275,29 +275,62 @@ export function cumulative(fdps, at) {
 // How far back the stored legs go — a 365-day total is only as good as that.
 export function earliestLeg(fdps) { return fdps.length ? fdps[0].report : null; }
 
-// When the duty will actually end, as far as can be told now: a flown leg's
-// on-blocks; else the plan, moved by the delay the leg in progress shows —
-// from real times only, best first: GPS landing, off-block, GPS take-off,
-// CTOT. Often there's none (no internet, the app closed until airborne), and
-// then it's the schedule. Never the clock, and never which page is open:
-// STD passing while airborne isn't lateness. The delay carries to the end;
+// When the duty will actually end, worked out with nothing for the pilot to
+// type. A flown leg's on-blocks; for the leg in progress the best estimate
+// of its on-blocks, from:
+//   GPS landing                         + taxi-in
+//   GPS position (etaOf, from app.js)   share of the route left × flight time
+//   GPS take-off                        + flight time + taxi-in
+//   CTOT                                the slot pushes the off-block
+//   otherwise                           the schedule
+// Often there's no GPS until airborne (no internet, the app closed), and the
+// estimate is kept from the last fix once the app is closed again. Never the
+// clock, never which page is open. The delay carries to the end of the duty;
 // a turnaround that absorbs it shows up once that leg is flown.
-// basis says which time it came from, for the sheet to tell the pilot.
+// basis says where it came from, for the sheet.
+export const TAXI_IN_MIN = 5;
+// Air time for a leg: the flight time on the card, else block less 20′ taxi.
+export function airMs(l) {
+  const d = l.leg.dataCard || {};
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(d.flight_time || l.leg.flight_time || '').trim());
+  if (m) return ((+m[1]) * 60 + (+m[2])) * MIN;
+  return Math.max(30 * MIN, l.sta - l.std - 20 * MIN);
+}
 export function projectedEnd(fdp, opts = {}) {
   if (fdp.flown) return { end: fdp.end, basis: 'flown' };
   const taxiOf = opts.taxiOf || (() => 15);
+  const tin = TAXI_IN_MIN * MIN;
   let delay = 0, basis = 'schedule';
+  // The latest leg with anything to go on decides: an earlier leg's actual
+  // times often arrive (calendar) only after the duty, so a leg with nothing
+  // is skipped, not taken as the end of what's known.
   for (const l of fdp.legs) {
     if (l.flown) { delay = l.end - l.sta; basis = 'on-blocks'; continue; }
     const p = legPlanActual(l.leg);
-    const taxi = taxiOf(String(l.leg.dep || '').toUpperCase()) * MIN;
-    if (Number.isFinite(p.landing)) { delay = p.landing + 5 * MIN - l.sta; basis = 'GPS landing'; }
-    else if (Number.isFinite(p.obt)) { delay = p.obt - l.std; basis = 'off-block'; }
-    else if (Number.isFinite(p.takeoff)) { delay = p.takeoff - taxi - l.std; basis = 'GPS take-off'; }
-    else if (Number.isFinite(p.ctot)) { delay = Math.max(delay, p.ctot - taxi - l.std); basis = 'CTOT'; }
-    break;
+    const eta = opts.etaOf ? opts.etaOf(l.leg) : NaN;
+    if (Number.isFinite(p.landing)) { delay = p.landing + tin - l.sta; basis = 'GPS landing'; }
+    else if (Number.isFinite(eta)) { delay = eta - l.sta; basis = 'GPS position'; }
+    else if (Number.isFinite(p.takeoff)) { delay = p.takeoff + airMs(l) + tin - l.sta; basis = 'GPS take-off'; }
+    else if (Number.isFinite(p.ctot)) {
+      delay = Math.max(delay, p.ctot - taxiOf(String(l.leg.dep || '').toUpperCase()) * MIN - l.std);
+      basis = 'CTOT';
+    }
   }
   return { end: fdp.plannedEnd + Math.max(0, delay), basis };
+}
+
+// On-blocks estimate from a GPS fix: the share of the great-circle route
+// still to fly, times the leg's air time, plus taxi-in.
+export function etaFromFix(l, fix, depPt, arrPt, now = Date.now()) {
+  const R = Math.PI / 180;
+  const dist = (a, b) => {
+    const x = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2;
+    return 2 * Math.asin(Math.min(1, Math.sqrt(x)));
+  };
+  const done = dist(depPt, fix), left = dist(fix, arrPt);
+  if (!(done + left > 0)) return NaN;
+  const frac = Math.min(1, Math.max(0, left / (done + left)));
+  return now + frac * airMs(l) + TAXI_IN_MIN * MIN;
 }
 
 // Spare FDP for a duty: max FDP against its projected end, in hours
@@ -318,7 +351,7 @@ export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now 
     ltts: legLtts(fdp, lim, taxiOf),
     rest: restFor(fdps, i, duties),
     cum: cumulative(fdps, fdp.end),
-    proj: spareNow(fdp, lim, { taxiOf }),
+    proj: spareNow(fdp, lim, { taxiOf, etaOf: opts.etaOf }),
     since: earliestLeg(fdps),
     live: now >= fdp.report && now <= fdp.release ? { elapsed: (now - fdp.report) / H, left: (lim.limit - now) / H } : null,
   };
