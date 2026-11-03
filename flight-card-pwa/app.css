@@ -1016,11 +1016,6 @@ div.airport-notes {
 }
 div.airport-notes * { -webkit-user-select: text; user-select: text; }
 .apt-tab-row { display: flex; align-items: center; gap: 8px; }
-.apt-copy {
-  margin-left: auto; border: 0; border-radius: 999px; padding: 5px 14px; cursor: pointer;
-  background: var(--bg-sunk); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600;
-}
-.apt-copy:active { background: var(--accent-soft); }
 div.airport-notes.is-empty::before {
   content: attr(data-placeholder);
   color: var(--fg-dim);
@@ -3951,4 +3946,10 @@ body[data-phase="air"] #ready-line { display: none; }
 .apt-fmt-btn[data-brush].is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .apt-fmt-btn:disabled { opacity: .35; cursor: default; }
 .apt-color[data-brush] { transition: transform .15s var(--ease-sheet); }
-.airport-notes.is-brush { cursor: text; border-color: var(--accent); border-style: dashed; }
+.airport-notes.is-brush { cursor: crosshair; border-color: var(--accent); border-style: dashed; touch-action: none; -webkit-touch-callout: none; }
+/* The stroke while the finger is down (CSS Custom Highlight API). */
+::highlight(brush-stroke) { background-color: rgba(250, 204, 21, .45); }
+html[data-brush-stroke="green"] ::highlight(brush-stroke) { background-color: rgba(48, 164, 108, .38); }
+html[data-brush-stroke="pink"]  ::highlight(brush-stroke) { background-color: rgba(236, 72, 153, .33); }
+html[data-brush-stroke="blue"]  ::highlight(brush-stroke) { background-color: rgba(59, 130, 246, .33); }
+html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .25); text-decoration: line-through; }
