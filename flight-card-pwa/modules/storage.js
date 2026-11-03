@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=227';
-import { dateTs, legTs } from './dates.js?v=227';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=227';
+import { flipName } from './roster.js?v=228';
+import { dateTs, legTs } from './dates.js?v=228';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=228';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1677,6 +1677,50 @@ export function deleteHistoryEntry(id) {
 
 // ---------- Export / Import / Reset ----------
 export function exportJson() { return JSON.stringify(read(), null, 2); }
+
+// "Add what's missing" from a backup: nothing on this device is changed or
+// removed — flights, duties, crew, notes and PAs the backup has and this
+// device doesn't are added. Same rule as the calendar: the device's own edits
+// win. Returns what was added, for the toast.
+export function mergeStateFrom(raw) {
+  const other = migrate(JSON.parse(raw));
+  const s = read();
+  const added = { legs: 0, duties: 0, crew: 0, notes: 0, airportNotes: 0, speeches: 0 };
+  const key = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].join('|');
+  const have = new Set(everyLeg().map(key));
+  // Duty records: a whole record when it's new, else only its missing legs.
+  const histIds = new Set(s.history.map(h => h.id));
+  for (const h of other.history || []) {
+    const legs = (h.legs || []).filter(l => !have.has(key(l)));
+    if (!legs.length) continue;
+    legs.forEach(l => have.add(key(l)));
+    added.legs += legs.length;
+    if (!histIds.has(h.id)) s.history.push({ ...h, legs });
+    else s.imported.push(...legs);
+  }
+  for (const l of [...(other.imported || []), ...((other.current && other.current.legs) || [])]) {
+    if (have.has(key(l))) continue;
+    have.add(key(l)); s.imported.push(l); added.legs++;
+  }
+  const dutyIds = new Set(s.duties.map(d => d.uid));
+  for (const d of other.duties || []) if (d && !dutyIds.has(d.uid)) { s.duties.push(d); added.duties++; }
+  s.duties.sort((a, b) => a.start - b.start);
+  for (const [name, c] of Object.entries(other.crew || {})) {
+    const mine = s.crew[name];
+    if (!mine) { s.crew[name] = c; added.crew++; continue; }
+    for (const f of ['nickname', 'phone', 'note']) if (!mine[f] && c[f]) mine[f] = c[f];
+  }
+  for (const k of ['airportNotes', 'airportSocial']) {
+    s[k] = s[k] || {};
+    for (const [code, v] of Object.entries(other[k] || {})) if (v && !s[k][code]) { s[k][code] = v; if (k === 'airportNotes') added.airportNotes++; }
+  }
+  const myIds = new Set((s.myNotes || []).map(n => n.id));
+  for (const n of other.myNotes || []) if (!myIds.has(n.id)) { s.myNotes.push(n); added.notes++; }
+  const spIds = new Set(s.speeches.map(x => x.id));
+  for (const x of other.speeches || []) if (!spIds.has(x.id)) { s.speeches.push(x); added.speeches++; }
+  flush();
+  return added;
+}
 export function importJson(json) {
   const parsed = JSON.parse(json);
   cache = migrate(parsed);

@@ -1,15 +1,15 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=227';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=227';
-import * as storage from './modules/storage.js?v=227';
-import * as dataCard from './modules/data-card.js?v=227';
-import * as checklist from './modules/checklist.js?v=227';
-import * as speeches from './modules/speeches.js?v=227';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=227';
-import { autoPhase } from './modules/phase.js?v=227';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=227';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=227';
+import { DUTY_KINDS } from './modules/duties.js?v=228';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=228';
+import * as storage from './modules/storage.js?v=228';
+import * as dataCard from './modules/data-card.js?v=228';
+import * as checklist from './modules/checklist.js?v=228';
+import * as speeches from './modules/speeches.js?v=228';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=228';
+import { autoPhase } from './modules/phase.js?v=228';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=228';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=228';
 
 const $ = (id) => document.getElementById(id);
 
@@ -300,7 +300,7 @@ queueMicrotask(maybeAutoJumpToCurrentLeg);
 // Logbook auto-push (hosted .ics the calendar apps subscribe to) — wired
 // off the critical path; the module further defers its first push by 8s
 // and only hits the network when the calendar content actually changed.
-import('./modules/logbook-push.js?v=227').then(m => m.init())
+import('./modules/logbook-push.js?v=228').then(m => m.init())
   .catch(err => console.warn('logbook-push init failed', err));
 // If this load came from tapping the header ↻, refresh every remote source
 // too. Deferred so it never competes with first paint (and so the functions
@@ -317,7 +317,7 @@ async function consumeRosterFromUrl() {
   const raw = q.get('roster');
   if (!raw) return;
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=227');
+    const { parseRoster } = await import('./modules/roster.js?v=228');
     const parsed = parseRoster(raw);
     if (parsed) {
       await applyRoster(parsed);
@@ -446,7 +446,7 @@ async function syncRouteDock(key, focus) {
   const was = dockedKey;
   dockedKey = key;
   try {
-    const ru = await import('./modules/route-ui.js?v=227');
+    const ru = await import('./modules/route-ui.js?v=228');
     ru.wire();
     if (key && key === was) ru.focusAirport(focus);
     else if (key) await ru.dock({ focus });
@@ -486,8 +486,8 @@ async function paintBeforeWx(leg, force = false) {
     .map(([src, name, code]) => [src, name, String(code || '').toUpperCase()]).filter(e => e[2]);
   let wx, ru;
   try {
-    wx = await import('./modules/wx.js?v=227');
-    ru = await import('./modules/route-ui.js?v=227');
+    wx = await import('./modules/wx.js?v=228');
+    ru = await import('./modules/route-ui.js?v=228');
     await wx.codesReady();
   } catch { return; }
   // Coloured by the Route card's own rules, so the two always agree.
@@ -553,7 +553,7 @@ $('before-wx').addEventListener('submit', async (e) => {
   if (code) {
     // An airport the app knows (either code), or any four letters.
     let known = /^[A-Z]{4}$/.test(code);
-    try { const ri = await import('./modules/route-info.js?v=227'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
+    try { const ri = await import('./modules/route-info.js?v=228'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
     if (!known) { toast(`${code} isn't an airport the app knows`); return; }
   }
   setAltn(arr, code);
@@ -662,7 +662,7 @@ async function paintTlvBoard(force = false) {
   const seq = (paintTlvBoard.seq = (paintTlvBoard.seq || 0) + 1);
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   let tb = null;
-  try { tb = await import('./modules/tlv-board.js?v=227'); } catch {}
+  try { tb = await import('./modules/tlv-board.js?v=228'); } catch {}
   if (!leg || !tb || !tb.applies(leg)) { el.hidden = true; return; }
   const b = await tb.boardFor(leg, { force });
   if (seq !== paintTlvBoard.seq) return;          // the leg changed meanwhile
@@ -698,7 +698,7 @@ async function paintFdpChip() {
   if (!el) return;
   const seq = (paintFdpChip.seq = (paintFdpChip.seq || 0) + 1);
   try {
-    const ftl = await import('./modules/ftl.js?v=227');
+    const ftl = await import('./modules/ftl.js?v=228');
     if (seq !== paintFdpChip.seq) return;
     const now = Date.now();
     const r = ftl.evaluate({ legs: storage.everyLeg(), duties: [], activeLeg: storage.getLegs()[storage.getLegIndex()], opts: { extOf: ftlExtOf, etaOf: ftlEtaOf }, taxiOf: taxiMinutes, now });
@@ -1546,7 +1546,7 @@ $('clear-overlay').addEventListener('click', (e) => {
 let printMod = null;
 async function openPrintSheet() {
   try {
-    printMod = printMod || await import('./modules/print.js?v=227');
+    printMod = printMod || await import('./modules/print.js?v=228');
   } catch (err) {
     console.warn('print module failed to load', err);
     toast('Print unavailable — check connection');
@@ -1942,7 +1942,7 @@ $('print-pdf').addEventListener('click', async () => {
   btn.textContent = 'Preparing PDF\u2026';
   let pdfMod;
   try {
-    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=227');
+    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=228');
   } catch {
     resetPdfButton();
     toast('PDF unavailable \u2014 check connection');
@@ -2115,7 +2115,7 @@ async function paintSettingsStatus() {
     const m = Math.round((Date.now() - ms) / 60000);
     return m < 2 ? 'just now' : m < 90 ? `${m} min ago` : m < 2160 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
   };
-  const cal = await import('./modules/calendar.js?v=227');
+  const cal = await import('./modules/calendar.js?v=228');
   const at = cal.getLastSyncAt();
   put('calendar', !cal.isConfigured() ? 'Not set up' : at ? `Synced ${ago(at)}` : 'Not synced yet');
   await paintSensorsPanel();
@@ -2126,6 +2126,7 @@ async function paintSettingsStatus() {
   put('lbcal', $('lbpush-url')?.value ? 'On' : 'Off');
   const last = Number(localStorage.getItem('fc.social.lastSync') || 0);
   put('social', !(localStorage.getItem('fc.social.feedUrl') || '').trim() ? 'Off' : last ? `Updated ${ago(last)}` : 'On');
+  paintBackupSection();
 }
 
 // ---- Social-notes feed settings ----
@@ -2192,11 +2193,11 @@ $('roster-parse').addEventListener('click', async () => {
   const text = $('roster-text').value || '';
   if (!text.trim()) { toast('Paste your roster first'); return; }
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=227');
+    const { parseRoster } = await import('./modules/roster.js?v=228');
     const parsed = parseRoster(text);
     if (!parsed || !parsed.flights?.length) {
       // Not a roster — maybe the slot message (ACARS SAM, dispatch text).
-      const { parseFmcText } = await import('./modules/ocr.js?v=227');
+      const { parseFmcText } = await import('./modules/ocr.js?v=228');
       const ctot = parseFmcText(text).ctot;
       if (ctot) {
         storage.setDataField('ctot', ctot);
@@ -2246,7 +2247,7 @@ $('settings-overlay').addEventListener('click', (e) => {
 // the calendar module's setCalendarUrl helper. paintCalendarSection
 // loads any previously-saved URL back into the field when the sheet opens.
 async function paintCalendarSection() {
-  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=227');
+  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=228');
   const input = $('cal-url');
   if (input && document.activeElement !== input) input.value = getCalendarUrl();
   const status = $('cal-status');
@@ -2259,7 +2260,7 @@ async function paintCalendarSection() {
   }
   // Logbook auto-push panel — URL + last-push status.
   try {
-    const lp = await import('./modules/logbook-push.js?v=227');
+    const lp = await import('./modules/logbook-push.js?v=228');
     const urlInput = $('lbpush-url');
     if (urlInput) urlInput.value = lp.subscribeUrls().https;
     paintLbPushStatus(lp.lastPushedAt());
@@ -2276,7 +2277,7 @@ function paintLbPushStatus(at, errText = '') {
 }
 $('lbpush-copy').addEventListener('click', async () => {
   try {
-    const lp = await import('./modules/logbook-push.js?v=227');
+    const lp = await import('./modules/logbook-push.js?v=228');
     // Copy the https form — iOS Settings' "Add Subscribed Calendar" wants
     // a URL it can paste; webcal:// only helps as a tappable link.
     await navigator.clipboard.writeText(lp.subscribeUrls().https);
@@ -2288,7 +2289,7 @@ $('lbpush-copy').addEventListener('click', async () => {
 });
 $('cal-url').addEventListener('input', async () => {
   try {
-    const { setCalendarUrl } = await import('./modules/calendar.js?v=227');
+    const { setCalendarUrl } = await import('./modules/calendar.js?v=228');
     setCalendarUrl($('cal-url').value);
   } catch (err) {
     console.warn('cal url save failed', err);
@@ -2311,7 +2312,7 @@ async function runCalendarSync(source) {
   }
   calSyncRunning = true;
   try {
-    const cal = await import('./modules/calendar.js?v=227');
+    const cal = await import('./modules/calendar.js?v=228');
     // Save current input first in case the user just edited but didn't blur.
     if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
     // NOT `source` — this function's own parameter is called `source`, and a
@@ -2429,14 +2430,14 @@ async function runFullSync({ quiet = false } = {}) {
   if (!quiet) toast('Refreshing…');
   const done = [];
   try {
-    const { isConfigured } = await import('./modules/calendar.js?v=227');
+    const { isConfigured } = await import('./modules/calendar.js?v=228');
     if (isConfigured() && await runCalendarSync('auto')) done.push('calendar');
   } catch (err) { console.warn('refresh: calendar sync failed', err); }
   try {
     if (await maybeSyncSocialNotes(true)) done.push('notes');
   } catch (err) { console.warn('refresh: social sync failed', err); }
   try {
-    const lp = await import('./modules/logbook-push.js?v=227');
+    const lp = await import('./modules/logbook-push.js?v=228');
     const res = await lp.pushNow({ force: true });
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
@@ -2448,7 +2449,7 @@ async function runFullSync({ quiet = false } = {}) {
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
     if (leg && leg.dep && leg.arr && Number.isFinite(std) && Date.now() < std + 20 * 3600000) {
-      const ru = await import('./modules/route-ui.js?v=227');
+      const ru = await import('./modules/route-ui.js?v=228');
       ru.wire();
       await ru.ensureSaved();
       if (await ru.refresh(false)) done.push('route weather');
@@ -2562,7 +2563,7 @@ const AUTO_SYNC_WINDOW_MS   = 3 * 60 * 60 * 1000;   // 3h pre-departure
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;       // at most once / hr
 async function maybeAutoSyncCalendar() {
   try {
-    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=227');
+    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=228');
     if (!isConfigured()) return;
     const now = Date.now();
     if (now - getLastSyncAt() < AUTO_SYNC_COOLDOWN_MS) return;
@@ -2617,7 +2618,7 @@ $('airport-route')?.addEventListener('click', async () => {
   const code = airportNoteFor;
   const leg = routeReturnLeg;
   try {
-    const ru = await import('./modules/route-ui.js?v=227');
+    const ru = await import('./modules/route-ui.js?v=228');
     ru.wire();
     if (!$('route-overlay').classList.contains('hidden')) {
       flushAirportNotes();
@@ -2662,7 +2663,7 @@ async function updateNearChip() {
   nearPrevFix = fix;
   const g = { lat: fix.lat, lon: fix.lon, altFt: (fix.altM || 0) * 3.28084, gs: (fix.speedMps || 0) * 1.94384, trk: trk ?? 0, airborne: true };
   try {
-    const ru = await import('./modules/route-ui.js?v=227');
+    const ru = await import('./modules/route-ui.js?v=228');
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const n = await ru.nearestNow(leg, g);
     if (!n) return hide();
@@ -2678,7 +2679,7 @@ async function routeAutoUpdate() {
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
   if (!Number.isFinite(std) || Date.now() < std - 12 * 3600000 || Date.now() > std + 20 * 3600000) return;
-  const ru = await import('./modules/route-ui.js?v=227');
+  const ru = await import('./modules/route-ui.js?v=228');
   ru.wire();
   await ru.autoUpdate();
   paintReadyLine();
@@ -2703,7 +2704,7 @@ async function paintReadyLine() {
   }
   let r = null;
   try {
-    const ru = await import('./modules/route-ui.js?v=227');
+    const ru = await import('./modules/route-ui.js?v=228');
     r = await ru.readiness(leg);
   } catch (err) { console.warn('readiness skipped', err); }
   if (seq !== paintReadyLine.seq) return;
@@ -2735,13 +2736,13 @@ setInterval(() => { try { paintReadyLine(); paintPhase(); paintFdpChip(); } catc
   const ex = $('div-exclude'), pen = $('div-penalty');
   if (!ex || !pen) return;
   const load = async () => {
-    const ri = await import('./modules/route-info.js?v=227');
+    const ri = await import('./modules/route-info.js?v=228');
     const r = ri.getCountryRules();
     ex.value = r.exclude.join(' ');
     pen.value = Object.entries(r.penalty).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}`).join(', ');
   };
   const save = async () => {
-    const ri = await import('./modules/route-info.js?v=227');
+    const ri = await import('./modules/route-info.js?v=228');
     const exclude = (ex.value.toUpperCase().match(/\b[A-Z]{2}\b/g) || []);
     const penalty = {};
     for (const m of pen.value.toUpperCase().matchAll(/\b([A-Z]{2})\s*([+-]?\d+(?:\.\d+)?)/g)) penalty[m[1]] = Number(m[2]);
@@ -2756,38 +2757,129 @@ setInterval(() => { try { paintReadyLine(); paintPhase(); paintFdpChip(); } catc
 // calendar auto-sync runs from the consolidated module-level visibilitychange
 // listener defined below (alongside the GPS re-arm).
 
-// Filename helper — includes today's date and the active flight # if known,
-// so the receiving device can tell exports apart at a glance in the Files app.
-function exportFilename() {
-  const d = new Date();
-  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const flt = (storage.getCurrent().dataCard.flight || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return flt ? `flightcard-${ymd}-LY${flt}.json` : `flightcard-${ymd}.json`;
+// ---------- Backup (modules/backup.js) ----------
+// Everything in one file, sent by the share sheet to iCloud Drive or Mail;
+// restore shows what a file holds first, then replaces or adds what's
+// missing, with this iPad's state kept aside so a restore can be undone.
+let backupPicked = null;
+function backupAgo(ms) {
+  const d = Math.floor((Date.now() - ms) / 86400000);
+  return d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
 }
-
-$('sync-export').addEventListener('click', async () => {
-  const json = storage.exportJson();
-  const blob = new Blob([json], { type: 'application/json' });
-  const file = new File([blob], exportFilename(), { type: 'application/json' });
+async function paintBackupSection() {
+  const bk = await import('./modules/backup.js?v=228');
+  const l = bk.last();
+  const txt = l ? `Last backup ${backupAgo(l.at)} · ${l.legs} legs` : 'Never backed up';
+  $('backup-last').textContent = txt;
+  const st = $('set-st-backup'); if (st) st.textContent = l ? `Last ${backupAgo(l.at)}` : 'Never';
+  $('backup-undo').hidden = !(await bk.safety());
+}
+async function backupNow() {
+  const bk = await import('./modules/backup.js?v=228');
+  const b = bk.snapshot();
+  const json = JSON.stringify(b);
+  const file = new File([json], bk.filename(b), { type: 'application/json' });
   try {
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Flight Card state', text: file.name });
-      // Share Sheet handles the rest — we don't toast on success because iOS
-      // might still be presenting the sheet.
-      return;
+      await navigator.share({ files: [file], title: 'Flight Card backup', text: file.name });
+      bk.markDone(b);
+      toast('Backed up');
+    } else {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      bk.markDone(b);
+      toast('Saved to Downloads');
     }
   } catch (err) {
-    // User cancelled the share sheet → not an error worth toasting
-    if (err?.name === 'AbortError') return;
-    console.warn('share failed, falling back to download', err);
+    if (err?.name !== 'AbortError') toast('Backup failed: ' + (err?.message || err));
   }
-  // Fallback: trigger a plain download
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = file.name;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-  toast('Downloaded — AirDrop it from Files');
+  paintBackupNudge();
+  paintBackupSection();
+}
+$('backup-now').addEventListener('click', backupNow);
+$('backup-pick').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  const bk = await import('./modules/backup.js?v=228');
+  try { backupPicked = bk.parse(await f.text()); }
+  catch (err) { toast(err.message || 'Not a backup file'); return; }
+  const c = backupPicked.counts;
+  const when = backupPicked.at ? new Date(backupPicked.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'an older export';
+  const box = $('backup-preview');
+  box.innerHTML = `<b>${escapeHtml(f.name)}</b>
+    <div class="muted small">Made ${escapeHtml(when)}</div>
+    <ul class="backup-counts">
+      <li><b>${c.legs}</b> legs${c.lastFlight ? `, last ${escapeHtml(c.lastFlight)}` : ''}</li>
+      <li><b>${c.duties}</b> duties · <b>${c.crew}</b> crew</li>
+      <li><b>${c.notes}</b> notes · <b>${c.airportNotes}</b> airport notes · <b>${c.speeches}</b> PAs</li>
+      ${backupPicked.old ? '<li class="muted">Older export: the main data only, no settings.</li>' : ''}
+    </ul>
+    <div class="settings-row-btns">
+      <button type="button" class="btn danger" data-restore="replace">Replace everything</button>
+      <button type="button" class="btn primary" data-restore="merge">Add what's missing</button>
+      <button type="button" class="btn" data-restore="cancel">Cancel</button>
+    </div>
+    <div class="muted small">Replace: this iPad becomes the backup (new iPad, reinstall). Add: keeps everything here and adds the flights and notes it doesn't have. Either way, this iPad's data is kept aside first, so it can be undone.</div>`;
+  box.hidden = false;
+});
+$('backup-preview').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-restore]');
+  if (!b || !backupPicked) return;
+  const mode = b.dataset.restore;
+  if (mode === 'cancel') { $('backup-preview').hidden = true; backupPicked = null; return; }
+  if (mode === 'replace' && !confirm('Replace everything on this iPad with this backup?')) return;
+  const bk = await import('./modules/backup.js?v=228');
+  try {
+    await bk.saveSafety();
+    if (mode === 'replace') bk.restoreReplace(backupPicked);
+    else {
+      const a = bk.restoreMerge(backupPicked);
+      toast(`Added ${a.legs || 0} legs, ${a.notes || 0} notes, ${a.airportNotes || 0} airport notes — reloading…`);
+    }
+    if (mode === 'replace') toast('Restored — reloading…');
+    hideOverlay('settings-overlay');
+    setTimeout(() => location.reload(), 900);
+  } catch (err) {
+    toast('Restore failed: ' + (err?.message || err));
+  }
+});
+$('backup-undo').addEventListener('click', async () => {
+  const bk = await import('./modules/backup.js?v=228');
+  const s = await bk.safety();
+  if (!s || !confirm(`Put this iPad back as it was before the last restore (${s.counts.legs} legs)?`)) return;
+  bk.restoreReplace(s);
+  toast('Back as it was — reloading…');
+  setTimeout(() => location.reload(), 900);
+});
+// The reminder: on the Brief, never in the air or over a window.
+async function paintBackupNudge() {
+  const el = $('backup-nudge');
+  if (!el) return;
+  try {
+    const bk = await import('./modules/backup.js?v=228');
+    const d = bk.due();
+    const busy = document.querySelector('.overlay:not(.hidden)') || legPhase().phase === 'air';
+    if (!d || busy) { el.hidden = true; return; }
+    $('backup-nudge-txt').textContent = d.why === 'never' ? 'This iPad has never been backed up.'
+      : d.why === 'days' ? `No backup for ${d.days} days.` : `${d.legs} new legs since the last backup.`;
+    el.hidden = false;
+  } catch { el.hidden = true; }
+}
+$('backup-nudge').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-backup-now]')) { backupNow(); return; }
+  if (e.target.closest('[data-backup-later]')) {
+    const bk = await import('./modules/backup.js?v=228');
+    bk.snooze(3);
+    $('backup-nudge').hidden = true;
+  }
+});
+setTimeout(() => { try { paintBackupNudge(); } catch {} }, 8000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') setTimeout(() => { try { paintBackupNudge(); } catch {} }, 3000);
 });
 
 // Logbook .ics export — every stored leg as one VEVENT. Same Share Sheet
@@ -2798,7 +2890,7 @@ $('logbook-export-btn').addEventListener('click', () => {
   $('logbook-export-btn').setAttribute('aria-expanded', String(!row.hidden));
 });
 async function exportLogbook(ext, type, build) {
-  const lb = await import('./modules/logbook.js?v=227');
+  const lb = await import('./modules/logbook.js?v=228');
   const legs = lb.allStoredLegs();
   if (!legs.length) { toast('No flights to export yet'); return; }
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -2840,9 +2932,9 @@ async function paintAnalytics() {
   const keepScroll = body.closest('.ocr-sheet')?.scrollTop || 0;
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
-    const an = await import('./modules/analytics.js?v=227');
-    const airports = await import('./modules/airports.js?v=227');
-    const world = await import('./modules/worldmap.js?v=227');
+    const an = await import('./modules/analytics.js?v=228');
+    const airports = await import('./modules/airports.js?v=228');
+    const world = await import('./modules/worldmap.js?v=228');
     const data = an.snapshot(anYear, anFilters);
     data.routeLegs = an.flownRoutes(data.pool);
     data.heatFrom = an.heatFrom;
@@ -2973,7 +3065,7 @@ async function openLogbook(focusKey = '') {
   const body = $('logbook-body');
   body.innerHTML = '<p class="lb-empty">Loading…</p>';
   try {
-    const lb = await import('./modules/logbook.js?v=227');
+    const lb = await import('./modules/logbook.js?v=228');
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
     await ensureLbAirports();
     // Past duties only: the logbook is what happened.
@@ -3019,11 +3111,11 @@ async function openFtl() {
 async function paintFtl() {
   const body = $('ftl-body');
   try {
-    const ftl = await import('./modules/ftl.js?v=227');
+    const ftl = await import('./modules/ftl.js?v=228');
     if (ftlMode === 'calc') { body.innerHTML = ftlModeSwitch() + renderFtlCalc(ftl); paintFtlCalcOut(ftl); return; }
     let lonOf = null;
     try {
-      const ri = await import('./modules/route-info.js?v=227');
+      const ri = await import('./modules/route-info.js?v=228');
       const db = await ri.loadDb();
       lonOf = (c) => ri.findAirport(db, c)?.lon;
     } catch {}
@@ -3057,7 +3149,7 @@ async function ftlEtaTick() {
   if (!st || st.phase !== 'airborne' || !fix || Date.now() - fix.ts > 90 * 1000) return;
   const leg = storage.getLeg();
   if (!leg || !leg.dep || !leg.arr) return;
-  const [ftl, ri] = await Promise.all([import('./modules/ftl.js?v=227'), import('./modules/route-info.js?v=227')]);
+  const [ftl, ri] = await Promise.all([import('./modules/ftl.js?v=228'), import('./modules/route-info.js?v=228')]);
   const db = await ri.loadDb();
   const a = ri.findAirport(db, leg.dep), b = ri.findAirport(db, leg.arr);
   if (!a || !b) return;
@@ -3406,7 +3498,7 @@ function ftlCalcInput(e) {
     } else if (dm) c.date = val('date');
   }
   ftlCalcSave(c);
-  import('./modules/ftl.js?v=227').then(paintFtlCalcOut).catch(() => {});
+  import('./modules/ftl.js?v=228').then(paintFtlCalcOut).catch(() => {});
   return true;
 }
 $('ftl-overlay').addEventListener('input', ftlCalcInput);
@@ -3597,8 +3689,8 @@ function lbKeyOf(o) {
 }
 async function ensureLbAirports() {
   try {
-    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=227');
-    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=227');
+    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=228');
+    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=228');
   } catch (err) { console.warn('map data unavailable', err); }
   return lbAirports;
 }
@@ -3872,7 +3964,7 @@ function wireLogbookRows(body) {
         (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
       if (!leg) { toast('Flight not found'); return; }
       hideOverlay('logbook-overlay');
-      import('./modules/route-ui.js?v=227').then(ru => { ru.wire(); return ru.open(leg); })
+      import('./modules/route-ui.js?v=228').then(ru => { ru.wire(); return ru.open(leg); })
         .catch(err => { console.warn('route info failed', err); toast('Route info failed to load'); });
       return;
     }
@@ -4171,7 +4263,7 @@ async function repaintAnMap() {
   }
   const inRange = legs.filter(r => r.ts >= fromTs && r.ts <= toTs);
   try {
-    const an = await import('./modules/analytics.js?v=227');
+    const an = await import('./modules/analytics.js?v=228');
     const heat = an.heatFrom(inRange);
     $('an-map').innerHTML = heatSvgInner(heat, airports, world, W, H);
     $('an-map-key').textContent = heat.length
@@ -4356,25 +4448,6 @@ function renderAnalytics(data, { cityName, displayCrew, airports, world }) {
   `;
 }
 
-$('sync-import').addEventListener('change', async (e) => {
-  const f = e.target.files?.[0];
-  e.target.value = '';   // allow re-picking the same file later
-  if (!f) return;
-  if (!confirm('Replace everything on this device with the contents of ' + f.name + '?')) return;
-  try {
-    const text = await f.text();
-    // importJson validates the JSON, migrates it if needed, and flushes to
-    // localStorage. A hard reload then re-mounts every module against the
-    // new state — simpler than trying to live-rerender every UI slice.
-    storage.importJson(text);
-    hideOverlay('settings-overlay');
-    toast('Imported — reloading…');
-    setTimeout(() => location.reload(), 600);
-  } catch (err) {
-    toast('Import failed: ' + (err?.message || err));
-  }
-});
-
 // ---------- Backfill logbook from a sector CSV ----------
 // Everything flown before this app existed only exists in the crew portal's
 // sector export. Loading one backfills years of logbook and insights in a
@@ -4407,7 +4480,7 @@ $('sectors-csv').addEventListener('change', async (e) => {
   if (status) status.textContent = `Reading ${f.name}…`;
   try {
     const text = await f.text();
-    const { parseSectors } = await import('./modules/sectors-csv.js?v=227');
+    const { parseSectors } = await import('./modules/sectors-csv.js?v=228');
     const res = parseSectors(text);
     const span = (res.from && res.to) ? `\n${fmtDay(res.from)} → ${fmtDay(res.to)}` : '';
     const dh = res.skippedDeadhead
@@ -4476,8 +4549,8 @@ let gpsMod = null;  // lazily imported gps module
 let gMod   = null;  // lazily imported g module
 let gpsActive = false;
 async function loadSensorMods() {
-  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=227');
-  if (!gMod)   gMod   = await import('./modules/g.js?v=227');
+  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=228');
+  if (!gMod)   gMod   = await import('./modules/g.js?v=228');
   return { gps: gpsMod, g: gMod };
 }
 
@@ -4812,7 +4885,7 @@ async function loadWx(opts) {
   refreshBtn.disabled = true;
   refreshBtn.textContent = '…';
   try {
-    const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js?v=227');
+    const { fetchWx, extractLetter, extractText } = await import('./modules/wx.js?v=228');
     const res = await fetchWx(code, opts);
     if (!res) {
       paintWx({ icao: code, letter: '', metar: null, taf: null, datis: null, ts: 0 });
@@ -5104,7 +5177,7 @@ async function showAirportInfo(icao) {
   // Show BOTH codes — IATA · ICAO (e.g. "TLV · LLBG") — plus the city.
   let city = '', codes = k;
   try {
-    const { lookup } = await import('./modules/airports.js?v=227');
+    const { lookup } = await import('./modules/airports.js?v=228');
     const a = lookup(k);
     if (a) {
       city = a.city || '';
@@ -5962,7 +6035,7 @@ async function maybeSyncSocialNotes(force = false) {
       // the leg uses. airports.lookup resolves the pair.
       let expanded = data;
       try {
-        const { lookup } = await import('./modules/airports.js?v=227');
+        const { lookup } = await import('./modules/airports.js?v=228');
         expanded = {};
         for (const [code, val] of Object.entries(data)) {
           const a = lookup(code);
@@ -6059,7 +6132,7 @@ async function handleOcrFile(file) {
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
-    const { ocrImage } = await import('./modules/ocr.js?v=227');
+    const { ocrImage } = await import('./modules/ocr.js?v=228');
     // 90s timeout — if Tesseract or its language data refuses to load (offline
     // first run, blocked CDN, weirdly large image) we bail with a clean error
     // instead of sitting on a spinner forever.
@@ -6086,7 +6159,7 @@ async function handleOcrFile(file) {
 
 async function runParse(text) {
   // Roster first — if the pasted text is a duty roster, take that branch.
-  const { parseRoster } = await import('./modules/roster.js?v=227');
+  const { parseRoster } = await import('./modules/roster.js?v=228');
   const roster = parseRoster(text);
   if (roster) {
     await applyRoster(roster);
@@ -6096,7 +6169,7 @@ async function runParse(text) {
     if (details) details.open = true;
     return;
   }
-  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=227');
+  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=228');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
   // dep / arr deliberately excluded — the roster already sets them and a

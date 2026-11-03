@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=227" />
+  <link rel="stylesheet" href="./app.css?v=228" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -200,6 +200,12 @@
 
   <!-- Brief, Checklist, In flight, then the tools, in thumb reach. Sits under the windows
        (z-index), so a window's ✕ is always the way back. -->
+  <!-- Backup reminder (modules/backup.js due()): one tap to the share sheet. -->
+  <div id="backup-nudge" class="backup-nudge" role="status" hidden>
+    <span id="backup-nudge-txt"></span>
+    <button type="button" class="btn primary" data-backup-now>Back up now</button>
+    <button type="button" class="btn" data-backup-later>Later</button>
+  </div>
   <nav class="tabbar" aria-label="Main">
     <button id="tab-before" data-phase-set="before" class="tab" type="button">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 1 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg><span>Brief</span>
@@ -589,27 +595,28 @@
         <p id="sectors-status" class="muted small cal-status"></p>
         </div>
       </details>
-        <div class="settings-row-btns">
-          <button id="logbook-export" class="btn">Export .ics</button>
-        </div>
-        </div>
-      </details>
-      <details class="set-row">
-        <summary><span class="set-name">Backup and move (AirDrop)</span></summary>
+      <details class="set-row" id="set-backup">
+        <summary><span class="set-name">Backup</span><span class="set-status" id="set-st-backup"></span></summary>
         <div class="set-body">
         <details class="set-why"><summary aria-label="What is this?">?</summary>
         <p class="muted small">
-          For the whole app state — every leg, every speech, the template. Imports
-          <em>replace</em> the local store.
+          Everything on this iPad in one file: flights and logbook, crew, PAs,
+          checklist, airport notes, your Notes, alternates, taxi times,
+          highlights and settings, including your calendar and feed links.
+          Choose <b>Save to Files → iCloud Drive</b> to have it on any iPad, or
+          <b>Mail</b> to send it to yourself. The app uploads nothing.
         </p>
         </details>
+        <div id="backup-last" class="muted small"></div>
         <div class="settings-row-btns">
-          <button id="sync-export" class="btn">Export &amp; share</button>
+          <button id="backup-now" class="btn primary" type="button">Back up now</button>
           <label class="btn">
-            <input id="sync-import" type="file" accept="application/json,.json" hidden />
-            Import file…
+            <input id="backup-pick" type="file" accept="application/json,.json" hidden />
+            Restore from a backup…
           </label>
         </div>
+        <div id="backup-preview" class="backup-preview" hidden></div>
+        <button id="backup-undo" class="btn" type="button" hidden>Undo the last restore</button>
         </div>
       </details>
     </div>
@@ -936,6 +943,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=227"></script>
+  <script type="module" src="./app.js?v=228"></script>
 </body>
 </html>

@@ -3989,3 +3989,20 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 .mynotes-tabrow { border-bottom: 1px solid var(--line-soft); }
 .mynotes-tabrow .pa-tabs { border-bottom: 0; }
 .mynotes-edit { margin-top: 8px; }
+
+/* Backup: the restore preview, and the reminder above the bottom bar. */
+.backup-preview { padding: 12px; border-radius: var(--radius-ctl); background: var(--bg-sunk); display: flex; flex-direction: column; gap: 6px; }
+.backup-preview[hidden] { display: none; }
+.backup-counts { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
+.btn.danger { color: var(--danger); }
+.backup-nudge {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 10px);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  max-width: min(560px, calc(100vw - 24px)); padding: 10px 12px 10px 16px; border-radius: 16px;
+  background: var(--glass-bg-strong); box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 0.5px var(--line);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur)); -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  font-size: 14px; font-weight: 600;
+}
+.backup-nudge[hidden] { display: none; }
+.backup-nudge .btn { padding: 6px 12px; font-size: 13px; }
