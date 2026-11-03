@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=222" />
+  <link rel="stylesheet" href="./app.css?v=223" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -221,6 +221,9 @@
         <path d="M12 12l3.5-3"/>
         <line x1="4.8" y1="19.2" x2="19.2" y2="4.8"/>
       </svg><span>ASU</span>
+    </button>
+    <button id="mynotes-btn" data-action="mynotes" class="tab" type="button" aria-label="My notes">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg><span>Notes</span>
     </button>
     <button id="logbook-btn" data-action="logbook" class="tab" type="button" aria-label="Logbook">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 8h6M9 12h6"/></svg><span>Logbook</span>
@@ -636,6 +639,43 @@
     </div>
   </div>
 
+  <!-- My notes — the Notes tab: the pilot's own named notes (LVP, MEL,
+       a radio, diversions…), one at a time in one editor, with the same
+       bold / italic / highlighter brush as the airport notes. -->
+  <div id="mynotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mynotes-label">
+    <div class="ocr-sheet mynotes-sheet">
+      <div class="pad-head">
+        <span id="mynotes-label" class="pad-label">My notes</span>
+        <button id="mynotes-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="mynotes-tabs" class="pa-tabs"></div>
+      <div class="pa-title-row">
+        <span id="mynote-title" class="pa-title">—</span>
+        <button id="mynote-left"   class="btn ghost-btn" title="Move left"  aria-label="Move this note left">◀</button>
+        <button id="mynote-right"  class="btn ghost-btn" title="Move right" aria-label="Move this note right">▶</button>
+        <button id="mynote-rename" class="btn ghost-btn" title="Rename" aria-label="Rename this note">⌨</button>
+        <button id="mynote-delete" class="btn ghost-btn" title="Delete" aria-label="Delete this note">🗑</button>
+      </div>
+      <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
+        <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
+        <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+        <span class="apt-fmt-sep" aria-hidden="true"></span>
+        <span class="apt-hl-label">Brush</span>
+        <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+        <span class="apt-fmt-sep" aria-hidden="true"></span>
+        <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+        <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
+      </div>
+      <div id="mynote-body" class="airport-notes mynote-body" contenteditable="true"
+           role="textbox" aria-multiline="true" aria-label="Note"
+           data-placeholder="Write anything you want to keep — frequencies, what to do in LVP, MEL items, diversion plans…"></div>
+    </div>
+  </div>
+
   <!-- In-app Logbook overlay (Phase 14). Lists every stored leg (current
        legs + history) newest-first. Tap a row to switch the active leg to
        it. Lightweight read-only view — no editing, no export. -->
@@ -899,6 +939,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=222"></script>
+  <script type="module" src="./app.js?v=223"></script>
 </body>
 </html>

@@ -3653,7 +3653,7 @@ body {
 /* ---------- Bottom bar ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(7, 1fr);
   padding: 4px max(env(safe-area-inset-right, 0px), 6px) env(safe-area-inset-bottom, 0px) max(env(safe-area-inset-left, 0px), 6px);
   background: var(--glass-bg-strong);
   border-top: 0.5px solid var(--line);
@@ -3953,3 +3953,9 @@ html[data-brush-stroke="green"] ::highlight(brush-stroke) { background-color: rg
 html[data-brush-stroke="pink"]  ::highlight(brush-stroke) { background-color: rgba(236, 72, 153, .33); }
 html[data-brush-stroke="blue"]  ::highlight(brush-stroke) { background-color: rgba(59, 130, 246, .33); }
 html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .25); text-decoration: line-through; }
+
+/* Notes tab: named notes, one editor filling the window. */
+.mynotes-sheet { max-width: 860px; width: 94vw; height: 88vh; height: 88dvh; }
+.mynotes-sheet .pa-title-row .btn:disabled { opacity: .35; }
+div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: none; }
+.mynote-body[hidden], #mynote-fmt[hidden] { display: none; }

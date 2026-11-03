@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=222';
-import { dateTs, legTs } from './dates.js?v=222';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=222';
+import { flipName } from './roster.js?v=223';
+import { dateTs, legTs } from './dates.js?v=223';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=223';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -293,6 +293,9 @@ function read() {
   cache.imported = Array.isArray(cache.imported) ? cache.imported : [];
   cache.duties   = Array.isArray(cache.duties) ? cache.duties : [];
   if (!cache.crew || typeof cache.crew !== 'object') cache.crew = {};
+  // The pilot's own named notes (Notes tab) — general, not tied to an
+  // airport. First time: a few empty ones to start from.
+  if (!Array.isArray(cache.myNotes)) cache.myNotes = ['LVP', 'MEL', 'Diversion', 'Radio'].map((name, i) => ({ id: 'n' + (i + 1), name, html: '' }));
   return cache;
 }
 
@@ -533,6 +536,8 @@ function migrate(s) {
     //                 external feed (see the social-feed sync in app.js).
     airportNotes:  (s.airportNotes  && typeof s.airportNotes  === 'object') ? s.airportNotes  : {},
     airportSocial: (s.airportSocial && typeof s.airportSocial === 'object') ? s.airportSocial : {},
+    // The Notes tab's named notes (read() seeds them when absent).
+    ...(Array.isArray(s.myNotes) ? { myNotes: s.myNotes } : {}),
   };
 }
 
@@ -1584,6 +1589,35 @@ export function addBlankLeg() {
 }
 
 // ---------- Speeches ----------
+// ---------- My notes (Notes tab) ----------
+export function getMyNotes() { return read().myNotes; }
+export function getMyNote(id) { return read().myNotes.find(n => n.id === id) || null; }
+export function addMyNote(name) {
+  const n = { id: 'n' + Date.now().toString(36), name: String(name || 'Note').trim() || 'Note', html: '' };
+  read().myNotes.push(n);
+  scheduleWrite();
+  return n;
+}
+export function renameMyNote(id, name) {
+  const n = getMyNote(id);
+  if (n && String(name || '').trim()) { n.name = String(name).trim(); scheduleWrite(); }
+}
+export function setMyNoteHtml(id, html) {
+  const n = getMyNote(id);
+  if (n) { n.html = String(html || ''); scheduleWrite(); }
+}
+export function deleteMyNote(id) {
+  const s = read();
+  s.myNotes = s.myNotes.filter(n => n.id !== id);
+  scheduleWrite();
+}
+export function moveMyNote(id, delta) {
+  const list = read().myNotes, i = list.findIndex(n => n.id === id), j = i + delta;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  scheduleWrite();
+}
+
 export function getSpeeches() { return read().speeches; }
 export function getSpeech(id) { return read().speeches.find(s => s.id === id); }
 export function addSpeech(name) {
