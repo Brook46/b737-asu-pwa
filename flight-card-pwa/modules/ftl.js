@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=215';
-import { PILOT_KEYS } from './crew.js?v=215';
+import { legPlanActual } from './dates.js?v=216';
+import { PILOT_KEYS } from './crew.js?v=216';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -276,36 +276,35 @@ export function cumulative(fdps, at) {
 export function earliestLeg(fdps) { return fdps.length ? fdps[0].report : null; }
 
 // When the duty will actually end, as far as can be told now: a flown leg's
-// on-blocks; else the plan, pushed later by the delay the leg in progress
-// shows — from the best evidence there is: GPS landing, then off-block,
-// then GPS take-off, then the CTOT. The clock alone never adds delay (STD
-// passing while airborne isn't lateness); only a leg the pilot has held on
-// Brief past its STD — still at the gate — grows with it. The delay carries
-// to the end; a turnaround that absorbs it shows up once that leg is flown.
-export function projectedEnd(fdp, now = Date.now(), opts = {}) {
+// on-blocks; else the plan, moved by the delay the leg in progress shows —
+// from real times only, best first: GPS landing, off-block, GPS take-off,
+// CTOT. Often there's none (no internet, the app closed until airborne), and
+// then it's the schedule. Never the clock, and never which page is open:
+// STD passing while airborne isn't lateness. The delay carries to the end;
+// a turnaround that absorbs it shows up once that leg is flown.
+// basis says which time it came from, for the sheet to tell the pilot.
+export function projectedEnd(fdp, opts = {}) {
+  if (fdp.flown) return { end: fdp.end, basis: 'flown' };
   const taxiOf = opts.taxiOf || (() => 15);
-  let delay = 0;
+  let delay = 0, basis = 'schedule';
   for (const l of fdp.legs) {
-    if (l.flown) { delay = l.end - l.sta; continue; }
+    if (l.flown) { delay = l.end - l.sta; basis = 'on-blocks'; continue; }
     const p = legPlanActual(l.leg);
     const taxi = taxiOf(String(l.leg.dep || '').toUpperCase()) * MIN;
-    if (Number.isFinite(p.landing)) delay = p.landing + 5 * MIN - l.sta;
-    else if (Number.isFinite(p.obt)) delay = p.obt - l.std;
-    else if (Number.isFinite(p.takeoff)) delay = p.takeoff - taxi - l.std;
-    else {
-      if (Number.isFinite(p.ctot)) delay = Math.max(delay, p.ctot - taxi - l.std);
-      if (opts.heldOnGround && opts.heldOnGround(l.leg) && now > l.std) delay = Math.max(delay, now - l.std);
-    }
+    if (Number.isFinite(p.landing)) { delay = p.landing + 5 * MIN - l.sta; basis = 'GPS landing'; }
+    else if (Number.isFinite(p.obt)) { delay = p.obt - l.std; basis = 'off-block'; }
+    else if (Number.isFinite(p.takeoff)) { delay = p.takeoff - taxi - l.std; basis = 'GPS take-off'; }
+    else if (Number.isFinite(p.ctot)) { delay = Math.max(delay, p.ctot - taxi - l.std); basis = 'CTOT'; }
     break;
   }
-  return fdp.flown ? fdp.end : fdp.plannedEnd + Math.max(0, delay);
+  return { end: fdp.plannedEnd + Math.max(0, delay), basis };
 }
 
 // Spare FDP for a duty: max FDP against its projected end, in hours
-// (negative = over). null when there's no duty near now worth showing.
-export function spareNow(fdp, lim, now = Date.now(), opts = {}) {
-  const end = projectedEnd(fdp, now, opts);
-  return { end, spare: (lim.limit - end) / H, spareExt: (lim.limitExt - end) / H, planned: lim.maxFdp - lim.plannedFdp };
+// (negative = over).
+export function spareNow(fdp, lim, opts = {}) {
+  const { end, basis } = projectedEnd(fdp, opts);
+  return { end, basis, spare: (lim.limit - end) / H, spareExt: (lim.limitExt - end) / H, planned: lim.maxFdp - lim.plannedFdp };
 }
 
 export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now = Date.now() }) {
@@ -319,7 +318,7 @@ export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now 
     ltts: legLtts(fdp, lim, taxiOf),
     rest: restFor(fdps, i, duties),
     cum: cumulative(fdps, fdp.end),
-    proj: spareNow(fdp, lim, now, { taxiOf, heldOnGround: opts.heldOnGround }),
+    proj: spareNow(fdp, lim, { taxiOf }),
     since: earliestLeg(fdps),
     live: now >= fdp.report && now <= fdp.release ? { elapsed: (now - fdp.report) / H, left: (lim.limit - now) / H } : null,
   };

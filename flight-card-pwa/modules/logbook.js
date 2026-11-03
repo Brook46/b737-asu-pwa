@@ -18,9 +18,9 @@
 // switcher uses, so a leg added in Dec stays in the right year when read
 // in Jan.
 
-import * as storage from './storage.js?v=215';
-import { dateTs, legTs } from './dates.js?v=215';
-import { CREW_FIELDS, crewShort } from './crew.js?v=215';
+import * as storage from './storage.js?v=216';
+import { dateTs, legTs } from './dates.js?v=216';
+import { CREW_FIELDS, crewShort } from './crew.js?v=216';
 
 const PROD_ID  = '-//Flight Card//Logbook v1//EN';
 const CAL_NAME = 'Flight Card Logbook';
