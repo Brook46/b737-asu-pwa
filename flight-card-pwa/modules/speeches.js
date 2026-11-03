@@ -6,9 +6,9 @@
 // colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=223';
-import { cityName } from './airports.js?v=223';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=223';
+import * as storage from './storage.js?v=224';
+import { cityName } from './airports.js?v=224';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=224';
 
 let activeId = null;
 let editing = false;
@@ -300,9 +300,15 @@ export function open() {
   render();
   // Re-render every 30s so @time and @utc stay live.
   if (liveTick) clearInterval(liveTick);
+  // Never while the pilot has words selected: redrawing wiped the selection,
+  // so the iPad's Copy kept vanishing mid-gesture.
   liveTick = setInterval(() => {
-    if (!document.getElementById('pa-overlay').classList.contains('hidden') && !editing) render();
+    if (!document.getElementById('pa-overlay').classList.contains('hidden') && !editing && !selectingInPa()) render();
   }, 30 * 1000);
+}
+function selectingInPa() {
+  const sel = window.getSelection && window.getSelection();
+  return !!(sel && sel.rangeCount && !sel.isCollapsed && document.getElementById('pa-body')?.contains(sel.anchorNode));
 }
 export function close() {
   document.getElementById('pa-overlay').classList.add('hidden');
@@ -466,7 +472,9 @@ function render() {
       });
     });
   } else {
-    body.innerHTML = `
+    // Only when the words changed (a new minute in @time, a crew change):
+    // replacing identical text would still drop a selection being made.
+    const html = `
       <div class="pa-block pa-block-he" dir="rtl">
         <div class="pa-block-label">עברית</div>
         <div class="pa-rendered" dir="rtl">${renderHtml(heText, data, 'he')}</div>
@@ -476,6 +484,7 @@ function render() {
         <div class="pa-rendered" dir="ltr">${renderHtml(enText, data, 'en')}</div>
       </div>
     `;
+    if (body.dataset.shown !== html || body.querySelector('.pa-editor')) { body.innerHTML = html; body.dataset.shown = html; }
   }
   document.getElementById('pa-legend').classList.toggle('hidden', !editing);
 }
