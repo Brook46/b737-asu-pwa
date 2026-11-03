@@ -3959,3 +3959,25 @@ html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rg
 .mynotes-sheet .pa-title-row .btn:disabled { opacity: .35; }
 div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: none; }
 .mynote-body[hidden], #mynote-fmt[hidden] { display: none; }
+/* Notes tab: the tab row with Edit at its end; Edit mode drags, renames, deletes. */
+.mynotes-tabrow { display: flex; align-items: flex-start; gap: 8px; }
+.mynotes-tabrow .pa-tabs { flex: 1 1 auto; min-width: 0; }
+.mynotes-edit { flex: none; padding: 7px 14px; font-weight: 600; color: var(--accent); }
+.mynotes-edit[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.mynotes-edit-hint { font-size: 12px; color: var(--fg-mute); margin-top: -4px; }
+.mynotes-edit-hint[hidden] { display: none; }
+#mynotes-tabs.is-editing .pa-tab { position: relative; touch-action: none; cursor: grab; animation: mynote-wiggle .28s ease-in-out infinite alternate; }
+#mynotes-tabs.is-editing .pa-tab:nth-child(2n) { animation-delay: -.14s; }
+#mynotes-tabs .pa-tab.is-dragging { animation: none; transform: scale(1.06); box-shadow: 0 6px 18px rgba(0,0,0,.18); z-index: 2; }
+@keyframes mynote-wiggle { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+@media (prefers-reduced-motion: reduce) { #mynotes-tabs.is-editing .pa-tab { animation: none; } }
+.mynote-x {
+  position: absolute; top: -7px; left: -7px; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 1;
+}
+/* Wrap rather than scroll, so the ✕ badges aren't clipped and a drag can reach every tab. */
+#mynotes-tabs { flex-wrap: wrap; overflow: visible; padding-top: 8px; padding-left: 8px; }
+.mynotes-tabrow { border-bottom: 1px solid var(--line-soft); }
+.mynotes-tabrow .pa-tabs { border-bottom: 0; }
+.mynotes-edit { margin-top: 8px; }

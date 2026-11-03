@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=225';
-import { dateTs, legTs } from './dates.js?v=225';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=225';
+import { flipName } from './roster.js?v=226';
+import { dateTs, legTs } from './dates.js?v=226';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=226';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1611,10 +1611,11 @@ export function deleteMyNote(id) {
   s.myNotes = s.myNotes.filter(n => n.id !== id);
   scheduleWrite();
 }
-export function moveMyNote(id, delta) {
-  const list = read().myNotes, i = list.findIndex(n => n.id === id), j = i + delta;
-  if (i < 0 || j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
+export function orderMyNotes(ids) {
+  const s = read(), by = new Map(s.myNotes.map(n => [n.id, n]));
+  const out = ids.map(id => by.get(id)).filter(Boolean);
+  for (const n of s.myNotes) if (!out.includes(n)) out.push(n);
+  s.myNotes = out;
   scheduleWrite();
 }
 

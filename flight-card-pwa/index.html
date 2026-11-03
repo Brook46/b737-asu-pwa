@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=225" />
+  <link rel="stylesheet" href="./app.css?v=226" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -648,14 +648,11 @@
         <span id="mynotes-label" class="pad-label">My notes</span>
         <button id="mynotes-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
-      <div id="mynotes-tabs" class="pa-tabs"></div>
-      <div class="pa-title-row">
-        <span id="mynote-title" class="pa-title">—</span>
-        <button id="mynote-left"   class="btn ghost-btn" title="Move left"  aria-label="Move this note left">◀</button>
-        <button id="mynote-right"  class="btn ghost-btn" title="Move right" aria-label="Move this note right">▶</button>
-        <button id="mynote-rename" class="btn ghost-btn" title="Rename" aria-label="Rename this note">⌨</button>
-        <button id="mynote-delete" class="btn ghost-btn" title="Delete" aria-label="Delete this note">🗑</button>
+      <div class="mynotes-tabrow">
+        <div id="mynotes-tabs" class="pa-tabs"></div>
+        <button id="mynotes-edit" class="btn mynotes-edit" type="button" aria-pressed="false">Edit</button>
       </div>
+      <div id="mynotes-edit-hint" class="mynotes-edit-hint" hidden>Drag a tab to move it · tap it to rename · ✕ to delete</div>
       <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
         <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
         <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
@@ -939,6 +936,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=225"></script>
+  <script type="module" src="./app.js?v=226"></script>
 </body>
 </html>
