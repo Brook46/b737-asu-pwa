@@ -3910,3 +3910,4 @@ body[data-phase="air"] #ready-line { display: none; }
   background: var(--bg-sunk); color: var(--fg); min-width: 0;
 }
 .ftl-calc .view-switch [data-ftl-csec], .ftl-calc .view-switch [data-ftl-cext] { padding: 6px 8px; }
+.ftl-top { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
