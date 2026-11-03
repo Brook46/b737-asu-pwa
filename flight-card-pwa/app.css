@@ -4006,3 +4006,25 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 }
 .backup-nudge[hidden] { display: none; }
 .backup-nudge .btn { padding: 6px 12px; font-size: 13px; }
+/* Notes tab: search across all notes. */
+.mynotes-search {
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: var(--radius-ctl);
+  background: var(--bg-sunk); color: var(--fg-mute);
+}
+.mynotes-search input {
+  flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--fg);
+  font: inherit; font-size: 16px; padding: 9px 0; outline: none;
+}
+.mynotes-qcount { flex: none; font-size: 12px; color: var(--fg-mute); }
+.mynotes-results { display: flex; flex-direction: column; gap: 8px; overflow: auto; flex: 1 1 auto; min-height: 0; }
+.mynotes-results[hidden] { display: none; }
+.mynotes-hit {
+  display: flex; flex-direction: column; gap: 4px; text-align: start; cursor: pointer;
+  padding: 10px 12px; border: 0; border-radius: var(--radius-ctl); background: var(--bg-sunk); color: var(--fg); font: inherit;
+}
+.mynotes-hit:active { background: var(--accent-soft); }
+.mynotes-hit-name { font-weight: 700; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
+.mynotes-hit-name small { font-weight: 500; color: var(--fg-mute); font-size: 12px; }
+.mynotes-hit-snip { font-size: 13px; color: var(--fg-mute); line-height: 1.4; }
+.mynotes-hit mark.find { background: rgba(250, 204, 21, .5); color: var(--fg); border-radius: 3px; padding: 0 1px; }
+::highlight(note-find) { background-color: rgba(255, 149, 0, .45); }

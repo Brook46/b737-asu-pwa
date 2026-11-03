@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=228" />
+  <link rel="stylesheet" href="./app.css?v=229" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -660,6 +660,12 @@
         <button id="mynotes-edit" class="btn mynotes-edit" type="button" aria-pressed="false">Edit</button>
       </div>
       <div id="mynotes-edit-hint" class="mynotes-edit-hint" hidden>Drag a tab to move it · tap it to rename · ✕ to delete</div>
+      <div class="mynotes-search">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="mynotes-q" type="search" placeholder="Search all notes" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search all notes" />
+        <span id="mynotes-qcount" class="mynotes-qcount"></span>
+      </div>
+      <div id="mynotes-results" class="mynotes-results" hidden></div>
       <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
         <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
         <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
@@ -943,6 +949,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=228"></script>
+  <script type="module" src="./app.js?v=229"></script>
 </body>
 </html>
