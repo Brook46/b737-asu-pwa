@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=229';
-import { dateTs, legTs } from './dates.js?v=229';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=229';
+import { flipName } from './roster.js?v=230';
+import { dateTs, legTs } from './dates.js?v=230';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=230';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1610,6 +1610,27 @@ export function deleteMyNote(id) {
   const s = read();
   s.myNotes = s.myNotes.filter(n => n.id !== id);
   scheduleWrite();
+}
+// Notes from a file (Notes → Edit → Import notes…): a note whose name
+// matches one of the pilot's tabs is added BELOW what's there, under a
+// divider; any other becomes a new tab. Nothing is replaced.
+export function importMyNotes(list, divider = '') {
+  const s = read(), out = { appended: 0, added: 0 };
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  for (const n of list || []) {
+    const name = String(n && n.name || '').trim(), html = String(n && n.html || '');
+    if (!name || !html) continue;
+    const mine = s.myNotes.find(m => norm(m.name) === norm(name));
+    if (mine) {
+      mine.html = mine.html ? `${mine.html}<br><br>${divider}<br>${html}` : html;
+      out.appended++;
+    } else {
+      s.myNotes.push({ id: 'n' + Date.now().toString(36) + out.added, name, html });
+      out.added++;
+    }
+  }
+  flush();
+  return out;
 }
 export function orderMyNotes(ids) {
   const s = read(), by = new Map(s.myNotes.map(n => [n.id, n]));

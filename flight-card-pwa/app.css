@@ -4028,3 +4028,5 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 .mynotes-hit-snip { font-size: 13px; color: var(--fg-mute); line-height: 1.4; }
 .mynotes-hit mark.find { background: rgba(250, 204, 21, .5); color: var(--fg); border-radius: 3px; padding: 0 1px; }
 ::highlight(note-find) { background-color: rgba(255, 149, 0, .45); }
+.mynotes-edit-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mynotes-import { padding: 5px 12px; font-size: 13px; }

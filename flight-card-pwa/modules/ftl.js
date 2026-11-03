@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=229';
-import { PILOT_KEYS } from './crew.js?v=229';
+import { legPlanActual } from './dates.js?v=230';
+import { PILOT_KEYS } from './crew.js?v=230';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
