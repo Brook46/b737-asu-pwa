@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=230" />
+  <link rel="stylesheet" href="./app.css?v=231" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -47,7 +47,7 @@
             <button id="new-flight" data-action="new-flight" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 1 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/>
           </svg><span>New flight</span></button>
-            <button id="print-btn" data-action="checklist-print" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3h10v5"/><rect x="3.5" y="8" width="17" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>Print kneeboard cards</span></button>
+            <button id="print-btn" data-action="checklist-print" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3h10v5"/><rect x="3.5" y="8" width="17" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>Print checklist</span></button>
             <button id="share-toggle" data-action="settings" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
             <path d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.62l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.49-.41h-3.84a.5.5 0 0 0-.49.41l-.36 2.54a7.07 7.07 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.86a.5.5 0 0 0 .12.62l2.03 1.58a7.43 7.43 0 0 0-.05.94c0 .32.02.63.05.94L2.83 14.5a.5.5 0 0 0-.12.62l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7.07 7.07 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .49.41h3.84a.5.5 0 0 0 .49-.41l.36-2.54a7.07 7.07 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.62l-2.05-1.56zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/>
           </svg><span>Settings</span></button>
@@ -188,7 +188,7 @@
   <section id="card-checklist" class="checklist-float" aria-label="Checklist" hidden>
     <header id="checklist-head" class="checklist-head">
       <span class="card-title">Checklist</span>
-      <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print kneeboard cards" aria-label="Print checklist cards">🖨</button>
+      <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print checklist" aria-label="Print checklist">🖨</button>
       <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
       <button id="checklist-float-btn" data-action="checklist-float" class="btn ghost-btn" aria-pressed="false" title="Floating on top of every screen; tap again for the normal checklist" aria-label="Floating window">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="8.5" width="12" height="12" rx="2"/><path d="M8.5 8.5v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3"/></svg>
@@ -450,7 +450,7 @@
   <!-- Settings sheet — calendar sync + AirDrop JSON + (Phase 3+) logbook
        export + (Phase 5+) analytics. -->
   <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
-    <div class="ocr-sheet share-sheet">
+    <div class="ocr-sheet share-sheet settings-sheet">
       <div class="pad-head">
         <span id="settings-label" class="pad-label">Settings</span>
         <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
@@ -871,7 +871,7 @@
   <div id="print-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="print-title">
     <div class="ocr-sheet print-sheet">
       <div class="pad-head">
-        <span id="print-title" class="pad-label">Print cards</span>
+        <span id="print-title" class="pad-label">Print checklist</span>
         <button id="print-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div class="print-cols">
@@ -954,6 +954,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=230"></script>
+  <script type="module" src="./app.js?v=231"></script>
 </body>
 </html>

@@ -1235,8 +1235,8 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
   display: flex; flex-direction: column; gap: 10px;
 }
 /* PA overlay is bigger and sits higher — and the Notes tab's window too. */
-#pa-overlay, #mynotes-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
-#pa-overlay .pa-sheet, #mynotes-overlay .mynotes-sheet {
+#pa-overlay, #mynotes-overlay, #settings-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
+#pa-overlay .pa-sheet, #mynotes-overlay .mynotes-sheet, #settings-overlay .settings-sheet {
   width: 100%; max-width: 720px;
   height: calc(100vh - var(--top-clear) - max(env(safe-area-inset-bottom, 0), 12px));
   max-height: none;
@@ -4030,3 +4030,7 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 ::highlight(note-find) { background-color: rgba(255, 149, 0, .45); }
 .mynotes-edit-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .mynotes-import { padding: 5px 12px; font-size: 13px; }
+
+/* Settings: the same top-anchored card as the PA and Notes windows; its
+   rows scroll inside it. */
+#settings-overlay .settings-sheet { padding: 12px 12px calc(env(safe-area-inset-bottom, 0) + 12px); overflow-y: auto; }

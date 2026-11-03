@@ -166,10 +166,10 @@ export async function buildCardsPdf(sheetsMarkup) {
 // Hand the PDF to the share sheet. Rejects with the browser's own error so the
 // caller can tell "user closed the sheet" (AbortError) from "the tap's
 // permission ran out while the PDF was being made" (NotAllowedError).
-export async function sharePdf(bytes, name = 'flight-cards.pdf') {
+export async function sharePdf(bytes, name = 'checklist.pdf') {
   const file = new File([bytes], name, { type: 'application/pdf' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: 'Flight cards' });
+    await navigator.share({ files: [file], title: 'Checklist' });
     return 'shared';
   }
   // Never fall back to a download inside a Home Screen app: navigating there
