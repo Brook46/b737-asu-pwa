@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=217';
-import { PILOT_KEYS } from './crew.js?v=217';
+import { legPlanActual } from './dates.js?v=218';
+import { PILOT_KEYS } from './crew.js?v=218';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -355,4 +355,55 @@ export function evaluate({ legs, duties, activeLeg, idx, opts = {}, taxiOf, now 
     since: earliestLeg(fdps),
     live: now >= fdp.report && now <= fdp.release ? { elapsed: (now - fdp.report) / H, left: (lim.limit - now) / H } : null,
   };
+}
+
+// ---------- Calculator: a duty typed in by hand ----------
+// c: { type: 'flight' | 'airport' | 'short', date: 'YYYY-MM-DD', report,
+//      rapStart, lastOn: 'HH:MM' UTC, sectors, pilots, restClass, notAccl,
+//      extMin }
+//   airport — airport standby (7.2.12): the FDP starts when the standby
+//             does, so `report` is the standby start and it all counts.
+//   short   — soft (home) standby, a short-call RAP: up to 14 h, and RAP +
+//             FDP no more than Table B + 4 h or 16 h, whichever is less
+//             (Table C + 4 h augmented), from the RAP start. An extension
+//             stretches both.
+const RAP_MAX_H = 14, RAP_PLUS_H = 4, RAP_CAP_H = 16;
+function utcAt(date, hm) {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ''), t = /^(\d{1,2}):(\d{2})$/.exec(hm || '');
+  return d && t ? Date.UTC(+d[1], +d[2] - 1, +d[3], +t[1], +t[2]) : NaN;
+}
+export function manualLimits(c) {
+  let report = utcAt(c.date, c.report);
+  if (!Number.isFinite(report)) return null;
+  let rap = c.type === 'short' ? utcAt(c.date, c.rapStart) : NaN;
+  // A standby that started before midnight UTC.
+  if (Number.isFinite(rap) && rap > report) rap -= 24 * H;
+  let lastOn = utcAt(c.date, c.lastOn);
+  while (Number.isFinite(lastOn) && lastOn <= report) lastOn += 24 * H;
+  const fdp = {
+    report, segments: Math.min(7, Math.max(1, c.sectors || 1)), pilots: c.pilots || 2,
+    restClass: c.restClass || 3, plannedEnd: Number.isFinite(lastOn) ? lastOn : report,
+    legs: [{ leg: {} }],
+  };
+  const lim = limitsFor(fdp, { pilots: c.pilots, restClass: c.restClass, notAcclimated: !!c.notAccl, extOf: () => c.extMin || 0 });
+  const out = { lim, report, lastOn: Number.isFinite(lastOn) ? lastOn : null, end: lim.limit, binding: 'fdp', warns: [] };
+  if (c.type === 'short' && Number.isFinite(rap)) {
+    const combined = lim.augmented ? lim.baseFdp + RAP_PLUS_H : Math.min(lim.baseFdp + RAP_PLUS_H, RAP_CAP_H);
+    out.rap = rap;
+    out.rapEnd = rap + RAP_MAX_H * H;
+    out.combined = combined;
+    out.combinedEnd = rap + (combined + lim.extH) * H;
+    out.combinedExt = rap + (combined + EXT_MAX_H) * H;
+    if (out.combinedEnd < out.end) { out.end = out.combinedEnd; out.binding = 'rap'; }
+    if (report > out.rapEnd) out.warns.push(`Report is after the standby's ${RAP_MAX_H} h limit.`);
+  }
+  if (c.type === 'airport') out.warns.push('All the time on airport standby counts as FDP.');
+  if (lim.tooManySegments) out.warns.push(`Augmented duty is limited to ${AUG_MAX_SEGMENTS} segments.`);
+  out.latestExt = Math.min(lim.limitExt, out.combinedExt ?? Infinity);   // with the full 2 h
+  if (out.lastOn) {
+    out.spare = (out.end - out.lastOn) / H;
+    out.release = out.lastOn + POST_FLIGHT_MIN * MIN;
+    out.nextReport = out.release + MIN_REST_H * H;
+  }
+  return out;
 }

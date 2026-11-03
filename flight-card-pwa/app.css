@@ -3889,7 +3889,7 @@ body[data-phase="air"] #ready-line { display: none; }
 
 /* Spare FDP chip on the leg strip */
 .leg-fdp {
-  display: inline-flex; align-items: baseline; gap: 6px;
+  display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap;
   padding: 3px 10px; border-radius: 999px; border: 0; cursor: pointer;
   font: 600 13px var(--font-label); font-variant-numeric: tabular-nums;
 }
@@ -3900,3 +3900,13 @@ body[data-phase="air"] #ready-line { display: none; }
 .leg-fdp.is-bad  { background: var(--danger); color: #fff; }
 .ftl-ext-tag { margin-left: 10px; font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--warn); vertical-align: middle; }
 .ftl-ctl .view-switch [data-ftl-ext] { padding: 6px 8px; }
+.ftl-mode { align-self: center; margin: 0; }
+.ftl-mode .vs-btn { padding: 7px 16px; font-size: 14px; }
+.ftl-ctls-first { margin-top: 0; padding-top: 0; border-top: 0; }
+.ftl-ctl small { display: block; font-size: 11px; color: var(--fg-mute); }
+.ftl-in {
+  font: inherit; font-variant-numeric: tabular-nums; font-size: 16px;
+  padding: 6px 10px; border-radius: var(--radius-ctl); border: 0;
+  background: var(--bg-sunk); color: var(--fg); min-width: 0;
+}
+.ftl-calc .view-switch [data-ftl-csec], .ftl-calc .view-switch [data-ftl-cext] { padding: 6px 8px; }
