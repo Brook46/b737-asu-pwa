@@ -1234,9 +1234,9 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body { overflow
   max-height: 92vh; overflow: auto;
   display: flex; flex-direction: column; gap: 10px;
 }
-/* PA overlay is bigger and sits higher */
-#pa-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
-#pa-overlay .pa-sheet {
+/* PA overlay is bigger and sits higher — and the Notes tab's window too. */
+#pa-overlay, #mynotes-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
+#pa-overlay .pa-sheet, #mynotes-overlay .mynotes-sheet {
   width: 100%; max-width: 720px;
   height: calc(100vh - var(--top-clear) - max(env(safe-area-inset-bottom, 0), 12px));
   max-height: none;
@@ -3955,7 +3955,7 @@ html[data-brush-stroke="blue"]  ::highlight(brush-stroke) { background-color: rg
 html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .25); text-decoration: line-through; }
 
 /* Notes tab: named notes, one editor filling the window. */
-.mynotes-sheet { max-width: 860px; width: 94vw; height: 88vh; height: 88dvh; }
+.mynotes-sheet { padding: 12px 12px calc(env(safe-area-inset-bottom, 0) + 12px); }
 .mynotes-sheet .pa-title-row .btn:disabled { opacity: .35; }
 div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: none; }
 .mynote-body[hidden], #mynote-fmt[hidden] { display: none; }
