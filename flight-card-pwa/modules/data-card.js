@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=234';
-import * as wx from './wx.js?v=234';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow } from './crew.js?v=234';
+import * as storage from './storage.js?v=235';
+import * as wx from './wx.js?v=235';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow, crewColor } from './crew.js?v=235';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -104,9 +104,6 @@ function loadOpened() {
 function saveOpened() {
   try { localStorage.setItem(OPENED_KEY, JSON.stringify([...opened])); } catch {}
 }
-// The one crew member whose note is showing. Notes stay folded until asked
-// for, and opening one folds the other.
-let crewNoteOpen = '';
 // Both ends' weather: the Brief tab's own element, placed after the Flight
 // group each render. It survives the render, listeners and all.
 let wxNode = null;
@@ -334,40 +331,16 @@ function renderCrewChips(rawName) {
   `;
 }
 
-// The pilot's own note about a crew member, under their name — only for
-// the one person it was asked for. Kept with the person
-// (storage.setCrewNote), so it's there on every flight with them.
-function renderCrewNote(rawName) {
-  const canonical = String(rawName || '').trim().toUpperCase();
-  if (!canonical || crewNoteOpen !== canonical) return '';
-  const note = storage.getCrew(canonical)?.note || '';
-  return `<textarea class="crew-note" data-crew-note="${escapeAttr(canonical)}" rows="1" dir="auto"
-            placeholder="Your note about ${escapeAttr(storage.displayCrew(canonical))}…">${escape(note)}</textarea>`;
-}
-
 // Beside the seat label: "+ note" with no note yet, "note" (highlighted)
-// when there is one to show, "hide" while it's showing.
+// when there is one. Either opens the crew notes window (crew-notes.js) on
+// this person; the note itself is kept with them (storage.setCrewNote), so
+// it's there on every flight with them.
 function crewNoteBtn(rawName) {
   const canonical = String(rawName || '').trim().toUpperCase();
   if (!canonical) return '';
-  const has = !!storage.getCrew(canonical)?.note, open = crewNoteOpen === canonical;
-  const label = open ? 'hide' : has ? 'note' : '+ note';
-  const title = open ? 'Hide the note' : has ? 'Show your note about this crew member' : 'Add your own note about this crew member';
-  return `<button type="button" class="crew-note-add${has && !open ? ' has-note' : ''}" data-crew-name="${escapeAttr(canonical)}" data-crew-action="note"
-            aria-expanded="${open}" title="${title}">${label}</button>`;
-}
-
-// The note button: show that person's note (folding any other), or hide it.
-// A new, empty note opens ready to type; an existing one just shows.
-export function openCrewNote(name) {
-  const canonical = String(name || '').trim().toUpperCase();
-  if (!canonical || !lastRoot) return;
-  crewNoteOpen = crewNoteOpen === canonical ? '' : canonical;
-  render(lastRoot);
-  if (crewNoteOpen && !storage.getCrew(canonical)?.note) {
-    const ta = [...lastRoot.querySelectorAll('textarea[data-crew-note]')].find(t => t.dataset.crewNote === canonical);
-    if (ta) ta.focus();
-  }
+  const has = !!storage.getCrew(canonical)?.note;
+  return `<button type="button" class="crew-note-add${has ? ' has-note' : ''}" data-crew-name="${escapeAttr(canonical)}" data-crew-action="note"
+            title="${has ? 'Your note about this crew member' : 'Add your own note about this crew member'}">${has ? 'note' : '+ note'}</button>`;
 }
 
 // PF / PM tri-state cell — tap cycles through PF → PM → '' (none).
@@ -414,6 +387,9 @@ function renderCell(c, raw) {
   const cls = ['data-cell'];
   if (c.wide) cls.push('span2');
   if (isCrew && v) cls.push('crew-cell');
+  // The colour the pilot tagged this person with (crew notes window).
+  const tag = isCrew && v ? crewColor(storage.getCrew(v)?.color) : null;
+  if (tag) cls.push('has-crew-color');
   const inputmode = c.kind === 'text' ? 'text'
                   : c.kind === 'hhmm' ? 'numeric'
                   : 'decimal';
@@ -439,11 +415,11 @@ function renderCell(c, raw) {
   // chips sit at the right edge level with the name. Other cells stay
   // single-column.
   const body = chips
-    ? `<div class="crew-row">${inputHtml}${chips}</div>${renderCrewNote(v)}`
+    ? `<div class="crew-row">${inputHtml}${chips}</div>`
     : inputHtml;
   const noteBtn = chips ? crewNoteBtn(v) : '';
   return `
-    <label class="${cls.join(' ')}">
+    <label class="${cls.join(' ')}"${tag ? ` style="--crew-c:${tag.hex}"` : ''}>
       ${noteBtn ? `<span class="lbl-row"><span class="lbl">${escape(labelStr)}</span>${noteBtn}</span>` : `<span class="lbl">${escape(labelStr)}</span>`}
       ${body}
     </label>
@@ -741,21 +717,6 @@ function wire(root) {
         }
       }
       inp.value = formatValue(def, raw);
-    });
-  });
-  // Crew notes: saved as they're typed; the box grows with the text, and an
-  // emptied one closes when left.
-  root.querySelectorAll('textarea[data-crew-note]').forEach(ta => {
-    const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
-    grow();
-    ta.addEventListener('input', () => {
-      storage.setCrewNote(ta.dataset.crewNote, ta.value);
-      grow();
-    });
-    ta.addEventListener('blur', () => {
-      if (ta.value.trim()) return;
-      if (crewNoteOpen === ta.dataset.crewNote) crewNoteOpen = '';
-      setTimeout(() => { if (lastRoot && !lastRoot.contains(document.activeElement)) render(lastRoot); }, 0);
     });
   });
   // CTOT "Now" — fill the current UTC HH:MM

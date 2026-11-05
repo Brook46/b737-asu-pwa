@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=234';
-import { dateTs, legTs } from './dates.js?v=234';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=234';
+import { flipName } from './roster.js?v=235';
+import { dateTs, legTs } from './dates.js?v=235';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=235';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -766,8 +766,23 @@ export function getCrew(name) {
     nickname: entry.nickname || '',
     phone: entry.phone || '',
     note: entry.note || '',
+    color: entry.color || '',
     flights: entry.flights | 0,
   };
+}
+// The colour tag the pilot gave this person (crew.js CREW_COLORS id, '' none).
+export function setCrewColor(name, color) {
+  const k = canon(name);
+  if (!k) return;
+  const s = read();
+  const entry = ensureCrewEntry(s, k);
+  if (color) entry.color = String(color); else delete entry.color;
+  scheduleWrite();
+}
+// Everyone in the registry, for the crew notes window: name, nickname,
+// note, colour, flights together.
+export function allCrew() {
+  return Object.keys(read().crew || {}).map(getCrew).filter(Boolean);
 }
 
 // The pilot's own note about a crew member — kept with the person, so it's
@@ -1741,7 +1756,7 @@ export function mergeStateFrom(raw) {
   for (const [name, c] of Object.entries(other.crew || {})) {
     const mine = s.crew[name];
     if (!mine) { s.crew[name] = c; added.crew++; continue; }
-    for (const f of ['nickname', 'phone', 'note']) if (!mine[f] && c[f]) mine[f] = c[f];
+    for (const f of ['nickname', 'phone', 'note', 'color']) if (!mine[f] && c[f]) mine[f] = c[f];
   }
   for (const k of ['airportNotes', 'airportSocial']) {
     s[k] = s[k] || {};

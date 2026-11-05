@@ -90,3 +90,18 @@ export function intoSlots(names, keys) {
   if (names.length > keys.length) out[keys[keys.length - 1]] = names.slice(keys.length - 1).join(', ');
   return out;
 }
+
+// Colour tags the pilot gives crew members (crew-notes.js): one per person,
+// kept with them in the crew registry. Colours only — what each one means
+// is the pilot's own.
+export const CREW_COLORS = [
+  { id: 'blue',   hex: '#3b82f6' },
+  { id: 'green',  hex: '#30a46c' },
+  { id: 'yellow', hex: '#eab308' },
+  { id: 'orange', hex: '#f97316' },
+  { id: 'red',    hex: '#ef4444' },
+  { id: 'purple', hex: '#a855f7' },
+  { id: 'pink',   hex: '#ec4899' },
+  { id: 'grey',   hex: '#8e8e93' },
+];
+export function crewColor(id) { return CREW_COLORS.find(c => c.id === id) || null; }

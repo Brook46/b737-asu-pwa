@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=234" />
+  <link rel="stylesheet" href="./app.css?v=235" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -647,6 +647,17 @@
   <!-- My notes — the Notes tab: the pilot's own named notes (LVP, MEL,
        a radio, diversions…), one at a time in one editor, with the same
        bold / italic / highlighter brush as the airport notes. -->
+  <!-- Crew notes: every crew note and colour tag (modules/crew-notes.js). -->
+  <div id="crewnotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewnotes-label">
+    <div class="ocr-sheet crewnotes-sheet">
+      <div class="pad-head">
+        <span id="crewnotes-label" class="pad-label">Crew notes</span>
+        <button id="crewnotes-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="crewnotes-body" class="crewnotes-body"></div>
+    </div>
+  </div>
+
   <div id="mynotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mynotes-label">
     <div class="ocr-sheet mynotes-sheet">
       <div class="pad-head">
@@ -959,6 +970,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=234"></script>
+  <script type="module" src="./app.js?v=235"></script>
 </body>
 </html>
