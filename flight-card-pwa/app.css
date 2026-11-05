@@ -3956,7 +3956,12 @@ body[data-phase="air"] #ready-line { display: none; }
 .ri-cpdlc-off { color: var(--warn); font-weight: 600; }
 .ri-cpdlc small { color: var(--fg-mute); font-size: 12px; }
 .ri-cpdlc-when { color: var(--fg); }
-.ri-cpdlc-now { margin-left: auto; color: var(--fg-mute); font-size: 12px; }
+.ri-cpdlc { flex-wrap: nowrap; align-items: center; }
+.ri-cpdlc-side { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+.ri-cpdlc-side.is-next { justify-content: flex-end; text-align: right; }
+.ri-cpdlc-side .ri-cpdlc-h { flex-basis: 100%; }
+.ri-cpdlc-side small { flex-basis: 100%; }
+.ri-cpdlc-arrow { flex: none; color: var(--fg-mute); font-size: 18px; }
 
 
 /* Highlighter brush: the one in hand is ringed and lifted. */

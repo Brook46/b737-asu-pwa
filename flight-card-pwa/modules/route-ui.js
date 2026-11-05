@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=232';
-import * as ri from './route-info.js?v=232';
-import { legTs, nearestHm } from './dates.js?v=232';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=232';
-import * as plan from './plan-route.js?v=232';
+import * as storage from './storage.js?v=233';
+import * as ri from './route-info.js?v=233';
+import { legTs, nearestHm } from './dates.js?v=233';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=233';
+import * as plan from './plan-route.js?v=233';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1393,7 +1393,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=232'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=233'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -1404,11 +1404,14 @@ async function paintCpdlc(g) {
     return c.on ? `<span class="ri-cpdlc-on">CPDLC <b>${esc(c.code)}</b></span>${c.note ? ` <small>${esc(c.note)}</small>` : ''}`
       : `<span class="ri-cpdlc-off">${esc(c.note)}</span>`;
   };
-  const html = r.next
-    ? `<span class="ri-cpdlc-h">Next</span> <b class="ri-cpdlc-fir">${esc(r.next)}</b> ${tag(r.next)}
-       <span class="ri-cpdlc-when">in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}</span>
-       ${r.here ? `<span class="ri-cpdlc-now">now ${esc(r.here)}${cpdlcMod.cpdlcOf(r.here).on ? ' · ' + esc(cpdlcMod.cpdlcOf(r.here).code) : ''}</span>` : ''}`
-    : r.here ? `<span class="ri-cpdlc-h">In</span> <b class="ri-cpdlc-fir">${esc(r.here)}</b> ${tag(r.here)} <span class="ri-cpdlc-when">to the destination</span>` : '';
+  // Where we are on the left, what's next on the right — the order they're flown.
+  const side = (cls, head, id, when) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
+      <b class="ri-cpdlc-fir">${esc(id)}</b> ${tag(id)}${when ? ` <span class="ri-cpdlc-when">${when}</span>` : ''}</div>`;
+  const html = (r.here || r.next)
+    ? (r.here ? side('is-now', 'Now', r.here, r.next ? '' : 'to the destination') : '<div class="ri-cpdlc-side is-now"></div>')
+      + (r.next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>` + side('is-next', 'Next', r.next,
+        `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}`) : '')
+    : '';
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
   el.hidden = !html;
 }
