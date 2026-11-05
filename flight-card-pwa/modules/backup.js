@@ -9,7 +9,7 @@
 // The file goes where the pilot sends it from the share sheet (Save to Files
 // → iCloud Drive, or Mail). Nothing is uploaded anywhere by the app.
 
-import * as storage from './storage.js?v=235';
+import * as storage from './storage.js?v=236';
 
 const TAG = 'flightcard-backup';
 // Caches and this module's own bookkeeping: never in a backup, never
@@ -62,6 +62,8 @@ export function filename(b) {
 // (just the main store).
 export function parse(text) {
   const o = JSON.parse(text);
+  // A file from Export (export.js): just the parts picked, added on import.
+  if (o && o.app === 'flightcard-export' && o.parts && typeof o.parts === 'object') return { ...o, exp: true };
   if (o && o.app === TAG && o.keys && typeof o.keys === 'object') return o;
   if (o && typeof o === 'object' && (o.speeches || o.current || o.history)) {
     return { app: TAG, v: 0, at: '', counts: counts(text), keys: { 'fc.state': text }, old: true };

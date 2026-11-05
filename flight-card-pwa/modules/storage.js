@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=235';
-import { dateTs, legTs } from './dates.js?v=235';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=235';
+import { flipName } from './roster.js?v=236';
+import { dateTs, legTs } from './dates.js?v=236';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=236';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1641,6 +1641,60 @@ export function deleteMyNote(id) {
 // Notes from a file (Notes → Edit → Import notes…): a note whose name
 // matches one of the pilot's tabs is added BELOW what's there, under a
 // divider; any other becomes a new tab. Nothing is replaced.
+// An export file (export.js) added to this iPad. Only adds: a note or tab
+// that isn't here comes in; one that is, with different text, gets the
+// new text under a divider; the same text twice is skipped. Crew notes,
+// colours and nicknames fill what's empty; flights merge like a sector
+// import (past) or a roster (future). Returns what was added.
+export function mergeExport(parts, divider = '<b>— imported —</b>') {
+  const s = read();
+  const out = { notes: 0, airportNotes: 0, crew: 0, speeches: 0, legs: 0 };
+  const has = (whole, part) => String(whole || '').includes(String(part || '').trim());
+  const norm = (x) => String(x || '').trim().toLowerCase();
+  for (const n of parts.myNotes || []) {
+    const name = String(n && n.name || '').trim(), html = String(n && n.html || '');
+    if (!name || !html) continue;
+    const mine = s.myNotes.find(m => norm(m.name) === norm(name));
+    if (mine && has(mine.html, html)) continue;
+    if (mine) mine.html = mine.html ? `${mine.html}<br><br>${divider}<br>${html}` : html;
+    else s.myNotes.push({ id: 'n' + Date.now().toString(36) + out.notes, name, html });
+    out.notes++;
+  }
+  for (const k of ['airportNotes', 'airportSocial']) {
+    if (!s[k] || typeof s[k] !== 'object') s[k] = {};
+    for (const [code, v] of Object.entries(parts[k] || {})) {
+      if (!v) continue;
+      const cur = s[k][code];
+      if (cur && has(cur, v)) continue;
+      s[k][code] = cur ? `${cur}<br><br>${divider}<br>${v}` : v;
+      if (k === 'airportNotes') out.airportNotes++;
+    }
+  }
+  for (const [name, c] of Object.entries(parts.crew || {})) {
+    const k = canon(name);
+    if (!k || !c) continue;
+    const e = ensureCrewEntry(s, k);
+    let touched = false;
+    if (c.note && !has(e.note, c.note)) { e.note = e.note ? `${e.note}\n— imported —\n${c.note}` : c.note; touched = true; }
+    for (const f of ['color', 'nickname', 'phone']) if (c[f] && !e[f]) { e[f] = c[f]; touched = true; }
+    if (touched) out.crew++;
+  }
+  for (const sp of parts.speeches || []) {
+    if (!sp || !sp.name) continue;
+    const same = s.speeches.find(x => x.id === sp.id || (norm(x.name) === norm(sp.name) && x.bodyEn === sp.bodyEn && x.bodyHe === sp.bodyHe));
+    if (same) continue;
+    s.speeches.push({ ...sp, id: s.speeches.some(x => x.id === sp.id) ? 'sp-' + Math.random().toString(36).slice(2, 8) : sp.id });
+    out.speeches++;
+  }
+  const legs = (parts.legs || []).filter(l => l && l.dep_date);
+  const now = Date.now();
+  const future = legs.filter(l => (depTs(l) || 0) > now), past = legs.filter(l => !((depTs(l) || 0) > now));
+  if (past.length) out.legs += addImportedLegs(past.map(l => ({ ...l }))).added;
+  if (future.length) out.legs += appendLegs(future.map(l => ({ ...l }))).added || 0;
+  flush();
+  return out;
+}
+
 export function importMyNotes(list, divider = '') {
   const s = read(), out = { appended: 0, added: 0 };
   const norm = (x) => String(x || '').trim().toLowerCase();

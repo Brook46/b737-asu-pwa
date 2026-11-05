@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=235" />
+  <link rel="stylesheet" href="./app.css?v=236" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -610,11 +610,25 @@
           <button id="backup-now" class="btn primary" type="button">Back up now</button>
           <label class="btn">
             <input id="backup-pick" type="file" accept="application/json,.json" hidden />
-            Restore from a backup…
+            Restore or import a file…
           </label>
         </div>
         <div id="backup-preview" class="backup-preview" hidden></div>
         <button id="backup-undo" class="btn" type="button" hidden>Undo the last restore</button>
+        </div>
+      </details>
+      <details class="set-row" id="set-export">
+        <summary><span class="set-name">Export</span><span class="set-status">choose what to share</span></summary>
+        <div class="set-body">
+        <p class="muted small">
+          A file of just what you tick — Notes tabs, airport notes, crew notes,
+          PAs, past, future or chosen flights — for a friend or another of your
+          devices. On the other device: Settings → Backup → <b>Restore or import
+          a file…</b>. Importing only adds; nothing there is replaced.
+        </p>
+        <div class="settings-row-btns">
+          <button id="export-open" class="btn primary" type="button">Choose what to export…</button>
+        </div>
         </div>
       </details>
     </div>
@@ -647,6 +661,21 @@
   <!-- My notes — the Notes tab: the pilot's own named notes (LVP, MEL,
        a radio, diversions…), one at a time in one editor, with the same
        bold / italic / highlighter brush as the airport notes. -->
+  <!-- Export: pick what goes in a file (modules/export.js). -->
+  <div id="export-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="export-label">
+    <div class="ocr-sheet export-sheet">
+      <div class="pad-head">
+        <span id="export-label" class="pad-label">Export</span>
+        <button id="export-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="export-body" class="export-body"></div>
+      <div class="export-foot">
+        <span id="export-sum" class="export-sum"></span>
+        <button id="export-go" class="btn primary" type="button" disabled>Export</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Crew notes: every crew note and colour tag (modules/crew-notes.js). -->
   <div id="crewnotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewnotes-label">
     <div class="ocr-sheet crewnotes-sheet">
@@ -970,6 +999,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=235"></script>
+  <script type="module" src="./app.js?v=236"></script>
 </body>
 </html>
