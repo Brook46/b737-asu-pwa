@@ -19,7 +19,7 @@
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
-import { EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=233';
+import { EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=234';
 
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
@@ -224,12 +224,28 @@ export function parseSectors(text) {
     legs.push(leg);
   }
 
+  // The same flight twice on one day in one file is a reschedule: the
+  // original timing, never flown, and the one that was. Keep the flown one
+  // (it has actual times); the store would otherwise keep whichever came
+  // first, with the wrong STD and often the wrong tail.
+  const flownScore = (l) => (l.dataCard.off_block ? 2 : 0) + (l.dataCard.takeoff_at ? 1 : 0);
+  const byKey = new Map();
+  let rescheduled = 0;
+  for (const l of legs) {
+    const k = [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].join('|');
+    const prev = byKey.get(k);
+    if (!prev) { byKey.set(k, l); continue; }
+    rescheduled++;
+    if (flownScore(l) > flownScore(prev)) byKey.set(k, l);
+  }
+  legs.splice(0, legs.length, ...byKey.values());
+
   if (!legs.length && !skippedDeadhead) {
     throw new Error('No sectors could be read out of that file.');
   }
   return {
     legs, owner, rows: records.length,
-    skippedDeadhead, skippedBad,
+    skippedDeadhead, skippedBad, rescheduled,
     from: Number.isFinite(from) ? from : null,
     to:   Number.isFinite(to)   ? to   : null,
   };

@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=233';
-import { dateTs, legTs } from './dates.js?v=233';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=233';
+import { flipName } from './roster.js?v=234';
+import { dateTs, legTs } from './dates.js?v=234';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=234';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -976,7 +976,19 @@ export function addImportedLegs(legs) {
     // Checked against the batch as well as the store: a sector genuinely can
     // appear twice in one export (an augmented crew files one record each).
     const dupIdx = pool.findIndex(l => sameSector(l, leg));
-    if (dupIdx >= 0) { if (fillEmptyFrom(pool[dupIdx], leg)) updated++; continue; }
+    if (dupIdx >= 0) {
+      const have = pool[dupIdx];
+      // An earlier import kept a rescheduled copy that never flew (no
+      // off-block): the flown copy's times, tail and actuals replace it.
+      if (have.src === 'csv' && !(have.dataCard && have.dataCard.off_block) && leg.dataCard.off_block) {
+        for (const k of ['dep_time', 'arr_date', 'arr_time', 'arr_year', 'tail', 'flight_time']) if (leg[k]) have[k] = leg[k];
+        have.dataCard = { ...(have.dataCard || {}), ...leg.dataCard };
+        updated++;
+        continue;
+      }
+      if (fillEmptyFrom(have, leg)) updated++;
+      continue;
+    }
     fresh.push(leg);
     pool.push(leg);
     added++;
