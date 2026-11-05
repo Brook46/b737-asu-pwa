@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=231" />
+  <link rel="stylesheet" href="./app.css?v=232" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -831,6 +831,7 @@
     <div class="ocr-sheet route-sheet">
       <div class="pad-head">
         <span id="route-label" class="pad-label">Route info</span>
+        <button id="route-plan" class="btn" type="button" title="Paste the filed route">Route</button>
         <button id="route-refresh" class="btn" type="button">Update</button>
         <button id="route-full" class="btn icon-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen">⤢</button>
         <button id="route-close" class="btn icon-btn" type="button" aria-label="Close">✕</button>
@@ -954,6 +955,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=231"></script>
+  <script type="module" src="./app.js?v=232"></script>
 </body>
 </html>

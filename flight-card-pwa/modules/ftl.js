@@ -8,8 +8,8 @@
 //
 // Pure functions, no DOM: app.js renders the sheet from evaluate().
 
-import { legPlanActual } from './dates.js?v=231';
-import { PILOT_KEYS } from './crew.js?v=231';
+import { legPlanActual } from './dates.js?v=232';
+import { PILOT_KEYS } from './crew.js?v=232';
 
 const H = 3600000, MIN = 60000;
 export const OMA_REV = 'OM A Rev 22 · ch. 7.2';
@@ -281,7 +281,11 @@ export function earliestLeg(fdps) { return fdps.length ? fdps[0].report : null; 
 //   GPS landing                         + taxi-in
 //   GPS position (etaOf, from app.js)   share of the route left × flight time
 //   GPS take-off                        + flight time + taxi-in
+//   off-block                           + scheduled block time
 //   CTOT                                the slot pushes the off-block
+// An on-block, take-off or off-block typed in on the sheet is stored in the
+// same fields (the leg's dataCard), so it counts like any actual — earlier
+// as much as later than planned.
 //   otherwise                           the schedule
 // Often there's no GPS until airborne (no internet, the app closed), and the
 // estimate is kept from the last fix once the app is closed again. Never the
@@ -304,24 +308,35 @@ export function projectedEnd(fdp, opts = {}) {
   // The latest leg with anything to go on decides: an earlier leg's actual
   // times often arrive (calendar) only after the duty, so a leg with nothing
   // is skipped, not taken as the end of what's known.
-  for (const l of fdp.legs) {
-    if (l.flown) { delay = l.end - l.sta; basis = 'on-blocks'; continue; }
+  let from = -1;   // which leg the delay came from
+  fdp.legs.forEach((l, k) => {
+    if (l.flown) { delay = l.end - l.sta; basis = 'on-blocks'; from = k; return; }
     const p = legPlanActual(l.leg);
     const eta = opts.etaOf ? opts.etaOf(l.leg) : NaN;
-    if (Number.isFinite(p.landing)) { delay = p.landing + tin - l.sta; basis = 'GPS landing'; }
+    if (Number.isFinite(p.ibt)) { delay = p.ibt - l.sta; basis = 'on-blocks'; }
+    else if (Number.isFinite(p.landing)) { delay = p.landing + tin - l.sta; basis = 'landing'; }
     else if (Number.isFinite(eta)) { delay = eta - l.sta; basis = 'GPS position'; }
-    else if (Number.isFinite(p.takeoff)) { delay = p.takeoff + airMs(l) + tin - l.sta; basis = 'GPS take-off'; }
+    else if (Number.isFinite(p.takeoff)) { delay = p.takeoff + airMs(l) + tin - l.sta; basis = 'take-off'; }
+    else if (Number.isFinite(p.obt)) { delay = p.obt - l.std; basis = 'off-block'; }
     else if (Number.isFinite(p.ctot)) {
-      delay = Math.max(delay, p.ctot - taxiOf(String(l.leg.dep || '').toUpperCase()) * MIN - l.std);
+      delay = Math.max(delay, 0, p.ctot - taxiOf(String(l.leg.dep || '').toUpperCase()) * MIN - l.std);
       basis = 'CTOT';
-    }
-  }
-  return { end: fdp.plannedEnd + Math.max(0, delay), basis };
+    } else return;
+    from = k;
+  });
+  // Earlier than planned counts only when it's the last leg that's early:
+  // the next leg still leaves on its schedule, so an early arrival before a
+  // turnaround buys nothing. A delay carries on.
+  if (delay < 0 && from !== fdp.legs.length - 1) delay = 0;
+  return { end: fdp.plannedEnd + delay, basis };
 }
 
-// On-blocks estimate from a GPS fix: the share of the great-circle route
-// still to fly, times the leg's air time, plus taxi-in.
-export function etaFromFix(l, fix, depPt, arrPt, now = Date.now()) {
+// On-blocks estimate from a GPS fix: the share of the route still to fly,
+// times the leg's air time, plus taxi-in. `on` is where the fix is along
+// the filed route (plan-route.js progress()) when one was pasted and the
+// aircraft is on it; otherwise the great circle through where it is.
+export function etaFromFix(l, fix, depPt, arrPt, now = Date.now(), on = null) {
+  if (on && on.total > 0) return now + Math.min(1, on.left / on.total) * airMs(l) + TAXI_IN_MIN * MIN;
   const R = Math.PI / 180;
   const dist = (a, b) => {
     const x = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2;

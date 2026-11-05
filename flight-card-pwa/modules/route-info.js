@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=231';
+import { WORKER_BASE } from './proxy.js?v=232';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -112,6 +112,25 @@ export function routePoints(A, B, n = 96) {
     pts.push({ lat, lon, s: t * d * NM_PER_RAD });
   }
   return { pts, total: d * NM_PER_RAD };
+}
+// The filed route (plan-route.js points) in the same shape: each leg
+// between fixes as a great circle, a point every ~20 nm, s running on.
+export function routeAlong(wps) {
+  const pts = [];
+  let s = 0;
+  for (let i = 0; i + 1 < wps.length; i++) {
+    const a = wps[i], b = wps[i + 1];
+    const d = hav(a.lat, a.lon, b.lat, b.lon);
+    const seg = routePoints(a, b, Math.max(1, Math.ceil(d / 20)));
+    seg.pts.forEach((p, k) => { if (k || !i) pts.push({ lat: p.lat, lon: p.lon, s: s + p.s }); });
+    s += seg.total;
+  }
+  // One frame of longitude all the way (no jump at ±180).
+  for (let i = 1; i < pts.length; i++) {
+    while (pts[i].lon - pts[i - 1].lon > 180) pts[i].lon -= 360;
+    while (pts[i].lon - pts[i - 1].lon < -180) pts[i].lon += 360;
+  }
+  return { pts, total: s, filed: true, wps };
 }
 
 // ---------- Timing ----------

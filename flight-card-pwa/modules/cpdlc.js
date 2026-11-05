@@ -10,7 +10,7 @@
 // some centres start lower. Outside that list it says so — there may still
 // be FANS somewhere, so the AIP or the Jeppesen pages have the last word.
 
-import { FIR_LABELS, firRings } from './mapdata.js?v=231';
+import { FIR_LABELS, firRings } from './mapdata.js?v=232';
 
 // FIR (or ACC sector) on the map → the log-on to use there.
 const LOGON = {
@@ -67,9 +67,11 @@ export function cpdlcOf(id) {
   return { on: false, note: SOON[id] || 'No CPDLC (ATN) — voice' };
 }
 
-// Along the great circle from here to the destination, every 10 nm: the
-// FIR we're in and the first different one ahead, with its distance and
-// time at this groundspeed.
+// Along the way ahead, every 10 nm: the FIR we're in and the first
+// different one ahead, with its distance and time at this groundspeed.
+// The way ahead is the filed route from abeam where we are when one was
+// pasted and we're on it (`ahead`, from plan-route.js progress()), else
+// the great circle straight to the destination.
 const R = Math.PI / 180;
 function gcPoint(a, b, f) {
   const f1 = a.lat * R, l1 = a.lon * R, f2 = b.lat * R, l2 = b.lon * R;
@@ -81,17 +83,22 @@ function gcPoint(a, b, f) {
   const z = A * Math.sin(f1) + B * Math.sin(f2);
   return { lat: Math.atan2(z, Math.hypot(x, y)) / R, lon: Math.atan2(y, x) / R, d: d * 3440.065 };
 }
-export function nextFir(pos, dest, gsKt) {
+export function nextFir(pos, dest, gsKt, ahead = null) {
   const here = firAt(pos.lat, pos.lon);
-  const total = gcPoint(pos, dest, 1).d;
-  const steps = Math.max(1, Math.ceil(total / 10));
-  for (let i = 1; i <= steps; i++) {
-    const p = gcPoint(pos, dest, i / steps);
-    const id = firAt(p.lat, p.lon);
-    if (id && id !== here) {
-      const dist = total * i / steps;
-      return { here, next: id, distNm: dist, min: gsKt > 60 ? dist / gsKt * 60 : null };
+  const path = ahead && ahead.length ? [pos, ...ahead] : [pos, dest];
+  let run = 0;
+  for (let k = 0; k + 1 < path.length; k++) {
+    const total = gcPoint(path[k], path[k + 1], 1).d;
+    const steps = Math.max(1, Math.ceil(total / 10));
+    for (let i = 1; i <= steps; i++) {
+      const p = gcPoint(path[k], path[k + 1], i / steps);
+      const id = firAt(p.lat, p.lon);
+      if (id && id !== here) {
+        const dist = run + total * i / steps;
+        return { here, next: id, distNm: dist, min: gsKt > 60 ? dist / gsKt * 60 : null };
+      }
     }
+    run += total;
   }
   return { here, next: '', distNm: null, min: null };
 }

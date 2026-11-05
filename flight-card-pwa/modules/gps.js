@@ -177,7 +177,8 @@ function handlePosition(pos) {
   const ts = pos.timestamp || Date.now();
   lastFix = { lat: c.latitude, lon: c.longitude, altM: Number.isFinite(c.altitude) ? c.altitude : null,
               speedMps: Number.isFinite(c.speed) ? c.speed : null,
-              heading: Number.isFinite(c.heading) && c.heading >= 0 ? c.heading : null, ts };
+              heading: Number.isFinite(c.heading) && c.heading >= 0 ? c.heading : null,
+              accM: Number.isFinite(c.accuracy) ? c.accuracy : null, ts };
   // Some platforms emit null for speed; assume 0 then so we still tick.
   const speed_mps = Number.isFinite(c.speed) ? c.speed : 0;
   const alt_m     = Number.isFinite(c.altitude) ? c.altitude : null;

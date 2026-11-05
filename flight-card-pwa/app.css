@@ -3228,6 +3228,15 @@ body {
 .route-sheet .pad-head .btn { flex: none; }
 .route-sub { margin: 2px 2px 8px; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
 .ri-status { font-size: 12px; color: var(--fg-mute); margin: 0 2px 8px; }
+.ri-plan-link { background: none; border: 0; padding: 0 0 0 6px; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.ri-track.is-filed { stroke-dasharray: none; }
+.ri-plan { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }
+.ri-plan-h { font-size: 14px; margin-bottom: 6px; }
+.ri-plan-h small { display: block; font-size: 12px; color: var(--fg-mute); margin-top: 2px; }
+.ri-plan textarea { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-monospace, Menlo, monospace; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg-sunk); color: var(--fg); resize: vertical; text-transform: uppercase; }
+.ri-plan-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ri-plan-out { font-size: 12px; color: var(--fg-mute); margin: 8px 0 0; }
 .ri-map { display: block; width: 100%; height: auto; border-radius: var(--radius-ctl); margin-bottom: 8px; touch-action: manipulation; }
 .ri-track { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
 .ri-pin { cursor: pointer; }
@@ -3844,6 +3853,15 @@ body[data-phase="air"] #ready-line { display: none; }
 .ftl-row small, .ftl-leg small, .ftl-ltt small { display: block; font-size: 11px; color: var(--fg-mute); }
 .ftl-row b, .ftl-ltt b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .ftl-ltt { text-align: right; font-variant-numeric: tabular-nums; }
+.ftl-act-tz { font-size: 11px; font-weight: 600; color: var(--fg-mute); margin-left: 4px; }
+.ftl-act-leg { padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.ftl-act-leg:first-of-type { border-top: 0; }
+.ftl-act-h { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.ftl-act-h small { font-size: 11px; color: var(--fg-mute); }
+.ftl-act-clr { margin-left: auto; background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 2px 0; }
+.ftl-act-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.ftl-act-f { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--fg-mute); min-width: 0; }
+.ftl-act-f .ftl-in { width: 100%; box-sizing: border-box; }
 .ftl-rows .is-good, .ftl-live.is-good { color: var(--good); }
 .ftl-rows .is-warn, .ftl-live.is-warn, .ftl-bar.is-warn .an-bar-count { color: var(--warn); }
 .ftl-rows .is-bad, .ftl-live.is-bad, .ftl-ltt.is-bad, .ftl-bar.is-bad .an-bar-count { color: var(--danger); }

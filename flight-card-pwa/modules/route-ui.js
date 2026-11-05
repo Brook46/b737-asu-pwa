@@ -8,10 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=231';
-import * as ri from './route-info.js?v=231';
-import { legTs, nearestHm } from './dates.js?v=231';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=231';
+import * as storage from './storage.js?v=232';
+import * as ri from './route-info.js?v=232';
+import { legTs, nearestHm } from './dates.js?v=232';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=232';
+import * as plan from './plan-route.js?v=232';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -113,7 +114,9 @@ async function build(leg, { doFetch = false } = {}) {
   const db = await ri.loadDb();
   const A = ri.findAirport(db, leg.dep), B = ri.findAirport(db, leg.arr);
   if (!A || !B) throw new Error(`${!A ? leg.dep : leg.arr || '—'} isn't in the airport database`);
-  const route = ri.routePoints(A, B);
+  // The filed route when one was pasted for this leg, else the great circle.
+  const filed = plan.getPlan(leg);
+  const route = filed ? ri.routeAlong(filed.pts) : ri.routePoints(A, B);
   const d = leg.dataCard || {};
   const stdMs = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
   const ctotMs = nearestHm(d.ctot || leg.ctot, stdMs);
@@ -183,6 +186,60 @@ async function build(leg, { doFetch = false } = {}) {
     notamsAt: cache?.notamsAt || cache?.at || 0,
     hasWx: !!cache?.wx,
   };
+}
+
+// ---------- Filed route ----------
+// Paste the ATC route (or the whole FPL / OFP route block) and the map,
+// the airports along it, the CPDLC banner and the FDP estimate follow it
+// (plan-route.js). Cleared, it's the great circle again.
+async function planAction(what) {
+  const slot = $('ri-plan-slot');
+  if (!state || !slot) return;
+  const leg = state.model.leg;
+  if (what === 'close') { slot.innerHTML = ''; return; }
+  if (what === 'open') {
+    const p = plan.getPlan(leg);
+    slot.innerHTML = `<div id="ri-plan" class="ri-plan">
+        <div class="ri-plan-h"><b>Filed route</b> ${esc(state.model.A.icao)} → ${esc(state.model.B.icao)}
+          <small>Paste the ATC route from the OFP or flight plan — airways, DCT and levels are fine.</small></div>
+        <textarea id="ri-plan-text" rows="4" spellcheck="false" autocapitalize="characters" autocomplete="off"
+          placeholder="SUVAS1A SUVAS UL53 PAPIN UM601 ...">${esc(p?.text || '')}</textarea>
+        <div class="ri-plan-btns">
+          <button type="button" class="btn primary" data-ri-plan="draw">Draw route</button>
+          ${p ? '<button type="button" class="btn" data-ri-plan="clear">Back to great circle</button>' : ''}
+          <button type="button" class="btn" data-ri-plan="close">Cancel</button>
+        </div>
+        <p id="ri-plan-out" class="ri-plan-out">${p ? planSummary(p) : 'Until a route is pasted, the great circle is used — and in the air, the GPS position straight to the destination.'}</p>
+      </div>`;
+    slot.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (what === 'clear') {
+    plan.setPlan(leg, null);
+    toast('Great circle again');
+    await paint(await build(leg), state.showAll);
+    return;
+  }
+  if (what === 'draw') {
+    const text = ($('ri-plan-text')?.value || '').trim();
+    const out = $('ri-plan-out');
+    if (!text) { if (out) out.textContent = 'Paste the route first.'; return; }
+    if (out) out.textContent = 'Finding the waypoints…';
+    let fixes;
+    try { fixes = await plan.loadFixes(); }
+    catch { if (out) out.textContent = 'Couldn\'t load the waypoint list — it needs internet the first time.'; return; }
+    const db = await ri.loadDb();
+    const r = plan.parse(text, state.model.A, state.model.B, fixes, (c) => db.a[c] ? ri.findAirport(db, c) : null);
+    if (!r.found) { if (out) out.textContent = `No waypoints recognised${r.missing.length ? ` (not found: ${r.missing.slice(0, 8).join(' ')})` : ''} — still on the great circle.`; return; }
+    const saved = { text, pts: r.pts.map(p => ({ n: p.n, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) })), missing: r.missing, found: r.found };
+    plan.setPlan(leg, saved);
+    await paint(await build(leg), state.showAll);
+    toast(`Route drawn: ${planSummary(saved)}`);
+  }
+}
+function planSummary(p) {
+  const nm = Math.round(plan.lengthNm(p.pts)).toLocaleString('en-US');
+  return `${p.found} waypoint${p.found === 1 ? '' : 's'} · ${nm} nm${p.missing?.length ? ` · not found, left out: ${p.missing.slice(0, 8).join(' ')}${p.missing.length > 8 ? ' …' : ''}` : ''}`;
 }
 
 // ---------- Map ----------
@@ -311,7 +368,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <g class="ri-firs">${firs.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-fir-lbls">${firLbl}</g>
-      <path d="${track}" class="ri-track"/>
+      <path d="${track}" class="ri-track${m.route.filed ? ' is-filed' : ''}"/>
       <g id="ri-iso"></g>
       ${pins}
       <g id="ri-iso-lbls"></g>
@@ -1025,6 +1082,7 @@ async function paint(model, showAll = false) {
   const fl = model.leg && model.leg.flight ? `${String(model.leg.flight).replace(/^0+/, '')} · ` : '';
   $('route-sub').textContent = `${fl}${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${model.mode === 'browse' ? day(model.tm.takeoff) : ''}${hm(model.tm.takeoff)}`;
   $('route-body').innerHTML = `
+    <div id="ri-plan-slot"></div>
     <div id="ri-ready" class="ri-ready"></div>
     ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
       `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
@@ -1040,7 +1098,8 @@ async function paint(model, showAll = false) {
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
       NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
-      within an hour (${ri.RADIUS_NM} nm) of the great-circle route
+      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed' : 'great-circle'} route
+      <button type="button" class="ri-plan-link" data-ri-plan="open">${model.route.filed ? 'Edit route' : 'Paste filed route'}</button>
     </div>
     <div class="ri-legend">
       <span><i class="ri-dot ri-b-a"></i>8–10 ${counts.a}</span><span><i class="ri-dot ri-b-b"></i>6–7 ${counts.b}</span>
@@ -1296,6 +1355,8 @@ function routeTrackNear(lat, lon) {
 }
 function onFix(pos) {
   const c = pos.coords;
+  // A network guess (Wi-Fi only, kilometres out) isn't a position to fly by.
+  if (!plan.goodFix(c.accuracy)) return;
   const now = pos.timestamp || Date.now();
   let trk = Number.isFinite(c.heading) && c.heading >= 0 && (c.speed || 0) > 20 ? c.heading : null;
   let gs = Number.isFinite(c.speed) && c.speed >= 0 ? c.speed * 1.94384 : null;
@@ -1332,9 +1393,11 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=231'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=232'); } catch { el.hidden = true; return; }
   const B = state.model.B;
-  const r = cpdlcMod.nextFir(g, B, g.gs);
+  const wps = state.model.route.filed ? state.model.route.wps : null;
+  const on = wps ? plan.progress(wps, g) : null;
+  const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
   const tag = (id) => {
     if (!id) return '';
     const c = cpdlcMod.cpdlcOf(id);
@@ -1872,6 +1935,7 @@ export function wire() {
   wired = true;
   $('route-close')?.addEventListener('click', closeRoute);
   $('route-refresh')?.addEventListener('click', () => refresh(true));
+  $('route-plan')?.addEventListener('click', () => planAction($('ri-plan') ? 'close' : 'open'));
   // Full screen, remembered on this device — like the notes.
   const sheet = document.querySelector('.route-sheet');
   try { applyFull(localStorage.getItem('fc.route.full') === '1'); } catch {}
@@ -1893,6 +1957,8 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const pb = e.target.closest('[data-ri-plan]');
+    if (pb) { planAction(pb.dataset.riPlan); return; }
     const ab = e.target.closest('[data-ri-altn]');
     if (ab && state) {
       const icao = ab.closest('.ri-card')?.dataset.icao;
