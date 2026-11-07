@@ -277,7 +277,7 @@ export function parseFmcText(rawText) {
 }
 
 // ---------- Field labels for review ----------
-import { fieldDef } from './data-card.js?v=236';
+import { fieldDef } from './data-card.js?v=237';
 
 // Header fields have no data-card definition to borrow a label from.
 const HEADER_LABELS = { tail: 'Tail', flight: 'Flight', ctot: 'CTOT (UTC)' };
