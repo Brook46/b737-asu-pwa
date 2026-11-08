@@ -16,8 +16,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=255';
-import { WORKER_BASE } from './proxy.js?v=255';
+import { lookup } from './airports.js?v=256';
+import { WORKER_BASE } from './proxy.js?v=256';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -60,7 +60,7 @@ function toIcao(code) {
 // that reads the weather synchronously (peekCachedWx) awaits this first.
 let iataToIcao = null, codesLoad = null;
 export function codesReady() {
-  codesLoad ||= import('./route-info.js?v=255').then(ri => ri.loadDb())
+  codesLoad ||= import('./route-info.js?v=256').then(ri => ri.loadDb())
     .then(db => { iataToIcao = db.byIata; })
     .catch(() => { codesLoad = null; });
   return codesLoad;
@@ -110,7 +110,7 @@ async function fetchAtisInfo(icao) {
 // last aircraft that asked, so each carries its time (at) and the letter is
 // given only while it's under ACARS_LETTER_MIN old — older text still shows,
 // with its age, but doesn't set the ATIS letter.
-const ACARS_LETTER_MIN = 90;
+const ACARS_LETTER_MIN = 180;      // its age shows in colour (orange 1 h, red 2 h); past 3 h no letter
 const ACARS_MAX_H = 12;
 async function fetchAcarsAtis(icao) {
   const ctl = new AbortController();

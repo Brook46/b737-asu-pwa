@@ -3243,8 +3243,8 @@ body {
 .ri-pin .ri-st-full { fill: var(--ri); stroke: var(--bg-elev); stroke-width: 1.6; }
 .ri-pin text { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; pointer-events: none; }
 .ri-pin .ri-pin-code {
-  fill: var(--fg); font-size: 9px; font-weight: 700; letter-spacing: .02em;
-  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+  fill: var(--fg); font-size: 11px; font-weight: 800; letter-spacing: .02em;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3.2; stroke-linejoin: round;
 }
 /* Departure / destination: a light halo round the station. */
 .ri-pin.is-end .ri-st, .ri-pin.is-end .ri-st-full { filter: drop-shadow(0 0 1.2px var(--fg)); }
@@ -3352,8 +3352,8 @@ body {
 .ri-pin.show-wind .ri-pin-wind { display: inline; }
 .ri-pin-wind path { fill: none; stroke: var(--wind); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ri-pin .ri-pin-wind text {
-  fill: var(--wind); font-size: 9px; font-weight: 700; text-anchor: start;
-  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+  fill: var(--wind); font-size: 10.5px; font-weight: 800; text-anchor: start;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3.2; stroke-linejoin: round;
 }
 .ri-pin-wind.is-o path { stroke: var(--warn); } .ri-pin .ri-pin-wind.is-o text { fill: var(--warn); }
 .ri-pin-wind.is-r path { stroke: var(--danger); } .ri-pin .ri-pin-wind.is-r text { fill: var(--danger); }
@@ -3363,8 +3363,9 @@ body {
 .ri-borders path { fill: none; stroke: var(--fg-mute); stroke-opacity: .5; stroke-width: .9; vector-effect: non-scaling-stroke; }
 .ri-firs path { fill: none; stroke: #8e6fd8; stroke-opacity: .35; stroke-width: .8; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .ri-fir-lbl text {
-  transform: scale(var(--ri-k, 1)); font-size: 9px; font-weight: 700; letter-spacing: .6px;
-  fill: #8e6fd8; fill-opacity: .7; text-anchor: middle; pointer-events: none;
+  transform: scale(var(--ri-k, 1)); font-size: 10.5px; font-weight: 800; letter-spacing: .6px;
+  fill: #8e6fd8; fill-opacity: .85; text-anchor: middle; pointer-events: none;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3px; stroke-linejoin: round;
 }
 .ri-map:not(.is-zoomed) .ri-fir-lbl { display: none; }
 .ri-iso-lbl text {
@@ -3430,8 +3431,8 @@ body {
 .ri-pin .ri-pin-code, .ri-pin .ri-pin-name { display: none; }
 .ri-pin.show-code .ri-pin-code, .ri-pin.show-name .ri-pin-name { display: inline; }
 .ri-pin .ri-pin-name {
-  fill: var(--fg-mute); font-size: 9px; font-weight: 600; text-anchor: middle;
-  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5;
+  fill: var(--fg); font-size: 10.5px; font-weight: 600; text-anchor: middle;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3.2; stroke-linejoin: round;
 }
 :root { --wind: #0a84c6; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wind: #64d2ff; } }
@@ -4354,7 +4355,7 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ri-sig { pointer-events: none; }
 .ri-sig path { fill: var(--sig-c); fill-opacity: .14; stroke: var(--sig-c); stroke-opacity: .75; stroke-width: 1.2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
 .ri-sig.is-sel path { fill-opacity: .3; stroke-width: 2.2; stroke-dasharray: none; }
-.ri-sig-lbl text { transform: scale(var(--ri-k, 1)); font-size: 9px; font-weight: 800; letter-spacing: .4px; fill: var(--sig-c); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; }
+.ri-sig-lbl text { transform: scale(var(--ri-k, 1)); font-size: 10.5px; font-weight: 800; letter-spacing: .4px; fill: var(--sig-c); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; }
 .ri-sig-ts { --sig-c: #e5484d; }
 .ri-sig-turb { --sig-c: #f08c00; }
 .ri-sig-ice { --sig-c: #0091ff; }
@@ -4386,7 +4387,7 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ri-ely-k { transform: scale(var(--ri-k, 1)); }
 .ri-ely-ac { transition: opacity .2s; }
 .ri-ely-ac path { fill: #f5c400; stroke: #1c1c1e; stroke-width: .9; stroke-linejoin: round; }
-.ri-ely-ac text { font-size: 8px; font-weight: 800; fill: #1c1c1e; text-anchor: middle; paint-order: stroke; stroke: #f5c400; stroke-width: 2.6px; }
+.ri-ely-ac text { font-size: 10px; font-weight: 800; fill: #1c1c1e; text-anchor: middle; paint-order: stroke; stroke: #f5c400; stroke-width: 2.6px; }
 .ri-ely-ac.is-dim { opacity: .28; }
 .ri-ely-ac.is-sel path { stroke-width: 1.4; }
 .ri-ely-ac.is-sel .ri-ely-k { transform: scale(calc(var(--ri-k, 1) * 1.35)); }
@@ -4522,3 +4523,11 @@ button.wx-atis-go { margin: 6px 0 2px; }
 #wx-datis-text.is-stale { border: 2px solid var(--danger); }
 .wx-letter.is-old { background: var(--warn, #d97706); box-shadow: 0 3px 14px rgba(217, 119, 6, .4); }
 .wx-letter.is-stale { background: var(--danger); box-shadow: 0 3px 14px rgba(192, 57, 43, .45); }
+
+/* The A–Z letters stay folded until the letter box is tapped. */
+#wx-overlay:not(.wx-show-manual) .wx-chips { display: none; }
+#wx-overlay .wx-letter.is-empty { cursor: pointer; }
+.wx-section-head { flex-wrap: nowrap; }
+.wx-datis-src { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.wx-section-head .wx-h { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx-section-head .wx-link { flex: 0 0 auto; }

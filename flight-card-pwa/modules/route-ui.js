@@ -8,12 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=255';
-import * as ri from './route-info.js?v=255';
-import { legTs, nearestHm } from './dates.js?v=255';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=255';
-import * as plan from './plan-route.js?v=255';
-import * as ely from './ely-traffic.js?v=255';
+import * as storage from './storage.js?v=256';
+import * as ri from './route-info.js?v=256';
+import { legTs, nearestHm } from './dates.js?v=256';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=256';
+import * as plan from './plan-route.js?v=256';
+import * as ely from './ely-traffic.js?v=256';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -568,15 +568,15 @@ function relabel() {
     if (!g) continue;
     const inView = p.sx > -20 && p.sx < rect.width + 20 && p.sy > -20 && p.sy < rect.height + 20;
     const sel = g.classList.contains('is-sel');
-    const code = { x: p.sx - 17, y: p.sy - 25, w: 34, h: 12 };
+    const code = { x: p.sx - 20, y: p.sy - 27, w: 40, h: 14 };
     const showCode = inView && (sel || free(code));
     if (showCode) boxes.push(code);
-    const wb = { x: p.sx + 12, y: p.sy - 7, w: p.windLen * 5.6 + 18, h: 14 };
+    const wb = { x: p.sx + 12, y: p.sy - 8, w: p.windLen * 6.6 + 18, h: 16 };
     const showWind = !!p.windLen && inView && (sel || free(wb));
     if (showWind) boxes.push(wb);
     g.classList.toggle('show-wind', showWind);
-    const nw = p.nameLen * 5.6 + 6;
-    const name = { x: p.sx - nw / 2, y: p.sy + 11, w: nw, h: 12 };
+    const nw = p.nameLen * 6.4 + 6;
+    const name = { x: p.sx - nw / 2, y: p.sy + 11, w: nw, h: 14 };
     const showName = inView && (zoomed || sel) && (sel || free(name));
     if (showName) boxes.push(name);
     g.classList.toggle('show-code', showCode);
@@ -1820,7 +1820,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=255'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=256'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
