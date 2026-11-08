@@ -4514,3 +4514,11 @@ button.wx-atis-go { margin: 6px 0 2px; }
 }
 .wx-ad-wrap { background: var(--bg-sunk); border-radius: 10px; overflow: hidden; }
 .ad-full-body { background: var(--bg-sunk); }
+
+/* ATIS age: over an hour orange, over two hours red. */
+.wx-datis-src.is-old { color: var(--warn, #d97706); font-weight: 700; }
+.wx-datis-src.is-stale { color: var(--danger); font-weight: 800; }
+#wx-datis-text.is-old { border: 2px solid var(--warn, #d97706); }
+#wx-datis-text.is-stale { border: 2px solid var(--danger); }
+.wx-letter.is-old { background: var(--warn, #d97706); box-shadow: 0 3px 14px rgba(217, 119, 6, .4); }
+.wx-letter.is-stale { background: var(--danger); box-shadow: 0 3px 14px rgba(192, 57, 43, .45); }
