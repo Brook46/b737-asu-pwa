@@ -8,12 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=248';
-import * as ri from './route-info.js?v=248';
-import { legTs, nearestHm } from './dates.js?v=248';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=248';
-import * as plan from './plan-route.js?v=248';
-import * as ely from './ely-traffic.js?v=248';
+import * as storage from './storage.js?v=249';
+import * as ri from './route-info.js?v=249';
+import { legTs, nearestHm } from './dates.js?v=249';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=249';
+import * as plan from './plan-route.js?v=249';
+import * as ely from './ely-traffic.js?v=249';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -734,9 +734,19 @@ const RWYCC = { 6: 'g', 5: 'g', 4: 'y', 3: 'o', 2: 'o', 1: 'r', 0: 'r' };
 // (INFO D, ATIS ARR Z, END OF ATIS K, … DELTA) as a small green tag.
 const PHON = { A: 'ALPHA', B: 'BRAVO', C: 'CHARLIE', D: 'DELTA', E: 'ECHO', F: 'FOXTROT', G: 'GOLF', H: 'HOTEL', I: 'INDIA', J: 'JULIET', K: 'KILO', L: 'LIMA', M: 'MIKE',
   N: 'NOVEMBER', O: 'OSCAR', P: 'PAPA', Q: 'QUEBEC', R: 'ROMEO', S: 'SIERRA', T: 'TANGO', U: 'UNIFORM', V: 'VICTOR', W: 'WHISKEY', X: 'XRAY', Y: 'YANKEE', Z: 'ZULU' };
-function colourAtis(text, rwys, letter = '') {
+// Closures and ILS faults found on the way are collected in `items` —
+// { key: 'TWY:AZ3' | 'RWY:18L' | 'EXIT:L3' | 'GATE:12' | 'ILS:32R', kind,
+// ref, label } — and each is a tappable span (data-atis-ref) the airport
+// diagram can light up with it (atis-diagram.js).
+export function atisRefKey(kind, ref) { return `${kind}:${String(ref).toUpperCase().replace(/[-\s]/g, '')}`; }
+function colourAtis(text, rwys, letter = '', items = null) {
   const L = String(letter || '').toUpperCase().slice(0, 1);
   let cc = false, ba = 0, prev = '', near = 0;
+  let twyKind = '';
+  // An ILS (or its localiser / glide path) named with a runway and a fault
+  // in the same sentence: "ILS RWY 32R U/S", "GP 25L NOT AVBL".
+  let ils = null;                                   // { idx, rwy, what }
+  const put = (it) => { if (items && !items.some(x => x.key === it.key)) items.push(it); };
   // Taxiways, exits, runways, stands named after TWY / EXIT / RWY (TWY AZ3
   // AND AZ4 CLSD): held until the end of the sentence or the next such
   // word, orange if it says they're closed — so the names stand out
@@ -747,9 +757,30 @@ function colourAtis(text, rwys, letter = '') {
   const pieces = String(text || '').split(/(\s+)/);
   for (const tok of pieces) {
     const W0 = tok.toUpperCase().replace(/^[(]+|[.,;:)]+$/g, '');
-    if (/^(TWYS?|TAXIWAYS?|EXITS?|RWYS?|RUNWAYS?|STANDS?|GATES?|APRON)$/.test(W0)) twy = [];
+    if (/^(TWYS?|TAXIWAYS?|EXITS?|RWYS?|RUNWAYS?|STANDS?|GATES?|APRON)$/.test(W0)) {
+      twy = [];
+      twyKind = /^T/.test(W0) ? 'TWY' : /^E/.test(W0) ? 'EXIT' : /^R/.test(W0) ? 'RWY' : /^G/.test(W0) ? 'GATE' : /^S/.test(W0) ? 'STAND' : 'APRON';
+    }
     else if (twy && (/^[A-Z]{1,2}\d{0,3}[A-Z]?$/.test(W0) || /^\d{1,3}[LRC]?$/.test(W0)) && !/^(AND|OR|TO|BTN|BETWEEN|CLSD|CLOSED|FOR|DUE|WIP|ON|AT|IN)$/.test(W0)) twy.push(out.length);
-    if (twy && /^(CLSD|CLOSED|U\/S)$/.test(W0)) { for (const i of twy) out[i] = `<span class="wx-o">${out[i]}</span>`; twy = null; }
+    if (twy && /^(CLSD|CLOSED|U\/S)$/.test(W0) && !(ils && ils.rwy)) {
+      for (const i of twy) {
+        const ref = out[i].replace(/<[^>]+>/g, '').replace(/[.,;:()]/g, '');
+        const key = atisRefKey(twyKind, ref);
+        put({ key, kind: twyKind, ref, label: `${twyKind === 'TWY' ? 'Taxiway' : twyKind === 'RWY' ? 'Runway' : twyKind[0] + twyKind.slice(1).toLowerCase()} ${ref} closed` });
+        out[i] = `<span class="wx-o atis-ref" data-atis-ref="${esc(key)}">${out[i]}</span>`;
+      }
+      twy = null;
+    }
+    // ILS faults.
+    if (/^(ILS|LOC|LLZ|GP|GS|GLIDEPATH|LOCALIZER|LOCALISER)$/.test(W0)) ils = { idx: out.length, rwy: '', what: W0 };
+    else if (ils && /^(APCH|APPROACH|APCHS|APPROACHES)$/.test(W0) && out.length - ils.idx <= 4) ils = null;   // "EXP ILS APCH" is the approach in use
+    else if (ils && /^\d{2}[LRC]?$/.test(W0) && !ils.rwy) ils.rwy = W0;
+    else if (ils && ils.rwy && /^(U\/S|UNSERVICEABLE|INOP|AVBL|AVAILABLE|SERVICE)$/.test(W0) && (W0 !== 'AVBL' && W0 !== 'AVAILABLE' || prevW === 'NOT') && (W0 !== 'SERVICE' || prevW === 'OF')) {
+      const key = atisRefKey('ILS', ils.rwy);
+      put({ key, kind: 'ILS', ref: ils.rwy, label: `${ils.what === 'ILS' ? 'ILS' : ils.what} ${ils.rwy} out of service` });
+      out[ils.idx] = `<span class="wx-r atis-ref" data-atis-ref="${esc(key)}">${out[ils.idx]}</span>`;
+      ils = null;
+    }
     // The letter: a lone L within a few words after INFO / INFORMATION /
     // ATIS (ARR, DEP and the like may sit between), or its phonetic word.
     if (/^(INFO|INFORMATION|ATIS)$/.test(W0)) near = 4;
@@ -762,7 +793,7 @@ function colourAtis(text, rwys, letter = '') {
     }
     if (/\S/.test(tok)) prevW = W0;
     out.push(colourAtisTok(tok));
-    if (twy && /[.]$/.test(tok)) twy = null;
+    if (/[.]$/.test(tok)) { twy = null; ils = null; }
   }
   return out.join('');
 
@@ -808,13 +839,13 @@ export async function colouredReports(code, reports, eta = NaN) {
   return reports.map(raw => colourTaf(raw, rwys, eta));
 }
 // The ATIS window: METAR and TAF as above, the ATIS by colourAtis.
-export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN, letter = '' }) {
+export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN, letter = '', items = null }) {
   let rwys = [];
   try {
     const ap = ri.findAirport(await ri.loadDb(), code);
     if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
   } catch {}
-  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys, letter) };
+  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys, letter, items) };
 }
 
 function wxSummary(w, xw) {
@@ -1733,7 +1764,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=248'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=249'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

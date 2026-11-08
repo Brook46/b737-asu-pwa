@@ -4404,3 +4404,31 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ri-ely-pop-n { color: var(--fg-mute); font-size: 12px; }
 .ri-ely-pop-n i { font-style: normal; font-weight: 700; color: var(--warn); }
 .ri-ely-pop-f { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 3px; }
+
+/* ---- ATIS window: the airport with its closures (atis-diagram.js) ---- */
+.wx-atis-diagram { margin: 0 0 8px; }
+.wx-atis-diagram[hidden] { display: none; }
+.atis-diagram { display: block; width: 100%; height: auto; max-height: 38vh; }
+.ad-bg { fill: var(--bg-sunk); }
+.ad-tw path { fill: none; stroke: var(--fg-dim); stroke-opacity: .45; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ad-rw path { fill: none; stroke: #5d636b; stroke-linecap: butt; }
+.ad-des { font-size: 11px; font-weight: 800; fill: var(--fg-mute); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3px; }
+.ad-mark { cursor: pointer; }
+.ad-closed path { fill: none; stroke: #f08c00; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.ad-closed text, .ad-ils text { font-size: 12px; font-weight: 800; text-anchor: middle; paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 3.5px; }
+.ad-closed text { fill: #f08c00; }
+.ad-rwclosed path { fill: none; stroke: var(--danger); stroke-opacity: .85; stroke-dasharray: 10 6; }
+.ad-ils circle { fill: var(--danger); stroke: #fff; stroke-width: 2; }
+.ad-ils text { fill: var(--danger); }
+/* Tapped: the same closure lit in the diagram and the text. */
+.ad-mark.is-hl path { stroke-width: 8; filter: drop-shadow(0 0 4px rgba(245, 196, 0, .9)); }
+.ad-mark.is-hl circle { r: 12; filter: drop-shadow(0 0 4px rgba(245, 196, 0, .9)); }
+.ad-mark.is-hl text { font-size: 15px; }
+.atis-ref { cursor: pointer; border-bottom: 1px dotted currentColor; }
+.atis-ref.is-hl { background: rgba(245, 196, 0, .35); border-radius: 3px; box-shadow: 0 0 0 2px rgba(245, 196, 0, .5); }
+.wx-ad-note { font-size: 11px; color: var(--fg-dim); margin-top: 4px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ad-rw path { stroke: #9aa0a8; } }
+:root[data-theme="dark"] .ad-rw path { stroke: #9aa0a8; }
+.ad-mark text.ad-hide { display: none; }
+.ad-mark.is-hl text.ad-hide { display: inline; }
+.ad-mark.is-hl text { fill: #1c1c1e; stroke: #f5c400; stroke-width: 4px; }

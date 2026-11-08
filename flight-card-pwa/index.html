@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=248" />
+  <link rel="stylesheet" href="./app.css?v=249" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -352,6 +352,8 @@
           <h3 class="wx-h">D-ATIS <span id="wx-datis-src" class="wx-datis-src"></span></h3>
           <a id="wx-atisguru" class="wx-link" href="#" target="_blank" rel="noopener">↗ atis.guru</a>
         </div>
+        <!-- The airport with the ATIS's closures on it (atis-diagram.js). -->
+        <div id="wx-atis-diagram" class="wx-atis-diagram" hidden></div>
         <pre id="wx-datis-text" class="wx-text">—</pre>
       </section>
 
@@ -1010,6 +1012,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=248"></script>
+  <script type="module" src="./app.js?v=249"></script>
 </body>
 </html>
