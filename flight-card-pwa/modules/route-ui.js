@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=245';
-import * as ri from './route-info.js?v=245';
-import { legTs, nearestHm } from './dates.js?v=245';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=245';
-import * as plan from './plan-route.js?v=245';
+import * as storage from './storage.js?v=246';
+import * as ri from './route-info.js?v=246';
+import { legTs, nearestHm } from './dates.js?v=246';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=246';
+import * as plan from './plan-route.js?v=246';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -150,7 +150,10 @@ async function build(leg, { doFetch = false } = {}) {
       if (cache?.notams) { notams = cache.notams; notamsAt = cache.notamsAt || cache.at; }
       else notamsOff = true;
     }
-    cache = { at: Date.now(), wx, notams, notamsOff, notamsErr, notamsAt };
+    // SIGMETs: a failed fetch keeps the last set, as NOTAMs do.
+    let sig = cache?.sig || null;
+    try { const s2 = await ri.fetchSigmets(); if (s2) sig = s2; } catch {}
+    cache = { at: Date.now(), wx, notams, notamsOff, notamsErr, notamsAt, sig };
     writeCache(leg, cache);
   }
   const wmap = new Map();
@@ -185,6 +188,9 @@ async function build(leg, { doFetch = false } = {}) {
     notamsErr: cache?.notamsErr || '',
     notamsAt: cache?.notamsAt || cache?.at || 0,
     hasWx: !!cache?.wx,
+    // The SIGMETs this flight meets, at the times it meets them.
+    sig: ri.sigmetsAlong(cache?.sig?.sigmets, route, tm),
+    sigAt: cache?.sig?.at || 0,
   };
 }
 
@@ -361,13 +367,24 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
         <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 5},${-rad - 3})"><rect x="0" y="-7" width="22" height="9" rx="2.5"/><text x="11" y="0.3">ALTN</text></g>` : ''}</g>`;
   }).join('');
-  mapGeom = { W, H: H2, proj, view, pins: pinData };
+  // SIGMET areas the flight meets, under the track and the pins.
+  const sigGeo = (m.sig || []).map(sg => ({ id: sg.id, rings: sg.polys.map(r => r.map(([lon, lat]) => [proj.x(lon), proj.y(lat)])) }));
+  const sigSvg = (m.sig || []).map((sg, i) => {
+    const rings = sigGeo[i].rings;
+    const d = rings.map(r => 'M' + r.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z').join('');
+    // Its label at the middle of its biggest ring.
+    const big = rings.slice().sort((a, b) => b.length - a.length)[0];
+    const cx = big.reduce((t, p) => t + p[0], 0) / big.length, cy = big.reduce((t, p) => t + p[1], 0) / big.length;
+    return `<g class="ri-sig ri-sig-${sigClass(sg.hazard)}" data-sig="${esc(sg.id)}"><path d="${d}"/><g class="ri-sig-lbl" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})"><text>${esc(sigShort(sg))}</text></g></g>`;
+  }).join('');
+  mapGeom = { W, H: H2, proj, view, pins: pinData, sig: sigGeo };
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
       <rect width="${W}" height="${H2}" class="lb-sea"/>
       ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
       <g class="ri-firs">${firs.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-fir-lbls">${firLbl}</g>
+      <g class="ri-sigs">${sigSvg}</g>
       <path d="${track}" class="ri-track${m.route.filed ? ' is-filed' : ''}"/>
       <g id="ri-iso"></g>
       ${pins}
@@ -1252,6 +1269,7 @@ async function paint(model, showAll = false) {
     <div id="ri-cpdlc" class="ri-cpdlc" hidden></div>
     <div id="ri-map-slot" class="ri-map-wrap"></div>
     <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
+    ${sigListHtml(model)}
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
       NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
@@ -1396,6 +1414,78 @@ export async function readiness(leg) {
 // `fromMap`: chosen by tapping the map — the map stays exactly where it is
 // (the magenta ring shows the choice) and the page only scrolls enough for
 // the card's head to show below it, so the next tap lands where you aimed.
+// ---------- SIGMETs ----------
+const SIG_NAMES = { TS: 'Thunderstorms', TURB: 'Turbulence', ICE: 'Icing', MTW: 'Mountain wave', VA: 'Volcanic ash',
+  TC: 'Tropical cyclone', DS: 'Dust storm', SS: 'Sandstorm', RDOACT: 'Radioactive cloud', IFR: 'Low ceiling / visibility', MTN: 'Mountain obscuration' };
+const SIG_QUAL = { SEV: 'Severe', OBSC: 'Obscured', EMBD: 'Embedded', FRQ: 'Frequent', SQL: 'Squall line', ISOL: 'Isolated', OCNL: 'Occasional', HVY: 'Heavy' };
+function sigClass(h) { return { TS: 'ts', TC: 'ts', TURB: 'turb', MTW: 'turb', ICE: 'ice', VA: 'va', RDOACT: 'va' }[h] || 'other'; }
+function sigLevels(sg) {
+  const fl = (ft) => ft == null ? '' : ft === 0 ? 'SFC' : 'FL' + String(Math.round(ft / 100)).padStart(3, '0');
+  if (sg.base != null && sg.top != null) return `${fl(sg.base)}–${fl(sg.top)}`;
+  if (sg.top != null) return `up to ${fl(sg.top)}`;
+  if (sg.base != null) return `above ${fl(sg.base)}`;
+  return '';
+}
+function sigShort(sg) {
+  const t = sg.top != null ? ' ' + String(Math.round(sg.top / 100)) : '';
+  return (sg.hazard || 'SIGMET') + t;
+}
+function sigWhen(ms) { return new Date(ms).toISOString().slice(11, 16) + 'Z'; }
+function inPoly(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Under the map: one line for each SIGMET the flight meets, tap for details.
+function sigListHtml(m) {
+  const head = `SIGMETs on your way${m.sigAt ? ` · checked ${ago(m.sigAt)}` : ''}`;
+  if (!m.sigAt) return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div><div class="ri-sig-none">Not fetched yet — tap Update</div></div>`;
+  if (!m.sig.length) return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div><div class="ri-sig-none">None on the route at the times you'd be there</div></div>`;
+  return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div>${m.sig.map(sg => `<button type="button" class="ri-sig-row" data-ri-sig="${esc(sg.id)}">
+      <i class="ri-sig-sw ri-sig-${sigClass(sg.hazard)}"></i>
+      <b>${esc(SIG_NAMES[sg.hazard] || sg.hazard || 'SIGMET')}</b>
+      <span>${esc([SIG_QUAL[sg.qual], sigLevels(sg), sg.fir].filter(Boolean).join(' · '))}</span>
+      <span class="ri-sig-t">you ≈ ${sigWhen(sg.pass[0])}${sg.pass[1] - sg.pass[0] > 5 * 60000 ? '–' + sigWhen(sg.pass[1]) : ''}</span>
+    </button>`).join('')}</div>`;
+}
+function sigCardHtml(sg) {
+  const mv = sg.dir && sg.dir !== '-' ? `moving ${esc(sg.dir)}${sg.spd && sg.spd !== '0' ? ' ' + esc(sg.spd) + ' kt' : ''}` : (sg.spd === '0' ? 'stationary' : '');
+  const ch = { NC: 'no change', WKN: 'weakening', INTSF: 'intensifying' }[sg.chng] || '';
+  return `<div class="ri-sig-card">
+      <div class="ri-sig-card-h"><i class="ri-sig-sw ri-sig-${sigClass(sg.hazard)}"></i>
+        <b>${esc([SIG_QUAL[sg.qual], (SIG_NAMES[sg.hazard] || sg.hazard || 'SIGMET').toLowerCase()].filter(Boolean).join(' '))}</b></div>
+      <div class="ri-sig-facts">
+        <span><i>Levels</i>${esc(sigLevels(sg) || '—')}</span>
+        <span><i>Valid</i>${sigWhen(Date.parse(sg.from))}–${sigWhen(Date.parse(sg.to))}</span>
+        <span><i>You there</i>≈ ${sigWhen(sg.pass[0])}${sg.pass[1] - sg.pass[0] > 5 * 60000 ? '–' + sigWhen(sg.pass[1]) : ''}</span>
+        <span><i>FIR</i>${esc(sg.firName || sg.fir || '—')}</span>
+        ${mv || ch ? `<span><i>Trend</i>${[mv, ch].filter(Boolean).join(', ')}</span>` : ''}
+      </div>
+      <pre class="ri-raw ri-sig-raw">${esc(sg.raw)}</pre>
+    </div>`;
+}
+function openSig(ids, { fromMap = false } = {}) {
+  if (!state) return;
+  const list = state.model.sig.filter(sg => ids.includes(sg.id));
+  const slot = $('ri-card-slot');
+  if (!list.length || !slot) return;
+  slot.innerHTML = `<div class="ri-card ri-sig-cards">
+      <div class="ri-card-head"><div><b>SIGMET${list.length > 1 ? 's' : ''}</b> <span class="ri-sub">on your way</span></div>
+        <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button></div>
+      ${list.map(sigCardHtml).join('')}
+    </div>`;
+  document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
+  for (const id of ids) document.querySelector(`.ri-sig[data-sig="${CSS.escape(id)}"]`)?.classList.add('is-sel');
+  const sheet = document.querySelector('.route-sheet');
+  if (fromMap) {
+    const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
+    if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
+  } else slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
 function openCard(icao, { keepView = false, fromMap = false } = {}) {
   if (!state) return;
   const c = state.model.pool.find(x => x.ap.icao === icao);
@@ -1550,7 +1640,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=245'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=246'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -1897,6 +1987,11 @@ function wireZoom(svg) {
   // quick taps on open map zoom in there (+ / − / fit do the rest).
   const tapped = (x, y) => {
     const near = pinsAt(x, y), now = Date.now();
+    // Inside a SIGMET area (or several): its details — unless the finger is
+    // right on an airport, which still opens the airport.
+    const sp = toSvg(x, y);
+    const hits = (mapGeom?.sig || []).filter(g => g.rings.some(r => inPoly(sp.x, sp.y, r))).map(g => g.id);
+    if (hits.length && !near.some(p => p.d < 14)) { lastTap = { t: 0 }; openSig(hits, { fromMap: true }); return; }
     if (near.length) {
       lastTap = { t: 0 };
       const under = near.filter(p => p.d < 18);
@@ -2112,7 +2207,7 @@ export function wire() {
     if (e.target.id === 'route-overlay') { if (!docked()) closeRoute(); return; }
     if (e.target.closest('[data-ri-close]')) {
       $('ri-card-slot').innerHTML = '';
-      document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
+      document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
       relabel();
       return;
     }
@@ -2129,6 +2224,8 @@ export function wire() {
       build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
       return;
     }
+    const sb = e.target.closest('[data-ri-sig]');
+    if (sb) { openSig([sb.dataset.riSig]); return; }
     if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }

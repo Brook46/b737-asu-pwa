@@ -128,6 +128,9 @@ export default {
     if (url.pathname === '/routewx') {
       return handleRouteWx(url);
     }
+    if (url.pathname === '/sigmet') {
+      return handleSigmet();
+    }
     if (url.pathname === '/notams') {
       return handleNotams(url, env);
     }
@@ -427,6 +430,50 @@ async function handleRouteWx(url) {
       'access-control-allow-origin': '*',
       'cache-control': 'public, max-age=300',
     },
+  });
+}
+
+// ---------- /sigmet  (Flight Card Route info) ----------
+// Every SIGMET in force worldwide, with its area: aviationweather.gov's
+// international SIGMETs plus the US ones (its API sends no CORS headers,
+// hence here). Trimmed to what the map and the detail card need:
+//   { at, sigmets: [{ id, fir, firName, hazard, qual, from, to, base, top,
+//     dir, spd, chng, raw, polys: [[[lon, lat], …], …] }] }
+// Edge-cached 10 minutes.
+async function handleSigmet() {
+  const get = async (kind) => {
+    try {
+      const r = await fetch(`https://aviationweather.gov/api/data/${kind}?format=geojson`, { cf: { cacheTtl: 600, cacheEverything: true } });
+      if (!r.ok) return [];
+      return (await r.json()).features || [];
+    } catch { return []; }
+  };
+  const [intl, us] = await Promise.all([get('isigmet'), get('airsigmet')]);
+  const polys = (g) => !g ? [] : g.type === 'Polygon' ? [g.coordinates[0]]
+    : g.type === 'MultiPolygon' ? g.coordinates.map(p => p[0]) : [];
+  const round = (ring) => ring.map(([x, y]) => [Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
+  const out = [];
+  for (const f of intl) {
+    const p = f.properties || {};
+    const ps = polys(f.geometry).map(round).filter(r => r.length >= 3);
+    if (!ps.length) continue;
+    out.push({ id: `${p.icaoId || ''}-${p.firId || ''}-${p.seriesId || ''}-${p.validTimeFrom || ''}`, fir: p.firId || '', firName: p.firName || '',
+      hazard: p.hazard || '', qual: p.qualifier || '', from: p.validTimeFrom, to: p.validTimeTo,
+      base: p.base ?? null, top: p.top ?? null, dir: p.dir || '', spd: p.spd || '', chng: p.chng || '', raw: p.rawSigmet || '', polys: ps });
+  }
+  for (const f of us) {
+    const p = f.properties || {};
+    if (p.airSigmetType !== 'SIGMET') continue;           // AIRMETs are US-only light stuff
+    const ps = polys(f.geometry).map(round).filter(r => r.length >= 3);
+    if (!ps.length) continue;
+    out.push({ id: `${p.icaoId || ''}-${p.seriesId || ''}-${p.validTimeFrom || ''}`, fir: p.icaoId || '', firName: 'United States',
+      hazard: p.hazard === 'CONVECTIVE' ? 'TS' : p.hazard || '', qual: p.severity >= 5 ? 'SEV' : '', from: p.validTimeFrom, to: p.validTimeTo,
+      base: p.altitudeLow1 ?? p.altitudeLow2 ?? null, top: p.altitudeHi2 ?? p.altitudeHi1 ?? null,
+      dir: p.movementDir != null ? String(p.movementDir) : '', spd: p.movementSpd != null ? String(p.movementSpd) : '', chng: '', raw: p.rawAirSigmet || '', polys: ps });
+  }
+  return new Response(JSON.stringify({ at: Date.now(), sigmets: out }), {
+    status: 200,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=300' },
   });
 }
 

@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=245';
+import { WORKER_BASE } from './proxy.js?v=246';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -484,3 +484,59 @@ export async function fetchNotams(ids) {
   }
   return r.json();
 }
+
+// ---------- SIGMETs along the route ----------
+// Every SIGMET in force worldwide (worker /sigmet, from aviationweather.gov),
+// cut down to the ones this flight meets: an area the route passes through
+// or within SIG_NEAR_NM of, while it's valid — give or take SIG_SLACK_MIN
+// round the time you'd be there. Each kept one carries `pass`: [first, last]
+// ms you'd be near it.
+export const SIG_NEAR_NM = 50, SIG_SLACK_MIN = 30;
+export async function fetchSigmets() {
+  if (!WORKER_BASE) return null;
+  const r = await fetch(WORKER_BASE.replace(/\/$/, '') + '/sigmet', { cache: 'no-store' });
+  if (!r.ok) throw new Error('SIGMET HTTP ' + r.status);
+  return r.json();
+}
+function inRing(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Distance (nm) from a point to a ring's edge, flat round the point — fine
+// for "within 50 nm".
+function ringDistNm(lon, lat, ring) {
+  const k = Math.cos(lat * R);
+  let best = Infinity;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const ax = (ring[j][0] - lon) * k, ay = ring[j][1] - lat, bx = (ring[i][0] - lon) * k, by = ring[i][1] - lat;
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+    best = Math.min(best, Math.hypot(ax + dx * t, ay + dy * t) * 60);
+  }
+  return best;
+}
+export function sigmetsAlong(list, route, tm) {
+  const out = [];
+  for (const s of list || []) {
+    const from = Date.parse(s.from), to = Date.parse(s.to);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+    let first = null, last = null;
+    for (const p of route.pts) {
+      const near = s.polys.some(r => inRing(p.lon, p.lat, r) || ringDistNm(p.lon, p.lat, r) <= SIG_NEAR_NM);
+      if (!near) continue;
+      const t = tm.etaAt(p.s);
+      if (first == null) first = t;
+      last = t;
+    }
+    if (first == null) continue;
+    const slack = SIG_SLACK_MIN * 60000;
+    if (last < from - slack || first > to + slack) continue;
+    out.push({ ...s, pass: [first, last] });
+  }
+  return out.sort((a, b) => a.pass[0] - b.pass[0]);
+}
+export function sigmetHas(s, lon, lat) { return s.polys.some(r => inRing(lon, lat, r)); }

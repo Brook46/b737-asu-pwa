@@ -4349,3 +4349,32 @@ button.wx-atis-go { margin: 6px 0 2px; }
   display: inline-block; min-width: 1.25em; padding: 0 .3em; border-radius: 4px;
   background: var(--good); color: #fff; font-weight: 800; text-align: center; line-height: 1.35;
 }
+
+/* ---- SIGMETs on the Route info map ---- */
+.ri-sig { pointer-events: none; }
+.ri-sig path { fill: var(--sig-c); fill-opacity: .14; stroke: var(--sig-c); stroke-opacity: .75; stroke-width: 1.2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.ri-sig.is-sel path { fill-opacity: .3; stroke-width: 2.2; stroke-dasharray: none; }
+.ri-sig-lbl text { transform: scale(var(--ri-k, 1)); font-size: 9px; font-weight: 800; letter-spacing: .4px; fill: var(--sig-c); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; }
+.ri-sig-ts { --sig-c: #e5484d; }
+.ri-sig-turb { --sig-c: #f08c00; }
+.ri-sig-ice { --sig-c: #0091ff; }
+.ri-sig-va { --sig-c: #8e4ec6; }
+.ri-sig-other { --sig-c: #868e96; }
+.ri-sig-list { margin: 6px 0 10px; display: flex; flex-direction: column; gap: 4px; }
+.ri-sig-h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-mute); }
+.ri-sig-none { font-size: 13px; color: var(--fg-dim); }
+.ri-sig-row {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; width: 100%; text-align: start;
+  padding: 8px 10px; border: 0; border-radius: 10px; background: var(--bg-sunk); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer;
+}
+.ri-sig-row span { color: var(--fg-mute); }
+.ri-sig-row .ri-sig-t { margin-inline-start: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ri-sig-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--sig-c); flex-shrink: 0; align-self: center; }
+.ri-sig-card { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.ri-sig-card:first-of-type { border-top: 0; }
+.ri-sig-card-h { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.ri-sig-card-h b::first-letter { text-transform: uppercase; }
+.ri-sig-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 12px; margin: 8px 0; font-size: 13px; }
+.ri-sig-facts span { display: flex; flex-direction: column; }
+.ri-sig-facts i { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-mute); }
+.ri-sig-raw { white-space: pre-wrap; font-size: 12px; }
