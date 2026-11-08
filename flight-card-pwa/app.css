@@ -4292,3 +4292,7 @@ del.soc-del::before {
   margin-inline-end: .3em;
   -webkit-user-select: none; user-select: none;
 }
+
+/* D-ATIS heading: which one, and for an ACARS copy its age. */
+.wx-datis-src { font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg-mute); margin-inline-start: 6px; font-size: .92em; }
+.wx-datis-src.is-old { color: var(--warn, #d97706); }
