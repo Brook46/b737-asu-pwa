@@ -4319,3 +4319,16 @@ button.wx-atis-go { margin: 6px 0 2px; }
 #wx-overlay.wx-atis-only .wx-sec-wx { display: none; }
 #wx-overlay.wx-atis-only .wx-sec-atis { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #wx-overlay.wx-atis-only #wx-datis-text { flex: 1 1 auto; max-height: none; font-size: 14px; line-height: 1.5; }
+
+/* ATIS letter: green = read from the live ATIS, blue = picked by hand. */
+.wx-letter-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+.wx-letter.is-live { background: var(--good); box-shadow: 0 3px 14px rgba(48, 164, 108, 0.4); }
+.wx-letter.is-live.is-unread, .wx-letter.is-manual.is-unread { background: var(--danger); box-shadow: 0 3px 14px rgba(192, 57, 43, 0.45); }
+.wx-letter-how { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-mute); min-height: 12px; }
+.wx-src-row .wx-src { padding-inline-end: 22px; }
+
+/* TAF: the kind of change (BECMG / TEMPO / PROB / FM) in blue, and a line
+   under the groups in force an hour either side of your time there. */
+.wx-b { color: #3b82f6; font-weight: 700; }
+.wx-eta { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; -webkit-text-decoration-skip: none; text-decoration-skip-ink: none; }
+.ri-key .wx-b + .wx-eta { margin-inline-start: 4px; }

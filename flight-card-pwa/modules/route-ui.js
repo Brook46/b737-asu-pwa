@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=240';
-import * as ri from './route-info.js?v=240';
-import { legTs, nearestHm } from './dates.js?v=240';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=240';
-import * as plan from './plan-route.js?v=240';
+import * as storage from './storage.js?v=241';
+import * as ri from './route-info.js?v=241';
+import { legTs, nearestHm } from './dates.js?v=241';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=241';
+import * as plan from './plan-route.js?v=241';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -616,8 +616,71 @@ function tokBand(T, rwys) {
     b = m[1] === 'VRB' ? (spd > 25 ? 'o' : '') : xwBand(xwFor(rwys, +m[1], spd));
   }
   else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
-        || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || null;
+        || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || 'y';   // rain, mist, haze … yellow
+  // What kind of change follows: blue.
+  else if (/^(BECMG|TEMPO|INTER|PROB[34]0|FM\d{6})$/.test(T)) b = 'b';
   return b;
+}
+
+// ---- The forecast around a time ----
+// A TAF cut into its groups — the base forecast, then each FM / BECMG /
+// TEMPO / PROB — each with the hours it covers (ms). Times are day-hour
+// (ddhh/ddhh, FMddhhmm) placed in the month of the TAF's issue.
+function tafGroups(raw, now = Date.now()) {
+  const toks = String(raw || '').split(/(\s+)/);
+  const d0 = new Date(now);
+  const issue = /\b(\d{2})(\d{2})(\d{2})Z\b/.exec(raw);
+  let y = d0.getUTCFullYear(), mo = d0.getUTCMonth();
+  if (issue && +issue[1] > d0.getUTCDate() + 1) { mo -= 1; }   // issued last month
+  const at = (dd, hh, mm = 0) => {
+    let m = mo;
+    if (issue && dd < +issue[1] - 7) m += 1;                // ran into next month
+    return Date.UTC(y, m, dd, hh, mm);
+  };
+  const groups = [];
+  let cur = { start: 0, toks: [], kind: 'base', from: NaN, to: NaN };
+  groups.push(cur);
+  let validTo = NaN, validFrom = NaN;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i], T = t.toUpperCase().trim();
+    const isChange = /^(BECMG|TEMPO|INTER|FM\d{6})$/.test(T) || (/^PROB[34]0$/.test(T));
+    // PROB30 TEMPO is one group.
+    const prevWord = cur.toks.filter(x => x.trim()).slice(-1)[0] || '';
+    if (isChange && !(/^PROB[34]0$/.test(prevWord.toUpperCase()) && /^(TEMPO|INTER)$/.test(T))) {
+      cur = { toks: [], kind: T.startsWith('FM') ? 'fm' : T.startsWith('BECMG') ? 'becmg' : 'temp', from: NaN, to: NaN };
+      groups.push(cur);
+      const fm = /^FM(\d{2})(\d{2})(\d{2})$/.exec(T);
+      if (fm) cur.from = at(+fm[1], +fm[2], +fm[3]);
+    }
+    const per = /^(\d{2})(\d{2})\/(\d{2})(\d{2})$/.exec(T);
+    if (per && !Number.isFinite(cur.from)) {
+      cur.from = at(+per[1], +per[2]); cur.to = at(+per[3], +per[4]);
+      if (cur.kind === 'base') { validFrom = cur.from; validTo = cur.to; }
+    }
+    cur.toks.push(t);
+  }
+  // The base and FM groups last until the next FM; a BECMG holds to the end.
+  const fms = groups.filter(g => g.kind === 'fm');
+  for (const g of groups) {
+    if (g.kind === 'base') g.to = fms.length ? fms[0].from : validTo;
+    else if (g.kind === 'fm') { const nx = fms[fms.indexOf(g) + 1]; g.to = nx ? nx.from : validTo; }
+    else if (g.kind === 'becmg') g.to = validTo;
+  }
+  return groups;
+}
+// The TAF coloured, with a line under each group in force within an hour
+// either side of `eta` (ms).
+function colourTaf(raw, rwys, eta) {
+  if (!Number.isFinite(eta) || !/^\s*(TAF\b|[A-Z]{4}\s+\d{6}Z)/.test(String(raw || ''))) return colourRaw(raw, rwys);
+  const lo = eta - 3600e3, hi = eta + 3600e3;
+  return tafGroups(raw).map(g => {
+    const html = colourRaw(g.toks.join(''), rwys);
+    const on = Number.isFinite(g.from) && Number.isFinite(g.to) && g.from < hi && g.to > lo;
+    if (!on) return html;
+    // Underline the words, not the gap before the next group.
+    const m = /^([\s\S]*?)(\s*)$/.exec(html);
+    return `<span class="wx-eta">${m[1]}</span>${m[2]}`;
+  }).join('');
 }
 
 // Raw METAR / TAF with each meaningful group coloured.
@@ -638,7 +701,24 @@ const BRAKING = { GOOD: 'g', MEDIUM: 'o', POOR: 'r', NIL: 'r' };
 const RWYCC = { 6: 'g', 5: 'g', 4: 'y', 3: 'o', 2: 'o', 1: 'r', 0: 'r' };
 function colourAtis(text, rwys) {
   let cc = false, ba = 0, prev = '';
-  return String(text || '').split(/(\s+)/).map(tok => {
+  // Taxiways, exits, runways, stands named after TWY / EXIT / RWY (TWY AZ3
+  // AND AZ4 CLSD): held until the end of the sentence or the next such
+  // word, orange if it says they're closed — so the names stand out
+  // with the red CLSD.
+  let twy = null;                                  // indices into out[] of the names
+  const out = [];
+  const pieces = String(text || '').split(/(\s+)/);
+  for (const tok of pieces) {
+    const W0 = tok.toUpperCase().replace(/^[(]+|[.,;:)]+$/g, '');
+    if (/^(TWYS?|TAXIWAYS?|EXITS?|RWYS?|RUNWAYS?|STANDS?|GATES?|APRON)$/.test(W0)) twy = [];
+    else if (twy && (/^[A-Z]{1,2}\d{0,3}[A-Z]?$/.test(W0) || /^\d{1,3}[LRC]?$/.test(W0)) && !/^(AND|OR|TO|BTN|BETWEEN|CLSD|CLOSED|FOR|DUE|WIP|ON|AT|IN)$/.test(W0)) twy.push(out.length);
+    if (twy && /^(CLSD|CLOSED|U\/S)$/.test(W0)) { for (const i of twy) out[i] = `<span class="wx-o">${out[i]}</span>`; twy = null; }
+    out.push(colourAtisTok(tok));
+    if (twy && /[.]$/.test(tok)) twy = null;
+  }
+  return out.join('');
+
+  function colourAtisTok(tok) {
     if (/^\s+$/.test(tok) || !tok) return tok;
     const T = tok.toUpperCase();
     const W = T.replace(/^[(]+|[.,;:)]+$/g, '');
@@ -654,6 +734,9 @@ function colourAtis(text, rwys) {
       else if (/^(CLSD|CLOSED|CLOSURE|U\/S|UNSERVICEABLE)$/.test(W)) b = 'r';
       else if (/^(WS|WINDSHEAR)$/.test(W) || (W === 'SHEAR' && prev === 'WIND')) b = 'r';
       else if (W === 'CB' || W === 'TCU') b = 'o';
+      else if (/^(THUNDERSTORMS?|HAIL|FZRA)$/.test(W)) b = 'r';
+      else if (/^(FOG|SNOW|SNOWFALL)$/.test(W)) b = 'o';
+      else if (/^(MIST|RAIN|DRIZZLE|HAZE|SHOWERS?|SMOKE)$/.test(W)) b = 'y';
       else if (SURFACE[W]) b = SURFACE[W];
       // A bare four-digit number in words is a time or QNH, not a visibility.
       else if (/^\d{4}$/.test(W)) b = W === '9999' ? 'g' : (/^(QNH|Q|TIME|AT|ISSUED|INFO|METAR)$/.test(prev) || W !== T) ? null : tokBand(W, rwys);
@@ -661,27 +744,27 @@ function colourAtis(text, rwys) {
     }
     prev = W;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
-  }).join('');
+  }
 }
 
 // The same colouring for the Brief tab: a report at one airport, by its code.
 // With the airport data not loaded yet, wind just stays uncoloured.
-export async function colouredReports(code, reports) {
+export async function colouredReports(code, reports, eta = NaN) {
   let rwys = [];
   try {
     const ap = ri.findAirport(await ri.loadDb(), code);
     if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
   } catch {}
-  return reports.map(raw => colourRaw(raw, rwys));
+  return reports.map(raw => colourTaf(raw, rwys, eta));
 }
 // The ATIS window: METAR and TAF as above, the ATIS by colourAtis.
-export async function colouredWx(code, { metar = '', taf = '', atis = '' }) {
+export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN }) {
   let rwys = [];
   try {
     const ap = ri.findAirport(await ri.loadDb(), code);
     if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
   } catch {}
-  return { metar: colourRaw(metar, rwys), taf: colourRaw(taf, rwys), atis: colourAtis(atis, rwys) };
+  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys) };
 }
 
 function wxSummary(w, xw) {
@@ -1098,13 +1181,13 @@ function cardHtml(c, m) {
         const using = r.wx && r.wx.src;
         const blk = (kind, title, raw) => `<button type="button" class="ri-rawpick${using === kind.toUpperCase() ? ' is-on' : ''}${c.picked === kind ? ' is-picked' : ''}" data-wx-pick="${kind}">
             <span class="ri-rawh">${title}${using === kind.toUpperCase() ? ' · in use' : ' · tap to use'}</span>
-            <pre class="ri-raw">${colourRaw(raw, usable)}</pre></button>`;
+            <pre class="ri-raw">${kind === 'taf' ? colourTaf(raw, usable, c.eta) : colourRaw(raw, usable)}</pre></button>`;
         const mBlock = metar ? blk('metar', `METAR${mt ? ` · ${hm(mt)}, ${ago(mt)}` : ''}`, metar) : '';
         const tBlock = taf ? blk('taf', 'TAF', taf) : '';
         return using === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
       })()}
       <button type="button" class="wx-atis-go" data-atis-open="${esc(ap.icao)}" data-atis-end="${ap.icao === m.A.icao ? 'dep' : ap.icao === m.B.icao ? 'arr' : ''}">ATIS ›</button>
-      <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span></div>
+      <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span> · <span class="wx-b">change</span> · <span class="wx-eta">in force ±1 h</span></div>
       <h5>NOTAMs</h5>
       ${notamList(c, m)}
     </div>`;
@@ -1443,7 +1526,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=240'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=241'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

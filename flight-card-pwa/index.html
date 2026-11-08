@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=240" />
+  <link rel="stylesheet" href="./app.css?v=241" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -318,6 +318,11 @@
           <span id="wx-src-arr-code" class="wx-src-code">—</span>
           <span id="wx-refresh-arr" class="wx-src-refresh" data-refresh="arr" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh arr airport">↻</span>
         </button>
+        <button id="wx-src-altn" type="button" class="wx-src" data-src="altn">
+          <span class="wx-src-lbl">Altn</span>
+          <span id="wx-src-altn-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-altn" class="wx-src-refresh" data-refresh="altn" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh alternate airport">↻</span>
+        </button>
         <label class="wx-src wx-src-custom" data-src="custom">
           <span class="wx-src-lbl">Other</span>
           <input id="wx-src-custom-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="ICAO" maxlength="4" />
@@ -326,7 +331,10 @@
       </div>
 
       <div class="wx-current">
-        <div id="wx-letter" class="wx-letter">—</div>
+        <div class="wx-letter-wrap">
+          <div id="wx-letter" class="wx-letter">—</div>
+          <div id="wx-letter-how" class="wx-letter-how"></div>
+        </div>
         <div class="wx-station">
           <div id="wx-icao" class="wx-icao">—</div>
           <div id="wx-time" class="wx-time">—</div>
@@ -1001,6 +1009,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=240"></script>
+  <script type="module" src="./app.js?v=241"></script>
 </body>
 </html>
