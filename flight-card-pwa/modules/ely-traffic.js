@@ -7,7 +7,7 @@
 // the callsign; a callsign gets reused, so a route the aircraft's position
 // doesn't fit is marked unsure rather than stated.
 
-import { WORKER_BASE } from './proxy.js?v=249';
+import { WORKER_BASE } from './proxy.js?v=250';
 
 const R = Math.PI / 180;
 const RADIUS_NM = 250, MAX_CIRCLES = 8;
@@ -30,6 +30,49 @@ function centres(pts) {
   return out;
 }
 
+function entry(a, ageMs) {
+  const cs = String(a.flight || '').trim().toUpperCase();
+  const ground = a.alt_baro === 'ground' || !(Number(a.alt_baro) > 1000) || !(Number(a.gs) > 80);
+  return {
+    hex: a.hex, cs, flight: /^ELY\d/.test(cs) ? 'LY' + cs.slice(3) : cs, reg: a.r || '', type: a.t || '',
+    lat: a.lat, lon: a.lon, fl: ground ? 0 : Math.round(Number(a.alt_baro) / 100), gs: Math.round(Number(a.gs) || 0),
+    trk: Number(a.track) || 0, ageMs: ageMs || 0, ground,
+  };
+}
+// The pilot's own aircraft, by registration and by this flight's callsign,
+// anywhere — in the air or on the ground. Each sighting is kept on the
+// device (fc.tail.last.<reg>), so when it isn't transmitting the map can
+// still say where it was last seen.
+export async function fetchOwn(reg, cs) {
+  if (!WORKER_BASE) return null;
+  const base = WORKER_BASE.replace(/\/$/, '');
+  for (const [kind, v] of [['reg', reg], ['callsign', cs]]) {
+    if (!v) continue;
+    try {
+      const r = await fetch(`${base}/adsb/${kind}/${encodeURIComponent(v)}`, { cache: 'no-store' });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const a = (d.ac || []).find(x => Number.isFinite(x.lat));
+      if (!a) continue;
+      const e = { ...entry(a, d.ageMs), own: true };
+      try { localStorage.setItem('fc.tail.last.' + (e.reg || reg), JSON.stringify({ ...e, seen: Date.now() - (d.ageMs || 0) })); } catch {}
+      return e;
+    } catch {}
+  }
+  return null;
+}
+export function lastSeen(reg) {
+  try { const v = JSON.parse(localStorage.getItem('fc.tail.last.' + reg) || 'null'); return v && v.seen > Date.now() - 7 * 86400000 ? v : null; } catch { return null; }
+}
+// Still to fly (nm) and the ETA (ms) at its ground speed — straight to the
+// destination, so a rough figure.
+export function etaOf(ac, rt) {
+  if (!rt || !rt.to || !(ac.gs > 80) || ac.ground) return null;
+  const left = distNm(ac, rt.to);
+  return { left: Math.round(left), at: Date.now() + left / ac.gs * 3600e3 };
+}
+export { distNm };
+
 // El Al flights airborne within reach of the route:
 // [{ hex, flight: 'LY846', cs: 'ELY846', reg, type, lat, lon, fl, gs, trk }]
 export async function fetchEly(pts) {
@@ -47,11 +90,7 @@ export async function fetchEly(pts) {
         // In the air only: not on the ground, and moving.
         if (a.alt_baro === 'ground' || !(Number(a.alt_baro) > 1000) || !(Number(a.gs) > 80)) continue;
         if (!Number.isFinite(a.lat) || !Number.isFinite(a.lon)) continue;
-        seen.set(a.hex, {
-          hex: a.hex, cs, flight: 'LY' + cs.slice(3), reg: a.r || '', type: a.t || '',
-          lat: a.lat, lon: a.lon, fl: Math.round(Number(a.alt_baro) / 100), gs: Math.round(Number(a.gs) || 0),
-          trk: Number(a.track) || 0, ageMs: d.ageMs || 0,
-        });
+        seen.set(a.hex, entry(a, d.ageMs));
       }
     } catch {}
   }

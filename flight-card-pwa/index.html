@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=249" />
+  <link rel="stylesheet" href="./app.css?v=250" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -533,10 +533,11 @@
           in no free data, so the airport card says to check the chart.
         </p>
         </details>
-        <label class="cal-row-label" for="div-exclude">Excluded countries</label>
-        <input id="div-exclude" type="text" class="cal-url" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-        <label class="cal-row-label" for="div-penalty">Penalties</label>
-        <input id="div-penalty" type="text" class="cal-url" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+        <p class="muted small">A country by name or code (Turkey, TR), or an airport by ICAO code (LCLK) — an airport's own factor wins over its country's. Separate with commas.</p>
+        <label class="cal-row-label" for="div-exclude">Excluded countries / airports</label>
+        <input id="div-exclude" type="text" class="cal-url" autocomplete="off" autocapitalize="words" spellcheck="false" />
+        <label class="cal-row-label" for="div-penalty">Factors (points, e.g. Egypt -2, LCLK +1)</label>
+        <input id="div-penalty" type="text" class="cal-url" autocomplete="off" autocapitalize="words" spellcheck="false" />
         </div>
       </details>
 
@@ -1012,6 +1013,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=249"></script>
+  <script type="module" src="./app.js?v=250"></script>
 </body>
 </html>

@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=249';
+import { WORKER_BASE } from './proxy.js?v=250';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -36,19 +36,33 @@ const H = 3600000;
 // Places an Israeli aircraft can't (or really shouldn't) divert to: rated 0
 // and shown grey. Plus per-country penalties. Editable in Settings; stored on
 // this device as fc.div.countries.
+// Entries are country codes (TR) or airport ICAO codes (LCLK) — an airport
+// rule applies to that airport alone and wins over its country's.
+// North Africa −2 (Egypt, Tunisia, Sudan; Libya and Algeria are excluded),
+// never Morocco.
 export const DEFAULT_COUNTRIES = {
   exclude: ['LB', 'SY', 'IQ', 'IR', 'LY', 'YE', 'DZ', 'KW', 'PK', 'AF'],
-  penalty: { TR: -2 },
+  penalty: { TR: -2, EG: -2, TN: -2, SD: -2 },
 };
 export function getCountryRules() {
   try {
     const v = JSON.parse(localStorage.getItem('fc.div.countries') || 'null');
-    if (v && Array.isArray(v.exclude) && v.penalty && typeof v.penalty === 'object') return v;
+    if (v && Array.isArray(v.exclude) && v.penalty && typeof v.penalty === 'object') {
+      // Once: the North Africa penalty joins rules saved before it existed.
+      if (!v.na) {
+        for (const c of ['EG', 'TN', 'SD']) if (!(c in v.penalty) && !v.exclude.includes(c)) v.penalty[c] = -2;
+        v.na = 1;
+        setCountryRules(v);
+      }
+      return v;
+    }
   } catch {}
   return DEFAULT_COUNTRIES;
 }
 export function setCountryRules(rules) {
-  try { localStorage.setItem('fc.div.countries', JSON.stringify(rules)); } catch {}
+  try { localStorage.setItem('fc.div.countries', JSON.stringify({ ...rules, na: 1 })); } catch {}
+  // Route info re-rates at once (route-ui listens).
+  try { window.dispatchEvent(new CustomEvent('fc:div-rules')); } catch {}
 }
 
 // ---------- Data ----------
@@ -330,8 +344,8 @@ export function notamSeverity(text, usable = new Set()) {
 export const MAX = { runway: 2, lighting: 0.5, size: 1.5, distance: 3, weather: 3 };
 export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now(), mode = 'plan' }) {
   const why = [];
-  if (rules.exclude.includes(ap.cc)) {
-    return { score: 0, excluded: true, why: [`${ap.country}: not a diversion option`], lost: [] };
+  if (rules.exclude.includes(ap.icao) || (rules.exclude.includes(ap.cc) && !(ap.icao in rules.penalty))) {
+    return { score: 0, excluded: true, why: [`${rules.exclude.includes(ap.icao) ? ap.icao : ap.country}: not a diversion option`], lost: [] };
   }
   const flags = notams ? notamFlags(notams, eta) : null;
   if (flags && flags.adClosed) return { score: 0, why: ['Aerodrome closed by NOTAM'], flags, lost: [] };
@@ -373,8 +387,11 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   }
   let score = rwyPts + lightPts + sizePts + distPts + Math.max(-2, wxPts);
   if (ap.elev > 5000) { score -= 0.5; why.push(`High elevation (${ap.elev} ft)`); lost.push({ pts: 0.5, what: `High elevation (${ap.elev.toLocaleString('en-US')} ft)` }); }
-  const pen = Number(rules.penalty[ap.cc]) || 0;
-  if (pen) { score += pen; why.push(`${ap.country} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${ap.country} (country penalty, Settings)` }); }
+  // The airport's own rule if it has one, else its country's.
+  const own = ap.icao in rules.penalty;
+  const pen = Number(own ? rules.penalty[ap.icao] : rules.penalty[ap.cc]) || 0;
+  const who = own ? ap.icao : ap.country;
+  if (pen) { score += pen; why.push(`${who} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${who} (${own ? 'airport' : 'country'} factor, Settings)` }); }
   if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); lost.push({ pts: 0.5, what: 'ILS / LOC unserviceable (NOTAM)' }); }
   if (flags && closed.size) why.push(`RWY ${[...closed].join(', ')} closed (NOTAM)`);
   score = Math.max(0, Math.min(10, Math.round(score)));

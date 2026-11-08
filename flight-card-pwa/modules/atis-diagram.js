@@ -16,11 +16,11 @@
 // is often busy — a first answer can take most of a minute — so each gets
 // time, and what comes back is kept.
 const APIS = [
-  ['https://overpass-api.de/api/interpreter', 60000],
+  ['https://overpass-api.de/api/interpreter', 90000],
   ['https://overpass.kumi.systems/api/interpreter', 40000],
   ['https://maps.mail.ru/osm/tools/overpass/api/interpreter', 40000],
 ];
-const KEY = 'fc.aptgeo2.';
+const KEY = 'fc.aptgeo3.';
 const DAYS = 30;
 const norm = (s) => String(s || '').toUpperCase().replace(/[-\s]/g, '');
 
@@ -50,42 +50,49 @@ async function overpass(q) {
   return null;
 }
 
-// The runways, and the taxiways / gates named in `refs` (only those — a
-// whole airport's taxiways is half a megabyte and Overpass's slowest ask):
-// { lat, lon, rw: [{ ref, pts }], tw: { NORMREF: [pts, …] }, tried: [refs] }
-// with pts in metres east / north of the airport reference point. Refs
-// already asked for aren't asked again, found or not.
+// The whole airport — runways and every taxiway / taxilane — fetched once
+// and kept: { lat, lon, rw: [{ ref, pts }], tw: { NORMREF: [pts, …] } }
+// with pts in metres east / north of the airport reference point (unnamed
+// taxiways under ''). A big airport is ~100 KB kept and a slow first ask
+// (half a minute or more), so the ATIS refresh fetches it in the
+// background when there are closures. `refs` is accepted for older callers.
 const inflight = new Map();
-export function airportGeo(icao, lat, lon, refs = []) {
-  const k = icao + '|' + refs.join(',');
-  if (!inflight.has(k)) inflight.set(k, load(icao, lat, lon, refs).finally(() => inflight.delete(k)));
-  return inflight.get(k);
+export function airportGeo(icao, lat, lon) {
+  if (!inflight.has(icao)) inflight.set(icao, load(icao, lat, lon).finally(() => inflight.delete(icao)));
+  return inflight.get(icao);
 }
-async function load(icao, lat, lon, refs) {
-  let c = readCache(icao);
-  const want = [...new Set(refs.map(norm))].filter(r => r && !(c && c.tried.includes(r)));
-  if (c && !want.length) return c;
-  if (navigator.onLine === false) return c;
-  const dLat = 0.045, dLon = 0.045 / Math.cos(lat * Math.PI / 180);
+// Drop points closer than `tol` metres to the line through their neighbours.
+function simplify(pts, tol = 4) {
+  if (pts.length < 3) return pts;
+  const keep = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = keep[keep.length - 1], b = pts[i + 1], p = pts[i];
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    if (Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / L > tol) keep.push(p);
+  }
+  keep.push(pts.at(-1));
+  return keep;
+}
+async function load(icao, lat, lon) {
+  const c = readCache(icao);
+  if (c) return c;
+  if (navigator.onLine === false) return null;
+  const dLat = 0.05, dLon = 0.05 / Math.cos(lat * Math.PI / 180);
   const bbox = `${(lat - dLat).toFixed(4)},${(lon - dLon).toFixed(4)},${(lat + dLat).toFixed(4)},${(lon + dLon).toFixed(4)}`;
-  // "AZ3" matches OSM's AZ3 / AZ-3 / AZ 3; a gate also as GATE-12.
-  const rx = want.map(r => { const m = /^([A-Z]*)(\d*)([A-Z]*)$/.exec(r) || [r, r, '', '']; const body = m[1] && m[2] ? `${m[1]}[- ]?${m[2]}${m[3]}` : r; return `${body}|GATE[- ]?${body}|STAND[- ]?${body}`; }).join('|');
-  const q = `[out:json][timeout:50][bbox:${bbox}];(${c ? '' : 'way["aeroway"="runway"];'}${want.length ? `way["aeroway"~"^(taxiway|taxilane|parking_position)$"]["ref"~"^(${rx})$",i];` : ''});out tags geom;`;
-  const d = await overpass(q);
-  if (!d) return c;
+  const d = await overpass(`[out:json][timeout:90][bbox:${bbox}];(way["aeroway"~"^(runway|taxiway|taxilane)$"];);out tags geom;`);
+  if (!d) return null;
   const k = Math.cos(lat * Math.PI / 180) * 111320;
-  const xy = (g) => g.map(p => [Math.round((p.lon - lon) * k), Math.round((p.lat - lat) * 110540)]);
-  c = c || { at: Date.now(), lat, lon, rw: [], tw: {}, tried: [] };
+  const xy = (g) => simplify(g.map(p => [Math.round((p.lon - lon) * k), Math.round((p.lat - lat) * 110540)]));
+  const out = { at: Date.now(), lat, lon, rw: [], tw: {} };
   for (const w of d.elements || []) {
     if (!w.geometry || w.geometry.length < 2) continue;
-    if (w.tags?.aeroway === 'runway') { c.rw.push({ ref: w.tags.ref || '', pts: xy(w.geometry) }); continue; }
+    if (w.tags?.aeroway === 'runway') { out.rw.push({ ref: w.tags.ref || '', pts: xy(w.geometry) }); continue; }
     const r = norm(w.tags?.ref);
-    (c.tw[r] = c.tw[r] || []).push(xy(w.geometry));
+    (out.tw[r] = out.tw[r] || []).push(xy(w.geometry));
   }
-  c.tried = [...new Set([...c.tried, ...want])];
-  if (!c.rw.length) return null;
-  writeCache(icao, c);
-  return c;
+  if (!out.rw.length) return null;
+  writeCache(icao, out);
+  return out;
 }
 
 // Runway end named `des` (e.g. "32R"): the end you land over flying that
@@ -103,8 +110,10 @@ function runwayEnd(geo, des) {
 }
 
 // The diagram, or '' when there's nothing to draw. `items` from the ATIS
-// (route-ui colourAtis); returns { svg, missing: [labels not found] }.
-export function diagram(geo, items) {
+// (route-ui colourAtis). `whole`: the whole airport (the full-screen view)
+// rather than round the closures; `W`/`H` the drawing's shape. Returns
+// { svg, missing: [labels not found], at(lat, lon) → [x, y] | null }.
+export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {}) {
   if (!geo || !geo.rw.length) return { svg: '', missing: items.map(i => i.label) };
   const marks = [], missing = [];
   for (const it of items) {
@@ -123,23 +132,25 @@ export function diagram(geo, items) {
   // next to; with nothing found, the whole airport.
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const grow = (p) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); };
-  marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.it.kind === 'RWY') m.rw.pts.forEach(grow); });
-  if (!marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
-  const pad = 350, MIN = 2400;
+  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.it.kind === 'RWY') m.rw.pts.forEach(grow); });
+  if (whole || !marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
+  const pad = whole ? 300 : 350, MIN = 2400;
   x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
   if (x1 - x0 < MIN) { const c = (x0 + x1) / 2; x0 = c - MIN / 2; x1 = c + MIN / 2; }
   if (y1 - y0 < MIN * 0.55) { const c = (y0 + y1) / 2; y0 = c - MIN * 0.275; y1 = c + MIN * 0.275; }
-  const W = 600, H = Math.round(Math.max(220, Math.min(420, W * (y1 - y0) / (x1 - x0))));
+  const H = Hwant || Math.round(Math.max(220, Math.min(420, W * (y1 - y0) / (x1 - x0))));
   const s = Math.min(W / (x1 - x0), H / (y1 - y0));
   const ox = (W - (x1 - x0) * s) / 2, oy = (H - (y1 - y0) * s) / 2;
   const X = (p) => (ox + (p[0] - x0) * s).toFixed(1), Y = (p) => (oy + (y1 - p[1]) * s).toFixed(1);
   const path = (pts) => 'M' + pts.map(p => `${X(p)},${Y(p)}`).join('L');
   const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const rwW = Math.max(4, 45 * s);
+  // Runways wide (60 m, at least 7 px), taxiways a hairline — all of them.
+  const rwW = Math.max(7, 60 * s);
   const inside = (p) => p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
   const placed = [];
   const free = (x, y) => { if (placed.some(([a, b]) => Math.abs(a - x) < 34 && Math.abs(b - y) < 14)) return false; placed.push([x, y]); return true; };
-  let g = `<g class="ad-rw">${geo.rw.map(r => `<path d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
+  let g = `<g class="ad-tw">${Object.values(geo.tw).flat().map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
+  g += `<g class="ad-rw">${geo.rw.map(r => `<path d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
   // Runway designators at both ends.
   for (const r of geo.rw) {
     const ends = String(r.ref || '').split('/');
@@ -164,7 +175,12 @@ export function diagram(geo, items) {
     }
   }
   return {
-    svg: `<svg class="atis-diagram" viewBox="0 0 ${W} ${H}" overflow="hidden" role="img" aria-label="Airport diagram with the ATIS closures"><rect class="ad-bg" width="${W}" height="${H}" rx="10"/>${g}</svg>`,
+    // Where a GPS position falls on the drawing (null off it).
+    at: (la, lo) => {
+      const p = [(lo - geo.lon) * Math.cos(geo.lat * Math.PI / 180) * 111320, (la - geo.lat) * 110540];
+      return inside(p) ? [+X(p), +Y(p)] : null;
+    },
+    svg: `<svg class="atis-diagram" viewBox="0 0 ${W} ${H}" overflow="hidden" role="img" aria-label="Airport diagram with the ATIS closures"><rect class="ad-bg" width="${W}" height="${H}" rx="10"/>${g}<g class="ad-me"></g></svg>`,
     missing,
   };
 }

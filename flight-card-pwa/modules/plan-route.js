@@ -111,7 +111,23 @@ export function parse(text, A, B, fixMap, airportOf = () => null) {
   const pts = [{ n: A.icao, lat: A.lat, lon: A.lon }];
   const missing = [];
   let found = 0;
-  const fits = (prev, c) => distNm(prev, c) + distNm(c, B) <= distNm(prev, B) * 1.6 + 150;
+  // A copy of a name fits when going by it adds little to the way from the
+  // last fix to the destination; of those that fit, the one nearest the last
+  // fix is taken — fixes follow each other, a namesake 1,500 nm on that
+  // happens to lie near the great circle (TRL in Spain for Tripolis VOR in
+  // Greece) isn't the next one.
+  // Also: not far off to the side of the way on (cross-track), so a
+  // namesake in Serbia isn't taken for a fix west of Cyprus.
+  const xtk = (a, b, c) => {
+    const d13 = distNm(a, c) / NM_PER_RAD;
+    const brg = (p, q) => Math.atan2(Math.sin((q.lon - p.lon) * R) * Math.cos(q.lat * R),
+      Math.cos(p.lat * R) * Math.sin(q.lat * R) - Math.sin(p.lat * R) * Math.cos(q.lat * R) * Math.cos((q.lon - p.lon) * R));
+    return Math.abs(Math.asin(Math.sin(d13) * Math.sin(brg(a, c) - brg(a, b)))) * NM_PER_RAD;
+  };
+  const fits = (prev, c) => {
+    const d = distNm(prev, B);
+    return distNm(prev, c) + distNm(c, B) - d <= d * 0.3 + 100 && xtk(prev, B, c) <= Math.max(150, d * 0.15);
+  };
   for (let i = 0; i < toks.length; i++) {
     const raw = toks[i], t = base(raw);
     if (!t || SKIP.has(t) || SPEED_LEVEL.test(t) || /^\d+$/.test(t)) continue;
@@ -126,8 +142,7 @@ export function parse(text, A, B, fixMap, airportOf = () => null) {
     let cands = [];
     if (name.length === 4) { const ap = airportOf(name); if (ap) cands.push(ap); }
     cands = cands.concat(fixMap.get(name) || []);
-    const ok = cands.filter(p => fits(prev, p))
-      .sort((p, q) => (distNm(prev, p) + distNm(p, B)) - (distNm(prev, q) + distNm(q, B)));
+    const ok = cands.filter(p => fits(prev, p)).sort((p, q) => distNm(prev, p) - distNm(prev, q));
     if (!ok.length) { if (!missing.includes(name)) missing.push(name); continue; }
     const p = ok[0];
     if (distNm(prev, p) < 2) continue;              // the same place again
@@ -136,6 +151,24 @@ export function parse(text, A, B, fixMap, airportOf = () => null) {
   }
   pts.push({ n: B.icao, lat: B.lat, lon: B.lon });
   return { pts, missing, found };
+}
+
+// Names the waypoint list doesn't have (it's from 2013; fixes come and go
+// every AIRAC) looked up in FlightPlanDatabase's free, CORS-open navaid
+// search, current data. Only for what's missing, at paste time; each answer
+// joins fixMap so parse() can place it.
+export async function fillMissing(names, fixMap) {
+  let added = 0;
+  for (const n of names.slice(0, 25)) {
+    try {
+      const r = await fetch('https://api.flightplandatabase.com/search/nav?q=' + encodeURIComponent(n));
+      if (!r.ok) { if (r.status === 429) break; continue; }
+      const hits = (await r.json()).filter(x => x.ident === n && /^(FIX|VOR|NDB|DME|TACAN|VORTAC)$/.test(x.type))
+        .map(x => ({ lat: x.lat, lon: x.lon }));
+      if (hits.length) { fixMap.set(n, [...(fixMap.get(n) || []), ...hits]); added++; }
+    } catch {}
+  }
+  return added;
 }
 
 // ---------- Along the route ----------

@@ -8,12 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=249';
-import * as ri from './route-info.js?v=249';
-import { legTs, nearestHm } from './dates.js?v=249';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=249';
-import * as plan from './plan-route.js?v=249';
-import * as ely from './ely-traffic.js?v=249';
+import * as storage from './storage.js?v=250';
+import * as ri from './route-info.js?v=250';
+import { legTs, nearestHm } from './dates.js?v=250';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=250';
+import * as plan from './plan-route.js?v=250';
+import * as ely from './ely-traffic.js?v=250';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -239,7 +239,13 @@ async function planAction(what) {
     try { fixes = await plan.loadFixes(); }
     catch { if (out) out.textContent = 'Couldn\'t load the waypoint list — it needs internet the first time.'; return; }
     const db = await ri.loadDb();
-    const r = plan.parse(text, state.model.A, state.model.B, fixes, (c) => db.a[c] ? ri.findAirport(db, c) : null);
+    const apOf = (c) => db.a[c] ? ri.findAirport(db, c) : null;
+    let r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
+    // Names the (2013) list doesn't place: ask the current navaid data, then again.
+    if (r.missing.length && navigator.onLine !== false) {
+      if (out) out.textContent = `Looking up ${r.missing.length} newer waypoint${r.missing.length === 1 ? '' : 's'}…`;
+      if (await plan.fillMissing(r.missing, fixes)) r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
+    }
     if (!r.found) { if (out) out.textContent = `No waypoints recognised${r.missing.length ? ` (not found: ${r.missing.slice(0, 8).join(' ')})` : ''} — still on the great circle.`; return; }
     const saved = { text, pts: r.pts.map(p => ({ n: p.n, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) })), missing: r.missing, found: r.found };
     plan.setPlan(leg, saved);
@@ -1454,7 +1460,23 @@ export async function readiness(leg) {
 // `fromMap`: chosen by tapping the map — the map stays exactly where it is
 // (the magenta ring shows the choice) and the page only scrolls enough for
 // the card's head to show below it, so the next tap lands where you aimed.
+// Settings changed the diversion rules: re-rate what's on screen now.
+window.addEventListener('fc:div-rules', () => {
+  if (state && state.model) build(state.model.leg).then(m => paint(m, state.showAll)).catch(() => {});
+});
+
 // ---------- El Al traffic (LY button) ----------
+// This leg's aircraft: its registration (EKJ → 4X-EKJ) and callsign (ELY541).
+function ownIds() {
+  const leg = state && state.model.leg;
+  const d = (leg && leg.dataCard) || {};
+  const card = (() => { try { return storage.getCurrent().dataCard; } catch { return {}; } })();
+  let reg = String(d.tail || (leg && leg.tail) || card.tail || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (/^[A-Z]{3}$/.test(reg)) reg = '4X' + reg;
+  if (/^4X[A-Z]{3}$/.test(reg)) reg = '4X-' + reg.slice(2);
+  const num = String((leg && leg.flight) || '').replace(/\D/g, '').replace(/^0+/, '');
+  return { reg, cs: num ? 'ELY' + num : '' };
+}
 function setEly(on) {
   elyOn = on;
   try { localStorage.setItem('fc.routeEly', on ? '1' : '0'); } catch {}
@@ -1469,7 +1491,12 @@ async function elyRefresh(now = false) {
     if (navigator.onLine === false) { if (now) toast('No internet — El Al traffic needs a connection'); }
     else {
       const list = await ely.fetchEly(state.model.route.pts).catch(() => null);
+      // This flight's own aircraft, wherever it is — or where it was last seen.
+      const { reg, cs } = ownIds();
+      const own = (reg || cs) ? await ely.fetchOwn(reg, cs).catch(() => null) : null;
       if (list) {
+        if (own) { const i = list.findIndex(a => a.hex === own.hex); if (i >= 0) list[i] = own; else list.push(own); }
+        else { const ls = reg && ely.lastSeen(reg); if (ls) list.push({ ...ls, own: true, stale: true, hex: 'last-' + ls.hex }); }
         for (const a of list) { const was = elyList.find(x => x.hex === a.hex); if (was && was.route !== undefined) { a.route = was.route; a.fits = ely.routeFits(a.route, a); } }
         elyList = list; elyAt = Date.now();
         if (elySel && !list.some(a => a.hex === elySel)) closeEly();
@@ -1495,16 +1522,24 @@ function paintEly() {
   let rt = '';
   const sel = elyList.find(a => a.hex === elySel);
   if (sel && sel.route && sel.fits) {
+    // Great circles, as flown — not straight lines on the chart.
     const xy = (p) => `${P.x(unwrap(p.lon)).toFixed(1)},${P.y(p.lat).toFixed(1)}`;
-    rt = `<path class="ri-ely-done" d="M${xy(sel.route.from)}L${xy(sel)}"/><path class="ri-ely-togo" d="M${xy(sel)}L${xy(sel.route.to)}"/>`;
+    const gc = (a, b) => { const r = ri.routePoints(a, b, 32); return 'M' + (Array.isArray(r) ? r : r.pts).map(xy).join('L'); };
+    rt = `<path class="ri-ely-done" d="${gc(sel.route.from, sel)}"/><path class="ri-ely-togo" d="${gc(sel, sel.route.to)}"/>`;
+    // Its airports, marked even where Route info has no pin for them.
+    const pinned = new Set((mapGeom.pins || []).map(p => p.icao));
+    for (const e of [sel.route.from, sel.route.to]) {
+      if (!e || pinned.has(e.icao)) continue;
+      rt += `<g class="ri-ely-apt" transform="translate(${xy(e)})"><g class="ri-ely-k"><rect x="-4" y="-4" width="8" height="8" rx="1.5"/><text y="-7">${esc(e.icao)}</text></g></g>`;
+    }
   }
   // The chosen one drawn last, on top.
   const order = elyList.map((a, i) => i).sort((i, j) => (elyList[i].hex === elySel) - (elyList[j].hex === elySel));
   g.innerHTML = rt + order.map(i => {
     const a = elyList[i];
     const { x, y } = mapGeom.ely[i];
-    return `<g class="ri-ely-ac${a.hex === elySel ? ' is-sel' : elySel ? ' is-dim' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
-        <g class="ri-ely-k"><path d="${PLANE}" transform="rotate(${Math.round(a.trk)})"/><text y="15">${esc(a.flight)}</text></g></g>`;
+    return `<g class="ri-ely-ac${a.own ? ' is-own' : ''}${a.stale ? ' is-stale' : ''}${a.hex === elySel ? ' is-sel' : elySel ? ' is-dim' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <g class="ri-ely-k">${a.own ? '<circle class="ri-ely-ring" r="10"/>' : ''}<path d="${PLANE}" transform="rotate(${Math.round(a.trk)})"/><text y="15">${esc(a.own ? (a.reg || a.flight) : a.flight)}</text></g></g>`;
   }).join('');
 }
 // The chosen aircraft's details in a small box on the map itself (top
@@ -1525,8 +1560,21 @@ async function openEly(hex) {
         <button type="button" class="ri-ely-pop-x" data-ri-ely-close aria-label="Close">✕</button></div>
       ${names ? `<div class="ri-ely-pop-n">${names}${rt && !a.fits ? ' · <i>route unsure</i>' : ''}</div>` : ''}
       <div class="ri-ely-pop-f"><span>${esc(a.reg || '—')}${a.type ? ' · ' + esc(ely.typeName(a.type)) : ''}</span>
-        <span><b>FL${String(a.fl).padStart(3, '0')}</b> · ${a.gs} kt</span></div>`;
+        ${a.ground ? `<span><b>On the ground</b>${near ? ' at ' + esc(near) : ''}</span>` : `<span><b>FL${String(a.fl).padStart(3, '0')}</b> · ${a.gs} kt</span>`}</div>
+      ${eta ? `<div class="ri-ely-pop-f"><span><b>ETA ${hm(eta.at)}</b> · ${eta.left} nm to go</span></div>` : ''}
+      ${a.own ? `<div class="ri-ely-pop-n">${a.stale ? `Your aircraft — last seen ${ago(a.seen)}, not transmitting now` : 'Your aircraft'}</div>` : ''}`;
   };
+  // On the ground: the airport it's at, from the diversion database.
+  let near = '';
+  if (a.ground) {
+    try {
+      const db = await ri.loadDb();
+      let best = null;
+      for (const code of Object.keys(db.a)) { const [la, lo] = db.a[code]; const d = Math.abs(la - a.lat) + Math.abs(lo - a.lon); if (!best || d < best[1]) best = [code, d]; }
+      if (best && best[1] < 0.2) near = best[0];
+    } catch {}
+  }
+  let eta = a.route ? ely.etaOf(a, a.route) : null;
   let el = $('ri-ely-pop');
   if (!el) { wrap.insertAdjacentHTML('beforeend', '<div id="ri-ely-pop" class="ri-ely-pop" role="dialog" aria-label="Aircraft"></div>'); el = $('ri-ely-pop'); }
   el.innerHTML = box(a.route);
@@ -1534,6 +1582,7 @@ async function openEly(hex) {
   if (a.route === undefined) {
     a.route = await ely.routeOf(a.cs);
     a.fits = ely.routeFits(a.route, a);
+    eta = ely.etaOf(a, a.route);
     if (elySel === hex && $('ri-ely-pop')) { $('ri-ely-pop').innerHTML = box(a.route); paintEly(); }
   }
 }
@@ -1764,7 +1813,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=249'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=250'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
