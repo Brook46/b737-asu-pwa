@@ -4378,3 +4378,19 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ri-sig-facts span { display: flex; flex-direction: column; }
 .ri-sig-facts i { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-mute); }
 .ri-sig-raw { white-space: pre-wrap; font-size: 12px; }
+
+/* ---- LY button: El Al aircraft on the Route info map ---- */
+.ri-zoom .ri-zoom-ely { font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.ri-zoom .ri-zoom-ely.is-on { background: #1d4fa3; color: #fff; }
+.ri-ely-k { transform: scale(var(--ri-k, 1)); }
+.ri-ely-ac path { fill: #1d4fa3; stroke: #fff; stroke-width: .9; }
+.ri-ely-ac text { font-size: 8px; font-weight: 800; fill: #1d4fa3; text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; }
+.ri-ely-ac.is-sel path { fill: #f08c00; }
+.ri-ely-ac.is-sel text { fill: #f08c00; }
+.ri-ely-done, .ri-ely-togo { fill: none; stroke: #f08c00; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.ri-ely-togo { stroke-dasharray: 6 4; stroke-opacity: .8; }
+.ri-ely-route { font-weight: 700; margin-inline-start: 6px; }
+.ri-ely-unsure { font-size: 11px; font-weight: 700; color: var(--warn); margin-inline-start: 6px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ri-ely-ac path { fill: #5b8def; } :root:not([data-theme="light"]) .ri-ely-ac text { fill: #8fb3ff; } }
+:root[data-theme="dark"] .ri-ely-ac path { fill: #5b8def; }
+:root[data-theme="dark"] .ri-ely-ac text { fill: #8fb3ff; }

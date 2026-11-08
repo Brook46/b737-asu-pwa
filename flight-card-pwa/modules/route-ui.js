@@ -8,11 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=246';
-import * as ri from './route-info.js?v=246';
-import { legTs, nearestHm } from './dates.js?v=246';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=246';
-import * as plan from './plan-route.js?v=246';
+import * as storage from './storage.js?v=247';
+import * as ri from './route-info.js?v=247';
+import { legTs, nearestHm } from './dates.js?v=247';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=247';
+import * as plan from './plan-route.js?v=247';
+import * as ely from './ely-traffic.js?v=247';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -23,6 +24,9 @@ const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16
 
 let state = null;        // { key, model } of what's on screen
 let mapGeom = null;      // { W, H, proj } of the drawn map, for zoom
+// LY button: El Al aircraft in the air round the route (ely-traffic.js).
+let elyOn = (() => { try { return localStorage.getItem('fc.routeEly') === '1'; } catch { return false; } })();
+let elyList = [], elyAt = 0, elyTimer = 0, elySel = '';
 const selEnd = new Map(); // ICAO → the runway end the pilot picked (default: best for the wind)
 let gpsWatch = null;      // geolocation watch id while the screen is open
 let gpsFix = null;        // { lat, lon, altFt, gs, trk, at, airborne }
@@ -279,6 +283,8 @@ function drawMap(frame) {
   paintMapWx();
   livePaintAt = 0;
   paintLive();
+  paintEly();
+  if (elyOn) elyRefresh();
 }
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
 // the new shape, still looking at the same place at the same scale.
@@ -389,6 +395,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <g id="ri-iso"></g>
       ${pins}
       <g id="ri-iso-lbls"></g>
+      <g id="ri-ely"></g>
       <g id="ri-ac"></g>
     </svg>
     <div class="ri-zoom" role="group" aria-label="Map zoom">
@@ -396,6 +403,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <button type="button" data-ri-zoom="out" aria-label="Zoom out">−</button>
       <button type="button" data-ri-zoom="fit" aria-label="Whole route" title="Whole route">⤢</button>
       <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
+      <button type="button" data-ri-ely class="ri-zoom-ely${elyOn ? ' is-on' : ''}" aria-pressed="${elyOn}" aria-label="El Al aircraft in the air" title="El Al aircraft in the air">LY</button>
     </div>
     <button type="button" class="ri-to-list" data-ri-list>Airports ↓</button></div>`;
 }
@@ -1414,6 +1422,87 @@ export async function readiness(leg) {
 // `fromMap`: chosen by tapping the map — the map stays exactly where it is
 // (the magenta ring shows the choice) and the page only scrolls enough for
 // the card's head to show below it, so the next tap lands where you aimed.
+// ---------- El Al traffic (LY button) ----------
+function setEly(on) {
+  elyOn = on;
+  try { localStorage.setItem('fc.routeEly', on ? '1' : '0'); } catch {}
+  document.querySelectorAll('[data-ri-ely]').forEach(b => { b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+  if (!on) { clearTimeout(elyTimer); elySel = ''; paintEly(); return; }
+  elyRefresh(true);
+}
+async function elyRefresh(now = false) {
+  clearTimeout(elyTimer);
+  if (!elyOn || !state) return;
+  if (now || Date.now() - elyAt >= ely.REFRESH_MS) {
+    if (navigator.onLine === false) { if (now) toast('No internet — El Al traffic needs a connection'); }
+    else {
+      const list = await ely.fetchEly(state.model.route.pts).catch(() => null);
+      if (list) {
+        elyList = list; elyAt = Date.now();
+        if (now) toast(list.length ? `${list.length} El Al aircraft in the air near the route` : 'No El Al aircraft in the air near the route');
+      }
+    }
+  }
+  paintEly();
+  // Only while Route info is on screen.
+  if (document.querySelector('#ri-map')) elyTimer = setTimeout(() => elyRefresh(), ely.REFRESH_MS);
+}
+const PLANE = 'M0,-7 L1.2,-2.2 L6.5,1.2 L6.5,2.4 L1.2,0.9 L0.9,4.6 L2.6,6 L2.6,6.8 L0,6 L-2.6,6.8 L-2.6,6 L-0.9,4.6 L-1.2,0.9 L-6.5,2.4 L-6.5,1.2 L-1.2,-2.2 Z';
+function paintEly() {
+  const g = $('ri-ely');
+  if (!g || !mapGeom || !state) return;
+  if (!elyOn) { g.innerHTML = ''; mapGeom.ely = []; return; }
+  const P = mapGeom.proj;
+  const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
+  const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
+  mapGeom.ely = elyList.map(a => ({ hex: a.hex, x: P.x(unwrap(a.lon)), y: P.y(a.lat) }));
+  // The chosen one's route: flown part solid, still to go dashed.
+  let rt = '';
+  const sel = elyList.find(a => a.hex === elySel);
+  if (sel && sel.route && sel.fits) {
+    const xy = (p) => `${P.x(unwrap(p.lon)).toFixed(1)},${P.y(p.lat).toFixed(1)}`;
+    rt = `<path class="ri-ely-done" d="M${xy(sel.route.from)}L${xy(sel)}"/><path class="ri-ely-togo" d="M${xy(sel)}L${xy(sel.route.to)}"/>`;
+  }
+  g.innerHTML = rt + elyList.map((a, i) => {
+    const { x, y } = mapGeom.ely[i];
+    return `<g class="ri-ely-ac${a.hex === elySel ? ' is-sel' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <g class="ri-ely-k"><path d="${PLANE}" transform="rotate(${Math.round(a.trk)})"/><text y="15">${esc(a.flight)}</text></g></g>`;
+  }).join('');
+}
+async function openEly(hex) {
+  const a = elyList.find(x => x.hex === hex);
+  const slot = $('ri-card-slot');
+  if (!a || !slot) return;
+  elySel = hex;
+  document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
+  const card = (rt) => {
+    const ends = rt ? `${esc(rt.from.iata || rt.from.icao)} → ${esc(rt.to.iata || rt.to.icao)}` : rt === undefined ? 'Looking up the route…' : 'Route not known';
+    const names = rt ? `${esc(rt.from.name || '')} → ${esc(rt.to.name || '')}` : '';
+    return `<div class="ri-card ri-ely-card">
+        <div class="ri-card-head"><div><b>${esc(a.flight)}</b> <span class="ri-ely-route">${ends}</span>${rt && !a.fits ? ' <span class="ri-ely-unsure">route unsure</span>' : ''}
+          <div class="ri-sub">${names}</div></div>
+          <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button></div>
+        <div class="ri-sig-facts">
+          <span><i>Aircraft</i>${esc(a.reg || '—')}${a.type ? ' · ' + esc(ely.typeName(a.type)) : ''}</span>
+          <span><i>Level</i>FL${String(a.fl).padStart(3, '0')}</span>
+          <span><i>Ground speed</i>${a.gs} kt</span>
+          <span><i>Seen</i>${ago(elyAt - (a.ageMs || 0))}</span>
+        </div>
+        <div class="ri-upd">Live ADS-B (adsb.lol network) · route from adsbdb.com, by callsign</div>
+      </div>`;
+  };
+  slot.innerHTML = card(a.route);
+  paintEly();
+  const sheet = document.querySelector('.route-sheet');
+  const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
+  if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
+  if (a.route === undefined) {
+    a.route = await ely.routeOf(a.cs);
+    a.fits = ely.routeFits(a.route, a);
+    if (elySel === hex) { slot.innerHTML = card(a.route); paintEly(); }
+  }
+}
+
 // ---------- SIGMETs ----------
 const SIG_NAMES = { TS: 'Thunderstorms', TURB: 'Turbulence', ICE: 'Icing', MTW: 'Mountain wave', VA: 'Volcanic ash',
   TC: 'Tropical cyclone', DS: 'Dust storm', SS: 'Sandstorm', RDOACT: 'Radioactive cloud', IFR: 'Low ceiling / visibility', MTN: 'Mountain obscuration' };
@@ -1640,7 +1729,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=246'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=247'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -1861,6 +1950,16 @@ function wireZoom(svg) {
     return { x: v.x + (cx - r.left) / r.width * v.w, y: v.y + (cy - r.top) / r.height * v.h };
   };
   // The pins within reach of a fingertip, nearest first.
+  const elyAt0 = (cx, cy) => {
+    if (!elyOn || !mapGeom || !mapGeom.ely) return null;
+    const r = mapRect(svg), v = currentView();
+    let best = null;
+    for (const p of mapGeom.ely) {
+      const d = Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy);
+      if (d < 22 && (!best || d < best.d)) best = { hex: p.hex, d };
+    }
+    return best && best.hex;
+  };
   const pinsAt = (cx, cy) => {
     if (!mapGeom || !mapGeom.pins) return [];
     const r = mapRect(svg), v = currentView();
@@ -1987,6 +2086,9 @@ function wireZoom(svg) {
   // quick taps on open map zoom in there (+ / − / fit do the rest).
   const tapped = (x, y) => {
     const near = pinsAt(x, y), now = Date.now();
+    // An El Al aircraft under the finger: its card.
+    const lyHit = elyAt0(x, y);
+    if (lyHit) { lastTap = { t: 0 }; openEly(lyHit); return; }
     // Inside a SIGMET area (or several): its details — unless the finger is
     // right on an airport, which still opens the airport.
     const sp = toSvg(x, y);
@@ -2208,6 +2310,7 @@ export function wire() {
     if (e.target.closest('[data-ri-close]')) {
       $('ri-card-slot').innerHTML = '';
       document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
+      if (elySel) { elySel = ''; paintEly(); }
       relabel();
       return;
     }
@@ -2224,6 +2327,7 @@ export function wire() {
       build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
       return;
     }
+    if (e.target.closest('[data-ri-ely]')) { setEly(!elyOn); return; }
     const sb = e.target.closest('[data-ri-sig]');
     if (sb) { openSig([sb.dataset.riSig]); return; }
     if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
