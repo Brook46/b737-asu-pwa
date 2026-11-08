@@ -3729,29 +3729,28 @@ body[data-phase="air"] #ready-line { display: none; }
 .phase-note[hidden] { display: none; }
 .before-wx { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; break-inside: avoid; }
 .before-wx[hidden] { display: none; }
+.wx-card { border-radius: 12px; background: var(--bg-sunk); }
 .wx-end {
   -webkit-appearance: none; appearance: none;
-  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px;
-  border: 0; border-radius: 10px; background: var(--bg-sunk);
+  display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px 12px 6px;
+  border: 0; border-radius: 12px; background: transparent;
   cursor: pointer; font: inherit; text-align: start; color: var(--fg);
 }
 .ph-h { font-size: 13px; font-weight: 600; color: var(--fg-mute); }
 .ph-h b { color: var(--fg); font-weight: 700; }
-.ph-wx { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.4; color: var(--fg); }
-/* METAR, a line, then the TAF. */
-.ph-wx + .ph-wx { border-top: 1px solid var(--line); padding-top: 6px; }
-/* The alternate: the same tile, with Change in its corner. */
-.wx-altn { position: relative; }
-.wx-altn-btns { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
-.wx-altn-notam {
+.ph-old { font-style: normal; font-weight: 600; color: var(--warn); margin-inline-start: 4px; }
+.ph-wx { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.45; color: var(--fg); }
+/* The TAF a group to a line, as it's printed. */
+.ph-taf { white-space: pre-line; color: var(--fg-mute); }
+.ph-wx + .ph-wx { border-top: 1px solid var(--line-soft, var(--line)); padding-top: 6px; }
+/* One row of actions under the reports: NOTAMs · Change … ATIS. */
+.wx-foot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; padding: 0 12px 10px; }
+.wx-foot .wx-atis-go { margin: 0 0 0 auto; }
+.wx-foot-btn {
   padding: 4px 10px; border: 0; border-radius: 999px; background: var(--bg-elev);
-  color: var(--fg-mute); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.wx-altn-notam.is-bad { color: var(--danger); }
-.wx-altn-change {
-  padding: 4px 10px; border: 0; border-radius: 999px;
-  background: var(--bg-elev); color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
-}
+.wx-foot-btn.is-bad { color: var(--danger); }
 .wx-altn-add {
   padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; background: transparent;
   color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; text-align: start; cursor: pointer;
@@ -4329,7 +4328,7 @@ button.wx-atis-go { margin: 6px 0 2px; }
 
 /* TAF: the kind of change (BECMG / TEMPO / PROB / FM) in blue, and a line
    under the groups in force an hour either side of your time there. */
-.wx-b { color: #3b82f6; font-weight: 700; }
+.wx-b { color: #5b8def; font-weight: 600; }
 /* A quiet line: thin and pale, so the colours above it still lead. */
 .wx-eta {
   text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;

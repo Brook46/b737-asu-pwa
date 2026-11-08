@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=244';
-import * as ri from './route-info.js?v=244';
-import { legTs, nearestHm } from './dates.js?v=244';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=244';
-import * as plan from './plan-route.js?v=244';
+import * as storage from './storage.js?v=245';
+import * as ri from './route-info.js?v=245';
+import { legTs, nearestHm } from './dates.js?v=245';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=245';
+import * as plan from './plan-route.js?v=245';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -671,6 +671,8 @@ function tafGroups(raw, now = Date.now()) {
 // The TAF coloured, with a line under each group in force within an hour
 // either side of `eta` (ms).
 function colourTaf(raw, rwys, eta) {
+  // PROB30 / PROB40 printed alone on a line belongs with its TEMPO.
+  raw = String(raw || '').replace(/\b(PROB[34]0)[ \t]*\r?\n\s*(TEMPO|INTER)\b/g, '$1 $2');
   if (!Number.isFinite(eta) || !/^\s*(TAF\b|[A-Z]{4}\s+\d{6}Z)/.test(String(raw || ''))) return colourRaw(raw, rwys);
   const lo = eta - 3600e3, hi = eta + 3600e3;
   return tafGroups(raw).map(g => {
@@ -683,11 +685,14 @@ function colourTaf(raw, rwys, eta) {
   }).join('');
 }
 
-// Raw METAR / TAF with each meaningful group coloured.
+// Raw METAR / TAF with each meaningful group coloured. Only what needs a
+// look is coloured — good values (9999, CAVOK, a high ceiling) stay plain,
+// or a quiet report turns into a wall of green.
 function colourRaw(raw, rwys) {
   return String(raw || '').split(/(\s+)/).map(tok => {
     if (/^\s+$/.test(tok) || !tok) return tok;
-    const b = tokBand(tok.toUpperCase(), rwys);
+    let b = tokBand(tok.toUpperCase(), rwys);
+    if (b === 'g') b = null;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
   }).join('');
 }
@@ -756,8 +761,10 @@ function colourAtis(text, rwys, letter = '') {
       else if (/^(MIST|RAIN|DRIZZLE|HAZE|SHOWERS?|SMOKE)$/.test(W)) b = 'y';
       else if (SURFACE[W]) b = SURFACE[W];
       // A bare four-digit number in words is a time or QNH, not a visibility.
-      else if (/^\d{4}$/.test(W)) b = W === '9999' ? 'g' : (/^(QNH|Q|TIME|AT|ISSUED|INFO|METAR)$/.test(prev) || W !== T) ? null : tokBand(W, rwys);
+      else if (/^\d{4}$/.test(W)) b = W === '9999' ? null : (/^(QNH|Q|TIME|AT|ISSUED|INFO|METAR)$/.test(prev) || W !== T) ? null : tokBand(W, rwys);
       else b = tokBand(W, rwys);
+      // Green only for the runway (surface, RWYCC, braking) — not for CAVOK.
+      if (b === 'g' && !SURFACE[W] && !BRAKING[W]) b = null;
     }
     prev = W;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
@@ -1543,7 +1550,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=244'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=245'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
