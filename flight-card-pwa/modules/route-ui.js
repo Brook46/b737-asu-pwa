@@ -8,12 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=247';
-import * as ri from './route-info.js?v=247';
-import { legTs, nearestHm } from './dates.js?v=247';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=247';
-import * as plan from './plan-route.js?v=247';
-import * as ely from './ely-traffic.js?v=247';
+import * as storage from './storage.js?v=248';
+import * as ri from './route-info.js?v=248';
+import { legTs, nearestHm } from './dates.js?v=248';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=248';
+import * as plan from './plan-route.js?v=248';
+import * as ely from './ely-traffic.js?v=248';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -285,6 +285,7 @@ function drawMap(frame) {
   paintLive();
   paintEly();
   if (elyOn) elyRefresh();
+  if (elySel) openEly(elySel);          // the map was redrawn: its box too
 }
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
 // the new shape, still looking at the same place at the same scale.
@@ -1427,7 +1428,7 @@ function setEly(on) {
   elyOn = on;
   try { localStorage.setItem('fc.routeEly', on ? '1' : '0'); } catch {}
   document.querySelectorAll('[data-ri-ely]').forEach(b => { b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
-  if (!on) { clearTimeout(elyTimer); elySel = ''; paintEly(); return; }
+  if (!on) { clearTimeout(elyTimer); closeEly(); paintEly(); return; }
   elyRefresh(true);
 }
 async function elyRefresh(now = false) {
@@ -1438,12 +1439,15 @@ async function elyRefresh(now = false) {
     else {
       const list = await ely.fetchEly(state.model.route.pts).catch(() => null);
       if (list) {
+        for (const a of list) { const was = elyList.find(x => x.hex === a.hex); if (was && was.route !== undefined) { a.route = was.route; a.fits = ely.routeFits(a.route, a); } }
         elyList = list; elyAt = Date.now();
+        if (elySel && !list.some(a => a.hex === elySel)) closeEly();
         if (now) toast(list.length ? `${list.length} El Al aircraft in the air near the route` : 'No El Al aircraft in the air near the route');
       }
     }
   }
   paintEly();
+  if (elySel && $('ri-ely-pop')) openEly(elySel);
   // Only while Route info is on screen.
   if (document.querySelector('#ri-map')) elyTimer = setTimeout(() => elyRefresh(), ely.REFRESH_MS);
 }
@@ -1463,43 +1467,43 @@ function paintEly() {
     const xy = (p) => `${P.x(unwrap(p.lon)).toFixed(1)},${P.y(p.lat).toFixed(1)}`;
     rt = `<path class="ri-ely-done" d="M${xy(sel.route.from)}L${xy(sel)}"/><path class="ri-ely-togo" d="M${xy(sel)}L${xy(sel.route.to)}"/>`;
   }
-  g.innerHTML = rt + elyList.map((a, i) => {
+  // The chosen one drawn last, on top.
+  const order = elyList.map((a, i) => i).sort((i, j) => (elyList[i].hex === elySel) - (elyList[j].hex === elySel));
+  g.innerHTML = rt + order.map(i => {
+    const a = elyList[i];
     const { x, y } = mapGeom.ely[i];
-    return `<g class="ri-ely-ac${a.hex === elySel ? ' is-sel' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    return `<g class="ri-ely-ac${a.hex === elySel ? ' is-sel' : elySel ? ' is-dim' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <g class="ri-ely-k"><path d="${PLANE}" transform="rotate(${Math.round(a.trk)})"/><text y="15">${esc(a.flight)}</text></g></g>`;
   }).join('');
 }
+// The chosen aircraft's details in a small box on the map itself (top
+// left, clear of the zoom buttons) — no scrolling away to a card.
+function closeEly() {
+  $('ri-ely-pop')?.remove();
+  if (elySel) { elySel = ''; paintEly(); }
+}
 async function openEly(hex) {
   const a = elyList.find(x => x.hex === hex);
-  const slot = $('ri-card-slot');
-  if (!a || !slot) return;
+  const wrap = $('ri-map')?.parentElement;
+  if (!a || !wrap) return;
   elySel = hex;
-  document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
-  const card = (rt) => {
-    const ends = rt ? `${esc(rt.from.iata || rt.from.icao)} → ${esc(rt.to.iata || rt.to.icao)}` : rt === undefined ? 'Looking up the route…' : 'Route not known';
+  const box = (rt) => {
+    const ends = rt ? `${esc(rt.from.iata || rt.from.icao)} → ${esc(rt.to.iata || rt.to.icao)}` : rt === undefined ? 'route…' : 'route not known';
     const names = rt ? `${esc(rt.from.name || '')} → ${esc(rt.to.name || '')}` : '';
-    return `<div class="ri-card ri-ely-card">
-        <div class="ri-card-head"><div><b>${esc(a.flight)}</b> <span class="ri-ely-route">${ends}</span>${rt && !a.fits ? ' <span class="ri-ely-unsure">route unsure</span>' : ''}
-          <div class="ri-sub">${names}</div></div>
-          <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button></div>
-        <div class="ri-sig-facts">
-          <span><i>Aircraft</i>${esc(a.reg || '—')}${a.type ? ' · ' + esc(ely.typeName(a.type)) : ''}</span>
-          <span><i>Level</i>FL${String(a.fl).padStart(3, '0')}</span>
-          <span><i>Ground speed</i>${a.gs} kt</span>
-          <span><i>Seen</i>${ago(elyAt - (a.ageMs || 0))}</span>
-        </div>
-        <div class="ri-upd">Live ADS-B (adsb.lol network) · route from adsbdb.com, by callsign</div>
-      </div>`;
+    return `<div class="ri-ely-pop-h"><b>${esc(a.flight)}</b> <span>${ends}</span>
+        <button type="button" class="ri-ely-pop-x" data-ri-ely-close aria-label="Close">✕</button></div>
+      ${names ? `<div class="ri-ely-pop-n">${names}${rt && !a.fits ? ' · <i>route unsure</i>' : ''}</div>` : ''}
+      <div class="ri-ely-pop-f"><span>${esc(a.reg || '—')}${a.type ? ' · ' + esc(ely.typeName(a.type)) : ''}</span>
+        <span><b>FL${String(a.fl).padStart(3, '0')}</b> · ${a.gs} kt</span></div>`;
   };
-  slot.innerHTML = card(a.route);
+  let el = $('ri-ely-pop');
+  if (!el) { wrap.insertAdjacentHTML('beforeend', '<div id="ri-ely-pop" class="ri-ely-pop" role="dialog" aria-label="Aircraft"></div>'); el = $('ri-ely-pop'); }
+  el.innerHTML = box(a.route);
   paintEly();
-  const sheet = document.querySelector('.route-sheet');
-  const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
-  if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
   if (a.route === undefined) {
     a.route = await ely.routeOf(a.cs);
     a.fits = ely.routeFits(a.route, a);
-    if (elySel === hex) { slot.innerHTML = card(a.route); paintEly(); }
+    if (elySel === hex && $('ri-ely-pop')) { $('ri-ely-pop').innerHTML = box(a.route); paintEly(); }
   }
 }
 
@@ -1729,7 +1733,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=247'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=248'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -2089,6 +2093,8 @@ function wireZoom(svg) {
     // An El Al aircraft under the finger: its card.
     const lyHit = elyAt0(x, y);
     if (lyHit) { lastTap = { t: 0 }; openEly(lyHit); return; }
+    // Anywhere else on the map puts the chosen aircraft down again.
+    if (elySel) closeEly();
     // Inside a SIGMET area (or several): its details — unless the finger is
     // right on an airport, which still opens the airport.
     const sp = toSvg(x, y);
@@ -2310,7 +2316,6 @@ export function wire() {
     if (e.target.closest('[data-ri-close]')) {
       $('ri-card-slot').innerHTML = '';
       document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
-      if (elySel) { elySel = ''; paintEly(); }
       relabel();
       return;
     }
@@ -2327,6 +2332,7 @@ export function wire() {
       build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
       return;
     }
+    if (e.target.closest('[data-ri-ely-close]')) { closeEly(); return; }
     if (e.target.closest('[data-ri-ely]')) { setEly(!elyOn); return; }
     const sb = e.target.closest('[data-ri-sig]');
     if (sb) { openSig([sb.dataset.riSig]); return; }

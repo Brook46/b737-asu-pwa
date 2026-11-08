@@ -4380,17 +4380,27 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ri-sig-raw { white-space: pre-wrap; font-size: 12px; }
 
 /* ---- LY button: El Al aircraft on the Route info map ---- */
+/* Yellow with a dark edge: reads on the pale sea and the dark map alike. */
 .ri-zoom .ri-zoom-ely { font-size: 12px; font-weight: 800; letter-spacing: .02em; }
-.ri-zoom .ri-zoom-ely.is-on { background: #1d4fa3; color: #fff; }
+.ri-zoom .ri-zoom-ely.is-on { background: #f5c400; color: #1c1c1e; }
 .ri-ely-k { transform: scale(var(--ri-k, 1)); }
-.ri-ely-ac path { fill: #1d4fa3; stroke: #fff; stroke-width: .9; }
-.ri-ely-ac text { font-size: 8px; font-weight: 800; fill: #1d4fa3; text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; }
-.ri-ely-ac.is-sel path { fill: #f08c00; }
-.ri-ely-ac.is-sel text { fill: #f08c00; }
-.ri-ely-done, .ri-ely-togo { fill: none; stroke: #f08c00; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.ri-ely-togo { stroke-dasharray: 6 4; stroke-opacity: .8; }
-.ri-ely-route { font-weight: 700; margin-inline-start: 6px; }
-.ri-ely-unsure { font-size: 11px; font-weight: 700; color: var(--warn); margin-inline-start: 6px; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ri-ely-ac path { fill: #5b8def; } :root:not([data-theme="light"]) .ri-ely-ac text { fill: #8fb3ff; } }
-:root[data-theme="dark"] .ri-ely-ac path { fill: #5b8def; }
-:root[data-theme="dark"] .ri-ely-ac text { fill: #8fb3ff; }
+.ri-ely-ac { transition: opacity .2s; }
+.ri-ely-ac path { fill: #f5c400; stroke: #1c1c1e; stroke-width: .9; stroke-linejoin: round; }
+.ri-ely-ac text { font-size: 8px; font-weight: 800; fill: #1c1c1e; text-anchor: middle; paint-order: stroke; stroke: #f5c400; stroke-width: 2.6px; }
+.ri-ely-ac.is-dim { opacity: .28; }
+.ri-ely-ac.is-sel path { stroke-width: 1.4; }
+.ri-ely-ac.is-sel .ri-ely-k { transform: scale(calc(var(--ri-k, 1) * 1.35)); }
+.ri-ely-done, .ri-ely-togo { fill: none; stroke: #f5c400; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.ri-ely-togo { stroke-dasharray: 6 4; }
+/* The chosen aircraft's details, on the map. */
+.ri-ely-pop {
+  position: absolute; z-index: 3; top: 8px; left: 8px; max-width: calc(100% - 70px);
+  padding: 8px 10px; border-radius: 12px; background: var(--bg-elev); color: var(--fg);
+  box-shadow: 0 4px 16px rgba(0,0,0,.28); border-left: 4px solid #f5c400; font-size: 13px; line-height: 1.35;
+}
+.ri-ely-pop-h { display: flex; align-items: baseline; gap: 6px; font-size: 15px; }
+.ri-ely-pop-h span { font-weight: 700; }
+.ri-ely-pop-x { margin-inline-start: auto; padding: 0 0 0 10px; border: 0; background: none; color: var(--fg-mute); font: inherit; font-size: 15px; cursor: pointer; }
+.ri-ely-pop-n { color: var(--fg-mute); font-size: 12px; }
+.ri-ely-pop-n i { font-style: normal; font-weight: 700; color: var(--warn); }
+.ri-ely-pop-f { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 3px; }
