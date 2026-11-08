@@ -12,20 +12,31 @@
 // from the last fix using ground speed and track, so the picture moves the way
 // a radar picture moves instead of stepping every five seconds.
 
-import { altColor, planeSvg, sizeFor, sizeClass } from './aircraft.js?v=19';
-import { alt as fmtAlt, ago as fmtAgo } from './fmt.js?v=19';
-import * as runways from './runways.js?v=19';
+import { altColor, planeSvg, sizeFor, sizeClass } from './aircraft.js?v=20';
+import { alt as fmtAlt, ago as fmtAgo } from './fmt.js?v=20';
+import * as runways from './runways.js?v=20';
 
+// Basemaps: all three from Esri's public tile services, which need no key.
+// Dark and Light used to be CARTO's dark_all/light_all, until CARTO began
+// serving every tile as a grey square stamped "API KEY REQUIRED" — the map
+// lost its coastline and the watermark covered the whole screen. Esri's grey
+// canvas serves the base and the place names as two separate services, so each
+// basemap here is the pair. Native tiles stop at z16; Leaflet stretches them
+// for the runway zooms beyond.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
+const ESRI_CREDIT = '© Esri, HERE, Garmin, © OpenStreetMap contributors';
+const canvas = (shade) => L.layerGroup([
+  L.tileLayer(`${ESRI}/Canvas/World_${shade}_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+    { attribution: ESRI_CREDIT, maxNativeZoom: 16, maxZoom: 19 }),
+  L.tileLayer(`${ESRI}/Canvas/World_${shade}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,
+    { maxNativeZoom: 16, maxZoom: 19 }),
+]);
 const BASES = {
-  Dark: () => L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    { attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }),
+  Dark: () => canvas('Dark'),
   Satellite: () => L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    `${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`,
     { attribution: 'Imagery © Esri, Maxar', maxZoom: 18 }),
-  Light: () => L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    { attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }),
+  Light: () => canvas('Light'),
 };
 
 // Trail length, in position reports (~5 s apart). The aircraft being watched

@@ -84,7 +84,10 @@ const ADSB_UA = 'AirlineRadar/1.0 (+https://github.com/Brook46/b737-asu-pwa; hob
 // Serve a stored snapshot outright below this age; keep serving it, labelled
 // with its age, up to the second — the app dead-reckons from a known-old fix
 // perfectly well, and stops trusting one older than 90 s on its own.
-const ADSB_FRESH_MS = 4 * 1000;
+// Eight seconds, matching adsb-proxy/main.ts: half the asks of four, and still
+// under the twelve the app calls stale. adsb.lol rate-limited this Worker's
+// shared address for months and then stopped; asking less is how it stays so.
+const ADSB_FRESH_MS = 8 * 1000;
 // Five minutes, not ninety seconds. adsb.lol is the only mirror that will
 // answer a Worker at all and it rate-limits the address every Worker shares,
 // so refusals come in stretches rather than singly. A five-minute-old picture

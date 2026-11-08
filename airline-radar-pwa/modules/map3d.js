@@ -21,8 +21,8 @@
 // Everything degrades rather than dies: no WebGL, a CDN that won't load, a DEM
 // tile 404 — the caller is told and the 2D map carries on.
 
-import { altColor, sizeFor, silhouetteSvg, silhouetteKey, SILHOUETTE_KEYS } from './aircraft.js?v=19';
-import { alt as fmtAlt } from './fmt.js?v=19';
+import { altColor, sizeFor, silhouetteSvg, silhouetteKey, SILHOUETTE_KEYS } from './aircraft.js?v=20';
+import { alt as fmtAlt } from './fmt.js?v=20';
 
 const LIBS = [
   { url: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css', css: true },
@@ -37,15 +37,17 @@ const DEM = {
   attribution: 'Elevation: AWS Terrain Tiles / Mapzen',
 };
 
+// Same keyless Esri services as the flat map (see map.js for why not CARTO):
+// the dark canvas comes as a base and a separate place-name layer drawn on top.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
 const BASE = {
   dark: {
-    tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-      'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-      'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-    maxzoom: 19, attribution: '© OpenStreetMap · © CARTO',
+    tiles: [`${ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}`],
+    labels: [`${ESRI}/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}`],
+    maxzoom: 16, attribution: '© Esri, HERE, Garmin, © OpenStreetMap contributors',
   },
   satellite: {
-    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
     maxzoom: 18, attribution: 'Imagery © Esri, Maxar',
   },
 };
@@ -129,17 +131,23 @@ function buildAtlas() {
 
 function style() {
   const b = BASE[basemap];
-  return {
-    version: 8,
-    sources: {
-      dem: { type: 'raster-dem', ...DEM, tileSize: 256 },
-      base: { type: 'raster', tiles: b.tiles, tileSize: 256, maxzoom: b.maxzoom, attribution: b.attribution },
-    },
-    layers: [
-      { id: 'bg', type: 'background', paint: { 'background-color': '#070b14' } },
-      { id: 'base', type: 'raster', source: 'base', paint: { 'raster-fade-duration': 200 } },
-    ],
+  const sources = {
+    dem: { type: 'raster-dem', ...DEM, tileSize: 256 },
+    base: { type: 'raster', tiles: b.tiles, tileSize: 256, maxzoom: b.maxzoom, attribution: b.attribution },
   };
+  const layers = [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#070b14' } },
+    { id: 'base', type: 'raster', source: 'base', paint: { 'raster-fade-duration': 200 } },
+  ];
+  if (b.labels) {
+    // Not 'labels': interleaved deck.gl finds its own layers in this style by
+    // id, and the aircraft tags further down are a deck layer called 'labels'
+    // — sharing the name hands deck a raster layer to setProps() on, and the
+    // 3D view fails to start.
+    sources['base-names'] = { type: 'raster', tiles: b.labels, tileSize: 256, maxzoom: b.maxzoom };
+    layers.push({ id: 'base-names', type: 'raster', source: 'base-names', paint: { 'raster-fade-duration': 200 } });
+  }
+  return { version: 8, sources, layers };
 }
 
 /**
