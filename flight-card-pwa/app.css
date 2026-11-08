@@ -4330,5 +4330,17 @@ button.wx-atis-go { margin: 6px 0 2px; }
 /* TAF: the kind of change (BECMG / TEMPO / PROB / FM) in blue, and a line
    under the groups in force an hour either side of your time there. */
 .wx-b { color: #3b82f6; font-weight: 700; }
-.wx-eta { text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; -webkit-text-decoration-skip: none; text-decoration-skip-ink: none; }
+/* A quiet line: thin and pale, so the colours above it still lead. */
+.wx-eta {
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px;
+  text-decoration-color: rgba(59, 130, 246, .38);
+  -webkit-text-decoration-skip: none; text-decoration-skip-ink: none;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wx-eta { text-decoration-color: rgba(125, 170, 255, .32); } }
+:root[data-theme="dark"] .wx-eta { text-decoration-color: rgba(125, 170, 255, .32); }
 .ri-key .wx-b + .wx-eta { margin-inline-start: 4px; }
+
+/* ETD / ETA top right of each weather window. */
+.ph-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ph-when, .wx-when { font-size: 12px; font-weight: 700; color: var(--fg-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wx-when { align-self: flex-start; margin-top: 6px; }

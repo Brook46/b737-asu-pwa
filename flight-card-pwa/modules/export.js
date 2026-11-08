@@ -4,8 +4,8 @@
 // Settings → Backup → Restore, which only ever adds (storage.mergeExport).
 // Unlike the backup, no settings or links (calendar, feeds) go in a file.
 
-import * as storage from './storage.js?v=241';
-import { legTs } from './dates.js?v=241';
+import * as storage from './storage.js?v=242';
+import { legTs } from './dates.js?v=242';
 
 export const TAG = 'flightcard-export';
 
