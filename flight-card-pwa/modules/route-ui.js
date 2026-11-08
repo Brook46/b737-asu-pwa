@@ -8,12 +8,12 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=250';
-import * as ri from './route-info.js?v=250';
-import { legTs, nearestHm } from './dates.js?v=250';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=250';
-import * as plan from './plan-route.js?v=250';
-import * as ely from './ely-traffic.js?v=250';
+import * as storage from './storage.js?v=251';
+import * as ri from './route-info.js?v=251';
+import { legTs, nearestHm } from './dates.js?v=251';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=251';
+import * as plan from './plan-route.js?v=251';
+import * as ely from './ely-traffic.js?v=251';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -290,7 +290,7 @@ function drawMap(frame) {
   livePaintAt = 0;
   paintLive();
   paintEly();
-  if (elyOn) elyRefresh();
+  elyRefresh();
   if (elySel) openEly(elySel);          // the map was redrawn: its box too
 }
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
@@ -1481,16 +1481,24 @@ function setEly(on) {
   elyOn = on;
   try { localStorage.setItem('fc.routeEly', on ? '1' : '0'); } catch {}
   document.querySelectorAll('[data-ri-ely]').forEach(b => { b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
-  if (!on) { clearTimeout(elyTimer); closeEly(); paintEly(); return; }
+  // Off: the other El Al aircraft go; your own stays.
+  if (!on) { if (elySel && !elyList.find(a => a.hex === elySel)?.own) closeEly(); elyList = elyList.filter(a => a.own); paintEly(); return; }
   elyRefresh(true);
 }
+// Your own aircraft is always on the map (its last position when it isn't
+// transmitting); LY adds every other El Al flight round the route.
 async function elyRefresh(now = false) {
   clearTimeout(elyTimer);
-  if (!elyOn || !state) return;
+  if (!state) return;
   if (now || Date.now() - elyAt >= ely.REFRESH_MS) {
-    if (navigator.onLine === false) { if (now) toast('No internet — El Al traffic needs a connection'); }
-    else {
-      const list = await ely.fetchEly(state.model.route.pts).catch(() => null);
+    const { reg: reg0 } = ownIds();
+    if (navigator.onLine === false) {
+      if (now && elyOn) toast('No internet — El Al traffic needs a connection');
+      // Offline: where it was last seen, if we know.
+      const ls = reg0 && ely.lastSeen(reg0);
+      if (ls && !elyList.some(a => a.own)) elyList = [...elyList, { ...ls, own: true, stale: true, hex: 'last-' + ls.hex }];
+    } else {
+      const list = elyOn ? await ely.fetchEly(state.model.route.pts).catch(() => null) : [];
       // This flight's own aircraft, wherever it is — or where it was last seen.
       const { reg, cs } = ownIds();
       const own = (reg || cs) ? await ely.fetchOwn(reg, cs).catch(() => null) : null;
@@ -1500,7 +1508,7 @@ async function elyRefresh(now = false) {
         for (const a of list) { const was = elyList.find(x => x.hex === a.hex); if (was && was.route !== undefined) { a.route = was.route; a.fits = ely.routeFits(a.route, a); } }
         elyList = list; elyAt = Date.now();
         if (elySel && !list.some(a => a.hex === elySel)) closeEly();
-        if (now) toast(list.length ? `${list.length} El Al aircraft in the air near the route` : 'No El Al aircraft in the air near the route');
+        if (now && elyOn) toast(list.length ? `${list.length} El Al aircraft near the route` : 'No El Al aircraft in the air near the route');
       }
     }
   }
@@ -1513,7 +1521,6 @@ const PLANE = 'M0,-7 L1.2,-2.2 L6.5,1.2 L6.5,2.4 L1.2,0.9 L0.9,4.6 L2.6,6 L2.6,6
 function paintEly() {
   const g = $('ri-ely');
   if (!g || !mapGeom || !state) return;
-  if (!elyOn) { g.innerHTML = ''; mapGeom.ely = []; return; }
   const P = mapGeom.proj;
   const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
   const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
@@ -1813,7 +1820,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=250'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=251'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -2035,7 +2042,7 @@ function wireZoom(svg) {
   };
   // The pins within reach of a fingertip, nearest first.
   const elyAt0 = (cx, cy) => {
-    if (!elyOn || !mapGeom || !mapGeom.ely) return null;
+    if (!mapGeom || !mapGeom.ely) return null;
     const r = mapRect(svg), v = currentView();
     let best = null;
     for (const p of mapGeom.ely) {
