@@ -4306,3 +4306,16 @@ del.soc-del::before {
 }
 button.wx-atis-go { margin: 6px 0 2px; }
 .wx-text .wx-g, .wx-text .wx-y, .wx-text .wx-o, .wx-text .wx-r { font-weight: 700; }
+
+/* ATIS window: a floating window like Settings, not a bottom sheet. */
+#wx-overlay { align-items: flex-start; padding: var(--top-clear) 8px 0; }
+#wx-overlay .wx-sheet {
+  width: 100%; max-width: 720px;
+  max-height: calc(100vh - var(--top-clear) - max(env(safe-area-inset-bottom, 0), 12px));
+  border-radius: 18px;
+}
+/* Opened beside a METAR / TAF already on screen: the ATIS alone, tall. */
+#wx-overlay.wx-atis-only .wx-sheet { height: calc(100vh - var(--top-clear) - max(env(safe-area-inset-bottom, 0), 12px)); }
+#wx-overlay.wx-atis-only .wx-sec-wx { display: none; }
+#wx-overlay.wx-atis-only .wx-sec-atis { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#wx-overlay.wx-atis-only #wx-datis-text { flex: 1 1 auto; max-height: none; font-size: 14px; line-height: 1.5; }
