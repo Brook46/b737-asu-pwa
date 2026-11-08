@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=242';
-import * as ri from './route-info.js?v=242';
-import { legTs, nearestHm } from './dates.js?v=242';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=242';
-import * as plan from './plan-route.js?v=242';
+import * as storage from './storage.js?v=243';
+import * as ri from './route-info.js?v=243';
+import { legTs, nearestHm } from './dates.js?v=243';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=243';
+import * as plan from './plan-route.js?v=243';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -699,13 +699,19 @@ function colourRaw(raw, rwys) {
 const SURFACE = { DRY: 'g', DAMP: 'y', WET: 'y', WATER: 'o', SLUSH: 'o', SNOW: 'o', FROST: 'o', CONTAMINATED: 'o', ICE: 'r', ICY: 'r' };
 const BRAKING = { GOOD: 'g', MEDIUM: 'o', POOR: 'r', NIL: 'r' };
 const RWYCC = { 6: 'g', 5: 'g', 4: 'y', 3: 'o', 2: 'o', 1: 'r', 0: 'r' };
-function colourAtis(text, rwys) {
-  let cc = false, ba = 0, prev = '';
+// letter: this ATIS's letter — marked wherever the text names it
+// (INFO D, ATIS ARR Z, END OF ATIS K, … DELTA) as a small green tag.
+const PHON = { A: 'ALPHA', B: 'BRAVO', C: 'CHARLIE', D: 'DELTA', E: 'ECHO', F: 'FOXTROT', G: 'GOLF', H: 'HOTEL', I: 'INDIA', J: 'JULIET', K: 'KILO', L: 'LIMA', M: 'MIKE',
+  N: 'NOVEMBER', O: 'OSCAR', P: 'PAPA', Q: 'QUEBEC', R: 'ROMEO', S: 'SIERRA', T: 'TANGO', U: 'UNIFORM', V: 'VICTOR', W: 'WHISKEY', X: 'XRAY', Y: 'YANKEE', Z: 'ZULU' };
+function colourAtis(text, rwys, letter = '') {
+  const L = String(letter || '').toUpperCase().slice(0, 1);
+  let cc = false, ba = 0, prev = '', near = 0;
   // Taxiways, exits, runways, stands named after TWY / EXIT / RWY (TWY AZ3
   // AND AZ4 CLSD): held until the end of the sentence or the next such
   // word, orange if it says they're closed — so the names stand out
   // with the red CLSD.
   let twy = null;                                  // indices into out[] of the names
+  let prevW = '';
   const out = [];
   const pieces = String(text || '').split(/(\s+)/);
   for (const tok of pieces) {
@@ -713,6 +719,17 @@ function colourAtis(text, rwys) {
     if (/^(TWYS?|TAXIWAYS?|EXITS?|RWYS?|RUNWAYS?|STANDS?|GATES?|APRON)$/.test(W0)) twy = [];
     else if (twy && (/^[A-Z]{1,2}\d{0,3}[A-Z]?$/.test(W0) || /^\d{1,3}[LRC]?$/.test(W0)) && !/^(AND|OR|TO|BTN|BETWEEN|CLSD|CLOSED|FOR|DUE|WIP|ON|AT|IN)$/.test(W0)) twy.push(out.length);
     if (twy && /^(CLSD|CLOSED|U\/S)$/.test(W0)) { for (const i of twy) out[i] = `<span class="wx-o">${out[i]}</span>`; twy = null; }
+    // The letter: a lone L within a few words after INFO / INFORMATION /
+    // ATIS (ARR, DEP and the like may sit between), or its phonetic word.
+    if (/^(INFO|INFORMATION|ATIS)$/.test(W0)) near = 4;
+    else if (/\S/.test(tok) && near > 0) near--;
+    if (L && ((W0 === L && (near > 0 || /^(INFO|INFORMATION|ATIS)$/.test(prevW))) || (PHON[L] && W0 === PHON[L]))) {
+      const m = /^([(]*)(.*?)([.,;:)]*)$/.exec(tok);
+      out.push(`${esc(m[1])}<span class="atis-tag">${esc(m[2])}</span>${esc(m[3])}`);
+      prev = W0; prevW = W0; near = 0;
+      continue;
+    }
+    if (/\S/.test(tok)) prevW = W0;
     out.push(colourAtisTok(tok));
     if (twy && /[.]$/.test(tok)) twy = null;
   }
@@ -758,13 +775,13 @@ export async function colouredReports(code, reports, eta = NaN) {
   return reports.map(raw => colourTaf(raw, rwys, eta));
 }
 // The ATIS window: METAR and TAF as above, the ATIS by colourAtis.
-export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN }) {
+export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN, letter = '' }) {
   let rwys = [];
   try {
     const ap = ri.findAirport(await ri.loadDb(), code);
     if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
   } catch {}
-  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys) };
+  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys, letter) };
 }
 
 function wxSummary(w, xw) {
@@ -1526,7 +1543,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=242'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=243'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

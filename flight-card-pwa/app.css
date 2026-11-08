@@ -4344,3 +4344,9 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ph-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .ph-when, .wx-when { font-size: 12px; font-weight: 700; color: var(--fg-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wx-when { align-self: flex-start; margin-top: 6px; }
+
+/* The ATIS letter, wherever it's written: a small green box, white letter. */
+.atis-tag {
+  display: inline-block; min-width: 1.25em; padding: 0 .3em; border-radius: 4px;
+  background: var(--good); color: #fff; font-weight: 800; text-align: center; line-height: 1.35;
+}

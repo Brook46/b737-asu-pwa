@@ -1,9 +1,9 @@
 // data-card.js — collapsible sub-groups with inline editable inputs.
 // Cells autosave on every keystroke (debounced inside storage).
 
-import * as storage from './storage.js?v=242';
-import * as wx from './wx.js?v=242';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow, crewColor } from './crew.js?v=242';
+import * as storage from './storage.js?v=243';
+import * as wx from './wx.js?v=243';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS, crewLabel, slotsToShow, crewColor } from './crew.js?v=243';
 
 // kind: 'int' | 'dec' | 'text' | 'atis' | 'flaps' | 'fuel'
 // resettable: true → renders a ↻ button on the group head and lets the
@@ -223,7 +223,7 @@ export function render(root) {
           ${editMode ? '' : optBtn}
           ${editMode ? '' : crewAddBtn}
         </div>
-        <div class="data-group-summary">${escape(summary)}</div>
+        <div class="data-group-summary">${summary}</div>
         <div class="data-grid">${cells}</div>
       </div>
     `;
@@ -628,7 +628,10 @@ function renderSummary(group, data) {
   // one-line collapsed summary, so exclude it explicitly.
   const filled = group.cells.filter(c => c.kind !== 'metar' && has(data[c.key]));
   if (!filled.length) return '';
-  return filled.slice(0, 4).map(c => `${c.label} ${formatValue(c, data[c.key])}`).join(' · ');
+  // HTML: the ATIS letter as a small green tag, so it reads as the letter.
+  return filled.slice(0, 4).map(c => c.kind === 'atis'
+    ? `ATIS <span class="atis-tag">${escape(String(data[c.key]).toUpperCase().slice(0, 1))}</span>${data.atis_icao ? ' ' + escape(data.atis_icao) : ''}`
+    : `${escape(c.label)} ${escape(formatValue(c, data[c.key]))}`).join(' · ');
 }
 
 function wire(root) {
@@ -793,7 +796,7 @@ function updateGroupMeta(root, changedKey) {
     const meta = groupEl.querySelector('.data-group-meta');
     if (meta) meta.textContent = groupMeta(g, data, filled, g.cells.length);
     const summary = groupEl.querySelector('.data-group-summary');
-    if (summary) summary.textContent = renderSummary(g, data);
+    if (summary) summary.innerHTML = renderSummary(g, data);
     return;
   }
 }
