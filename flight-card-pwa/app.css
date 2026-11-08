@@ -4496,3 +4496,21 @@ button.wx-atis-go { margin: 6px 0 2px; }
 :root[data-theme="dark"] .atis-diagram .ad-closed text { fill: #ffa94d; }
 .atis-diagram .ad-des.ad-hide { display: none; }
 .atis-diagram.is-zoomed .ad-twl text.ad-off { display: none; }
+
+/* ATIS window: the text and the airport as two equal panes filling the
+   window — side by side where there's room, one above the other on a
+   phone — so the map has all the room it can for zooming. */
+#wx-overlay.wx-atis-only .wx-sec-atis.has-diagram #wx-datis-text { flex: 1 1 0; min-height: 0; }
+#wx-overlay.wx-atis-only .wx-sec-atis.has-diagram .wx-atis-diagram {
+  flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin: 8px 0 0; overflow: hidden;
+}
+#wx-overlay.wx-atis-only .wx-atis-diagram .wx-ad-wrap { flex: 1 1 auto; min-height: 0; }
+#wx-overlay.wx-atis-only .wx-atis-diagram .atis-diagram { width: 100%; height: 100%; max-height: none; }
+#wx-overlay.wx-atis-only .wx-atis-diagram .wx-ad-note { flex: 0 0 auto; }
+@media (min-width: 760px) {
+  #wx-overlay.wx-atis-only .wx-sec-atis.has-diagram { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  #wx-overlay.wx-atis-only .wx-sec-atis.has-diagram #wx-datis-text,
+  #wx-overlay.wx-atis-only .wx-sec-atis.has-diagram .wx-atis-diagram { height: 100%; margin: 0; }
+}
+.wx-ad-wrap { background: var(--bg-sunk); border-radius: 10px; overflow: hidden; }
+.ad-full-body { background: var(--bg-sunk); }

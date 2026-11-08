@@ -19,7 +19,7 @@
 //   • The "Date" column is blank on ~10% of rows while STD never is, so every
 //     date (and every YEAR — see dates.js on why that matters) comes from STD.
 
-import { EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=252';
+import { EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=253';
 
 // ---------- RFC 4180 CSV ----------
 // Quoted fields, "" escapes, embedded commas and newlines. Tolerates CRLF
