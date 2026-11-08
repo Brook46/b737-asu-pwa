@@ -4296,3 +4296,13 @@ del.soc-del::before {
 /* D-ATIS heading: which one, and for an ACARS copy its age. */
 .wx-datis-src { font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg-mute); margin-inline-start: 6px; font-size: .92em; }
 .wx-datis-src.is-old { color: var(--warn, #d97706); }
+
+/* "ATIS ›" under an airport's METAR / TAF (Brief, Route info card). */
+.wx-atis-go {
+  display: inline-flex; align-self: flex-end; align-items: center; gap: 4px;
+  margin-top: 4px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent);
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .02em; cursor: pointer;
+}
+button.wx-atis-go { margin: 6px 0 2px; }
+.wx-text .wx-g, .wx-text .wx-y, .wx-text .wx-o, .wx-text .wx-r { font-weight: 700; }

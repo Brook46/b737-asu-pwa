@@ -8,11 +8,11 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=238';
-import * as ri from './route-info.js?v=238';
-import { legTs, nearestHm } from './dates.js?v=238';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=238';
-import * as plan from './plan-route.js?v=238';
+import * as storage from './storage.js?v=239';
+import * as ri from './route-info.js?v=239';
+import { legTs, nearestHm } from './dates.js?v=239';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=239';
+import * as plan from './plan-route.js?v=239';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -595,31 +595,71 @@ function xwFor(rwys, dir, spd) {
   return Number.isFinite(best) ? Math.round(best) : 0;
 }
 
+// One METAR / TAF group's colour band, or null.
+function tokBand(T, rwys) {
+  let b = null;
+  if (/^(CAVOK|NSC|SKC|CLR|NCD)$/.test(T)) b = 'g';
+  else if (/^\d{4}$/.test(T)) b = visBand(+T === 9999 ? 10000 : +T);
+  else if (/^P6SM$/.test(T)) b = 'g';
+  else if (/^(\d{1,2})SM$/.test(T)) b = visBand(parseInt(T, 10) * 1609);
+  else if (/^M?\d\/\dSM$/.test(T)) b = visBand(0.5 * 1609);
+  else if (/^R\d{2}[LRC]?\/[PM]?(\d{4})/.test(T)) b = visBand(+/^R\d{2}[LRC]?\/[PM]?(\d{4})/.exec(T)[1]);
+  else if (/^(BKN|OVC|VV)(\d{3})/.test(T)) {
+    const base = +/^(?:BKN|OVC|VV)(\d{3})/.exec(T)[1] * 100;
+    b = /CB|TCU/.test(T) ? 'o' : ceilBand(base);
+  }
+  else if (/^(FEW|SCT)\d{3}(CB|TCU)$/.test(T)) b = 'o';
+  else if (/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/.test(T)) {
+    const m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(T);
+    const k = m[4] === 'MPS' ? 1.944 : 1;
+    const spd = Math.max(+m[2], +(m[3] || 0)) * k;
+    b = m[1] === 'VRB' ? (spd > 25 ? 'o' : '') : xwBand(xwFor(rwys, +m[1], spd));
+  }
+  else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
+        || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || null;
+  return b;
+}
+
 // Raw METAR / TAF with each meaningful group coloured.
 function colourRaw(raw, rwys) {
   return String(raw || '').split(/(\s+)/).map(tok => {
     if (/^\s+$/.test(tok) || !tok) return tok;
+    const b = tokBand(tok.toUpperCase(), rwys);
+    return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
+  }).join('');
+}
+
+// An ATIS in plain words, coloured on the same scale: the METAR groups it
+// carries, plus closures (red), runway surface (dry green, wet yellow,
+// water / slush / snow orange, ice red), RWYCC 6–0 and braking action
+// (good green … poor / nil red), wind shear, CB.
+const SURFACE = { DRY: 'g', DAMP: 'y', WET: 'y', WATER: 'o', SLUSH: 'o', SNOW: 'o', FROST: 'o', CONTAMINATED: 'o', ICE: 'r', ICY: 'r' };
+const BRAKING = { GOOD: 'g', MEDIUM: 'o', POOR: 'r', NIL: 'r' };
+const RWYCC = { 6: 'g', 5: 'g', 4: 'y', 3: 'o', 2: 'o', 1: 'r', 0: 'r' };
+function colourAtis(text, rwys) {
+  let cc = false, ba = 0, prev = '';
+  return String(text || '').split(/(\s+)/).map(tok => {
+    if (/^\s+$/.test(tok) || !tok) return tok;
     const T = tok.toUpperCase();
+    const W = T.replace(/^[(]+|[.,;:)]+$/g, '');
     let b = null;
-    if (/^(CAVOK|NSC|SKC|CLR|NCD)$/.test(T)) b = 'g';
-    else if (/^\d{4}$/.test(T)) b = visBand(+T === 9999 ? 10000 : +T);
-    else if (/^P6SM$/.test(T)) b = 'g';
-    else if (/^(\d{1,2})SM$/.test(T)) b = visBand(parseInt(T, 10) * 1609);
-    else if (/^M?\d\/\dSM$/.test(T)) b = visBand(0.5 * 1609);
-    else if (/^R\d{2}[LRC]?\/[PM]?(\d{4})/.test(T)) b = visBand(+/^R\d{2}[LRC]?\/[PM]?(\d{4})/.exec(T)[1]);
-    else if (/^(BKN|OVC|VV)(\d{3})/.test(T)) {
-      const base = +/^(?:BKN|OVC|VV)(\d{3})/.exec(T)[1] * 100;
-      b = /CB|TCU/.test(T) ? 'o' : ceilBand(base);
+    if (W === 'RWYCC' || (W === 'CODE' && prev === 'CONDITION')) { cc = true; prev = W; return esc(tok); }
+    if (cc && /^[0-6](\/[0-6]){0,2}$/.test(W)) b = RWYCC[W.split('/').map(Number).reduce((a, x) => Math.min(a, x), 6)];
+    else {
+      cc = false;
+      if (W === 'ACTION' && prev === 'BRAKING') ba = 5;
+      else if (ba > 0 && BRAKING[W]) b = BRAKING[W];
+      if (ba > 0) ba--;
+      if (b) {}
+      else if (/^(CLSD|CLOSED|CLOSURE|U\/S|UNSERVICEABLE)$/.test(W)) b = 'r';
+      else if (/^(WS|WINDSHEAR)$/.test(W) || (W === 'SHEAR' && prev === 'WIND')) b = 'r';
+      else if (W === 'CB' || W === 'TCU') b = 'o';
+      else if (SURFACE[W]) b = SURFACE[W];
+      // A bare four-digit number in words is a time or QNH, not a visibility.
+      else if (/^\d{4}$/.test(W)) b = W === '9999' ? 'g' : (/^(QNH|Q|TIME|AT|ISSUED|INFO|METAR)$/.test(prev) || W !== T) ? null : tokBand(W, rwys);
+      else b = tokBand(W, rwys);
     }
-    else if (/^(FEW|SCT)\d{3}(CB|TCU)$/.test(T)) b = 'o';
-    else if (/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/.test(T)) {
-      const m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(T);
-      const k = m[4] === 'MPS' ? 1.944 : 1;
-      const spd = Math.max(+m[2], +(m[3] || 0)) * k;
-      b = m[1] === 'VRB' ? (spd > 25 ? 'o' : '') : xwBand(xwFor(rwys, +m[1], spd));
-    }
-    else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
-          || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || null;
+    prev = W;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
   }).join('');
 }
@@ -633,6 +673,15 @@ export async function colouredReports(code, reports) {
     if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
   } catch {}
   return reports.map(raw => colourRaw(raw, rwys));
+}
+// The ATIS window: METAR and TAF as above, the ATIS by colourAtis.
+export async function colouredWx(code, { metar = '', taf = '', atis = '' }) {
+  let rwys = [];
+  try {
+    const ap = ri.findAirport(await ri.loadDb(), code);
+    if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
+  } catch {}
+  return { metar: colourRaw(metar, rwys), taf: colourRaw(taf, rwys), atis: colourAtis(atis, rwys) };
 }
 
 function wxSummary(w, xw) {
@@ -1054,6 +1103,7 @@ function cardHtml(c, m) {
         const tBlock = taf ? blk('taf', 'TAF', taf) : '';
         return using === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
       })()}
+      <button type="button" class="wx-atis-go" data-atis-open="${esc(ap.icao)}" data-atis-end="${ap.icao === m.A.icao ? 'dep' : ap.icao === m.B.icao ? 'arr' : ''}">ATIS ›</button>
       <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span></div>
       <h5>NOTAMs</h5>
       ${notamList(c, m)}
@@ -1393,7 +1443,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=238'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=239'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
