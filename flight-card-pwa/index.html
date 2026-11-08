@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=256" />
+  <link rel="stylesheet" href="./app.css?v=257" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -520,8 +520,8 @@
         <details class="set-why"><summary aria-label="What is this?">?</summary>
         <p class="muted small">
           Airports within an hour of the route, rated 0–10 for a 737. Countries
-          listed as excluded are shown grey and rated 0; penalties add or take
-          points (e.g. <code>TR -2</code>). ISO country codes.
+          listed as excluded are shown grey and rated 0; factors add or take
+          points (e.g. <code>Egypt -2</code>), for a whole country or one airport (<code>LCLK +1</code>).
         </p>
         <p class="muted small">
           NOTAMs come worldwide from autorouter.aero (Eurocontrol’s database) with a
@@ -535,9 +535,9 @@
         </details>
         <p class="muted small">A country by name or code (Turkey, TR), or an airport by ICAO code (LCLK) — an airport's own factor wins over its country's. Separate with commas.</p>
         <label class="cal-row-label" for="div-exclude">Excluded countries / airports</label>
-        <input id="div-exclude" type="text" class="cal-url" autocomplete="off" autocapitalize="words" spellcheck="false" />
+        <textarea id="div-exclude" class="cal-url div-rules" rows="2" autocomplete="off" autocapitalize="words" spellcheck="false"></textarea>
         <label class="cal-row-label" for="div-penalty">Factors (points, e.g. Egypt -2, LCLK +1)</label>
-        <input id="div-penalty" type="text" class="cal-url" autocomplete="off" autocapitalize="words" spellcheck="false" />
+        <textarea id="div-penalty" class="cal-url div-rules" rows="2" autocomplete="off" autocapitalize="words" spellcheck="false"></textarea>
         </div>
       </details>
 
@@ -1013,6 +1013,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=256"></script>
+  <script type="module" src="./app.js?v=257"></script>
 </body>
 </html>

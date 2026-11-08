@@ -4531,3 +4531,11 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .wx-datis-src { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .wx-section-head .wx-h { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wx-section-head .wx-link { flex: 0 0 auto; }
+
+/* Settings → Route info rule boxes: wrap and show every entry. */
+textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1.45; white-space: pre-wrap; font-family: inherit; }
+/* The pane carries the background; the drawing's own would show as a band
+   wherever the pane is a different shape (dark mode made it obvious). */
+.atis-diagram .ad-bg { fill: transparent; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ad-tw path { stroke-opacity: .75; } }
+:root[data-theme="dark"] .ad-tw path { stroke-opacity: .75; }
