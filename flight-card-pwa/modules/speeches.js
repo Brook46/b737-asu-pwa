@@ -6,9 +6,9 @@
 // colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=251';
-import { cityName } from './airports.js?v=251';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=251';
+import * as storage from './storage.js?v=252';
+import { cityName } from './airports.js?v=252';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=252';
 
 let activeId = null;
 let editing = false;

@@ -4458,10 +4458,14 @@ button.wx-atis-go { margin: 6px 0 2px; }
   #wx-overlay.wx-atis-only .wx-sheet { max-width: 1100px; }
 }
 .wx-ad-wrap { position: relative; }
-.wx-ad-full {
-  position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; border: 0; border-radius: 10px;
-  background: var(--bg-elev); color: var(--accent); font-size: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.2); cursor: pointer;
+/* + − ⤢ on the small diagram; pinch and drag work on it too. */
+.wx-ad-btns { position: absolute; top: 6px; right: 6px; display: flex; gap: 6px; }
+.wx-ad-btns button {
+  width: 34px; height: 34px; border: 0; border-radius: 10px; padding: 0;
+  background: var(--bg-elev); color: var(--fg); font-size: 18px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.2); cursor: pointer;
 }
+.wx-ad-btns .wx-ad-full { color: var(--accent); }
+.wx-atis-diagram .atis-diagram { touch-action: none; }
 /* You, from the GPS. */
 .ad-me-acc { fill: #0a84ff; fill-opacity: .18; }
 .ad-me-dot { fill: #0a84ff; stroke: #fff; stroke-width: 2.5; }
@@ -4473,3 +4477,22 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ad-full-z button { width: 36px; height: 36px; border: 0; border-radius: 10px; background: var(--bg-sunk); color: var(--fg); font-size: 20px; font-weight: 700; cursor: pointer; }
 .ad-full-body { flex: 1; min-height: 0; padding: 0 0 env(safe-area-inset-bottom, 0px); }
 .ad-full-body .atis-diagram { width: 100%; height: 100%; max-height: none; touch-action: none; }
+
+/* Zoomed in, the names and marks keep their size on screen. */
+.atis-diagram .ad-des { font-size: calc(11px * var(--ad-k, 1)); stroke-width: calc(3px * var(--ad-k, 1)); }
+.atis-diagram .ad-closed text, .atis-diagram .ad-ils text { font-size: calc(12px * var(--ad-k, 1)); stroke-width: calc(3.5px * var(--ad-k, 1)); }
+.atis-diagram .ad-mark.is-hl text { font-size: calc(15px * var(--ad-k, 1)); stroke-width: calc(4px * var(--ad-k, 1)); }
+.atis-diagram .ad-closed path { stroke-width: calc(4px * var(--ad-k, 1)); }
+.atis-diagram .ad-mark.is-hl path { stroke-width: calc(8px * var(--ad-k, 1)); }
+
+/* Readable names: bigger, bolder, a solid halo against the lines under them. */
+.atis-diagram .ad-des { font-size: calc(14px * var(--ad-k, 1)); font-weight: 800; fill: var(--fg); stroke: var(--bg-sunk); stroke-width: calc(4.5px * var(--ad-k, 1)); stroke-linejoin: round; }
+.atis-diagram .ad-closed text, .atis-diagram .ad-ils text { font-size: calc(14px * var(--ad-k, 1)); font-weight: 800; stroke: var(--bg-sunk); stroke-width: calc(5px * var(--ad-k, 1)); stroke-linejoin: round; dominant-baseline: middle; }
+.atis-diagram .ad-closed text { fill: #c45f00; }
+.atis-diagram .ad-mark.is-hl text { font-size: calc(17px * var(--ad-k, 1)); fill: #1c1c1e; stroke: #f5c400; stroke-width: calc(6px * var(--ad-k, 1)); }
+.ad-twl text { display: none; font-size: calc(11px * var(--ad-k, 1)); font-weight: 700; fill: var(--fg-mute); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--bg-sunk); stroke-width: calc(3.5px * var(--ad-k, 1)); stroke-linejoin: round; pointer-events: none; }
+.atis-diagram.is-zoomed .ad-twl text { display: inline; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .atis-diagram .ad-closed text { fill: #ffa94d; } }
+:root[data-theme="dark"] .atis-diagram .ad-closed text { fill: #ffa94d; }
+.atis-diagram .ad-des.ad-hide { display: none; }
+.atis-diagram.is-zoomed .ad-twl text.ad-off { display: none; }

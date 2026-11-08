@@ -150,6 +150,14 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   const placed = [];
   const free = (x, y) => { if (placed.some(([a, b]) => Math.abs(a - x) < 34 && Math.abs(b - y) < 14)) return false; placed.push([x, y]); return true; };
   let g = `<g class="ad-tw">${Object.values(geo.tw).flat().map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
+  // Every named taxiway's name, once, on its longest piece — shown when
+  // zoomed in (the closed ones carry their own, bolder).
+  const closedRefs = new Set(marks.filter(m => m.ways).flatMap(m => [norm(m.it.ref), 'GATE' + norm(m.it.ref)]));
+  g += `<g class="ad-twl">${Object.entries(geo.tw).filter(([r]) => r && !closedRefs.has(r) && !/^GATE|^STAND/.test(r)).map(([r, ways]) => {
+    const w = ways.slice().sort((a, b) => b.length - a.length)[0];
+    const mid = w[Math.floor(w.length / 2)];
+    return `<text x="${X(mid)}" y="${Y(mid)}">${esc(r)}</text>`;
+  }).join('')}</g>`;
   g += `<g class="ad-rw">${geo.rw.map(r => `<path d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
   // Runway designators at both ends.
   for (const r of geo.rw) {
