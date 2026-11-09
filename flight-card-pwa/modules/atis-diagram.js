@@ -158,14 +158,15 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
     const mid = w[Math.floor(w.length / 2)];
     return `<text x="${X(mid)}" y="${Y(mid)}">${esc(r)}</text>`;
   }).join('')}</g>`;
-  g += `<g class="ad-rw">${geo.rw.map(r => `<path d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
-  // Runway designators at both ends.
+  g += `<g class="ad-rw">${geo.rw.map(r => `<path data-ad-rwy="${esc(norm(r.ref))}" d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
+  // Runway designators at both ends — each one a tap target: it chooses
+  // that runway for the wind components beside the diagram (app.js).
   for (const r of geo.rw) {
     const ends = String(r.ref || '').split('/');
     if (ends.length !== 2) continue;
     for (const d of ends) {
       const e = runwayEnd(geo, d);
-      if (e && inside(e.at) && free(+X(e.at), +Y(e.at))) g += `<text class="ad-des" x="${X(e.at)}" y="${Y(e.at)}">${esc(d)}</text>`;
+      if (e && inside(e.at)) g += `<g class="ad-end" data-ad-rw="${esc(norm(d))}" data-ad-rwy="${esc(norm(r.ref))}" transform="translate(${X(e.at)},${Y(e.at)})"><circle class="ad-hit" r="18"/><text class="ad-des">${esc(d)}</text></g>`;
     }
   }
   for (const m of marks) {

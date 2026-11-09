@@ -8,13 +8,13 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=258';
-import * as ri from './route-info.js?v=258';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=258';
-import * as wxm from './wx.js?v=258';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=258';
-import * as plan from './plan-route.js?v=258';
-import * as ely from './ely-traffic.js?v=258';
+import * as storage from './storage.js?v=259';
+import * as ri from './route-info.js?v=259';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=259';
+import * as wxm from './wx.js?v=259';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=259';
+import * as plan from './plan-route.js?v=259';
+import * as ely from './ely-traffic.js?v=259';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1136,44 +1136,30 @@ function atisRunwayInUse(text, ends, end) {
   const m = want.exec(T) || /\bRWYS?\s*(?:IN USE\s*)?(\d{2}[LRC]?)/.exec(T);
   return m && ids.has(m[1]) ? m[1] : '';
 }
-// { html, inUse } for the ATIS window's runway strip: one chip per runway
-// end (★ in use per the ATIS), and the chosen one's components and LDA.
-export async function atisRunways(code, { atis = '', metar = '', end = 'arr', sel = '' } = {}) {
+// What the ATIS window's diagram needs: the wind (true, with where it came
+// from), the runway in use per the ATIS, and every runway end with its
+// heading and LDA. rwyWindHtml() then gives the chosen end's components.
+export async function atisWindInfo(code, { atis = '', metar = '', end = 'arr' } = {}) {
   let ap = null;
   try { ap = ri.findAirport(await ri.loadDb(), code); } catch {}
-  if (!ap) return { html: '' };
+  if (!ap) return null;
   const ends = runwayEnds(ap).filter(e => e.r[1] >= 3000);
-  if (!ends.length) return { html: '' };
   const aw = atisWind(atis), mw = metarWind(metar);
-  let w = aw || mw, src = aw ? 'ATIS' : mw ? 'METAR' : '';
+  let w = aw || mw;
+  const src = aw ? (aw.mag ? 'ATIS, magnetic → true' : 'ATIS') : mw ? 'METAR' : '';
   if (w && w.mag && w.wdir != null) w = { ...w, wdir: Math.round((w.wdir + variationOf(ends) + 360) % 360) };
-  const inUse = atisRunwayInUse(atis, ends, end);
-  const chosen = ends.find(e => e.id === sel) || ends.find(e => e.id === inUse) || ends.slice().sort((a, b) => (components(b.hdg, w)?.head ?? 0) - (components(a.hdg, w)?.head ?? 0))[0];
-  const chips = ends.map(e => {
-    const k = e.hdg == null ? null : components(e.hdg, w);
-    const tone = k ? (k.head < -10 || xwBand(Math.max(k.cross, k.gustCross)) === 'r' ? 'r'
-      : k.head < 0 || xwBand(Math.max(k.cross, k.gustCross)) === 'o' ? 'o' : '') : '';
-    return `<button type="button" class="rw-chip${e.id === chosen.id ? ' is-sel' : ''}${tone ? ' t-' + tone : ''}" data-wx-rw="${esc(e.id)}">${esc(e.id)}${e.id === inUse ? ' ★' : ''}</button>`;
-  }).join('');
-  const k = chosen.hdg == null ? null : components(chosen.hdg, w);
+  return { w, src, inUse: atisRunwayInUse(atis, ends, end), ends };
+}
+export function rwyWindHtml(info, id) {
+  const e = info && info.ends.find(x => x.id === id);
+  if (!e) return '';
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
-  let windLine = 'No wind in the ATIS or the METAR.';
-  if (k) {
-    const hw = k.head >= 0 ? `headwind <b>${k.head}</b> kt` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">tailwind <b>${-k.head}</b> kt</span>`;
-    const xb = xwBand(k.cross), gxb = xwBand(k.gustCross);
-    windLine = `${hw} · <span class="${xb ? 'wx-' + xb : ''}">crosswind <b>${k.cross}</b> kt from the ${k.side}</span>`
-      + (k.gustCross ? ` · <span class="${gxb ? 'wx-' + gxb : ''}">gusts ${k.gustCross} kt cross</span>` : '');
-  } else if (w && w.wdir == null && (w.wspd || w.wgst)) windLine = `Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt — no components.`;
-  else if (w && !(w.wspd || w.wgst)) windLine = 'Wind calm.';
-  const wTxt = w ? `${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0') + '°T'}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : '';
-  return {
-    inUse,
-    html: `<div class="rw-chips" role="group" aria-label="Pick a runway">${chips}</div>
-      <div class="wx-rw-sel">
-        <div><span class="rw-box">${esc(chosen.id)}</span> ${chosen.hdg != null ? `${String(Math.round(chosen.hdg)).padStart(3, '0')}°T · ` : ''}LDA <b>${fmt(chosen.lda)} ft</b>${chosen.disp ? ` (displaced ${fmt(chosen.disp)} ft)` : ''} · ${chosen.r[2] || '—'} ft wide${surfaceText(chosen.r) ? ' · ' + esc(surfaceText(chosen.r)) : ''}${chosen.r[4] ? ' · lit' : ''}</div>
-        <div>${wTxt ? `<span class="rd-wind-t">Wind ${wTxt}</span> <span class="rw-src">(${src}${aw && aw.mag && aw.wdir != null ? ', magnetic → true' : ''})</span>: ` : ''}${windLine}</div>
-      </div>`,
-  };
+  const head = `<div class="ad-wp-rw"><span class="rw-box">${esc(e.id)}</span> LDA <b>${fmt(e.lda)} ft</b></div>`;
+  const k = e.hdg == null ? null : components(e.hdg, info.w);
+  if (!k) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'Variable wind' : 'No wind'}</div>`;
+  const xb = xwBand(Math.max(k.cross, k.gustCross));
+  return head + `<div class="ad-wp-k">${k.head >= 0 ? `Headwind <b>${k.head}</b>` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">Tailwind <b>${-k.head}</b></span>`} kt</div>
+    <div class="ad-wp-k"><span class="${xb ? 'wx-' + xb : ''}">Crosswind <b>${k.cross}</b> kt ${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` (G${k.gustCross})` : ''}</span></div>`;
 }
 
 function runwayPanel(c, m) {
@@ -1935,7 +1921,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=258'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=259'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

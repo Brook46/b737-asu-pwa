@@ -4540,12 +4540,6 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ad-tw path { stroke-opacity: .75; } }
 :root[data-theme="dark"] .ad-tw path { stroke-opacity: .75; }
 
-/* ATIS window: runway chips, the chosen runway's LDA and wind components. */
-.wx-rwy { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; font-size: 13px; line-height: 1.4; }
-.wx-rwy[hidden] { display: none; }
-.wx-rwy .rw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.wx-rw-sel { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--bg-sunk); }
-
 /* In flight: ATIS for departure / destination / alternate, bottom left of
    the map — one tap opens the ATIS window. */
 .ri-atis-btns { position: absolute; left: 8px; bottom: 10px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
@@ -4557,3 +4551,22 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 }
 .ri-atis-btns .ri-ab-l { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--fg-mute); min-width: 24px; }
 .ri-atis-btns b { font-weight: 800; }
+
+/* ATIS diagram: tap a runway end to choose it; the wind sign top left. */
+.atis-diagram .ad-end { cursor: pointer; }
+.atis-diagram .ad-end .ad-hit { fill: transparent; transform: scale(var(--ad-k, 1)); }
+.atis-diagram .ad-end.is-sel .ad-des { fill: var(--accent); font-size: calc(17px * var(--ad-k, 1)); }
+.atis-diagram .ad-rw path.is-sel { stroke: var(--accent); }
+.ad-wind {
+  position: absolute; top: 8px; left: 8px; z-index: 2; max-width: 46%;
+  padding: 6px 9px; border-radius: 10px; background: var(--bg-elev); box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  font-size: 12px; line-height: 1.35; display: flex; flex-direction: column; gap: 2px; pointer-events: none;
+}
+.ad-wind-h { display: flex; align-items: center; gap: 6px; }
+.ad-wind-h svg path { fill: var(--wind); }
+.ad-wind-h b { font-size: 14px; }
+.ad-wind-h small { display: block; font-size: 10px; color: var(--fg-mute); }
+.ad-wp-rw { margin-top: 3px; padding-top: 4px; border-top: 1px solid var(--line-soft); }
+.ad-wp-k b { font-size: 14px; }
+.ad-wp-hint { font-size: 11px; color: var(--fg-mute); }
+.atis-diagram .ad-end.is-sel .ad-des { fill: #fff; stroke: var(--accent); stroke-width: calc(6px * var(--ad-k, 1)); }
