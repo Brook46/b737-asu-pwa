@@ -41,3 +41,6 @@ xcuserdata/
 # Seeded design-canvas output (~2.5MB editor payload) — the design lives in the
 # published Artifact; only the source artboards are worth versioning.
 design/**/sky-club-polish.html
+
+# Pay rules and card one never go in the repo (Flight Card Pay check)
+*pay-rules*.json

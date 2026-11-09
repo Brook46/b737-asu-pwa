@@ -8,9 +8,9 @@
 // they follow them onto every flight; the Brief tints the name with the
 // colour. Changes go out as `fc:crew-changed` for the Brief to repaint.
 
-import * as storage from './storage.js?v=271';
-import { CREW_COLORS, crewColor } from './crew.js?v=271';
-import { showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=271';
+import * as storage from './storage.js?v=272';
+import { CREW_COLORS, crewColor } from './crew.js?v=272';
+import { showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=272';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>

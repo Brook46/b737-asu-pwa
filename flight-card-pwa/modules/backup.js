@@ -9,7 +9,7 @@
 // The file goes where the pilot sends it from the share sheet (Save to Files
 // → iCloud Drive, or Mail). Nothing is uploaded anywhere by the app.
 
-import * as storage from './storage.js?v=271';
+import * as storage from './storage.js?v=272';
 
 const TAG = 'flightcard-backup';
 // Caches and this module's own bookkeeping: never in a backup, never

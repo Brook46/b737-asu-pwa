@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=271" />
+  <link rel="stylesheet" href="./app.css?v=272" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -52,6 +52,7 @@
             <path d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.62l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.49-.41h-3.84a.5.5 0 0 0-.49.41l-.36 2.54a7.07 7.07 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.86a.5.5 0 0 0 .12.62l2.03 1.58a7.43 7.43 0 0 0-.05.94c0 .32.02.63.05.94L2.83 14.5a.5.5 0 0 0-.12.62l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7.07 7.07 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .49.41h3.84a.5.5 0 0 0 .49-.41l.36-2.54a7.07 7.07 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.62l-2.05-1.56zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/>
           </svg><span>Settings</span></button>
             <button id="ftl-btn" data-action="ftl" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/></svg><span>Flight time limits</span></button>
+            <button id="pay-btn" data-action="pay" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg><span>Pay check</span></button>
             <button id="logbook-btn" data-action="logbook" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 8h6M9 12h6"/></svg><span>Logbook</span></button>
             <button id="radar-btn" data-action="radar" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"/>
@@ -607,6 +608,13 @@
         <p id="sectors-status" class="muted small cal-status"></p>
         </div>
       </details>
+      <details class="set-row" id="set-pay">
+        <summary><span class="set-name">Pay check</span><span class="set-status" id="set-st-pay"></span></summary>
+        <div class="set-body">
+        <p class="muted small">Your pay rules file and card one stay on this iPad only (and in your own backup). Open Pay check to import the rules, fill card one and see the month.</p>
+        <div class="settings-row-btns"><button class="btn primary" type="button" data-action="pay">Open Pay check</button></div>
+        </div>
+      </details>
       <details class="set-row" id="set-backup">
         <summary><span class="set-name">Backup</span><span class="set-status" id="set-st-backup"></span></summary>
         <div class="set-body">
@@ -660,6 +668,18 @@
     </div>
   </div>
 
+  <!-- Pay check — painted by paintPay() in app.js from modules/pay.js. The
+       rules come from the pilot's own file, imported on the device. -->
+  <div id="pay-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    <div class="ocr-sheet analytics-sheet pay-sheet">
+      <div class="pad-head">
+        <span id="pay-title" class="pad-label">Pay check</span>
+        <button id="pay-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <input id="pay-rules-pick" type="file" accept="application/json,.json" hidden />
+      <div id="pay-body" class="analytics-body"></div>
+    </div>
+  </div>
   <!-- Flight time limits (OM A 7.2) — painted by paintFtl() in app.js from
        modules/ftl.js. -->
   <div id="ftl-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ftl-title">
@@ -1021,6 +1041,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=271"></script>
+  <script type="module" src="./app.js?v=272"></script>
 </body>
 </html>

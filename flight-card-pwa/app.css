@@ -4759,3 +4759,30 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .print-pdf { margin-top: 8px; }
 /* Settings → Duty calendar: link to the step-by-step guide. */
 .cal-guide { display: inline-block; margin: 2px 0 8px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }
+
+/* ---------- Pay check ---------- */
+.pay-intro p { margin: 0 0 10px; line-height: 1.45; }
+.pay-month { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 2px 0 12px; }
+.pay-month b { font-size: 17px; min-width: 150px; text-align: center; }
+.pay-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.pay-chip { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.pay-chip span { font-size: 11px; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .04em; }
+.pay-chip b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.pay-chip.is-bad { border-color: var(--warn, #e0a030); }
+.pay-chip.is-bad b { color: var(--warn, #e0a030); }
+.pay-h { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-mute); }
+.pay-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pay-item + .pay-item { border-top: 1px solid var(--line); }
+.pay-item summary { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.pay-item summary::-webkit-details-marker { display: none; }
+.pay-item summary b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pay-item p { margin: 0; padding: 0 12px 10px; }
+.pay-total { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 2px 10px; font-size: 15px; }
+.pay-total b { font-size: 19px; }
+.pay-setup { margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+.pay-setup > summary { padding: 11px 0; font-weight: 600; cursor: pointer; }
+.pay-setup-body { padding-bottom: 12px; }
+.pay-line { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.pay-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
+.pay-card label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-mute); }
+.pay-card input, .pay-card select { font-size: 16px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }

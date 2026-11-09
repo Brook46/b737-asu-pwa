@@ -169,7 +169,7 @@ export async function buildCardsPdf(sheetsMarkup) {
 export async function sharePdf(bytes, name = 'checklist.pdf') {
   const file = new File([bytes], name, { type: 'application/pdf' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: 'Checklist' });
+    await navigator.share({ files: [file], title: name === 'checklist.pdf' ? 'Checklist' : name.replace(/\.pdf$/, '') });
     return 'shared';
   }
   // Never fall back to a download inside a Home Screen app: navigating there
@@ -187,4 +187,39 @@ export async function sharePdf(bytes, name = 'checklist.pdf') {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
   return 'downloaded';
+}
+
+// A plain report (white page, A4 width) → PDF: the markup is laid out at
+// 794 px (A4 at 96 dpi), photographed once, and cut into A4-tall pages.
+export async function buildReportPdf(markup) {
+  const html2canvas = await loadRenderer();
+  try { await document.fonts?.ready; } catch { /* older engines */ }
+  const host = document.createElement('div');
+  host.id = 'pr-pdf-host';
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText = 'position:fixed;left:-20000px;top:0;width:794px;background:#fff;color:#111;pointer-events:none;';
+  host.innerHTML = markup;
+  document.body.appendChild(host);
+  try {
+    const k = PAGE_W_PX / 794;
+    const shot = await html2canvas(host, {
+      scale: k, backgroundColor: '#ffffff', logging: false,
+      onclone: (doc) => { const h = doc.getElementById('pr-pdf-host'); if (h) { h.style.left = '0px'; h.style.top = '0px'; } },
+    });
+    const pages = [];
+    for (let y = 0; y < shot.height; y += PAGE_H_PX) {
+      const page = document.createElement('canvas');
+      page.width = PAGE_W_PX; page.height = PAGE_H_PX;
+      const g = page.getContext('2d');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, PAGE_W_PX, PAGE_H_PX);
+      g.drawImage(shot, 0, y, shot.width, Math.min(PAGE_H_PX, shot.height - y), 0, 0, PAGE_W_PX, Math.min(PAGE_H_PX, shot.height - y));
+      const blob = await new Promise((res, rej) => page.toBlob(b => (b ? res(b) : rej(new Error('Couldn’t encode the page'))), 'image/jpeg', 0.9));
+      pages.push({ bytes: new Uint8Array(await blob.arrayBuffer()), w: PAGE_W_PX, h: PAGE_H_PX });
+      page.width = page.height = 0;
+    }
+    shot.width = shot.height = 0;
+    return jpegPdf(pages);
+  } finally {
+    host.remove();
+  }
 }

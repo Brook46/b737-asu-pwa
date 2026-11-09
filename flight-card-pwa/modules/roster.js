@@ -19,8 +19,8 @@
 //
 // Public API: parseRoster(text) → { flights, cpt, fo } | null
 
-import { yearNear } from './dates.js?v=271';
-import { CABIN_SLOTS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=271';
+import { yearNear } from './dates.js?v=272';
+import { CABIN_SLOTS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, intoSlots } from './crew.js?v=272';
 
 const ROSTER_MARKERS = [
   /\bSlip\s+details\b/i,
