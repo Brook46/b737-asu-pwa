@@ -11,9 +11,9 @@
 //     lacks a year get bucketed by the rolling-window heuristic used
 //     elsewhere (current year unless > 6 months stale).
 
-import * as storage from './storage.js?v=266';
-import { dateTs, legTs, yearPast, legPlanActual } from './dates.js?v=266';
-import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=266';
+import * as storage from './storage.js?v=267';
+import { dateTs, legTs, yearPast, legPlanActual } from './dates.js?v=267';
+import { CREW_KEYS, CREW_FIELDS } from './crew.js?v=267';
 
 const HOME = new Set(['TLV', 'LLBG']);
 

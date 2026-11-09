@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=266';
-import * as ri from './route-info.js?v=266';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=266';
-import * as wxm from './wx.js?v=266';
-import * as nb from './notam-brief.js?v=266';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=266';
-import * as plan from './plan-route.js?v=266';
-import * as ely from './ely-traffic.js?v=266';
+import * as storage from './storage.js?v=267';
+import * as ri from './route-info.js?v=267';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=267';
+import * as wxm from './wx.js?v=267';
+import * as nb from './notam-brief.js?v=267';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=267';
+import * as plan from './plan-route.js?v=267';
+import * as ely from './ely-traffic.js?v=267';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1144,14 +1144,30 @@ function atisRunwayInUse(text, ends, end) {
 // What the ATIS window's diagram needs: the wind (true, with where it came
 // from), the runway in use per the ATIS, and every runway end with its
 // heading and LDA. rwyWindHtml() then gives the chosen end's components.
-export async function atisWindInfo(code, { atis = '', metar = '', end = 'arr' } = {}) {
+// The TAF's wind at a time: the last base / FM / BECMG group in force then
+// that gives one (TEMPO and PROB are passing, so not the planning wind).
+function tafWindAt(raw, ts) {
+  if (!raw) return null;
+  const t = Number.isFinite(ts) ? ts : Date.now();
+  let best = null;
+  for (const g of tafGroups(raw)) {
+    if (g.kind === 'temp') continue;
+    if (Number.isFinite(g.from) && g.from > t) continue;
+    if (Number.isFinite(g.to) && g.to < t && g.kind !== 'becmg') continue;
+    const w = metarWind(g.toks.join(''));
+    if (w) best = w;
+  }
+  return best;
+}
+export async function atisWindInfo(code, { atis = '', metar = '', taf = '', when = NaN, end = 'arr' } = {}) {
   let ap = null;
   try { ap = ri.findAirport(await ri.loadDb(), code); } catch {}
   if (!ap) return null;
   const ends = runwayEnds(ap).filter(e => e.r[1] >= 3000);
-  const aw = atisWind(atis), mw = metarWind(metar);
-  let w = aw || mw;
-  const src = aw ? (aw.mag ? 'ATIS, magnetic → true' : 'ATIS') : mw ? 'METAR' : '';
+  // ATIS first, then the METAR, then the TAF for your time there.
+  const aw = atisWind(atis), mw = aw ? null : metarWind(metar), tw = aw || mw ? null : tafWindAt(taf, when);
+  let w = aw || mw || tw;
+  const src = aw ? 'ATIS' : mw ? 'METAR' : tw ? 'TAF' : '';
   if (w && w.mag && w.wdir != null) w = { ...w, wdir: Math.round((w.wdir + variationOf(ends) + 360) % 360) };
   return { w, src, inUse: atisRunwayInUse(atis, ends, end), ends };
 }
@@ -1938,7 +1954,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=266'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=267'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

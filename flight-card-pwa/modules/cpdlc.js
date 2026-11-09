@@ -10,7 +10,7 @@
 // some centres start lower. Outside that list it says so — there may still
 // be FANS somewhere, so the AIP or the Jeppesen pages have the last word.
 
-import { FIR_LABELS, firRings } from './mapdata.js?v=266';
+import { FIR_LABELS, firRings } from './mapdata.js?v=267';
 
 // FIR (or ACC sector) on the map → the log-on to use there.
 const LOGON = {

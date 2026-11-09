@@ -309,7 +309,8 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
         const ang = Math.atan2(+Y(e1) - +Y(e0), +X(e1) - +X(e0)) * 180 / Math.PI;
         xs.push([p, ang]);
       }
-      const ax = rwW * 1.6, ay = rwW * 0.55, sw = Math.max(1.2, rwW * 0.17);
+      // A square cross a little wider than the runway, so it shows past its edges.
+      const ax = rwW * 0.85, ay = rwW * 0.85, sw = Math.max(1.6, rwW * 0.26);
       g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path class="ad-rwc-tint" d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}`
         + xs.map(([p, ang]) => `<path class="ad-x" transform="translate(${X(p)},${Y(p)}) rotate(${ang.toFixed(1)})" d="M${-ax},${-ay} L${ax},${ay} M${-ax},${ay} L${ax},${-ay}" style="stroke-width:${sw.toFixed(1)}"/>`).join('') + `</g>`;
     } else {

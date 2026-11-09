@@ -111,9 +111,9 @@ export function validity(n, now = Date.now()) {
   const f = (ms) => { const d = new Date(ms); const t = d.toISOString().slice(11, 16);
     return d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth() ? t : `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')} ${t}`; };
   const perm = !Number.isFinite(en) || en - now > 5 * 365 * 86400e3;
-  let s;
-  if (Number.isFinite(st) && st > now) s = `${f(st)} – ${perm ? 'PERM' : f(en) + (n.est ? ' EST' : '')}`;
-  else s = perm ? 'PERM' : `to ${f(en)}${n.est ? ' EST' : ''}`;
+  // Start and end, always.
+  const end = perm ? 'PERM' : f(en) + (n.est ? ' EST' : '');
+  let s = Number.isFinite(st) ? `${f(st)} – ${end}` : end;
   return n.sched ? `${s} · ${String(n.sched).trim()}` : s;
 }
 

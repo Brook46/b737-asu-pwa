@@ -4689,3 +4689,4 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .atis-diagram .ad-mark.ad-rwclosed.is-hl .ad-rwc-tint { stroke-opacity: .5; filter: none; }
 .atis-diagram .ad-mark.ad-rwclosed.is-hl path { filter: none; }
 .atis-diagram .ad-mark.ad-rwclosed.is-hl .ad-rwc-tint { stroke-width: inherit; }
+.ad-wind-h .ad-wsrc { font-size: 10px; font-weight: 700; color: var(--fg-mute); letter-spacing: .04em; margin-left: 4px; }
