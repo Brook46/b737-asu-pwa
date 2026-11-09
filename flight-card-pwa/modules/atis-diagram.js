@@ -40,15 +40,30 @@ function writeCache(icao, v) {
     try { for (const k of Object.keys(localStorage)) if (k.startsWith(KEY) && k !== KEY + icao) localStorage.removeItem(k); put(); } catch {}
   }
 }
-async function overpass(q) {
-  for (const [api, ms] of APIS) {
+// One request at a time: Overpass gives an address two slots and answers
+// 429 beyond them (the background refreshes of several airports used to
+// collide). A 429 on the main server waits and tries again before the
+// mirrors, which are often slower still.
+let opChain = Promise.resolve();
+function overpass(q) {
+  const run = opChain.then(() => overpassNow(q));
+  opChain = run.catch(() => null);
+  return run;
+}
+async function overpassNow(q) {
+  const ask = async (api, ms) => {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), ms);
     try {
       const r = await fetch(api, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'content-type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
-      if (r.ok) return await r.json();
-    } catch {}
+      return r.ok ? await r.json() : r.status;
+    } catch { return 0; }
     finally { clearTimeout(t); }
+  };
+  for (const [api, ms] of APIS) {
+    let r = await ask(api, ms);
+    if (r === 429) { await new Promise(res => setTimeout(res, 12000)); r = await ask(api, ms); }
+    if (r && typeof r === 'object') return r;
   }
   return null;
 }
@@ -76,19 +91,32 @@ function simplify(pts, tol = 4) {
   keep.push(pts.at(-1));
   return keep;
 }
+// Saves from before aprons and terminals were fetched are used at once and
+// quietly replaced in the background, so the next look has them.
+const upgrading = new Set();
 async function load(icao, lat, lon) {
   const c = readCache(icao);
-  if (c) return c;
+  if (c && c.v >= 2) return c;
+  if (c) {
+    if (!upgrading.has(icao) && navigator.onLine !== false) { upgrading.add(icao); fetchGeo(icao, lat, lon).catch(() => {}); }
+    return c;
+  }
   if (navigator.onLine === false) return null;
+  return fetchGeo(icao, lat, lon);
+}
+async function fetchGeo(icao, lat, lon) {
   const dLat = 0.05, dLon = 0.05 / Math.cos(lat * Math.PI / 180);
   const bbox = `${(lat - dLat).toFixed(4)},${(lon - dLon).toFixed(4)},${(lat + dLat).toFixed(4)},${(lon + dLon).toFixed(4)}`;
-  const d = await overpass(`[out:json][timeout:90][bbox:${bbox}];(way["aeroway"~"^(runway|taxiway|taxilane)$"];);out tags geom;`);
+  const d = await overpass(`[out:json][timeout:90][bbox:${bbox}];(way["aeroway"~"^(runway|taxiway|taxilane|apron|terminal)$"];way["building"="terminal"];);out tags geom;`);
   if (!d) return null;
   const k = Math.cos(lat * Math.PI / 180) * 111320;
   const xy = (g) => simplify(g.map(p => [Math.round((p.lon - lon) * k), Math.round((p.lat - lat) * 110540)]));
-  const out = { at: Date.now(), lat, lon, rw: [], tw: {} };
+  const out = { v: 2, at: Date.now(), lat, lon, rw: [], tw: {}, ap: [], tm: [] };
   for (const w of d.elements || []) {
     if (!w.geometry || w.geometry.length < 2) continue;
+    // Aprons and terminal buildings: background shapes only.
+    if (w.tags?.aeroway === 'apron') { out.ap.push(xy(w.geometry)); continue; }
+    if (w.tags?.aeroway === 'terminal' || w.tags?.building === 'terminal') { out.tm.push(xy(w.geometry)); continue; }
     if (w.tags?.aeroway === 'runway') { out.rw.push({ ref: w.tags.ref || '', pts: xy(w.geometry) }); continue; }
     const r = twKey(w.tags?.ref);
     (out.tw[r] = out.tw[r] || []).push(xy(w.geometry));
@@ -203,11 +231,15 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
   const inside = (p) => p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
   const placed = [];
   const free = (x, y) => { if (placed.some(([a, b]) => Math.abs(a - x) < 34 && Math.abs(b - y) < 14)) return false; placed.push([x, y]); return true; };
-  // Named taxiways always; the unnamed ones (apron lanes, service roads)
-  // only when zoomed in — at a glance they're just clutter.
+  // Drawn like a chart: aprons and terminals as quiet shapes, taxiways as
+  // surfaces at their real width (they widen as you zoom, like a map), the
+  // unnamed ones (apron lanes) only when zoomed in.
   const named = Object.entries(geo.tw).filter(([r]) => r).flatMap(([, w]) => w);
-  let g = `<g class="ad-tw ad-tw-minor">${(geo.tw[''] || []).map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`
-    + `<g class="ad-tw">${named.map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
+  const twW = Math.max(1.6, 23 * s), twMinW = Math.max(1, 12 * s);
+  let g = `<g class="ad-apron">${(geo.ap || []).map(pts => `<path d="${path(pts)}Z"/>`).join('')}</g>`
+    + `<g class="ad-term">${(geo.tm || []).map(pts => `<path d="${path(pts)}Z"/>`).join('')}</g>`
+    + `<g class="ad-tw ad-tw-minor" style="stroke-width:${twMinW.toFixed(1)}">${(geo.tw[''] || []).map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`
+    + `<g class="ad-tw" style="stroke-width:${twW.toFixed(1)}">${named.map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
   // Every named taxiway's name, once, on its longest piece — shown when
   // zoomed in (the closed ones carry their own, bolder).
   const closedRefs = new Set(marks.filter(m => m.ways).flatMap(m => [norm(m.it.ref), 'GATE' + norm(m.it.ref)]));
@@ -217,6 +249,8 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
     return `<text x="${X(mid)}" y="${Y(mid)}">${esc(r)}</text>`;
   }).join('')}</g>`;
   g += `<g class="ad-rw">${geo.rw.map(r => `<path data-ad-rwy="${esc(norm(r.ref))}" d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
+  // A dashed white centreline on each runway.
+  g += `<g class="ad-rwcl">${geo.rw.filter(r => r.ref).map(r => `<path d="${path(r.pts)}"/>`).join('')}</g>`;
   // Runway designators at both ends — each one a tap target: it chooses
   // that runway for the wind components beside the diagram (app.js).
   const doneRefs = new Set();
@@ -263,7 +297,10 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
         + `<g transform="translate(${X(b)},${Y(b)}) rotate(${ang.toFixed(1)})"><path class="ad-proc-head" d="M0,0 L-11,-6 L-11,6 Z"/></g>`
         + `<text class="ad-proc-t" x="${X(m.it.kind === 'STAR' ? a : b)}" y="${Y(m.it.kind === 'STAR' ? a : b)}" dy="-0.9em">${m.it.kind}</text></g>`;
     } else if (m.it.kind === 'RWY') {
-      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
+      // Closed: red, with white crosses along it, as painted on a closed runway.
+      const xs = m.rws.flatMap(w => [0.2, 0.5, 0.8].map(f => { const i = (w.pts.length - 1) * f, a = w.pts[Math.floor(i)], b = w.pts[Math.min(w.pts.length - 1, Math.floor(i) + 1)], t = i % 1; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }));
+      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}`
+        + xs.map(p => `<g class="ad-x" transform="translate(${X(p)},${Y(p)})"><path d="M-6,-6 L6,6 M6,-6 L-6,6"/></g>`).join('') + `</g>`;
     } else {
       g += `<g class="ad-mark ad-ils" data-atis-ref="${k}" transform="translate(${X(m.at)},${Y(m.at)})"><circle r="9"/><text y="-13">ILS ${esc(m.it.ref)} ✕</text></g>`;
     }
