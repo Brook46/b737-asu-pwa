@@ -16,8 +16,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=260';
-import { WORKER_BASE } from './proxy.js?v=260';
+import { lookup } from './airports.js?v=261';
+import { WORKER_BASE } from './proxy.js?v=261';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -60,7 +60,7 @@ function toIcao(code) {
 // that reads the weather synchronously (peekCachedWx) awaits this first.
 let iataToIcao = null, codesLoad = null;
 export function codesReady() {
-  codesLoad ||= import('./route-info.js?v=260').then(ri => ri.loadDb())
+  codesLoad ||= import('./route-info.js?v=261').then(ri => ri.loadDb())
     .then(db => { iataToIcao = db.byIata; })
     .catch(() => { codesLoad = null; });
   return codesLoad;

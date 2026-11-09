@@ -4581,3 +4581,10 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
   paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5px; stroke-linejoin: round; pointer-events: none; }
 .atis-diagram .ad-end.is-inuse .ad-idbox { stroke: var(--accent); stroke-width: 2; }
 .atis-diagram .ad-end.is-sel .ad-idbox { fill: var(--accent); stroke: var(--accent); }
+
+/* Wind box: the barb and the numbers, little else. */
+.ad-wind { gap: 1px; padding: 4px 9px 6px 4px; }
+.ad-wind-h { gap: 2px; }
+.ad-wind-h b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.ad-wp-rw { margin-top: 2px; padding-top: 4px; }
+.ad-wp-k { font-variant-numeric: tabular-nums; padding-left: 4px; }

@@ -8,13 +8,13 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=260';
-import * as ri from './route-info.js?v=260';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=260';
-import * as wxm from './wx.js?v=260';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=260';
-import * as plan from './plan-route.js?v=260';
-import * as ely from './ely-traffic.js?v=260';
+import * as storage from './storage.js?v=261';
+import * as ri from './route-info.js?v=261';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=261';
+import * as wxm from './wx.js?v=261';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=261';
+import * as plan from './plan-route.js?v=261';
+import * as ely from './ely-traffic.js?v=261';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -909,6 +909,10 @@ function windBarb(x, y, dir, spd, gst, srcLabel = '') {
     <text x="${x}" y="${y + 46}" class="rd-wtxt">${label}</text>
     ${srcLabel ? `<text x="${x}" y="${y + 58}" class="rd-wsrc">${esc(srcLabel)}</text>` : ''}`;
 }
+// The same barb, alone in a small SVG (the ATIS diagram's wind box).
+export function windBarbSvg(dir, spd, gst) {
+  return `<svg viewBox="-36 -36 72 72" width="46" height="46" aria-hidden="true">${windBarb(0, 0, dir, spd, gst).replace(/<text[\s\S]*$/, '')}</svg>`;
+}
 function runwayDiagram(c) {
   const ap = c.ap, rw = ap.rwy;
   if (!rw.length) return '';
@@ -1154,12 +1158,12 @@ export function rwyWindHtml(info, id) {
   const e = info && info.ends.find(x => x.id === id);
   if (!e) return '';
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
-  const head = `<div class="ad-wp-rw"><span class="rw-box">${esc(e.id)}</span> LDA <b>${fmt(e.lda)} ft</b></div>`;
+  const head = `<div class="ad-wp-rw"><span class="rw-box">${esc(e.id)}</span> <b>${fmt(e.lda)}</b> ft</div>`;
   const k = e.hdg == null ? null : components(e.hdg, info.w);
-  if (!k) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'Variable wind' : 'No wind'}</div>`;
+  if (!k) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'VRB' : '—'}</div>`;
   const xb = xwBand(Math.max(k.cross, k.gustCross));
-  return head + `<div class="ad-wp-k">${k.head >= 0 ? `Headwind <b>${k.head}</b>` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">Tailwind <b>${-k.head}</b></span>`} kt</div>
-    <div class="ad-wp-k"><span class="${xb ? 'wx-' + xb : ''}">Crosswind <b>${k.cross}</b> kt ${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` (G${k.gustCross})` : ''}</span></div>`;
+  return head + `<div class="ad-wp-k">${k.head >= 0 ? `HW <b>${k.head}</b>` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">TW <b>${-k.head}</b></span>`}
+    · <span class="${xb ? 'wx-' + xb : ''}">XW <b>${k.cross}</b>${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` G${k.gustCross}` : ''}</span></div>`;
 }
 
 function runwayPanel(c, m) {
@@ -1921,7 +1925,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=260'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=261'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
