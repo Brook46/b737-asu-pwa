@@ -4422,7 +4422,7 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .ad-ils circle { fill: var(--danger); stroke: #fff; stroke-width: 2; }
 .ad-ils text { fill: var(--danger); }
 /* Tapped: the same closure lit in the diagram and the text. */
-.ad-mark.is-hl path { stroke-width: 8; filter: drop-shadow(0 0 4px rgba(245, 196, 0, .9)); }
+.ad-mark.is-hl:not(.ad-rwclosed):not(.ad-closed) path { stroke-width: 8; filter: drop-shadow(0 0 4px rgba(245, 196, 0, .9)); }
 .ad-mark.is-hl circle { r: 12; filter: drop-shadow(0 0 4px rgba(245, 196, 0, .9)); }
 .ad-mark.is-hl text { font-size: 15px; }
 .atis-ref { cursor: pointer; border-bottom: 1px dotted currentColor; }
@@ -4484,7 +4484,7 @@ button.wx-atis-go { margin: 6px 0 2px; }
 .atis-diagram .ad-closed text, .atis-diagram .ad-ils text { font-size: calc(12px * var(--ad-k, 1)); stroke-width: calc(3.5px * var(--ad-k, 1)); }
 .atis-diagram .ad-mark.is-hl text { font-size: calc(15px * var(--ad-k, 1)); stroke-width: calc(4px * var(--ad-k, 1)); }
 .atis-diagram .ad-closed path { stroke-width: calc(4px * var(--ad-k, 1)); }
-.atis-diagram .ad-mark.is-hl path { stroke-width: calc(8px * var(--ad-k, 1)); }
+.atis-diagram .ad-mark.is-hl:not(.ad-rwclosed):not(.ad-closed) path { stroke-width: calc(8px * var(--ad-k, 1)); }
 
 /* Readable names: bigger, bolder, a solid halo against the lines under them. */
 .atis-diagram .ad-des { font-size: calc(14px * var(--ad-k, 1)); font-weight: 800; fill: var(--fg); stroke: var(--bg-sunk); stroke-width: calc(4.5px * var(--ad-k, 1)); stroke-linejoin: round; }
@@ -4673,3 +4673,19 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 /* Closed taxiways: an orange surface over the grey one. */
 .atis-diagram .ad-closed path { stroke-width: calc(5px * var(--ad-k, 1)); stroke-linecap: round; }
 .ntb-all { align-self: flex-start; margin-top: 4px; padding: 3px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* Closures, quieter until chosen.
+   Taxiway: a thin dashed orange line along it (one size on screen), its name
+   small; chosen, a solid wider line and a bold name.
+   Runway: a light red tint over its normal colour and red crosses along it
+   (drawn to the runway's size, so they zoom with it); chosen, a stronger
+   tint — never a glow, never a width change. */
+.atis-diagram .ad-closed path { stroke: var(--warn); stroke-width: 2.5px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; stroke-opacity: .8; filter: none; }
+.atis-diagram .ad-closed text { font-size: calc(11px * var(--ad-k, 1)); font-weight: 700; fill-opacity: .85; }
+.atis-diagram .ad-mark.ad-closed.is-hl path { stroke-width: 5px; stroke-dasharray: none; stroke-opacity: 1; filter: none; }
+.atis-diagram .ad-mark.ad-closed.is-hl text { font-size: calc(14px * var(--ad-k, 1)); fill-opacity: 1; }
+.atis-diagram .ad-rwclosed .ad-rwc-tint { fill: none; stroke: var(--danger); stroke-opacity: .28; stroke-dasharray: none; stroke-linecap: butt; }
+.atis-diagram .ad-rwclosed path.ad-x { fill: none; stroke: var(--danger); stroke-opacity: .95; stroke-linecap: round; stroke-dasharray: none; }
+.atis-diagram .ad-mark.ad-rwclosed.is-hl .ad-rwc-tint { stroke-opacity: .5; filter: none; }
+.atis-diagram .ad-mark.ad-rwclosed.is-hl path { filter: none; }
+.atis-diagram .ad-mark.ad-rwclosed.is-hl .ad-rwc-tint { stroke-width: inherit; }

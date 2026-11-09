@@ -297,10 +297,21 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
         + `<g transform="translate(${X(b)},${Y(b)}) rotate(${ang.toFixed(1)})"><path class="ad-proc-head" d="M0,0 L-11,-6 L-11,6 Z"/></g>`
         + `<text class="ad-proc-t" x="${X(m.it.kind === 'STAR' ? a : b)}" y="${Y(m.it.kind === 'STAR' ? a : b)}" dy="-0.9em">${m.it.kind}</text></g>`;
     } else if (m.it.kind === 'RWY') {
-      // Closed: red, with white crosses along it, as painted on a closed runway.
-      const xs = m.rws.flatMap(w => [0.2, 0.5, 0.8].map(f => { const i = (w.pts.length - 1) * f, a = w.pts[Math.floor(i)], b = w.pts[Math.min(w.pts.length - 1, Math.floor(i) + 1)], t = i % 1; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }));
-      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}`
-        + xs.map(p => `<g class="ad-x" transform="translate(${X(p)},${Y(p)})"><path d="M-6,-6 L6,6 M6,-6 L-6,6"/></g>`).join('') + `</g>`;
+      // Closed: the runway keeps its colour under a light red tint, with red
+      // crosses on it — turned along the runway and sized to its width, so
+      // they zoom with it (painted closure crosses are long along the runway).
+      const xs = [];
+      for (const w of m.rws) for (const f of [0.18, 0.5, 0.82]) {
+        const i = (w.pts.length - 1) * f, j = Math.floor(i), t = i - j;
+        const a = w.pts[j], b = w.pts[Math.min(w.pts.length - 1, j + 1)];
+        const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        const e0 = w.pts[0], e1 = w.pts.at(-1);
+        const ang = Math.atan2(+Y(e1) - +Y(e0), +X(e1) - +X(e0)) * 180 / Math.PI;
+        xs.push([p, ang]);
+      }
+      const ax = rwW * 1.6, ay = rwW * 0.55, sw = Math.max(1.2, rwW * 0.17);
+      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path class="ad-rwc-tint" d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}`
+        + xs.map(([p, ang]) => `<path class="ad-x" transform="translate(${X(p)},${Y(p)}) rotate(${ang.toFixed(1)})" d="M${-ax},${-ay} L${ax},${ay} M${-ax},${ay} L${ax},${-ay}" style="stroke-width:${sw.toFixed(1)}"/>`).join('') + `</g>`;
     } else {
       g += `<g class="ad-mark ad-ils" data-atis-ref="${k}" transform="translate(${X(m.at)},${Y(m.at)})"><circle r="9"/><text y="-13">ILS ${esc(m.it.ref)} ✕</text></g>`;
     }

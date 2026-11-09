@@ -18,7 +18,7 @@
 //   pushNow()         → force a push; resolves { ok, skipped?, error?, bytes? }
 //   lastPushedAt()    → ms epoch of the last successful push (0 = never)
 
-import { WORKER_BASE } from './proxy.js?v=265';
+import { WORKER_BASE } from './proxy.js?v=266';
 
 const TOKEN_KEY  = 'fc.logbook.token';
 const HASH_KEY   = 'fc.logbook.lastPushedHash';
@@ -64,7 +64,7 @@ export async function pushNow({ force = false } = {}) {
   if (pushing) return { ok: false, error: 'push already in flight' };
   pushing = true;
   try {
-    const lb = await import('./logbook.js?v=265');
+    const lb = await import('./logbook.js?v=266');
     const legs = lb.allStoredLegs();
     if (!legs.length) return { ok: true, skipped: 'no legs' };
     const ics = lb.buildIcs(legs);
