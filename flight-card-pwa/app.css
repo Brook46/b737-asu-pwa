@@ -4571,7 +4571,7 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 /* Runway numbers on the ATIS diagram, as on the In flight runway diagram:
    dark box, white number, LDA beneath; chosen = filled blue, the ATIS's
    runway in use = blue outline. One size on screen at any zoom. */
-.atis-diagram .ad-endk { transform: scale(var(--ad-k, 1)) translateX(var(--ad-o, 0px)); }
+.atis-diagram .ad-endk { transform: scale(var(--ad-k, 1)) translate(var(--ad-o, 0px), var(--ad-s, 0px)); }
 .atis-diagram .ad-endk.ad-out-p { --ad-o: 20px; }
 .atis-diagram .ad-endk.ad-out-n { --ad-o: -20px; }
 .atis-diagram .ad-end .ad-hit { fill: transparent; stroke: none; }
