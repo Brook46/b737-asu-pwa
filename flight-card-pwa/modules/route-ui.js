@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=263';
-import * as ri from './route-info.js?v=263';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=263';
-import * as wxm from './wx.js?v=263';
-import * as nb from './notam-brief.js?v=263';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=263';
-import * as plan from './plan-route.js?v=263';
-import * as ely from './ely-traffic.js?v=263';
+import * as storage from './storage.js?v=264';
+import * as ri from './route-info.js?v=264';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=264';
+import * as wxm from './wx.js?v=264';
+import * as nb from './notam-brief.js?v=264';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=264';
+import * as plan from './plan-route.js?v=264';
+import * as ely from './ely-traffic.js?v=264';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1212,7 +1212,7 @@ function runwayPanel(c, m) {
       <div class="rw-sub"><b>Approaches:</b> ${ilsHint ? `an ILS / LOC to RWY ${esc(sel.id)} is named in a NOTAM — ` : ''}approach types and CAT I-II-III aren't in any free data — check the chart.</div>
       <div class="rw-sub"><b>Navaids at ${esc(ap.icao)}:</b> ${nav}</div>
       ${m.notamsOff ? '' : (() => {
-        const ls = nb.briefs(mentions, c.eta);
+        const ls = nb.briefs(mentions, c.eta, 3600e3, { lat: ap.lat, lon: ap.lon });
         return `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${ls.length ? ntBriefHtml(ls, c.eta) : '<span class="wx-g">none that matter</span>'}</div>`;
       })()}
     </div>`;
@@ -1236,18 +1236,21 @@ function notamList(c, m) {
   // The bottom lines only — what's in force an hour either side of when
   // you'd be there — coloured; every NOTAM, in full, folded under them.
   const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
-  const lines = nb.briefs(c.notams, c.eta);
+  const lines = nb.briefs(c.notams, c.eta, 3600e3, { lat: c.ap.lat, lon: c.ap.lon });
   const all = c.notams.slice().map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) })).sort((a, b) => RANK[b.sev] - RANK[a.sev]);
   return `${stale}${ntBriefHtml(lines, c.eta)}
     <details class="nt-more"><summary>All NOTAMs (${all.length})</summary><ul class="nt-list">${all.map(n => ntItem(n, n.sev)).join('')}</ul></details>`;
 }
-// The short lines: a coloured dot, the bottom line, and when it ends if
-// that's within the month. Shared with the ATIS window.
+// The short lines, each folded: a coloured dot, the bottom line, where it
+// is from the field (when the NOTAM gives a position) and when it's in
+// force; tap to open the full NOTAM(s). Shared with the ATIS window.
 export function ntBriefHtml(lines, ts) {
   if (!lines.length) return `<div class="ntb-none">Nothing that matters around ${hm(ts)}</div>`;
   return `<div class="ntb-list">${lines.map(l => {
     const keys = l.items.map(i => atisRefKey(i.kind, i.ref)).join(' ');
-    return `<div class="ntb ntb-${l.sev}"${keys ? ` data-ntb-refs="${esc(keys)}"` : ''}><i></i><span>${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}</span>${l.until ? `<span class="ntb-t">to ${dayHm(l.until)}</span>` : ''}</div>`;
+    const when = l.ns.length === 1 ? nb.validity(l.ns[0]) : '';
+    const full = l.ns.map(n => `<div class="ntb-n"><div class="ntb-nm">${esc([n.id, nb.validity(n)].filter(Boolean).join(' · '))}</div>${esc(n.text)}</div>`).join('');
+    return `<details class="ntb ntb-${l.sev}"${keys ? ` data-ntb-refs="${esc(keys)}"` : ''}><summary><i></i><span class="ntb-x">${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}${l.where ? ` <small>· ${esc(l.where)}</small>` : ''}</span>${when ? `<span class="ntb-t">${esc(when)}</span>` : ''}</summary>${full}</details>`;
   }).join('')}</div>`;
 }
 function dayHm(ms) {
@@ -1935,7 +1938,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=263'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=264'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

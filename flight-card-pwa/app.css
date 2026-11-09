@@ -4618,3 +4618,42 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 .ad-notams { margin-top: 6px; }
 .ad-notams .nt-more summary { font-size: 12px; }
 #wx-overlay .ad-notams { flex: 0 0 auto; max-height: 34%; overflow-y: auto; }
+
+/* Each NOTAM line folds open to the full text; the times show folded too. */
+details.ntb { display: block; }
+details.ntb > summary { display: flex; align-items: baseline; gap: 7px; list-style: none; cursor: pointer; padding: 2px 0; }
+details.ntb > summary::-webkit-details-marker { display: none; }
+details.ntb .ntb-x { min-width: 0; }
+details.ntb-r .ntb-x { color: var(--danger); font-weight: 700; }
+details.ntb-o .ntb-x { font-weight: 600; }
+details.ntb .ntb-t { margin-left: auto; padding-left: 10px; font-size: 11px; color: var(--fg-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+details.ntb[open] > summary .ntb-x { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.ntb-n { margin: 3px 0 6px 15px; padding: 6px 8px; border-left: 3px solid var(--line); border-radius: 4px; background: var(--bg-sunk);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+.ntb-r .ntb-n { border-left-color: var(--danger); } .ntb-o .ntb-n { border-left-color: var(--warn); } .ntb-y .ntb-n { border-left-color: #e0b400; }
+.ntb-nm { font-family: inherit; font-weight: 700; color: var(--fg-mute); margin-bottom: 2px; }
+details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-radius: 3px; }
+
+/* A calmer diagram: unnamed taxiways and the LDA lines only when zoomed in
+   (the chosen runway keeps its LDA). */
+.atis-diagram:not(.is-zoomed) .ad-tw-minor { display: none; }
+.atis-diagram .ad-tw-minor path { stroke-opacity: .28; }
+.atis-diagram:not(.is-zoomed) .ad-end:not(.is-sel) .ad-lda { display: none; }
+/* NOTAM positions: a small triangle (obstacle, crane); an area outlined. */
+.ad-pt .ad-pt-s { transform: scale(var(--ad-k, 1)); stroke: var(--bg-sunk); stroke-width: 1.2; }
+.ad-t-y .ad-pt-s { fill: #d4a800; } .ad-t-o .ad-pt-s { fill: var(--warn); } .ad-t-r .ad-pt-s { fill: var(--danger); }
+.ad-area path { fill-opacity: .12; stroke-width: 1.6; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.ad-area.ad-t-y path { fill: #d4a800; stroke: #d4a800; } .ad-area.ad-t-o path { fill: var(--warn); stroke: var(--warn); } .ad-area.ad-t-r path { fill: var(--danger); stroke: var(--danger); }
+.ad-pt.is-hl .ad-pt-s { transform: scale(calc(var(--ad-k, 1) * 1.7)); }
+
+/* Full-screen diagram: the map and the NOTAM panel — side by side on an
+   iPad held landscape, the panel underneath when it's upright or a phone. */
+.ad-full-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ad-full-main .ad-full-body { flex: 1 1 60%; min-height: 0; }
+.ad-full-side { flex: 0 0 auto; max-height: 40%; overflow-y: auto; padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px); border-top: 1px solid var(--line-soft); background: var(--bg); }
+.ad-full-side .wx-h { margin-bottom: 6px; }
+.ad-full-side .wx-h .muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
+@media (orientation: landscape) and (min-width: 760px) {
+  .ad-full-main { flex-direction: row; }
+  .ad-full-side { flex: 0 0 360px; max-height: none; border-top: 0; border-left: 1px solid var(--line-soft); }
+}

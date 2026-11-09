@@ -137,7 +137,7 @@ function runwayEnd(geo, des) {
 // (route-ui colourAtis). `whole`: the whole airport (the full-screen view)
 // rather than round the closures; `W`/`H` the drawing's shape. Returns
 // { svg, missing: [labels not found], at(lat, lon) → [x, y] | null }.
-export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {}) {
+export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, withPts = false } = {}) {
   if (!geo || !geo.rw.length) return { svg: '', missing: items.map(i => i.label) };
   // Older saves keep the raw OSM names: clean them here too.
   if (!geo.twClean) {
@@ -151,6 +151,14 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
     if (it.kind === 'RWY' || it.kind === 'ILS') {
       const e = runwayEnd(geo, ref);
       if (e) marks.push({ it, rw: e.rw, rws: e.ways, at: e.at }); else missing.push(it.label);
+      continue;
+    }
+    // A position from a NOTAM (obstacle, crane) or an area: drawn where it
+    // is, if it's on the drawing at all — the line says how far, either way.
+    if (it.kind === 'PT' || it.kind === 'AREA') {
+      const k = Math.cos(geo.lat * Math.PI / 180) * 111320;
+      const toXY = (la, lo) => [(lo - geo.lon) * k, (la - geo.lat) * 110540];
+      marks.push({ it, pos: it.kind === 'PT' ? [toXY(it.lat, it.lon)] : it.pts.map(p => toXY(p[0], p[1])) });
       continue;
     }
     // A NOTAM about the SIDs or STARs of one runway: an arrow on it.
@@ -178,6 +186,8 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.proc) { grow(m.a); grow(m.b); } if (m.it.kind === 'RWY') m.rws.forEach(w => w.pts.forEach(grow)); });
   if (whole || !marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
   if (whole) marks.forEach(m => { if (m.proc) { grow(m.a); grow(m.b); } });
+  // Full screen: NOTAM positions within ~3 nm come into the frame too.
+  if (withPts) marks.forEach(m => { if (m.pos) m.pos.filter(p => Math.hypot(p[0], p[1]) < 5600).forEach(grow); });
   const pad = whole ? 300 : 350, MIN = 2400;
   x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
   if (x1 - x0 < MIN) { const c = (x0 + x1) / 2; x0 = c - MIN / 2; x1 = c + MIN / 2; }
@@ -193,7 +203,11 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   const inside = (p) => p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
   const placed = [];
   const free = (x, y) => { if (placed.some(([a, b]) => Math.abs(a - x) < 34 && Math.abs(b - y) < 14)) return false; placed.push([x, y]); return true; };
-  let g = `<g class="ad-tw">${Object.values(geo.tw).flat().map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
+  // Named taxiways always; the unnamed ones (apron lanes, service roads)
+  // only when zoomed in — at a glance they're just clutter.
+  const named = Object.entries(geo.tw).filter(([r]) => r).flatMap(([, w]) => w);
+  let g = `<g class="ad-tw ad-tw-minor">${(geo.tw[''] || []).map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`
+    + `<g class="ad-tw">${named.map(pts => `<path d="${path(pts)}"/>`).join('')}</g>`;
   // Every named taxiway's name, once, on its longest piece — shown when
   // zoomed in (the closed ones carry their own, bolder).
   const closedRefs = new Set(marks.filter(m => m.ways).flatMap(m => [norm(m.it.ref), 'GATE' + norm(m.it.ref)]));
@@ -233,6 +247,14 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
       const mid = w.pts[Math.floor(w.pts.length / 2)];
       // A name that would sit on another stays hidden until it's tapped.
       g += `<text class="${free(+X(mid), +Y(mid)) ? '' : 'ad-hide'}" x="${X(mid)}" y="${Y(mid)}">${esc(m.it.ref)}</text></g>`;
+    } else if (m.pos) {
+      // Only what falls on the drawing; nothing pulls the frame out to it.
+      const tone = m.it.sev === 'r' ? 'r' : m.it.sev === 'o' ? 'o' : 'y';
+      if (m.it.kind === 'AREA') {
+        if (m.pos.some(inside)) g += `<g class="ad-mark ad-area ad-t-${tone}" data-atis-ref="${k}"><path d="${path(m.pos)}Z"/></g>`;
+      } else if (inside(m.pos[0])) {
+        g += `<g class="ad-mark ad-pt ad-t-${tone}" data-atis-ref="${k}" transform="translate(${X(m.pos[0])},${Y(m.pos[0])})"><path class="ad-pt-s" d="M0,-7 L6,4 L-6,4 Z"/></g>`;
+      }
     } else if (m.proc) {
       const { a, b } = m;
       const ang = Math.atan2(+Y(b) - +Y(a), +X(b) - +X(a)) * 180 / Math.PI;

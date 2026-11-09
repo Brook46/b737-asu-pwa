@@ -76,8 +76,45 @@ export function bottomLine(n) {
   }
   if (/\b(WIP|WORK IN PROGRESS|CONST(?:RUCTION)?)\b/.test(t)) return { sev: 'y', text: 'Work in progress', items: [], group: true };
   if (/\bCRANES?\b/.test(t)) return { sev: 'y', text: 'Crane', items: [], group: true };
+  if (/\b(OBST(ACLE)?S?|MOBILE EQPT|MOBILE EQUIPMENT|ANTENNA|MAST|TOWER)\b/.test(t) && coordsOf(t).length) return { sev: 'y', text: 'Obstacle', items: [], group: true };
   if (/\bBIRD/.test(t)) return { sev: 'y', text: 'Birds', items: [], group: true };
   return null;
+}
+
+// Positions written in a NOTAM — 345330.55N0333816.63E, 375656N 0235701E,
+// 3756N02357E, N3756.2 E02357.1 — as [lat, lon].
+export function coordsOf(text) {
+  const t = U(text), out = [];
+  const re = /\b(\d{2})(\d{2})(\d{2}(?:\.\d+)?)?([NS])\s?(\d{3})(\d{2})(\d{2}(?:\.\d+)?)?([EW])\b/g;
+  let m;
+  while ((m = re.exec(t))) {
+    const lat = (+m[1] + +m[2] / 60 + (parseFloat(m[3]) || 0) / 3600) * (m[4] === 'S' ? -1 : 1);
+    const lon = (+m[5] + +m[6] / 60 + (parseFloat(m[7]) || 0) / 3600) * (m[8] === 'W' ? -1 : 1);
+    out.push([lat, lon]);
+  }
+  return out;
+}
+// "2.4 nm NE" from the aerodrome reference point to [lat, lon].
+export function fromArp(arp, p) {
+  const R = Math.PI / 180, k = Math.cos(arp.lat * R);
+  const dx = (p[1] - arp.lon) * k * 60, dy = (p[0] - arp.lat) * 60;
+  const nm = Math.hypot(dx, dy);
+  if (nm < 0.15) return 'on the aerodrome';
+  const dir = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(((Math.atan2(dx, dy) / R + 360) % 360) / 45) % 8];
+  return `${nm < 10 ? nm.toFixed(1) : Math.round(nm)} nm ${dir}`;
+}
+// When a NOTAM is in force, short: "to 14:00", "09.11 06:00 – 12.11 14:00",
+// "PERM", plus its schedule (Item D) if any.
+export function validity(n, now = Date.now()) {
+  const st = Date.parse(n.start), en = Date.parse(n.end);
+  const today = new Date(now);
+  const f = (ms) => { const d = new Date(ms); const t = d.toISOString().slice(11, 16);
+    return d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth() ? t : `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')} ${t}`; };
+  const perm = !Number.isFinite(en) || en - now > 5 * 365 * 86400e3;
+  let s;
+  if (Number.isFinite(st) && st > now) s = `${f(st)} – ${perm ? 'PERM' : f(en) + (n.est ? ' EST' : '')}`;
+  else s = perm ? 'PERM' : `to ${f(en)}${n.est ? ' EST' : ''}`;
+  return n.sched ? `${s} · ${String(n.sched).trim()}` : s;
 }
 
 // In force at any moment of [from, to] (ms)?
@@ -90,16 +127,22 @@ export function inForce(n, from, to = from) {
 // worst first, one per distinct line; WIP / cranes / birds folded into one
 // counted line each. [{ sev, text, items, until, n }]
 const RANK = { r: 3, o: 2, y: 1 };
-export function briefs(notams, ts = Date.now(), win = 3600e3) {
+// `arp` ({ lat, lon }): positions in a NOTAM become diagram points (and an
+// area when it gives three or more), and the line says where from the field.
+export function briefs(notams, ts = Date.now(), win = 3600e3, arp = null) {
   const seen = new Map();
   for (const n of notams || []) {
     if (!inForce(n, ts - win, ts + win)) continue;
     const b = bottomLine(n);
     if (!b) continue;
+    const pts = arp ? coordsOf(n.text) : [];
+    const pos = [];
+    if (pts.length >= 3) pos.push({ kind: 'AREA', ref: n.id || b.text, pts });
+    else for (const p of pts.slice(0, 2)) pos.push({ kind: 'PT', ref: (n.id || b.text) + ':' + pos.length, lat: p[0], lon: p[1] });
     const prev = seen.get(b.text);
-    if (prev) { prev.count++; continue; }
-    const en = Date.parse(n.end);
-    seen.set(b.text, { ...b, count: 1, until: Number.isFinite(en) && en - Date.now() < 30 * 86400e3 ? en : null, n });
+    if (prev) { prev.count++; prev.ns.push(n); prev.items.push(...pos); continue; }
+    seen.set(b.text, { ...b, items: [...b.items, ...pos], count: 1, ns: [n], n,
+      where: arp && pts.length ? fromArp(arp, pts.length >= 3 ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : pts[0]) : '' });
   }
   return [...seen.values()].sort((a, b) => (RANK[b.sev] || 0) - (RANK[a.sev] || 0));
 }
