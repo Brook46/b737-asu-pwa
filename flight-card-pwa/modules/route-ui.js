@@ -8,12 +8,13 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=257';
-import * as ri from './route-info.js?v=257';
-import { legTs, nearestHm } from './dates.js?v=257';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=257';
-import * as plan from './plan-route.js?v=257';
-import * as ely from './ely-traffic.js?v=257';
+import * as storage from './storage.js?v=258';
+import * as ri from './route-info.js?v=258';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=258';
+import * as wxm from './wx.js?v=258';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=258';
+import * as plan from './plan-route.js?v=258';
+import * as ely from './ely-traffic.js?v=258';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -292,6 +293,7 @@ function drawMap(frame) {
   paintEly();
   elyRefresh();
   if (elySel) openEly(elySel);          // the map was redrawn: its box too
+  paintAtisBtns();
 }
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
 // the new shape, still looking at the same place at the same scale.
@@ -412,6 +414,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
       <button type="button" data-ri-ely class="ri-zoom-ely${elyOn ? ' is-on' : ''}" aria-pressed="${elyOn}" aria-label="El Al aircraft in the air" title="El Al aircraft in the air">LY</button>
     </div>
+    <div id="ri-atis-btns" class="ri-atis-btns" role="group" aria-label="ATIS"></div>
     <button type="button" class="ri-to-list" data-ri-list>Airports ↓</button></div>`;
 }
 
@@ -1098,6 +1101,81 @@ function bestRunwayLine(c) {
       <span class="rw-src">(${esc(src)})</span></div>`;
 }
 
+// ---------- Runways in the ATIS window ----------
+// The wind the ATIS gives — "WIND 180 DEG, 9 KT", "WIND VRB 2 KT", a METAR
+// group 18009G20KT, a "MAX 25" gust — else the METAR's. An ATIS wind is
+// magnetic; the runway headings here are true, so it's turned to true by the
+// airport's variation, taken from its runway numbers (a runway's number is
+// its magnetic heading ÷ 10). The METAR's wind is already true.
+function atisWind(text) {
+  const T = String(text || '').toUpperCase().replace(/\s+/g, ' ');
+  let m = /\bWIND\s+(\d{3}|VRB)\s*(?:DEG(?:REES)?)?[,\s]*(\d{1,3})\s*(?:KT|KTS|KNOTS)(?:[,\s]*(?:MAX(?:IMUM)?|GUSTS?(?: TO)?|G)\s*(\d{1,3}))?/.exec(T);
+  let mag = true;
+  // A METAR group quoted in the ATIS (EDDF: "SPECI 081215 09003KT") is the
+  // METAR's — true already.
+  if (!m) { m = /\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/.exec(T); mag = false; }
+  if (!m) return null;
+  return { wdir: m[1] === 'VRB' ? null : +m[1], wspd: +m[2], wgst: m[3] ? +m[3] : 0, mag };
+}
+function metarWind(raw) {
+  const m = /\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)\b/.exec(String(raw || ''));
+  if (!m) return null;
+  const k = m[4] === 'MPS' ? 1.944 : 1;
+  return { wdir: m[1] === 'VRB' ? null : +m[1], wspd: Math.round(+m[2] * k), wgst: m[3] ? Math.round(+m[3] * k) : 0, mag: false };
+}
+function variationOf(ends) {
+  const d = ends.filter(e => e.hdg != null && /^\d{2}/.test(e.id))
+    .map(e => ((e.hdg - parseInt(e.id, 10) * 10) % 360 + 540) % 360 - 180);
+  return d.length ? d.reduce((a, x) => a + x, 0) / d.length : 0;
+}
+// The runway the ATIS says is in use for this end (arrival / departure).
+function atisRunwayInUse(text, ends, end) {
+  const T = String(text || '').toUpperCase();
+  const ids = new Set(ends.map(e => e.id));
+  const want = end === 'dep' ? /\b(?:DEP(?:ARTURES?)?|TKOF|TAKE-?OFF)\b[^.]{0,30}?\bRWYS?\s*(\d{2}[LRC]?)/ : /\b(?:ARR(?:IVALS?)?|LDG|LANDING|APCH|APPROACH)\b[^.]{0,30}?\bRWYS?\s*(\d{2}[LRC]?)/;
+  const m = want.exec(T) || /\bRWYS?\s*(?:IN USE\s*)?(\d{2}[LRC]?)/.exec(T);
+  return m && ids.has(m[1]) ? m[1] : '';
+}
+// { html, inUse } for the ATIS window's runway strip: one chip per runway
+// end (★ in use per the ATIS), and the chosen one's components and LDA.
+export async function atisRunways(code, { atis = '', metar = '', end = 'arr', sel = '' } = {}) {
+  let ap = null;
+  try { ap = ri.findAirport(await ri.loadDb(), code); } catch {}
+  if (!ap) return { html: '' };
+  const ends = runwayEnds(ap).filter(e => e.r[1] >= 3000);
+  if (!ends.length) return { html: '' };
+  const aw = atisWind(atis), mw = metarWind(metar);
+  let w = aw || mw, src = aw ? 'ATIS' : mw ? 'METAR' : '';
+  if (w && w.mag && w.wdir != null) w = { ...w, wdir: Math.round((w.wdir + variationOf(ends) + 360) % 360) };
+  const inUse = atisRunwayInUse(atis, ends, end);
+  const chosen = ends.find(e => e.id === sel) || ends.find(e => e.id === inUse) || ends.slice().sort((a, b) => (components(b.hdg, w)?.head ?? 0) - (components(a.hdg, w)?.head ?? 0))[0];
+  const chips = ends.map(e => {
+    const k = e.hdg == null ? null : components(e.hdg, w);
+    const tone = k ? (k.head < -10 || xwBand(Math.max(k.cross, k.gustCross)) === 'r' ? 'r'
+      : k.head < 0 || xwBand(Math.max(k.cross, k.gustCross)) === 'o' ? 'o' : '') : '';
+    return `<button type="button" class="rw-chip${e.id === chosen.id ? ' is-sel' : ''}${tone ? ' t-' + tone : ''}" data-wx-rw="${esc(e.id)}">${esc(e.id)}${e.id === inUse ? ' ★' : ''}</button>`;
+  }).join('');
+  const k = chosen.hdg == null ? null : components(chosen.hdg, w);
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  let windLine = 'No wind in the ATIS or the METAR.';
+  if (k) {
+    const hw = k.head >= 0 ? `headwind <b>${k.head}</b> kt` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">tailwind <b>${-k.head}</b> kt</span>`;
+    const xb = xwBand(k.cross), gxb = xwBand(k.gustCross);
+    windLine = `${hw} · <span class="${xb ? 'wx-' + xb : ''}">crosswind <b>${k.cross}</b> kt from the ${k.side}</span>`
+      + (k.gustCross ? ` · <span class="${gxb ? 'wx-' + gxb : ''}">gusts ${k.gustCross} kt cross</span>` : '');
+  } else if (w && w.wdir == null && (w.wspd || w.wgst)) windLine = `Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt — no components.`;
+  else if (w && !(w.wspd || w.wgst)) windLine = 'Wind calm.';
+  const wTxt = w ? `${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0') + '°T'}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : '';
+  return {
+    inUse,
+    html: `<div class="rw-chips" role="group" aria-label="Pick a runway">${chips}</div>
+      <div class="wx-rw-sel">
+        <div><span class="rw-box">${esc(chosen.id)}</span> ${chosen.hdg != null ? `${String(Math.round(chosen.hdg)).padStart(3, '0')}°T · ` : ''}LDA <b>${fmt(chosen.lda)} ft</b>${chosen.disp ? ` (displaced ${fmt(chosen.disp)} ft)` : ''} · ${chosen.r[2] || '—'} ft wide${surfaceText(chosen.r) ? ' · ' + esc(surfaceText(chosen.r)) : ''}${chosen.r[4] ? ' · lit' : ''}</div>
+        <div>${wTxt ? `<span class="rd-wind-t">Wind ${wTxt}</span> <span class="rw-src">(${src}${aw && aw.mag && aw.wdir != null ? ', magnetic → true' : ''})</span>: ` : ''}${windLine}</div>
+      </div>`,
+  };
+}
+
 function runwayPanel(c, m) {
   const ap = c.ap, w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
   const ends = runwayEnds(ap);
@@ -1465,7 +1543,42 @@ window.addEventListener('fc:div-rules', () => {
   if (state && state.model) build(state.model.leg).then(m => paint(m, state.showAll)).catch(() => {});
 });
 
+// ---------- ATIS from the map ----------
+// Departure, destination and alternate, top left of the map: one tap opens
+// that airport's ATIS window (app.js handles data-atis-open). Each shows
+// its letter once the ATIS has been fetched (the app does every 10 min).
+function paintAtisBtns() {
+  const box = $('ri-atis-btns');
+  if (!box || !state) return;
+  const m = state.model;
+  const alt = altnOf(m.leg);
+  const row = (end, label, code) => {
+    if (!code) return '';
+    const e = wxm.peekCachedWx(code);
+    const L = e && e.datis ? wxm.extractLetter(e.datis, end === 'dep' ? 'dep' : 'arr') : '';
+    return `<button type="button" data-atis-open="${esc(code)}" data-atis-end="${end === 'altn' ? '' : end}" title="ATIS ${esc(code)}">
+        <span class="ri-ab-l">${label}</span><b>${esc(code)}</b>${L ? `<span class="atis-tag">${esc(L)}</span>` : ''}</button>`;
+  };
+  box.innerHTML = row('dep', 'DEP', m.A.icao) + row('arr', 'ARR', m.B.icao) + row('altn', 'ALT', alt);
+}
+window.addEventListener('fc:atis-updated', () => paintAtisBtns());
+
 // ---------- El Al traffic (LY button) ----------
+// Are we in the air in this leg's aircraft right now (from just before
+// take-off to just after landing)? Then its "last seen" position is us —
+// stale, and pointless to draw.
+function inFlightNow() {
+  const leg = state && state.model.leg;
+  if (!leg) return false;
+  const p = legPlanActual(leg);
+  const ok = Number.isFinite;
+  const start = ok(p.takeoff) ? p.takeoff : ok(p.obt) ? p.obt : ok(p.ctot) ? p.ctot : p.std;
+  const delay = ok(p.obt) && ok(p.std) ? p.obt - p.std : 0;
+  const end = ok(p.landing) ? p.landing : ok(p.ibt) ? p.ibt : ok(p.sta) ? p.sta + delay : NaN;
+  if (!ok(start) || !ok(end)) return false;
+  const now = Date.now();
+  return now >= start - 20 * 60000 && now <= end + 20 * 60000;
+}
 // This leg's aircraft: its registration (EKJ → 4X-EKJ) and callsign (ELY541).
 function ownIds() {
   const leg = state && state.model.leg;
@@ -1494,8 +1607,9 @@ async function elyRefresh(now = false) {
     const { reg: reg0 } = ownIds();
     if (navigator.onLine === false) {
       if (now && elyOn) toast('No internet — El Al traffic needs a connection');
+      if (inFlightNow()) elyList = elyList.filter(a => !a.stale);
       // Offline: where it was last seen, if we know.
-      const ls = reg0 && ely.lastSeen(reg0);
+      const ls = reg0 && !inFlightNow() && ely.lastSeen(reg0);
       if (ls && !elyList.some(a => a.own)) elyList = [...elyList, { ...ls, own: true, stale: true, hex: 'last-' + ls.hex }];
     } else {
       const list = elyOn ? await ely.fetchEly(state.model.route.pts).catch(() => null) : [];
@@ -1504,7 +1618,8 @@ async function elyRefresh(now = false) {
       const own = (reg || cs) ? await ely.fetchOwn(reg, cs).catch(() => null) : null;
       if (list) {
         if (own) { const i = list.findIndex(a => a.hex === own.hex); if (i >= 0) list[i] = own; else list.push(own); }
-        else { const ls = reg && ely.lastSeen(reg); if (ls) list.push({ ...ls, own: true, stale: true, hex: 'last-' + ls.hex }); }
+        // Its last position only when we aren't flying it now (then it's us).
+        else { const ls = reg && !inFlightNow() && ely.lastSeen(reg); if (ls) list.push({ ...ls, own: true, stale: true, hex: 'last-' + ls.hex }); }
         for (const a of list) { const was = elyList.find(x => x.hex === a.hex); if (was && was.route !== undefined) { a.route = was.route; a.fits = ely.routeFits(a.route, a); } }
         elyList = list; elyAt = Date.now();
         if (elySel && !list.some(a => a.hex === elySel)) closeEly();
@@ -1820,7 +1935,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=257'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=258'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

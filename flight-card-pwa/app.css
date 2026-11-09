@@ -4539,3 +4539,21 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 .atis-diagram .ad-bg { fill: transparent; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ad-tw path { stroke-opacity: .75; } }
 :root[data-theme="dark"] .ad-tw path { stroke-opacity: .75; }
+
+/* ATIS window: runway chips, the chosen runway's LDA and wind components. */
+.wx-rwy { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; font-size: 13px; line-height: 1.4; }
+.wx-rwy[hidden] { display: none; }
+.wx-rwy .rw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-rw-sel { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--bg-sunk); }
+
+/* In flight: ATIS for departure / destination / alternate, bottom left of
+   the map — one tap opens the ATIS window. */
+.ri-atis-btns { position: absolute; left: 8px; bottom: 10px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+.ri-atis-btns:empty { display: none; }
+.ri-atis-btns button {
+  display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px 4px 8px;
+  border: 0; border-radius: 10px; background: var(--bg-elev); color: var(--fg); font: inherit; font-size: 13px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.22); cursor: pointer; text-align: left;
+}
+.ri-atis-btns .ri-ab-l { font-size: 10px; font-weight: 800; letter-spacing: .06em; color: var(--fg-mute); min-width: 24px; }
+.ri-atis-btns b { font-weight: 800; }
