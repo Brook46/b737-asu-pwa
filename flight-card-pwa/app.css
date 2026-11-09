@@ -4554,8 +4554,6 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 
 /* ATIS diagram: tap a runway end to choose it; the wind sign top left. */
 .atis-diagram .ad-end { cursor: pointer; }
-.atis-diagram .ad-end .ad-hit { fill: transparent; transform: scale(var(--ad-k, 1)); }
-.atis-diagram .ad-end.is-sel .ad-des { fill: var(--accent); font-size: calc(17px * var(--ad-k, 1)); }
 .atis-diagram .ad-rw path.is-sel { stroke: var(--accent); }
 .ad-wind {
   position: absolute; top: 8px; left: 8px; z-index: 2; max-width: 46%;
@@ -4569,4 +4567,17 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 .ad-wp-rw { margin-top: 3px; padding-top: 4px; border-top: 1px solid var(--line-soft); }
 .ad-wp-k b { font-size: 14px; }
 .ad-wp-hint { font-size: 11px; color: var(--fg-mute); }
-.atis-diagram .ad-end.is-sel .ad-des { fill: #fff; stroke: var(--accent); stroke-width: calc(6px * var(--ad-k, 1)); }
+
+/* Runway numbers on the ATIS diagram, as on the In flight runway diagram:
+   dark box, white number, LDA beneath; chosen = filled blue, the ATIS's
+   runway in use = blue outline. One size on screen at any zoom. */
+.atis-diagram .ad-endk { transform: scale(var(--ad-k, 1)) translateX(var(--ad-o, 0px)); }
+.atis-diagram .ad-endk.ad-out-p { --ad-o: 20px; }
+.atis-diagram .ad-endk.ad-out-n { --ad-o: -20px; }
+.atis-diagram .ad-end .ad-hit { fill: transparent; stroke: none; }
+.atis-diagram .ad-idbox { fill: #1c1c1e; stroke: #8e8e93; stroke-width: 1; }
+.atis-diagram .ad-id { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; letter-spacing: .02em; pointer-events: none; }
+.atis-diagram .ad-lda { fill: var(--fg-mute); font-size: 8.5px; font-weight: 600; font-style: italic; text-anchor: middle; font-variant-numeric: tabular-nums;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: 2.5px; stroke-linejoin: round; pointer-events: none; }
+.atis-diagram .ad-end.is-inuse .ad-idbox { stroke: var(--accent); stroke-width: 2; }
+.atis-diagram .ad-end.is-sel .ad-idbox { fill: var(--accent); stroke: var(--accent); }

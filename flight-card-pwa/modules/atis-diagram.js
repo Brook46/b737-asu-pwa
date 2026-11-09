@@ -99,14 +99,35 @@ async function load(icao, lat, lon) {
 // heading — the end the runway runs away from on about des × 10°.
 function runwayEnd(geo, des) {
   const n = parseInt(des, 10) * 10;
-  for (const r of geo.rw) {
-    if (!norm(r.ref).split('/').includes(norm(des))) continue;
-    const a = r.pts[0], b = r.pts.at(-1);
-    const brg = (p, q) => (Math.atan2(q[0] - p[0], q[1] - p[1]) * 180 / Math.PI + 360) % 360;
-    const diff = (x) => Math.abs(((x - n) % 360 + 540) % 360 - 180);
-    return { at: diff(brg(a, b)) < diff(brg(b, a)) ? a : b, rw: r };
+  // A runway is often several OSM ways: its ends are the two points of all
+  // of them furthest apart, not the ends of the first piece.
+  const ways = geo.rw.filter(r => norm(r.ref).split('/').includes(norm(des)));
+  if (!ways.length) return null;
+  const pts = ways.flatMap(r => [r.pts[0], r.pts.at(-1)]);
+  let a = pts[0], b = pts[0], best = -1;
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    const d = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]);
+    if (d > best) { best = d; a = pts[i]; b = pts[j]; }
   }
-  return null;
+  const brg = (p, q) => (Math.atan2(q[0] - p[0], q[1] - p[1]) * 180 / Math.PI + 360) % 360;
+  const diff = (x) => Math.abs(((x - n) % 360 + 540) % 360 - 180);
+  const at = diff(brg(a, b)) < diff(brg(b, a)) ? a : b, far = at === a ? b : a;
+  // Past a displaced threshold or an extension OSM often draws an unnamed
+  // runway piece: follow those from each end to the physical edge, where
+  // the number goes (the threshold itself stays `at`).
+  const edgeFrom = (p) => {
+    let e = p;
+    for (let i = 0; i < 3; i++) {
+      const nx = geo.rw.find(r => !r.ref && [r.pts[0], r.pts.at(-1)].some(q => Math.hypot(q[0] - e[0], q[1] - e[1]) < 40));
+      if (!nx) break;
+      const [q0, q1] = [nx.pts[0], nx.pts.at(-1)];
+      const nxt = Math.hypot(q0[0] - e[0], q0[1] - e[1]) < 40 ? q1 : q0;
+      if (Math.hypot(nxt[0] - e[0], nxt[1] - e[1]) < 5 || nxt === e) break;
+      e = nxt;
+    }
+    return e;
+  };
+  return { at, far, edge: edgeFrom(at), farEdge: edgeFrom(far), rw: ways[0], ways };
 }
 
 // The diagram, or '' when there's nothing to draw. `items` from the ATIS
@@ -120,7 +141,7 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
     const ref = norm(it.ref);
     if (it.kind === 'RWY' || it.kind === 'ILS') {
       const e = runwayEnd(geo, ref);
-      if (e) marks.push({ it, rw: e.rw, at: e.at }); else missing.push(it.label);
+      if (e) marks.push({ it, rw: e.rw, rws: e.ways, at: e.at }); else missing.push(it.label);
       continue;
     }
     const want = it.kind === 'GATE' ? [ref, 'GATE' + ref] : it.kind === 'STAND' ? [ref, 'STAND' + ref] : [ref];
@@ -132,7 +153,7 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   // next to; with nothing found, the whole airport.
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const grow = (p) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); };
-  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.it.kind === 'RWY') m.rw.pts.forEach(grow); });
+  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.it.kind === 'RWY') m.rws.forEach(w => w.pts.forEach(grow)); });
   if (whole || !marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
   const pad = whole ? 300 : 350, MIN = 2400;
   x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
@@ -161,12 +182,24 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   g += `<g class="ad-rw">${geo.rw.map(r => `<path data-ad-rwy="${esc(norm(r.ref))}" d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
   // Runway designators at both ends — each one a tap target: it chooses
   // that runway for the wind components beside the diagram (app.js).
+  const doneRefs = new Set();
   for (const r of geo.rw) {
     const ends = String(r.ref || '').split('/');
-    if (ends.length !== 2) continue;
+    if (ends.length !== 2 || doneRefs.has(norm(r.ref))) continue;
+    doneRefs.add(norm(r.ref));
     for (const d of ends) {
       const e = runwayEnd(geo, d);
-      if (e && inside(e.at)) g += `<g class="ad-end" data-ad-rw="${esc(norm(d))}" data-ad-rwy="${esc(norm(r.ref))}" transform="translate(${X(e.at)},${Y(e.at)})"><circle class="ad-hit" r="18"/><text class="ad-des">${esc(d)}</text></g>`;
+      if (!e || !inside(e.edge)) continue;
+      // As on the In flight runway diagram: a dark box with the number,
+      // turned to lie along the runway, just beyond its end, with the LDA
+      // under it (filled in by app.js from the runway data).
+      const other = e.farEdge, tip = e.edge;
+      const ox = +X(tip) - +X(other), oy = +Y(tip) - +Y(other);
+      let ang = Math.atan2(oy, ox) * 180 / Math.PI, out = 1;
+      if (ang > 90 || ang < -90) { ang += 180; out = -1; }
+      g += `<g class="ad-end" data-ad-rw="${esc(norm(d))}" data-ad-rwy="${esc(norm(r.ref))}" transform="translate(${X(tip)},${Y(tip)}) rotate(${ang.toFixed(1)})">`
+        + `<g class="ad-endk ${out > 0 ? 'ad-out-p' : 'ad-out-n'}"><rect class="ad-hit" x="-22" y="-14" width="44" height="40"/>`
+        + `<rect class="ad-idbox" x="-14" y="-9" width="28" height="17" rx="3"/><text class="ad-id" y="3.8">${esc(d)}</text><text class="ad-lda" y="18"></text></g></g>`;
     }
   }
   for (const m of marks) {
@@ -178,7 +211,7 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
       // A name that would sit on another stays hidden until it's tapped.
       g += `<text class="${free(+X(mid), +Y(mid)) ? '' : 'ad-hide'}" x="${X(mid)}" y="${Y(mid)}">${esc(m.it.ref)}</text></g>`;
     } else if (m.it.kind === 'RWY') {
-      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}"><path d="${path(m.rw.pts)}" style="stroke-width:${rwW.toFixed(1)}"/></g>`;
+      g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
     } else {
       g += `<g class="ad-mark ad-ils" data-atis-ref="${k}" transform="translate(${X(m.at)},${Y(m.at)})"><circle r="9"/><text y="-13">ILS ${esc(m.it.ref)} ✕</text></g>`;
     }
