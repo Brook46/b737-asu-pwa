@@ -4757,3 +4757,5 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .print-adv .print-size + .print-note { margin-top: 0; }
 .print-ctrls > .print-flags { margin-top: 12px; }
 .print-pdf { margin-top: 8px; }
+/* Settings → Duty calendar: link to the step-by-step guide. */
+.cal-guide { display: inline-block; margin: 2px 0 8px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }

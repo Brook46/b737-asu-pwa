@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=268" />
+  <link rel="stylesheet" href="./app.css?v=269" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -64,6 +64,7 @@
             <path d="M3 12.5l9 5 9-5"/>
             <path d="M3 16.5l9 5 9-5"/>
           </svg><span>737 NG Inside</span></button>
+            <a id="guide-link" class="more-item" href="./menu.html" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/></svg><span>How to use</span></a>
             <!-- Not a .more-item: choosing a theme keeps the menu open, so the
                  pilot sees the change and can pick again. -->
             <div class="more-theme" role="group" aria-label="Theme">
@@ -479,6 +480,7 @@
           Nothing is ever pushed back to El Al or to your calendar.
         </p>
         </details>
+        <a class="cal-guide" href="./menu.html#start">How to connect, step by step ›</a>
         <div class="cal-row">
           <label class="cal-row-label" for="cal-url">Duty roster (read)</label>
           <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Duty calendar secret iCal URL (hidden)" />
@@ -1019,6 +1021,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=268"></script>
+  <script type="module" src="./app.js?v=269"></script>
 </body>
 </html>

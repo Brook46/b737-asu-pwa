@@ -3,736 +3,671 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="description" content="Flight Card — the manual. How to get your roster into the app and use every feature." />
-  <title>Flight Card — the manual</title>
+  <meta name="description" content="Flight Card — how to use it. Connect your roster, then a normal flight day from briefing to landing." />
+  <title>Flight Card Guide</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #fbfaf7;       --fg: #18181b;
-      --fg-dim: #6b7280;
-      --card: #ffffff;     --line: #e7e5e0;
-      --accent: #1e6fd1;   --accent-soft: #e3edfb;
-      --warm:  #ffa94d;    --warm-soft:  #fff3e0;
-      --pink:  #f15a8b;    --pink-soft:  #ffe1ec;
-      --green: #2ea88a;    --green-soft: #d8f1e8;
-      --grape: #7c3aed;    --grape-soft: #ece1ff;
-      --kbd:   #f3f4f6;
+      --bg: #f6f6f3; --card: #ffffff; --fg: #17181b; --dim: #62666f; --line: #e3e2dd;
+      --accent: #1e6fd1; --accent-soft: #e4eefb; --tap: #ff3b6b; --on-accent: #fff;
+      --red: #d93a3a; --orange: #e07a10; --yellow: #c79a00; --green: #1f9d6b;
+      --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 28px rgba(0,0,0,.08);
     }
     @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0b0c0e;     --fg: #f4f4f5;
-        --fg-dim: #a1a1aa;
-        --card: #16181c;   --line: #2a2d33;
-        --accent: #5fa8ff; --accent-soft: #15243d;
-        --warm:  #ffb86b;  --warm-soft:  #3a2810;
-        --pink:  #ff7aa5;  --pink-soft:  #3a1b29;
-        --green: #5cd8b5;  --green-soft: #112d24;
-        --grape: #b794ff;  --grape-soft: #251a3a;
-        --kbd:   #1f2127;
+      :root:not([data-theme="light"]) {
+        --bg: #0d0e10; --card: #17191d; --fg: #f2f2f4; --dim: #a2a6ae; --line: #2a2d33;
+        --accent: #63a9ff; --accent-soft: #15253d; --tap: #ff5c86; --on-accent: #08111f;
+        --red: #ff6b6b; --orange: #ffa64d; --yellow: #f2c94c; --green: #4fd1a0;
+        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.4);
       }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
     body {
-      background:
-        radial-gradient(1100px 600px at 80% -10%, var(--accent-soft) 0%, transparent 60%),
-        radial-gradient(900px  500px at -10% 110%, var(--pink-soft) 0%, transparent 55%),
-        var(--bg);
-      background-attachment: fixed;
-      color: var(--fg);
-      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
-      padding: 28px 18px 80px;
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      padding: 0 16px 80px;
+      padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right));
     }
-    .wrap { max-width: 760px; margin: 0 auto; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    a { color: var(--accent); }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.01em; }
 
-    /* ---- Hero ---- */
-    .hero {
-      text-align: center;
-      padding: 16px 8px 28px;
+    /* Top bar */
+    .top {
+      position: sticky; top: 0; z-index: 10;
+      margin: 0 -16px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
     }
-    .hero .badge {
+    .top-in { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+    .top b { font-size: 16px; flex: 1; }
+    .btn {
       display: inline-flex; align-items: center; gap: 6px;
-      background: var(--card); border: 1px solid var(--line);
-      padding: 6px 12px; border-radius: 999px;
-      font-size: 12px; font-weight: 600;
-      color: var(--accent);
-      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+      padding: 9px 16px; border-radius: 11px; border: 0;
+      background: var(--accent); color: var(--on-accent); font: 600 15px system-ui, sans-serif;
+      text-decoration: none; cursor: pointer; white-space: nowrap;
     }
-    .hero h1 {
-      font-size: clamp(36px, 8vw, 56px);
-      margin: 14px 0 6px;
-      letter-spacing: -0.02em;
-      line-height: 1.05;
-      background: linear-gradient(120deg, var(--accent), var(--grape));
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .hero p.tagline {
-      font-size: 17px; color: var(--fg-dim);
-      margin: 0 auto 20px; max-width: 540px;
-    }
-    .hero .cta-row {
-      display: inline-flex; gap: 10px; flex-wrap: wrap;
-      justify-content: center;
-    }
-    .cta {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--accent); color: #fff;
-      padding: 12px 20px; border-radius: 12px;
-      font-weight: 600; font-size: 15px;
-      text-decoration: none;
-      box-shadow: 0 6px 18px rgba(30,111,209,0.25);
-      transition: transform 0.12s ease;
-    }
-    .cta:hover { transform: translateY(-1px); }
-    .cta.secondary {
-      background: transparent; color: var(--fg);
+    .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+    .toc { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; max-width: 900px; margin: 0 auto; }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc a {
+      flex: 0 0 auto; text-decoration: none; font-size: 13px; font-weight: 600;
+      padding: 6px 12px; border-radius: 999px; background: var(--card); color: var(--fg);
       border: 1px solid var(--line);
-      box-shadow: none;
     }
+    .toc a.must { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-    /* ---- Section ---- */
-    section { margin: 36px 0; }
-    h2 {
-      font-size: 22px; margin: 0 0 6px;
-      letter-spacing: -0.01em;
-      display: flex; align-items: center; gap: 10px;
-    }
-    h2 .icon-bubble {
-      width: 36px; height: 36px;
-      border-radius: 11px;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 20px;
-      flex-shrink: 0;
-    }
-    .h2-lede { color: var(--fg-dim); margin: 0 0 14px; }
+    header.hero { padding: 34px 0 10px; }
+    header.hero h1 { font-size: clamp(30px, 6vw, 44px); margin: 0 0 8px; }
+    header.hero p { color: var(--dim); margin: 0; font-size: 18px; max-width: 640px; }
 
-    /* ---- Step list (getting started) ---- */
-    .steps {
-      list-style: none; padding: 0; margin: 14px 0;
-      counter-reset: step;
-    }
-    .steps li {
-      position: relative;
-      counter-increment: step;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px 16px 14px 58px;
-      margin: 10px 0;
-      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
-    }
-    .steps li::before {
-      content: counter(step);
-      position: absolute; left: 14px; top: 14px;
-      width: 30px; height: 30px;
-      border-radius: 50%;
-      background: var(--accent); color: #fff;
+    section { margin-top: 44px; scroll-margin-top: 110px; }
+    .part { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+    section > h2 { font-size: clamp(24px, 4.5vw, 32px); margin: 0 0 10px; }
+    h3 { font-size: 20px; margin: 30px 0 8px; }
+    .lead { color: var(--dim); margin: 0 0 16px; }
+
+    .card { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 18px 20px; }
+    .card + .card { margin-top: 14px; }
+    .must-box { border: 2px solid var(--accent); }
+    .tip { background: var(--accent-soft); border-radius: 14px; padding: 12px 16px; font-size: 15px; margin: 14px 0; }
+    .warn { background: color-mix(in srgb, var(--orange) 14%, var(--card)); border-radius: 14px; padding: 12px 16px; font-size: 15px; margin: 14px 0; }
+
+    ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 10px 0; }
+    ol.steps > li { counter-increment: s; position: relative; padding: 4px 0 12px 46px; }
+    ol.steps > li::before {
+      content: counter(s); position: absolute; left: 0; top: 2px;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 16px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 14px;
     }
-    .steps li b { display: block; margin-bottom: 2px; }
+    ol.steps b { display: block; font-size: 17px; }
+    ol.steps span { color: var(--dim); font-size: 15px; }
+    kbd { font: 600 14px system-ui; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 
-    /* ---- Feature grid ---- */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-      margin: 14px 0;
+    /* Screenshots with numbered marks */
+    figure.shot { margin: 14px 0 6px; }
+    .frame {
+      position: relative; border-radius: 14px; overflow: hidden;
+      box-shadow: var(--shadow); border: 1px solid var(--line); background: var(--card);
     }
-    .feat {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px 16px;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    .frame img { display: block; width: 100%; height: auto; }
+    .mk {
+      position: absolute; transform: translate(-50%, -50%);
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--tap); color: #fff; font: 800 15px system-ui;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 3px #fff, 0 3px 10px rgba(0,0,0,.35);
     }
-    .feat:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    @media (max-width: 560px) { .mk { width: 22px; height: 22px; font-size: 12px; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.35); } }
+    figcaption { font-size: 13px; color: var(--dim); margin-top: 6px; text-align: center; }
+    ol.keys { padding-left: 0; list-style: none; counter-reset: k; margin: 12px 0 0; }
+    ol.keys li { counter-increment: k; position: relative; padding: 3px 0 9px 36px; font-size: 16px; }
+    ol.keys li::before {
+      content: counter(k); position: absolute; left: 0; top: 3px;
+      width: 24px; height: 24px; border-radius: 50%; background: var(--tap); color: #fff;
+      font: 800 13px system-ui; display: flex; align-items: center; justify-content: center;
     }
-    .feat .emoji {
-      font-size: 28px;
-      line-height: 1; display: block; margin-bottom: 8px;
-    }
-    .feat h3 { margin: 0 0 4px; font-size: 16px; }
-    .feat p  { margin: 0; color: var(--fg-dim); font-size: 14px; }
 
-    /* ---- Inline goodies ---- */
-    code, kbd {
-      background: var(--kbd);
-      border: 1px solid var(--line);
-      padding: 1px 6px; border-radius: 5px;
-      font: 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: var(--fg);
+    /* Tap animation: a ring that pulses where the finger goes */
+    .tap {
+      position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+      border-radius: 50%; pointer-events: none;
+      border: 3px solid var(--tap); background: color-mix(in srgb, var(--tap) 22%, transparent);
+      animation: tap 1.6s ease-out infinite;
     }
-    .var-row {
-      display: flex; flex-wrap: wrap; gap: 6px;
-      margin: 8px 0 4px;
+    .tap::after {
+      content: ''; position: absolute; inset: -12px; border-radius: 50%;
+      border: 2px solid var(--tap); opacity: 0; animation: ring 1.6s ease-out infinite;
     }
-    .var-row code {
-      background: var(--accent-soft);
-      color: var(--accent);
-      border-color: transparent;
-      font-weight: 600;
-    }
-    .callout {
-      background: var(--warm-soft);
-      border-left: 3px solid var(--warm);
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin: 12px 0;
-      font-size: 14px;
-    }
-    .pill {
-      display: inline-flex; align-items: center;
-      background: var(--green-soft); color: var(--green);
-      padding: 2px 8px; border-radius: 999px;
-      font-size: 11px; font-weight: 700;
-      vertical-align: middle;
-      margin-left: 6px;
-    }
-    .pill.warm  { background: var(--warm-soft);  color: var(--warm); }
-    .pill.pink  { background: var(--pink-soft);  color: var(--pink); }
-    .pill.grape { background: var(--grape-soft); color: var(--grape); }
+    @keyframes tap { 0%, 100% { transform: scale(1); } 40% { transform: scale(.78); } }
+    @keyframes ring { 0% { opacity: .9; transform: scale(.6); } 70%, 100% { opacity: 0; transform: scale(1.5); } }
+    @media (prefers-reduced-motion: reduce) { .tap, .tap::after { animation: none; } }
 
-    /* Icon bubble colours per section */
-    .b-blue  { background: var(--accent-soft); color: var(--accent); }
-    .b-warm  { background: var(--warm-soft);   color: var(--warm); }
-    .b-pink  { background: var(--pink-soft);   color: var(--pink); }
-    .b-green { background: var(--green-soft);  color: var(--green); }
-    .b-grape { background: var(--grape-soft);  color: var(--grape); }
-
-    .meta {
-      color: var(--fg-dim); font-size: 12px;
-      margin-top: 56px; padding-top: 20px;
-      border-top: 1px solid var(--line);
-      text-align: center;
+    /* Walkthrough player */
+    .walk { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 14px; margin: 14px 0; }
+    .walk-stage { position: relative; }
+    .slide { display: none; }
+    .slide.on { display: block; animation: fade .35s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .slide .cap { display: flex; gap: 12px; align-items: flex-start; margin: 12px 2px 2px; }
+    .slide .num {
+      flex: 0 0 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+      font: 800 16px system-ui; display: flex; align-items: center; justify-content: center;
     }
-    .meta a { color: var(--accent); text-decoration: none; }
-    .meta a:hover { text-decoration: underline; }
+    .slide .cap > div > b { display: block; font-size: 18px; }
+    .slide .cap > div > span { color: var(--dim); font-size: 15px; }
+    .walk-ctl { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .walk-ctl button {
+      -webkit-appearance: none; appearance: none; border: 1px solid var(--line); background: var(--bg);
+      color: var(--fg); border-radius: 10px; padding: 8px 14px; font: 600 15px system-ui; cursor: pointer;
+    }
+    .dots { flex: 1; display: flex; justify-content: center; gap: 7px; }
+    .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all .2s; }
+    .dots i.on { background: var(--accent); width: 24px; border-radius: 6px; }
+
+    /* Drawn Google Calendar page (an illustration, not a screenshot) */
+    .gc {
+      position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
+      background: #fff; color: #202124; font: 14px/1.4 Roboto, Arial, system-ui, sans-serif;
+      min-height: 320px;
+    }
+    .gc-bar { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #f1f3f4; border-bottom: 1px solid #dadce0; }
+    .gc-url { flex: 1; background: #fff; border-radius: 9px; padding: 6px 12px; font-size: 13px; color: #5f6368; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gc-url b { color: #202124; font-weight: 500; }
+    .gc-body { display: flex; min-height: 280px; }
+    .gc-side { flex: 0 0 34%; border-right: 1px solid #dadce0; padding: 12px 0; font-size: 13px; }
+    .gc-side h5 { margin: 10px 18px 6px; font: 500 12px Roboto, Arial, sans-serif; color: #5f6368; }
+    .gc-side div { padding: 7px 18px 7px 26px; border-radius: 0 20px 20px 0; margin-right: 10px; position: relative; }
+    .gc-side div.sub { padding-left: 40px; color: #3c4043; font-size: 12.5px; }
+    .gc-side div.sel { background: #e8f0fe; color: #1967d2; font-weight: 500; }
+    .gc-main { flex: 1; padding: 18px 24px; overflow: hidden; position: relative; }
+    .gc-main h4 { margin: 0 0 14px; font: 400 20px "Google Sans", Roboto, Arial, sans-serif; }
+    .gc-field { margin-bottom: 14px; }
+    .gc-field label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 4px; }
+    .gc-field .box { position: relative; border: 1px solid #dadce0; border-radius: 6px; padding: 8px 10px; font-size: 13px; color: #3c4043; display: flex; align-items: center; gap: 8px; }
+    .gc-field .box .v { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .gc-field.hot .box { border-color: #1a73e8; box-shadow: 0 0 0 2px #d2e3fc; }
+    .gc-copy { width: 22px; height: 22px; flex: 0 0 22px; color: #5f6368; position: relative; }
+    .gc-toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: #323232; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 13px; }
+    .gc-tag { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: #80868b; }
+    @media (max-width: 560px) { .gc { font-size: 11px; } .gc-side { font-size: 10.5px; } .gc-main h4 { font-size: 15px; } .gc-field .box { font-size: 10.5px; padding: 6px 8px; } }
+
+    /* Day timeline */
+    .day { position: relative; padding-left: 26px; }
+    .day::before { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: linear-gradient(var(--accent), var(--green)); }
+    .stop { position: relative; margin-bottom: 34px; }
+    .stop::before { content: ''; position: absolute; left: -24px; top: 6px; width: 15px; height: 15px; border-radius: 50%; background: var(--card); border: 3px solid var(--accent); }
+    .stop .when { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+    .stop h3 { margin: 2px 0 6px; }
+
+    .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 16px; margin: 10px 0; font-size: 15px; }
+    .legend div { display: flex; gap: 10px; align-items: baseline; }
+    .sw { flex: 0 0 auto; font: 700 13px ui-monospace, Menlo, monospace; padding: 1px 6px; border-radius: 5px; }
+    .c-red { color: var(--red); } .c-or { color: var(--orange); } .c-ye { color: var(--yellow); } .c-bl { color: var(--accent); } .c-gr { color: var(--green); }
+    .dot-r, .dot-o, .dot-y { display: inline-block; flex: 0 0 10px; width: 10px; height: 10px; align-self: center; border-radius: 50%; margin-right: 4px; }
+    .dot-r { background: var(--red); } .dot-o { background: var(--orange); } .dot-y { background: var(--yellow); }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } }
+    details.more { margin: 12px 0; background: var(--card); border-radius: 14px; box-shadow: var(--shadow); }
+    details.more > summary { cursor: pointer; padding: 14px 18px; font-weight: 700; list-style: none; }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary::after { content: '＋'; float: right; color: var(--accent); }
+    details.more[open] > summary::after { content: '－'; }
+    details.more > div { padding: 0 18px 14px; }
+    ul.tight { margin: 6px 0; padding-left: 20px; } ul.tight li { margin: 4px 0; }
+    footer { margin-top: 60px; color: var(--dim); font-size: 13px; text-align: center; }
   </style>
 </head>
 <body>
-<div class="wrap">
-
-  <!-- ============ HERO ============ -->
-  <header class="hero">
-    <span class="badge">✈ The 737NG cockpit companion</span>
-    <h1>Flight Card<br/>the manual</h1>
-    <p class="tagline">
-      Your roster, your data card, your checklist, and your PA library —
-      all in one tiny PWA that lives on your iPad and works offline.
-    </p>
-    <div class="cta-row">
-      <a class="cta"          href="./">Open the app →</a>
-      <a class="cta secondary" href="./share.html">Share link</a>
+  <div class="top">
+    <div class="top-in">
+      <b>Flight Card Guide</b>
+      <a class="btn" href="./index.html">Open the app</a>
     </div>
-  </header>
+    <nav class="toc" aria-label="Contents">
+      <a class="must" href="#start">1 · Start here</a>
+      <a href="#day">2 · A flight day</a>
+      <a href="#live">Live data</a>
+      <a href="#checklist">Checklist &amp; print</a>
+      <a href="#notes">Notes</a>
+      <a href="#pa">PA</a>
+      <a href="#asu">ASU</a>
+      <a href="#more">More</a>
+    </nav>
+  </div>
 
-  <!-- ============ INSTALL ON IPAD ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">📲</span> Install it on your iPad</h2>
-    <p class="h2-lede">
-      Open it from Safari once, add it to your Home Screen, and from then on
-      it behaves like a real app — full-screen, offline-capable, Slide-Over-ready.
-    </p>
-    <ol class="steps">
-      <li>
-        <b>Open the app in Safari</b>
-        Visit <code>brook46.github.io/b737-asu-pwa/flight-card-pwa/</code>.
-        Safari (not Chrome) — only Safari can install PWAs on iPadOS.
-      </li>
-      <li>
-        <b>Tap the Share button</b>
-        The <kbd>⬆</kbd> square-with-arrow at the top of the Safari window.
-      </li>
-      <li>
-        <b>Pick "Add to Home Screen"</b>
-        Scroll down in the share sheet — it's a row with a small grey <kbd>＋</kbd>.
-        Rename it <i>Flight Card</i> if you like, then tap <kbd>Add</kbd>.
-      </li>
-      <li>
-        <b>Launch from the Home Screen</b>
-        The blue ✈ icon now lives on your Home Screen. Tap it once to launch —
-        the first launch caches the whole app, so it works offline forever after that.
-      </li>
-    </ol>
-    <div class="callout">
-      <b>Why not just use the Safari tab?</b> The installed PWA gets its own
-      window, can go into Slide Over, runs offline, survives a restart, and
-      doesn't lose state when you switch apps. The Safari tab can't do any of
-      those.
-    </div>
-  </section>
+  <div class="wrap">
+    <header class="hero">
+      <h1>Flight Card, step by step</h1>
+      <p>Do <b>Start here</b> once, about 5 minutes on the iPad. Then <b>A flight day</b> shows the app in the order you'll use it.</p>
+    </header>
 
-  <!-- ============ SLIDE OVER ============ -->
-  <section>
-    <h2><span class="icon-bubble b-grape">🪟</span> Use it as a floating window (Slide Over)</h2>
-    <p class="h2-lede">
-      Keep Flight Card hovering over your OPT, Lido, or charts app — same screen,
-      no app switch. Slide-Over is iPadOS's killer multitasking trick; the
-      installed PWA plays nicely with it.
-    </p>
-    <ol class="steps">
-      <li>
-        <b>Pin Flight Card to the Dock</b>
-        Long-press the ✈ icon on the Home Screen → <i>Add to Dock</i>. (If
-        it's already in the Dock, skip this step.) Recently-used apps don't
-        always show up in Slide Over — pinning makes it reliable.
-      </li>
-      <li>
-        <b>Open your main app first</b>
-        Launch the app you'll be working in full-screen — Lido, OPT, Pilots,
-        Documents, whatever.
-      </li>
-      <li>
-        <b>Show the Dock</b>
-        Swipe up <i>briefly</i> from the very bottom edge of the screen — about
-        an inch — and let go. The Dock appears across the bottom. (Swipe further
-        and you'll switch to the App Switcher instead.)
-      </li>
-      <li>
-        <b>Drag Flight Card onto the screen</b>
-        Press and hold the ✈ Flight Card icon in the Dock, drag it up toward
-        the middle of the screen, then release. It pops up as a narrow floating
-        window on the right.
-      </li>
-      <li>
-        <b>Park it where you want it</b>
-        Drag the small grey handle at the top of the floating window to the left
-        or right edge to dock it there. Swipe the handle off-screen to hide
-        Flight Card without closing it — a thin grey edge stays visible and
-        a single swipe brings it back.
-      </li>
-    </ol>
-    <div class="callout">
-      <b>Three-dot menu on iPadOS 16+:</b> the trio of dots at the top of
-      every window opens the same menu — pick the middle icon (a small
-      rectangle to one side) for Slide Over. Tap the rightmost icon to flip
-      back to full-screen.
-    </div>
-    <div class="callout" style="background:var(--pink-soft);border-left-color:var(--pink);">
-      <b>Heads-up:</b> Slide Over only works with <i>installed</i> PWAs — a
-      Safari tab can't go in Slide Over. If the icon doesn't drag out of the
-      Dock, re-check that you installed Flight Card to the Home Screen first.
-    </div>
-  </section>
+    <!-- ================= PART 1 ================= -->
+    <section id="start">
+      <div class="part">Part 1 · the must</div>
+      <h2>Start here</h2>
+      <p class="lead">Two things: put the app on the iPad, then connect your roster calendar. Everything else fills itself in from the roster.</p>
 
-  <!-- ============ CALENDAR SYNC ============ -->
-  <section>
-    <h2><span class="icon-bubble b-green">📅</span> Connect your Google Calendar</h2>
-    <p class="h2-lede">
-      Paste your calendar's secret iCal address once. From then on the app
-      pulls every leg automatically, 3 hours before each departure, with no
-      sign-in and no OAuth dance.
-    </p>
-    <p style="margin:0 0 8px;"><b>On a Mac or PC, grab the secret address from Google Calendar:</b></p>
-    <ol class="steps">
-      <li>
-        <b>Open Google Calendar settings</b>
-        Sign in at <code>calendar.google.com</code>, click the gear ⚙ → <i>Settings</i>.
-      </li>
-      <li>
-        <b>Pick your duty calendar</b>
-        In the left sidebar, click the calendar you keep your flights on (under
-        <i>Settings for my calendars</i>).
-      </li>
-      <li>
-        <b>Find "Integrate calendar"</b>
-        Scroll all the way down to <i>Integrate calendar</i>.
-      </li>
-      <li>
-        <b>Copy "Secret address in iCal format"</b>
-        It's a long URL starting with <code>https://calendar.google.com/calendar/ical/…</code>
-        and ending in <code>basic.ics</code>. Tap the copy icon next to it.
-        <br/><span style="color:var(--fg-dim);font-size:13px;">⚠ This URL is a password — anyone with it can read your calendar. Don't share it.</span>
-      </li>
-    </ol>
-    <p style="margin:0 0 8px;"><b>Then in Flight Card on the iPad:</b></p>
-    <ol class="steps" style="counter-reset: step 4;">
-      <li>
-        <b>Open the share / sync sheet</b>
-        Tap the <kbd>▣</kbd> icon in the header.
-      </li>
-      <li>
-        <b>Paste into "Secret iCal URL"</b>
-        The field hides what you type (•••••), so make sure the paste is clean.
-        Tap <kbd>Save calendar</kbd>.
-      </li>
-      <li>
-        <b>Tap "Sync now"</b>
-        Watch every leg of the month appear in the leg switcher, sorted by UTC dep.
-      </li>
-    </ol>
-    <div class="callout">
-      <b>How auto-refresh works:</b> the app re-syncs <b>3 hours before each leg's
-      departure</b> (and on app launch if it's been more than 60 min). Manual refresh
-      always works from the same sheet. Within the 3-hour lock window before
-      departure, your typed crew names and flight time are sticky — sync won't
-      overwrite them, so an evening dispatch update can't silently revert a name
-      you fixed in the cockpit.
-    </div>
-    <div class="callout" style="background:var(--accent-soft);border-left-color:var(--accent);">
-      <b>Keep the secret URL safe.</b> Once it's saved the field shows dots and
-      you can't read it back. Stash the original in 1Password / Apple Passwords
-      so you can re-paste if you ever clear the app's data.
-    </div>
-  </section>
-
-  <!-- ============ STEP 1 — get the calendar in ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">📋</span> Or paste your bulletin (manual fallback)</h2>
-    <p class="h2-lede">
-      Your monthly bulletin is the fastest way to fill the app. One paste
-      and every leg of the duty period lands in your leg list, sorted by
-      UTC departure.
-    </p>
-    <ol class="steps">
-      <li>
-        <b>Copy your duty bulletin</b>
-        Open the e-bulletin (Slip details / Cockpit format) and select-all → copy the text.
-      </li>
-      <li>
-        <b>Open Flight Card</b>
-        Tap the <kbd>✈</kbd> <i>New Flight</i> icon in the header.
-      </li>
-      <li>
-        <b>Tap "Paste roster"</b>
-        Paste into the box and tap <kbd>Parse</kbd>.
-      </li>
-      <li>
-        <b>Done</b>
-        Every leg shows up in the switcher with dep / arr / flight # / tail / schedule.
-        The current-time leg is auto-selected; tap <kbd>🛫</kbd> any time to jump back to "now".
-      </li>
-    </ol>
-    <div class="callout">
-      <b>Single flight, no bulletin?</b> Skip the paste — just type a flight number in the
-      header pill (e.g. <code>27</code>). If it matches a known ELY route the popup
-      offers to create the leg with dep / arr already filled in.
-    </div>
-  </section>
-
-  <!-- ============ FEATURE GRID ============ -->
-  <section>
-    <h2><span class="icon-bubble b-grape">🎁</span> What's in the box</h2>
-    <p class="h2-lede">Tap any card below in the app, or just keep scrolling for the details.</p>
-    <div class="grid">
-      <div class="feat"><span class="emoji">📋</span><h3>Data card</h3><p>V-speeds, fuel, ATIS, SOB, crew — per-leg, so leg 2's numbers don't bleed into leg 1.</p></div>
-      <div class="feat"><span class="emoji">✅</span><h3>Checklist</h3><p>Cabin · Papers &amp; perf · Phase-of-flight items. Tick, edit, reorder, reset.</p></div>
-      <div class="feat"><span class="emoji">📸</span><h3>OPT / FMC reader</h3><p>Drop a takeoff-performance screenshot — V-speeds + N1 + flaps + tail auto-fill.</p></div>
-      <div class="feat"><span class="emoji">📣</span><h3>PA library</h3><p>Welcome, Go-around, Emergency, Ditching, Smoke/fire, Malfunction, Delays — EN + HE side by side.</p></div>
-      <div class="feat"><span class="emoji">⚙</span><h3>Settings &amp; logbook</h3><p>Calendar sync, AirDrop full-state sync, and a logbook .ics export — subscribe in Calendar to keep a permanent flying record.</p></div>
-      <div class="feat"><span class="emoji">🌦</span><h3>Live ATIS + METAR</h3><p>Tap the ATIS chip → D-ATIS + METAR for the dep airport, red/blue read state, 10-min refresh.</p></div>
-    </div>
-  </section>
-
-  <!-- ============ DATA CARD DEEP DIVE ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">📋</span> Data card</h2>
-    <p class="h2-lede">Per-flight numbers, grouped so the right field is one tap away during a turn.</p>
-    <div class="grid">
-      <div class="feat"><span class="emoji">🧍‍♂️</span><h3>Souls on board</h3><p>One number. Tap, type, done.</p></div>
-      <div class="feat"><span class="emoji">🔤</span><h3>ATIS</h3><p>Letter chip + tap-through to live D-ATIS &amp; METAR popup with red/blue read state.</p></div>
-      <div class="feat"><span class="emoji">🛫</span><h3>Takeoff perf</h3><p>V1 · VR · V2 · N1 · Flaps. Flaps cell is collapsed; tap to pick 1/5/10/15/25 — Flap 5 paints blue, anything else red.</p></div>
-      <div class="feat"><span class="emoji">⛽</span><h3>Fuel</h3><p>Trip + Block. Type tonnes (<code>12.3</code> or <code>5</code>) → auto-converts to kg on blur.</p></div>
-      <div class="feat"><span class="emoji">🗺</span><h3>Flight</h3><p>Dep · Arr · Flight time in HH:MM (auto-formatted as you type).</p></div>
-      <div class="feat"><span class="emoji">👥</span><h3>Crew</h3><p>CPT, FO, Purser + CC2…CC5. Carried forward into every new leg from the roster.</p></div>
-    </div>
-    <p style="margin-top:14px;color:var(--fg-dim);font-size:14px;">
-      Every group and the whole card have a <kbd>↻</kbd> reset that wipes its values in one tap.
-      Flight + Crew survive resets so the persistent header info stays put.
-    </p>
-  </section>
-
-  <!-- ============ OPT / FMC ============ -->
-  <section>
-    <h2><span class="icon-bubble b-warm">📸</span> OPT / FMC screenshot reader <span class="pill warm">OCR</span></h2>
-    <p class="h2-lede">Skip the typing — feed it the picture you already have.</p>
-    <p>
-      Tap <kbd>⌖ OPT / FMC</kbd> on the Takeoff performance group, pick a
-      screenshot from Photos. The parser pulls out:
-    </p>
-    <ul style="padding-left:18px;color:var(--fg);">
-      <li><b>Tail</b> from <code>PROFILE EHB</code> → normalised to <code>4X-EHB</code>.</li>
-      <li><b>Flaps</b> from the bottom output value.</li>
-      <li><b>N1</b> from <code>TO2 93.2</code> (derate) or <code>N1 92.5</code> (full thrust).</li>
-      <li><b>V1 / VR / V2</b> from the bottom-right block.</li>
-    </ul>
-    <div class="callout">
-      Powered by Tesseract.js. Cached on first use → works offline forever after that.
-    </div>
-  </section>
-
-  <!-- ============ PER-LEG STATE ============ -->
-  <section>
-    <h2><span class="icon-bubble b-green">🧳</span> Per-leg state <span class="pill">v7+</span></h2>
-    <p class="h2-lede">Leg 2's fuel doesn't bleed into leg 1. Ever.</p>
-    <p>
-      Each leg owns its own data card and checklist. Switching legs swaps
-      V-speeds, fuel, ATIS, SOB and checklist ticks with it. Crew + flight
-      identity ride along automatically.
-    </p>
-    <p>
-      The <kbd>🛫</kbd> button next to the leg switcher arrows jumps to whichever
-      leg's dep → arr window contains the current UTC.
-    </p>
-  </section>
-
-  <!-- ============ HEADER PILL ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">🪪</span> Header — ELY flight number</h2>
-    <p>
-      Type digits (<code>1</code>, <code>27</code>, <code>337</code>) and the header
-      auto-renders <code>ELY###</code>. Switching to a new number:
-    </p>
-    <ul style="padding-left:18px;">
-      <li>Matches a leg you already have → it switches to it.</li>
-      <li>Brand new → confirm popup shows route + typical block time and creates a new leg.</li>
-    </ul>
-    <p>
-      The <kbd>↗</kbd> next to the CTOT pill opens FlightAware for the current ELY ###
-      so you can look up real ETD / slot.
-    </p>
-  </section>
-
-  <!-- ============ PA LIBRARY ============ -->
-  <section>
-    <h2><span class="icon-bubble b-pink">📣</span> PA library <span class="pill pink">EN + HE</span></h2>
-    <p class="h2-lede">One window, two languages, every QRH-style scenario.</p>
-    <p>
-      Default set: <b>Welcome</b>, <b>Go around</b>, <b>Emergency</b>, <b>Ditching</b>,
-      <b>Smoke / fire</b>, <b>Malfunction</b>, <b>Delays</b>. Hebrew on top (RTL),
-      English below (LTR). Edit mode adds:
-    </p>
-    <ul style="padding-left:18px;">
-      <li>A sticky chip row of <code>@</code>-tokens — tap to insert instead of typing the <kbd>@</kbd> key.</li>
-      <li><kbd>◀</kbd> <kbd>▶</kbd> reorder buttons.</li>
-      <li>Inline name editing — just type in the title.</li>
-    </ul>
-    <p style="margin-top:14px;"><b>Variables that auto-fill:</b></p>
-    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-      <div class="feat"><span class="emoji">🪪</span><h3>Identity</h3>
-        <div class="var-row"><code>@cpt</code><code>@fo</code><code>@rp1</code><code>@PU</code><code>@flight</code><code>@tail</code></div>
+      <div class="card">
+        <h3 style="margin-top:0">A · Put Flight Card on the Home Screen</h3>
+        <ol class="steps">
+          <li><b>Open this link in Safari on the iPad</b><span><a href="https://brook46.github.io/b737-asu-pwa/flight-card-pwa/">brook46.github.io/b737-asu-pwa/flight-card-pwa</a>. Use Safari, not Chrome.</span></li>
+          <li><b>Tap Share <kbd>⬆</kbd>, then “Add to Home Screen”</b><span>The Share button is the square with an arrow at the top of Safari.</span></li>
+          <li><b>Open it from the new ✈ icon</b><span>From now on, always open it from that icon. It works offline and keeps your data there.</span></li>
+        </ol>
       </div>
-      <div class="feat"><span class="emoji">🗺</span><h3>Route</h3>
-        <div class="var-row"><code>@dep</code><code>@arr</code><code>@flighttime</code></div>
+
+      <div class="card must-box" style="margin-top:16px">
+        <h3 style="margin-top:0">B · Connect your roster calendar</h3>
+        <p style="margin:0 0 6px">Your roster calendar has a private link. Copy it once from Google Calendar and paste it into Flight Card. That's all: every flight, crew list and time then comes in by itself. Flight Card only <b>reads</b> the calendar and never changes it.</p>
+
+        <h3>Step 1 · Copy the link in Google Calendar</h3>
+        <p class="lead" style="margin-bottom:8px">In Safari on the iPad. Google's Calendar <i>app</i> doesn't have this setting, the website does.</p>
+        <p><a class="btn" href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener">Open Google Calendar settings ↗</a></p>
+
+        <div class="walk" data-walk>
+          <div class="walk-stage">
+            <div class="slide">
+              <div class="gc">
+                <div class="gc-bar"><div class="gc-url">🔒 <b>calendar.google.com</b>/calendar/r/settings</div></div>
+                <div class="gc-body">
+                  <div class="gc-side">
+                    <div>General</div><div>Add calendar</div><div>Import &amp; export</div>
+                    <h5>Settings for my calendars</h5>
+                    <div>Your name</div>
+                    <div>ELALOrganizer<span class="tap" style="left:40%;top:50%"></span></div>
+                    <div>Birthdays</div>
+                  </div>
+                  <div class="gc-main"><h4>General</h4>
+                    <div class="gc-field"><label>Language and region</label><div class="box"><span class="v">English</span></div></div>
+                    <div class="gc-field"><label>Time zone</label><div class="box"><span class="v">(GMT+02:00) Israel Time</span></div></div>
+                  </div>
+                </div>
+                <span class="gc-tag">illustration</span>
+              </div>
+              <div class="cap"><span class="num">1</span><div><b>Tap your roster calendar</b><span>On the left, under <i>Settings for my calendars</i>, e.g. <b>ELALOrganizer</b>. Not signed in? Sign in with the Google account the roster goes to.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="gc">
+                <div class="gc-bar"><div class="gc-url">🔒 <b>calendar.google.com</b>/calendar/r/settings/calendar/…</div></div>
+                <div class="gc-body">
+                  <div class="gc-side">
+                    <h5>Settings for my calendars</h5>
+                    <div class="sel">ELALOrganizer</div>
+                    <div class="sub">Calendar settings</div>
+                    <div class="sub">Access permissions</div>
+                    <div class="sub">Share with specific people</div>
+                    <div class="sub">Event notifications</div>
+                    <div class="sub">Integrate calendar<span class="tap" style="left:45%;top:50%"></span></div>
+                    <div class="sub">Remove calendar</div>
+                  </div>
+                  <div class="gc-main"><h4>Calendar settings</h4>
+                    <div class="gc-field"><label>Name</label><div class="box"><span class="v">ELALOrganizer</span></div></div>
+                    <div class="gc-field"><label>Time zone</label><div class="box"><span class="v">(GMT+02:00) Israel Time</span></div></div>
+                  </div>
+                </div>
+                <span class="gc-tag">illustration</span>
+              </div>
+              <div class="cap"><span class="num">2</span><div><b>Tap “Integrate calendar”</b><span>Or just scroll down the page to that heading.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="gc">
+                <div class="gc-bar"><div class="gc-url">🔒 <b>calendar.google.com</b>/calendar/r/settings/calendar/…</div></div>
+                <div class="gc-body">
+                  <div class="gc-side">
+                    <h5>Settings for my calendars</h5>
+                    <div class="sel">ELALOrganizer</div>
+                    <div class="sub">Calendar settings</div>
+                    <div class="sub">Integrate calendar</div>
+                  </div>
+                  <div class="gc-main"><h4>Integrate calendar</h4>
+                    <div class="gc-field"><label>Calendar ID</label><div class="box"><span class="v">…@group.calendar.google.com</span></div></div>
+                    <div class="gc-field"><label>Public address in iCal format</label><div class="box"><span class="v">https://calendar.google.com/calendar/ical/…/public/basic.ics</span></div></div>
+                    <div class="gc-field hot"><label><b>Secret address in iCal format</b></label><div class="box"><span class="v">••••••••••••••••••••••••••••••••</span>
+                      <svg class="gc-copy" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg><span class="tap" style="left:auto;right:-2px;top:50%"></span></div></div>
+                  </div>
+                </div>
+                <span class="gc-tag">illustration</span>
+              </div>
+              <div class="cap"><span class="num">3</span><div><b>Copy the “Secret address in iCal format”</b><span>Tap the copy icon at the end of that box. Use the <b>secret</b> one, not the public one.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="gc">
+                <div class="gc-bar"><div class="gc-url">🔒 <b>calendar.google.com</b>/calendar/r/settings/calendar/…</div></div>
+                <div class="gc-body">
+                  <div class="gc-side"><h5>Settings for my calendars</h5><div class="sel">ELALOrganizer</div><div class="sub">Integrate calendar</div></div>
+                  <div class="gc-main"><h4>Integrate calendar</h4>
+                    <div class="gc-field hot"><label><b>Secret address in iCal format</b></label><div class="box"><span class="v">••••••••••••••••••••••••••••••••</span>
+                      <svg class="gc-copy" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg></div></div>
+                  </div>
+                </div>
+                <div class="gc-toast">Copied to clipboard</div>
+                <span class="gc-tag">illustration</span>
+              </div>
+              <div class="cap"><span class="num">4</span><div><b>Copied. Now switch to Flight Card</b><span>Swipe up and open the ✈ Flight Card icon. The link stays on the clipboard.</span></div></div>
+            </div>
+          </div>
+          <div class="walk-ctl"><button type="button" data-prev>‹ Back</button><div class="dots"></div><button type="button" data-next>Next ›</button></div>
+        </div>
+
+        <h3>Step 2 · Paste it into Flight Card</h3>
+        <div class="walk" data-walk>
+          <div class="walk-stage">
+            <div class="slide">
+              <div class="frame"><img src="./guide/brief.jpg" alt="Flight Card main screen" loading="lazy" /><span class="tap" style="left:97.9%;top:3.3%"></span></div>
+              <div class="cap"><span class="num">1</span><div><b>Tap ••• at the top right</b><span>It's the menu for everything that isn't on the bottom bar.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="frame"><img src="./guide/menu.jpg" alt="The ••• menu" loading="lazy" /><span class="tap" style="left:88.7%;top:19.6%"></span></div>
+              <div class="cap"><span class="num">2</span><div><b>Tap Settings</b></div></div>
+            </div>
+            <div class="slide">
+              <div class="frame"><img src="./guide/settings-cal.jpg" alt="Settings, Duty calendar" loading="lazy" /><span class="tap" style="left:50%;top:12%"></span></div>
+              <div class="cap"><span class="num">3</span><div><b>Tap “Duty calendar”</b><span>It says “Not set up” until you're done.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="frame"><img src="./guide/settings-cal.jpg" alt="The calendar link field" loading="lazy" /><span class="tap" style="left:50%;top:24.2%"></span></div>
+              <div class="cap"><span class="num">4</span><div><b>Tap the box, then tap Paste</b><span>It shows dots instead of the link. That's normal: the link is private. It's saved as soon as you paste.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="frame"><img src="./guide/settings-pasted.jpg" alt="Sync now" loading="lazy" /><span class="tap" style="left:50%;top:31.2%"></span></div>
+              <div class="cap"><span class="num">5</span><div><b>Tap Sync now</b><span>A few seconds later it says “Last synced …”.</span></div></div>
+            </div>
+            <div class="slide">
+              <div class="frame"><img src="./guide/brief.jpg" alt="Your flight with crew and weather" loading="lazy" /><span class="tap" style="left:9%;top:10.5%"></span></div>
+              <div class="cap"><span class="num">6</span><div><b>Done: your flights are in</b><span>The next flight opens by itself, with date, route, crew, times and weather. Your other flights are under <b>History</b>, at the bottom of the Brief.</span></div></div>
+            </div>
+          </div>
+          <div class="walk-ctl"><button type="button" data-prev>‹ Back</button><div class="dots"></div><button type="button" data-next>Next ›</button></div>
+        </div>
+
+        <div class="tip"><b>After this, nothing to do.</b> The roster updates by itself every time you open the app. Changed a crew name yourself near departure? A late roster update won't overwrite it.</div>
+        <details class="more"><summary>It didn't work?</summary><div>
+          <ul class="tight">
+            <li><b>No “Secret address” on the page:</b> the calendar isn't in your own Google account, it's only subscribed. Use the link you subscribed with instead, the one from the roster system.</li>
+            <li><b>“Sync failed”:</b> the copy was cut short. Copy it again with the copy icon (don't select the text by hand), tap the box, select all, and paste over it.</li>
+            <li><b>Keep the link private.</b> Anyone who has it can read your roster. To get a new one, Google has a <i>Reset</i> button under the secret address; paste the new link here again.</li>
+            <li><b>No calendar at all?</b> ••• → <b>New flight</b> lets you type a flight number, or paste the roster text.</li>
+          </ul>
+        </div></details>
       </div>
-      <div class="feat"><span class="emoji">⏱</span><h3>Live</h3>
-        <div class="var-row"><code>@time</code><code>@utc</code><code>@date</code><code>@tod</code></div>
+    </section>
+
+    <!-- ================= PART 2 ================= -->
+    <section id="day">
+      <div class="part">Part 2</div>
+      <h2>A normal flight day</h2>
+      <p class="lead">The app opens on the right page for the time of day: <b>Brief</b> on the ground, <b>In flight</b> once you're airborne. Tap any tab to stay on it for this flight.</p>
+
+      <div class="day">
+        <div class="stop">
+          <div class="when">At home or in the briefing room</div>
+          <h3>Brief: crew, times, weather</h3>
+          <figure class="shot"><div class="frame"><img src="./guide/brief.jpg" alt="Brief" loading="lazy" />
+            <span class="mk" style="left:5%;top:7.3%">1</span><span class="mk" style="left:18%;top:13.2%">2</span>
+            <span class="mk" style="left:3.2%;top:17%">3</span><span class="mk" style="left:29%;top:23.2%">4</span>
+            <span class="mk" style="left:25%;top:38.7%">5</span><span class="mk" style="left:55%;top:30.6%">6</span>
+            <span class="mk" style="left:93.6%;top:38.4%">7</span><span class="mk" style="left:50%;top:97%">8</span></div></figure>
+          <ol class="keys">
+            <li><b>The flight:</b> date, time and route. Tap an airport for its notes and diversion info (see <a href="#notes">Notes</a>).</li>
+            <li><b>FDP:</b> time left in today's duty, green while there's spare.</li>
+            <li><b>T/O and LDG:</b> tap to mark who's PF or PM. Next to them: flight number, tail and flight time; tap to change any of them.</li>
+            <li><b>Ready line:</b> shows whether the route weather and NOTAMs are up to date. Tap it to go to In flight.</li>
+            <li><b>Crew</b> from the roster. <i>+ note</i> keeps a private note about a person (see <a href="#crew">Crew notes</a>).</li>
+            <li><b>Weather</b> for departure, arrival and alternate: METAR on top, TAF below. The TAF groups that matter for your time there are underlined.</li>
+            <li><b>ATIS ›</b> opens the live ATIS with the airport diagram and NOTAMs (see <a href="#live">Live data</a>). A green letter means the current ATIS was found.</li>
+            <li><b>The bottom bar:</b> Brief, Checklist, In flight, PA, ASU, Notes.</li>
+          </ol>
+          <figure class="shot"><div class="frame"><img src="./guide/brief-lower.jpg" alt="Brief, lower part" loading="lazy" />
+            <span class="mk" style="left:74%;top:60%">1</span><span class="mk" style="left:51%;top:39%">2</span>
+            <span class="mk" style="left:92.2%;top:79.5%">3</span><span class="mk" style="left:6.4%;top:87.8%">4</span></div></figure>
+          <ol class="keys">
+            <li><b>Your numbers</b> fold below the weather: SOB, ATIS letter, takeoff speeds, fuel. Type them when you get them. Each flight keeps its own.</li>
+            <li><b>Folded groups</b> show a one-line summary; tap a group's name to open it.</li>
+            <li><b>Clear…</b> wipes the numbers; <b>✎</b> lets you drag the groups into the order you like.</li>
+            <li><b>History:</b> your past flights, and the next ones from the roster.</li>
+          </ol>
+        </div>
+
+        <div class="stop">
+          <div class="when">Before the aircraft</div>
+          <h3>ATIS, airport diagram and NOTAMs</h3>
+          <p>Tap <b>ATIS ›</b> under any airport's weather.</p>
+          <figure class="shot"><div class="frame"><img src="./guide/atis.jpg" alt="ATIS window" loading="lazy" />
+            <span class="mk" style="left:55.5%;top:12.2%">1</span><span class="mk" style="left:7.5%;top:21.2%">2</span>
+            <span class="mk" style="left:16.7%;top:30.4%">3</span><span class="mk" style="left:57.8%;top:36.6%">4</span>
+            <span class="mk" style="left:72%;top:55%">5</span><span class="mk" style="left:55.5%;top:86.3%">6</span></div></figure>
+          <ol class="keys">
+            <li><b>Departure, Arrival, Alternate or Other</b> (type any ICAO code). ↻ fetches it again.</li>
+            <li><b>The ATIS letter.</b> “LIVE” means it was found automatically; tap it to set one yourself.</li>
+            <li><b>How old the ATIS is:</b> orange after 1 hour, red after 2.</li>
+            <li><b>Wind</b> from the ATIS (else the METAR, else the TAF; the source is shown). Tap a runway name to see HW / TW / XW for it.</li>
+            <li><b>The diagram:</b> pinch or ± to zoom, ⤢ for full screen, which also shows your GPS position. Closed runways get red crosses, closed taxiways a dashed orange line.</li>
+            <li><b>NOTAMs in one line each</b>, only the ones in force when you're there. Tap a line for the full NOTAM; <b>All NOTAMs</b> lists everything.</li>
+          </ol>
+        </div>
+
+        <div class="stop">
+          <div class="when">In the cockpit</div>
+          <h3>Checklist</h3>
+          <figure class="shot"><div class="frame"><img src="./guide/checklist.jpg" alt="Checklist" loading="lazy" />
+            <span class="mk" style="left:52.5%;top:35.5%">1</span><span class="mk" style="left:55.5%;top:29.4%">2</span>
+            <span class="mk" style="left:88.1%;top:22.6%">3</span><span class="mk" style="left:91.4%;top:22.6%">4</span><span class="mk" style="left:94.6%;top:22.6%">5</span></div></figure>
+          <ol class="keys">
+            <li><b>Tap an item</b> to tick it.</li>
+            <li><b>Sections</b> show how many items are ticked; tap a section to fold or open it.</li>
+            <li><b>🖨 Print</b> the checklist as kneeboard cards (see <a href="#checklist">Checklist &amp; print</a>).</li>
+            <li><b>✎ Edit:</b> rename, add, delete and move items.</li>
+            <li><b>Float it</b> as a small window that stays on top of every screen. Tap the same icon to put it back.</li>
+          </ol>
+          <p>On the iPad the checklist opens on the right, next to the Brief. On a phone it's a page of its own.</p>
+        </div>
+
+        <div class="stop">
+          <div class="when">Before pushback</div>
+          <h3>Welcome PA</h3>
+          <p>Tap <b>PA</b>. Names, destination, flight time and “good morning / afternoon” are already filled in, in Hebrew and English. Read it as it is. See <a href="#pa">PA</a> for editing.</p>
+          <figure class="shot"><div class="frame"><img src="./guide/pa.jpg" alt="PA" loading="lazy" /></div></figure>
+        </div>
+
+        <div class="stop">
+          <div class="when">Taxi out and in the air</div>
+          <h3>In flight: the route map</h3>
+          <figure class="shot"><div class="frame"><img src="./guide/inflight.jpg" alt="In flight map" loading="lazy" />
+            <span class="mk" style="left:84.6%;top:23.5%">1</span><span class="mk" style="left:12%;top:28.9%">2</span>
+            <span class="mk" style="left:45.3%;top:49%">3</span><span class="mk" style="left:96.8%;top:49.5%">4</span>
+            <span class="mk" style="left:6.1%;top:79%">5</span><span class="mk" style="left:50%;top:84.6%">6</span></div></figure>
+          <ol class="keys">
+            <li><b>Route</b>: paste the filed ATC route (from the OFP) so the map follows it instead of a straight line. <b>Update</b> refreshes the weather and NOTAMs.</li>
+            <li><b>Status:</b> how fresh the route weather, airport data and NOTAMs are.</li>
+            <li><b>Airports along the way, rated 0–10</b> for a diversion: weather, runway, fuel, NOTAMs. Tap one for its details.</li>
+            <li><b>LY</b> shows El Al aircraft in the air. Your own aircraft is always marked, or its last position if it's on the ground.</li>
+            <li><b>DEP / ARR / ALT</b> open that airport's ATIS window straight from the map.</li>
+            <li><b>Airports ↓</b> jumps to the list below the map; SIGMETs on your route are listed there too, and drawn on the map.</li>
+          </ol>
+          <div class="grid2">
+            <figure class="shot"><div class="frame"><img src="./guide/inflight-ac.jpg" alt="An El Al aircraft chosen" loading="lazy" /><span class="tap" style="left:55.5%;top:68%"></span></div>
+              <figcaption>Tap an aircraft: route, aircraft, flight level, speed and ETA.</figcaption></figure>
+            <figure class="shot"><div class="frame"><img src="./guide/route.jpg" alt="Pasting the filed route" loading="lazy" /><span class="tap" style="left:6.5%;top:48.4%"></span></div>
+              <figcaption>Route: paste the ATC route, tap Draw route.</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="stop">
+          <div class="when">If you need it</div>
+          <h3>Airspeed Unreliable</h3>
+          <p>Tap <b>ASU</b>. The memory items come first, then the pitch and N1 / V/S table for your weight and phase. It works without internet. <b>The QRH is the authority.</b> See <a href="#asu">ASU</a>.</p>
+        </div>
+
+        <div class="stop">
+          <div class="when">After landing</div>
+          <h3>Logbook</h3>
+          <p>Nothing to do: the flight goes into the logbook with the actual block times from the roster, plus your PF / PM marks. Open it from <b>••• → Logbook</b>; search by date, flight, tail, crew or airport. <b>Export</b> gives a CSV or a calendar file.</p>
+        </div>
       </div>
-    </div>
-    <div class="callout">
-      <code>@tod</code> resolves to morning / noon / afternoon / evening / night
-      based on the local clock — and it's Hebrew-aware
-      (בוקר / צהריים / אחר הצהריים / ערב / לילה).
-    </div>
-  </section>
+    </section>
 
-  <!-- ============ BLOCK / ACTUAL / PF·PM ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">📐</span> Block · Actual · PF / PM</h2>
-    <p class="h2-lede">
-      The Flight group grows four logbook fields: Block (scheduled),
-      Actual (real flight time), and PF / PM roles for takeoff &amp; landing.
-    </p>
-    <ul style="padding-left:18px;">
-      <li><b>Block</b> — captured the first time the leg appears in your
-        calendar. Read-only afterwards so a late dispatch tweak to
-        flight time doesn't shift the scheduled block on your logbook.</li>
-      <li><b>Actual</b> — empty until you fill it in or (Phase 4 coming)
-        the GPS detector marks takeoff / landing. Manually editable so
-        you can correct or back-fill any leg.</li>
-      <li><b>T/O</b> and <b>LDG</b> — three-state pills (<kbd>—</kbd>,
-        <kbd>PF</kbd>, <kbd>PM</kbd>) per leg. Tap to cycle. Used in the
-        logbook export's event title (e.g. <i>ELY27 TLV→VIE (PF/PM)</i>)
-        and in the Phase 5 analytics breakdown.</li>
-    </ul>
-  </section>
+    <!-- ================= LIVE DATA ================= -->
+    <section id="live">
+      <div class="part">In detail</div>
+      <h2>Live data</h2>
+      <p class="lead">METAR, TAF, ATIS, NOTAMs, SIGMETs and aircraft all come in by themselves, starting 12 hours before the flight. With no internet, you see the last copy, marked with its age.</p>
 
-  <!-- ============ GPS + MAX G ============ -->
-  <section>
-    <h2><span class="icon-bubble b-green">📡</span> GPS auto-detect + Max G landing score</h2>
-    <p class="h2-lede">
-      The iPad's GPS marks takeoff and landing automatically; the motion
-      sensor captures the touchdown G force. Both only run while the PWA
-      is foregrounded and you've granted permission.
-    </p>
-    <ol class="steps">
-      <li>
-        <b>Allow Geolocation + Motion</b>
-        Open Settings (⚙) → <i>Sensors</i>. Tap <kbd>Request</kbd> on each
-        row. iOS asks once per origin. Decline either — the matching field
-        (Actual flight time / Max G) just stays manually editable.
-      </li>
-      <li>
-        <b>Open the app before pushback</b>
-        Inside the leg's active window (Dep − 30 min → Arr + 30 min) the
-        detector arms automatically. Keep Flight Card in Slide Over or
-        front so GPS keeps ticking.
-      </li>
-      <li>
-        <b>Watch for the airborne toast</b>
-        Once groundspeed &gt; 120 kt for 30 sec and you're climbing, the
-        detector marks takeoff and starts capturing G.
-      </li>
-      <li>
-        <b>Landing score appears on touchdown</b>
-        After ground speed &lt; 80 kt for 60 sec with a flat altitude, the
-        detector marks landing and pops the score modal:
-      </li>
-    </ol>
-    <ul style="padding-left:18px;">
-      <li><b>&lt; 1.30 G</b> — Good <span style="color:var(--green);">smooth touchdown</span></li>
-      <li><b>1.30 – 1.60 G</b> — OK <span style="color:var(--warm);">typical</span></li>
-      <li><b>&gt; 1.60 G</b> — Poor <span style="color:var(--pink);">buy the cabin coffee</span></li>
-    </ul>
-    <div class="callout">
-      <b>Limits to know:</b> iOS Safari only fires GPS / Motion while the
-      tab/PWA is foregrounded. Slide Over works, but if you switch to
-      another full-screen app, sampling pauses until you come back. The
-      detector resumes from wherever it left off — it doesn't reset.
-    </div>
-    <div class="callout" style="background:var(--accent-soft);border-left-color:var(--accent);">
-      <b>Manual override always wins.</b> Actual flight time, Max G, T/O
-      role, LDG role are all editable. Phase 4 just auto-fills them when
-      it can.
-    </div>
-  </section>
+      <h3>Colours in METAR, TAF and ATIS</h3>
+      <div class="card legend">
+        <div><span class="sw c-red">CLSD 0400</span> runway closed; very low visibility or ceiling</div>
+        <div><span class="sw c-or">TWY B</span> closed taxiways; low visibility or ceiling, CB/TCU, strong crosswind</div>
+        <div><span class="sw c-ye">RA BR</span> rain, mist and other weather</div>
+        <div><span class="sw c-bl">TEMPO</span> TEMPO, BECMG, PROB: changes to come</div>
+        <div><span class="sw" style="text-decoration:underline">0918/0924</span> underlined: in force within an hour of your time there</div>
+        <div><span class="sw" style="background:#1f9d6b;color:#fff">A</span> the current ATIS letter</div>
+      </div>
 
-  <!-- ============ PIN TO SURVIVE UPDATES ============ -->
-  <section>
-    <h2><span class="icon-bubble b-pink">📌</span> Pin to survive app updates</h2>
-    <p class="h2-lede">
-      Customised a PA wording or added a checklist item you don't want
-      the next app update to overwrite? Pin it. Pinned items survive
-      every future schema bump.
-    </p>
-    <ul style="padding-left:18px;">
-      <li><b>PAs</b> — the 📌 chip next to the title (visible in both
-        read and edit mode). Filled accent = pinned.</li>
-      <li><b>Checklist sections + items</b> — in edit mode (✎), each
-        section header and item row grows a 📌 chip. Same toggle.</li>
-    </ul>
-    <div class="callout">
-      <b>The contract:</b> pinned = my customisations win on the next
-      app update. Unpinned items get refreshed when the defaults change
-      (e.g. the IOE PA insert in v11). Pin items you've intentionally
-      altered; leave the rest unpinned to keep getting upstream fixes.
-    </div>
-  </section>
+      <h3>NOTAM lines</h3>
+      <div class="card legend">
+        <div><span class="dot-r"></span><b>Red:</b> airport or runway closed, ILS out, no fuel, low fire cover</div>
+        <div><span class="dot-o"></span><b>Orange:</b> taxiway or stand closed, SID/STAR not available, navaids and lights out</div>
+        <div><span class="dot-y"></span><b>Yellow:</b> works, cranes, obstacles, birds, small changes</div>
+      </div>
+      <p>Each line shows when it starts and ends. Only NOTAMs in force for your time there get a line; the rest are under <b>All NOTAMs</b>.</p>
 
-  <!-- ============ ANALYTICS ============ -->
-  <section>
-    <h2><span class="icon-bubble b-grape">📊</span> Analytics dashboard</h2>
-    <p class="h2-lede">
-      Five at-a-glance metrics computed from every leg in your current
-      flight + history. All YTD. Nothing leaves the device.
-    </p>
-    <ul style="padding-left:18px;">
-      <li><b>Top destinations</b> — most-flown non-home airports. Bar list
-        with the airport code and the city name.</li>
-      <li><b>Nights away from home</b> — distinct calendar days with at
-        least one non-TLV leg.</li>
-      <li><b>Hours flown YTD</b> — prefers Actual flight time when set,
-        falls back to Block, then to the scheduled flight time. Per-tail
-        breakdown as chips.</li>
-      <li><b>Landing G — PF vs PM</b> — average Max G split by who flew the
-        landing. Delta shows whether your PF or PM landings are typically
-        smoother.</li>
-      <li><b>Most flown with</b> — top crewmembers, by number of legs you
-        share. Nicknames you've set are honoured.</li>
-    </ul>
-    <p style="margin-top:14px;color:var(--fg-dim);font-size:14px;">
-      Open with Settings (⚙) → <kbd>View analytics</kbd>.
-    </p>
-  </section>
+      <h3>Where to find each one</h3>
+      <ul class="tight">
+        <li><b>METAR / TAF:</b> Brief, under each airport.</li>
+        <li><b>ATIS:</b> the ATIS › button there, or DEP / ARR / ALT on the map. It's found automatically for departure, arrival and alternate (and your next flight's destination), including outside the US.</li>
+        <li><b>NOTAMs:</b> in the ATIS window, and in the airport's card on the map.</li>
+        <li><b>SIGMETs:</b> on the In flight map and under it, only those near your route at your time.</li>
+        <li><b>Aircraft:</b> the LY button on the map.</li>
+      </ul>
+    </section>
 
-  <!-- ============ LOGBOOK EXPORT ============ -->
-  <section>
-    <h2><span class="icon-bubble b-grape">📓</span> Logbook .ics export</h2>
-    <p class="h2-lede">
-      Turn every leg you've ever flown into a calendar feed you can subscribe
-      to. One tap from Settings.
-    </p>
-    <ol class="steps">
-      <li>
-        <b>Open Settings (⚙) → Export .ics</b>
-        Generates a `flightcard-logbook-YYYYMMDD.ics` covering every leg in
-        your current flight + history.
-      </li>
-      <li>
-        <b>iOS Share sheet appears</b>
-        Save to Files / AirDrop to a Mac / e-mail to yourself — whatever you
-        like.
-      </li>
-      <li>
-        <b>Subscribe in Apple Calendar</b>
-        On the Mac, double-click the .ics → Calendar offers to import or
-        subscribe. Choose <i>Subscribe</i> for a feed that updates each time
-        you re-export.
-      </li>
-      <li>
-        <b>…or import into Google Calendar</b>
-        Settings → Import &amp; export → Import → pick the .ics → choose
-        a target calendar (consider making a dedicated <i>Logbook</i>).
-      </li>
-    </ol>
-    <p style="margin-top:14px;color:var(--fg-dim);font-size:14px;">
-      Each event packs the leg's tail, crew (with nicknames if you've set
-      them), Block, Actual, Max G, and ATIS letter into the description.
-      Stable UIDs per leg so re-importing updates rather than duplicates.
-    </p>
-  </section>
+    <!-- ================= CHECKLIST & PRINT ================= -->
+    <section id="checklist">
+      <div class="part">In detail</div>
+      <h2>Checklist &amp; printing</h2>
+      <p class="lead">Print kneeboard cards: four per A4 sheet. Fold the sheet in half and clip it.</p>
+      <figure class="shot"><div class="frame"><img src="./guide/print.jpg" alt="Print page" loading="lazy" />
+        <span class="mk" style="left:22.2%;top:22.4%">1</span><span class="mk" style="left:17.2%;top:32.6%">2</span>
+        <span class="mk" style="left:11.7%;top:43.9%">3</span><span class="mk" style="left:64.4%;top:52.8%">4</span></div></figure>
+      <ol class="keys">
+        <li><b>The three steps</b> are written at the top of the page.</li>
+        <li><b>Top boxes</b> are the blanks you write in (flight, date, fuel…). <b>Checklist</b> is the checklist itself.</li>
+        <li><b>To move a row,</b> tap ⠿ next to it, then tap ▲ ▼ (or ⤒ ⤓ for top and bottom), or tap one of the <b>Move here</b> lines. You can also drag it. Type in a row to rename it; ◉ hides a box, ✕ deletes it.</li>
+        <li><b>The preview</b> is the real A4 sheet. The bottom two cards are upside down so they read the right way after folding.</li>
+      </ol>
+      <div class="tip"><b>Printing from the iPad:</b> if <b>Print</b> does nothing, tap <b>Share as PDF</b>, then <b>Print</b> in the share sheet. You can also save the PDF to Files.</div>
+      <p>Open it from <b>••• → Print checklist</b>, or 🖨 on the checklist. Changes in the Checklist tab change your real checklist too, and app updates never reset it. Margins and two-sided printing are under <b>Advanced</b>.</p>
+    </section>
 
-  <!-- ============ AIRDROP SYNC ============ -->
-  <section>
-    <h2><span class="icon-bubble b-warm">🪂</span> AirDrop full-state sync</h2>
-    <p>
-      Settings sheet → <i>Sync everything (AirDrop)</i> exports the whole
-      app state as JSON via the iOS Share Sheet. Import on the other device
-      replaces local state — useful when you want every leg, every speech,
-      and the template moved across in one shot.
-    </p>
-  </section>
+    <!-- ================= NOTES ================= -->
+    <section id="notes">
+      <div class="part">In detail</div>
+      <h2>Notes</h2>
+      <p class="lead">Three kinds: your own notes, notes per airport, and notes per crew member.</p>
 
-  <!-- ============ THEMES ============ -->
-  <section>
-    <h2><span class="icon-bubble b-blue">🎨</span> Themes &amp; rotation</h2>
-    <p>
-      Light · Dark · ASU green — cycle with the theme icon. Orientation
-      lock is off so landscape works on iPhone; if your installed PWA
-      doesn't rotate, remove the home-screen icon and re-Add to Home Screen
-      so it picks up the current manifest.
-    </p>
-  </section>
+      <h3>My notes: the Notes tab</h3>
+      <figure class="shot"><div class="frame"><img src="./guide/notes.jpg" alt="My notes" loading="lazy" />
+        <span class="mk" style="left:23.3%;top:12.2%">1</span><span class="mk" style="left:33.3%;top:19%">2</span>
+        <span class="mk" style="left:36.7%;top:24.6%">3</span><span class="mk" style="left:77%;top:12.3%">4</span></div></figure>
+      <ol class="keys">
+        <li><b>A tab per note:</b> LVP, MEL, Diversion, Radio… <b>＋</b> adds one.</li>
+        <li><b>Search</b> looks through all your notes at once.</li>
+        <li><b>Brush:</b> pick a colour and drag over text to highlight it.</li>
+        <li><b>Edit</b> to rename, reorder or delete tabs.</li>
+      </ol>
 
-  <!-- ============ Footer ============ -->
-  <p class="meta">
-    Built as a single-page PWA — vanilla JS modules, no framework, service-worker
-    cache-first. Open <a href="./">the app</a> and once it's loaded once,
-    everything works offline.<br/>
-    Repo: <a href="https://github.com/Brook46/b737-asu-pwa">github.com/Brook46/b737-asu-pwa</a>
-    · Build: <code id="build-tag">flightcard-v40</code>
-  </p>
+      <h3>Airport notes: Personal and Social</h3>
+      <p>Tap an airport anywhere (the leg at the top, a weather tile, a map pin). Each airport has two notes:</p>
+      <div class="grid2">
+        <figure class="shot"><div class="frame"><img src="./guide/apt-personal.jpg" alt="Personal airport note" loading="lazy" /><span class="tap" style="left:46.4%;top:41.1%"></span></div>
+          <figcaption><b>Personal</b>: private, only on your iPad. Parking, procedures, whatever you want to remember.</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="./guide/apt-social.jpg" alt="Social airport note" loading="lazy" /><span class="tap" style="left:52.9%;top:41.1%"></span></div>
+          <figcaption><b>Social</b>: hotel, food, things to do. It can be filled from a shared Apple Notes folder.</figcaption></figure>
+      </div>
+      <ul class="tight">
+        <li><b>Diversion</b> (top of the same window) shows the airport's rating and details.</li>
+        <li>When a synced Social note changes, the changes show in <span class="c-or">orange</span> until you tap <b>Got it</b>.</li>
+        <li>To sync Social notes from Apple Notes: Settings → Advanced → <b>Social notes</b>.</li>
+      </ul>
 
-</div>
+      <h3 id="crew">Crew notes</h3>
+      <figure class="shot"><div class="frame"><img src="./guide/crewnote.jpg" alt="Crew notes" loading="lazy" />
+        <span class="mk" style="left:36.7%;top:17%">1</span><span class="mk" style="left:50%;top:28%">2</span><span class="mk" style="left:50%;top:44.9%">3</span></div></figure>
+      <ol class="keys">
+        <li><b>A colour</b> for the person, shown next to their name on every flight.</li>
+        <li><b>Your note</b> about them: private, on this iPad only.</li>
+        <li><b>All crew notes,</b> searchable.</li>
+      </ol>
+      <p>Open it with <b>+ note</b> next to a crew name on the Brief. The ✎ button there sets a nickname for that person.</p>
+    </section>
 
-<script>
-  // Pull the live cache name from the running service worker so this page
-  // self-stamps with the most recent build the visitor would receive.
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration('./').then(reg => {
-      if (!reg) return;
-      return caches.keys().then(keys => {
-        const k = keys.find(k => k.startsWith('flightcard-'));
-        if (k) document.getElementById('build-tag').textContent = k;
+    <!-- ================= PA ================= -->
+    <section id="pa">
+      <div class="part">In detail</div>
+      <h2>PA</h2>
+      <figure class="shot"><div class="frame"><img src="./guide/pa.jpg" alt="PA" loading="lazy" />
+        <span class="mk" style="left:24.2%;top:11.5%">1</span><span class="mk" style="left:50%;top:32%">2</span>
+        <span class="mk" style="left:25.5%;top:68%">3</span><span class="mk" style="left:71.7%;top:17.9%">4</span></div></figure>
+      <ol class="keys">
+        <li><b>One tab per announcement:</b> Welcome, IOE, Go around, Emergency, Ditching, Smoke / fire, Malfunction, Delays…</li>
+        <li><b>Hebrew</b> on top, <b>English</b> below.</li>
+        <li><b>Blue words fill themselves in:</b> names, destination, flight time, time of day.</li>
+        <li><b>✎ Edit</b> the wording. Tap a chip to insert a variable such as <code>@cpt</code>, <code>@arr</code>, <code>@flighttime</code> or <code>@tod</code>.</li>
+      </ol>
+    </section>
+
+    <!-- ================= ASU ================= -->
+    <section id="asu">
+      <div class="part">In detail</div>
+      <h2>Airspeed Unreliable</h2>
+      <div class="grid2">
+        <figure class="shot"><div class="frame"><img src="./guide/asu-memory.jpg" alt="ASU memory items" loading="lazy" /></div>
+          <figcaption>First the memory items, exactly as in the QRH.</figcaption></figure>
+        <figure class="shot"><div class="frame"><img src="./guide/asu-table.jpg" alt="ASU table" loading="lazy" />
+          <span class="mk" style="left:17.8%;top:16%">1</span><span class="mk" style="left:17.8%;top:39%">2</span><span class="mk" style="left:17.8%;top:65.5%">3</span><span class="mk" style="left:66.7%;top:40%">4</span></div>
+          <figcaption>Then the table.</figcaption></figure>
+      </div>
+      <ol class="keys">
+        <li><b>Aircraft:</b> -800 or -900, set from your tail.</li>
+        <li><b>Gross weight:</b> slide it to your weight.</li>
+        <li><b>Phase:</b> climb, cruise, descent, hold, terminal, final, go-around.</li>
+        <li><b>Pitch and N1 / V/S</b> by altitude.</li>
+      </ol>
+      <div class="warn">For reference and training. Always follow the approved QRH and company procedures.</div>
+    </section>
+
+    <!-- ================= MORE ================= -->
+    <section id="more">
+      <div class="part">Advanced</div>
+      <h2>More</h2>
+      <details class="more"><summary>Flight time limits</summary><div>••• → <b>Flight time limits</b> checks each duty, rest and the totals against OM A chapter 7. Deadhead isn't counted.</div></details>
+      <details class="more"><summary>Diversion ratings: your own rules</summary><div>Settings → <b>Route info</b>. Exclude countries or airports, or give them points, e.g. <code>Egypt -2</code> or <code>LCLK +1</code>. A country can be a name or a code.</div></details>
+      <details class="more"><summary>Backup and moving to a new iPad</summary><div>Settings → <b>Backup</b> → Back up now → <b>Save to Files → iCloud Drive</b> (or Mail it to yourself). On the new iPad: Settings → Backup → <b>Restore or import a file…</b>. The app never uploads your data anywhere else. To share only some notes or PAs with a friend, use <b>Export</b>.</div></details>
+      <details class="more"><summary>Logbook in Apple Calendar</summary><div>Settings → <b>Logbook calendar</b> → Copy link. Then on the iPad: Settings app → Calendar → Accounts → Add Account → Other → <b>Add Subscribed Calendar</b>, and paste it. It stays up to date by itself.</div></details>
+      <details class="more"><summary>Old sectors from the crew portal</summary><div>Settings → <b>Import sectors (CSV)</b> loads <code>MySectors.csv</code> into the logbook. Nothing you typed is overwritten.</div></details>
+      <details class="more"><summary>GPS takeoff / landing and landing G</summary><div>Settings → <b>Sensors</b> → allow both. With the app open, takeoff and landing are marked by themselves and the touchdown G is measured.</div></details>
+      <details class="more"><summary>Use it next to another app (Slide Over / Split View)</summary><div>With your other app open, swipe up a little from the bottom to show the Dock, then drag the ✈ icon up onto the screen. Or use the ••• at the top of any iPad window.</div></details>
+      <details class="more"><summary>Something looks stuck</summary><div>••• → <b>Reload (if frozen)</b>. Your data stays.</div></details>
+    </section>
+
+    <footer>Flight Card · for reference and training. The QRH, OM and charts are the authority.</footer>
+  </div>
+
+  <script>
+    // Walkthrough players: one step at a time, auto-advancing while on screen.
+    // Tap the picture to go on; Back / Next and the dots work too. A tap stops
+    // the auto-advance, so it never runs away from someone reading.
+    document.querySelectorAll('[data-walk]').forEach(function (w) {
+      var slides = w.querySelectorAll('.slide');
+      var dots = w.querySelector('.dots');
+      var i = 0, timer = null, manual = false, visible = false;
+      slides.forEach(function (_, k) {
+        var d = document.createElement('i');
+        d.setAttribute('role', 'button'); d.setAttribute('aria-label', 'Step ' + (k + 1));
+        d.addEventListener('click', function () { stop(); show(k); });
+        dots.appendChild(d);
       });
-    }).catch(() => {});
-  }
-</script>
-
+      function show(k) {
+        i = (k + slides.length) % slides.length;
+        slides.forEach(function (s, n) { s.classList.toggle('on', n === i); });
+        dots.querySelectorAll('i').forEach(function (d, n) { d.classList.toggle('on', n === i); });
+      }
+      function tick() { if (!manual && visible) show(i + 1); }
+      function stop() { manual = true; clearInterval(timer); }
+      w.querySelector('[data-next]').addEventListener('click', function () { stop(); show(i + 1); });
+      w.querySelector('[data-prev]').addEventListener('click', function () { stop(); show(i - 1); });
+      w.querySelector('.walk-stage').addEventListener('click', function (e) { if (e.target.closest('a')) return; stop(); show(i + 1); });
+      show(0);
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (es) { visible = es[0].isIntersecting; }, { threshold: 0.6 }).observe(w);
+      } else visible = true;
+      timer = setInterval(tick, 4200);
+    });
+  </script>
 </body>
 </html>

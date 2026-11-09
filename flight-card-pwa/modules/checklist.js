@@ -1,6 +1,6 @@
 // checklist.js — collapsible sections with auto-collapse when 100% ticked.
 
-import * as storage from './storage.js?v=268';
+import * as storage from './storage.js?v=269';
 
 let editMode = false;
 let onAllDoneChange = null;
