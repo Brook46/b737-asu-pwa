@@ -2500,6 +2500,9 @@ body {
 @media (max-width: 640px) {
   .print-cols { flex-direction: column; }
   .print-ctrls { flex: 0 0 auto; width: 100%; }
+  /* In a column, align-items:flex-start sizes the preview to its content —
+     the unscaled A4 — so it ran off the side of a phone. Pin it to the width. */
+  .print-preview-wrap { flex: 0 0 auto; width: 100%; }
 }
 
 /* ---- The card itself ---- */
@@ -4690,3 +4693,67 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .atis-diagram .ad-mark.ad-rwclosed.is-hl path { filter: none; }
 .atis-diagram .ad-mark.ad-rwclosed.is-hl .ad-rwc-tint { stroke-width: inherit; }
 .ad-wind-h .ad-wsrc { font-size: 10px; font-weight: 700; color: var(--fg-mute); letter-spacing: .04em; margin-left: 4px; }
+
+/* ---------- Print sheet: steps, move mode, advanced fold (v268) ---------- */
+.print-steps {
+  margin: 0 0 10px; padding: 9px 12px 9px 30px;
+  background: var(--accent-soft); border-radius: 10px;
+  font-size: 13px; line-height: 1.4; color: var(--fg);
+}
+.print-steps li + li { margin-top: 3px; }
+.print-hint { line-height: 1.4; margin: 6px 0 0; }
+.print-hint b { color: var(--fg); font-weight: 700; }
+/* The grip is a button now (tap = pick), so give it a finger-sized target. */
+.print-grip { flex-basis: 30px; width: 30px; height: 32px; font-size: 16px; border-radius: 6px; cursor: pointer; }
+.print-grip:active { background: var(--accent-soft); color: var(--accent); }
+.print-frow.is-picked, .print-div.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.print-div.is-picked { border-radius: 8px; }
+.print-frow.is-picked .print-grip, .print-div.is-picked .print-grip { color: var(--accent); }
+.print-frow.is-carried { display: none; }
+.print-movebar {
+  display: flex; gap: 6px; align-items: center;
+  padding: 2px 0 4px;
+}
+.print-clitem + .print-movebar, .print-clitem.is-picked + .print-movebar { margin-left: 14px; }
+.print-mbtn {
+  -webkit-appearance: none; appearance: none;
+  flex: 1 1 0; min-width: 0; height: 34px;
+  background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;
+  color: var(--accent); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.print-mbtn:disabled { opacity: .35; border-color: var(--line); color: var(--fg-dim); cursor: default; }
+.print-mbtn.is-done { flex: 1.4 1 0; background: var(--accent); color: var(--bg-elev, #fff); font-size: 13px; }
+/* "Move here": a thin line between rows, a full-width tap target. */
+.print-slot {
+  -webkit-appearance: none; appearance: none;
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; height: 22px; margin: -1px 0; padding: 0 4px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 10px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.print-slot::before, .print-slot::after { content: ''; flex: 1 1 auto; border-top: 1.5px dashed var(--accent); opacity: .55; }
+.print-slot span { flex: 0 0 auto; opacity: .85; }
+.print-slot:active { background: var(--accent-soft); border-radius: 6px; }
+.print-fieldlist.is-picking .print-frow:not(.is-picked) { opacity: .8; }
+.print-adv {
+  margin: 12px 0 0; padding: 0;
+  border-top: 1px solid var(--line);
+}
+.print-adv > summary {
+  list-style: none; cursor: pointer;
+  padding: 11px 2px; font-size: 13px; font-weight: 700; color: var(--fg-mute);
+}
+.print-adv > summary::-webkit-details-marker { display: none; }
+.print-adv > summary::before { content: '›'; display: inline-block; width: 14px; transition: transform .15s; }
+.print-adv[open] > summary::before { transform: rotate(90deg); }
+.print-adv .print-flag { margin: 2px 0 4px; }
+.print-adv .print-note { margin: 0 0 12px; }
+.print-adv .print-size { margin-bottom: 2px; }
+.print-adv .print-size + .print-note { margin-top: 0; }
+.print-ctrls > .print-flags { margin-top: 12px; }
+.print-pdf { margin-top: 8px; }

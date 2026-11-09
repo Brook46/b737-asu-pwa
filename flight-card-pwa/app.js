@@ -1,16 +1,16 @@
 // app.js — bootstrap: theme, header (clocks + tail/flt), sections, overlays, SW.
 
-import { DUTY_KINDS } from './modules/duties.js?v=267';
-import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=267';
-import * as storage from './modules/storage.js?v=267';
-import * as socialChanges from './modules/social-changes.js?v=267';
-import * as dataCard from './modules/data-card.js?v=267';
-import * as checklist from './modules/checklist.js?v=267';
-import * as speeches from './modules/speeches.js?v=267';
-import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=267';
-import { autoPhase } from './modules/phase.js?v=267';
-import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=267';
-import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=267';
+import { DUTY_KINDS } from './modules/duties.js?v=268';
+import { CREW_KEYS, crewShort, crewLabel, slotsToShow } from './modules/crew.js?v=268';
+import * as storage from './modules/storage.js?v=268';
+import * as socialChanges from './modules/social-changes.js?v=268';
+import * as dataCard from './modules/data-card.js?v=268';
+import * as checklist from './modules/checklist.js?v=268';
+import * as speeches from './modules/speeches.js?v=268';
+import { lookupRoute, normaliseFlightNumber, displayFlight } from './modules/ly-routes.js?v=268';
+import { autoPhase } from './modules/phase.js?v=268';
+import { initTheme, cycleTheme, setTheme, toast, showOverlay, hideOverlay, raiseOverlay } from './modules/ui.js?v=268';
+import { rollingTs, dateTs, yearOf, yearPast, legTs, legPlanActual } from './modules/dates.js?v=268';
 
 const $ = (id) => document.getElementById(id);
 
@@ -303,7 +303,7 @@ queueMicrotask(maybeAutoJumpToCurrentLeg);
 // Logbook auto-push (hosted .ics the calendar apps subscribe to) — wired
 // off the critical path; the module further defers its first push by 8s
 // and only hits the network when the calendar content actually changed.
-import('./modules/logbook-push.js?v=267').then(m => m.init())
+import('./modules/logbook-push.js?v=268').then(m => m.init())
   .catch(err => console.warn('logbook-push init failed', err));
 // If this load came from tapping the header ↻, refresh every remote source
 // too. Deferred so it never competes with first paint (and so the functions
@@ -320,7 +320,7 @@ async function consumeRosterFromUrl() {
   const raw = q.get('roster');
   if (!raw) return;
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=267');
+    const { parseRoster } = await import('./modules/roster.js?v=268');
     const parsed = parseRoster(raw);
     if (parsed) {
       await applyRoster(parsed);
@@ -450,7 +450,7 @@ async function syncRouteDock(key, focus) {
   const was = dockedKey;
   dockedKey = key;
   try {
-    const ru = await import('./modules/route-ui.js?v=267');
+    const ru = await import('./modules/route-ui.js?v=268');
     ru.wire();
     if (key && key === was) ru.focusAirport(focus);
     else if (key) await ru.dock({ focus });
@@ -507,7 +507,7 @@ async function wxTimeFor(end, leg = storage.getLegs()[storage.getLegIndex()] || 
   const alt = altnFor(arr);
   if (!Number.isFinite(base) || !alt) return { ms: NaN };
   try {
-    const [ri, pr] = await Promise.all([import('./modules/route-info.js?v=267'), import('./modules/plan-route.js?v=267')]);
+    const [ri, pr] = await Promise.all([import('./modules/route-info.js?v=268'), import('./modules/plan-route.js?v=268')]);
     const db = await ri.loadDb();
     const a = ri.findAirport(db, arr), b = ri.findAirport(db, alt);
     if (!a || !b) return { ms: NaN };
@@ -529,8 +529,8 @@ async function paintBeforeWx(leg, force = false) {
     .map(([src, name, code]) => [src, name, String(code || '').toUpperCase()]).filter(e => e[2]);
   let wx, ru;
   try {
-    wx = await import('./modules/wx.js?v=267');
-    ru = await import('./modules/route-ui.js?v=267');
+    wx = await import('./modules/wx.js?v=268');
+    ru = await import('./modules/route-ui.js?v=268');
     await wx.codesReady();
   } catch { return; }
   // Coloured by the Route card's own rules, so the two always agree.
@@ -605,7 +605,7 @@ function atisAirports() {
 async function refreshAtisAll(force = false) {
   if (navigator.onLine === false || document.visibilityState === 'hidden') return;
   let wx;
-  try { wx = await import('./modules/wx.js?v=267'); await wx.codesReady(); } catch { return; }
+  try { wx = await import('./modules/wx.js?v=268'); await wx.codesReady(); } catch { return; }
   await Promise.all(atisAirports().map(c => wx.fetchWx(c, { force }).catch(() => null)));
   syncCardAtis(wx);
   try { window.dispatchEvent(new CustomEvent('fc:atis-updated')); } catch {}
@@ -651,7 +651,7 @@ $('before-wx').addEventListener('submit', async (e) => {
   if (code) {
     // An airport the app knows (either code), or any four letters.
     let known = /^[A-Z]{4}$/.test(code);
-    try { const ri = await import('./modules/route-info.js?v=267'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
+    try { const ri = await import('./modules/route-info.js?v=268'); known = known || !!ri.findAirport(await ri.loadDb(), code); } catch {}
     if (!known) { toast(`${code} isn't an airport the app knows`); return; }
   }
   setAltn(arr, code);
@@ -760,7 +760,7 @@ async function paintTlvBoard(force = false) {
   const seq = (paintTlvBoard.seq = (paintTlvBoard.seq || 0) + 1);
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   let tb = null;
-  try { tb = await import('./modules/tlv-board.js?v=267'); } catch {}
+  try { tb = await import('./modules/tlv-board.js?v=268'); } catch {}
   if (!leg || !tb || !tb.applies(leg)) { el.hidden = true; return; }
   const b = await tb.boardFor(leg, { force });
   if (seq !== paintTlvBoard.seq) return;          // the leg changed meanwhile
@@ -796,7 +796,7 @@ async function paintFdpChip() {
   if (!el) return;
   const seq = (paintFdpChip.seq = (paintFdpChip.seq || 0) + 1);
   try {
-    const ftl = await import('./modules/ftl.js?v=267');
+    const ftl = await import('./modules/ftl.js?v=268');
     if (seq !== paintFdpChip.seq) return;
     const now = Date.now();
     const r = ftl.evaluate({ legs: storage.everyLeg(), duties: [], activeLeg: storage.getLegs()[storage.getLegIndex()], opts: { extOf: ftlExtOf, etaOf: ftlEtaOf }, taxiOf: taxiMinutes, now });
@@ -1644,13 +1644,14 @@ $('clear-overlay').addEventListener('click', (e) => {
 let printMod = null;
 async function openPrintSheet() {
   try {
-    printMod = printMod || await import('./modules/print.js?v=267');
+    printMod = printMod || await import('./modules/print.js?v=268');
   } catch (err) {
     console.warn('print module failed to load', err);
     toast('Print unavailable — check connection');
     return;
   }
   showOverlay('print-overlay');
+  printPick = null;
   paintPrintSheet();
 }
 
@@ -1682,7 +1683,7 @@ function paintPrintSheet() {
     if (!byId.has(entry) && !(cfg.labels && cfg.labels[entry])) return '';
     const off = cfg.off.includes(entry);
     const label = printMod.labelFor(entry, cfg);
-    return `<div class="print-frow${off ? ' is-off' : ''}" data-key="${entry}">
+    return `<div class="print-frow${off ? ' is-off' : ''}" data-key="${entry}" data-idx="${i}">
       <span class="print-grip" data-print-grip="${entry}" aria-hidden="true">⠿</span>
       <input class="print-fname" type="text" value="${escapeHtmlSimple(label)}"
              data-print-label="${entry}" maxlength="24" autocomplete="off"
@@ -1697,6 +1698,7 @@ function paintPrintSheet() {
     </div>`;
   }).join('') +
   `<button type="button" id="print-adddiv" class="print-adddiv">+ line break</button>`;
+  decoratePrintPick('top');
 
   const sizePct = Math.round((Number(cfg.textScale) || 1) * 100);
   $('print-textsize').value = String(sizePct);
@@ -1755,16 +1757,17 @@ $('print-fields').addEventListener('click', (e) => {
   const tg = e.target.closest('[data-print-toggle]');
   if (tg) { printMod.toggleField(tg.dataset.printToggle); paintPrintSheet(); return; }
   const rm = e.target.closest('[data-print-deldiv]');
-  if (rm) { printMod.removeDividerAt(Number(rm.dataset.printDeldiv)); paintPrintSheet(); return; }
-  if (e.target.closest('#print-adddiv')) { printMod.addDivider(); paintPrintSheet(); return; }
+  if (rm) { printPick = null; printMod.removeDividerAt(Number(rm.dataset.printDeldiv)); paintPrintSheet(); return; }
+  if (e.target.closest('#print-adddiv')) { printPick = null; printMod.addDivider(); paintPrintSheet(); return; }
   const del = e.target.closest('[data-print-delbox]');
-  if (del) { printMod.removeBox(del.dataset.printDelbox); paintPrintSheet(); }
+  if (del) { printPick = null; printMod.removeBox(del.dataset.printDelbox); paintPrintSheet(); }
 });
-$('print-addbox').addEventListener('click', () => { printMod.addBox('NEW BOX'); paintPrintSheet(); });
+$('print-addbox').addEventListener('click', () => { printPick = null; printMod.addBox('NEW BOX'); paintPrintSheet(); });
 
 // ---- Tabs: the top band vs the checklist itself ----
 let printTab = 'top';
 function showPrintTab(tab) {
+  if (printPick) { printPick = null; paintPrintSheet(); }
   printTab = tab === 'checklist' ? 'checklist' : 'top';
   const isCl = printTab === 'checklist';
   $('print-tab-top').classList.toggle('is-active', !isCl);
@@ -1786,7 +1789,7 @@ function paintPrintChecklist() {
   const secs = (tpl && Array.isArray(tpl.sections)) ? tpl.sections : [];
   const rows = [];
   for (const sec of secs) {
-    rows.push(`<div class="print-frow print-clsec" data-key="s:${sec.id}">
+    rows.push(`<div class="print-frow print-clsec" data-key="s:${sec.id}" data-idx="${rows.length}">
       <span class="print-grip" data-print-grip="s" aria-hidden="true">⠿</span>
       <input class="print-fname" type="text" value="${escapeHtmlSimple(sec.name)}"
              data-cl-sec="${sec.id}" maxlength="40" autocomplete="off" spellcheck="false"
@@ -1795,7 +1798,7 @@ function paintPrintChecklist() {
               title="Delete section" aria-label="Delete section">✕</button>
     </div>`);
     for (const it of (sec.items || [])) {
-      rows.push(`<div class="print-frow print-clitem" data-key="i:${it.id}">
+      rows.push(`<div class="print-frow print-clitem" data-key="i:${it.id}" data-idx="${rows.length}">
         <span class="print-grip" data-print-grip="i" aria-hidden="true">⠿</span>
         <input class="print-fname" type="text" value="${escapeHtmlSimple(it.label)}"
                data-cl-item="${it.id}" maxlength="60" autocomplete="off" spellcheck="false"
@@ -1807,11 +1810,22 @@ function paintPrintChecklist() {
   }
   $('print-cl-list').innerHTML = rows.join('') ||
     `<p class="muted small">No checklist yet — add a section to start.</p>`;
+  decoratePrintPick('cl');
   paintPrintPreview(printMod.getConfig());
 }
 
 // Walk the flat DOM order and rewrite the template from it.
 function rebuildTemplateFromDom() {
+  rebuildTemplateFromKeys([...$('print-cl-list').querySelectorAll('.print-frow')].map(el => el.dataset.key));
+}
+// The checklist as one flat list of keys: 's:<id>' headings, 'i:<id>' items.
+function checklistKeys() {
+  const secs = storage.getTemplate()?.sections || [];
+  const keys = [];
+  for (const s of secs) { keys.push('s:' + s.id); for (const it of (s.items || [])) keys.push('i:' + it.id); }
+  return keys;
+}
+function rebuildTemplateFromKeys(keys) {
   const tpl = storage.getTemplate();
   const secs = (tpl && Array.isArray(tpl.sections)) ? tpl.sections : [];
   const secById  = new Map(secs.map(s => [s.id, s]));
@@ -1820,8 +1834,8 @@ function rebuildTemplateFromDom() {
 
   const next = [];
   let current = null;
-  for (const el of $('print-cl-list').querySelectorAll('.print-frow')) {
-    const [kind, id] = String(el.dataset.key || '').split(':');
+  for (const key of keys) {
+    const [kind, id] = String(key || '').split(':');
     if (kind === 's') {
       const sec = secById.get(id);
       if (!sec) continue;
@@ -1855,15 +1869,15 @@ $('print-cl-list').addEventListener('click', (e) => {
   const ds = e.target.closest('[data-cl-delsec]');
   if (ds) {
     if (!confirm('Delete this section and every item in it?')) return;
-    storage.deleteSection(ds.dataset.clDelsec); paintPrintChecklist(); refreshChecklistCard(); return;
+    printPick = null; storage.deleteSection(ds.dataset.clDelsec); paintPrintChecklist(); refreshChecklistCard(); return;
   }
   const di = e.target.closest('[data-cl-delitem]');
-  if (di) { storage.deleteItem(di.dataset.clDelitem); paintPrintChecklist(); refreshChecklistCard(); }
+  if (di) { printPick = null; storage.deleteItem(di.dataset.clDelitem); paintPrintChecklist(); refreshChecklistCard(); }
 });
 $('print-addsec').addEventListener('click', () => {
   const name = prompt('Section name', 'New section');
   if (!name || !name.trim()) return;
-  storage.addSection(name.trim());
+  printPick = null; storage.addSection(name.trim());
   paintPrintChecklist(); refreshChecklistCard();
 });
 $('print-additem').addEventListener('click', () => {
@@ -1872,7 +1886,7 @@ $('print-additem').addEventListener('click', () => {
   const label = prompt('Item text', 'New item');
   if (!label || !label.trim()) return;
   // Goes into the last section — the one being worked on at the bottom.
-  storage.addItem(secs[secs.length - 1].id, label.trim());
+  printPick = null; storage.addItem(secs[secs.length - 1].id, label.trim());
   paintPrintChecklist(); refreshChecklistCard();
 });
 // The card on the main screen shows the same checklist, so keep it in step.
@@ -1888,12 +1902,180 @@ $('print-fields').addEventListener('input', (e) => {
   paintPrintPreview(printMod.getConfig());
 });
 
+// ---- Move a row: tap ⠿ to pick it, then ▲ ▼ ⤒ ⤓ or a "Move here" line ----
+// The same rows can still be dragged. Tapping is the reliable way on a long
+// list: no aiming a finger at a moving target, and a "Move here" line between
+// every pair of rows puts it before or after any one in a single tap.
+// In the checklist a heading takes its items with it, and an item always
+// lands under a heading.
+let printPick = null;             // { list: 'top' | 'cl', idx } while a row is picked
+function printSeq(list) { return list === 'top' ? printMod.getConfig().order.slice() : checklistKeys(); }
+// [start, end) of what moves: one row, or a heading with all its items.
+function printBlock(list, seq, idx) {
+  if (list === 'top' || !String(seq[idx]).startsWith('s:')) return [idx, idx + 1];
+  let e = idx + 1;
+  while (e < seq.length && !String(seq[e]).startsWith('s:')) e++;
+  return [idx, e];
+}
+// May the picked block go in at insertion point k (0 … seq.length)?
+function printSlotOk(list, seq, block, k) {
+  if (k >= block[0] && k <= block[1]) return false;          // that's where it is
+  if (list === 'cl') {
+    if (String(seq[block[0]]).startsWith('s:')) return k === seq.length || String(seq[k]).startsWith('s:');
+    return k > 0;                                             // an item needs a heading above it
+  }
+  return true;
+}
+function printStepTarget(list, how) {
+  const seq = printSeq(list);
+  const block = printBlock(list, seq, printPick.idx);
+  const ok = (k) => printSlotOk(list, seq, block, k);
+  const [a, b] = block;
+  if (how === 'top')    { for (let i = 0; i < a; i++) if (ok(i)) return i; return null; }
+  if (how === 'up')     { for (let i = a - 1; i >= 0; i--) if (ok(i)) return i; return null; }
+  if (how === 'down')   { for (let i = b + 1; i <= seq.length; i++) if (ok(i)) return i; return null; }
+  if (how === 'bottom') return ok(seq.length) ? seq.length : null;
+  return null;
+}
+function printMoveTo(list, k) {
+  if (!printPick || k == null) return;
+  const seq = printSeq(list);
+  const [a, b] = printBlock(list, seq, printPick.idx);
+  if (!printSlotOk(list, seq, [a, b], k)) return;
+  const blk = seq.splice(a, b - a);
+  const at = k > a ? k - (b - a) : k;
+  seq.splice(at, 0, ...blk);
+  printPick.idx = at;
+  printPick.scroll = true;
+  if (list === 'top') { printMod.setOrder(seq); paintPrintSheet(); }
+  else { rebuildTemplateFromKeys(seq); paintPrintChecklist(); refreshChecklistCard(); }
+}
+function printRepaintList(list) { if (list === 'top') paintPrintSheet(); else paintPrintChecklist(); }
+// Called at the end of each list paint: mark the picked row, put the move bar
+// under it and a "Move here" line in every place it may go.
+function decoratePrintPick(list) {
+  const host = $(list === 'top' ? 'print-fields' : 'print-cl-list');
+  const on = !!(printPick && printPick.list === list);
+  host.classList.toggle('is-picking', on);
+  if (!on) return;
+  const seq = printSeq(list);
+  if (!(printPick.idx < seq.length)) { printPick = null; host.classList.remove('is-picking'); return; }
+  const block = printBlock(list, seq, printPick.idx);
+  const rows = [...host.querySelectorAll('.print-frow, .print-div')];
+  const slot = (k) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'print-slot'; el.dataset.printSlot = String(k);
+    el.innerHTML = '<span>Move here</span>';
+    return el;
+  };
+  for (const r of rows) {
+    const i = Number(r.dataset.idx);
+    if (i >= block[0] && i < block[1]) r.classList.add('is-picked');
+    if (printSlotOk(list, seq, block, i)) r.before(slot(i));
+  }
+  if (rows.length && printSlotOk(list, seq, block, seq.length)) rows[rows.length - 1].after(slot(seq.length));
+  const picked = rows.find(r => Number(r.dataset.idx) === printPick.idx);
+  if (!picked) return;
+  const btn = (how, sym, label) => {
+    const can = printStepTarget(list, how) != null;
+    return `<button type="button" class="print-mbtn" data-print-step="${how}"${can ? '' : ' disabled'} aria-label="${label}" title="${label}">${sym}</button>`;
+  };
+  const bar = document.createElement('div');
+  bar.className = 'print-movebar';
+  bar.innerHTML = btn('top', '⤒', 'Move to the top') + btn('up', '▲', 'Move up')
+    + btn('down', '▼', 'Move down') + btn('bottom', '⤓', 'Move to the bottom')
+    + `<button type="button" class="print-mbtn is-done" data-print-step="done">Done</button>`;
+  picked.after(bar);
+  if (printPick.scroll) {
+    printPick.scroll = false;
+    picked.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+['print-fields', 'print-cl-list'].forEach(listId => {
+  $(listId).addEventListener('click', (e) => {
+    const list = listId === 'print-fields' ? 'top' : 'cl';
+    const sl = e.target.closest('[data-print-slot]');
+    if (sl) { e.stopPropagation(); printMoveTo(list, Number(sl.dataset.printSlot)); return; }
+    const st = e.target.closest('[data-print-step]');
+    if (!st) return;
+    e.stopPropagation();
+    if (st.dataset.printStep === 'done') { printPick = null; printRepaintList(list); return; }
+    printMoveTo(list, printStepTarget(list, st.dataset.printStep));
+  });
+});
+function clearPrintPick() {
+  if (!printPick) return;
+  const list = printPick.list;
+  printPick = null;
+  printRepaintList(list);
+}
+
 // ---- Drag a row to reorder ----
 // Pointer events, not HTML5 drag-and-drop: DnD is unreliable under iOS Safari
 // touch, and this is an iPad-first app. The dragged row follows the finger
 // while its neighbours shuffle underneath; the order is committed on release.
+// A press that doesn't move is a tap: it picks the row (above). Near the top
+// or bottom of the sheet the sheet scrolls, so a row can travel the whole list.
+// A checklist heading is dragged with its items: they hide while it moves and
+// follow it on release, and it only ever lands between sections.
 let dragState = null;
 let dragList = null;
+function dragApplyY() {
+  const d = dragState;
+  d.dy = d.lastY - d.startY;
+  d.row.style.transform = `translateY(${d.dy}px)`;
+}
+// Rows after heading h up to the next heading: its section's items.
+function sectionTail(h) {
+  let last = h;
+  for (let el = h.nextElementSibling; el; el = el.nextElementSibling) {
+    if (!el.classList.contains('print-frow')) continue;
+    if (el.classList.contains('print-clsec')) break;
+    if (!el.classList.contains('is-carried')) last = el;
+  }
+  return last;
+}
+function dragTrySwap(y) {
+  const d = dragState, row = d.row;
+  const isSec = row.classList.contains('print-clsec');
+  const sel = isSec ? '.print-clsec' : '.print-frow:not(.is-carried), .print-div';
+  const rows = [...dragList.querySelectorAll(sel)];
+  const movingDown = d.dy > 0;
+  for (const other of rows) {
+    if (other === row) continue;
+    const r = other.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    if (movingDown && y > mid && other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_PRECEDING) {
+      (isSec ? sectionTail(other) : other).after(row);
+      d.startY = y; dragApplyY();
+      return;
+    }
+    if (!movingDown && y < mid && other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      other.before(row);
+      d.startY = y; dragApplyY();
+      return;
+    }
+  }
+}
+function dragTick() {
+  const d = dragState;
+  if (!d || !d.moved) return;
+  const sc = d.scroller;
+  if (sc) {
+    const r = sc.getBoundingClientRect(), edge = 56, y = d.lastY;
+    let v = 0;
+    if (y < r.top + edge) v = -Math.ceil((r.top + edge - y) / 5);
+    else if (y > r.bottom - edge) v = Math.ceil((y - (r.bottom - edge)) / 5);
+    if (v) {
+      const before = sc.scrollTop;
+      sc.scrollTop = before + v;
+      const got = sc.scrollTop - before;
+      // The row's slot scrolled with the content; keep the row under the finger.
+      if (got) { d.startY -= got; dragApplyY(); dragTrySwap(y); }
+    }
+  }
+  d.raf = requestAnimationFrame(dragTick);
+}
 ['print-fields', 'print-cl-list'].forEach(listId => {
 $(listId).addEventListener('pointerdown', (e) => {
   const grip = e.target.closest('[data-print-grip]');
@@ -1903,46 +2085,60 @@ $(listId).addEventListener('pointerdown', (e) => {
   dragList = $(listId);
   e.preventDefault();
   try { grip.setPointerCapture(e.pointerId); } catch {}
-  dragState = { row, grip, startY: e.clientY, dy: 0 };
-  row.classList.add('is-dragging');
-  // Lift it out of flow visually but keep its slot, so the list doesn't jump.
-  row.style.position = 'relative';
-  row.style.zIndex = '5';
+  dragState = { row, grip, startY: e.clientY, y0: e.clientY, lastY: e.clientY, dy: 0, moved: false,
+                scroller: row.closest('.ocr-sheet'), raf: 0, carried: [] };
 });
 $(listId).addEventListener('pointermove', (e) => {
-  if (!dragState) return;
+  const d = dragState;
+  if (!d) return;
   e.preventDefault();
-  const { row } = dragState;
-  dragState.dy = e.clientY - dragState.startY;
-  row.style.transform = `translateY(${dragState.dy}px)`;
-  // Swap with whichever sibling's midpoint the pointer has crossed.
-  const rows = [...dragList.querySelectorAll('.print-frow, .print-div')];
-  for (const other of rows) {
-    if (other === row) continue;
-    const r = other.getBoundingClientRect();
-    const mid = r.top + r.height / 2;
-    const movingDown = dragState.dy > 0;
-    if (movingDown && e.clientY > mid && other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_PRECEDING) {
-      other.after(row);
-      dragState.startY = e.clientY; dragState.dy = 0;
-      row.style.transform = '';
-      break;
+  d.lastY = e.clientY;
+  if (!d.moved) {
+    if (Math.abs(e.clientY - d.y0) < 6) return;
+    d.moved = true;
+    // A drag replaces a pick: drop the move bar and "Move here" lines.
+    if (printPick) {
+      printPick = null;
+      dragList.classList.remove('is-picking');
+      dragList.querySelectorAll('.print-slot, .print-movebar').forEach(el => el.remove());
+      dragList.querySelectorAll('.is-picked').forEach(el => el.classList.remove('is-picked'));
     }
-    if (!movingDown && e.clientY < mid && other.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) {
-      other.before(row);
-      dragState.startY = e.clientY; dragState.dy = 0;
-      row.style.transform = '';
-      break;
+    if (d.row.classList.contains('print-clsec')) {
+      for (let el = d.row.nextElementSibling; el && !el.classList.contains('print-clsec'); el = el.nextElementSibling) {
+        if (el.classList.contains('print-frow')) { el.classList.add('is-carried'); d.carried.push(el); }
+      }
+      d.row.dataset.carry = String(d.carried.length);
     }
+    d.row.classList.add('is-dragging');
+    d.row.style.position = 'relative';
+    d.row.style.zIndex = '5';
+    d.raf = requestAnimationFrame(dragTick);
   }
+  dragApplyY();
+  dragTrySwap(e.clientY);
 });
 function endFieldDrag() {
-  if (!dragState) return;
-  const { row } = dragState;
+  const d = dragState;
+  if (!d) return;
+  dragState = null;
+  cancelAnimationFrame(d.raf);
+  const { row } = d;
+  const list = dragList && dragList.id === 'print-cl-list' ? 'cl' : 'top';
+  if (!d.moved) {
+    // A tap on ⠿: pick this row, or put it down again.
+    dragList = null;
+    const idx = Number(row.dataset.idx);
+    printPick = (printPick && printPick.list === list && printPick.idx === idx) ? null : { list, idx, scroll: false };
+    printRepaintList(list);
+    return;
+  }
   row.classList.remove('is-dragging');
   row.style.transform = ''; row.style.position = ''; row.style.zIndex = '';
-  dragState = null;
-  if (dragList && dragList.id === 'print-cl-list') {
+  printPick = null;
+  if (list === 'cl') {
+    // Carried items go straight back under their heading.
+    for (const el of d.carried.slice().reverse()) row.after(el);
+    for (const el of d.carried) el.classList.remove('is-carried');
     rebuildTemplateFromDom();
     dragList = null;
     paintPrintChecklist();
@@ -2040,7 +2236,7 @@ $('print-pdf').addEventListener('click', async () => {
   btn.textContent = 'Preparing PDF\u2026';
   let pdfMod;
   try {
-    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=267');
+    pdfMod = pdfModule = pdfModule || await import('./modules/print-pdf.js?v=268');
   } catch {
     resetPdfButton();
     toast('PDF unavailable \u2014 check connection');
@@ -2213,7 +2409,7 @@ async function paintSettingsStatus() {
     const m = Math.round((Date.now() - ms) / 60000);
     return m < 2 ? 'just now' : m < 90 ? `${m} min ago` : m < 2160 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
   };
-  const cal = await import('./modules/calendar.js?v=267');
+  const cal = await import('./modules/calendar.js?v=268');
   const at = cal.getLastSyncAt();
   put('calendar', !cal.isConfigured() ? 'Not set up' : at ? `Synced ${ago(at)}` : 'Not synced yet');
   await paintSensorsPanel();
@@ -2221,7 +2417,7 @@ async function paintSettingsStatus() {
   put('sensors', `GPS ${sensor('geolocation')} · Motion ${sensor('motion')}`);
   // A count, not the whole list — it's all inside.
   try {
-    const r = (await import('./modules/route-info.js?v=267')).getCountryRules();
+    const r = (await import('./modules/route-info.js?v=268')).getCountryRules();
     const n = r.exclude.length, f = Object.keys(r.penalty).length;
     put('route', `${n} excluded · ${f} factor${f === 1 ? '' : 's'}`);
   } catch { put('route', ''); }
@@ -2295,11 +2491,11 @@ $('roster-parse').addEventListener('click', async () => {
   const text = $('roster-text').value || '';
   if (!text.trim()) { toast('Paste your roster first'); return; }
   try {
-    const { parseRoster } = await import('./modules/roster.js?v=267');
+    const { parseRoster } = await import('./modules/roster.js?v=268');
     const parsed = parseRoster(text);
     if (!parsed || !parsed.flights?.length) {
       // Not a roster — maybe the slot message (ACARS SAM, dispatch text).
-      const { parseFmcText } = await import('./modules/ocr.js?v=267');
+      const { parseFmcText } = await import('./modules/ocr.js?v=268');
       const ctot = parseFmcText(text).ctot;
       if (ctot) {
         storage.setDataField('ctot', ctot);
@@ -2349,7 +2545,7 @@ $('settings-overlay').addEventListener('click', (e) => {
 // the calendar module's setCalendarUrl helper. paintCalendarSection
 // loads any previously-saved URL back into the field when the sheet opens.
 async function paintCalendarSection() {
-  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=267');
+  const { getCalendarUrl, getLastSyncAt } = await import('./modules/calendar.js?v=268');
   const input = $('cal-url');
   if (input && document.activeElement !== input) input.value = getCalendarUrl();
   const status = $('cal-status');
@@ -2362,7 +2558,7 @@ async function paintCalendarSection() {
   }
   // Logbook auto-push panel — URL + last-push status.
   try {
-    const lp = await import('./modules/logbook-push.js?v=267');
+    const lp = await import('./modules/logbook-push.js?v=268');
     const urlInput = $('lbpush-url');
     if (urlInput) urlInput.value = lp.subscribeUrls().https;
     paintLbPushStatus(lp.lastPushedAt());
@@ -2379,7 +2575,7 @@ function paintLbPushStatus(at, errText = '') {
 }
 $('lbpush-copy').addEventListener('click', async () => {
   try {
-    const lp = await import('./modules/logbook-push.js?v=267');
+    const lp = await import('./modules/logbook-push.js?v=268');
     // Copy the https form — iOS Settings' "Add Subscribed Calendar" wants
     // a URL it can paste; webcal:// only helps as a tappable link.
     await navigator.clipboard.writeText(lp.subscribeUrls().https);
@@ -2391,7 +2587,7 @@ $('lbpush-copy').addEventListener('click', async () => {
 });
 $('cal-url').addEventListener('input', async () => {
   try {
-    const { setCalendarUrl } = await import('./modules/calendar.js?v=267');
+    const { setCalendarUrl } = await import('./modules/calendar.js?v=268');
     setCalendarUrl($('cal-url').value);
   } catch (err) {
     console.warn('cal url save failed', err);
@@ -2414,7 +2610,7 @@ async function runCalendarSync(source) {
   }
   calSyncRunning = true;
   try {
-    const cal = await import('./modules/calendar.js?v=267');
+    const cal = await import('./modules/calendar.js?v=268');
     // Save current input first in case the user just edited but didn't blur.
     if (source === 'manual') cal.setCalendarUrl($('cal-url').value);
     // NOT `source` — this function's own parameter is called `source`, and a
@@ -2532,14 +2728,14 @@ async function runFullSync({ quiet = false } = {}) {
   if (!quiet) toast('Refreshing…');
   const done = [];
   try {
-    const { isConfigured } = await import('./modules/calendar.js?v=267');
+    const { isConfigured } = await import('./modules/calendar.js?v=268');
     if (isConfigured() && await runCalendarSync('auto')) done.push('calendar');
   } catch (err) { console.warn('refresh: calendar sync failed', err); }
   try {
     if (await maybeSyncSocialNotes(true)) done.push('notes');
   } catch (err) { console.warn('refresh: social sync failed', err); }
   try {
-    const lp = await import('./modules/logbook-push.js?v=267');
+    const lp = await import('./modules/logbook-push.js?v=268');
     const res = await lp.pushNow({ force: true });
     if (res?.ok && !res.skipped) done.push('logbook');
   } catch (err) { console.warn('refresh: logbook push failed', err); }
@@ -2551,7 +2747,7 @@ async function runFullSync({ quiet = false } = {}) {
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
     if (leg && leg.dep && leg.arr && Number.isFinite(std) && Date.now() < std + 20 * 3600000) {
-      const ru = await import('./modules/route-ui.js?v=267');
+      const ru = await import('./modules/route-ui.js?v=268');
       ru.wire();
       await ru.ensureSaved();
       if (await ru.refresh(false)) done.push('route weather');
@@ -2665,7 +2861,7 @@ const AUTO_SYNC_WINDOW_MS   = 3 * 60 * 60 * 1000;   // 3h pre-departure
 const AUTO_SYNC_COOLDOWN_MS = 60 * 60 * 1000;       // at most once / hr
 async function maybeAutoSyncCalendar() {
   try {
-    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=267');
+    const { isConfigured, getLastSyncAt } = await import('./modules/calendar.js?v=268');
     if (!isConfigured()) return;
     const now = Date.now();
     if (now - getLastSyncAt() < AUTO_SYNC_COOLDOWN_MS) return;
@@ -2720,7 +2916,7 @@ $('airport-route')?.addEventListener('click', async () => {
   const code = airportNoteFor;
   const leg = routeReturnLeg;
   try {
-    const ru = await import('./modules/route-ui.js?v=267');
+    const ru = await import('./modules/route-ui.js?v=268');
     ru.wire();
     if (!$('route-overlay').classList.contains('hidden')) {
       flushAirportNotes();
@@ -2765,7 +2961,7 @@ async function updateNearChip() {
   nearPrevFix = fix;
   const g = { lat: fix.lat, lon: fix.lon, altFt: (fix.altM || 0) * 3.28084, gs: (fix.speedMps || 0) * 1.94384, trk: trk ?? 0, airborne: true };
   try {
-    const ru = await import('./modules/route-ui.js?v=267');
+    const ru = await import('./modules/route-ui.js?v=268');
     const leg = storage.getLegs()[storage.getLegIndex()] || null;
     const n = await ru.nearestNow(leg, g);
     if (!n) return hide();
@@ -2781,7 +2977,7 @@ async function routeAutoUpdate() {
   const leg = storage.getLegs()[storage.getLegIndex()] || null;
   const std = leg ? legTs(leg.dep_date, leg.dep_time, leg.dep_year) : NaN;
   if (!Number.isFinite(std) || Date.now() < std - 12 * 3600000 || Date.now() > std + 20 * 3600000) return;
-  const ru = await import('./modules/route-ui.js?v=267');
+  const ru = await import('./modules/route-ui.js?v=268');
   ru.wire();
   await ru.autoUpdate();
   paintReadyLine();
@@ -2806,7 +3002,7 @@ async function paintReadyLine() {
   }
   let r = null;
   try {
-    const ru = await import('./modules/route-ui.js?v=267');
+    const ru = await import('./modules/route-ui.js?v=268');
     r = await ru.readiness(leg);
   } catch (err) { console.warn('readiness skipped', err); }
   if (seq !== paintReadyLine.seq) return;
@@ -2841,7 +3037,7 @@ setInterval(() => { try { paintReadyLine(); paintPhase(); paintFdpChip(); } catc
   if (!ex || !pen) return;
   let names = null;                              // code → country name
   const lib = async () => {
-    const ri = await import('./modules/route-info.js?v=267');
+    const ri = await import('./modules/route-info.js?v=268');
     if (!names) { try { names = (await ri.loadDb()).countries || {}; } catch { names = {}; } }
     return ri;
   };
@@ -2908,7 +3104,7 @@ function backupAgo(ms) {
   return d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
 }
 async function paintBackupSection() {
-  const bk = await import('./modules/backup.js?v=267');
+  const bk = await import('./modules/backup.js?v=268');
   const l = bk.last();
   const txt = l ? `Last backup ${backupAgo(l.at)} · ${l.legs} legs` : 'Never backed up';
   $('backup-last').textContent = txt;
@@ -2916,7 +3112,7 @@ async function paintBackupSection() {
   $('backup-undo').hidden = !(await bk.safety());
 }
 async function backupNow() {
-  const bk = await import('./modules/backup.js?v=267');
+  const bk = await import('./modules/backup.js?v=268');
   const b = bk.snapshot();
   const json = JSON.stringify(b);
   const file = new File([json], bk.filename(b), { type: 'application/json' });
@@ -2945,7 +3141,7 @@ $('backup-pick').addEventListener('change', async (e) => {
   const f = e.target.files?.[0];
   e.target.value = '';
   if (!f) return;
-  const bk = await import('./modules/backup.js?v=267');
+  const bk = await import('./modules/backup.js?v=268');
   try { backupPicked = bk.parse(await f.text()); }
   catch (err) { toast(err.message || 'Not a backup file'); return; }
   if (backupPicked.exp) { paintExportImport(f.name); return; }
@@ -2974,11 +3170,11 @@ $('backup-preview').addEventListener('click', async (e) => {
   const mode = b.dataset.restore;
   if (mode === 'cancel') { $('backup-preview').hidden = true; backupPicked = null; return; }
   if (mode === 'add-export') {
-    const bk = await import('./modules/backup.js?v=267');
+    const bk = await import('./modules/backup.js?v=268');
     try {
       await bk.saveSafety();
       const a = storage.mergeExport(backupPicked.parts);
-      const ex = await import('./modules/export.js?v=267');
+      const ex = await import('./modules/export.js?v=268');
       toast(`Added: ${ex.summary(a) || 'nothing new — all already here'} — reloading…`);
       hideOverlay('settings-overlay');
       setTimeout(() => location.reload(), 1200);
@@ -2986,7 +3182,7 @@ $('backup-preview').addEventListener('click', async (e) => {
     return;
   }
   if (mode === 'replace' && !confirm('Replace everything on this iPad with this backup?')) return;
-  const bk = await import('./modules/backup.js?v=267');
+  const bk = await import('./modules/backup.js?v=268');
   try {
     await bk.saveSafety();
     if (mode === 'replace') bk.restoreReplace(backupPicked);
@@ -3003,7 +3199,7 @@ $('backup-preview').addEventListener('click', async (e) => {
 });
 // An Export file picked in Restore: what's in it, and one way in — added.
 async function paintExportImport(name) {
-  const ex = await import('./modules/export.js?v=267');
+  const ex = await import('./modules/export.js?v=268');
   const when = backupPicked.at ? new Date(backupPicked.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const box = $('backup-preview');
   box.innerHTML = `<b>${escapeHtml(name)}</b>
@@ -3020,7 +3216,7 @@ async function paintExportImport(name) {
 // ---------- Export: a file of just what's ticked ----------
 let exportSel = null, exportInv = null, exportQ = '', exportPickOpen = false;
 async function openExport() {
-  const ex = await import('./modules/export.js?v=267');
+  const ex = await import('./modules/export.js?v=268');
   exportInv = ex.inventory();
   exportSel = { notes: [], airportNotes: false, crew: false, phones: false, speeches: false, past: false, future: false, flights: [] };
   exportQ = ''; exportPickOpen = false;
@@ -3070,7 +3266,7 @@ function paintExport() {
   paintExportSum();
 }
 async function paintExportSum() {
-  const ex = await import('./modules/export.js?v=267');
+  const ex = await import('./modules/export.js?v=268');
   const x = ex.build(exportSel);
   const sum = ex.summary(x.counts);
   $('export-sum').textContent = sum || 'Tick what to export';
@@ -3102,7 +3298,7 @@ $('export-overlay')?.addEventListener('input', (e) => {
   if (e.target.id === 'export-q') { exportQ = e.target.value; $('export-flights').innerHTML = exportPickList(); }
 });
 $('export-go')?.addEventListener('click', async () => {
-  const ex = await import('./modules/export.js?v=267');
+  const ex = await import('./modules/export.js?v=268');
   const x = ex.build(exportSel);
   const file = new File([JSON.stringify(x)], ex.filename(x), { type: 'application/json' });
   try {
@@ -3124,7 +3320,7 @@ $('export-go')?.addEventListener('click', async () => {
 });
 
 $('backup-undo').addEventListener('click', async () => {
-  const bk = await import('./modules/backup.js?v=267');
+  const bk = await import('./modules/backup.js?v=268');
   const s = await bk.safety();
   if (!s || !confirm(`Put this iPad back as it was before the last restore (${s.counts.legs} legs)?`)) return;
   bk.restoreReplace(s);
@@ -3136,7 +3332,7 @@ async function paintBackupNudge() {
   const el = $('backup-nudge');
   if (!el) return;
   try {
-    const bk = await import('./modules/backup.js?v=267');
+    const bk = await import('./modules/backup.js?v=268');
     const d = bk.due();
     const busy = document.querySelector('.overlay:not(.hidden)') || legPhase().phase === 'air';
     if (!d || busy) { el.hidden = true; return; }
@@ -3148,7 +3344,7 @@ async function paintBackupNudge() {
 $('backup-nudge').addEventListener('click', async (e) => {
   if (e.target.closest('[data-backup-now]')) { backupNow(); return; }
   if (e.target.closest('[data-backup-later]')) {
-    const bk = await import('./modules/backup.js?v=267');
+    const bk = await import('./modules/backup.js?v=268');
     bk.snooze(3);
     $('backup-nudge').hidden = true;
   }
@@ -3166,7 +3362,7 @@ $('logbook-export-btn').addEventListener('click', () => {
   $('logbook-export-btn').setAttribute('aria-expanded', String(!row.hidden));
 });
 async function exportLogbook(ext, type, build) {
-  const lb = await import('./modules/logbook.js?v=267');
+  const lb = await import('./modules/logbook.js?v=268');
   const legs = lb.allStoredLegs();
   if (!legs.length) { toast('No flights to export yet'); return; }
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -3208,9 +3404,9 @@ async function paintAnalytics() {
   const keepScroll = body.closest('.ocr-sheet')?.scrollTop || 0;
   body.innerHTML = '<p class="muted small" style="padding:18px 4px;">Crunching…</p>';
   try {
-    const an = await import('./modules/analytics.js?v=267');
-    const airports = await import('./modules/airports.js?v=267');
-    const world = await import('./modules/worldmap.js?v=267');
+    const an = await import('./modules/analytics.js?v=268');
+    const airports = await import('./modules/airports.js?v=268');
+    const world = await import('./modules/worldmap.js?v=268');
     const data = an.snapshot(anYear, anFilters);
     data.routeLegs = an.flownRoutes(data.pool);
     data.heatFrom = an.heatFrom;
@@ -3341,7 +3537,7 @@ async function openLogbook(focusKey = '') {
   const body = $('logbook-body');
   body.innerHTML = '<p class="lb-empty">Loading…</p>';
   try {
-    const lb = await import('./modules/logbook.js?v=267');
+    const lb = await import('./modules/logbook.js?v=268');
     const legs = (lb.allStoredLegs() || []).slice().reverse(); // newest first
     await ensureLbAirports();
     // Past duties only: the logbook is what happened.
@@ -3388,11 +3584,11 @@ async function openFtl() {
 async function paintFtl() {
   const body = $('ftl-body');
   try {
-    const ftl = await import('./modules/ftl.js?v=267');
+    const ftl = await import('./modules/ftl.js?v=268');
     if (ftlMode === 'calc') { body.innerHTML = ftlModeSwitch() + renderFtlCalc(ftl); paintFtlCalcOut(ftl); return; }
     let lonOf = null;
     try {
-      const ri = await import('./modules/route-info.js?v=267');
+      const ri = await import('./modules/route-info.js?v=268');
       const db = await ri.loadDb();
       lonOf = (c) => ri.findAirport(db, c)?.lon;
     } catch {}
@@ -3426,7 +3622,7 @@ async function ftlEtaTick() {
   if (!st || st.phase !== 'airborne' || !fix || Date.now() - fix.ts > 90 * 1000) return;
   const leg = storage.getLeg();
   if (!leg || !leg.dep || !leg.arr) return;
-  const [ftl, ri, plan] = await Promise.all([import('./modules/ftl.js?v=267'), import('./modules/route-info.js?v=267'), import('./modules/plan-route.js?v=267')]);
+  const [ftl, ri, plan] = await Promise.all([import('./modules/ftl.js?v=268'), import('./modules/route-info.js?v=268'), import('./modules/plan-route.js?v=268')]);
   // Only a real GPS position — not a Wi-Fi guess kilometres out.
   if (!plan.goodFix(fix.accM)) return;
   const db = await ri.loadDb();
@@ -3822,7 +4018,7 @@ function ftlCalcInput(e) {
     } else if (dm) c.date = val('date');
   }
   ftlCalcSave(c);
-  import('./modules/ftl.js?v=267').then(paintFtlCalcOut).catch(() => {});
+  import('./modules/ftl.js?v=268').then(paintFtlCalcOut).catch(() => {});
   return true;
 }
 $('ftl-overlay').addEventListener('input', ftlCalcInput);
@@ -4026,8 +4222,8 @@ function lbKeyOf(o) {
 }
 async function ensureLbAirports() {
   try {
-    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=267');
-    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=267');
+    if (!lbAirports) lbAirports = await import('./modules/airports.js?v=268');
+    if (!lbWorld)    lbWorld    = await import('./modules/worldmap.js?v=268');
   } catch (err) { console.warn('map data unavailable', err); }
   return lbAirports;
 }
@@ -4356,7 +4552,7 @@ function wireLogbookRows(body) {
         (!id.dep_year || !l.dep_year || String(l.dep_year) === id.dep_year));
       if (!leg) { toast('Flight not found'); return; }
       hideOverlay('logbook-overlay');
-      import('./modules/route-ui.js?v=267').then(ru => { ru.wire(); return ru.open(leg); })
+      import('./modules/route-ui.js?v=268').then(ru => { ru.wire(); return ru.open(leg); })
         .catch(err => { console.warn('route info failed', err); toast('Route info failed to load'); });
       return;
     }
@@ -4655,7 +4851,7 @@ async function repaintAnMap() {
   }
   const inRange = legs.filter(r => r.ts >= fromTs && r.ts <= toTs);
   try {
-    const an = await import('./modules/analytics.js?v=267');
+    const an = await import('./modules/analytics.js?v=268');
     const heat = an.heatFrom(inRange);
     $('an-map').innerHTML = heatSvgInner(heat, airports, world, W, H);
     $('an-map-key').textContent = heat.length
@@ -4872,7 +5068,7 @@ $('sectors-csv').addEventListener('change', async (e) => {
   if (status) status.textContent = `Reading ${f.name}…`;
   try {
     const text = await f.text();
-    const { parseSectors } = await import('./modules/sectors-csv.js?v=267');
+    const { parseSectors } = await import('./modules/sectors-csv.js?v=268');
     const res = parseSectors(text);
     const span = (res.from && res.to) ? `\n${fmtDay(res.from)} → ${fmtDay(res.to)}` : '';
     const dh = res.skippedDeadhead
@@ -4943,8 +5139,8 @@ let gpsMod = null;  // lazily imported gps module
 let gMod   = null;  // lazily imported g module
 let gpsActive = false;
 async function loadSensorMods() {
-  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=267');
-  if (!gMod)   gMod   = await import('./modules/g.js?v=267');
+  if (!gpsMod) gpsMod = await import('./modules/gps.js?v=268');
+  if (!gMod)   gMod   = await import('./modules/g.js?v=268');
   return { gps: gpsMod, g: gMod };
 }
 
@@ -5326,7 +5522,7 @@ async function loadWx(opts) {
   refreshBtn.disabled = true;
   refreshBtn.textContent = '…';
   try {
-    const { fetchWx, extractLetter, extractText, pickAtis } = await import('./modules/wx.js?v=267');
+    const { fetchWx, extractLetter, extractText, pickAtis } = await import('./modules/wx.js?v=268');
     const res = await fetchWx(code, opts);
     // Moved on to another airport meanwhile: this answer is old news.
     if (resolveWxCode() !== code) return;
@@ -5454,7 +5650,7 @@ async function colourWxPopup(icao, metar, taf, atis, atisLetter = '') {
   if ($('wx-icao').textContent !== icao) return;
   $('wx-when').textContent = wxTimeText(when);
   const items = [];
-  try { c = await (await import('./modules/route-ui.js?v=267')).colouredWx(icao, { metar: metar || '', taf: taf || '', atis: atis || '', eta: when.ms, letter: atisLetter, items }); }
+  try { c = await (await import('./modules/route-ui.js?v=268')).colouredWx(icao, { metar: metar || '', taf: taf || '', atis: atis || '', eta: when.ms, letter: atisLetter, items }); }
   catch { return; }
   if ($('wx-icao').textContent !== icao) return;      // moved on meanwhile
   if (metar) $('wx-metar-text').innerHTML = c.metar;
@@ -5475,7 +5671,7 @@ async function paintAdWind() {
   if (!wrap || !wxRwArgs) return;
   const a = wxRwArgs;
   let info = null, ru = null;
-  try { ru = await import('./modules/route-ui.js?v=267'); info = await ru.atisWindInfo(a.icao, a); } catch {}
+  try { ru = await import('./modules/route-ui.js?v=268'); info = await ru.atisWindInfo(a.icao, a); } catch {}
   if (wxRwArgs !== a || !info) return;
   const sel = wxRwSel.get(a.icao) || '';
   // The drawing: chosen runway lit, the ATIS's runway in use outlined.
@@ -5522,7 +5718,7 @@ async function paintAtisDiagram(icao, items) {
   box.innerHTML = '<div class="wx-ad-note">Drawing the airport… the first time at an airport can take up to a minute</div>';
   let geo = null, ad, nlines = [], nall = [], ru = null, ts = Date.now();
   try {
-    const [ri, ad0, nb, ru0] = await Promise.all([import('./modules/route-info.js?v=267'), import('./modules/atis-diagram.js?v=267'), import('./modules/notam-brief.js?v=267'), import('./modules/route-ui.js?v=267')]);
+    const [ri, ad0, nb, ru0] = await Promise.all([import('./modules/route-info.js?v=268'), import('./modules/atis-diagram.js?v=268'), import('./modules/notam-brief.js?v=268'), import('./modules/route-ui.js?v=268')]);
     ad = ad0; ru = ru0;
     const ap = ri.findAirport(await ri.loadDb(), icao);
     if (ap) {
@@ -5589,7 +5785,7 @@ async function adStartGps() {
   // Only when location is already allowed — never a prompt out of nowhere.
   let ok = false;
   try { ok = (await navigator.permissions.query({ name: 'geolocation' })).state === 'granted'; } catch {}
-  try { const g = await import('./modules/gps.js?v=267'); ok = ok || (await g.cachedPermission()) === 'granted'; } catch {}
+  try { const g = await import('./modules/gps.js?v=268'); ok = ok || (await g.cachedPermission()) === 'granted'; } catch {}
   if (!ok || adWatch != null) return;
   adWatch = navigator.geolocation.watchPosition((p) => {
     if (!(p.coords.accuracy <= 1000)) return;
@@ -5746,7 +5942,7 @@ $('wx-overlay').addEventListener('click', (e) => {
 // air — when the ATIS window is opened.
 async function prewarmAtisDiagrams(wx) {
   try {
-    const [ri, ad] = await Promise.all([import('./modules/route-info.js?v=267'), import('./modules/atis-diagram.js?v=267')]);
+    const [ri, ad] = await Promise.all([import('./modules/route-info.js?v=268'), import('./modules/atis-diagram.js?v=268')]);
     const db = await ri.loadDb();
     for (const code of atisAirports()) {
       const ap = ri.findAirport(db, code);
@@ -5947,7 +6143,7 @@ dataBody.addEventListener('click', (e) => {
   if (action === 'edit')        promptCrewEdit(name);
   else if (action === 'whatsapp') openWhatsApp(name);
   else if (action === 'lastflight') showLastFlightWith(name);
-  else if (action === 'note') import('./modules/crew-notes.js?v=267').then(m => m.open(name)).catch(err => console.warn('crew notes failed', err));
+  else if (action === 'note') import('./modules/crew-notes.js?v=268').then(m => m.open(name)).catch(err => console.warn('crew notes failed', err));
 });
 
 // A note or colour changed in the crew notes window: the Brief's names follow.
@@ -6056,7 +6252,7 @@ async function showAirportInfo(icao) {
   // Show BOTH codes — IATA · ICAO (e.g. "TLV · LLBG") — plus the city.
   let city = '', codes = k;
   try {
-    const { lookup } = await import('./modules/airports.js?v=267');
+    const { lookup } = await import('./modules/airports.js?v=268');
     const a = lookup(k);
     if (a) {
       city = a.city || '';
@@ -6878,7 +7074,7 @@ $('mynotes-file').addEventListener('change', async (e) => {
   if (!pack || pack.app !== 'flightcard-notes' || !Array.isArray(pack.notes)) { toast("That isn't a notes file"); return; }
   const names = pack.notes.map(n => n.name).join(', ');
   if (!confirm(`Add ${pack.notes.length} notes from "${pack.title || f.name}"?\n\n${names}\n\nTabs with the same name get the new text added below yours; nothing is replaced.`)) return;
-  try { const bk = await import('./modules/backup.js?v=267'); await bk.saveSafety(); } catch {}
+  try { const bk = await import('./modules/backup.js?v=268'); await bk.saveSafety(); } catch {}
   if (myNoteId) storage.setMyNoteHtml(myNoteId, noteHtmlOf($('mynote-body')));
   const r = storage.importMyNotes(pack.notes, pack.divider || `<b>— ${escapeHtml(pack.title || 'Imported')} —</b>`);
   myNotesEditing = false;
@@ -7083,7 +7279,7 @@ async function maybeSyncSocialNotes(force = false) {
       // the leg uses. airports.lookup resolves the pair.
       let expanded = data;
       try {
-        const { lookup } = await import('./modules/airports.js?v=267');
+        const { lookup } = await import('./modules/airports.js?v=268');
         expanded = {};
         for (const [code, val] of Object.entries(data)) {
           const a = lookup(code);
@@ -7183,7 +7379,7 @@ async function handleOcrFile(file) {
   $('ocr-progress').classList.remove('hidden');
   $('ocr-progress-text').textContent = 'Preparing image…';
   try {
-    const { ocrImage } = await import('./modules/ocr.js?v=267');
+    const { ocrImage } = await import('./modules/ocr.js?v=268');
     // 90s timeout — if Tesseract or its language data refuses to load (offline
     // first run, blocked CDN, weirdly large image) we bail with a clean error
     // instead of sitting on a spinner forever.
@@ -7210,7 +7406,7 @@ async function handleOcrFile(file) {
 
 async function runParse(text) {
   // Roster first — if the pasted text is a duty roster, take that branch.
-  const { parseRoster } = await import('./modules/roster.js?v=267');
+  const { parseRoster } = await import('./modules/roster.js?v=268');
   const roster = parseRoster(text);
   if (roster) {
     await applyRoster(roster);
@@ -7220,7 +7416,7 @@ async function runParse(text) {
     if (details) details.open = true;
     return;
   }
-  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=267');
+  const { parseFmcText, buildReviewFields } = await import('./modules/ocr.js?v=268');
   const parsed = parseFmcText(text);
   $('ocr-progress').classList.add('hidden');
   // dep / arr deliberately excluded — the roster already sets them and a

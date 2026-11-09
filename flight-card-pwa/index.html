@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=267" />
+  <link rel="stylesheet" href="./app.css?v=268" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -936,26 +936,39 @@
       <div class="print-cols">
         <!-- Left: what goes on the card, and in what order -->
         <div class="print-ctrls">
+          <!-- The basics first: three steps that get a card printed. Everything
+               a first print doesn't need sits folded under Advanced. -->
+          <ol class="print-steps">
+            <li><strong>Set up the card</strong> — the boxes on top and the checklist, below.</li>
+            <li><strong>Check the preview</strong> — it is the real A4 page.</li>
+            <li><strong>Print</strong> — or <strong>Share as PDF</strong> and tap Print in the share sheet.</li>
+          </ol>
           <div class="airport-tabs" role="tablist">
             <button id="print-tab-top" class="airport-tab is-active" data-print-tab="top" role="tab" type="button">Top boxes</button>
             <button id="print-tab-cl"  class="airport-tab" data-print-tab="checklist" role="tab" type="button">Checklist</button>
           </div>
           <!-- Tab 1: the hand-written band across the top of the card -->
           <div id="print-pane-top">
-          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder, type to retitle. Boxes between two line breaks print on the same line and split it evenly — drag a break to move the split. <span aria-hidden="true">◉</span> leaves a box off the card, <span aria-hidden="true">✕</span> deletes it.</p>
+          <p class="muted small print-hint">Tap <span aria-hidden="true">⠿</span> to move a box: <b>▲ ▼</b>, or tap a <b>Move here</b> line. You can also drag it. Type to rename · <span aria-hidden="true">◉</span> hide · <span aria-hidden="true">✕</span> delete.</p>
           <div id="print-fields" class="print-fieldlist"></div>
           <button type="button" id="print-addbox" class="print-adddiv">+ box</button>
+          <p class="muted small print-hint">Boxes between two <b>new line</b> marks share one row on the card.</p>
           </div>
           <!-- Tab 2: the checklist itself. Edits here are the real checklist,
                shared with the card on the main screen, and they are permanent —
                nothing in the app reseeds a checklist the user has touched. -->
           <div id="print-pane-cl" class="hidden">
-          <p class="muted small">Drag <span aria-hidden="true">⠿</span> to reorder — an item follows whichever section heading sits above it. Type to rename. <span aria-hidden="true">✕</span> deletes. Your edits are kept — app updates never reset the checklist.</p>
+          <p class="muted small print-hint">Tap <span aria-hidden="true">⠿</span> to move: <b>▲ ▼</b>, or tap a <b>Move here</b> line. You can also drag. A heading moves with its items. Type to rename · <span aria-hidden="true">✕</span> delete.</p>
           <div id="print-cl-list" class="print-fieldlist"></div>
           <div class="print-cl-adds">
             <button type="button" id="print-addsec"  class="print-adddiv">+ section</button>
             <button type="button" id="print-additem" class="print-adddiv">+ item</button>
           </div>
+          <p class="muted small print-hint">This is your real checklist, the same one as on the Checklist screen. App updates never reset it.</p>
+          </div>
+          <div class="print-flags">
+            <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
+            <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
           </div>
           <div class="print-size">
             <label for="print-textsize">Text size</label>
@@ -963,41 +976,34 @@
                    aria-label="Printed text size" />
             <output id="print-textsize-out">100%</output>
           </div>
-          <div class="print-size">
-            <label for="print-clip">Clip margin</label>
-            <input type="range" id="print-clip" min="0" max="30" step="1" value="12"
-                   aria-label="Blank strip at the top and bottom edges, where the clip grips the folded sheet" />
-            <output id="print-clip-out">12mm</output>
-          </div>
-          <div class="print-size">
-            <label for="print-edge">Edge margin</label>
-            <input type="range" id="print-edge" min="0" max="10" step="1" value="5"
-                   aria-label="Safe margin on all four paper edges" />
-            <output id="print-edge-out">5mm</output>
-          </div>
-          <div class="print-flags">
-            <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
-            <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
-            <label class="print-flag"><input type="checkbox" id="print-both" /> <span>Both sides (8 per sheet)</span></label>
-          </div>
-          <p class="muted small print-note">
-            Four cards per A4. Two-sided printing is chosen in your printer’s own
-            dialog — ticking “Both sides” here just puts cards on the back too.
-            Keep <strong>Edge margin</strong> at 5mm unless your printer does
-            borderless: below that the bottom pair fall into the strip most
-            printers can’t print, and the driver shifts the whole page to
-            compensate.
-          </p>
           <button id="print-go" class="btn primary print-go">Print</button>
           <!-- The route that works from the Home Screen app. The page's own
                print command opens nothing there, but the system share sheet
                does, and for a PDF it offers Print. Never navigates, so it can't
                strand the pilot on a page with no way back. -->
           <button type="button" id="print-pdf" class="btn print-go print-pdf">Share as PDF</button>
-          <p class="muted small print-note">
-            Opens the iPad share sheet — tap <strong>Print</strong> there. Use this
-            when the Print button above does nothing.
-          </p>
+          <p class="muted small print-note">From the Home Screen app, Print often opens nothing.
+            Use <strong>Share as PDF</strong>, then tap <strong>Print</strong> (or save it to Files).</p>
+          <details class="print-adv">
+            <summary>Advanced — margins, both sides</summary>
+            <label class="print-flag"><input type="checkbox" id="print-both" /> <span>Both sides (8 cards per sheet)</span></label>
+            <p class="muted small print-note">Puts cards on the back too. Turn on two-sided printing in the printer's own dialog as well.</p>
+            <div class="print-size">
+              <label for="print-clip">Clip margin</label>
+              <input type="range" id="print-clip" min="0" max="30" step="1" value="12"
+                     aria-label="Blank strip at the top and bottom edges, where the clip grips the folded sheet" />
+              <output id="print-clip-out">12mm</output>
+            </div>
+            <p class="muted small print-note">A blank strip at the top and bottom for the kneeboard clip.</p>
+            <div class="print-size">
+              <label for="print-edge">Edge margin</label>
+              <input type="range" id="print-edge" min="0" max="10" step="1" value="5"
+                     aria-label="Safe margin on all four paper edges" />
+              <output id="print-edge-out">5mm</output>
+            </div>
+            <p class="muted small print-note">Keep 5mm. Less, and most printers cut off the bottom cards or shift the whole page.</p>
+            <p class="muted small print-note">The sheet holds four cards. Fold it in half: the bottom two print upside down so they read the right way after folding.</p>
+          </details>
         </div>
         <!-- Right: live preview of a single card, at true proportions -->
         <div class="print-preview-wrap">
@@ -1013,6 +1019,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=267"></script>
+  <script type="module" src="./app.js?v=268"></script>
 </body>
 </html>
