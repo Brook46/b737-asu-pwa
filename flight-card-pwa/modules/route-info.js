@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=270';
+import { WORKER_BASE } from './proxy.js?v=271';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -491,15 +491,27 @@ export async function fetchWeather(ids) {
   if (!r.ok) throw new Error('weather HTTP ' + r.status);
   return r.json();
 }
+// Several small requests side by side, not one big one: the worker makes a
+// call per airport (cache read and write) and Cloudflare's free plan stops a
+// request at 50 calls, so thirty airports in one went over and failed.
+const NOTAM_BATCH = 6;
 export async function fetchNotams(ids) {
   if (!WORKER_BASE || !ids.length) return { off: true };
-  const r = await fetch(WORKER_BASE.replace(/\/$/, '') + '/notams?ids=' + ids.slice(0, 30).join(','), { cache: 'no-store' });
-  if (r.status === 501 || r.status === 404) return { off: true };
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({}));
-    throw new Error(e.error || 'NOTAM HTTP ' + r.status);
-  }
-  return r.json();
+  const base = WORKER_BASE.replace(/\/$/, '') + '/notams?ids=';
+  const list = ids.slice(0, 30), parts = [];
+  for (let i = 0; i < list.length; i += NOTAM_BATCH) parts.push(list.slice(i, i + NOTAM_BATCH));
+  const res = await Promise.all(parts.map(async (p) => {
+    try {
+      const r = await fetch(base + p.join(','), { cache: 'no-store' });
+      if (r.status === 501 || r.status === 404) return { off: true };
+      if (!r.ok) { const e = await r.json().catch(() => ({})); return { err: e.error || 'NOTAM HTTP ' + r.status }; }
+      return await r.json();
+    } catch (e) { return { err: String(e.message || e) }; }
+  }));
+  if (res.some(x => x.off)) return { off: true };
+  const ok = res.filter(x => x.notams);
+  if (!ok.length) throw new Error(res.find(x => x.err)?.err || 'NOTAMs failed');
+  return { notams: Object.assign({}, ...ok.map(x => x.notams)), partial: ok.length < res.length };
 }
 
 // ---------- SIGMETs along the route ----------

@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=270';
-import * as ri from './route-info.js?v=270';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=270';
-import * as wxm from './wx.js?v=270';
-import * as nb from './notam-brief.js?v=270';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=270';
-import * as plan from './plan-route.js?v=270';
-import * as ely from './ely-traffic.js?v=270';
+import * as storage from './storage.js?v=271';
+import * as ri from './route-info.js?v=271';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=271';
+import * as wxm from './wx.js?v=271';
+import * as nb from './notam-brief.js?v=271';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=271';
+import * as plan from './plan-route.js?v=271';
+import * as ely from './ely-traffic.js?v=271';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -140,7 +140,10 @@ async function build(leg, { doFetch = false } = {}) {
     const ids = pool.map(c => c.ap.icao);
     const alt = altnOf(leg) && ri.findAirport(db, altnOf(leg));
     if (alt && !ids.includes(alt.icao)) ids.push(alt.icao);
-    const wx = await ri.fetchWeather(ids);
+    // Weather, NOTAMs and SIGMETs side by side — one slow source no longer
+    // holds up the others.
+    const wxP = ri.fetchWeather(ids);
+    const sigP = ri.fetchSigmets().catch(() => null);
     // NOTAMs for 30 — the API is per airport: the major ones round each end
     // first, then the best.
     const key = ri.keyAtEnds(pool, route);
@@ -150,7 +153,10 @@ async function build(leg, { doFetch = false } = {}) {
     // A failed NOTAM fetch keeps the last good set (marked with its age)
     // rather than blanking what the pilot already had.
     let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();
-    try { const n = await ri.fetchNotams(top); if (n.off) notamsOff = true; else notams = n.notams; }
+    const ntP = ri.fetchNotams(top);
+    ntP.catch(() => {});
+    const wx = await wxP;
+    try { const n = await ntP; if (n.off) notamsOff = true; else notams = n.notams; }
     catch (e) {
       notamsErr = String(e.message || e);
       if (cache?.notams) { notams = cache.notams; notamsAt = cache.notamsAt || cache.at; }
@@ -158,7 +164,7 @@ async function build(leg, { doFetch = false } = {}) {
     }
     // SIGMETs: a failed fetch keeps the last set, as NOTAMs do.
     let sig = cache?.sig || null;
-    try { const s2 = await ri.fetchSigmets(); if (s2) sig = s2; } catch {}
+    { const s2 = await sigP; if (s2) sig = s2; }
     cache = { at: Date.now(), wx, notams, notamsOff, notamsErr, notamsAt, sig };
     writeCache(leg, cache);
   }
@@ -1954,7 +1960,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=270'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=271'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
