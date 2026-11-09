@@ -19,7 +19,16 @@
 
 const U = (s) => String(s || '').toUpperCase().replace(/\s+/g, ' ');
 const OUT = '(?:U\\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|OTS|WITHDRAWN|SUSPENDED|INOP)';
-const rwys = (s) => (String(s).match(/\b\d{2}[LRC]?\b/g) || []);
+// Runways a NOTAM names: "RWY34R" / "RWY 16L" first; bare numbers only when
+// it names none that way. The "REF AIP AD2 LIRF 1-23" tail and page numbers
+// are never runways.
+function rwys(s) {
+  const t = String(s).replace(/\bREF\b.*$/, '').replace(/\b\d+-\d+\b/g, '');
+  const named = [...t.matchAll(/\bRWY\s*(\d{2}[LRC]?)(?!\d)/g)].map(m => m[1]);
+  if (named.length) return named;
+  return (t.match(/\b\d{2}[LRC]?\b/g) || []).filter(x => +x.slice(0, 2) >= 1 && +x.slice(0, 2) <= 36);
+}
+const MARKER = { OM: 'Outer marker', MM: 'Middle marker', IM: 'Inner marker' };
 
 // → { sev, text, items: [{ kind, ref }] } | null
 export function bottomLine(n) {
@@ -28,7 +37,14 @@ export function bottomLine(n) {
   let m;
   if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) return { sev: 'r', text: 'Aerodrome closed', items: [] };
   if ((m = /\bRWY\s+(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\s+(?:IS\s+)?(CLSD|CLOSED)\b/.exec(t)))
-    return { sev: 'r', text: `RWY ${m[1]} closed`, items: [{ kind: 'RWY', ref: m[1].split('/')[0] }] };
+    return { sev: 'r', text: `RWY ${m[1]} closed${/\bFOR (TKOF|TAKE-?OFF|DEP)/.test(t) ? ' for takeoff' : /\bFOR (LDG|LANDING|ARR)/.test(t) ? ' for landing' : ''}`, items: [{ kind: 'RWY', ref: m[1].split('/')[0] }] };
+  // Marker beacons (often written "OM (ILS 'FSS') RWY34R") — a navaid, not
+  // the ILS itself.
+  if ((m = new RegExp(`\\b(OM|MM|IM|OUTER MARKER|MIDDLE MARKER|INNER MARKER|MKR|MARKER)\\b[^.]{0,60}\\b${OUT}`).exec(t))) {
+    const what = MARKER[m[1]] || (/OUTER/.test(m[1]) ? 'Outer marker' : /MIDDLE/.test(m[1]) ? 'Middle marker' : /INNER/.test(m[1]) ? 'Inner marker' : 'Marker');
+    const rw = rwys(t)[0] || '';
+    return { sev: 'o', text: `${what}${rw ? ' RWY ' + rw : ''} U/S`, items: [] };
+  }
   if ((m = new RegExp(`\\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH|LOCALI[SZ]ER)\\b[^.]{0,40}?(?:RWY\\s*(\\d{2}[LRC]?))?[^.]{0,30}\\b${OUT}`).exec(t))
     || (m = new RegExp(`\\bRWY\\s*(\\d{2}[LRC]?)\\b[^.]{0,20}\\b(ILS|LOC|LLZ|GP|GS)\\b[^.]{0,30}\\b${OUT}`).exec(t))) {
     const sys = /^\d/.test(m[1]) ? m[2] : m[1].replace(/GLIDE ?PATH/, 'GP').replace(/LOCALI[SZ]ER/, 'LOC');
@@ -62,8 +78,12 @@ export function bottomLine(n) {
   }
   if ((m = /\b(STANDS?|STAND|PARKING POSITIONS?|GATES?)\s+([A-Z]?\d{1,3}[A-Z]?(?:\s*(?:,|AND|-|\/)\s*[A-Z]?\d{1,3}[A-Z]?)*)\b[^.]{0,40}?\b(CLSD|CLOSED)\b/.exec(t)))
     return { sev: 'o', text: `Stand ${m[2].replace(/\s+/g, '')} closed`, items: [] };
-  if ((m = new RegExp(`\\b(VOR|DVOR|VOR\\/DME|DME|NDB|TACAN)\\s*([A-Z]{2,3})?\\b[^.]{0,40}\\b${OUT}`).exec(t)))
-    return { sev: 'o', text: `${m[1]}${m[2] ? ' ' + m[2] : ''} U/S`, items: [] };
+  if ((m = new RegExp(`\\b(DVOR\\/DME|VOR\\/DME|DVOR|VOR|DME|NDB|TACAN)\\b[^.]{0,50}\\b${OUT}`).exec(t))) {
+    const id = (/'([A-Z]{2,3})'/.exec(t) || [])[1] || '';
+    // A monitor or status light out isn't the beacon out.
+    if (/\b(STATUS INDICATOR|MONITOR(ING)?|REMOTE STATUS)\b/.test(t) && !/\b(VOR|DME|NDB)\s+(U\/S|UNSERVICEABLE)/.test(t)) return null;
+    return { sev: 'o', text: `${m[1]}${id ? ' ' + id : ''} U/S`, items: [] };
+  }
   if (/\bSTOP ?BARS?\b[^.]{0,30}\b(U\/S|UNSERVICEABLE|OTS|INOP)/.test(t)) return { sev: 'o', text: 'Stop bar lights U/S', items: [] };
   if ((m = new RegExp(`\\b(ALS|APCH LGT|APPROACH LIGHT(?:ING|S)?|PAPI|VASIS?|RWY (?:EDGE |CL |CENTRE ?LINE )?LGT|TDZ LGT|RCLL|REDL)\\b[^.]{0,40}\\b${OUT}`).exec(t))) {
     const what = m[1].replace(/APCH LGT|APPROACH LIGHT(ING|S)?/, 'ALS').replace(/RWY (EDGE |CL |CENTRE ?LINE )?LGT/, (x) => /CL|CENTRE/.test(x) ? 'RWY CL lights' : 'RWY lights');
