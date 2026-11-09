@@ -23,6 +23,9 @@ const APIS = [
 const KEY = 'fc.aptgeo3.';
 const DAYS = 30;
 const norm = (s) => String(s || '').toUpperCase().replace(/[-\s]/g, '');
+// A taxiway's name as the ATIS / NOTAMs say it: some airports' OSM names
+// carry the word ("TWY A13") or a note ("D10 (CLOSED)").
+const twKey = (s) => norm(s).replace(/\(.*?\)/g, '').replace(/^(TWY|TAXIWAY|TWL|TAXILANE)(?=[A-Z0-9])/, '');
 
 function readCache(icao) {
   try {
@@ -87,7 +90,7 @@ async function load(icao, lat, lon) {
   for (const w of d.elements || []) {
     if (!w.geometry || w.geometry.length < 2) continue;
     if (w.tags?.aeroway === 'runway') { out.rw.push({ ref: w.tags.ref || '', pts: xy(w.geometry) }); continue; }
-    const r = norm(w.tags?.ref);
+    const r = twKey(w.tags?.ref);
     (out.tw[r] = out.tw[r] || []).push(xy(w.geometry));
   }
   if (!out.rw.length) return null;
@@ -136,12 +139,31 @@ function runwayEnd(geo, des) {
 // { svg, missing: [labels not found], at(lat, lon) → [x, y] | null }.
 export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {}) {
   if (!geo || !geo.rw.length) return { svg: '', missing: items.map(i => i.label) };
+  // Older saves keep the raw OSM names: clean them here too.
+  if (!geo.twClean) {
+    const tw = {};
+    for (const [r, ways] of Object.entries(geo.tw)) (tw[twKey(r)] = tw[twKey(r)] || []).push(...ways);
+    geo = { ...geo, tw, twClean: true };
+  }
   const marks = [], missing = [];
   for (const it of items) {
     const ref = norm(it.ref);
     if (it.kind === 'RWY' || it.kind === 'ILS') {
       const e = runwayEnd(geo, ref);
       if (e) marks.push({ it, rw: e.rw, rws: e.ways, at: e.at }); else missing.push(it.label);
+      continue;
+    }
+    // A NOTAM about the SIDs or STARs of one runway: an arrow on it.
+    if (it.kind === 'SID' || it.kind === 'STAR') {
+      const e = runwayEnd(geo, ref);
+      if (!e) { missing.push(it.label); continue; }
+      // STAR: on the extended centreline, pointing into the runway at its
+      // landing end. SID: from the far (lift-off) end, pointing out.
+      const L = 1100, along = (p, q) => { const dx = p[0] - q[0], dy = p[1] - q[1], d = Math.hypot(dx, dy) || 1; return [dx / d, dy / d]; };
+      let a, b;
+      if (it.kind === 'STAR') { const u = along(e.edge, e.farEdge); a = [e.edge[0] + u[0] * L, e.edge[1] + u[1] * L]; b = [e.edge[0] + u[0] * 120, e.edge[1] + u[1] * 120]; }
+      else { const u = along(e.farEdge, e.edge); a = [e.farEdge[0] + u[0] * 120, e.farEdge[1] + u[1] * 120]; b = [e.farEdge[0] + u[0] * L, e.farEdge[1] + u[1] * L]; }
+      marks.push({ it, proc: e, a, b });
       continue;
     }
     const want = it.kind === 'GATE' ? [ref, 'GATE' + ref] : it.kind === 'STAND' ? [ref, 'STAND' + ref] : [ref];
@@ -153,8 +175,9 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
   // next to; with nothing found, the whole airport.
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const grow = (p) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); };
-  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.it.kind === 'RWY') m.rws.forEach(w => w.pts.forEach(grow)); });
+  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.proc) { grow(m.a); grow(m.b); } if (m.it.kind === 'RWY') m.rws.forEach(w => w.pts.forEach(grow)); });
   if (whole || !marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
+  if (whole) marks.forEach(m => { if (m.proc) { grow(m.a); grow(m.b); } });
   const pad = whole ? 300 : 350, MIN = 2400;
   x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
   if (x1 - x0 < MIN) { const c = (x0 + x1) / 2; x0 = c - MIN / 2; x1 = c + MIN / 2; }
@@ -210,6 +233,13 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0 } = {
       const mid = w.pts[Math.floor(w.pts.length / 2)];
       // A name that would sit on another stays hidden until it's tapped.
       g += `<text class="${free(+X(mid), +Y(mid)) ? '' : 'ad-hide'}" x="${X(mid)}" y="${Y(mid)}">${esc(m.it.ref)}</text></g>`;
+    } else if (m.proc) {
+      const { a, b } = m;
+      const ang = Math.atan2(+Y(b) - +Y(a), +X(b) - +X(a)) * 180 / Math.PI;
+      g += `<g class="ad-mark ad-proc${m.it.minor ? ' is-minor' : ''}" data-atis-ref="${k}">`
+        + `<line x1="${X(a)}" y1="${Y(a)}" x2="${X(b)}" y2="${Y(b)}"/>`
+        + `<g transform="translate(${X(b)},${Y(b)}) rotate(${ang.toFixed(1)})"><path class="ad-proc-head" d="M0,0 L-11,-6 L-11,6 Z"/></g>`
+        + `<text class="ad-proc-t" x="${X(m.it.kind === 'STAR' ? a : b)}" y="${Y(m.it.kind === 'STAR' ? a : b)}" dy="-0.9em">${m.it.kind}</text></g>`;
     } else if (m.it.kind === 'RWY') {
       g += `<g class="ad-mark ad-rwclosed" data-atis-ref="${k}">${m.rws.map(w => `<path d="${path(w.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
     } else {

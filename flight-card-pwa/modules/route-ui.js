@@ -8,13 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=262';
-import * as ri from './route-info.js?v=262';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=262';
-import * as wxm from './wx.js?v=262';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=262';
-import * as plan from './plan-route.js?v=262';
-import * as ely from './ely-traffic.js?v=262';
+import * as storage from './storage.js?v=263';
+import * as ri from './route-info.js?v=263';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=263';
+import * as wxm from './wx.js?v=263';
+import * as nb from './notam-brief.js?v=263';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=263';
+import * as plan from './plan-route.js?v=263';
+import * as ely from './ely-traffic.js?v=263';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1210,9 +1211,10 @@ function runwayPanel(c, m) {
       <div>${windLine}</div>
       <div class="rw-sub"><b>Approaches:</b> ${ilsHint ? `an ILS / LOC to RWY ${esc(sel.id)} is named in a NOTAM — ` : ''}approach types and CAT I-II-III aren't in any free data — check the chart.</div>
       <div class="rw-sub"><b>Navaids at ${esc(ap.icao)}:</b> ${nav}</div>
-      ${m.notamsOff ? '' : `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${mentions.length
-        ? `<ul class="nt-list">${mentions.map(n => ntItem(n, ri.notamSeverity(n.text, usable))).join('')}</ul>`
-        : '<span class="wx-g">none</span>'}</div>`}
+      ${m.notamsOff ? '' : (() => {
+        const ls = nb.briefs(mentions, c.eta);
+        return `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${ls.length ? ntBriefHtml(ls, c.eta) : '<span class="wx-g">none that matter</span>'}</div>`;
+      })()}
     </div>`;
 }
 
@@ -1231,19 +1233,27 @@ function notamList(c, m) {
     : 'Not checked — NOTAMs aren’t set up yet (Settings → Route info).'}</div>`;
   if (!c.notams) return `<div class="ri-sub">Not fetched for this airport (only the best 30 are checked).</div>`;
   const stale = m.notamsErr ? `<div class="ri-sub"><span class="wx-o">Saved ${ago(m.notamsAt)} — refresh failed (${esc(m.notamsErr)}).</span></div>` : '';
+  // The bottom lines only — what's in force an hour either side of when
+  // you'd be there — coloured; every NOTAM, in full, folded under them.
   const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
-  const now = c.eta;
-  const live = c.notams.filter(n => {
-    const st = Date.parse(n.start), en = Date.parse(n.end);
-    return !(Number.isFinite(st) && st > now) && !(Number.isFinite(en) && en < now);
-  }).map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) }))
-    .sort((a, b) => RANK[b.sev] - RANK[a.sev]);
-  if (!live.length) return `${stale}<div class="ri-sub"><span class="wx-g">None in force at ${hm(now)}.</span></div>`;
-  const item = (n) => ntItem(n, n.sev);
-  const top = live.filter(n => n.sev), rest = live.filter(n => !n.sev);
-  return `${stale}<ul class="nt-list">${top.map(item).join('')}</ul>
-    ${rest.length ? `<details class="nt-more"><summary>${rest.length} other NOTAM${rest.length === 1 ? '' : 's'}</summary><ul class="nt-list">${rest.map(item).join('')}</ul></details>` : ''}
-    ${!top.length ? `<div class="ri-sub"><span class="wx-g">Nothing closing the aerodrome, a runway or an ILS.</span></div>` : ''}`;
+  const lines = nb.briefs(c.notams, c.eta);
+  const all = c.notams.slice().map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) })).sort((a, b) => RANK[b.sev] - RANK[a.sev]);
+  return `${stale}${ntBriefHtml(lines, c.eta)}
+    <details class="nt-more"><summary>All NOTAMs (${all.length})</summary><ul class="nt-list">${all.map(n => ntItem(n, n.sev)).join('')}</ul></details>`;
+}
+// The short lines: a coloured dot, the bottom line, and when it ends if
+// that's within the month. Shared with the ATIS window.
+export function ntBriefHtml(lines, ts) {
+  if (!lines.length) return `<div class="ntb-none">Nothing that matters around ${hm(ts)}</div>`;
+  return `<div class="ntb-list">${lines.map(l => {
+    const keys = l.items.map(i => atisRefKey(i.kind, i.ref)).join(' ');
+    return `<div class="ntb ntb-${l.sev}"${keys ? ` data-ntb-refs="${esc(keys)}"` : ''}><i></i><span>${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}</span>${l.until ? `<span class="ntb-t">to ${dayHm(l.until)}</span>` : ''}</div>`;
+  }).join('')}</div>`;
+}
+function dayHm(ms) {
+  const d = new Date(ms), today = new Date();
+  const same = d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth();
+  return same ? hm(ms) : `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 // Exactly where an airport lost its points, biggest first — every part of
@@ -1925,7 +1935,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=262'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=263'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

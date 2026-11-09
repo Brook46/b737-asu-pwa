@@ -4588,3 +4588,33 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 .ad-wind-h b { font-size: 14px; font-variant-numeric: tabular-nums; }
 .ad-wp-rw { margin-top: 2px; padding-top: 4px; }
 .ad-wp-k { font-variant-numeric: tabular-nums; padding-left: 4px; }
+
+/* NOTAMs as bottom lines: a coloured dot, the line, when it ends. Red =
+   aerodrome / runway closed, ILS out, no fuel; orange = taxiway closed,
+   SID/STAR, navaid, lights, minima; yellow = works, cranes, birds. */
+.ntb-list { display: flex; flex-direction: column; gap: 3px; margin: 2px 0 6px; }
+.ntb { display: flex; align-items: baseline; gap: 7px; font-size: 13px; line-height: 1.35; }
+.ntb i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-dim); transform: translateY(-1px); }
+.ntb-r i { background: var(--danger); } .ntb-r span:first-of-type { color: var(--danger); font-weight: 700; }
+.ntb-o i { background: var(--warn); } .ntb-o span:first-of-type { font-weight: 600; }
+.ntb-y i { background: #e0b400; }
+.ntb small { color: var(--fg-mute); font-weight: 600; }
+.ntb-t { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--fg-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ntb-none { font-size: 13px; color: var(--good); margin: 2px 0 6px; }
+.ntb[data-ntb-refs] { cursor: pointer; }
+.ntb.is-hl span:first-of-type { background: rgba(245, 196, 0, .35); border-radius: 3px; }
+
+/* SID / STAR from the NOTAMs: an arrow on the runway's centreline — into
+   the runway for a STAR, out of it for a SID — orange (not available) or
+   yellow (changed), with the word beside it. */
+.ad-proc line { stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.ad-proc .ad-proc-head { fill: var(--warn); transform: scale(var(--ad-k, 1)); }
+.ad-proc text { fill: var(--warn); }
+.ad-proc.is-minor line { stroke: #d4a800; } .ad-proc.is-minor .ad-proc-head, .ad-proc.is-minor text { fill: #d4a800; }
+.atis-diagram .ad-proc text { font-size: calc(12px * var(--ad-k, 1)); font-weight: 800; text-anchor: middle; dominant-baseline: middle;
+  paint-order: stroke; stroke: var(--bg-sunk); stroke-width: calc(4px * var(--ad-k, 1)); stroke-linejoin: round; }
+.ad-proc.is-hl line { stroke-width: 4; }
+/* The ATIS window's NOTAM lines, under the diagram. */
+.ad-notams { margin-top: 6px; }
+.ad-notams .nt-more summary { font-size: 12px; }
+#wx-overlay .ad-notams { flex: 0 0 auto; max-height: 34%; overflow-y: auto; }
