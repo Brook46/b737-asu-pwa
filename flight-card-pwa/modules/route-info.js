@@ -25,7 +25,7 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=273';
+import { WORKER_BASE } from './proxy.js?v=274';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -297,7 +297,7 @@ function bestRunwayForWind(rwys, wdir, wind) {
 // Plain-text scan of the NOTAM items for the three things that change a
 // diversion decision. Only NOTAMs in force at `ts` (or with no end) count.
 export function notamFlags(items, ts) {
-  const out = { adClosed: false, rwyClosed: [], ilsOut: [], count: 0 };
+  const out = { adClosed: false, rwyClosed: [], ilsOut: [], noFuel: false, rffs: null, distReduced: false, lightsOut: false, count: 0 };
   if (!Array.isArray(items)) return out;
   for (const n of items) {
     const st = Date.parse(n.start), en = Date.parse(n.end);
@@ -307,9 +307,15 @@ export function notamFlags(items, ts) {
     out.count++;
     if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) out.adClosed = true;
     const rw = /\bRWY\s+(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\s+(CLSD|CLOSED)\b/.exec(t);
-    if (rw) out.rwyClosed.push(rw[1]);
+    // Closed for take-off only still takes a diversion landing.
+    if (rw && !/^\s*(FOR|TO)\s+(T\/?O|TKOF|TAKE-?OFF|DEP\w*)\b/.test(t.slice(rw.index + rw[0].length))) out.rwyClosed.push(rw[1]);
     const ils = /\b(ILS|LOC|GP|GS)\b[^.]{0,40}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE)/.exec(t);
     if (ils) out.ilsOut.push(t.slice(0, 80));
+    if (/\b(NO FUEL|FUEL\b[^.]{0,30}\b(NOT AVBL|NOT AVAILABLE|U\/S|UNAVAILABLE))/.test(t)) out.noFuel = true;
+    const rf = /\b(RFFS?|FIRE ?FIGHTING|RESCUE AND FIRE)\b[^.]{0,40}\bCAT(?:EGORY)?\s*([1-9]|10)\b/.exec(t);
+    if (rf) out.rffs = out.rffs == null ? +rf[2] : Math.min(out.rffs, +rf[2]);
+    if (/\b(TORA|TODA|ASDA|LDA)\b[^.]{0,40}\b(REDUCED|RESTRICTED)|\bSHORTENED\b/.test(t)) out.distReduced = true;
+    if (/\b(ALS|APCH LGT|APPROACH LIGHT\w*|RWY (EDGE |CL |CENTRE ?LINE )?LGT|TDZ LGT)\b[^.]{0,40}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS)/.test(t)) out.lightsOut = true;
   }
   return out;
 }
@@ -393,7 +399,20 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   const who = own ? ap.icao : ap.country;
   if (pen) { score += pen; why.push(`${who} ${pen > 0 ? '+' : ''}${pen}`); if (pen < 0) lost.push({ pts: -pen, what: `${who} (${own ? 'airport' : 'country'} factor, Settings)` }); }
   if (flags && flags.ilsOut.length) { score -= 0.5; why.push('ILS/LOC unserviceable (NOTAM)'); lost.push({ pts: 0.5, what: 'ILS / LOC unserviceable (NOTAM)' }); }
-  if (flags && closed.size) why.push(`RWY ${[...closed].join(', ')} closed (NOTAM)`);
+  // Runways: one runway is no spare if it's blocked (a disabled aircraft,
+  // an inspection), and a long runway closed by NOTAM costs on top of that.
+  const isClosed = (r) => closed.has(r[0]) || String(r[0]).split('/').some(e => closed.has(e));
+  const closedLong = ap.rwy.filter(r => r[1] >= 5500 && isClosed(r));
+  for (const r of closedLong) { score -= 0.5; why.push(`RWY ${r[0]} closed (NOTAM)`); lost.push({ pts: 0.5, what: `RWY ${r[0]} closed (NOTAM)` }); }
+  if (usable.length === 1) {
+    const what = closedLong.length ? `Only one runway left (${usable[0][0]}) with the closure` : `Only one runway (${usable[0][0]})`;
+    score -= 1; why.push(what); lost.push({ pts: 1, what });
+  }
+  // The other NOTAMs that matter most for a diverting 737.
+  if (flags && flags.noFuel) { score -= 2; why.push('No fuel (NOTAM)'); lost.push({ pts: 2, what: 'Fuel not available (NOTAM)' }); }
+  if (flags && flags.rffs != null && flags.rffs < 7) { score -= 1; why.push(`Fire cover CAT ${flags.rffs} (NOTAM)`); lost.push({ pts: 1, what: `Fire cover reduced to CAT ${flags.rffs} (NOTAM; a 737-800 needs 7)` }); }
+  if (flags && flags.distReduced) { score -= 0.5; why.push('Declared distances reduced (NOTAM)'); lost.push({ pts: 0.5, what: 'Runway distances reduced (NOTAM)' }); }
+  if (flags && flags.lightsOut) { score -= 0.5; why.push('Approach / runway lights out (NOTAM)'); lost.push({ pts: 0.5, what: 'Approach / runway lighting out (NOTAM)' }); }
   score = Math.max(0, Math.min(10, Math.round(score)));
   lost.sort((a, b) => b.pts - a.pts);
   return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost };

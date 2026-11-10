@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=273';
-import * as ri from './route-info.js?v=273';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=273';
-import * as wxm from './wx.js?v=273';
-import * as nb from './notam-brief.js?v=273';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=273';
-import * as plan from './plan-route.js?v=273';
-import * as ely from './ely-traffic.js?v=273';
+import * as storage from './storage.js?v=274';
+import * as ri from './route-info.js?v=274';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=274';
+import * as wxm from './wx.js?v=274';
+import * as nb from './notam-brief.js?v=274';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=274';
+import * as plan from './plan-route.js?v=274';
+import * as ely from './ely-traffic.js?v=274';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -373,11 +373,11 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
   // still and the names join them. Pins stay one size on screen throughout.
   const rad = PIN_R;
   const pinData = [];
-  const pins = list.slice().sort((a, b) => a.r.score - b.r.score).map(c => {
+  const pins = list.slice().sort((a, b) => shownR(a).score - shownR(b).score).map(c => {
     const x = proj.x(c.lonDraw), y = proj.y(c.ap.lat);
-    const b = ri.band(c.r.score, c.r.excluded);
+    const R = shownR(c), b = ri.band(R.score, R.excluded);
     const st = c.r.excluded ? null : station(mapWxView(c), rad);
-    pinData.push({ icao: c.ap.icao, x, y, pri: (c.isEnd ? 100 : 0) + (c.r.excluded ? -1 : c.r.score),
+    pinData.push({ icao: c.ap.icao, x, y, pri: (c.isEnd ? 100 : 0) + (R.excluded ? -1 : R.score),
                    nameLen: shortName(c.ap).length, windLen: st && st.label ? st.label.len : 0 });
     // A wide invisible disc under each pin makes it easy to hit with a
     // finger; taps go to the NEAREST pin anyway (wireZoom).
@@ -385,7 +385,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
     return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}${alt ? ' is-altn' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
         <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
         <circle class="ri-sel-ring" r="${rad + 5}"/>${alt ? `<rect class="ri-altn-ring" x="${-rad - 4}" y="${-rad - 4}" width="${2 * rad + 8}" height="${2 * rad + 8}" rx="3" transform="rotate(45)"/>` : ''}
-        <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${c.r.excluded ? '×' : c.r.score}</text>
+        <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${R.excluded ? '×' : R.score}</text>
         <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
         <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 5},${-rad - 3})"><rect x="0" y="-7" width="22" height="9" rx="2.5"/><text x="11" y="0.3">ALTN</text></g>` : ''}</g>`;
   }).join('');
@@ -1314,11 +1314,8 @@ function cardHtml(c, m) {
   // In the air with GPS and this airport within about an hour: what it has
   // NOW matters more than the forecast, so re-rate it on the METAR.
   if (gpsFix && gpsFix.airborne && c.wxEntry) {
-    const t = timeTo(c.ap, gpsFix);
-    if (t.min <= 60) {
-      c = { ...c, near: t.min, eta: Date.now() + t.min * 60000 };
-      c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: 'near' });
-    }
+    const L = liveRated(c, gpsFix);
+    if (L.eta) c = { ...c, near: L.t.min, eta: L.eta, r: L.r };
   }
   // The pilot picked METAR or TAF by tapping it: that source drives the
   // diagram's wind, the best runway, the runway panel and the summary. The
@@ -1492,9 +1489,10 @@ function renderList() {
   const toggle = g ? `<div class="ri-order" role="group" aria-label="List order">
       <button type="button" class="${order === 'gps' ? 'is-on' : ''}" data-ri-order="gps">Nearest to aircraft</button>
       <button type="button" class="${order === 'route' ? 'is-on' : ''}" data-ri-order="route">Route order</button></div>` : '';
-  wrap.innerHTML = toggle + `<div class="ri-list">${rows.map(c => {
+  wrap.innerHTML = toggle + `<div class="ri-list">${rows.map(c0 => {
+    const c = liveR.has(c0.ap.icao) ? { ...c0, r: liveR.get(c0.ap.icao) } : c0;
     const b = ri.band(c.r.score, c.r.excluded);
-    const x = info && info.get(c);
+    const x = info && info.get(c0);
     return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
         <span class="ri-row-t">${x ? (x.t ? '≈' + Math.round(x.t.min) + '′' : '') : hm(c.eta).replace('Z', '')}</span>
         <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
@@ -1960,7 +1958,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=273'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=274'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -1982,13 +1980,37 @@ async function paintCpdlc(g) {
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
   el.hidden = !html;
 }
+// One score for an airport everywhere in the air: within about an hour, what
+// it has NOW (METAR) matters more than the forecast for when we'd have passed
+// it, so the nearest list, the strip's Nearest chip and the airport card all
+// re-rate it the same way — never 6 in the list and 8 on the card.
+// The live ratings of the last GPS fix (icao → rating), for the pins and lists.
+let liveR = new Map();
+const shownR = (c) => liveR.get(c.ap.icao) || c.r;
+function liveRated(c, g) {
+  const t = timeTo(c.ap, g);
+  if (!g || !g.airborne || !c.wxEntry || t.min > 60) return { c, t, r: c.r };
+  const eta = Date.now() + t.min * 60000;
+  return { c, t, eta, r: ri.rate(c.ap, { distNm: c.distNm, eta, wxEntry: c.wxEntry, notams: c.notams, mode: 'near' }) };
+}
+// Nearest by time, best first: airports within NEAR_TIE_MIN of the quickest
+// are as good as equally near, so the highest rating among them leads.
+const NEAR_TIE_MIN = 3;
+function nearestList(pool, g) {
+  const all = pool.filter(c => !c.r.excluded).map(c => liveRated(c, g))
+    .filter(x => !x.r.excluded && x.r.score > 0).sort((a, b) => a.t.min - b.t.min);
+  if (!all.length) return all;
+  const lim = all[0].t.min + NEAR_TIE_MIN;
+  const tie = all.filter(x => x.t.min <= lim).sort((a, b) => b.r.score - a.r.score || a.t.min - b.t.min);
+  return [...tie, ...all.filter(x => x.t.min > lim)];
+}
 function paintLive() {
   livePaintAt = Date.now();
   paintCpdlc(gpsFix).catch(() => {});
   const iso = $('ri-iso'), ac = $('ri-ac'), near = $('ri-near');
   if (!iso || !ac || !mapGeom || !state) return;
   const g = gpsFix;
-  if (!g) { iso.innerHTML = ''; ac.innerHTML = ''; if ($('ri-iso-lbls')) $('ri-iso-lbls').innerHTML = ''; if (near) near.innerHTML = ''; document.querySelector('.ri-map-wrap')?.classList.remove('has-ac'); return; }
+  if (!g) { liveR = new Map(); iso.innerHTML = ''; ac.innerHTML = ''; if ($('ri-iso-lbls')) $('ri-iso-lbls').innerHTML = ''; if (near) near.innerHTML = ''; document.querySelector('.ri-map-wrap')?.classList.remove('has-ac'); return; }
   const P = mapGeom.proj;
   const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
   const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
@@ -2028,23 +2050,37 @@ function paintLive() {
   const [x, y] = xy([g.lat, g.lon]).split(',');
   ac.innerHTML = `<g class="ri-ac" transform="translate(${x},${y})"><g class="ri-ac-in" style="transform: scale(var(--ri-k,1)) rotate(${g.trk.toFixed(0)}deg)">
       <path d="M0,-11 L2,-3 L10,2 L10,4 L2,2 L1.5,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.5,8 L-2,2 L-10,4 L-10,2 L-2,-3 Z"/></g></g>`;
+  liveR = new Map();
+  if (g.airborne) for (const c of state.model.pool) {
+    if (c.r.excluded) continue;
+    const L = liveRated(c, g);
+    if (L.eta) liveR.set(c.ap.icao, L.r);
+  }
+  // Pins re-scored in place (no map rebuild every fix).
+  document.querySelectorAll('#ri-map .ri-pin[data-icao]').forEach(pin => {
+    const c = state.model.pool.find(x => x.ap.icao === pin.dataset.icao);
+    if (!c) return;
+    const R = shownR(c), b = ri.band(R.score, R.excluded), t = pin.querySelector('.ri-pin-score');
+    if (t && t.textContent !== String(R.excluded ? '×' : R.score)) t.textContent = R.excluded ? '×' : R.score;
+    [...pin.classList].forEach(k => { if (/^ri-b-/.test(k) && k !== 'ri-b-' + b) pin.classList.remove(k); });
+    pin.classList.add('ri-b-' + b);
+  });
   renderList();
   if (!near) return;
   if (!g.airborne) {
     near.innerHTML = `<div class="ri-near-h">GPS: on the ground — nearest-by-time appears once airborne.</div>`;
     return;
   }
-  const cands = state.model.pool.filter(c => !c.r.excluded && c.r.score > 0)
-    .map(c => ({ c, t: timeTo(c.ap, g) })).sort((a, b) => a.t.min - b.t.min).slice(0, 6);
+  const cands = nearestList(state.model.pool, g).slice(0, 6);
   const fl = g.altFt > 1000 ? `FL${String(Math.round(g.altFt / 100)).padStart(3, '0')} · ` : '';
   near.innerHTML = `<div class="ri-near-h">Nearest by time · GPS ${fl}${Math.round(g.gs)} kt · track ${String(Math.round(g.trk)).padStart(3, '0')}° <span class="rw-src">(rough: turn + descent + approach)</span></div>
-    ${cands.map(({ c, t }) => {
-      const b = ri.band(c.r.score, c.r.excluded);
+    ${cands.map(({ c, t, r }) => {
+      const b = ri.band(r.score, r.excluded);
       const side = Math.abs(t.rel) < 15 ? 'ahead' : Math.abs(t.rel) > 150 ? 'behind' : `${Math.round(Math.abs(t.rel))}° ${t.rel > 0 ? 'right' : 'left'}`;
       return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
           <span class="ri-row-t">≈${Math.round(t.min)}′</span>
-          <span class="ri-score ri-b-${b}">${c.r.score}</span>
-          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b>${lvpTag(c)} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
+          <span class="ri-score ri-b-${b}">${r.score}</span>
+          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b>${lvpTag({ ...c, r })} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
           <span class="ri-row-d">${Math.round(t.d)} nm</span></button>`;
     }).join('')}`;
 }
@@ -2475,9 +2511,8 @@ export async function nearestNow(leg, g) {
   if (!leg || !leg.dep || !leg.arr || !g) return null;
   const id = idOf(leg), c = readCache(leg), at = c ? c.at : 0;
   if (!nearMemo || nearMemo.id !== id || nearMemo.at !== at) nearMemo = { id, at, model: await build(leg, { doFetch: false }) };
-  const best = nearMemo.model.pool.filter(x => !x.r.excluded && x.r.score > 0)
-    .map(x => ({ x, t: timeTo(x.ap, g) })).sort((a, b) => a.t.min - b.t.min)[0];
-  return best ? { icao: best.x.ap.icao, min: best.t.min, score: best.x.r.score, band: ri.band(best.x.r.score, false) } : null;
+  const best = nearestList(nearMemo.model.pool, { ...g, airborne: true })[0];
+  return best ? { icao: best.c.ap.icao, min: best.t.min, score: best.r.score, band: ri.band(best.r.score, false) } : null;
 }
 
 // Show an airport's card in the open Route info (the notes' "Diversion"

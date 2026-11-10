@@ -9,7 +9,7 @@
 //
 // Pure functions, no DOM: app.js paints the sheet from monthReport().
 
-import { legTimes, groupFdps } from './ftl.js?v=273';
+import { legTimes, groupFdps } from './ftl.js?v=274';
 
 const H = 3600000, MIN = 60000, DAY = 86400000;
 const HOME = new Set(['TLV', 'LLBG']);
