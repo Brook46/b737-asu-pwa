@@ -137,31 +137,106 @@ export function validity(n, now = Date.now()) {
   return n.sched ? `${s} · ${String(n.sched).trim()}` : s;
 }
 
-// In force at any moment of [from, to] (ms)?
+// ---------- Schedule (Item D) ----------
+// A NOTAM valid "03.11 08:30 – 29.12 10:30" with Item D "EVERY TUE 0830-1030"
+// is in force two hours a week, not eight weeks straight (LROP's two runway
+// closures are on different days and never together). schedWindows turns
+// Item D into the UTC windows overlapping [from, to]; null when it can't be
+// read (then the NOTAM counts as in force — never hide what we don't parse).
+const DOW = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+function parseSegment(seg) {
+  // → { days:Set|null (weekdays), dates:[{m,d}]|null, times:[[min,min]] } or null
+  const toks = seg.replace(/,/g, ' ').replace(/\b(TIL|TO|THRU)\b/g, '-').replace(/\s*-\s*/g, '-').split(/\s+/).filter(Boolean);
+  let days = null, dates = null, month = null, times = [], pendDays = [];
+  for (const t of toks) {
+    let m;
+    if (t === 'DAILY' || t === 'EVERY') continue;
+    if ((m = /^(\d{4})-(\d{4})$/.exec(t))) {
+      const a = +m[1].slice(0, 2) * 60 + +m[1].slice(2), b = +m[2].slice(0, 2) * 60 + +m[2].slice(2);
+      if (a > 1440 || b > 1440) return null;
+      times.push([a, b]); continue;
+    }
+    if (t === 'H24') { times.push([0, 1440]); continue; }
+    if ((m = /^(SUN|MON|TUE|WED|THU|FRI|SAT)-(SUN|MON|TUE|WED|THU|FRI|SAT)$/.exec(t))) {
+      days ||= new Set();
+      for (let d = DOW[m[1]], k = 0; k < 7; d = (d + 1) % 7, k++) { days.add(d); if (d === DOW[m[2]]) break; }
+      continue;
+    }
+    if (t in DOW) { (days ||= new Set()).add(DOW[t]); continue; }
+    if (t in MON) { month = MON[t]; if (pendDays.length) { (dates ||= []).push(...pendDays.map(d => ({ m: month, d }))); pendDays = []; } continue; }
+    if ((m = /^(\d{1,2})-(\d{1,2})$/.exec(t))) {
+      const a = +m[1], b = +m[2]; if (a < 1 || b > 31 || b < a) return null;
+      const ds = []; for (let d = a; d <= b; d++) ds.push(d);
+      if (month != null) (dates ||= []).push(...ds.map(d => ({ m: month, d }))); else pendDays.push(...ds);
+      continue;
+    }
+    if ((m = /^(\d{1,2})$/.exec(t))) {
+      const d = +m[1]; if (d < 1 || d > 31) return null;
+      if (month != null) (dates ||= []).push({ m: month, d }); else pendDays.push(d);
+      continue;
+    }
+    return null;            // SR-SS, EXC, HJ… — not read
+  }
+  if (pendDays.length || !times.length) return null;
+  return { days, dates, times };
+}
+export function schedWindows(sched, from, to) {
+  const s = String(sched || '').toUpperCase().trim();
+  if (!s) return null;
+  const segs = s.split(/\s*,\s*(?=[A-Z]{3}|DAILY|\d{4}-)|\s*;\s*|\n+/).filter(Boolean).map(parseSegment);
+  if (!segs.length || segs.some(x => !x)) return null;
+  const out = [];
+  const day0 = Date.UTC(new Date(from).getUTCFullYear(), new Date(from).getUTCMonth(), new Date(from).getUTCDate()) - 86400e3;
+  for (let day = day0; day <= to; day += 86400e3) {
+    const d = new Date(day);
+    for (const g of segs) {
+      if (g.days && !g.days.has(d.getUTCDay())) continue;
+      if (g.dates && !g.dates.some(x => x.m === d.getUTCMonth() && x.d === d.getUTCDate())) continue;
+      for (const [a, b] of g.times) {
+        const st = day + a * 60e3, en = day + (b > a ? b : b + 1440) * 60e3;   // over midnight
+        if (en >= from && st <= to) out.push([st, en]);
+      }
+    }
+  }
+  return out;
+}
+// In force at any moment of [from, to] (ms)? Validity first, then Item D.
 export function inForce(n, from, to = from) {
   const st = Date.parse(n.start), en = Date.parse(n.end);
-  return !(Number.isFinite(st) && st > to) && !(Number.isFinite(en) && en < from);
+  if ((Number.isFinite(st) && st > to) || (Number.isFinite(en) && en < from)) return false;
+  if (!n.sched) return true;
+  const w = schedWindows(n.sched, Math.max(from, Number.isFinite(st) ? st : from), Math.min(to, Number.isFinite(en) ? en : to));
+  return w == null ? true : w.length > 0;
 }
 
 // Every NOTAM for an airport → the short lines in force round `ts` (±1 h),
 // worst first, one per distinct line; WIP / cranes / birds folded into one
 // counted line each. [{ sev, text, items, until, n }]
-const RANK = { r: 3, o: 2, y: 1 };
+const RANK = { r: 3, o: 2, y: 1, off: -1 };
 // `arp` ({ lat, lon }): positions in a NOTAM become diagram points (and an
 // area when it gives three or more), and the line says where from the field.
-export function briefs(notams, ts = Date.now(), win = 3600e3, arp = null) {
+// A NOTAM in force now but not round `ts` (your time there) still gets its
+// line — greyed, "now · not at your time" — so a closure you can see on the
+// ATIS isn't a surprise, and isn't mistaken for one that hits your flight.
+export function briefs(notams, ts = Date.now(), win = 3600e3, arp = null, now = Date.now()) {
   const seen = new Map();
+  const other = Math.abs(ts - now) > win;
   for (const n of notams || []) {
-    if (!inForce(n, ts - win, ts + win)) continue;
-    const b = bottomLine(n);
-    if (!b) continue;
+    const on = inForce(n, ts - win, ts + win);
+    const off = !on && other && inForce(n, now, now + win);
+    if (!on && !off) continue;
+    const b0 = bottomLine(n);
+    if (!b0) continue;
+    const b = off ? { ...b0, sev: 'off', text: b0.text, off: true } : b0;
     const pts = arp ? coordsOf(n.text) : [];
     const pos = [];
     if (pts.length >= 3) pos.push({ kind: 'AREA', ref: n.id || b.text, pts });
     else for (const p of pts.slice(0, 2)) pos.push({ kind: 'PT', ref: (n.id || b.text) + ':' + pos.length, lat: p[0], lon: p[1] });
-    const prev = seen.get(b.text);
+    const k = (off ? 'off|' : '') + b.text;
+    const prev = seen.get(k);
     if (prev) { prev.count++; prev.ns.push(n); prev.items.push(...pos); continue; }
-    seen.set(b.text, { ...b, items: [...b.items, ...pos], count: 1, ns: [n], n,
+    seen.set(k, { ...b, items: [...b.items, ...pos], count: 1, ns: [n], n,
       where: arp && pts.length ? fromArp(arp, pts.length >= 3 ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : pts[0]) : '' });
   }
   return [...seen.values()].sort((a, b) => (RANK[b.sev] || 0) - (RANK[a.sev] || 0));

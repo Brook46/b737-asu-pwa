@@ -25,7 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=274';
+import { WORKER_BASE } from './proxy.js?v=275';
+import { inForce } from './notam-brief.js?v=275';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -296,13 +297,12 @@ function bestRunwayForWind(rwys, wdir, wind) {
 // ---------- NOTAMs ----------
 // Plain-text scan of the NOTAM items for the three things that change a
 // diversion decision. Only NOTAMs in force at `ts` (or with no end) count.
-export function notamFlags(items, ts) {
+// In force within ±`win` of ts — validity AND the Item D schedule.
+export function notamFlags(items, ts, win = 30 * 60e3) {
   const out = { adClosed: false, rwyClosed: [], ilsOut: [], noFuel: false, rffs: null, distReduced: false, lightsOut: false, count: 0 };
   if (!Array.isArray(items)) return out;
   for (const n of items) {
-    const st = Date.parse(n.start), en = Date.parse(n.end);
-    if (Number.isFinite(st) && st > ts) continue;
-    if (Number.isFinite(en) && en < ts) continue;
+    if (!inForce(n, ts - win, ts + win)) continue;
     const t = String(n.text || '').toUpperCase();
     out.count++;
     if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) out.adClosed = true;

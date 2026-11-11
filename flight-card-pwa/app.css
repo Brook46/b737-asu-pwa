@@ -4601,6 +4601,10 @@ textarea.div-rules { width: 100%; resize: none; overflow: hidden; line-height: 1
 .ntb-r i { background: var(--danger); } .ntb-r span:first-of-type { color: var(--danger); font-weight: 700; }
 .ntb-o i { background: var(--warn); } .ntb-o span:first-of-type { font-weight: 600; }
 .ntb-y i { background: #e0b400; }
+/* In force now, but not at your time there (Item D schedule / validity). */
+.ntb-off i { background: var(--line); } .ntb-off .ntb-x { color: var(--fg-mute); }
+.ntb-offtag { font-weight: 700; font-size: .85em; color: var(--fg-mute); margin-right: 4px; }
+.nt-off { color: var(--fg-mute); font-weight: 400; }
 .ntb small { color: var(--fg-mute); font-weight: 600; }
 .ntb-t { margin-left: auto; padding-left: 8px; font-size: 11px; color: var(--fg-mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ntb-none { font-size: 13px; color: var(--good); margin: 2px 0 6px; }

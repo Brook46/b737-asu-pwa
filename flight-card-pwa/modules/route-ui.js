@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=274';
-import * as ri from './route-info.js?v=274';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=274';
-import * as wxm from './wx.js?v=274';
-import * as nb from './notam-brief.js?v=274';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=274';
-import * as plan from './plan-route.js?v=274';
-import * as ely from './ely-traffic.js?v=274';
+import * as storage from './storage.js?v=275';
+import * as ri from './route-info.js?v=275';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=275';
+import * as wxm from './wx.js?v=275';
+import * as nb from './notam-brief.js?v=275';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=275';
+import * as plan from './plan-route.js?v=275';
+import * as ely from './ely-traffic.js?v=275';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1044,14 +1044,17 @@ function notamTagList(f) {
 }
 // The NOTAMs saved with this leg's route weather for one airport, for the
 // Brief: how many, the big items, and when. null when none are saved.
-export async function notamsFor(leg, code) {
+// `ts`: your time at that airport. `now` tags are the big items in force now
+// but not then — shown as "now, not at your time".
+export async function notamsFor(leg, code, ts = Date.now()) {
   const db = await ri.loadDb();
   const ap = ri.findAirport(db, code);
   const c = ap && readCache(leg);
   const n = c?.notams?.[ap.icao];
   if (!Array.isArray(n)) return null;
-  const r = ri.rate(ap, { distNm: 0, eta: Date.now(), wxEntry: null, notams: n, rules: ri.getCountryRules() });
-  return { icao: ap.icao, count: n.length, tags: notamTagList(r.flags), at: c.notamsAt || c.at };
+  const tags = notamTagList(ri.notamFlags(n, ts));
+  const nowTags = Math.abs(ts - Date.now()) > 3600e3 ? notamTagList(ri.notamFlags(n, Date.now())).filter(t => !tags.includes(t)) : [];
+  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at };
 }
 function surfaceText(rw) {
   const SURF = { ASP: 'asphalt', ASPH: 'asphalt', ASPHALT: 'asphalt', CON: 'concrete', CONC: 'concrete', CONCRETE: 'concrete', PEM: 'part asphalt / concrete', BIT: 'bitumen', MAC: 'macadam' };
@@ -1272,7 +1275,7 @@ export function ntBriefHtml(lines, ts) {
     const keys = l.items.map(i => atisRefKey(i.kind, i.ref)).join(' ');
     const when = l.ns.length === 1 ? nb.validity(l.ns[0]) : '';
     const full = l.ns.map(n => `<div class="ntb-n"><div class="ntb-nm">${esc([n.id, nb.validity(n)].filter(Boolean).join(' · '))}</div>${esc(n.text)}</div>`).join('');
-    return `<details class="ntb ntb-${l.sev}"${keys ? ` data-ntb-refs="${esc(keys)}"` : ''}><summary><i></i><span class="ntb-x">${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}${l.where ? ` <small>· ${esc(l.where)}</small>` : ''}</span>${when ? `<span class="ntb-t">${esc(when)}</span>` : ''}</summary>${full}</details>`;
+    return `<details class="ntb ntb-${l.sev}"${keys && !l.off ? ` data-ntb-refs="${esc(keys)}"` : ''}><summary><i></i><span class="ntb-x">${l.off ? '<b class="ntb-offtag">Now · not at your time</b> ' : ''}${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}${l.where ? ` <small>· ${esc(l.where)}</small>` : ''}</span>${when ? `<span class="ntb-t">${esc(when)}</span>` : ''}</summary>${full}</details>`;
   }).join('')}${lines.length > 1 ? '<button type="button" class="ntb-all" data-ntb-all>Open all</button>' : ''}</div>`;
 }
 function dayHm(ms) {
@@ -1958,7 +1961,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=274'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=275'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
