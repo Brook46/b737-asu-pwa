@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=275';
-import * as ri from './route-info.js?v=275';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=275';
-import * as wxm from './wx.js?v=275';
-import * as nb from './notam-brief.js?v=275';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=275';
-import * as plan from './plan-route.js?v=275';
-import * as ely from './ely-traffic.js?v=275';
+import * as storage from './storage.js?v=276';
+import * as ri from './route-info.js?v=276';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=276';
+import * as wxm from './wx.js?v=276';
+import * as nb from './notam-brief.js?v=276';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=276';
+import * as plan from './plan-route.js?v=276';
+import * as ely from './ely-traffic.js?v=276';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -1418,6 +1418,7 @@ async function paint(model, showAll = false) {
     <div id="ri-cpdlc" class="ri-cpdlc" hidden></div>
     <div id="ri-map-slot" class="ri-map-wrap"></div>
     <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
+    <div id="ri-card-slot"></div>
     ${sigListHtml(model)}
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
@@ -1434,7 +1435,6 @@ async function paint(model, showAll = false) {
     <div class="ri-map-src ri-st-key">${stationKey()}</div>
     ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
     <div id="ri-near"></div>
-    <div id="ri-card-slot"></div>
     <div id="ri-list-wrap"></div>`;
   const slot = $('ri-map-slot');
   state = { model, showAll, list, world, md };
@@ -1961,7 +1961,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=275'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=276'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=275';
-import { inForce } from './notam-brief.js?v=275';
+import { WORKER_BASE } from './proxy.js?v=276';
+import { inForce } from './notam-brief.js?v=276';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -309,7 +309,7 @@ export function notamFlags(items, ts, win = 30 * 60e3) {
     const rw = /\bRWY\s+(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\s+(CLSD|CLOSED)\b/.exec(t);
     // Closed for take-off only still takes a diversion landing.
     if (rw && !/^\s*(FOR|TO)\s+(T\/?O|TKOF|TAKE-?OFF|DEP\w*)\b/.test(t.slice(rw.index + rw[0].length))) out.rwyClosed.push(rw[1]);
-    const ils = /\b(ILS|LOC|GP|GS)\b[^.]{0,40}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE)/.exec(t);
+    const ils = /\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|OTS|WITHDRAWN|SUSPENDED)/.exec(t);
     if (ils) out.ilsOut.push(t.slice(0, 80));
     if (/\b(NO FUEL|FUEL\b[^.]{0,30}\b(NOT AVBL|NOT AVAILABLE|U\/S|UNAVAILABLE))/.test(t)) out.noFuel = true;
     const rf = /\b(RFFS?|FIRE ?FIGHTING|RESCUE AND FIRE)\b[^.]{0,40}\bCAT(?:EGORY)?\s*([1-9]|10)\b/.exec(t);
@@ -333,7 +333,7 @@ export function notamSeverity(text, usable = new Set()) {
   if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) return 'r';
   const rw = /\bRWY\s+(\d{2}[LRC]?)(?:\/(\d{2}[LRC]?))?\s+(CLSD|CLOSED)\b/.exec(t);
   if (rw) return (usable.has(rw[1]) || (rw[2] && usable.has(rw[2]))) ? 'r' : 'o';
-  if (/\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS|WITHDRAWN)/.test(t)) return 'r';
+  if (/\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS|WITHDRAWN|SUSPENDED|NOT AVAILABLE)/.test(t)) return 'r';
   if (/\b(NO FUEL|FUEL\b[^.]{0,30}\bNOT AVBL)/.test(t)) return 'r';
   if (/\bRFFS?\b[^.]{0,40}\bCAT(EGORY)?\s*([1-6])\b/.test(t)) return 'r';
   if (/\bTWY\b[^.]{0,40}\b(CLSD|CLOSED)\b/.test(t)) return 'o';
@@ -347,6 +347,8 @@ export function notamSeverity(text, usable = new Set()) {
 // ---------- Rating ----------
 // Each part's points against its maximum, so a card can say exactly why an
 // airport isn't a 10 ("−1.4 distance: 139 nm off the route").
+// A runway shorter than this doesn't count as a spare (a second runway).
+export const SPARE_FT = 7000;
 export const MAX = { runway: 2, lighting: 0.5, size: 1.5, distance: 3, weather: 3 };
 export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now(), mode = 'plan' }) {
   const why = [];
@@ -404,8 +406,15 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   const isClosed = (r) => closed.has(r[0]) || String(r[0]).split('/').some(e => closed.has(e));
   const closedLong = ap.rwy.filter(r => r[1] >= 5500 && isClosed(r));
   for (const r of closedLong) { score -= 0.5; why.push(`RWY ${r[0]} closed (NOTAM)`); lost.push({ pts: 0.5, what: `RWY ${r[0]} closed (NOTAM)` }); }
-  if (usable.length === 1) {
-    const what = closedLong.length ? `Only one runway left (${usable[0][0]}) with the closure` : `Only one runway (${usable[0][0]})`;
+  // A second runway is a spare only if a 737-800 can really land on it:
+  // LIBR's 05/23 (5,892 ft) next to 13/31 (10,000 ft) is no second runway.
+  const spares = usable.filter(r => r[1] >= SPARE_FT);
+  if (usable.length === 1 || spares.length <= 1) {
+    const main = spares[0] || usable[0];
+    const short = usable.filter(r => r !== main);
+    const what = closedLong.length && usable.length === 1 ? `Only one runway left (${main[0]}) with the closure`
+      : short.length ? `Only one long runway (${main[0]}); ${short.map(r => `${r[0]} is ${r[1].toLocaleString('en-US')} ft`).join(', ')}`
+      : `Only one runway (${main[0]})`;
     score -= 1; why.push(what); lost.push({ pts: 1, what });
   }
   // The other NOTAMs that matter most for a diverting 737.

@@ -145,10 +145,11 @@ export function validity(n, now = Date.now()) {
 // read (then the NOTAM counts as in force — never hide what we don't parse).
 const DOW = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
 const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
-function parseSegment(seg) {
-  // → { days:Set|null (weekdays), dates:[{m,d}]|null, times:[[min,min]] } or null
-  const toks = seg.replace(/,/g, ' ').replace(/\b(TIL|TO|THRU)\b/g, '-').replace(/\s*-\s*/g, '-').split(/\s+/).filter(Boolean);
-  let days = null, dates = null, month = null, times = [], pendDays = [];
+// Day numbers without a month ("09 2000-0500, 10-12 1700-0500") are days of
+// whatever month the NOTAM is valid in — its validity clips them.
+function parseSegment(toks, ctx) {
+  // → { days:Set|null (weekdays), dates:[{m|null,d}]|null, times:[[min,min]] } or null
+  let days = null, dates = null, times = [], pendDays = [];
   for (const t of toks) {
     let m;
     if (t === 'DAILY' || t === 'EVERY') continue;
@@ -164,27 +165,44 @@ function parseSegment(seg) {
       continue;
     }
     if (t in DOW) { (days ||= new Set()).add(DOW[t]); continue; }
-    if (t in MON) { month = MON[t]; if (pendDays.length) { (dates ||= []).push(...pendDays.map(d => ({ m: month, d }))); pendDays = []; } continue; }
+    if (t in MON) { ctx.month = MON[t]; if (pendDays.length) { (dates ||= []).push(...pendDays.map(d => ({ m: ctx.month, d }))); pendDays = []; } continue; }
     if ((m = /^(\d{1,2})-(\d{1,2})$/.exec(t))) {
       const a = +m[1], b = +m[2]; if (a < 1 || b > 31 || b < a) return null;
-      const ds = []; for (let d = a; d <= b; d++) ds.push(d);
-      if (month != null) (dates ||= []).push(...ds.map(d => ({ m: month, d }))); else pendDays.push(...ds);
+      for (let d = a; d <= b; d++) pendDays.push(d);
       continue;
     }
     if ((m = /^(\d{1,2})$/.exec(t))) {
       const d = +m[1]; if (d < 1 || d > 31) return null;
-      if (month != null) (dates ||= []).push({ m: month, d }); else pendDays.push(d);
-      continue;
+      pendDays.push(d); continue;
     }
     return null;            // SR-SS, EXC, HJ… — not read
   }
-  if (pendDays.length || !times.length) return null;
+  if (!times.length) return null;
+  // A month named before the days ("NOV 09-12") or none at all.
+  if (pendDays.length) (dates ||= []).push(...pendDays.map(d => ({ m: ctx.month, d })));
   return { days, dates, times };
+}
+// Segments: split on ";" / new lines, and wherever a time is followed by a
+// day or date ("09 2000-0500, 10-12 1700-0500" is two).
+function segmentsOf(s) {
+  const out = [];
+  for (const part of s.split(/\s*;\s*|\n+/)) {
+    const toks = part.replace(/,/g, ' ').replace(/\b(TIL|TO|THRU)\b/g, '-').replace(/\s*-\s*/g, '-').split(/\s+/).filter(Boolean);
+    let cur = [], lastTime = false;
+    for (const t of toks) {
+      const isTime = /^\d{4}-\d{4}$/.test(t) || t === 'H24';
+      if (!isTime && lastTime && cur.length) { out.push(cur); cur = []; }
+      cur.push(t); lastTime = isTime;
+    }
+    if (cur.length) out.push(cur);
+  }
+  return out;
 }
 export function schedWindows(sched, from, to) {
   const s = String(sched || '').toUpperCase().trim();
   if (!s) return null;
-  const segs = s.split(/\s*,\s*(?=[A-Z]{3}|DAILY|\d{4}-)|\s*;\s*|\n+/).filter(Boolean).map(parseSegment);
+  const ctx = { month: null };
+  const segs = segmentsOf(s).map(t => parseSegment(t, ctx));
   if (!segs.length || segs.some(x => !x)) return null;
   const out = [];
   const day0 = Date.UTC(new Date(from).getUTCFullYear(), new Date(from).getUTCMonth(), new Date(from).getUTCDate()) - 86400e3;
@@ -192,7 +210,7 @@ export function schedWindows(sched, from, to) {
     const d = new Date(day);
     for (const g of segs) {
       if (g.days && !g.days.has(d.getUTCDay())) continue;
-      if (g.dates && !g.dates.some(x => x.m === d.getUTCMonth() && x.d === d.getUTCDate())) continue;
+      if (g.dates && !g.dates.some(x => (x.m == null || x.m === d.getUTCMonth()) && x.d === d.getUTCDate())) continue;
       for (const [a, b] of g.times) {
         const st = day + a * 60e3, en = day + (b > a ? b : b + 1440) * 60e3;   // over midnight
         if (en >= from && st <= to) out.push([st, en]);
