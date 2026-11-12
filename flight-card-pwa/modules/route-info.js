@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=280';
-import { inForce } from './notam-brief.js?v=280';
+import { WORKER_BASE } from './proxy.js?v=281';
+import { inForce } from './notam-brief.js?v=281';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -278,7 +278,7 @@ export function windFor(entry, ts, now = Date.now(), mode = 'plan') {
 // Code 0–6. Gusts fully applied (note 17). For runways 45 m (148 ft) wide or
 // more; 30–44 m: 1 kt less per metre under 45, never below 5 kt (note 18).
 export const XW_LIMIT = { to: [0, 13, 15, 20, 22, 25, 34], ldg: [0, 15, 17, 25, 35, 40, 40] };
-export const TAILWIND_MAX = 10;   // FCOM Limitations, take-off and landing
+export const TAILWIND_MAX = 15;   // FCOM Limitations L.10: take-off and landing tailwind 15 kt
 export const WIND_MAX = 65;       // OM A 8.3.20.1.9: company maximum, gusts included
 export function xwLimits(rcc = 6, widthFt = 148) {
   const wm = Number(widthFt) ? Math.round(Number(widthFt) * 0.3048) : 45;
@@ -295,18 +295,20 @@ export function rccOfWx(wx) {
   if (/RA|DZ|SH|TS|UP/.test(t)) return 5;
   return 6;
 }
-// The colour scale (g y o r): crosswind (gust in) past the landing limit red,
+// The colour scale (g y o r) works on the runway: what the wind does along
+// and across the runway heading, not how strong it is — 40 kt straight down
+// the runway is no problem. Crosswind (gust in) past the landing limit red,
 // past the take-off limit orange, within 5 kt of it yellow; tailwind over
-// 10 kt red, 6–10 orange, any yellow; wind or gust 65 kt+ red (company
-// maximum), 40+ orange, 25+ or gusting 10 kt over the mean yellow.
+// 15 kt red, 11–15 orange, 6–10 yellow. The only colour for strength alone:
+// wind or gust 65 kt+ red (OM A company maximum).
 export function xwBandFor(kt, lim) {
   if (!(kt > 0) || !lim) return '';
   return kt > lim.ldg ? 'r' : kt > lim.to ? 'o' : kt > lim.to - 5 ? 'y' : '';
 }
-export function tailBand(kt) { return kt > TAILWIND_MAX ? 'r' : kt > 5 ? 'o' : kt > 0 ? 'y' : ''; }
+export function tailBand(kt) { return kt > TAILWIND_MAX ? 'r' : kt > TAILWIND_MAX - 5 ? 'o' : kt > TAILWIND_MAX - 10 ? 'y' : ''; }
 export function speedBand(spd, gust) {
   const m = Math.max(Number(spd) || 0, Number(gust) || 0);
-  return m >= WIND_MAX ? 'r' : m >= 40 ? 'o' : (m >= 25 || (gust && gust - (spd || 0) >= 10)) ? 'y' : '';
+  return m >= WIND_MAX ? 'r' : '';
 }
 const BRANK = { r: 3, o: 2, y: 1, '': 0 };
 export function worstBand(...b) { return b.reduce((a, x) => (BRANK[x || ''] > BRANK[a || ''] ? x : a), ''); }
@@ -343,7 +345,7 @@ function bestRunwayForWind(rwys, wdir, wind) {
       const ang = (wdir - hdg) * R;
       const xw = Math.abs(Math.sin(ang)) * wind;
       const hw = Math.cos(ang) * wind;
-      if (hw < -10) continue;
+      if (hw < -TAILWIND_MAX) continue;
       // Lowest crosswind; within a knot of each other, the one with more
       // headwind (never pick a tailwind end over an equal headwind one).
       if (!best || xw < best.xw - 1 || (Math.abs(xw - best.xw) <= 1 && hw > best.hw)) {

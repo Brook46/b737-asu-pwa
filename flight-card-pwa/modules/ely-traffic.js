@@ -7,7 +7,7 @@
 // the callsign; a callsign gets reused, so a route the aircraft's position
 // doesn't fit is marked unsure rather than stated.
 
-import { WORKER_BASE } from './proxy.js?v=280';
+import { WORKER_BASE } from './proxy.js?v=281';
 
 const R = Math.PI / 180;
 const RADIUS_NM = 250, MAX_CIRCLES = 8;

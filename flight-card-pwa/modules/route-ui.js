@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=280';
-import * as ri from './route-info.js?v=280';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=280';
-import * as wxm from './wx.js?v=280';
-import * as nb from './notam-brief.js?v=280';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=280';
-import * as plan from './plan-route.js?v=280';
-import * as ely from './ely-traffic.js?v=280';
+import * as storage from './storage.js?v=281';
+import * as ri from './route-info.js?v=281';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=281';
+import * as wxm from './wx.js?v=281';
+import * as nb from './notam-brief.js?v=281';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=281';
+import * as plan from './plan-route.js?v=281';
+import * as ely from './ely-traffic.js?v=281';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -614,11 +614,10 @@ function relabel() {
 //              fog, snow, freezing drizzle
 //   r red    — below any 737 approach (CAT IIIA, RVR 200 m); thunderstorm,
 //              hail, freezing rain, sand/dust storm
-// Wind (route-info.js): crosswind with the gust over the QRH landing limit
-// red, over the take-off limit orange, within 5 kt of it yellow (dry 34 /
-// 40 kt, less when wet or narrow); tailwind over 10 kt red, 6–10 orange,
-// 1–5 yellow; wind or gust 65 kt+ red (OM A maximum), 40+ orange, 25+ or
-// gusting 10 kt over the mean yellow.
+// Wind (route-info.js), by the runway headings: crosswind with the gust over
+// the QRH landing limit red, over the take-off limit orange, within 5 kt of
+// it yellow (dry 34 / 40 kt, less when wet or narrow); tailwind over 15 kt
+// red, 11–15 orange, 6–10 yellow; strength alone only at 65 kt+ (OM A max).
 // Approach categories aren't in the data, so "below minima" means below the
 // best a 737 can do — with only a VOR approach, orange is already too low.
 function visBand(m) {
@@ -2014,7 +2013,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=280'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=281'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
