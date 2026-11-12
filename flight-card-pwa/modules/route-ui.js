@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=276';
-import * as ri from './route-info.js?v=276';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=276';
-import * as wxm from './wx.js?v=276';
-import * as nb from './notam-brief.js?v=276';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=276';
-import * as plan from './plan-route.js?v=276';
-import * as ely from './ely-traffic.js?v=276';
+import * as storage from './storage.js?v=277';
+import * as ri from './route-info.js?v=277';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=277';
+import * as wxm from './wx.js?v=277';
+import * as nb from './notam-brief.js?v=277';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=277';
+import * as plan from './plan-route.js?v=277';
+import * as ely from './ely-traffic.js?v=277';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -120,13 +120,23 @@ async function build(leg, { doFetch = false } = {}) {
   const db = await ri.loadDb();
   const A = ri.findAirport(db, leg.dep), B = ri.findAirport(db, leg.arr);
   if (!A || !B) throw new Error(`${!A ? leg.dep : leg.arr || '—'} isn't in the airport database`);
-  // The filed route when one was pasted for this leg, else the great circle.
+  // The filed route when one was pasted for this leg, else the great circle —
+  // and in the air with GPS, the way flown so far then straight on from the
+  // aircraft to the destination (vectors, directs and avoidance all move it).
   const filed = plan.getPlan(leg);
-  const route = filed ? ri.routeAlong(filed.pts) : ri.routePoints(A, B);
+  const gp = filed ? null : gpsOnLeg(A, B);
+  const route = filed ? ri.routeAlong(filed.pts)
+    : gp ? { ...ri.routeAlong([A, { lat: gp.lat, lon: gp.lon }, B]), filed: false, wps: null, gps: true, gpsAt: gp.at }
+    : ri.routePoints(A, B);
   const d = leg.dataCard || {};
   const stdMs = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
   const ctotMs = nearestHm(d.ctot || leg.ctot, stdMs);
   const tm = ri.timing(leg, route.total, { taxiOut: taxiMinutes(String(leg.dep || '').toUpperCase()), ctotMs, stdMs });
+  if (gp) {
+    // Ahead of the aircraft: from now at its ground speed, not the plan.
+    const sP = ri.routePoints(A, gp).total, gs = Math.max(gp.gs || 0, 250), plan0 = tm.etaAt;
+    tm.etaAt = (s) => s <= sP ? plan0(s) : gp.at + (s - sP) / gs * 3600000;
+  }
   const rules = ri.getCountryRules();
   const mode = contextFor(leg, stdMs);
   const all = ri.candidates(db, route).map(c => ({
@@ -227,7 +237,7 @@ async function planAction(what) {
           ${p ? '<button type="button" class="btn" data-ri-plan="clear">Back to great circle</button>' : ''}
           <button type="button" class="btn" data-ri-plan="close">Cancel</button>
         </div>
-        <p id="ri-plan-out" class="ri-plan-out">${p ? planSummary(p) : 'Until a route is pasted, the great circle is used — and in the air, the GPS position straight to the destination.'}</p>
+        <p id="ri-plan-out" class="ri-plan-out">${p ? planSummary(p) : 'Until a route is pasted, the great circle is used — and in the air, off it by 15 nm or more, the way flown then GPS straight to the destination.'}</p>
       </div>`;
     slot.scrollIntoView({ block: 'nearest' });
     return;
@@ -1423,7 +1433,7 @@ async function paint(model, showAll = false) {
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
       NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
-      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed' : 'great-circle'} route
+      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed route' : model.route.gps ? `way flown, then GPS straight to ${esc(model.B.icao)} (${ago(model.route.gpsAt)})` : 'great-circle route'}
       <button type="button" class="ri-plan-link" data-ri-plan="open">${model.route.filed ? 'Edit route' : 'Paste filed route'}</button>
     </div>
     <div class="ri-legend">
@@ -1823,9 +1833,15 @@ function openCard(icao, { keepView = false, fromMap = false } = {}) {
   }
   if (keepView) return;
   if (fromMap) {
+    // Down to the "Set as alternate" button (the card's head when there's
+    // none), all on the same screen as the map above it.
     const sheet = document.querySelector('.route-sheet');
-    const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
-    if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
+    const tgt = slot.querySelector('.ri-altn-btn') || slot.querySelector('.ri-card-head') || slot;
+    const bottom = tgt.getBoundingClientRect().bottom;
+    const bar = document.querySelector('.tabbar, .bottom-bar, nav.bar');
+    const bt = bar ? bar.getBoundingClientRect() : null;
+    const room = (bt && bt.height && bt.top > 0 && bt.top <= window.innerHeight ? bt.top : window.innerHeight) - 14;
+    if (sheet && bottom > room) sheet.scrollBy({ top: bottom - room, behavior: 'smooth' });
     return;
   }
   slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -1921,6 +1937,29 @@ function routeTrackNear(lat, lon) {
   const a = pts[Math.min(bi, pts.length - 2)], b = pts[Math.min(bi + 1, pts.length - 1)];
   return brg(a.lat, a.lon, b.lat, b.lon);
 }
+// A recent airborne fix that fits this leg (not a position from another
+// flight, not one kilometres out) → it shapes the route.
+const GPS_ROUTE_MAX_AGE = 3 * 60000, OFF_ROUTE_NM = 15, REROUTE_EVERY = 3 * 60000;
+function gpsOnLeg(A, B) {
+  const g = gpsFix;
+  if (!g || !g.airborne || Date.now() - g.at > GPS_ROUTE_MAX_AGE) return null;
+  const ab = distNm(A.lat, A.lon, B.lat, B.lon);
+  if (distNm(A.lat, A.lon, g.lat, g.lon) + distNm(g.lat, g.lon, B.lat, B.lon) > ab * 1.6 + 100) return null;
+  return g;
+}
+// Off the drawn route by more than OFF_ROUTE_NM (no filed route): redraw it
+// from where we are — at most every few minutes, keeping the open card.
+let rerouteAt = 0;
+function maybeReroute() {
+  if (!state || busy || state.model.route.filed || !gpsFix || !gpsFix.airborne) return;
+  if (Date.now() - rerouteAt < REROUTE_EVERY) return;
+  const off = Math.min(...state.model.route.pts.map(p => distNm(gpsFix.lat, gpsFix.lon, p.lat, p.lon)));
+  if (off < OFF_ROUTE_NM) return;
+  rerouteAt = Date.now();
+  const leg = state.model.leg;
+  build(leg, { doFetch: false }).then(repaintKeeping)
+    .then(() => { if (navigator.onLine !== false) refresh(false); }).catch(() => {});
+}
 function onFix(pos) {
   const c = pos.coords;
   // A network guess (Wi-Fi only, kilometres out) isn't a position to fly by.
@@ -1942,6 +1981,7 @@ function onFix(pos) {
   };
   gpsPrev = { lat: c.latitude, lon: c.longitude, at: now };
   if (now - livePaintAt > 5000) paintLive();
+  maybeReroute();
 }
 function startGps() {
   if (gpsWatch != null || !navigator.geolocation) return;
@@ -1961,7 +2001,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=276'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=277'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -2448,6 +2488,20 @@ export async function open(legArg = null, { focus = '', keepDock = false } = {})
     $('route-body').innerHTML = `<p class="muted small" style="padding:18px 4px;">${esc(err.message || err)}</p>`;
   }
 }
+// A repaint that keeps what's being looked at: the open airport card, the
+// map's zoom and the scroll. The new map replaces the old one, so never under
+// a finger.
+async function repaintKeeping(model) {
+  if ($('route-overlay').classList.contains('hidden')) return;
+  await fingersUp();
+  const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
+  const vb = $('ri-map') ? currentView() : null;
+  const scroll = document.querySelector('.route-sheet')?.scrollTop || 0;
+  await paint(model, state?.showAll);
+  if (sel) openCard(sel, { keepView: true });
+  if (vb) setViewBox(vb);
+  const sh = document.querySelector('.route-sheet'); if (sh) sh.scrollTop = scroll;
+}
 // Resolves true once the route's weather / NOTAMs were fetched and saved.
 export async function refresh(announce = true) {
   const leg = screenLeg();
@@ -2466,14 +2520,7 @@ export async function refresh(announce = true) {
       // A background refresh must not throw away what's being looked at:
       // keep the open airport card and the map's zoom across the repaint.
       // The new map replaces the old one, so never under a finger.
-      await fingersUp();
-      const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
-      const vb = $('ri-map') ? currentView() : null;
-      const scroll = document.querySelector('.route-sheet')?.scrollTop || 0;
-      await paint(model, state?.showAll);
-      if (sel) openCard(sel, { keepView: true });
-      if (vb) setViewBox(vb);
-      const sh = document.querySelector('.route-sheet'); if (sh) sh.scrollTop = scroll;
+      await repaintKeeping(model);
     }
     if (announce) toast('Route weather updated');
     return true;
