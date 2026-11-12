@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=278';
-import * as ri from './route-info.js?v=278';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=278';
-import * as wxm from './wx.js?v=278';
-import * as nb from './notam-brief.js?v=278';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=278';
-import * as plan from './plan-route.js?v=278';
-import * as ely from './ely-traffic.js?v=278';
+import * as storage from './storage.js?v=279';
+import * as ri from './route-info.js?v=279';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=279';
+import * as wxm from './wx.js?v=279';
+import * as nb from './notam-brief.js?v=279';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=279';
+import * as plan from './plan-route.js?v=279';
+import * as ely from './ely-traffic.js?v=279';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -2001,7 +2001,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=278'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=279'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
