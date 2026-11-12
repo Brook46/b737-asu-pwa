@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=279';
-import { inForce } from './notam-brief.js?v=279';
+import { WORKER_BASE } from './proxy.js?v=280';
+import { inForce } from './notam-brief.js?v=280';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -272,6 +272,66 @@ export function windFor(entry, ts, now = Date.now(), mode = 'plan') {
   return wxAt(entry, ts, now, mode);
 }
 
+// ---------- Wind limits ----------
+// Crosswind: QRH Ops Info OI.2.22 "Take-off and Landing Runway Condition and
+// Crosswind Limitations" (OM A 8.3.10.9 points there), by Runway Condition
+// Code 0–6. Gusts fully applied (note 17). For runways 45 m (148 ft) wide or
+// more; 30–44 m: 1 kt less per metre under 45, never below 5 kt (note 18).
+export const XW_LIMIT = { to: [0, 13, 15, 20, 22, 25, 34], ldg: [0, 15, 17, 25, 35, 40, 40] };
+export const TAILWIND_MAX = 10;   // FCOM Limitations, take-off and landing
+export const WIND_MAX = 65;       // OM A 8.3.20.1.9: company maximum, gusts included
+export function xwLimits(rcc = 6, widthFt = 148) {
+  const wm = Number(widthFt) ? Math.round(Number(widthFt) * 0.3048) : 45;
+  const cut = wm < 45 ? 45 - wm : 0;
+  const k = Math.max(0, Math.min(6, rcc));
+  return { to: k ? Math.max(5, XW_LIMIT.to[k] - cut) : 0, ldg: k ? Math.max(5, XW_LIMIT.ldg[k] - cut) : 0, rcc: k, cut };
+}
+// No runway report in a METAR / TAF: the weather in it stands in for one —
+// snow, ice pellets, freezing precipitation → Medium (3); rain, drizzle,
+// showers, thunderstorm → wet, Good (5); else dry (6).
+export function rccOfWx(wx) {
+  const t = String(wx || '').toUpperCase();
+  if (/SN|SG|PL|GS|FZ|IC/.test(t)) return 3;
+  if (/RA|DZ|SH|TS|UP/.test(t)) return 5;
+  return 6;
+}
+// The colour scale (g y o r): crosswind (gust in) past the landing limit red,
+// past the take-off limit orange, within 5 kt of it yellow; tailwind over
+// 10 kt red, 6–10 orange, any yellow; wind or gust 65 kt+ red (company
+// maximum), 40+ orange, 25+ or gusting 10 kt over the mean yellow.
+export function xwBandFor(kt, lim) {
+  if (!(kt > 0) || !lim) return '';
+  return kt > lim.ldg ? 'r' : kt > lim.to ? 'o' : kt > lim.to - 5 ? 'y' : '';
+}
+export function tailBand(kt) { return kt > TAILWIND_MAX ? 'r' : kt > 5 ? 'o' : kt > 0 ? 'y' : ''; }
+export function speedBand(spd, gust) {
+  const m = Math.max(Number(spd) || 0, Number(gust) || 0);
+  return m >= WIND_MAX ? 'r' : m >= 40 ? 'o' : (m >= 25 || (gust && gust - (spd || 0) >= 10)) ? 'y' : '';
+}
+const BRANK = { r: 3, o: 2, y: 1, '': 0 };
+export function worstBand(...b) { return b.reduce((a, x) => (BRANK[x || ''] > BRANK[a || ''] ? x : a), ''); }
+// One wind against an airport's runways: the best end's band (crosswind
+// with the gust, tailwind) and the wind's own strength.
+export function windBand(rwys, wdir, spd, gust, rcc = 6) {
+  const sb = speedBand(spd, gust), top = Math.max(spd || 0, gust || 0);
+  if (!top) return '';
+  const list = (rwys || []).filter(r => r[3] != null);
+  if (wdir == null || !list.length) {
+    // Variable: it can blow straight across the widest runway.
+    const wd = list.reduce((a, r) => Math.max(a, r[2] || 148), 0) || 148;
+    return worstBand(sb, wdir == null ? xwBandFor(top, xwLimits(rcc, wd)) : '');
+  }
+  let best = null;
+  for (const r of list) for (const h of [r[3], (r[3] + 180) % 360]) {
+    const a = (wdir - h) * R;
+    const xb = xwBandFor(Math.round(Math.abs(Math.sin(a)) * top), xwLimits(rcc, r[2]));
+    const tb = tailBand(Math.round(-Math.cos(a) * (spd || 0)));
+    const b = worstBand(xb, tb);
+    if (best == null || BRANK[b] < BRANK[best]) best = b;
+  }
+  return worstBand(sb, best);
+}
+
 // Crosswind on the best-aligned runway (lowest crosswind, not mostly tailwind).
 function bestRunwayForWind(rwys, wdir, wind) {
   if (!wind || wdir == null) return null;
@@ -287,7 +347,7 @@ function bestRunwayForWind(rwys, wdir, wind) {
       // Lowest crosswind; within a knot of each other, the one with more
       // headwind (never pick a tailwind end over an equal headwind one).
       if (!best || xw < best.xw - 1 || (Math.abs(xw - best.xw) <= 1 && hw > best.hw)) {
-        best = { rwy: ends[i] || r[0], xw: Math.round(xw), hw: Math.round(hw) };
+        best = { rwy: ends[i] || r[0], xw: Math.round(xw), hw: Math.round(hw), width: r[2] || 148 };
       }
     }
   }
@@ -389,9 +449,11 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   }
   if (wind.src) {
     xw = bestRunwayForWind(usable, wind.wdir, Math.max(wind.wspd || 0, wind.wgst || 0));
-    if (xw) xw.src = wind.src;
-    if (xw && xw.xw > 35) { wxPts -= 2; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 2, what: `Crosswind ${xw.xw} kt on the best runway (${wind.src})` }); }
-    else if (xw && xw.xw > 25) { wxPts -= 1; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 1, what: `Crosswind ${xw.xw} kt on the best runway (${wind.src})` }); }
+    if (xw) { xw.src = wind.src; xw.lim = xwLimits(rccOfWx(wind.wx || (w && w.wx)), xw.width); }
+    // Against the QRH landing limit for the runway's width and the weather.
+    if (xw && xw.xw > xw.lim.ldg) { wxPts -= 2; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 2, what: `Crosswind ${xw.xw} kt on the best runway — over the ${xw.lim.ldg} kt landing limit (${wind.src})` }); }
+    else if (xw && xw.xw > xw.lim.ldg - 5) { wxPts -= 1; why.push(`Crosswind ${xw.xw} kt`); lost.push({ pts: 1, what: `Crosswind ${xw.xw} kt on the best runway — near the ${xw.lim.ldg} kt landing limit (${wind.src})` }); }
+    if (Math.max(wind.wspd || 0, wind.wgst || 0) >= WIND_MAX) { wxPts -= 2; why.push(`Wind ${Math.max(wind.wspd || 0, wind.wgst || 0)} kt`); lost.push({ pts: 2, what: `Wind ${Math.max(wind.wspd || 0, wind.wgst || 0)} kt — over the company maximum of ${WIND_MAX} kt (OM A)` }); }
   }
   let score = rwyPts + lightPts + sizePts + distPts + Math.max(-2, wxPts);
   if (ap.elev > 5000) { score -= 0.5; why.push(`High elevation (${ap.elev} ft)`); lost.push({ pts: 0.5, what: `High elevation (${ap.elev.toLocaleString('en-US')} ft)` }); }

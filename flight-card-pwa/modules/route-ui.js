@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=279';
-import * as ri from './route-info.js?v=279';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=279';
-import * as wxm from './wx.js?v=279';
-import * as nb from './notam-brief.js?v=279';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=279';
-import * as plan from './plan-route.js?v=279';
-import * as ely from './ely-traffic.js?v=279';
+import * as storage from './storage.js?v=280';
+import * as ri from './route-info.js?v=280';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=280';
+import * as wxm from './wx.js?v=280';
+import * as nb from './notam-brief.js?v=280';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=280';
+import * as plan from './plan-route.js?v=280';
+import * as ely from './ely-traffic.js?v=280';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -504,8 +504,9 @@ function setMapWx(v) {
 //   full OVC, ⊗ sky obscured (vertical visibility); a dashed ring when
 //   there's no weather for it;
 //   a wind barb on the side the wind comes FROM — half feather 5 kt, full
-//   feather 10 kt, flag 50 kt; a ring round the circle when calm. Orange
-//   when the crosswind on the best runway is over 25 kt, red over 33 kt.
+//   feather 10 kt, flag 50 kt; a ring round the circle when calm. Coloured
+//   by the wind limits: crosswind on the best runway against the QRH
+//   take-off / landing limits, and the wind's own strength.
 // Beside it, placed by the label pass: VRB, the gust and the crosswind (X)
 // when it's 10 kt or more.
 function station(c, r) {
@@ -524,7 +525,8 @@ function station(c, r) {
   if (wind && wind.src && wind.wspd != null) {
     const sp = Math.round(Number(wind.wspd) || 0), gs = Math.round(Number(wind.wgst) || 0);
     const xw = c.r.xw ? c.r.xw.xw : null;
-    const tone = xw > 33 ? ' is-r' : xw > 25 ? ' is-o' : '';
+    const tb = ri.worstBand(c.r.xw && c.r.xw.lim ? ri.xwBandFor(xw, c.r.xw.lim) : '', ri.speedBand(sp, gs));
+    const tone = tb ? ' is-' + tb : '';
     const kt = Math.round(sp / 5) * 5;
     if (kt === 0) barb = `<circle class="ri-st-calm${tone}" r="${r + 3}"/>`;
     else if (wind.wdir != null) {
@@ -609,9 +611,14 @@ function relabel() {
 //   g green  — nothing to think about: CAVOK / 10 km+, ceiling 1,500 ft+
 //   y yellow — marginal: under 1,500 m or a ceiling under 500 ft
 //   o orange — below CAT I (550 m / 200 ft): only a CAT II/III ILS gets in;
-//              fog, snow, freezing drizzle; crosswind over 25 kt
+//              fog, snow, freezing drizzle
 //   r red    — below any 737 approach (CAT IIIA, RVR 200 m); thunderstorm,
-//              hail, freezing rain, sand/dust storm; crosswind over 33 kt
+//              hail, freezing rain, sand/dust storm
+// Wind (route-info.js): crosswind with the gust over the QRH landing limit
+// red, over the take-off limit orange, within 5 kt of it yellow (dry 34 /
+// 40 kt, less when wet or narrow); tailwind over 10 kt red, 6–10 orange,
+// 1–5 yellow; wind or gust 65 kt+ red (OM A maximum), 40+ orange, 25+ or
+// gusting 10 kt over the mean yellow.
 // Approach categories aren't in the data, so "below minima" means below the
 // best a 737 can do — with only a VOR approach, orange is already too low.
 function visBand(m) {
@@ -628,27 +635,26 @@ function wxPhenBand(w) {
   if (/FG|SN|FZDZ|PL|\+RA|SQ/.test(t)) return 'o';
   return '';
 }
-function xwBand(kt) { return kt > 33 ? 'r' : kt > 25 ? 'o' : ''; }
+// Wind colours follow the QRH Ops Info crosswind limits, the 10 kt tailwind
+// limit and OM A's 65 kt company maximum — see the wind limits in
+// route-info.js (ri.windBand and friends).
+const bandCls = (b, dflt = 'rd-wind-t') => b ? 'wx-' + b : dflt;
+function limTxt(lim) {
+  return `limit T/O ${lim.to} · LDG ${lim.ldg} kt${lim.rcc < 6 ? ` (${lim.rcc === 5 ? 'wet' : lim.rcc === 3 ? 'snow / ice' : 'RWYCC ' + lim.rcc})` : ''}${lim.cut ? `, −${lim.cut} for the width` : ''}`;
+}
+// One runway end against a wind: components and their colours.
+function windParts(e, w) {
+  const k = e && e.hdg != null ? components(e.hdg, w) : null;
+  if (!k) return null;
+  const lim = ri.xwLimits(w.rcc || ri.rccOfWx(w.wx), e.r && e.r[2]);
+  return { k, lim, xb: ri.xwBandFor(Math.max(k.cross, k.gustCross), lim), tb: ri.tailBand(-k.head), sb: ri.speedBand(w.wspd, w.wgst) };
+}
 const RANK = { r: 4, o: 3, y: 2, '': 1, g: 0 };
 function worst(...bands) { return bands.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'g'); }
 
-// Crosswind from a wind token against the airport's usable runways.
-function xwFor(rwys, dir, spd) {
-  if (dir == null || !spd) return 0;
-  let best = Infinity;
-  for (const r of rwys) {
-    if (r[3] == null) continue;
-    for (const h of [r[3], (r[3] + 180) % 360]) {
-      const a = (dir - h) * Math.PI / 180;
-      if (Math.cos(a) * spd < -10) continue;
-      best = Math.min(best, Math.abs(Math.sin(a)) * spd);
-    }
-  }
-  return Number.isFinite(best) ? Math.round(best) : 0;
-}
 
 // One METAR / TAF group's colour band, or null.
-function tokBand(T, rwys) {
+function tokBand(T, rwys, rcc = 6) {
   let b = null;
   if (/^(CAVOK|NSC|SKC|CLR|NCD)$/.test(T)) b = 'g';
   else if (/^\d{4}$/.test(T)) b = visBand(+T === 9999 ? 10000 : +T);
@@ -664,8 +670,7 @@ function tokBand(T, rwys) {
   else if (/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/.test(T)) {
     const m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(T);
     const k = m[4] === 'MPS' ? 1.944 : 1;
-    const spd = Math.max(+m[2], +(m[3] || 0)) * k;
-    b = m[1] === 'VRB' ? (spd > 25 ? 'o' : '') : xwBand(xwFor(rwys, +m[1], spd));
+    b = ri.windBand(rwys, m[1] === 'VRB' ? null : +m[1], Math.round(+m[2] * k), m[3] ? Math.round(+m[3] * k) : 0, rcc);
   }
   else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
         || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || 'y';   // rain, mist, haze … yellow
@@ -741,9 +746,12 @@ function colourTaf(raw, rwys, eta) {
 // look is coloured — good values (9999, CAVOK, a high ceiling) stay plain,
 // or a quiet report turns into a wall of green.
 function colourRaw(raw, rwys) {
+  // The weather in this report (or TAF group) stands in for a runway report.
+  const wxs = String(raw || '').toUpperCase().split(/\s+/).filter(t => /^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP)+$|^[-+]?TS/.test(t)).join(' ');
+  const rcc = ri.rccOfWx(wxs);
   return String(raw || '').split(/(\s+)/).map(tok => {
     if (/^\s+$/.test(tok) || !tok) return tok;
-    let b = tokBand(tok.toUpperCase(), rwys);
+    let b = tokBand(tok.toUpperCase(), rwys, rcc);
     if (b === 'g') b = null;
     return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
   }).join('');
@@ -876,13 +884,13 @@ export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = 
 
 function wxSummary(w, xw) {
   if (!w || !w.src) return { band: '', html: 'No forecast covering that time.' };
-  const ceilB = ceilBand(w.ceil), visB = visBand(w.vis), phB = wxPhenBand(w.wx), xB = xw ? xwBand(xw.xw) : '';
+  const ceilB = ceilBand(w.ceil), visB = visBand(w.vis), phB = wxPhenBand(w.wx), xB = ri.worstBand(xw && xw.lim ? ri.xwBandFor(xw.xw, xw.lim) : '', ri.speedBand(w.wspd, w.wgst));
   const part = (b, t) => t ? `<span class="wx-${b || 'n'}">${esc(t)}</span>` : '';
   const ceil = Number.isFinite(w.ceil) ? `ceiling ${Math.round(w.ceil).toLocaleString('en-US')} ft` : 'no ceiling';
   const vis = Number.isFinite(w.vis) ? (w.vis >= 9999 ? 'vis 10 km+' : `vis ${w.vis >= 5000 ? Math.round(w.vis / 1000) + ' km' : Math.round(w.vis) + ' m'}`) : '';
   const wind = (w.wspd || w.wgst) ? `wind ${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0')}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : 'wind calm';
   // No significant weather and a light crosswind are good news, not neutral.
-  const band = worst(ceilB, visB, phB || 'g', xB || (xw && xw.xw > 15 ? '' : 'g'));
+  const band = worst(ceilB, visB, phB || 'g', xB === 'y' ? '' : xB || (xw && xw.xw > 15 ? '' : 'g'));
   const verdict = { g: 'Good', y: 'Marginal', o: 'Below CAT I — CAT II/III ILS only', r: 'Below 737 minima / hazardous', '': 'Workable' }[band];
   return {
     band,
@@ -1116,13 +1124,14 @@ function bestRunwayLine(c) {
   if (w.wdir == null) return `<div class="rd-bestline">Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt <span class="rw-src">(${esc(src)})</span> — no preferred runway; longest is ${esc(longest)}.</div>`;
   const best = c.r.xw && runwayEnds(c.ap).find(e => e.id === c.r.xw.rwy);
   if (!best) return '';
-  const k = components(best.hdg, w);
-  const hw = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="wx-o">tailwind ${-k.head} kt</span>`;
-  const xb = xwBand(Math.max(k.cross, k.gustCross));
+  const P = windParts(best, w);
+  if (!P) return '';
+  const k = P.k;
+  const hw = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="${bandCls(P.tb)}">tailwind ${-k.head} kt</span>`;
   return `<div class="rd-bestline">Best runway now: <span class="rw-box">${esc(best.id)}</span>
-      <span class="rd-wind-t">${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> — ${hw} ·
-      <span class="${xb ? 'wx-' + xb : 'rd-wind-t'}">crosswind ${k.cross} kt from the ${k.side}${k.gustCross ? `, ${k.gustCross} in gusts` : ''}</span>
-      <span class="rw-src">(${esc(src)})</span></div>`;
+      <span class="${bandCls(P.sb)}">${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> — ${hw} ·
+      <span class="${bandCls(P.xb)}">crosswind ${k.cross} kt from the ${k.side}${k.gustCross ? `, ${k.gustCross} in gusts` : ''}</span>
+      <span class="rw-src">(${esc(src)} · ${limTxt(P.lim)})</span></div>`;
 }
 
 // ---------- Runways in the ATIS window ----------
@@ -1190,16 +1199,19 @@ export async function atisWindInfo(code, { atis = '', metar = '', taf = '', when
   if (w && w.mag && w.wdir != null) w = { ...w, wdir: Math.round((w.wdir + variationOf(ends) + 360) % 360) };
   return { w, src, inUse: atisRunwayInUse(atis, ends, end), ends };
 }
+// The wind's own strength band (g y o r) for a wind object, for app.js.
+export function windSpeedBand(w) { return w ? ri.speedBand(w.wspd, w.wgst) : ''; }
 export function rwyWindHtml(info, id) {
   const e = info && info.ends.find(x => x.id === id);
   if (!e) return '';
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   const head = `<div class="ad-wp-rw"><span class="rw-box">${esc(e.id)}</span> <b>${fmt(e.lda)}</b> ft</div>`;
-  const k = e.hdg == null ? null : components(e.hdg, info.w);
-  if (!k) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'VRB' : '—'}</div>`;
-  const xb = xwBand(Math.max(k.cross, k.gustCross));
-  return head + `<div class="ad-wp-k">${k.head >= 0 ? `HW <b>${k.head}</b>` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">TW <b>${-k.head}</b></span>`}
-    · <span class="${xb ? 'wx-' + xb : ''}">XW <b>${k.cross}</b>${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` G${k.gustCross}` : ''}</span></div>`;
+  const P = windParts(e, info.w || {});
+  if (!P) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'VRB' : '—'}</div>`;
+  const k = P.k;
+  return head + `<div class="ad-wp-k">${k.head >= 0 ? `HW <b>${k.head}</b>` : `<span class="${bandCls(P.tb, '')}">TW <b>${-k.head}</b></span>`}
+    · <span class="${bandCls(P.xb, '')}">XW <b>${k.cross}</b>${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` G${k.gustCross}` : ''}</span></div>
+    <div class="ad-wp-lim">${limTxt(P.lim)}</div>`;
 }
 
 function runwayPanel(c, m) {
@@ -1210,21 +1222,22 @@ function runwayPanel(c, m) {
   const selId = selEnd.get(ap.icao) || best || ends[0].id;
   const sel = ends.find(e => e.id === selId) || ends[0];
   const chips = ends.map(e => {
-    const k = e.hdg == null ? null : components(e.hdg, w);
-    const tone = k ? (k.head < -10 || xwBand(Math.max(k.cross, k.gustCross)) === 'r' ? 'r'
-      : k.head < 0 || xwBand(Math.max(k.cross, k.gustCross)) === 'o' ? 'o' : '') : '';
+    const P = w ? windParts(e, w) : null;
+    const tone = P ? ri.worstBand(P.xb, P.tb) : '';
     return `<button type="button" class="rw-chip${e.id === sel.id ? ' is-sel' : ''}${tone ? ' t-' + tone : ''}" data-rw-end="${esc(e.id)}">${esc(e.id)}${e.id === best ? ' ★' : ''}</button>`;
   }).join('');
-  const k = sel.hdg == null ? null : components(sel.hdg, w);
+  const P = w ? windParts(sel, w) : null;
+  const k = P ? P.k : null;
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
   let windLine = 'No forecast wind for that time.';
   if (k) {
-    const hwTxt = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="wx-${k.head < -10 ? 'r' : 'o'}">tailwind ${-k.head} kt</span>`;
-    const xb = xwBand(k.cross), gxb = xwBand(k.gustCross);
+    const hwTxt = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="${bandCls(P.tb)}">tailwind ${-k.head} kt</span>`;
+    const xb = ri.xwBandFor(k.cross, P.lim), gxb = ri.xwBandFor(k.gustCross, P.lim);
     const srcTxt = w.src === 'METAR' ? `METAR${w.at ? ' ' + hm(w.at) : ''} — current` : `TAF for ${hm(c.eta)}`;
-    windLine = `<span class="rd-wind-t">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> <span class="rw-src">(${srcTxt})</span>: ${hwTxt} · `
-      + `<span class="${xb ? 'wx-' + xb : 'rd-wind-t'}">crosswind ${k.cross} kt from the ${k.side}</span>`
-      + (k.gustCross ? ` · <span class="${gxb ? 'wx-' + gxb : 'rd-wind-t'}">gusting ${k.gustCross} kt cross</span>` : '');
+    windLine = `<span class="${bandCls(P.sb)}">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> <span class="rw-src">(${srcTxt})</span>: ${hwTxt} · `
+      + `<span class="${bandCls(xb)}">crosswind ${k.cross} kt from the ${k.side}</span>`
+      + (k.gustCross ? ` · <span class="${bandCls(gxb)}">gusting ${k.gustCross} kt cross</span>` : '')
+      + ` <span class="rw-src">· ${limTxt(P.lim)}</span>`;
   } else if (w && w.wdir == null && (w.wspd || w.wgst)) {
     windLine = `Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt — components can't be worked out.`;
   } else if (w && w.src) {
@@ -2001,7 +2014,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=279'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=280'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
