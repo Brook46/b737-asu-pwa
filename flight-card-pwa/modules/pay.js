@@ -3,13 +3,13 @@
 //
 // NO RULES LIVE HERE. Every threshold and rate comes from the pilot's own
 // rules file (imported on the device, never in this repository) and their
-// "card one" (base salary, rank, personal rates). Without a rules file
+// "card one" (base monthly salary, personal rates). Without a rules file
 // nothing is checked. A missing number means that check is skipped, never
 // guessed.
 //
 // Pure functions, no DOM: app.js paints the sheet from monthReport().
 
-import { legTimes, groupFdps } from './ftl.js?v=277';
+import { legTimes, groupFdps } from './ftl.js?v=278';
 
 const H = 3600000, MIN = 60000, DAY = 86400000;
 const HOME = new Set(['TLV', 'LLBG']);
@@ -41,18 +41,20 @@ export function parseRules(text) {
 }
 export function rulesLabel(r) { return r ? `${r.title || 'Pay rules'}${r.v ? ' (v' + r.v + ')' : ''}` : ''; }
 
-// A rate: card one first, then the rules for the pilot's rank, then the
-// rules. A number is money; { x: 1.25 } is that many times the hourly rate
-// (card one's, else base salary ÷ rules.hourDivisor).
+// A rate: card one's own first, then the rules file's. Everything else
+// comes from the base monthly salary: a number is money; { x: 1.25 } is that
+// many times the hourly rate (base ÷ rules.hourDivisor); { base: 0.01 } is
+// that share of the base salary (per hour / per case).
 export function rateOf(key, rules, card) {
   const c = card || {}, r = rules || {};
-  const v = [c.pay && c.pay[key], r.payByRank && c.rank && r.payByRank[c.rank] && r.payByRank[c.rank][key], r.pay && r.pay[key]]
-    .find(x => x !== null && x !== undefined && x !== '');
+  const v = [c.pay && c.pay[key], r.pay && r.pay[key]].find(x => x !== null && x !== undefined && x !== '');
   if (v === undefined) return null;
+  const base = num(c.base);
   if (typeof v === 'object' && v && num(v.x) != null) {
-    const hourly = num(c.hourly) ?? (num(c.base) != null && num(r.hourDivisor) ? num(c.base) / num(r.hourDivisor) : null);
+    const hourly = base != null && num(r.hourDivisor) ? base / num(r.hourDivisor) : null;
     return hourly == null ? null : hourly * num(v.x);
   }
+  if (typeof v === 'object' && v && num(v.base) != null) return base == null ? null : base * num(v.base);
   return num(v);
 }
 
