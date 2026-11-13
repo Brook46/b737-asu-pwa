@@ -52,8 +52,14 @@ workers, Pages deploy) apply here.
   uses a fix (position, wind, heading correction, home, clock) when
   `status().gps == GpsState::Ok`. Anything that sends, stores or acts on a
   position (FANET region/tracking/messages, marks) must use the guarded
-  `status().pos` or check the GPS state: never `status().gnss` raw. The user
+  `status().pos` / `status().trustedFix` (the last fix the guard accepted):
+  never `status().gnss` raw, which can already be spoofed while the state
+  still reads Ok (the guard needs three bad fixes to trip). The user
   flies where GPS jamming and spoofing (to Beirut) are routine.
+* Guard invariants (each has a test): while trusted, a jump is judged against
+  the last TRUSTED fix, not the previous one; coming back from LOST/SPOOFED, a
+  fix must be reachable from the last trusted one (300 m + 25 m/s). The
+  firmware feeds the guard from one receiver at a time (`loop()` in main.cpp).
 * Vario, STAY/GLIDE, circling, cloud base and the thermal assistant must keep
   working with no GPS at all (test: "jammed from takeoff"). The assistant uses
   `assistHeading`, a gyro-only frame; north (`headingValid`) is only claimed

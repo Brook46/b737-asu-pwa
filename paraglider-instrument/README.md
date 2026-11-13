@@ -18,7 +18,7 @@ this unit only *listens* to its Bluetooth stream.
 
 | Part | State |
 |---|---|
-| Logic layer (`lib/core`) | Written, **80 desktop tests pass** (`make test`) |
+| Logic layer (`lib/core`) | Written, **81 desktop tests pass** (`make test`) |
 | Flight replay tool (`tools/sim`) | Works on IGC files, XCTracer captures, synthetic flights |
 | Firmware (`src/`) | Written against pinned library versions; every library call was checked against those tags' headers, and a host compile against signature stubs is clean. **Not yet built with the real ESP32 toolchain, not flashed.** |
 | Thermal pack builder (`sim/pack.html`) | Written and tested against mocked replies; **not yet run against live KK7** (this build environment can't reach it) |

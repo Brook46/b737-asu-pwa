@@ -448,11 +448,12 @@ void updateRegion(uint32_t now) {
   static uint32_t last = 0;
   if (now - last < 30000) return;
   last = now;
-  const pg::GnssFix& g = fc.status().gnss;
-  // Only from a trusted fix: a spoofer must not move us onto another
-  // country's frequency.
-  if (!g.valid() || fc.status().gps != pg::GpsState::Ok) return;
-  const pg::fanet::Region& r = pg::fanet::regionFor(g.lat, g.lon);
+  // Only from the guarded position (not the raw fix, which can already be a
+  // spoofed one while the guard is still counting to three): a spoofer must
+  // not move us onto another country's frequency.
+  const pg::Status& s = fc.status();
+  if (s.gps != pg::GpsState::Ok || !s.pos.valid || s.pos.deadReckoned) return;
+  const pg::fanet::Region& r = pg::fanet::regionFor(s.pos.lat, s.pos.lon);
   if (&r == &lora.region()) return;
   Serial.printf("[fanet] region %s → %s (%.1f MHz)\n", lora.region().name, r.name, r.freqMHz);
   lora.setRegion(r);
@@ -466,15 +467,17 @@ void maybeSendTracking(uint32_t now) {
   if (now - lastTrack < PG_FANET_TRACK_PERIOD_S * 1000UL) return;
   const pg::Status& s = fc.status();
   // Never broadcast a position the guard doesn't trust (jammed or spoofed).
-  if (!s.gnss.valid() || s.gps != pg::GpsState::Ok) return;
+  // The last fix the guard accepted, never the raw one.
+  const pg::GnssFix& g = s.trustedFix;
+  if (s.gps != pg::GpsState::Ok || !g.valid() || now - g.t > 3000) return;
   lastTrack = now;
   pg::fanet::Tracking t;
-  t.lat = s.gnss.lat;
-  t.lon = s.gnss.lon;
-  t.altitude = static_cast<int>(s.gnss.altMsl);
-  t.speedKmh = s.gnss.groundSpeed * 3.6f;
+  t.lat = g.lat;
+  t.lon = g.lon;
+  t.altitude = static_cast<int>(g.altMsl);
+  t.speedKmh = g.groundSpeed * 3.6f;
   t.climb = s.vario;
-  t.headingDeg = s.gnss.trackDeg;
+  t.headingDeg = g.trackDeg;
   t.hasTurnRate = true;
   t.turnRateDeg = s.turnRate;
   lora.sendTracking(t);
@@ -557,9 +560,15 @@ void loop() {
     lastImu = m;
     ++imuCount;
   }
+  // One GNSS source at a time into the guard. While the onboard receiver has
+  // no fix (jammed) but the XCTracer still does, the onboard "no fix" epochs
+  // are held back: mixed in, each one would reset the guard's run of good
+  // fixes and the XCTracer's position would never be trusted.
+  static uint32_t lastXctFix = 0;
+  const bool xctCovering = lastXctFix && now - lastXctFix < 3000;
   pg::GnssFix g;
   if (gnss.poll(g)) {
-    fc.onGnss(g);
+    if (g.valid() || !xctCovering) fc.onGnss(g);
     lastFix = g;
     ++gnssCount;
   }
@@ -570,7 +579,10 @@ void loop() {
   float alt;
   if (xct.pollAltitude(at, alt)) fc.onAltitude(at, alt, pg::BaroOrigin::XcTracer);
   // XCTracer position only when the onboard GNSS has nothing.
-  if (xct.poll(g) && (!gnss.present() || !lastFix.valid() || now - lastFix.t > 3000)) fc.onGnss(g);
+  if (xct.poll(g) && (!gnss.present() || !lastFix.valid() || now - lastFix.t > 3000)) {
+    if (g.valid()) lastXctFix = now;
+    fc.onGnss(g);
+  }
 
   pg::Command c;
   while (ble.popCommand(c)) handleCommand(c);

@@ -629,7 +629,7 @@ kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule)
     ["Task", (s) => (s[79] ? (s[93] ? "goal!" : `TP ${(s[80] | 0) + 1} in ${(s[81] / 1000).toFixed(1)} km` + (s[82] && s[83] > -800 ? ` · goal ${fmt(s[83], 0, true)} m` : "")) : "none"), () => "–"],
     ["Air under you, m/s", () => "–", (s) => fmt(s[6], 1, true)],
   ];
-  const REASONS = ["", "no fix", "weak", "position jump", "impossible speed", "altitude ≠ baro", "track ≠ gyro"];
+  const REASONS = ["", "no fix", "weak", "position jump", "impossible speed", "altitude ≠ baro", "track ≠ gyro", "too far from last position"];
   const tb = $("truth");
   tb.innerHTML = rows.map((r, i) => `<tr><td>${r[0]}</td><td class="n" id="ri${i}"></td><td class="n" id="rt${i}"></td></tr>`).join("");
   function drawTruth(st) {

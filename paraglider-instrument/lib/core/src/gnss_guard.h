@@ -26,7 +26,7 @@ namespace pg {
 enum class GpsState : uint8_t { NoData, Ok, Lost, Spoofed };
 const char* gpsStateName(GpsState s);
 
-enum class GpsReason : uint8_t { None, NoFix, Weak, Jump, Speed, Altitude, Motion };
+enum class GpsReason : uint8_t { None, NoFix, Weak, Jump, Speed, Altitude, Motion, Far };
 const char* gpsReasonName(GpsReason r);
 
 struct GuardedPosition {

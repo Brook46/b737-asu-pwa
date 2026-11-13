@@ -18,6 +18,10 @@ constexpr int kBadToTrip = 3;
 constexpr TimeMs kBadWindowMs = 5000;
 constexpr TimeMs kRecoverMs = 20000, kFirstFixMs = 2000;
 constexpr TimeMs kSilentMs = 3000;
+// Coming back from LOST/SPOOFED, a fix must be somewhere you could have flown
+// to since the last trusted one. A steady spoof to another place passes every
+// other test when its altitude happens to match and you aren't circling.
+constexpr float kReachBaseM = 300.0f, kReachPerS = 25.0f;
 constexpr float kDrErrPerS = 2.0f, kDrErrNoHeadingPerS = 8.0f, kDrMaxErr = 5000.0f;
 constexpr double kMPerDeg = 111195.0;
 
@@ -47,6 +51,7 @@ const char* gpsReasonName(GpsReason r) {
     case GpsReason::Speed: return "impossible speed";
     case GpsReason::Altitude: return "altitude disagrees with baro";
     case GpsReason::Motion: return "track disagrees with gyro";
+    case GpsReason::Far: return "too far from last known position";
   }
   return "?";
 }
@@ -66,7 +71,7 @@ void GnssGuard::bad(TimeMs t, GpsReason r) {
   }
   ++badCount_;
   goodRunStart_ = 0;
-  const bool spoofy = r == GpsReason::Altitude || r == GpsReason::Motion;
+  const bool spoofy = r == GpsReason::Altitude || r == GpsReason::Motion || r == GpsReason::Far;
   if (state_ == GpsState::Ok) {
     // A gyro/track contradiction over a whole window is conclusive on its own.
     if (badCount_ >= kBadToTrip || r == GpsReason::Motion)
@@ -88,12 +93,20 @@ bool GnssGuard::check(const GnssFix& f, float baroAlt, float gyroTurnDeg) {
   } else if (f.groundSpeed > kMaxGroundSpeed) {
     r = GpsReason::Speed;
   } else {
-    if (havePrev_ && t > prev_.t && t - prev_.t < 3000) {
-      const float dt = (t - prev_.t) / 1000.0f;
-      const double pLat = prev_.lat + prev_.velN * dt / kMPerDeg;
-      const double pLon = prev_.lon + prev_.velE * dt / (kMPerDeg * std::cos(prev_.lat * 0.0174533));
+    // Jump: against the last TRUSTED fix while trusted (so a jump isn't
+    // forgiven just because the next fix agrees with the jumped one), against
+    // the previous fix while building a consistent run to recover.
+    const bool fromGood = state_ == GpsState::Ok && haveGood_;
+    const GnssFix& ref = fromGood ? good_ : prev_;
+    if ((fromGood || havePrev_) && t > ref.t && t - ref.t < 3000) {
+      const float dt = (t - ref.t) / 1000.0f;
+      const double pLat = ref.lat + ref.velN * dt / kMPerDeg;
+      const double pLon = ref.lon + ref.velE * dt / (kMPerDeg * std::cos(ref.lat * 0.0174533));
       if (distM(pLat, pLon, f.lat, f.lon) > kJumpBaseM + kJumpPerS * dt) r = GpsReason::Jump;
     }
+    if (r == GpsReason::None && state_ != GpsState::Ok && haveGood_ && t > good_.t &&
+        distM(good_.lat, good_.lon, f.lat, f.lon) > kReachBaseM + kReachPerS * ((t - good_.t) / 1000.0f))
+      r = GpsReason::Far;
     if (r == GpsReason::None && haveOffset_ && !std::isnan(baroAlt) &&
         std::fabs(f.altMsl - baroAlt - altOffset_) > kMaxAltDisagreeM)
       r = GpsReason::Altitude;

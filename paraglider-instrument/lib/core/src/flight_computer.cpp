@@ -169,6 +169,7 @@ void FlightComputer::onGnss(const GnssFix& f) {
   gyroSinceFix_ = 0;
   if (!guard_.check(g, baroAlt, gyro)) return;
   lastGnss_ = f.t;
+  st_.trustedFix = g;
 
   // GPS is trusted: align the vario altitude to it, and correct the heading.
   if (kf_.initialized()) {
@@ -577,7 +578,9 @@ void FlightComputer::updateNav(TimeMs t) {
   st_.best = Target{};
   st_.best.kind = TargetKind::None;
   float bestScore = 0;
-  betterNearby_ = false;
+  // Latched for the rest of the thermal: recomputing it every second made
+  // GLIDE and STAY alternate when the other pilot's climb hovered at the edge.
+  if (!st_.circling) betterNearby_ = false;
   st_.nearCount = 0;
   if (terrain_ && st_.clockValid && st_.pos.valid &&
       (!sun_.valid() || st_.utcMin - sun_.lastUtcMin() >= 10 || st_.utcMin < sun_.lastUtcMin())) {

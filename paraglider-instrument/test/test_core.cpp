@@ -1017,6 +1017,38 @@ TEST("gps guard: spoofing to Beirut (altitude + jump + gyro) → SPOOFED, no pos
   EXPECT(maxDrift < 200);  // the instrument never believed it was in Beirut
 }
 
+TEST("gps guard: a steady spoof at a matching altitude, flying straight, is never adopted") {
+  // Low and gliding: the spoofed altitude is within 150 m of ours and the gyro
+  // has nothing to contradict. Only "you can't have flown there" catches it.
+  GnssGuard g;
+  double lat = 32.5, lon = 35.4;
+  uint32_t t = 200;
+  for (int i = 0; i < 300; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 120, 10, 0), 80, 0);
+    g.propagate(t, 0, 10, 0, 0);
+  }
+  EXPECT(g.trusted());
+  bool everTrusted = false;
+  for (int i = 0; i < 900; ++i, t += 200) {  // 3 minutes of Beirut, standing still
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, 33.8209, 35.4884, 25, 0, 0), 80, 0);
+    g.propagate(t, 0, 10, 0, 0);
+    if (i >= 5) everTrusted |= g.trusted();
+  }
+  EXPECT(!everTrusted);
+  EXPECT(g.state() == GpsState::Spoofed && g.reason() == GpsReason::Far);
+  EXPECT(g.position().lat < 33.0);
+  // The real signal returns: trusted again after the usual 20 s.
+  for (int i = 0; i < 150; ++i, t += 200) {
+    lat += 2.0 / 111195.0;
+    g.check(fixAt(t, lat, lon, 120, 10, 0), 80, 0);
+    g.propagate(t, 0, 10, 0, 0);
+  }
+  EXPECT(g.trusted());
+  EXPECT_NEAR(g.position().lat, lat, 1e-4);
+}
+
 TEST("gps guard: a consistent spoof that matches altitude is caught by the gyro") {
   GnssGuard g;
   double lat = 32.5, lon = 35.4;

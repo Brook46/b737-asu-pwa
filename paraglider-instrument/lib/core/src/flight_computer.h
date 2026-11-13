@@ -79,7 +79,8 @@ struct Status {
   AdvisorOutput advisor;
   float stf = 0;           // MacCready speed to fly, km/h
   float airspeed = 0;      // m/s, estimated (GPS − wind) or trim
-  GnssFix gnss;
+  GnssFix gnss;            // the latest fix as received, trusted or not: for display only
+  GnssFix trustedFix;      // the last fix the guard accepted: what may be sent or acted on
   bool imu = false;
   BaroOrigin baro = BaroOrigin::None;
   AtmosphereState air;
