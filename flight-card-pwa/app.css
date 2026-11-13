@@ -4896,3 +4896,6 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .fs-r-mid b { font-size: 15px; }
 .fs-r-crew { flex: none; max-width: 40%; text-align: right; font-size: 11px; color: var(--fg-mute); line-height: 1.3; }
 .fs-r-none { padding: 18px; text-align: center; }
+/* The search box's focus ring drawn inside it, so the card's rounded clip can't cut it (v285) */
+.fs-pop-head { padding: 12px; }
+.fs-q:focus, .fs-q:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }

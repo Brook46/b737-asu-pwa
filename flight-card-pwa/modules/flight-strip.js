@@ -12,7 +12,7 @@ const SIDE_KEY = 'fc.strip.side';
 export const SIDES = [['right', 'Right'], ['left', 'Left'], ['bottom', 'Bottom'], ['top', 'Top'], ['off', 'Off']];
 const HIDE_MS = 4000, EDGE_PX = 18, PULL_PX = 22;
 
-let o = null;               // { legs, index, pick, legTs, crewName, flightLabel, esc }
+let o = null;               // { legs, allLegs, keyOf, openOther, index, pick, legTs, crewName, flightLabel, esc }
 let el = null, list = null, handle = null, pop = null;
 let open = false, touching = false, hideT = 0, wiredDoc = false;
 
@@ -148,7 +148,9 @@ function paint(center, at = null) {
 // ---------- Search pop-up ----------
 // One box finds a flight by anything it holds: a date ("13 nov", "13.11",
 // "fri"), a name, the aircraft, an airport, the flight number. Several words
-// must all match. Empty, it lists every flight from now on.
+// must all match. It searches every flight ever stored — the roster and the
+// whole logbook — nearest in time first; empty, it lists the flights from
+// now on. A flight in the roster opens in place, an older one in the logbook.
 function crewOf(l) {
   const d = l.dataCard || {};
   return [l.cpt || d.cpt, l.fo || d.fo].filter(Boolean).map(n => o.crewName(n) || n);
@@ -182,27 +184,40 @@ function openSearch() {
     </div>`;
   document.body.append(pop);
   const q = pop.querySelector('.fs-q');
-  const legs = o.legs() || [];
-  const hay = legs.map(haystack);
+  // Every stored flight, once each: the roster's own first, then the logbook.
+  const cur = o.legs() || [];
+  const curKey = new Map(cur.map((l, i) => [o.keyOf(l), i]));
+  const seen = new Set(), legs = [];
+  for (const l of [...cur, ...((o.allLegs && o.allLegs()) || [])]) {
+    const k = o.keyOf(l);
+    if (seen.has(k)) continue;
+    seen.add(k); legs.push(l);
+  }
+  const hay = legs.map(haystack), ts = legs.map(depTs);
   const run = () => {
     const words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const now = Date.now(), idx = o.index();
+    const now = Date.now(), selKey = cur[o.index()] ? o.keyOf(cur[o.index()]) : '';
     let hits = legs.map((l, i) => i).filter(i => words.every(w => hay[i].includes(w)));
-    if (!words.length) { const n = nowIndex(); hits = hits.filter(i => i >= n); }
+    if (!words.length) hits = hits.filter(i => endTs(legs[i]) >= now).sort((a, b) => ts[a] - ts[b]);
+    else hits.sort((a, b) => Math.abs((ts[a] || 0) - now) - Math.abs((ts[b] || 0) - now));
+    const more = hits.length > 200 ? `<p class="fs-mute fs-r-none">${hits.length - 200} more — add a word to narrow it</p>` : '';
     pop.querySelector('.fs-res').innerHTML = hits.slice(0, 200).map(i => {
-      const l = legs[i], crew = crewOf(l);
-      return `<button type="button" role="listitem" class="fs-r${i === idx ? ' is-sel' : ''}${endTs(l) < now ? ' is-past' : ''}" data-fs-r="${i}">
+      const l = legs[i], crew = crewOf(l), k = o.keyOf(l);
+      const where = curKey.has(k) ? `data-fs-r="${curKey.get(k)}"` : `data-fs-lb="${o.esc(k)}"`;
+      return `<button type="button" role="listitem" class="fs-r${k === selKey ? ' is-sel' : ''}${endTs(l) < now ? ' is-past' : ''}" ${where}>
           <span class="fs-r-day">${o.esc(dayOf(l))}<small>${o.esc(l.dep_time ? l.dep_time + 'Z' : '')}</small></span>
           <span class="fs-r-mid"><b>${route(l)}</b><small>${o.esc([o.flightLabel(l.flight), l.tail || (l.dataCard || {}).tail].filter(Boolean).join(' · '))}</small></span>
           <span class="fs-r-crew">${crew.map(o.esc).join('<br>')}</span>
         </button>`;
-    }).join('') || `<p class="fs-mute fs-r-none">No flight matches</p>`;
+    }).join('') + more || `<p class="fs-mute fs-r-none">No flight matches</p>`;
   };
   q.addEventListener('input', run);
   pop.addEventListener('click', (e) => {
     if (e.target === pop || e.target.closest('[data-fs-close]')) { closeSearch(); arm(); return; }
     const r = e.target.closest('[data-fs-r]');
-    if (r) { const i = +r.dataset.fsR; closeSearch(); o.pick(i); paint(true, i); arm(2500); }
+    if (r) { const i = +r.dataset.fsR; closeSearch(); o.pick(i); paint(true, i); arm(2500); return; }
+    const lb = e.target.closest('[data-fs-lb]');
+    if (lb) { closeSearch(); hide(); o.openOther(lb.dataset.fsLb); }
   });
   run();
   setTimeout(() => q.focus(), 50);
