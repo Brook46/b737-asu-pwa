@@ -1,0 +1,692 @@
+<title>Instrument Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a bench test rig. Left, the instrument as you'd hold it: Sharp screen,
+   LED and the remote's buttons. Right, the world it's flying in: map, weather
+   knobs, and the instrument's numbers beside the truth. */
+:root {
+  --bg: #e9ebe6;
+  --panel: #f7f8f5;
+  --ink: #1d2422;
+  --ink-soft: #5c6863;
+  --rule: #cfd5cf;
+  --accent: #b8551f;
+  --good: #2f7d4f;
+  --warn: #b8551f;
+  --case: #2a2f2d;
+  --case-edge: #3d4440;
+  --btn: #3a413e;
+  --btn-ink: #eef1ec;
+  --lcd-bg: #c5c9bf;
+  --lcd-ink: #262b27;
+  --map-bg: #f3f1ea;
+  --map-grid: #e1ded3;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141917; --panel: #1b2220; --ink: #e2e8e3; --ink-soft: #94a39c; --rule: #2e3835;
+    --accent: #ec8a52; --good: #5cc28a; --warn: #ec8a52;
+    --case: #0e1211; --case-edge: #2b3330; --btn: #2c3532; --btn-ink: #e8ece7;
+    --map-bg: #1d2421; --map-grid: #27302c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --panel: #1b2220; --ink: #e2e8e3; --ink-soft: #94a39c; --rule: #2e3835;
+  --accent: #ec8a52; --good: #5cc28a; --warn: #ec8a52;
+  --case: #0e1211; --case-edge: #2b3330; --btn: #2c3532; --btn-ink: #e8ece7;
+  --map-bg: #1d2421; --map-grid: #27302c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px;
+}
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(28px, 4vw, 38px); line-height: 1; margin: 0; letter-spacing: 0.01em; }
+.sub { color: var(--ink-soft); margin: 0; max-width: 70ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 960px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--rule); padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.panel h2 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0; letter-spacing: 0.02em; }
+.label { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* The instrument */
+.device { background: var(--case); border: 2px solid var(--case-edge); border-radius: 18px; padding: 16px 16px 14px; display: grid; gap: 12px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
+.screenbox { background: #9da196; border-radius: 6px; padding: 8px; }
+canvas#lcd { display: block; width: 100%; aspect-ratio: 400 / 240; image-rendering: pixelated; image-rendering: crisp-edges; background: var(--lcd-bg); border-radius: 2px; margin: 0 auto; }
+canvas#lcd.portrait { width: 62%; aspect-ratio: 240 / 400; }
+.devrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #aeb7b2; font-family: var(--f-mono); font-size: 11px; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: #4a3a1c; box-shadow: inset 0 0 0 1px #00000055; transition: background 60ms; }
+.led.on { background: #ffb547; box-shadow: 0 0 8px #ffb547; }
+.remote { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.remote button, .ctl button {
+  font: 500 13px var(--f-body); color: var(--btn-ink); background: var(--btn); border: 1px solid #00000040;
+  border-radius: 8px; padding: 9px 6px; cursor: pointer; min-width: 0;
+}
+.remote button:active, .ctl button:active { transform: translateY(1px); }
+.remote button:focus-visible, .ctl button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.remote button.wide { grid-column: span 2; }
+.remote .hint { font-family: var(--f-mono); font-size: 10px; opacity: 0.65; display: block; }
+
+/* Run controls */
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ctl button { background: var(--panel); color: var(--ink); border: 1px solid var(--rule); }
+.ctl button.on { background: var(--ink); color: var(--panel); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 8px 10px; }
+.steer { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.steer button { padding: 10px 4px; }
+
+/* Map */
+canvas#map { display: block; width: 100%; aspect-ratio: 16 / 10; background: var(--map-bg); border: 1px solid var(--rule); touch-action: none; }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-soft); }
+.maplegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+
+/* Truth table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); font-weight: 500; }
+td.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .ok { color: var(--good); } td .off { color: var(--warn); }
+
+/* Knobs */
+.knobs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 16px; }
+.knob { display: grid; gap: 2px; min-width: 0; }
+.knob .row { display: flex; justify-content: space-between; gap: 8px; }
+.knob output { font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.knob input[type=range] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; gap: 8px; align-items: center; }
+
+/* Log */
+.log { max-height: 220px; overflow: auto; font-family: var(--f-mono); font-size: 12px; display: grid; gap: 2px; }
+.log div { display: grid; grid-template-columns: 58px 92px minmax(0, 1fr); gap: 8px; padding: 2px 0; border-bottom: 1px dashed var(--rule); }
+.log .cue { color: var(--accent); font-weight: 500; }
+.empty { color: var(--ink-soft); font-size: 13px; }
+.note { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+kbd { font-family: var(--f-mono); font-size: 11px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+.err { color: var(--warn); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Instrument simulator</h1>
+    <p class="sub">The paraglider instrument's real flight logic and screen code, compiled to WebAssembly, flying through a simulated thermal day over the Gilboa. What you see on the screen and hear from the buzzer is what the device will do.</p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="device" aria-label="The instrument">
+        <div class="screenbox"><canvas id="lcd" width="400" height="240" aria-label="Sharp Memory LCD, 400 by 240"></canvas></div>
+        <div class="devrow"><span><label style="cursor:pointer"><input type="checkbox" id="portrait"> portrait</label> · SHARP LS027B7DH01 · 400×240</span><span style="display:flex;gap:8px;align-items:center">LED <span class="led" id="led"></span></span></div>
+        <div class="remote" aria-label="Remote buttons">
+          <button id="b-mcd">MC −<span class="hint">-</span></button>
+          <button id="b-mcu">MC +<span class="hint">=</span></button>
+          <button id="b-page">Page<span class="hint">P</span></button>
+          <button id="b-base">At base<span class="hint">B</span></button>
+          <button id="b-vold">Vol −</button>
+          <button id="b-volu">Vol +</button>
+          <button id="b-mute">Mute<span class="hint">M</span></button>
+          <button id="b-sound">Sound on</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Run</h2>
+        <div class="ctl">
+          <button id="run" class="on">Pause</button>
+          <span class="seg" id="speed" role="group" aria-label="Speed">
+            <button data-s="1" class="on">1×</button><button data-s="4">4×</button><button data-s="16">16×</button><button data-s="60">60×</button>
+          </span>
+          <button id="reset">New day</button>
+        </div>
+        <div class="ctl"><span class="label">GPS</span>
+          <span class="seg" id="gps" role="group" aria-label="GPS condition">
+            <button data-g="0" class="on">Normal</button><button data-g="1">Jammed</button><button data-g="2">Spoofed</button><button data-g="3">Noisy</button>
+          </span>
+        </div>
+        <div class="ctl">
+          <label class="label" for="month">Date</label>
+          <select id="month"><option value="1">Jan 15</option><option value="2">Feb 15</option><option value="3">Mar 15</option><option value="4">Apr 15</option><option value="5">May 15</option><option value="6">Jun 15</option><option value="7" selected>Jul 15</option><option value="8">Aug 15</option><option value="9">Sep 15</option><option value="10">Oct 15</option><option value="11">Nov 15</option><option value="12">Dec 15</option></select>
+          <label class="label" for="start">start</label>
+          <select id="start"><option value="420">07:00</option><option value="480">08:00</option><option value="540">09:00</option><option value="600">10:00</option><option value="660">11:00</option><option value="720" selected>12:00</option><option value="780">13:00</option><option value="840">14:00</option><option value="900">15:00</option><option value="960">16:00</option><option value="1020">17:00</option></select>
+          <span class="note" style="margin:0">applies on New day</span>
+        </div>
+        <div class="ctl">
+          <label class="label" for="pack">Thermal pack</label>
+          <input type="file" id="pack" accept=".pghs,.bin,application/octet-stream">
+          <span class="note" id="packnote" style="margin:0">none: thermals come from the terrain</span>
+        </div>
+        <label class="check"><input type="checkbox" id="auto" checked> Autopilot: circles on STAY, leaves on GLIDE</label>
+        <div class="ctl">
+          <label class="label" for="pilotmode">In thermals</label>
+          <select id="pilotmode">
+            <option value="1" selected>follows the instrument (MOVE, TIGHTEN, WIDEN, bar)</option>
+            <option value="2">steady circles, ignores the advice</option>
+            <option value="0">perfect pilot who feels the core</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="task"> Task: start 3 km round Gilboa, Mt Tabor, goal Afula (on New day)</label>
+        <label class="check"><input type="checkbox" id="others" checked> Other pilots sending FANET</label>
+        <div class="steer" aria-label="Manual steering">
+          <button data-t="-17">◀◀ circle</button><button data-t="-6">◀ turn</button><button data-t="0">straight</button><button data-t="6">turn ▶</button><button data-t="17">circle ▶▶</button>
+        </div>
+        <div class="knob"><div class="row"><span class="label">Speed bar</span><output id="o-bar">0 %</output></div><input type="range" id="bar" min="0" max="1" step="0.05" value="0"></div>
+        <p class="note">Keys: <kbd>←</kbd><kbd>→</kbd> circle, <kbd>↑</kbd> straight, <kbd>Space</kbd> pause, <kbd>P</kbd> page, <kbd>-</kbd>/<kbd>=</kbd> MC, <kbd>B</kbd> at base, <kbd>M</kbd> mute. Steering switches the autopilot off. Sound plays at 1× only.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <h2>World</h2>
+        <canvas id="map" width="900" height="560" aria-label="Map: thermals, your track and the wind"></canvas>
+        <div class="maplegend"><span><i style="background:#c9643a"></i>thermal core at your height (stronger = darker)</span><span><i style="background:#7b5ea7"></i>thermal trigger (sun on the terrain, or your pack), dot size = strength</span><span><i style="background:#f09614"></i>ground the sun heats more than the area around it</span><span><i style="background:#2a6fb0"></i>you and your track</span><span><i style="background:#d1342f"></i>where the instrument thinks you are, when GPS is out</span><span><i style="background:#1b9e77"></i>thermal as the instrument fits it (core + size)</span><span><i style="background:#666"></i>other pilots (climb)</span><span>Terrain: AWS Terrain Tiles · scroll to zoom</span></div>
+      </div>
+
+      <div class="panel">
+        <h2>Instrument vs truth</h2>
+        <table>
+          <thead><tr><th>Quantity</th><th class="n">Instrument</th><th class="n">Truth</th></tr></thead>
+          <tbody id="truth"></tbody>
+        </table>
+        <p class="note" id="statusline"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Weather</h2>
+        <div class="knobs" id="knobs"></div>
+        <p class="note" id="basenote"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Cue log</h2>
+        <div class="log" id="log"><span class="empty">Cues appear here as the instrument gives them: STAY, GLIDE (and why), MOVE / TIGHTEN / WIDEN, BAR + / −, FINAL GLIDE, TURNPOINT, NEAR BASE, INVERSION, GPS LOST / OK.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  let ex;
+  try {
+    const buf = await (await fetch("sim.wasm")).arrayBuffer();
+    const wasi = new Proxy({}, { get: () => () => 0 });
+    const { instance } = await WebAssembly.instantiate(buf, { wasi_snapshot_preview1: wasi });
+    ex = instance.exports;
+    if (ex._initialize) ex._initialize();
+  } catch (e) {
+    document.querySelector(".sub").innerHTML = '<span class="err">Couldn\'t load sim.wasm: ' + e.message + '</span>';
+    return;
+  }
+  const mem = () => ex.memory.buffer;
+  const state = () => new Float32Array(mem(), ex.sim_state(), 96);
+
+  // ---------------- weather knobs ----------------
+  const KNOBS = [
+    { k: 0, id: "wdir", name: "Wind from", min: 0, max: 359, step: 5, v: 300, fmt: (v) => `${v}°` },
+    { k: 1, id: "wspd", name: "Wind speed", min: 0, max: 35, step: 1, v: 14, fmt: (v) => `${v} km/h` },
+    { k: 6, id: "str", name: "Thermal strength", min: 1, max: 5, step: 0.1, v: 2.8, fmt: (v) => `${(+v).toFixed(1)} m/s` },
+    { k: 2, id: "t", name: "Surface temperature", min: 15, max: 40, step: 0.5, v: 30, fmt: (v) => `${(+v).toFixed(1)} °C` },
+    { k: 3, id: "td", name: "Surface dew point", min: 0, max: 25, step: 0.5, v: 13, fmt: (v) => `${(+v).toFixed(1)} °C` },
+    { k: 4, id: "lapse", name: "Lapse between thermals", min: 5, max: 9.8, step: 0.1, v: 9.0, fmt: (v) => `${(+v).toFixed(1)} °C/km` },
+    { k: 11, id: "inv", name: "Inversion at", min: 0, max: 3000, step: 50, v: 0, fmt: (v) => (+v ? `${v} m` : "none") },
+    { k: 5, id: "case", name: "Case reads warm by", min: 0, max: 5, step: 0.1, v: 2.0, fmt: (v) => `${(+v).toFixed(1)} °C` },
+  ];
+  const knobs = $("knobs");
+  for (const n of KNOBS) {
+    const d = document.createElement("div");
+    d.className = "knob";
+    d.innerHTML = `<div class="row"><label class="label" for="k-${n.id}">${n.name}</label><output id="o-${n.id}"></output></div>
+      <input type="range" id="k-${n.id}" min="${n.min}" max="${n.max}" step="${n.step}" value="${n.v}">`;
+    knobs.appendChild(d);
+    const inp = d.querySelector("input"), out = d.querySelector("output");
+    const apply = () => { out.textContent = n.fmt(inp.value); ex.sim_set(n.k, +inp.value); baseNote(); };
+    inp.addEventListener("input", apply);
+    n.apply = apply;
+  }
+  const imuBox = document.createElement("label");
+  imuBox.className = "check";
+  imuBox.innerHTML = '<input type="checkbox" id="imu" checked> IMU fitted (faster vario, gyro turn detection)';
+  knobs.appendChild(imuBox);
+  $("imu").addEventListener("change", (e) => ex.sim_set(7, e.target.checked ? 1 : 0));
+  function baseNote() {
+    const t = +$("k-t").value, td = +$("k-td").value;
+    const base = 125 * Math.max(0, t - td);
+    $("basenote").textContent = `Valley air near sea level: true cloud base ≈ 125 × (${t.toFixed(1)} − ${td.toFixed(1)}) = ${base.toFixed(0)} m MSL. The case's warm bias pushes the instrument's estimate up by about 125 m per °C until you press "At base" while really at base.`;
+  }
+
+  function newDay() {
+    ex.sim_set(13, +$("month").value);
+    ex.sim_set(14, 15);
+    ex.sim_set(15, +$("start").value);
+    ex.sim_set(16, +$("pilotmode").value);
+    ex.sim_set(17, $("task").checked ? 1 : 0);
+    ex.sim_set(18, $("others").checked ? 1 : 0);
+    ex.sim_reset((Math.random() * 1e9) | 0);
+    ex.sim_set(12, gpsMode);
+    for (const n of KNOBS) n.apply();
+    ex.sim_set(7, $("imu").checked ? 1 : 0);
+    ex.sim_set(8, $("auto").checked ? 1 : 0);
+    ex.sim_set(10, +$("bar").value);
+    log.innerHTML = "";
+    lastAlertT = -1;
+    logEmpty = true;
+  }
+
+  // ---------------- terrain ----------------
+  let terr = null, shade = null;
+  try {
+    const tb = await loadTerrain();
+    new Uint8Array(mem(), ex.sim_terrain_buffer(), tb.length).set(tb);
+    if (ex.sim_terrain_load(tb.length)) {
+      const dv = new DataView(tb.buffer);
+      terr = { rows: dv.getUint16(6, true), cols: dv.getUint16(8, true), s: dv.getFloat64(12, true), w: dv.getFloat64(20, true),
+               dlat: dv.getFloat64(28, true), dlon: dv.getFloat64(36, true) };
+      const n = terr.rows * terr.cols, z = new Int16Array(n);
+      for (let i = 0; i < n; i++) z[i] = dv.getInt16(44 + i * 2, true);
+      terr.z = z;
+      shade = hillshade(terr);
+    }
+  } catch (e) { /* flat world */ }
+  // terrain.ter where binary files are served (GitHub Pages, local); else the
+  // same grid as a lossless PNG + JSON (tools/terrain/ter2png.py).
+  async function loadTerrain() {
+    try {
+      const r = await fetch("terrain.ter");
+      if (r.ok) {
+        const b = new Uint8Array(await r.arrayBuffer());
+        if (b.length > 44 && b[0] === 0x50 && b[1] === 0x47 && b[2] === 0x54 && b[3] === 0x52) return b;
+      }
+    } catch (e) { /* fall through */ }
+    const meta = await (await fetch("terrain.json")).json();
+    const img = new Image();
+    img.src = "terrain.png";
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = meta.cols; c.height = meta.rows;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const px = g.getImageData(0, 0, meta.cols, meta.rows).data;
+    const out = new Uint8Array(44 + meta.rows * meta.cols * 2), dv = new DataView(out.buffer);
+    "PGTR".split("").forEach((ch, i) => dv.setUint8(i, ch.charCodeAt(0)));
+    dv.setUint16(4, 1, true); dv.setUint16(6, meta.rows, true); dv.setUint16(8, meta.cols, true);
+    dv.setFloat64(12, meta.south, true); dv.setFloat64(20, meta.west, true);
+    dv.setFloat64(28, meta.dlat, true); dv.setFloat64(36, meta.dlon, true);
+    for (let r = 0; r < meta.rows; r++)
+      for (let k = 0; k < meta.cols; k++) {
+        const i = ((meta.rows - 1 - r) * meta.cols + k) * 4;
+        dv.setInt16(44 + (r * meta.cols + k) * 2, px[i] * 256 + px[i + 1] - 32768, true);
+      }
+    return out;
+  }
+  // Hillshade + elevation tint, one pixel per grid cell (row 0 = south).
+  function hillshade(t) {
+    const c = document.createElement("canvas");
+    c.width = t.cols; c.height = t.rows;
+    const g = c.getContext("2d"), im = g.createImageData(t.cols, t.rows), d = im.data;
+    const cell = t.dlat * 111195, at = (r, k) => t.z[Math.max(0, Math.min(t.rows - 1, r)) * t.cols + Math.max(0, Math.min(t.cols - 1, k))];
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    for (let r = 0; r < t.rows; r++)
+      for (let k = 0; k < t.cols; k++) {
+        const dzdx = (at(r, k + 1) - at(r, k - 1)) / (2 * cell), dzdy = (at(r + 1, k) - at(r - 1, k)) / (2 * cell);
+        // light from the north-west
+        let l = 0.6 + (-dzdx * 0.7 + dzdy * 0.7) * 1.4;
+        l = Math.max(0.15, Math.min(1.15, l));
+        const h = at(r, k);
+        let base = h < -150 && Math.abs(dzdx) + Math.abs(dzdy) < 0.004 ? [150, 185, 205]  // the Kinneret
+          : h < 0 ? [205, 210, 180] : h < 300 ? [214, 208, 178] : h < 500 ? [200, 188, 160] : [184, 170, 148];
+        if (dark) base = base.map((v) => v * 0.42);
+        const i = ((t.rows - 1 - r) * t.cols + k) * 4;
+        d[i] = base[0] * l; d[i + 1] = base[1] * l; d[i + 2] = base[2] * l; d[i + 3] = 255;
+      }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  const ORIGIN = { lat: 32.4585, lon: 35.4120 };
+  const MPD = 111195, MPDLON = MPD * Math.cos(ORIGIN.lat * Math.PI / 180);
+
+  // ---------------- GPS / thermal pack ----------------
+  let gpsMode = 0;
+  for (const b of $("gps").querySelectorAll("button")) {
+    b.onclick = () => {
+      gpsMode = +b.dataset.g;
+      ex.sim_set(12, gpsMode);
+      for (const o of $("gps").querySelectorAll("button")) o.classList.toggle("on", o === b);
+    };
+  }
+  $("pack").onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) { ex.sim_pack_load(0); $("packnote").textContent = "none: thermals come from the terrain"; newDay(); return; }
+    const b = new Uint8Array(await f.arrayBuffer());
+    if (b.length > 16384) { $("packnote").textContent = "too big (max 16 KB)"; return; }
+    new Uint8Array(mem(), ex.sim_pack_buffer(), b.length).set(b);
+    const n = ex.sim_pack_load(b.length);
+    $("packnote").textContent = n ? `${f.name}: ${n} sources` : "not a PGHS pack";
+    newDay();
+  };
+
+  // ---------------- remote ----------------
+  const cmd = (c) => ex.sim_command(c);
+  $("b-mcu").onclick = () => cmd(0x01);
+  $("b-mcd").onclick = () => cmd(0x02);
+  $("b-volu").onclick = () => cmd(0x03);
+  $("b-vold").onclick = () => cmd(0x04);
+  $("b-mute").onclick = () => cmd(0x05);
+  $("b-base").onclick = () => cmd(0x0C);
+  $("b-page").onclick = () => cmd(0x20);
+
+  // ---------------- run / speed / steering ----------------
+  let running = true, speed = 1;
+  $("run").onclick = () => { running = !running; $("run").textContent = running ? "Pause" : "Run"; $("run").classList.toggle("on", running); };
+  for (const b of $("speed").querySelectorAll("button")) {
+    b.onclick = () => {
+      speed = +b.dataset.s;
+      for (const o of $("speed").querySelectorAll("button")) o.classList.toggle("on", o === b);
+    };
+  }
+  $("reset").onclick = newDay;
+  $("auto").onchange = (e) => ex.sim_set(8, e.target.checked ? 1 : 0);
+  $("pilotmode").onchange = (e) => ex.sim_set(16, +e.target.value);
+  $("others").onchange = (e) => ex.sim_set(18, e.target.checked ? 1 : 0);
+  const steer = (deg) => { $("auto").checked = false; ex.sim_set(8, 0); ex.sim_set(9, deg); };
+  for (const b of document.querySelectorAll(".steer button")) b.onclick = () => steer(+b.dataset.t);
+  $("bar").oninput = (e) => { ex.sim_set(10, +e.target.value); $("o-bar").textContent = `${Math.round(e.target.value * 100)} %`; };
+  window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    const k = e.key;
+    if (k === "ArrowLeft") steer(-17);
+    else if (k === "ArrowRight") steer(17);
+    else if (k === "ArrowUp") steer(0);
+    else if (k === " ") $("run").click();
+    else if (k === "p" || k === "P") cmd(0x20);
+    else if (k === "=" || k === "+") cmd(0x01);
+    else if (k === "-") cmd(0x02);
+    else if (k === "b" || k === "B") cmd(0x0C);
+    else if (k === "m" || k === "M") cmd(0x05);
+    else return;
+    e.preventDefault();
+  });
+
+  // ---------------- sound: the buzzer's actual tone ----------------
+  let actx = null, osc = null, gain = null;
+  $("b-sound").onclick = () => {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      osc = actx.createOscillator();
+      osc.type = "square";
+      gain = actx.createGain();
+      gain.gain.value = 0;
+      osc.connect(gain).connect(actx.destination);
+      osc.start();
+      $("b-sound").textContent = "Sound off";
+    } else if (actx.state === "running") {
+      actx.suspend();
+      $("b-sound").textContent = "Sound on";
+    } else {
+      actx.resume();
+      $("b-sound").textContent = "Sound off";
+    }
+  };
+  function sound(st) {
+    if (!actx || actx.state !== "running") return;
+    const hz = ex.sim_tone();
+    const vol = [0, 0.02, 0.05, 0.1][st[26] | 0] || 0;
+    const on = hz > 0 && speed === 1;
+    osc.frequency.setTargetAtTime(hz || 440, actx.currentTime, 0.002);
+    gain.gain.setTargetAtTime(on ? vol : 0, actx.currentTime, 0.003);
+  }
+
+  // ---------------- screen ----------------
+  const lcdEl = $("lcd"), lcd = lcdEl.getContext("2d");
+  let img = lcd.createImageData(400, 240), portrait = false;
+  const INK = [38, 43, 39], BG = [197, 201, 191];
+  // Portrait: the panel is mounted turned; the framebuffer stays in the
+  // panel's format, so turn it back for display (logical x,y → panel y, 239 − x).
+  $("portrait").onchange = (e) => {
+    portrait = e.target.checked;
+    ex.sim_set(19, portrait ? 1 : 0);
+    lcdEl.width = portrait ? 240 : 400;
+    lcdEl.height = portrait ? 400 : 240;
+    lcdEl.classList.toggle("portrait", portrait);
+    img = lcd.createImageData(lcdEl.width, lcdEl.height);
+  };
+  function drawScreen() {
+    const fb = new Uint8Array(mem(), ex.sim_render(), 50 * 240);
+    const d = img.data, W = lcdEl.width, H = lcdEl.height;
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        const px = portrait ? y : x, py = portrait ? 239 - x : y;
+        const on = fb[py * 50 + (px >> 3)] & (0x80 >> (px & 7));
+        const c = on ? INK : BG, i = (y * W + x) * 4;
+        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+      }
+    lcd.putImageData(img, 0, 0);
+  }
+
+  // ---------------- map ----------------
+  const mapC = $("map"), map = mapC.getContext("2d");
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  let scale = 0.11; // px per metre (≈ 8 km across)
+  mapC.addEventListener("wheel", (e) => { e.preventDefault(); scale = Math.min(0.6, Math.max(0.03, scale * (e.deltaY < 0 ? 1.15 : 0.87))); }, { passive: false });
+  function drawMap(st) {
+    const W = mapC.width, H = mapC.height, px = st[7], py = st[8];
+    const sx = (x) => W / 2 + (x - px) * scale, sy = (y) => H / 2 - (y - py) * scale;
+    map.fillStyle = css("--map-bg"); map.fillRect(0, 0, W, H);
+    if (shade) {
+      const x0 = (terr.w - ORIGIN.lon) * MPDLON, y1 = (terr.s + (terr.rows - 1) * terr.dlat - ORIGIN.lat) * MPD;
+      const wM = (terr.cols - 1) * terr.dlon * MPDLON, hM = (terr.rows - 1) * terr.dlat * MPD;
+      map.imageSmoothingEnabled = true;
+      map.drawImage(shade, sx(x0), sy(y1), wM * scale, hM * scale);
+    }
+    map.strokeStyle = css("--map-grid"); map.lineWidth = 1;
+    const g0x = Math.floor((px - W / 2 / scale) / 1000) * 1000, g0y = Math.floor((py - H / 2 / scale) / 1000) * 1000;
+    for (let x = g0x; x < px + W / 2 / scale + 1000; x += 1000) { map.beginPath(); map.moveTo(sx(x), 0); map.lineTo(sx(x), H); map.stroke(); }
+    for (let y = g0y; y < py + H / 2 / scale + 1000; y += 1000) { map.beginPath(); map.moveTo(0, sy(y)); map.lineTo(W, sy(y)); map.stroke(); }
+    // thermal sources (terrain-derived or a loaded pack), sized by chance now
+    const ns = ex.sim_spot_count(), sp = new Float32Array(mem(), ex.sim_spots(), ns * 3);
+    map.fillStyle = "rgba(123,94,167,0.75)";
+    for (let i = 0; i < ns; i++) {
+      const c = sp[i * 3 + 2];
+      if (c < 0.05) continue;
+      map.beginPath(); map.arc(sx(sp[i * 3]), sy(sp[i * 3 + 1]), 1.5 + c * 4, 0, 7); map.fill();
+    }
+    // the instrument's suggested thermal
+    if (st[52]) {
+      map.strokeStyle = "#7b5ea7"; map.lineWidth = 2; map.setLineDash([6, 5]);
+      map.beginPath(); map.moveTo(sx(st[49]), sy(st[50])); map.lineTo(sx(st[54]), sy(st[55])); map.stroke(); map.setLineDash([]);
+      map.beginPath(); map.arc(sx(st[54]), sy(st[55]), 9, 0, 7); map.stroke();
+      map.fillStyle = css("--ink"); map.font = "12px IBM Plex Mono, monospace";
+      map.fillText(`${Math.round(st[53] * 100)}% · +${fmt(st[56])} m (column at your arrival height)`, sx(st[54]) + 12, sy(st[55]) + 4);
+    }
+    // the sun on the terrain (true heating grid), and where the sun is
+    if (ex.sim_heat) {
+      const N = 48, hv = new Float32Array(mem(), ex.sim_heat(), N * N + 4);
+      const gx = hv[N * N], gy = hv[N * N + 1], cell = 500;
+      // Relative heating: faces hotter than the area's average (what makes triggers).
+      let mean = 0, cnt = 0;
+      for (let k = 0; k < N * N; k++) if (hv[k] > 0) { mean += hv[k]; cnt++; }
+      mean = cnt ? mean / cnt : 0;
+      for (let j = 0; j < N; j++)
+        for (let i = 0; i < N; i++) {
+          const v = hv[j * N + i] - mean - 0.03;
+          if (v <= 0) continue;
+          map.fillStyle = `rgba(240,150,20,${Math.min(0.45, v * 2.5)})`;
+          const cx = gx + (i - 23.5) * cell, cy = gy + (j - 23.5) * cell;
+          map.fillRect(sx(cx - cell / 2), sy(cy + cell / 2), cell * scale + 1, cell * scale + 1);
+        }
+      const az = hv[N * N + 2] * Math.PI / 180, el = hv[N * N + 3];
+      // Sun gauge (top left): direction on the compass ring, elevation below.
+      map.strokeStyle = css("--ink"); map.lineWidth = 1; map.beginPath(); map.arc(50, 50, 26, 0, 7); map.stroke();
+      map.fillStyle = "#e0a020"; map.beginPath(); map.arc(50 + Math.sin(az) * 26, 50 - Math.cos(az) * 26, 7, 0, 7); map.fill();
+      map.fillStyle = css("--ink"); map.font = "11px IBM Plex Mono, monospace"; map.textAlign = "center";
+      map.fillText("N", 50, 20); map.fillText(`sun ${el.toFixed(0)}°`, 50, 94); map.textAlign = "left";
+    }
+    // task cylinders
+    const nt = ex.sim_task_count();
+    if (nt) {
+      const tk = new Float32Array(mem(), ex.sim_task(), nt * 3);
+      map.strokeStyle = css("--ink"); map.lineWidth = 1.5; map.setLineDash([3, 4]);
+      map.beginPath();
+      for (let i = 0; i < nt; i++) { const X = sx(tk[i * 3]), Y = sy(tk[i * 3 + 1]); i ? map.lineTo(X, Y) : map.moveTo(X, Y); }
+      map.stroke(); map.setLineDash([]);
+      for (let i = 0; i < nt; i++) {
+        map.lineWidth = i === st[80] ? 3 : 1.5;
+        map.beginPath(); map.arc(sx(tk[i * 3]), sy(tk[i * 3 + 1]), tk[i * 3 + 2] * scale, 0, 7); map.stroke();
+      }
+    }
+    // other pilots
+    const np = ex.sim_pilot_count();
+    if (np) {
+      const pl = new Float32Array(mem(), ex.sim_pilots(), np * 5);
+      map.font = "11px IBM Plex Mono, monospace";
+      for (let i = 0; i < np; i++) {
+        const X = sx(pl[i * 5]), Y = sy(pl[i * 5 + 1]);
+        map.fillStyle = "#666"; map.beginPath(); map.moveTo(X, Y - 6); map.lineTo(X + 5, Y + 4); map.lineTo(X - 5, Y + 4); map.closePath(); map.fill();
+        map.fillText(`${pl[i * 5 + 3] >= 0 ? "+" : ""}${pl[i * 5 + 3].toFixed(1)}`, X + 7, Y + 4);
+      }
+    }
+    // thermals
+    const nth = st[24] | 0, th = new Float32Array(mem(), ex.sim_thermals(), nth * 4);
+    for (let i = 0; i < nth; i++) {
+      const x = th[i * 4], y = th[i * 4 + 1], r = th[i * 4 + 2], s = th[i * 4 + 3];
+      if (s <= 0.05) continue;
+      const a = Math.min(0.85, s / 4.5);
+      map.fillStyle = `rgba(201,100,58,${a * 0.35})`;
+      map.beginPath(); map.arc(sx(x), sy(y), Math.max(3, r * 1.8 * scale), 0, 7); map.fill();
+      map.fillStyle = `rgba(201,100,58,${a})`;
+      map.beginPath(); map.arc(sx(x), sy(y), Math.max(2, r * scale), 0, 7); map.fill();
+      map.fillStyle = css("--ink-soft"); map.font = "12px IBM Plex Mono, monospace";
+      map.fillText(s.toFixed(1), sx(x) + r * scale + 4, sy(y) + 4);
+    }
+    // the instrument's fitted thermal: core and 1/e size
+    if (st[65]) {
+      map.strokeStyle = "#1b9e77"; map.lineWidth = 2; map.setLineDash([5, 4]);
+      map.beginPath(); map.arc(sx(st[66]), sy(st[67]), Math.max(4, st[68] * scale), 0, 7); map.stroke(); map.setLineDash([]);
+      map.beginPath(); map.moveTo(sx(st[66]) - 6, sy(st[67])); map.lineTo(sx(st[66]) + 6, sy(st[67]));
+      map.moveTo(sx(st[66]), sy(st[67]) - 6); map.lineTo(sx(st[66]), sy(st[67]) + 6); map.stroke();
+    }
+    // track
+    const n = ex.sim_track_len(), tr = new Float32Array(mem(), ex.sim_track(), n * 2);
+    map.strokeStyle = "#2a6fb0"; map.lineWidth = 1.5; map.globalAlpha = 0.7; map.beginPath();
+    for (let i = 0; i < n; i++) { const X = sx(tr[i * 2]), Y = sy(tr[i * 2 + 1]); i ? map.lineTo(X, Y) : map.moveTo(X, Y); }
+    map.stroke(); map.globalAlpha = 1;
+    // glider
+    const h = st[9] * Math.PI / 180;
+    map.save(); map.translate(W / 2, H / 2); map.rotate(h);
+    map.fillStyle = "#2a6fb0"; map.beginPath(); map.moveTo(0, -11); map.lineTo(8, 7); map.lineTo(0, 3); map.lineTo(-8, 7); map.closePath(); map.fill();
+    map.restore();
+    // where the instrument thinks you are, while it dead-reckons
+    if (st[46] && st[45]) {
+      const X = sx(st[49]), Y = sy(st[50]);
+      map.strokeStyle = "#d1342f"; map.lineWidth = 2;
+      map.beginPath(); map.arc(X, Y, 7, 0, 7); map.stroke();
+      map.globalAlpha = 0.35; map.beginPath(); map.arc(X, Y, Math.max(8, st[47] * scale), 0, 7); map.stroke(); map.globalAlpha = 1;
+      map.beginPath(); map.moveTo(X - 10, Y); map.lineTo(X + 10, Y); map.moveTo(X, Y - 10); map.lineTo(X, Y + 10); map.stroke();
+    }
+    // wind arrow (true)
+    const wf = st[32] * Math.PI / 180, ws = st[31];
+    const cx = W - 54, cy = 54;
+    map.strokeStyle = css("--ink"); map.fillStyle = css("--ink"); map.lineWidth = 3;
+    const tx = Math.sin(wf + Math.PI), ty = -Math.cos(wf + Math.PI);
+    map.beginPath(); map.moveTo(cx - tx * 26, cy - ty * 26); map.lineTo(cx + tx * 20, cy + ty * 20); map.stroke();
+    map.beginPath(); map.moveTo(cx + tx * 28, cy + ty * 28); map.lineTo(cx + tx * 14 - ty * 9, cy + ty * 14 + tx * 9); map.lineTo(cx + tx * 14 + ty * 9, cy + ty * 14 - tx * 9); map.fill();
+    map.font = "13px IBM Plex Mono, monospace"; map.textAlign = "center";
+    map.fillText(`${ws.toFixed(0)} km/h`, cx, cy + 46); map.textAlign = "left";
+    // scale bar
+    map.fillStyle = css("--ink"); map.fillRect(16, H - 22, 1000 * scale, 3);
+    map.font = "12px IBM Plex Mono, monospace"; map.fillText("1 km", 16, H - 30);
+  }
+
+  // ---------------- truth table ----------------
+  const fmt = (v, d = 0, sign = false) => (sign && v > 0 ? "+" : "") + v.toFixed(d);
+  const rows = [
+    ["Altitude, m", (s) => fmt(s[1]), (s) => fmt(s[4])],
+    ["Vario, m/s", (s) => fmt(s[2], 1, true), (s) => fmt(s[5], 1, true)],
+    ["Wind, km/h from", (s) => (s[15] ? `${fmt(s[13])} / ${fmt(s[14])}°` : "circle once"), (s) => `${fmt(s[31])} / ${fmt(s[32])}°`],
+    ["Cloud base, m", (s) => (s[17] ? fmt(s[16]) + (s[37] ? "" : " rough") : "--"), (s) => fmt(s[18])],
+    ["Lapse rate, °C/km", (s) => (s[20] ? fmt(s[19], 1) : "glide more"), (s) => fmt(s[39], 1)],
+    ["Height above ground, m", (s) => (s[42] > -9000 ? fmt(s[42]) : "--"), (s) => fmt(s[41])],
+    ["GPS", (s) => ["no data", "ok", "LOST", "SPOOFED"][s[43] | 0] + (s[43] >= 2 ? ` (${REASONS[s[44] | 0]})` : ""), (s) => ["normal", "jammed", "spoofed to Beirut", "noisy"][s[63] | 0]],
+    ["Position error, m", (s) => (!s[45] ? "no position" : s[46] ? `±${fmt(s[47])} est.` : "GPS"), (s) => (s[48] >= 0 ? fmt(s[48]) : "no position")],
+    ["Turn advice", (s) => ["–", "centred", "MOVE", "TIGHTEN", "WIDEN"][s[64] | 0] + (s[64] >= 3 ? ` (bank ${fmt(s[71])}→${fmt(s[72])}°)` : ""), (s) => `circle ${fmt(s[70])} m, rate ${fmt(s[88])}°/s`],
+    ["Thermal core, m off / size", (s) => (s[65] ? `fit ${fmt(Math.hypot(s[66] - s[84], s[67] - s[85]))} off · R ${fmt(s[68])} · ${fmt(s[69], 1)} m/s` : "–"), (s) => `R ${fmt(s[86])} · ${fmt(s[87], 1)} m/s`],
+    ["MacCready: flown (base)", (s) => `${fmt(s[74], 1)} (${fmt(s[94], 1)})` + (s[77] >= 0 ? ` · band ${Math.round(s[77] * 100)}%` : ""), () => "–"],
+    ["Speed bar", (s) => `${["off", "1/4", "1/2", "3/4", "full"][Math.round(s[75] * 4)]} · STF ${fmt(s[90])} km/h` + (s[76] ? ` · ${["", "low", "turbulent", "in lift", "circling"][s[76] | 0]}` : ""), () => "–"],
+    ["Task", (s) => (s[79] ? (s[93] ? "goal!" : `TP ${(s[80] | 0) + 1} in ${(s[81] / 1000).toFixed(1)} km` + (s[82] && s[83] > -800 ? ` · goal ${fmt(s[83], 0, true)} m` : "")) : "none"), () => "–"],
+    ["Air under you, m/s", () => "–", (s) => fmt(s[6], 1, true)],
+  ];
+  const REASONS = ["", "no fix", "weak", "position jump", "impossible speed", "altitude ≠ baro", "track ≠ gyro", "too far from last position"];
+  const tb = $("truth");
+  tb.innerHTML = rows.map((r, i) => `<tr><td>${r[0]}</td><td class="n" id="ri${i}"></td><td class="n" id="rt${i}"></td></tr>`).join("");
+  function drawTruth(st) {
+    rows.forEach((r, i) => { $("ri" + i).textContent = r[1](st); $("rt" + i).textContent = r[2](st); });
+    const adv = ["—", "STAY", "GLIDE"][st[11] | 0];
+    const hh = Math.floor(st[57] / 60), mm = Math.floor(st[57] % 60);
+    $("statusline").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${st[10] ? "Circling" : "Gliding"} · advice ${adv} · temperature offset learned ${st[21].toFixed(1)} °C · thermals measured ${st[38] | 0} · ridge lift ${fmt(st[60], 1, true)} m/s` + (st[33] ? ` · landed out ${st[33] | 0}× (relaunched)` : "");
+  }
+
+  // ---------------- cue log ----------------
+  const log = $("log");
+  let lastAlertT = -1, logEmpty = true;
+  const NAMES = { 1: "STAY", 2: "GLIDE", 3: "MESSAGE", 4: "ack", 5: "MC +", 6: "MC −", 8: "error", 9: "NEAR BASE", 10: "INVERSION", 11: "GPS LOST", 12: "GPS OK",
+    13: "TIGHTEN", 14: "WIDEN", 15: "MOVE", 16: "turn again", 17: "BAR +", 18: "BAR −", 19: "FINAL GLIDE", 20: "TURNPOINT" };
+  const LEAVE = ["", "climb below MC", "at cloud base", "final glide", "better lift nearby"];
+  function drawLog(st) {
+    if (st[30] === lastAlertT || !st[29]) return;
+    lastAlertT = st[30];
+    const a = st[29] | 0;
+    if (!NAMES[a] || a === 4) return;
+    if (logEmpty) { log.innerHTML = ""; logEmpty = false; }
+    const mm = Math.floor(st[30] / 60), ss = Math.floor(st[30] % 60);
+    const row = document.createElement("div");
+    const detail = a === 2 ? `${LEAVE[st[78] | 0]} · alt ${fmt(st[1])} m · MC ${fmt(st[12], 1)}`
+      : a === 1 ? `alt ${fmt(st[1])} m · vario ${fmt(st[2], 1, true)} · true air ${fmt(st[6], 1, true)} · MC ${fmt(st[12], 1)}`
+      : a === 9 ? `alt ${fmt(st[1])} m · base est ${fmt(st[16])} (true ${fmt(st[18])})`
+      : a === 10 ? `alt ${fmt(st[1])} m`
+      : a === 11 ? `${["", "", "lost", "spoofed"][st[43] | 0]}: ${REASONS[st[44] | 0]} · dead reckoning from gyro + airspeed + wind`
+      : a === 12 ? `position trusted again · error was ${fmt(st[48])} m`
+      : a === 13 || a === 14 ? `bank ${fmt(st[71])}° → ${fmt(st[72])}° for ${fmt(st[73], 1, true)} m/s`
+      : a === 15 ? `core ${fmt(Math.hypot(st[66] - st[7], st[67] - st[8]))} m away · straighten`
+      : a === 17 || a === 18 ? `now ${["off", "1/4", "1/2", "3/4", "full"][Math.round(st[75] * 4)]} · MC ${fmt(st[74], 1)}`
+      : a === 19 ? `${fmt(st[83], 0, true)} m over the glide to goal`
+      : "";
+    row.innerHTML = `<span>${mm}:${String(ss).padStart(2, "0")}</span><span class="${a <= 2 || (a >= 9 && a !== 16) ? "cue" : ""}">${NAMES[a]}</span><span>${detail}</span>`;
+    log.prepend(row);
+  }
+
+  // ---------------- loop ----------------
+  newDay();
+  let last = performance.now(), carry = 0, lastScreen = 0, lastPanels = 0;
+  function frame(now) {
+    const dt = Math.min(250, now - last);
+    last = now;
+    if (running) {
+      carry += dt * speed;
+      const ms = Math.min(4000, Math.floor(carry / 10) * 10);
+      if (ms > 0) { ex.sim_step(ms); carry -= ms; }
+    }
+    const st = state();
+    $("led").classList.toggle("on", !!ex.sim_led());
+    sound(st);
+    if (now - lastScreen > 66) { drawScreen(); drawMap(st); lastScreen = now; }
+    if (now - lastPanels > 250) { drawTruth(st); lastPanels = now; }
+    drawLog(st);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
