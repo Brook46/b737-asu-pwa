@@ -276,13 +276,36 @@ function openSearch() {
   run();
   setTimeout(() => q.focus(), 50);
 }
-function closeSearch() { pop?.remove(); pop = null; }
+// The keyboard goes first: removing a focused box with the iOS keyboard up
+// leaves the fixed bars (the bottom tab bar, this strip) stranded where the
+// keyboard was, riding up and down with the page. A nudge once it's down
+// puts the layout viewport back.
+function closeSearch() {
+  if (!pop) return;
+  const q = pop.querySelector('.fs-q');
+  if (q && document.activeElement === q) q.blur();
+  pop.remove(); pop = null;
+  settleViewport();
+}
+function settleViewport() {
+  setTimeout(() => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
+    window.scrollTo(window.scrollX, window.scrollY);
+    measure();
+  }, 350);
+}
 
 // A swipe in from the chosen edge (or starting on the handle) brings it in;
 // a tap anywhere else puts it away. Wired once.
 function wireDoc() {
   let start = null;
   window.addEventListener('resize', measure);
+  // The keyboard closing (from any box in the app) resizes the visual
+  // viewport: settle the layout so fixed bars sit at the bottom again.
+  document.addEventListener('focusout', (e) => { if (/^(INPUT|TEXTAREA)$/.test(e.target?.tagName || '')) settleViewport(); });
+  window.visualViewport?.addEventListener('resize', () => {
+    if (window.visualViewport.height > window.innerHeight * 0.85) settleViewport();
+  });
   document.addEventListener('pointerdown', (e) => {
     if (open && el && !pop && !el.contains(e.target) && e.target !== handle) hide();
   }, true);
