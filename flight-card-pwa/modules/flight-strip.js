@@ -2,8 +2,11 @@
 // slides in from one side of the screen (Settings → Flight strip: right,
 // left, bottom, top or off). A swipe in from that edge — or a tap on the
 // small handle there — brings it in; it slides back out a few seconds after
-// the last touch. Tap a flight to jump to it. Each flight shows its route,
-// time and flight number. The search button opens a pop-up that finds a
+// the last touch. It scrolls like the iOS clock's picker wheel: flights curve
+// away above and below the middle one, which snaps into the centre, and its
+// date sits small at the top. Scrolling only browses — the page changes only
+// when the middle flight is tapped (tapping another rolls it to the middle).
+// Each flight shows its route, time and flight number. The search button opens a pop-up that finds a
 // flight by anything — date, name, aircraft, airport, flight number.
 //
 // No DOM of its own until init(); app.js passes the leg list and the picker.
@@ -28,7 +31,15 @@ export function init(opts) {
   if (!wiredDoc) { wiredDoc = true; wireDoc(); }
 }
 // The leg list or the picked leg changed (app.js renderLegSwitcher).
-export function refresh() { if (open) paint(false); }
+// Only the highlight moves when the same list is still showing, so the
+// wheel never jumps under the finger.
+export function refresh() {
+  if (!open || !list) return;
+  const legs = o.legs() || [];
+  if (list.querySelectorAll('.fs-it').length !== legs.length) { paint(false); return; }
+  const idx = o.index();
+  list.querySelectorAll('.fs-it').forEach(n => n.classList.toggle('is-sel', +n.dataset.fsI === idx));
+}
 
 function build() {
   el?.remove(); handle?.remove(); closeSearch();
@@ -44,7 +55,8 @@ function build() {
       </button>
       <button type="button" class="fs-now" data-fs-now>Now</button>
     </div>
-    <div class="fs-list" role="list"></div>`;
+    <div class="fs-when" aria-live="polite"></div>
+    <div class="fs-wheel"><div class="fs-band" aria-hidden="true"></div><div class="fs-list" role="list"></div></div>`;
   list = el.querySelector('.fs-list');
   handle = document.createElement('button');
   handle.type = 'button';
@@ -53,16 +65,28 @@ function build() {
   document.body.append(el, handle);
   measure();
 
-  el.addEventListener('pointerdown', () => { touching = true; clearTimeout(hideT); });
+  // A tap is a tap only if the finger didn't travel and the wheel wasn't
+  // still rolling — a scroll never picks a flight.
+  let down = null, lastScroll = 0;
+  el.addEventListener('pointerdown', (e) => { touching = true; clearTimeout(hideT); down = { x: e.clientX, y: e.clientY, t: Date.now(), rolling: Date.now() - lastScroll < 120 }; });
   const up = () => { touching = false; arm(); };
   el.addEventListener('pointerup', up);
-  el.addEventListener('pointercancel', up);
-  list.addEventListener('scroll', () => arm(), { passive: true });
+  el.addEventListener('pointercancel', () => { up(); down = null; });
+  let raf = 0;
+  list.addEventListener('scroll', () => {
+    lastScroll = Date.now(); arm();
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; wheel(); });
+  }, { passive: true });
   el.addEventListener('click', (e) => {
     if (e.target.closest('[data-fs-find]')) { openSearch(); return; }
-    if (e.target.closest('[data-fs-now]')) { paint(true, nowIndex()); arm(); return; }
+    if (e.target.closest('[data-fs-now]')) { roll(nowIndex(), true); arm(); return; }
     const it = e.target.closest('[data-fs-i]');
-    if (it) { o.pick(+it.dataset.fsI); paint(false); arm(2500); }
+    if (!it) return;
+    const moved = down && (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || down.rolling);
+    down = null;
+    if (moved) return;
+    if (!it.classList.contains('is-center')) { roll(+it.dataset.fsI, true); arm(); return; }
+    o.pick(+it.dataset.fsI); refresh(); arm(2500);
   });
   handle.addEventListener('click', () => (open ? hide() : show()));
 }
@@ -115,34 +139,64 @@ const DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric',
 const dayOf = (l) => { const t = depTs(l); return Number.isFinite(t) ? DAY.format(new Date(t)) : (l.dep_date || ''); };
 const route = (l) => `${o.esc(String(l.dep || '').toUpperCase())}<span class="fs-arrow">→</span>${o.esc(String(l.arr || '').toUpperCase())}`;
 
-function itemHtml(l, i, sel, past) {
+function itemHtml(l, i, sel, past, firstToCome = false) {
   const d = l.dataCard || {};
   const sub = `${l.dep_time ? o.esc(l.dep_time) + 'Z' : ''} ${o.esc(o.flightLabel(l.flight) || '')}`.trim();
   const dateTag = vertical() ? '' : `<span class="fs-day">${o.esc(dayOf(l))}</span>`;
-  return `<button type="button" role="listitem" class="fs-it${sel ? ' is-sel' : ''}${past ? ' is-past' : ''}${l.deadhead || d.deadhead ? ' is-dh' : ''}" data-fs-i="${i}">
-      ${dateTag}<span class="fs-main">${route(l)}</span><span class="fs-sub">${sub}</span></button>`;
+  return `<button type="button" role="listitem" class="fs-it${sel ? ' is-sel' : ''}${past ? ' is-past' : ''}${firstToCome ? ' is-next' : ''}${l.deadhead || d.deadhead ? ' is-dh' : ''}" data-fs-i="${i}">
+      ${firstToCome ? '<span class="fs-nowtag">now</span>' : ''}${dateTag}<span class="fs-main">${route(l)}</span><span class="fs-sub">${sub}</span></button>`;
 }
 
 function paint(center, at = null) {
   if (!el || !o) return;
   const legs = o.legs() || [], idx = o.index(), now = Date.now();
-  let html = '', lastDay = '', nowMark = false;
+  let html = '', nowMark = false;
   legs.forEach((l, i) => {
     const past = endTs(l) < now;
-    if (!past && !nowMark && i > 0) html += `<div class="fs-nowline" aria-hidden="true"><span>now</span></div>`;
+    // The first flight still to come carries the "now" line above it.
+    html += itemHtml(l, i, i === idx, past, !past && !nowMark && i > 0);
     if (!past) nowMark = true;
-    if (vertical()) {
-      const day = dayOf(l);
-      if (day && day !== lastDay) { html += `<div class="fs-date">${o.esc(day)}</div>`; lastDay = day; }
-    }
-    html += itemHtml(l, i, i === idx, past);
   });
   list.innerHTML = html || '<p class="fs-mute">No flights</p>';
-  if (!center) return;
-  const target = list.querySelector(`[data-fs-i="${at ?? idx}"]`);
-  if (!target) return;
-  if (vertical()) list.scrollTop = target.offsetTop - list.clientHeight / 2 + target.offsetHeight / 2;
-  else list.scrollLeft = target.offsetLeft - list.clientWidth / 2 + target.offsetWidth / 2;
+  // Room before the first and after the last so each can reach the middle.
+  const first = list.querySelector('.fs-it');
+  const pad = first ? Math.max(0, ((vertical() ? list.clientHeight : list.clientWidth) - (vertical() ? first.offsetHeight : first.offsetWidth)) / 2) : 0;
+  list.style.setProperty('--fs-pad', `${Math.round(pad)}px`);
+  if (center) roll(at ?? idx, false);
+  wheel();
+}
+// Roll the wheel so flight i sits in the middle.
+function roll(i, smooth) {
+  const t = list && list.querySelector(`[data-fs-i="${i}"]`);
+  if (!t) return;
+  const opt = { behavior: smooth ? 'smooth' : 'auto' };
+  if (vertical()) list.scrollTo({ top: t.offsetTop - list.clientHeight / 2 + t.offsetHeight / 2, ...opt });
+  else list.scrollTo({ left: t.offsetLeft - list.clientWidth / 2 + t.offsetWidth / 2, ...opt });
+  if (!smooth) wheel();
+}
+// The picker-wheel look: each flight turned away and faded by its distance
+// from the middle; the middle one marked, and its date shown at the top.
+const WHEN = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+function wheel() {
+  if (!list) return;
+  const v = vertical(), r = list.getBoundingClientRect();
+  const mid = v ? r.top + r.height / 2 : r.left + r.width / 2, half = (v ? r.height : r.width) / 2 || 1;
+  let best = null, bd = Infinity;
+  for (const it of list.querySelectorAll('.fs-it')) {
+    const b = it.getBoundingClientRect(), m = v ? b.top + b.height / 2 : b.left + b.width / 2;
+    const d = Math.max(-1, Math.min(1, (m - mid) / half)), ad = Math.abs(d);
+    it.style.transform = v ? `perspective(320px) rotateX(${(-d * 55).toFixed(1)}deg) scale(${(1 - ad * 0.14).toFixed(3)})`
+      : `perspective(320px) rotateY(${(d * 55).toFixed(1)}deg) scale(${(1 - ad * 0.14).toFixed(3)})`;
+    it.style.opacity = (1 - ad * 0.75).toFixed(2);
+    if (Math.abs(m - mid) < bd) { bd = Math.abs(m - mid); best = it; }
+  }
+  list.querySelectorAll('.fs-it.is-center').forEach(n => n !== best && n.classList.remove('is-center'));
+  if (!best) return;
+  best.classList.add('is-center');
+  const l = (o.legs() || [])[+best.dataset.fsI], t = l ? depTs(l) : NaN;
+  const when = el.querySelector('.fs-when');
+  const txt = Number.isFinite(t) ? WHEN.format(new Date(t)) : '';
+  if (when && when.textContent !== txt) when.textContent = txt;
 }
 
 // ---------- Search pop-up ----------
@@ -243,7 +297,11 @@ function wireDoc() {
     const t = e.touches[0];
     const dx = t.clientX - start.x, dy = t.clientY - start.y;
     const pulled = start.s === 'right' ? -dx : start.s === 'left' ? dx : start.s === 'bottom' ? -dy : dy;
-    if (pulled > PULL_PX) { start = null; show(); }
+    const across = start.s === 'right' || start.s === 'left' ? Math.abs(dy) : Math.abs(dx);
+    // A page scroll that happens to start near the edge is a scroll: give
+    // up as soon as it goes more along the edge than in from it.
+    if (across > 10 && across > pulled) { start = null; return; }
+    if (pulled > PULL_PX && pulled > across * 2) { start = null; show(); }
   }, { passive: true });
   document.addEventListener('touchend', () => { start = null; }, { passive: true });
 }

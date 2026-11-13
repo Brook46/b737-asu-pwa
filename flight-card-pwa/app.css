@@ -4899,3 +4899,28 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 /* The search box's focus ring drawn inside it, so the card's rounded clip can't cut it (v285) */
 .fs-pop-head { padding: 12px; }
 .fs-q:focus, .fs-q:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+/* Flight strip v286: a picker wheel like the iOS clock */
+.fs-when { flex: none; text-align: center; font-size: 11px; font-weight: 600; color: var(--fg-mute); font-variant-numeric: tabular-nums; min-height: 14px; letter-spacing: .01em; }
+.fs-wheel { position: relative; flex: 1; min-height: 0; }
+.fs-band { position: absolute; left: 0; right: 0; top: 50%; height: 44px; margin-top: -22px; border-radius: 11px;
+  background: var(--accent-soft); pointer-events: none; }
+.fs-bottom .fs-band, .fs-top .fs-band { top: 0; bottom: 0; height: auto; margin: 0; left: 50%; width: 88px; margin-left: -44px; }
+.fs-wheel .fs-list { position: absolute; inset: 0; scroll-snap-type: y mandatory; padding: var(--fs-pad, 0) 0;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+          mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent); }
+.fs-bottom .fs-wheel .fs-list, .fs-top .fs-wheel .fs-list { display: flex; align-items: center; gap: 0; scroll-snap-type: x mandatory; padding: 0 var(--fs-pad, 0);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent); }
+.fs-wheel .fs-it { height: 44px; justify-content: center; scroll-snap-align: center; scroll-snap-stop: normal;
+  border-radius: 10px; background: transparent; transform-origin: center; will-change: transform, opacity; position: relative; }
+.fs-bottom .fs-wheel .fs-it, .fs-top .fs-wheel .fs-it { height: auto; width: 88px; min-width: 88px; padding: 4px 6px; }
+.fs-wheel .fs-it.is-sel { background: transparent; color: var(--accent); }
+.fs-wheel .fs-it.is-sel .fs-sub, .fs-wheel .fs-it.is-sel .fs-day { color: var(--accent); opacity: .8; }
+.fs-wheel .fs-it.is-sel::before { content: ''; position: absolute; left: 1px; top: 50%; width: 3px; height: 18px; margin-top: -9px; border-radius: 2px; background: var(--accent); }
+.fs-wheel .fs-it.is-past:not(.is-sel) { opacity: inherit; color: var(--fg-mute); }
+.fs-wheel .fs-it .fs-main { font-weight: 600; }
+.fs-wheel .fs-it.is-center .fs-main { font-weight: 800; }
+.fs-nowtag { position: absolute; top: -1px; right: 4px; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--danger); }
+.fs-wheel .fs-it.is-next { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--danger) 60%, transparent); }
+.fs-handle.fs-right, .fs-handle.fs-left { touch-action: pan-y; }
+.fs-handle.fs-bottom, .fs-handle.fs-top { touch-action: pan-x; }
