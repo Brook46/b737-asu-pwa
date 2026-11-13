@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=281';
-import { inForce } from './notam-brief.js?v=281';
+import { WORKER_BASE } from './proxy.js?v=283';
+import { inForce } from './notam-brief.js?v=283';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -411,6 +411,14 @@ export function notamSeverity(text, usable = new Set()) {
 // airport isn't a 10 ("−1.4 distance: 139 nm off the route").
 // A runway shorter than this doesn't count as a spare (a second runway).
 export const SPARE_FT = 7000;
+// The pilot's regular destinations (ICAO → times flown there), from the
+// logbook and roster — set by route-ui. They're always on the map and gain a
+// point: a known airport, known procedures, a station that can handle the
+// aircraft and passengers.
+let FAMILIAR = new Map();
+export function setFamiliar(m) { FAMILIAR = m instanceof Map ? m : new Map(); }
+export function isFamiliar(icao) { return FAMILIAR.has(icao); }
+export const FAMILIAR_MIN = 2;      // flown there at least this often
 export const MAX = { runway: 2, lighting: 0.5, size: 1.5, distance: 3, weather: 3 };
 export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules(), now = Date.now(), mode = 'plan' }) {
   const why = [];
@@ -486,6 +494,7 @@ export function rate(ap, { distNm, eta, wxEntry, notams, rules = getCountryRules
   if (flags && flags.rffs != null && flags.rffs < 7) { score -= 1; why.push(`Fire cover CAT ${flags.rffs} (NOTAM)`); lost.push({ pts: 1, what: `Fire cover reduced to CAT ${flags.rffs} (NOTAM; a 737-800 needs 7)` }); }
   if (flags && flags.distReduced) { score -= 0.5; why.push('Declared distances reduced (NOTAM)'); lost.push({ pts: 0.5, what: 'Runway distances reduced (NOTAM)' }); }
   if (flags && flags.lightsOut) { score -= 0.5; why.push('Approach / runway lights out (NOTAM)'); lost.push({ pts: 0.5, what: 'Approach / runway lighting out (NOTAM)' }); }
+  if (FAMILIAR.has(ap.icao)) { score += 1; why.push(`One of your destinations (${FAMILIAR.get(ap.icao)}×) +1`); }
   score = Math.max(0, Math.min(10, Math.round(score)));
   lost.sort((a, b) => b.pts - a.pts);
   return { score, why, wx: w, wind, xw, flags, longest: L, width, usable, lost };
@@ -573,6 +582,9 @@ export function pickShown(rated, route, perSeg = 4) {
   }
   for (const c of rated) if (c.isEnd) keep.add(c);
   for (const c of keyAtEnds(rated, route)) keep.add(c);
+  // Never dropped for a crowded stretch: the pilot's regular destinations,
+  // and any airport rated 9–10.
+  for (const c of rated) if (!c.r.excluded && (FAMILIAR.has(c.ap.icao) || c.r.score >= 9)) keep.add(c);
   return [...keep].sort((a, b) => a.along - b.along);
 }
 

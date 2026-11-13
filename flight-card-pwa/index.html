@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=281" />
+  <link rel="stylesheet" href="./app.css?v=283" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -515,6 +515,13 @@
             <button class="btn sensor-btn" data-sensor-req="motion">Request</button>
           </div>
         </div>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Flight strip</span><span class="set-status" id="set-st-strip"></span></summary>
+        <div class="set-body">
+        <p class="muted small">Every flight, past and future, in a slim strip. Swipe in from its edge (or tap the small handle there) to bring it in; tap a flight to jump to it. It slides away a few seconds after you stop touching it.</p>
+        <div class="seg fs-side-pick" role="group" aria-label="Flight strip side" id="fs-side-pick"></div>
         </div>
       </details>
       <details class="set-row">
@@ -1041,6 +1048,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=281"></script>
+  <script type="module" src="./app.js?v=283"></script>
 </body>
 </html>

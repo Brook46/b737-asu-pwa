@@ -4795,3 +4795,81 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .ri-pin-wind.is-y path { stroke: #c9a300; } .ri-pin .ri-pin-wind.is-y text { fill: #c9a300; }
 .rw-chip.t-y { box-shadow: inset 0 -3px 0 #c9a300; }
 .ad-wp-lim { font-size: 11px; color: var(--fg-mute); }
+/* Route info list: ICAO with the IATA small and grey beneath (v282) */
+.ri-row-code { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; min-width: 44px; flex: none; }
+.ri-row-code b { font-size: 15px; }
+.ri-row-code small { font-size: 11px; color: var(--fg-mute); font-weight: 500; }
+/* Back up to the map from the lists — the twin of "Airports ↓" */
+.ri-to-map {
+  position: sticky; bottom: 10px; display: block; margin: 8px auto 0; width: max-content;
+  padding: 7px 14px; border: 0; border-radius: 999px; cursor: pointer; touch-action: manipulation;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--accent);
+  background: var(--bg-elev); box-shadow: 0 2px 8px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.ri-to-map.is-on { opacity: 1; pointer-events: auto; }
+/* ---------- Flight strip (modules/flight-strip.js) ---------- */
+.fstrip {
+  position: fixed; z-index: 900; display: flex; flex-direction: column; gap: 4px;
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  border-radius: 18px; box-shadow: 0 8px 28px rgba(0,0,0,.22), 0 0 0 0.5px var(--line);
+  transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s; opacity: 0; pointer-events: none;
+  padding: 8px; --fs-bottom: 0px;
+}
+.fstrip.fstrip.is-open { transform: none; opacity: 1; pointer-events: auto; }
+.fstrip.fs-right, .fstrip.fs-left { top: var(--fs-top, calc(var(--top-clear) + 56px)); bottom: calc(var(--fs-bottom) + 12px); width: 176px; }
+.fstrip.fs-right { right: 8px; transform: translateX(calc(100% + 24px)); }
+.fstrip.fs-left { left: 8px; transform: translateX(calc(-100% - 24px)); }
+.fstrip.fs-bottom, .fstrip.fs-top { left: 8px; right: 8px; }
+.fstrip.fs-bottom { bottom: calc(var(--fs-bottom) + 8px); transform: translateY(calc(100% + 24px)); }
+.fstrip.fs-top { top: var(--fs-top, calc(var(--top-clear) + 4px)); transform: translateY(calc(-100% - 60px)); }
+.fs-head { display: flex; gap: 6px; flex: none; }
+.fs-head button {
+  border: 0; border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600;
+  background: var(--accent-soft); color: var(--accent); cursor: pointer; touch-action: manipulation;
+}
+.fs-head .fs-now { margin-left: auto; background: transparent; }
+.fs-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scroll-snap-type: y proximity; }
+.fs-bottom .fs-list, .fs-top .fs-list { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; }
+.fs-it {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%;
+  border: 0; background: transparent; color: var(--fg); text-align: left; font: inherit;
+  padding: 7px 9px; border-radius: 12px; cursor: pointer; scroll-snap-align: center; touch-action: manipulation;
+}
+.fs-bottom .fs-it, .fs-top .fs-it { width: auto; min-width: 104px; flex: none; }
+.fs-it.is-sel { background: var(--accent); color: #fff; }
+.fs-it.is-sel .fs-sub, .fs-it.is-sel .fs-day { color: rgba(255,255,255,.8); }
+.fs-it.is-past:not(.is-sel) { opacity: .55; }
+.fs-it.is-dh .fs-main { font-style: italic; }
+.fs-main { font-size: 15px; font-weight: 700; letter-spacing: .01em; line-height: 1.2; }
+.fs-main small { font-size: 10px; font-weight: 600; }
+.fs-arrow { font-weight: 400; opacity: .55; margin: 0 2px; }
+.fs-sub, .fs-day { font-size: 11px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.fs-day { font-weight: 600; }
+.fs-date { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-mute); padding: 8px 9px 2px; }
+.fs-nowline { display: flex; align-items: center; gap: 6px; color: var(--danger); font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 4px 6px; flex: none; }
+.fs-nowline::before, .fs-nowline::after { content: ''; flex: 1; height: 1px; background: var(--danger); opacity: .6; }
+.fs-bottom .fs-nowline, .fs-top .fs-nowline { flex-direction: column; padding: 0 2px; }
+.fs-bottom .fs-nowline::before, .fs-bottom .fs-nowline::after, .fs-top .fs-nowline::before, .fs-top .fs-nowline::after { width: 1px; height: auto; }
+.fs-mute { color: var(--fg-mute); font-weight: 400; }
+/* The handle: a quiet pill on the edge to grab or tap. */
+.fs-handle {
+  position: fixed; z-index: 899; border: 0; padding: 0; cursor: pointer; touch-action: none;
+  background: transparent; --fs-bottom: 0px; transition: opacity .2s;
+}
+.fs-handle::after { content: ''; position: absolute; inset: 0; margin: auto; border-radius: 3px; background: var(--fg-mute); opacity: .35; }
+.fs-handle.is-hidden { opacity: 0; pointer-events: none; }
+.fs-handle.fs-right, .fs-handle.fs-left { top: 50%; width: 22px; height: 64px; margin-top: -32px; }
+.fs-handle.fs-right { right: 0; } .fs-handle.fs-left { left: 0; }
+.fs-handle.fs-right::after, .fs-handle.fs-left::after { width: 4px; height: 44px; }
+.fs-handle.fs-right::after { right: 3px; left: auto; } .fs-handle.fs-left::after { left: 3px; right: auto; }
+.fs-handle.fs-bottom, .fs-handle.fs-top { left: 50%; width: 64px; height: 20px; margin-left: -32px; }
+.fs-handle.fs-bottom { bottom: calc(var(--fs-bottom, 0px) + 4px); }
+.fs-handle.fs-top { top: var(--fs-top, calc(var(--top-clear) + 46px)); }
+.fs-handle.fs-bottom::after, .fs-handle.fs-top::after { width: 44px; height: 4px; }
+/* Settings: the side picker */
+.fs-side-pick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.fs-side-pick button { border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; background: var(--bg-soft, rgba(127,127,127,.12)); color: var(--fg); cursor: pointer; }
+.fs-side-pick button.is-on { background: var(--accent); color: #fff; font-weight: 600; }
+.fs-list { scrollbar-width: none; } .fs-list::-webkit-scrollbar { display: none; }

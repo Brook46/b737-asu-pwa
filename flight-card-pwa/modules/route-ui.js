@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=281';
-import * as ri from './route-info.js?v=281';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=281';
-import * as wxm from './wx.js?v=281';
-import * as nb from './notam-brief.js?v=281';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=281';
-import * as plan from './plan-route.js?v=281';
-import * as ely from './ely-traffic.js?v=281';
+import * as storage from './storage.js?v=283';
+import * as ri from './route-info.js?v=283';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=283';
+import * as wxm from './wx.js?v=283';
+import * as nb from './notam-brief.js?v=283';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=283';
+import * as plan from './plan-route.js?v=283';
+import * as ely from './ely-traffic.js?v=283';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -116,15 +116,31 @@ function taxiMinutes(code) {
 // ---------- Model ----------
 // Everything the screen shows, from the leg + the database + whatever
 // weather / NOTAMs are cached (fetching first when `doFetch` is set).
+// Regular destinations: every airport flown to or from at least
+// FAMILIAR_MIN times in the stored legs (logbook + roster), by ICAO.
+let famKey = '';
+function setFamiliarFrom(db) {
+  const legs = storage.everyLeg() || [];
+  const key = legs.length + ':' + (legs.at(-1)?.arr || '');
+  if (key === famKey) return;
+  famKey = key;
+  const n = new Map();
+  for (const l of legs) for (const code of [l.dep, l.arr]) {
+    const ap = code && ri.findAirport(db, String(code).toUpperCase());
+    if (ap) n.set(ap.icao, (n.get(ap.icao) || 0) + 1);
+  }
+  ri.setFamiliar(new Map([...n].filter(([, k]) => k >= ri.FAMILIAR_MIN)));
+}
 async function build(leg, { doFetch = false } = {}) {
   const db = await ri.loadDb();
+  try { setFamiliarFrom(db); } catch {}
   const A = ri.findAirport(db, leg.dep), B = ri.findAirport(db, leg.arr);
   if (!A || !B) throw new Error(`${!A ? leg.dep : leg.arr || '—'} isn't in the airport database`);
   // The filed route when one was pasted for this leg, else the great circle —
   // and in the air with GPS, the way flown so far then straight on from the
   // aircraft to the destination (vectors, directs and avoidance all move it).
   const filed = plan.getPlan(leg);
-  const gp = filed ? null : gpsOnLeg(A, B);
+  const gp = filed || !legIsNow(leg) ? null : gpsOnLeg(A, B);
   const route = filed ? ri.routeAlong(filed.pts)
     : gp ? { ...ri.routeAlong([A, { lat: gp.lat, lon: gp.lon }, B]), filed: false, wps: null, gps: true, gpsAt: gp.at }
     : ri.routePoints(A, B);
@@ -144,7 +160,7 @@ async function build(leg, { doFetch = false } = {}) {
   }));
   // First pass without weather picks who's worth asking about.
   for (const c of all) c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: null, notams: null, rules });
-  const pool = ri.pickShown(all, route, 6);
+  const pool = ri.pickShown(all, route, 8);
   let cache = readCache(leg);
   if (doFetch) {
     const ids = pool.map(c => c.ap.icao);
@@ -204,7 +220,7 @@ async function build(leg, { doFetch = false } = {}) {
     dbDate: db.v,
     leg, A, B, route, tm, pool, gaps: gaps.filter(g => g.to - g.from > 40),
     // The alternate is always on the map and in the list.
-    shown: (() => { const sh = ri.pickShown(pool, route, 4); const a = pool.find(c => isAltn(c.ap, leg)); return a && !sh.includes(a) ? [...sh, a] : sh; })(),
+    shown: (() => { const sh = ri.pickShown(pool, route, 5); const a = pool.find(c => isAltn(c.ap, leg)); return a && !sh.includes(a) ? [...sh, a] : sh; })(),
     fetchedAt: cache?.at || 0,
     notamsOff: !cache || cache.notamsOff || !cache.notams,
     notamsErr: cache?.notamsErr || '',
@@ -1411,6 +1427,20 @@ function ago(ms) {
   const m = Math.round((Date.now() - ms) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 }
+// Below the map (the lists, a card): a small bubble back up to the map,
+// the twin of the map's "Airports ↓".
+let toMapWired = null;
+function watchToMap() {
+  const sheet = document.querySelector('.route-sheet');
+  if (!sheet || toMapWired === sheet) return;
+  toMapWired = sheet;
+  const upd = () => {
+    const b = document.querySelector('.ri-to-map'), m = document.querySelector('.ri-map-wrap');
+    if (!b || !m) return;
+    b.classList.toggle('is-on', m.getBoundingClientRect().bottom < sheet.getBoundingClientRect().top + 60);
+  };
+  sheet.addEventListener('scroll', upd, { passive: true });
+}
 async function paint(model, showAll = false) {
   // This module's own ?v= stamp, so the map files load under exactly the URL
   // the service worker precached (a fixed old ?v= only got cached on first
@@ -1457,8 +1487,10 @@ async function paint(model, showAll = false) {
     <div class="ri-map-src ri-st-key">${stationKey()}</div>
     ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
     <div id="ri-near"></div>
-    <div id="ri-list-wrap"></div>`;
+    <div id="ri-list-wrap"></div>
+    <button type="button" class="ri-to-map" data-ri-map>Map ↑</button>`;
   const slot = $('ri-map-slot');
+  watchToMap();
   state = { model, showAll, list, world, md };
   viewAnim++; previewing = null;     // nothing left over from the map just replaced
   listKey = '';
@@ -1521,7 +1553,8 @@ function renderList() {
     return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
         <span class="ri-row-t">${x ? (x.t ? '≈' + Math.round(x.t.min) + '′' : '') : hm(c.eta).replace('Z', '')}</span>
         <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
-        <span class="ri-row-n"><b>${esc(c.ap.iata || c.ap.icao)}</b>${lvpTag(c)} ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
+        <span class="ri-row-code"><b>${esc(c.ap.icao)}</b>${c.ap.iata ? `<small>${esc(c.ap.iata)}</small>` : ''}</span>
+        <span class="ri-row-n">${lvpTag(c)} ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
         <span class="ri-row-d">${Math.round(x ? x.d : c.distNm)} nm</span>
       </button>`;
   }).join('')}</div>`;
@@ -1952,6 +1985,15 @@ function routeTrackNear(lat, lon) {
 // A recent airborne fix that fits this leg (not a position from another
 // flight, not one kilometres out) → it shapes the route.
 const GPS_ROUTE_MAX_AGE = 3 * 60000, OFF_ROUTE_NM = 15, REROUTE_EVERY = 3 * 60000;
+// Only the flight being flown now (STD − 1 h to STA + 2 h): an old or future
+// leg keeps its great circle, or the route pasted for it.
+function legIsNow(leg, now = Date.now()) {
+  const std = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
+  let sta = legTs(leg.arr_date || leg.dep_date, leg.arr_time, leg.dep_year);
+  if (!Number.isFinite(std)) return false;
+  if (!Number.isFinite(sta) || sta < std) sta = std + 6 * 3600e3;
+  return now >= std - 3600e3 && now <= sta + 2 * 3600e3;
+}
 function gpsOnLeg(A, B) {
   const g = gpsFix;
   if (!g || !g.airborne || Date.now() - g.at > GPS_ROUTE_MAX_AGE) return null;
@@ -1963,7 +2005,7 @@ function gpsOnLeg(A, B) {
 // from where we are — at most every few minutes, keeping the open card.
 let rerouteAt = 0;
 function maybeReroute() {
-  if (!state || busy || state.model.route.filed || !gpsFix || !gpsFix.airborne) return;
+  if (!state || busy || state.model.route.filed || !gpsFix || !gpsFix.airborne || !legIsNow(state.model.leg)) return;
   if (Date.now() - rerouteAt < REROUTE_EVERY) return;
   const off = Math.min(...state.model.route.pts.map(p => distNm(gpsFix.lat, gpsFix.lon, p.lat, p.lon)));
   if (off < OFF_ROUTE_NM) return;
@@ -2013,7 +2055,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=281'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=283'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -2135,7 +2177,8 @@ function paintLive() {
       return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
           <span class="ri-row-t">≈${Math.round(t.min)}′</span>
           <span class="ri-score ri-b-${b}">${r.score}</span>
-          <span class="ri-row-n"><b>${esc(c.ap.icao)}</b>${lvpTag({ ...c, r })} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
+          <span class="ri-row-code"><b>${esc(c.ap.icao)}</b>${c.ap.iata ? `<small>${esc(c.ap.iata)}</small>` : ''}</span>
+          <span class="ri-row-n">${lvpTag({ ...c, r })} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
           <span class="ri-row-d">${Math.round(t.d)} nm</span></button>`;
     }).join('')}`;
 }
@@ -2660,6 +2703,7 @@ export function wire() {
     if (e.target.closest('[data-ri-ely]')) { setEly(!elyOn); return; }
     const sb = e.target.closest('[data-ri-sig]');
     if (sb) { openSig([sb.dataset.riSig]); return; }
+    if (e.target.closest('[data-ri-map]')) { document.querySelector('.route-sheet')?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
