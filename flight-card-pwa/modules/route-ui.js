@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=288';
-import * as ri from './route-info.js?v=288';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=288';
-import * as wxm from './wx.js?v=288';
-import * as nb from './notam-brief.js?v=288';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=288';
-import * as plan from './plan-route.js?v=288';
-import * as ely from './ely-traffic.js?v=288';
+import * as storage from './storage.js?v=289';
+import * as ri from './route-info.js?v=289';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=289';
+import * as wxm from './wx.js?v=289';
+import * as nb from './notam-brief.js?v=289';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=289';
+import * as plan from './plan-route.js?v=289';
+import * as ely from './ely-traffic.js?v=289';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -116,6 +116,21 @@ function taxiMinutes(code) {
 // ---------- Model ----------
 // Everything the screen shows, from the leg + the database + whatever
 // weather / NOTAMs are cached (fetching first when `doFetch` is set).
+// The way round avoided airspace, worked out once per city pair (and per
+// GPS position, kept only for the latest).
+let avoidMod = null;
+const avoidMemo = new Map();
+async function avoidFor(a, b, keep) {
+  try {
+    avoidMod ||= await import('./avoid.js?v=289');
+    const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
+    if (avoidMemo.has(k)) return avoidMemo.get(k);
+    const r = avoidMod.avoidRoute(a, b);
+    if (!keep) for (const [kk, v] of avoidMemo) if (v && v.gps) avoidMemo.delete(kk);
+    avoidMemo.set(k, r ? { ...r, gps: !keep } : null);
+    return r;
+  } catch { return null; }
+}
 // Regular destinations: every airport flown to or from at least
 // FAMILIAR_MIN times in the stored legs (logbook + roster), by ICAO.
 let famKey = '';
@@ -141,9 +156,18 @@ async function build(leg, { doFetch = false } = {}) {
   // aircraft to the destination (vectors, directs and avoidance all move it).
   const filed = plan.getPlan(leg);
   const gp = filed || !legIsNow(leg) ? null : gpsOnLeg(A, B);
-  const route = filed ? ri.routeAlong(filed.pts)
-    : gp ? { ...ri.routeAlong([A, { lat: gp.lat, lon: gp.lon }, B]), filed: false, wps: null, gps: true, gpsAt: gp.at }
-    : ri.routePoints(A, B);
+  // No filed route: the great circle, bent round airspace not flown into
+  // (Syria, Lebanon, Ukraine… avoid.js) when it would cross it.
+  let route;
+  if (filed) route = ri.routeAlong(filed.pts);
+  else {
+    const from = gp ? { lat: gp.lat, lon: gp.lon } : A;
+    const av = await avoidFor(from, B, !gp);
+    const pts = [A, ...(gp ? [from] : []), ...(av ? av.wps : []), B];
+    route = gp || av ? { ...ri.routeAlong(pts), filed: false, wps: null } : ri.routePoints(A, B);
+    if (gp) Object.assign(route, { gps: true, gpsAt: gp.at });
+    if (av) route.avoid = av.around;
+  }
   const d = leg.dataCard || {};
   const stdMs = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
   const ctotMs = nearestHm(d.ctot || leg.ctot, stdMs);
@@ -1474,7 +1498,7 @@ async function paint(model, showAll = false) {
     <div class="ri-status">
       Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
       NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
-      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed route' : model.route.gps ? `way flown, then GPS straight to ${esc(model.B.icao)} (${ago(model.route.gpsAt)})` : 'great-circle route'}
+      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed route' : model.route.gps ? `way flown, then GPS ${model.route.avoid ? 'on' : 'straight'} to ${esc(model.B.icao)} (${ago(model.route.gpsAt)})${model.route.avoid ? `, round ${esc(model.route.avoid.join(', '))}` : ''}` : model.route.avoid ? `great circle bent round ${esc(model.route.avoid.join(', '))} (no-fly airspace)` : 'great-circle route'}
       <button type="button" class="ri-plan-link" data-ri-plan="open">${model.route.filed ? 'Edit route' : 'Paste filed route'}</button>
     </div>
     <div class="ri-legend">
@@ -2054,7 +2078,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=288'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=289'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
