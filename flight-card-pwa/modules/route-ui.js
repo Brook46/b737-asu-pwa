@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=287';
-import * as ri from './route-info.js?v=287';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=287';
-import * as wxm from './wx.js?v=287';
-import * as nb from './notam-brief.js?v=287';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=287';
-import * as plan from './plan-route.js?v=287';
-import * as ely from './ely-traffic.js?v=287';
+import * as storage from './storage.js?v=288';
+import * as ri from './route-info.js?v=288';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=288';
+import * as wxm from './wx.js?v=288';
+import * as nb from './notam-brief.js?v=288';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=288';
+import * as plan from './plan-route.js?v=288';
+import * as ely from './ely-traffic.js?v=288';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -274,12 +274,11 @@ async function planAction(what) {
     catch { if (out) out.textContent = 'Couldn\'t load the waypoint list — it needs internet the first time.'; return; }
     const db = await ri.loadDb();
     const apOf = (c) => db.a[c] ? ri.findAirport(db, c) : null;
-    let r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
-    // Names the (2013) list doesn't place: ask the current navaid data, then again.
-    if (r.missing.length && navigator.onLine !== false) {
-      if (out) out.textContent = `Looking up ${r.missing.length} newer waypoint${r.missing.length === 1 ? '' : 's'}…`;
-      if (await plan.fillMissing(r.missing, fixes)) r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
-    }
+    // Every name against the current navaid data first (the 2013 list has
+    // fixes that have moved since), then placed.
+    const names = plan.routeNames(text, state.model.A, state.model.B);
+    await plan.freshen(names, fixes, (k) => { if (out) out.textContent = `Checking the waypoints against current data… ${k}/${names.length}`; });
+    const r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
     if (!r.found) { if (out) out.textContent = `No waypoints recognised${r.missing.length ? ` (not found: ${r.missing.slice(0, 8).join(' ')})` : ''} — still on the great circle.`; return; }
     const saved = { text, pts: r.pts.map(p => ({ n: p.n, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) })), missing: r.missing, found: r.found };
     plan.setPlan(leg, saved);
@@ -2055,7 +2054,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=287'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=288'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;

@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=287';
-import { inForce } from './notam-brief.js?v=287';
+import { WORKER_BASE } from './proxy.js?v=288';
+import { inForce, closedRwys } from './notam-brief.js?v=288';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;
@@ -368,9 +368,9 @@ export function notamFlags(items, ts, win = 30 * 60e3) {
     const t = String(n.text || '').toUpperCase();
     out.count++;
     if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) out.adClosed = true;
-    const rw = /\bRWY\s+(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\s+(CLSD|CLOSED)\b/.exec(t);
+    const rw = closedRwys(t);
     // Closed for take-off only still takes a diversion landing.
-    if (rw && !/^\s*(FOR|TO)\s+(T\/?O|TKOF|TAKE-?OFF|DEP\w*)\b/.test(t.slice(rw.index + rw[0].length))) out.rwyClosed.push(rw[1]);
+    if (rw && !/^\s*(FOR|TO)\s+(T\/?O|TKOF|TAKE-?OFF|DEP\w*)\b/.test(t.slice(rw.end))) out.rwyClosed.push(...rw.rwys);
     const ils = /\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|NOT AVAILABLE|OUT OF SERVICE|OTS|WITHDRAWN|SUSPENDED)/.exec(t);
     if (ils) out.ilsOut.push(t.slice(0, 80));
     if (/\b(NO FUEL|FUEL\b[^.]{0,30}\b(NOT AVBL|NOT AVAILABLE|U\/S|UNAVAILABLE))/.test(t)) out.noFuel = true;
@@ -393,8 +393,8 @@ export function notamFlags(items, ts, win = 30 * 60e3) {
 export function notamSeverity(text, usable = new Set()) {
   const t = String(text || '').toUpperCase();
   if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) return 'r';
-  const rw = /\bRWY\s+(\d{2}[LRC]?)(?:\/(\d{2}[LRC]?))?\s+(CLSD|CLOSED)\b/.exec(t);
-  if (rw) return (usable.has(rw[1]) || (rw[2] && usable.has(rw[2]))) ? 'r' : 'o';
+  const rw = closedRwys(t);
+  if (rw) return rw.rwys.some(d => d.split('/').some(e => usable.has(e))) ? 'r' : 'o';
   if (/\b(ILS|LOC|LLZ|GP|GS|GLIDE ?PATH)\b[^.]{0,50}\b(U\/S|UNSERVICEABLE|NOT AVBL|OUT OF SERVICE|OTS|WITHDRAWN|SUSPENDED|NOT AVAILABLE)/.test(t)) return 'r';
   if (/\b(NO FUEL|FUEL\b[^.]{0,30}\bNOT AVBL)/.test(t)) return 'r';
   if (/\bRFFS?\b[^.]{0,40}\bCAT(EGORY)?\s*([1-6])\b/.test(t)) return 'r';

@@ -36,8 +36,9 @@ export function bottomLine(n) {
   if (!t) return null;
   let m;
   if (/\b(AD|AERODROME|AIRPORT)\s+(CLSD|CLOSED)\b/.test(t)) return { sev: 'r', text: 'Aerodrome closed', items: [] };
-  if ((m = /\bRWY\s+(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\s+(?:IS\s+)?(CLSD|CLOSED)\b/.exec(t)))
-    return { sev: 'r', text: `RWY ${m[1]} closed${/\bFOR (TKOF|TAKE-?OFF|DEP)/.test(t) ? ' for takeoff' : /\bFOR (LDG|LANDING|ARR)/.test(t) ? ' for landing' : ''}`, items: [{ kind: 'RWY', ref: m[1].split('/')[0] }] };
+  const cr = closedRwys(t);
+  if (cr) return { sev: 'r', text: `RWY ${cr.rwys.join(' and ')} closed${/\bFOR (TKOF|TAKE-?OFF|DEP)/.test(t) ? ' for takeoff' : /\bFOR (LDG|LANDING|ARR)/.test(t) ? ' for landing' : ''}`,
+    items: cr.rwys.map(r => ({ kind: 'RWY', ref: r.split('/')[0] })) };
   // Marker beacons (often written "OM (ILS 'FSS') RWY34R") — a navaid, not
   // the ILS itself.
   if ((m = new RegExp(`\\b(OM|MM|IM|OUTER MARKER|MIDDLE MARKER|INNER MARKER|MKR|MARKER)\\b[^.]{0,60}\\b${OUT}`).exec(t))) {
@@ -143,6 +144,18 @@ export function validity(n, now = Date.now()) {
 // closures are on different days and never together). schedWindows turns
 // Item D into the UTC windows overlapping [from, to]; null when it can't be
 // read (then the NOTAM counts as in force — never hide what we don't parse).
+// Every runway one NOTAM closes: "RWY 02/20 CLSD", and also several in one
+// go — "RWY 06L/24R AND RWY 02/20 CLSD", "RWYS 07L/25R, 07R/25L CLOSED".
+// → { rwys: ['06L/24R', '02/20'], end } (end: just past the match) or null.
+const RWD = '\\d{2}[LRC]?(?:\\/\\d{2}[LRC]?)?';
+const RW_CLSD = new RegExp(`\\bRWYS?\\s+(${RWD}(?:\\s*(?:,|AND|&)\\s*(?:RWYS?\\s+)?${RWD})*)\\s+(?:IS\\s+|ARE\\s+|BOTH\\s+)?(?:CLSD|CLOSED)\\b`);
+export function closedRwys(text) {
+  const t = String(text || '').toUpperCase();
+  const m = RW_CLSD.exec(t);
+  if (!m) return null;
+  return { rwys: [...new Set(m[1].match(new RegExp(RWD, 'g')))], end: m.index + m[0].length };
+}
+
 const DOW = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
 const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
 // Day numbers without a month ("09 2000-0500, 10-12 1700-0500") are days of

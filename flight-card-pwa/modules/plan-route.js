@@ -171,6 +171,45 @@ export async function fillMissing(names, fixMap) {
   return added;
 }
 
+// Every waypoint name in a pasted route (no airways, levels or coordinates).
+export function routeNames(text, A, B) {
+  return parse(text, A, B, new Map()).missing.filter(n => n.length >= 3);
+}
+// Every name checked against the current navaid data, not only the ones the
+// 2013 list lacks: that list has fixes that have since moved (OSPOK on N725
+// out of Barcelona sits a degree north of where it is now, which bent the
+// route up towards France). A current position replaces the old one. Answers
+// are kept on the device for 28 days, so the same route is instant next time
+// and works offline. Returns how many names were updated.
+const FRESH_KEY = 'fc.fixFresh', FRESH_MS = 28 * 864e5;
+export async function freshen(names, fixMap, onProgress = () => {}) {
+  let cache = {};
+  try { cache = JSON.parse(localStorage.getItem(FRESH_KEY) || '{}') || {}; } catch {}
+  const now = Date.now();
+  let changed = 0, asked = 0, stop = false;
+  for (const n of names.slice(0, 40)) {
+    let hits = cache[n] && now - cache[n].at < FRESH_MS ? cache[n].hits : null;
+    if (!hits && !stop && navigator.onLine !== false) {
+      onProgress(++asked);
+      try {
+        const r = await fetch('https://api.flightplandatabase.com/search/nav?q=' + encodeURIComponent(n));
+        if (r.ok) {
+          hits = (await r.json()).filter(x => x.ident === n && /^(FIX|VOR|NDB|DME|TACAN|VORTAC)$/.test(x.type))
+            .map(x => ({ lat: +(+x.lat).toFixed(4), lon: +(+x.lon).toFixed(4) }));
+          cache[n] = { at: now, hits };
+        } else if (r.status === 429) stop = true;
+      } catch {}
+    }
+    if (hits && hits.length) { fixMap.set(n, hits); changed++; }
+  }
+  try {
+    // Keep the cache small: the newest 600 names.
+    const keep = Object.entries(cache).sort((a, b) => b[1].at - a[1].at).slice(0, 600);
+    localStorage.setItem(FRESH_KEY, JSON.stringify(Object.fromEntries(keep)));
+  } catch {}
+  return changed;
+}
+
 // ---------- Along the route ----------
 // Where a GPS position is on the filed route: the nearest point on it,
 // how far off, flown and still to go (nm), and the path ahead from that
