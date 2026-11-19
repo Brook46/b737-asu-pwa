@@ -165,7 +165,19 @@ function runwayEnd(geo, des) {
 // (route-ui colourAtis). `whole`: the whole airport (the full-screen view)
 // rather than round the closures; `W`/`H` the drawing's shape. Returns
 // { svg, missing: [labels not found], at(lat, lon) → [x, y] | null }.
-export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, withPts = false } = {}) {
+// The airport's own runways — those named in its runway list (`own`, e.g.
+// ['13R/31L']) and the unnamed pieces joined to them — out of everything
+// OpenStreetMap has round it, which can take in another airfield next door
+// (TBS). Without a match, the runways within 2.5 km of the reference point.
+function ownRunways(geo, own) {
+  const ends = new Set((own || []).flatMap(d => String(d).split('/').map(norm)));
+  let mine = ends.size ? geo.rw.filter(r => r.ref && norm(r.ref).split('/').some(e => ends.has(e))) : [];
+  if (!mine.length) mine = geo.rw.filter(r => r.pts.some(p => Math.hypot(p[0], p[1]) < 2500));
+  if (!mine.length) mine = geo.rw;
+  const joined = geo.rw.filter(r => !r.ref && !mine.includes(r) && r.pts.some(p => mine.some(m => m.pts.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 150))));
+  return new Set([...mine, ...joined]);
+}
+export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, withPts = false, own = null } = {}) {
   if (!geo || !geo.rw.length) return { svg: '', missing: items.map(i => i.label) };
   // Older saves keep the raw OSM names: clean them here too.
   if (!geo.twClean) {
@@ -211,9 +223,14 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
   // next to; with nothing found, the whole airport.
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const grow = (p) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); };
-  if (!whole) marks.forEach(m => { (m.ways || []).forEach(w => w.pts.forEach(grow)); if (m.at) grow(m.at); if (m.proc) { grow(m.a); grow(m.b); } if (m.it.kind === 'RWY') m.rws.forEach(w => w.pts.forEach(grow)); });
-  if (whole || !marks.length) geo.rw.forEach(r => r.pts.forEach(grow));
-  if (whole) marks.forEach(m => { if (m.proc) { grow(m.a); grow(m.b); } });
+  const mine = ownRunways(geo, own);
+  // Marks on this airport only (a closure at the airfield next door with
+  // the same taxiway name stays off the frame).
+  const nearMine = (p) => [...mine].some(r => r.pts.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2500));
+  const growMark = (m) => { (m.ways || []).forEach(w => { if (w.pts.some(nearMine)) w.pts.forEach(grow); }); if (m.at) grow(m.at); if (m.proc) { grow(m.a); grow(m.b); } if (m.it.kind === 'RWY') m.rws.filter(r => mine.has(r)).forEach(w => w.pts.forEach(grow)); };
+  if (!whole) marks.forEach(growMark);
+  // The whole airport: its own runways and every closure on it.
+  if (whole || !marks.length) { mine.forEach(r => r.pts.forEach(grow)); if (whole) marks.forEach(growMark); }
   // Full screen: NOTAM positions within ~3 nm come into the frame too.
   if (withPts) marks.forEach(m => { if (m.pos) m.pos.filter(p => Math.hypot(p[0], p[1]) < 5600).forEach(grow); });
   const pad = whole ? 300 : 350, MIN = 2400;
@@ -248,15 +265,15 @@ export function diagram(geo, items, { whole = false, W = 600, H: Hwant = 0, with
     const mid = w[Math.floor(w.length / 2)];
     return `<text x="${X(mid)}" y="${Y(mid)}">${esc(r)}</text>`;
   }).join('')}</g>`;
-  g += `<g class="ad-rw">${geo.rw.map(r => `<path data-ad-rwy="${esc(norm(r.ref))}" d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
-  // A dashed white centreline on each runway.
-  g += `<g class="ad-rwcl">${geo.rw.filter(r => r.ref).map(r => `<path d="${path(r.pts)}"/>`).join('')}</g>`;
+  g += `<g class="ad-rw">${geo.rw.map(r => `<path data-ad-rwy="${esc(norm(r.ref))}"${mine.has(r) ? '' : ' class="is-other"'} d="${path(r.pts)}" style="stroke-width:${rwW.toFixed(1)}"/>`).join('')}</g>`;
+  // A dashed white centreline on each of this airport's runways.
+  g += `<g class="ad-rwcl">${geo.rw.filter(r => r.ref && mine.has(r)).map(r => `<path d="${path(r.pts)}"/>`).join('')}</g>`;
   // Runway designators at both ends — each one a tap target: it chooses
   // that runway for the wind components beside the diagram (app.js).
   const doneRefs = new Set();
   for (const r of geo.rw) {
     const ends = String(r.ref || '').split('/');
-    if (ends.length !== 2 || doneRefs.has(norm(r.ref))) continue;
+    if (!mine.has(r) || ends.length !== 2 || doneRefs.has(norm(r.ref))) continue;
     doneRefs.add(norm(r.ref));
     for (const d of ends) {
       const e = runwayEnd(geo, d);

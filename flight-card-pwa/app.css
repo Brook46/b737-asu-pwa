@@ -4924,3 +4924,4 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .fs-wheel .fs-it.is-next { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--danger) 60%, transparent); }
 .fs-handle.fs-right, .fs-handle.fs-left { touch-action: pan-y; }
 .fs-handle.fs-bottom, .fs-handle.fs-top { touch-action: pan-x; }
+.ad-rw path.is-other { opacity: .35; }

@@ -8,14 +8,14 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=289';
-import * as ri from './route-info.js?v=289';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=289';
-import * as wxm from './wx.js?v=289';
-import * as nb from './notam-brief.js?v=289';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=289';
-import * as plan from './plan-route.js?v=289';
-import * as ely from './ely-traffic.js?v=289';
+import * as storage from './storage.js?v=290';
+import * as ri from './route-info.js?v=290';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=290';
+import * as wxm from './wx.js?v=290';
+import * as nb from './notam-brief.js?v=290';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=290';
+import * as plan from './plan-route.js?v=290';
+import * as ely from './ely-traffic.js?v=290';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -122,7 +122,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=289');
+    avoidMod ||= await import('./avoid.js?v=290');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -2078,7 +2078,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=289'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=290'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
