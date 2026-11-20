@@ -1,0 +1,259 @@
+<title>Case and Remote Build</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the workshop manual's next chapter, same drafting paper as the assembly guide. Title block, the parts as rendered plates, then print, buy, build, mount, remote, checks. */
+:root {
+  --paper: #f2f4f1;
+  --sheet: #fbfcfa;
+  --ink: #1f2a2c;
+  --ink-soft: #5d6b6d;
+  --rule: #c9d1cd;
+  --accent: #b5481d;
+  --plate: #edf0ec;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f;
+    --accent: #f08a5d; --plate: #1d2628; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121819; --sheet: #182022; --ink: #dfe7e4; --ink-soft: #9aa9a6; --rule: #33403f;
+  --accent: #f08a5d; --plate: #1d2628; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 980px; margin: 0 auto; display: grid; gap: 22px; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); padding: 20px; min-width: 0; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; line-height: 1.1; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); }
+h2 { font-size: 26px; margin-bottom: 10px; }
+h3 { font-size: 19px; margin: 14px 0 6px; }
+p, li { max-width: 72ch; }
+p { margin: 0 0 10px; }
+.sub { color: var(--ink-soft); }
+.titleblock { display: grid; grid-template-columns: 1fr auto; gap: 12px 24px; align-items: end; }
+.titleblock dl { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin: 0; font-family: var(--f-mono); font-size: 12.5px; }
+.titleblock dt { color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+.titleblock dd { margin: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .titleblock { grid-template-columns: 1fr; } }
+.plates { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+figure { margin: 0; background: var(--plate); border: 1px solid var(--rule); display: grid; }
+figure img { width: 100%; display: block; background: #f7f8f6; }
+figcaption { font-size: 13px; padding: 8px 10px; color: var(--ink-soft); }
+figcaption b { color: var(--ink); font-weight: 600; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-weight: 500; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+code, .mono { font-family: var(--f-mono); font-size: 13px; }
+ol.steps { padding-left: 22px; display: grid; gap: 8px; margin: 0; }
+ol.steps li::marker { font-family: var(--f-mono); color: var(--accent); }
+ul { padding-left: 20px; margin: 0 0 10px; display: grid; gap: 4px; }
+.note { border-left: 3px solid var(--accent); padding: 6px 12px; background: var(--plate); font-size: 14px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+.two > * { min-width: 0; }
+a { color: var(--accent); }
+</style>
+
+<main>
+  <header class="sheet titleblock">
+    <div>
+      <h1>Case and remote build</h1>
+      <p class="sub">The printed parts for the paragliding instrument and its brake-handle remote, what to buy beside them, how it goes together and where it mounts. The electronics are in the assembly guide; this is the shell around them.</p>
+    </div>
+    <dl>
+      <dt>Main case</dt><dd>80 × 56 × 24 mm</dd>
+      <dt>With screen</dt><dd>108 × 56 × 24 mm</dd>
+      <dt>Remote</dt><dd>62 × 34 × 19 mm</dd>
+      <dt>Material</dt><dd>PETG, light colour</dd>
+      <dt>Models</dt><dd>hardware/enclosure/*.scad</dd>
+    </dl>
+  </header>
+
+  <section class="sheet">
+    <h2>The parts</h2>
+    <div class="plates">
+      <figure><img src="build/instrument_open.png" alt="Main case open, ghost boards inside: XIAO stack at the USB end, L76K beside it, battery and BME280 at the vent end; lid above with buzzer holes"><figcaption><b>Main case, headless.</b> XIAO stack at the USB-C end, L76K behind it, BME280 at the vent with the battery behind it.</figcaption></figure>
+      <figure><img src="build/instrument_screen_open.png" alt="Longer case with the screen lid: window over the display, GPS patch frame at the far end"><figcaption><b>With the 2.7" screen.</b> Longer, so the GPS patch sits beside the screen, not under it.</figcaption></figure>
+      <figure><img src="build/lid_headless_inside.png" alt="Inside of the headless lid: buzzer frame and hole ring, GPS patch frame, screw countersinks"><figcaption><b>Headless lid, inside.</b> Buzzer frame over its hole ring, GPS patch frame, four M2 screws.</figcaption></figure>
+      <figure><img src="build/lid_screen_inside.png" alt="Inside of the screen lid: frame for the cover sheet and glass, four board posts, patch frame"><figcaption><b>Screen lid, inside.</b> A frame locates the clear cover and the glass; the board sits on four posts.</figcaption></figure>
+      <figure><img src="build/lid_screen_outside.png" alt="Outside of the screen lid: chamfered window and buzzer holes"><figcaption><b>Screen lid, outside.</b> Chamfered window over the active area.</figcaption></figure>
+      <figure><img src="build/tray_back.png" alt="Back of the tray with two holes for the strap plate"><figcaption><b>Back of the tray.</b> Flat for Velcro; two holes take the strap plate.</figcaption></figure>
+      <figure><img src="build/strap_plate.png" alt="Strap plate: block with a tunnel for 25 mm webbing and four screw holes"><figcaption><b>Strap plate.</b> A tunnel for 25 mm webbing. Turn it 90° for portrait or landscape.</figcaption></figure>
+      <figure><img src="build/remote_open.png" alt="Remote open: XIAO ESP32-C6, battery, perfboard with three tactile switches, lid with three caps, the middle one domed"><figcaption><b>Remote.</b> Three glove-size buttons, the middle one domed; strap tabs at both ends.</figcaption></figure>
+      <figure><img src="build/shield.png" alt="Sensor shield: louvred white tube with a webbing loop"><figcaption><b>Sensor shield.</b> Louvred tube for the remote's SHT40: shade and airflow.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2>Measure first</h2>
+    <p>The models use datasheet and listing sizes, not boards in hand. Measure these with calipers when the parts arrive and set them at the top of the <code>.scad</code> file before printing. Then run <code>hardware/enclosure/build.sh</code>, which needs OpenSCAD, to regenerate the STLs.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Measure</th><th>Parameter</th><th>Set now</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>USB-C height above the floor, XIAO stack in its cradle</td><td class="mono">usbZ</td><td class="n">7.5 mm</td><td>The charging hole has to line up with the plug</td></tr>
+        <tr><td>XIAO + Wio-SX1262 stack, total height</td><td class="mono">xiaoStack</td><td class="n">10.5 mm</td><td>Clearance under the lid</td></tr>
+        <tr><td>Your LiPo</td><td class="mono">battery</td><td class="n">35 × 30 × 5.5</td><td>Bay ribs; a 1000 mAh cell needs a longer case</td></tr>
+        <tr><td>GPS patch antenna</td><td class="mono">patch</td><td class="n">25.5 × 25.5</td><td>Lid frame</td></tr>
+        <tr><td>Screen breakout board, and its hole spacing</td><td class="mono">screenBoard, screenHoles</td><td class="n">72 × 50, 66 × 44</td><td>Not published anywhere I could reach. Measure before printing the screen lid</td></tr>
+        <tr><td>XIAO ESP32-C6 with its USB-C (remote)</td><td class="mono">xiao, usbZ</td><td class="n">4.6, 2.9 mm</td><td>Remote's charging hole</td></tr>
+        <tr><td>Grove SHT40 board (shield)</td><td class="mono">board</td><td class="n">20 × 21</td><td>Fits inside the louvre tube</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="sheet">
+    <h2>Print</h2>
+    <div class="two">
+      <div>
+        <ul>
+          <li><b>PETG</b>, not PLA: a case in the sun on a cockpit, or in a car, softens PLA.</li>
+          <li><b>Light colour</b>, white or light grey. A dark case in the sun heats the air the sensors read. Print the shield in white.</li>
+          <li>0.2 mm layers, 3 walls, 30 % infill. The walls are thin, so most parts come out nearly solid.</li>
+          <li>Tray, lids, plate and remote parts print flat side down; caps print upright. The shield prints cap down. None need supports: the shield's louvres are 45° and the plate's tunnel is a short bridge.</li>
+        </ul>
+      </div>
+      <div class="tbl"><table>
+        <thead><tr><th>File (hardware/stl)</th><th>Qty</th><th>≈ g</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">instrument_tray.stl</td><td class="n">1</td><td class="n">29</td></tr>
+          <tr><td class="mono">instrument_lid_headless.stl</td><td class="n">1</td><td class="n">13</td></tr>
+          <tr><td class="mono">instrument_tray_screen.stl + _lid_screen</td><td class="n">or</td><td class="n">36 + 13</td></tr>
+          <tr><td class="mono">instrument_strap_plate.stl</td><td class="n">1</td><td class="n">12</td></tr>
+          <tr><td class="mono">remote_body.stl, remote_lid.stl</td><td class="n">1 + 1</td><td class="n">15 + 5</td></tr>
+          <tr><td class="mono">remote_cap_flat.stl / _dome</td><td class="n">2 / 1</td><td class="n">1 each</td></tr>
+          <tr><td class="mono">sensor_shield.stl</td><td class="n">1</td><td class="n">15</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <p class="note">Weight: the printed case is about 42 g, more than the build sketch's estimate. The whole headless unit comes to roughly 80 g with electronics and a 500 mAh cell, or about 95 g with the strap plate and screws.</p>
+  </section>
+
+  <section class="sheet">
+    <h2>Buy beside the Seeed order</h2>
+    <div class="two">
+      <div>
+        <h3>Main case</h3>
+        <ul>
+          <li>4 × M2 heat-set inserts (3.2 mm hole) and 4 × M2 × 6 countersunk screws. Plain M2 self-tapping screws also work in PETG.</li>
+          <li>2 × M2 × 4 screws for the strap plate, driven from inside the case.</li>
+          <li>Open-cell foam, a 10 × 10 mm piece, for the vent pocket.</li>
+          <li>Slide switch SS12D00 (or similar, ≥ 0.5 A) for the battery lead.</li>
+          <li>Velcro (cockpit) or 25 mm webbing (riser strap plate).</li>
+          <li>A cord to tie the case to the harness. A dropped instrument is gone.</li>
+        </ul>
+        <h3>Screen version</h3>
+        <ul>
+          <li>Adafruit 4694, SHARP Memory Display Breakout 2.7" 400×240. It runs on 3 V or 5 V with 3 V logic; check stock, as some shops list it as out of stock.</li>
+          <li>Clear polycarbonate or acrylic sheet, 1 mm, cut to cover the window. It keeps rain off the glass.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Remote</h3>
+        <ul>
+          <li>Your XIAO ESP32-C6.</li>
+          <li>3 × 12 × 12 mm tactile switches (7.3 mm with stem) and a perfboard, about 54 × 26 mm.</li>
+          <li>LiPo 402030, about 250 mAh, with a protection board.</li>
+          <li>Grove – Temperature &amp; Humidity Sensor (SHT40) and a 30–50 cm Grove cable.</li>
+          <li>4 × M2 × 6 self-tapping screws (lid) and 4 × M2 × 4 (perfboard).</li>
+          <li>20 mm Velcro strap, about 25 cm, around the brake toggle.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2>Build the main case</h2>
+    <ol class="steps">
+      <li>Print the tray and a lid. Press the four M2 inserts into the corner bosses with a soldering iron at about 220 °C, square to the boss.</li>
+      <li>Test-fit the lid before anything goes in: the skirt should slide in without force, and the four screws should pull it flat.</li>
+      <li>Push the foam into the vent pocket behind the 3 mm hole. It should touch the wall but not be squashed flat.</li>
+      <li>Battery into its bay on a piece of double-sided foam tape, with its lead toward the middle. Kapton over the battery's top face.</li>
+      <li>BME280 flat in front of the battery, its sensor end against the foam. LSM6DS3 on foam tape on top of the battery; any orientation works, since the unit learns "up" at power-on. The assembly guide's Plate C shows where everything sits.</li>
+      <li>XIAO + Wio-SX1262 stack into the cradle at the far end. Check the USB-C plug goes in through the hole before you tape anything.</li>
+      <li>L76K into its guides beside the XIAO. The slide switch goes into the end-wall window above it, with a drop of glue from inside.</li>
+      <li>In the lid: GPS patch into its frame, ceramic side against the lid (facing the sky). Buzzer in its frame over the hole ring. Tape the LoRa antenna at least 10 mm from the patch, and the Bluetooth antenna to a tray wall away from the battery.</li>
+      <li>Wire per the assembly guide, then close the lid without pinching a wire. Power on still, and check <code>health</code> on the console. Close for good only when everything reports.</li>
+    </ol>
+  </section>
+
+  <section class="sheet">
+    <h2>Mounting</h2>
+    <div class="two">
+      <div>
+        <h3>On the cockpit, landscape</h3>
+        <p>Velcro on the flat back. The lid faces up and the GPS patch sees the sky. This suits the headless unit (sound only) and the screen in landscape.</p>
+        <h3>On a riser or shoulder strap, portrait</h3>
+        <p>Screw the strap plate on with its tunnel running along the case's long side, then thread the webbing. The screen sits upright and readable at a glance, and the buzzer is near your ear. Set the instrument to portrait.</p>
+      </div>
+      <div>
+        <h3>Wherever it goes</h3>
+        <ul>
+          <li>The lid, and the GPS patch, faces the sky as much as possible.</li>
+          <li>Tie it to the harness with a cord.</li>
+          <li>Keep the vent end out of the airflow's direct blast. Foam handles gusts, but the vario is happiest at a side or rear vent.</li>
+          <li>Power on with the unit still, mounted or on the ground.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2>The remote and its sensor</h2>
+    <div class="two">
+      <div>
+        <ol class="steps">
+          <li>Solder the three switches to the perfboard, spaced 18 mm apart to match the lid holes. Wire each switch between a free GPIO and GND; the inputs use their internal pull-ups. Check the C6's boot (strapping) pins before choosing.</li>
+          <li>Battery on the floor, XIAO in its cradle with USB-C at the end hole, then perfboard on its four posts. The switch tops should sit about 1 mm under the lid.</li>
+          <li>Drop the caps into the lid from inside: flat, domed, flat. Screw the lid on and check each button clicks once per press without sticking.</li>
+          <li>SHT40: Grove cable out through the end hole (a knot inside for strain relief), into the shield, board hanging from the cap with a cable tie through the two slots.</li>
+          <li>Strap the remote to the brake toggle through both end tabs. Hang the shield, open end down, 10–20 cm up the brake line or on the riser, away from your hand and out of the sun.</li>
+        </ol>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Press</th><th>Left</th><th>Middle (dome)</th><th>Right</th></tr></thead>
+          <tbody>
+            <tr><td>Short</td><td>Next page</td><td>MC +</td><td>MC −</td></tr>
+            <tr><td>Long, 1 s</td><td>At cloud base</td><td>Volume +</td><td>Volume −</td></tr>
+            <tr><td>Middle + right</td><td colspan="3">Mute</td></tr>
+            <tr><td>Left + middle, 2 s</td><td colspan="3">“Thermal here” over FANET (once TX is legal)</td></tr>
+            <tr><td>Left + right, 3 s</td><td colspan="3">NEED HELP over FANET (deliberately hard to press)</td></tr>
+          </tbody>
+        </table>
+        <p class="sub" style="margin-top:8px">The instrument already understands these commands. The remote's own firmware isn't written yet: the C6 needs the newer Arduino 3.x core, so it's a separate small project.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2>The screen version</h2>
+    <p>Wiring for the Adafruit 4694: <span class="mono">VIN → 3V3, GND → GND, CLK → D8, DI → D10</span>. These share the SPI bus with the LoRa radio. <span class="mono">CS → D1</span>, which leaves D3 free for a battery-voltage divider. The Sharp panel's chip select is active high, unlike the radio's, and the radio's select must stay off while the screen is written. The firmware's screen driver isn't written yet; the screens are, and run in the simulator.</p>
+    <p>Stack from the outside in: lid, clear cover sheet, the screen's glass, its board on the four posts. A thin bead of clear silicone around the cover sheet keeps water out of the window.</p>
+  </section>
+
+  <section class="sheet">
+    <h2>Before the first flight</h2>
+    <ul>
+      <li>Lid closed, unit on the table: <code>health</code> shows baro, IMU and GNSS, and <code>show baro</code> barely moves when you breathe near the vent.</li>
+      <li>Outside, clear sky: GNSS fixes within a minute or two with the lid on. If it doesn't, check the patch faces up and is clear of the board and battery.</li>
+      <li>Buzzer test (<code>beep stay</code>) at the mounting spot, with the wind noise of a car window open. Turn the volume up if you have to strain.</li>
+      <li>Shake test: nothing rattles, no wire is pinched under the lid.</li>
+      <li>Tether tied.</li>
+    </ul>
+  </section>
+</main>

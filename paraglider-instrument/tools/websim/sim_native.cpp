@@ -1,0 +1,153 @@
+// Native harness for the simulator: flies the autopilot for a while, prints
+// every cue with the truth beside it, and writes each screen page as a PBM.
+//   make websim-native && build/sim_native [minutes] [outdir] [inversion m] [gps mode] [gps at min]
+// gps mode: 1 jammed, 2 spoofed (Beirut), 3 noisy; switched on at [gps at min]
+// and back to normal 10 minutes later.
+#include <cstdio>
+#include <cmath>
+#include <cstdlib>
+#include <string>
+
+#include "display/gfx.h"
+
+extern "C" {
+void sim_command(int);
+void sim_reset(uint32_t);
+void sim_set(int, float);
+void sim_step(int);
+void sim_page(int);
+const uint8_t* sim_render();
+const float* sim_state();
+uint8_t* sim_terrain_buffer();
+int sim_terrain_load(int);
+}
+
+// Portrait screens are stored turned on the panel; write them upright.
+static void writePbmPortrait(const std::string& path, const uint8_t* fb) {
+  FILE* f = std::fopen(path.c_str(), "wb");
+  if (!f) return;
+  const int W = pg::gfx::kHeight, H = pg::gfx::kWidth;  // 240 × 400
+  std::fprintf(f, "P4\n%d %d\n", W, H);
+  for (int y = 0; y < H; ++y)
+    for (int xb = 0; xb < W / 8; ++xb) {
+      uint8_t byte = 0;
+      for (int k = 0; k < 8; ++k) {
+        const int x = xb * 8 + k;
+        const int px = y, py = pg::gfx::kHeight - 1 - x;  // logical → panel
+        if (fb[py * pg::gfx::kStride + (px >> 3)] & (0x80 >> (px & 7))) byte |= 0x80 >> k;
+      }
+      std::fputc(byte, f);
+    }
+  std::fclose(f);
+}
+
+static void writePbm(const std::string& path, const uint8_t* fb) {
+  FILE* f = std::fopen(path.c_str(), "wb");
+  if (!f) return;
+  std::fprintf(f, "P4\n%d %d\n", pg::gfx::kWidth, pg::gfx::kHeight);
+  std::fwrite(fb, 1, pg::gfx::kStride * pg::gfx::kHeight, f);
+  std::fclose(f);
+}
+
+static void shotBoth(const std::string& base) {
+  sim_set(19, 0);
+  writePbm(base + "_l.pbm", sim_render());
+  sim_set(19, 1);
+  writePbmPortrait(base + "_p.pbm", sim_render());
+  sim_set(19, 0);
+}
+
+int main(int argc, char** argv) {
+  const int minutes = argc > 1 ? std::atoi(argv[1]) : 20;
+  const std::string out = argc > 2 ? argv[2] : "build";
+  if (FILE* f = std::fopen("data/gilboa.ter", "rb")) {
+    const int n = static_cast<int>(std::fread(sim_terrain_buffer(), 1, 400 * 1024, f));
+    std::fclose(f);
+    std::printf("terrain: %s\n", sim_terrain_load(n) ? "data/gilboa.ter" : "BAD FILE");
+  } else {
+    std::printf("terrain: none (run from paraglider-instrument/)\n");
+  }
+  sim_reset(std::getenv("SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("SEED"))) : 42);
+  if (argc > 3) sim_set(11, static_cast<float>(std::atof(argv[3])));
+  if (std::getenv("FOLLOW")) sim_set(16, static_cast<float>(std::atoi(std::getenv("FOLLOW"))));
+  if (std::getenv("TASK")) {
+    sim_set(17, 1);
+    sim_reset(std::getenv("SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("SEED"))) : 42);
+  }
+  const bool verbose = std::getenv("VERBOSE") != nullptr;
+  int cueCount[24] = {};
+  double circDist = 0, fitErr = 0;
+  int circN = 0, fitN = 0;
+  const int gpsMode = argc > 4 ? std::atoi(argv[4]) : 0;
+  const int gpsAt = argc > 5 ? std::atoi(argv[5]) : 8;
+  const char* gpsNames[] = {"NoData", "OK", "LOST", "SPOOFED"};
+  int lastGps = -1;
+  int shot = 0;
+  const char* names[] = {"", "STAY", "GLIDE", "MESSAGE", "ACK", "MC+", "MC-", "BOOT", "ERROR", "NEAR BASE", "INVERSION", "GPS LOST", "GPS BACK", "TIGHTEN", "WIDEN", "MOVE", "TURN AGAIN", "BAR+", "BAR-", "FINAL GLIDE", "TURNPOINT"};
+  float lastAlertT = -1;
+  int stays = 0, glides = 0;
+  for (int s = 0; s < minutes * 60; ++s) {
+    if (gpsMode && s == gpsAt * 60) sim_set(12, static_cast<float>(gpsMode));
+    if (gpsMode && s == (gpsAt + 10) * 60) sim_set(12, 0);
+    sim_step(1000);
+    const float* st = sim_state();
+    if (static_cast<int>(st[43]) != lastGps) {
+      lastGps = static_cast<int>(st[43]);
+      std::printf("%6.0f s  gps %s\n", st[0], gpsNames[lastGps & 3]);
+    }
+    // Screenshots: the first time circling, gliding, and gps lost.
+    const bool circ = st[10] > 0;
+    if ((!(shot & 1) && circ && st[64] >= 2) || (!(shot & 2) && !circ && s > 600 && st[75] > 0) ||
+        (!(shot & 4) && lastGps >= 2 && st[0] > gpsAt * 60 + 90)) {
+      const int bit = !(shot & 1) && circ && st[64] >= 2 ? 1 : (!(shot & 2) && !circ && s > 600 && st[75] > 0 ? 2 : 4);
+      shot |= bit;
+      sim_page(0);
+      shotBoth(out + (bit == 1 ? "/thermal" : bit == 2 ? "/glide" : "/gpslost"));
+      if (bit == 1) {  // the climb plan at the same moment
+        sim_page(1);
+        shotBoth(out + "/climb");
+        sim_page(0);
+      }
+      if (bit == 2) {  // the side view at the same moment
+        sim_page(1);
+        shotBoth(out + "/side");
+        sim_page(0);
+      }
+    }
+    if (st[10] > 0) {  // circling: distance to the true core, fit error
+      circDist += std::hypot(st[7] - st[84], st[8] - st[85]);
+      ++circN;
+      if (st[65] > 0) {
+        fitErr += std::hypot(st[66] - st[84], st[67] - st[85]);
+        ++fitN;
+      }
+    }
+    if (st[30] != lastAlertT && st[29] > 0) {
+      lastAlertT = st[30];
+      const int a = static_cast<int>(st[29]);
+      if (a < 24) ++cueCount[a];
+      if (a >= 13 && a <= 18 && !verbose) continue;
+      if (a == 1) ++stays;
+      if (a == 2) ++glides;
+      std::printf("%6.0f s  %-9s alt %5.0f (true %5.0f)  vario %+4.1f (true %+4.1f)  circle %+4.1f  mc %.1f  base %4.0f (true %4.0f)\n",
+                  st[30], a < 21 ? names[a] : "?", st[1], st[4], st[2], st[5], st[36], st[12], st[16], st[18]);
+    }
+    if (s % 60 == 59 && s / 60 % 5 == 4)
+      std::printf("   -- %2d min: alt %.0f, wind est %.0f km/h from %.0f (true %.0f from %.0f), lapse %.1f%s (true %.1f), landings %.0f  AGL %.0f  pos err %.0f m\n",
+                  s / 60 + 1, st[1], st[13], st[14], st[31], st[32], st[19], st[20] > 0 ? "" : "?", st[39], st[33], st[41], st[48]);
+  }
+  const float* st = sim_state();
+  std::printf("\ncues: tighten %d widen %d move %d bar+ %d bar- %d final %d tp %d; circling %.0f m from the true core on average, fit error %.0f m\n",
+              cueCount[13], cueCount[14], cueCount[15], cueCount[17], cueCount[18], cueCount[19], cueCount[20],
+              circN ? circDist / circN : 0.0, fitN ? fitErr / fitN : 0.0);
+  std::printf("%d STAY, %d GLIDE cues; thermals counted %.0f; MC %.2f; base est %.0f vs true %.0f (offset %.1f)\n", stays,
+              glides, st[38], st[12], st[16], st[18], st[21]);
+  sim_page(2);
+  shotBoth(out + "/info");
+  sim_page(3);
+  shotBoth(out + "/profile");
+  sim_page(0);
+  shotBoth(out + "/flight");
+  std::printf("screens: %s/{thermal,glide,side,gpslost,info,profile,flight}_{l,p}.pbm\n", out.c_str());
+  return 0;
+}
