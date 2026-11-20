@@ -49,9 +49,10 @@ Flight Card is flown with, so a change goes to the beta copy before the live app
 3. When the pilot OKs it on the iPad, commit `flight-card-pwa/` and merge —
    that's the promotion. Then re-run `beta.mjs` so beta = live.
 
-Beta shares the origin, so it shares localStorage (roster, logbook, notes,
-settings) with the live app: real data to test with, but a beta bug that writes
-bad data writes it for both. Its cache prefix must never start `flightcard-`
+In a Safari tab beta shares localStorage with the live app (same origin), but
+an iOS Home-Screen app has its own storage: the β icon starts empty and gets
+its data from a backup restore (Settings → Backup), and nothing it does
+touches the live app's data. Its cache prefix must never start `flightcard-`
 (the live worker deletes those on activate). Urgent one-line fixes may skip
 beta if the pilot asks.
 

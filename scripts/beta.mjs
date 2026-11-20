@@ -14,9 +14,10 @@
 //   every `flightcard-` cache but its own on activate, and would wipe beta's.
 // - Manifest name "Flight Card β" (so a Home-Screen icon is told apart) and
 //   a small β badge on every screen.
-// - Same origin, so localStorage — roster, logbook, notes, settings — is
-//   SHARED with the live app. That's the point (beta sees the real roster),
-//   and the risk: a beta bug that writes bad data writes it for both.
+// - Same origin, so in a Safari tab localStorage is shared with the live
+//   app. A Home-Screen icon on iOS has its own storage, though: the β app
+//   starts empty and is filled from a backup restore, and can't touch the
+//   live app's data.
 // - The ASU worker isn't registered from beta (path test in app.js), so ASU
 //   offline comes only from the live app.
 
