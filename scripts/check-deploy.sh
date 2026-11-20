@@ -29,6 +29,10 @@ echo "== Sub-apps =="
 check "flight-card index"  "$BASE/flight-card-pwa/"
 check "flight-card app.js" "$BASE/flight-card-pwa/app.js"
 check "flight-card sw.js"  "$BASE/flight-card-pwa/sw.js"
+if [ -d "$(dirname "$0")/../flight-card-beta" ]; then
+  check "flight-card beta index" "$BASE/flight-card-beta/"
+  check "flight-card beta sw.js" "$BASE/flight-card-beta/sw.js"
+fi
 check "duty-cal index"     "$BASE/duty-cal-pwa/"
 check "duty-cal app.js"    "$BASE/duty-cal-pwa/app.js"
 check "duty-cal kinds.js"  "$BASE/duty-cal-pwa/kinds.js"

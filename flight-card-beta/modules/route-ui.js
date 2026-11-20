@@ -1,0 +1,2877 @@
+// route-ui.js — the Route info screen: a map of the route with the diversion
+// airports along it, coloured and numbered by their 0–10 rating, a list in
+// route order, and a card per airport (runways, navaids, weather for the time
+// you'd be passing, NOTAMs). The rating itself lives in route-info.js.
+//
+// Weather is fetched when the screen is opened (if the copy is over 15 min
+// old and there's a connection), on Update, and automatically from an hour
+// before departure until arrival (autoUpdate, called on the app's 10-minute
+// tick) — so whatever was last fetched is on the device for the flight.
+
+import * as storage from './storage.js?v=291';
+import * as ri from './route-info.js?v=291';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=291';
+import * as wxm from './wx.js?v=291';
+import * as nb from './notam-brief.js?v=291';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=291';
+import * as plan from './plan-route.js?v=291';
+import * as ely from './ely-traffic.js?v=291';
+
+const FRESH_MS = 15 * 60 * 1000;
+const H = 3600000;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hm = (ms) => Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16) + 'Z' : '—';
+
+let state = null;        // { key, model } of what's on screen
+let mapGeom = null;      // { W, H, proj } of the drawn map, for zoom
+// LY button: El Al aircraft in the air round the route (ely-traffic.js).
+let elyOn = (() => { try { return localStorage.getItem('fc.routeEly') === '1'; } catch { return false; } })();
+let elyList = [], elyAt = 0, elyTimer = 0, elySel = '';
+const selEnd = new Map(); // ICAO → the runway end the pilot picked (default: best for the wind)
+let gpsWatch = null;      // geolocation watch id while the screen is open
+let gpsFix = null;        // { lat, lon, altFt, gs, trk, at, airborne }
+let gpsPrev = null;
+let livePaintAt = 0;
+const srcPick = new Map(); // ICAO → 'metar' | 'taf' | 'auto' when the pilot chose the source by hand on the card
+// What the map's station plots show: 'auto' (the weather each airport is
+// rated on), 'metar' (what it has now) or 'taf' (forecast for when you'd
+// pass it). Remembered. Not under fc.route.* — writeCache prunes those.
+let mapWx = (() => { try { const v = localStorage.getItem('fc.routeMapWx'); return v === 'metar' || v === 'taf' ? v : 'auto'; } catch { return 'auto'; } })();
+let listOrder = null;      // 'gps' (nearest to the aircraft) | 'route'; default: gps once GPS has a fix
+let listKey = '';          // the order last drawn, so live GPS only redraws when it changes
+let busy = false;
+let mapTouching = false;   // a finger is on the map: a refresh waits for it (fingersUp)
+
+function activeLeg() { return storage.getLegs()[storage.getLegIndex()] || null; }
+// The flight the screen was opened for. A calendar sync can move the app's
+// selected leg underneath an open screen (it used to jump to "the leg for
+// now"), so while Route info is open every refresh works on THIS flight,
+// found again by identity, never on whatever is selected at that moment.
+let pinned = null;
+// A flight opened from the logbook / History lives outside the current leg
+// list (an earlier duty, the CSV backfill) — keep the object itself too.
+let pinnedLeg = null;
+const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => String(v ?? '')).join('|');
+// The alternate for this leg's destination, chosen by hand and kept per
+// destination on this device — the same store the Brief's Alternate row
+// uses (fc.altn, keyed by the arrival code). Either code may be stored.
+function altnOf(leg) {
+  try { return String((JSON.parse(localStorage.getItem('fc.altn') || '{}'))[String(leg?.arr || '').toUpperCase()] || '').toUpperCase(); } catch { return ''; }
+}
+function isAltn(ap, leg) { const a = altnOf(leg); return !!a && (a === ap.icao || a === ap.iata); }
+function setAltnFor(leg, code) {
+  try {
+    const all = JSON.parse(localStorage.getItem('fc.altn') || '{}');
+    const k = String(leg?.arr || '').toUpperCase();
+    if (!k) return;
+    if (code) all[k] = code; else delete all[k];
+    localStorage.setItem('fc.altn', JSON.stringify(all));
+  } catch {}
+  window.dispatchEvent(new CustomEvent('fc:altn-changed'));
+}
+function screenLeg() {
+  if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
+    const hit = storage.getLegs().find(l => idOf(l) === pinned);
+    if (hit) return hit;
+    if (pinnedLeg) return pinnedLeg;
+  }
+  return activeLeg();
+}
+// Where you are relative to this flight decides which weather is useful
+// (route-info.js wxAt): 'browse' when the flight isn't today — more than
+// 12 h before departure or over an hour after arrival — else 'plan'.
+function contextFor(leg, stdMs) {
+  const d = leg.dataCard || {};
+  let sta = legTs(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year);
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(d.block_time || leg.flight_time || ''));
+  if (!Number.isFinite(sta) && Number.isFinite(stdMs)) sta = stdMs + (m ? ((+m[1]) * 60 + (+m[2])) : 300) * 60000;
+  const now = Date.now();
+  if (!Number.isFinite(stdMs)) return 'browse';
+  return (now < stdMs - 12 * H || now > sta + H) ? 'browse' : 'plan';
+}
+function legKey(leg) {
+  const f = String(leg?.flight || '').replace(/\D/g, '').replace(/^0+/, '');
+  return `fc.route.${f}@${leg?.dep_date || ''}.${leg?.dep_year || ''}.${leg?.dep || ''}${leg?.arr || ''}`;
+}
+function readCache(leg) {
+  try { return JSON.parse(localStorage.getItem(legKey(leg)) || 'null'); } catch { return null; }
+}
+function writeCache(leg, data) {
+  try {
+    // Keep only the last few routes — a weather set is ~100 KB.
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('fc.route.') && k !== legKey(leg));
+    const dated = keys.map(k => { try { return [k, JSON.parse(localStorage.getItem(k)).at || 0]; } catch { return [k, 0]; } })
+      .sort((a, b) => b[1] - a[1]);
+    for (const [k] of dated.slice(3)) localStorage.removeItem(k);
+    localStorage.setItem(legKey(leg), JSON.stringify(data));
+  } catch {}
+}
+function taxiMinutes(code) {
+  try { const v = parseInt(localStorage.getItem('fc.taxi.' + code), 10); if (v >= 1 && v <= 60) return v; } catch {}
+  return 15;
+}
+
+// ---------- Model ----------
+// Everything the screen shows, from the leg + the database + whatever
+// weather / NOTAMs are cached (fetching first when `doFetch` is set).
+// The way round avoided airspace, worked out once per city pair (and per
+// GPS position, kept only for the latest).
+let avoidMod = null;
+const avoidMemo = new Map();
+async function avoidFor(a, b, keep) {
+  try {
+    avoidMod ||= await import('./avoid.js?v=291');
+    const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
+    if (avoidMemo.has(k)) return avoidMemo.get(k);
+    const r = avoidMod.avoidRoute(a, b);
+    if (!keep) for (const [kk, v] of avoidMemo) if (v && v.gps) avoidMemo.delete(kk);
+    avoidMemo.set(k, r ? { ...r, gps: !keep } : null);
+    return r;
+  } catch { return null; }
+}
+// Regular destinations: every airport flown to or from at least
+// FAMILIAR_MIN times in the stored legs (logbook + roster), by ICAO.
+let famKey = '';
+function setFamiliarFrom(db) {
+  const legs = storage.everyLeg() || [];
+  const key = legs.length + ':' + (legs.at(-1)?.arr || '');
+  if (key === famKey) return;
+  famKey = key;
+  const n = new Map();
+  for (const l of legs) for (const code of [l.dep, l.arr]) {
+    const ap = code && ri.findAirport(db, String(code).toUpperCase());
+    if (ap) n.set(ap.icao, (n.get(ap.icao) || 0) + 1);
+  }
+  ri.setFamiliar(new Map([...n].filter(([, k]) => k >= ri.FAMILIAR_MIN)));
+}
+async function build(leg, { doFetch = false } = {}) {
+  const db = await ri.loadDb();
+  try { setFamiliarFrom(db); } catch {}
+  const A = ri.findAirport(db, leg.dep), B = ri.findAirport(db, leg.arr);
+  if (!A || !B) throw new Error(`${!A ? leg.dep : leg.arr || '—'} isn't in the airport database`);
+  // The filed route when one was pasted for this leg, else the great circle —
+  // and in the air with GPS, the way flown so far then straight on from the
+  // aircraft to the destination (vectors, directs and avoidance all move it).
+  const filed = plan.getPlan(leg);
+  const gp = filed || !legIsNow(leg) ? null : gpsOnLeg(A, B);
+  // No filed route: the great circle, bent round airspace not flown into
+  // (Syria, Lebanon, Ukraine… avoid.js) when it would cross it.
+  let route;
+  if (filed) route = ri.routeAlong(filed.pts);
+  else {
+    const from = gp ? { lat: gp.lat, lon: gp.lon } : A;
+    const av = await avoidFor(from, B, !gp);
+    const pts = [A, ...(gp ? [from] : []), ...(av ? av.wps : []), B];
+    route = gp || av ? { ...ri.routeAlong(pts), filed: false, wps: null } : ri.routePoints(A, B);
+    if (gp) Object.assign(route, { gps: true, gpsAt: gp.at });
+    if (av) route.avoid = av.around;
+  }
+  const d = leg.dataCard || {};
+  const stdMs = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
+  const ctotMs = nearestHm(d.ctot || leg.ctot, stdMs);
+  const tm = ri.timing(leg, route.total, { taxiOut: taxiMinutes(String(leg.dep || '').toUpperCase()), ctotMs, stdMs });
+  if (gp) {
+    // Ahead of the aircraft: from now at its ground speed, not the plan.
+    const sP = ri.routePoints(A, gp).total, gs = Math.max(gp.gs || 0, 250), plan0 = tm.etaAt;
+    tm.etaAt = (s) => s <= sP ? plan0(s) : gp.at + (s - sP) / gs * 3600000;
+  }
+  const rules = ri.getCountryRules();
+  const mode = contextFor(leg, stdMs);
+  const all = ri.candidates(db, route).map(c => ({
+    ...c, eta: tm.etaAt(c.along), isEnd: c.ap.icao === A.icao || c.ap.icao === B.icao,
+  }));
+  // First pass without weather picks who's worth asking about.
+  for (const c of all) c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: null, notams: null, rules });
+  const pool = ri.pickShown(all, route, 8);
+  let cache = readCache(leg);
+  if (doFetch) {
+    const ids = pool.map(c => c.ap.icao);
+    const alt = altnOf(leg) && ri.findAirport(db, altnOf(leg));
+    if (alt && !ids.includes(alt.icao)) ids.push(alt.icao);
+    // Weather, NOTAMs and SIGMETs side by side — one slow source no longer
+    // holds up the others.
+    const wxP = ri.fetchWeather(ids);
+    const sigP = ri.fetchSigmets().catch(() => null);
+    // NOTAMs for 30 — the API is per airport: the major ones round each end
+    // first, then the best.
+    const key = ri.keyAtEnds(pool, route);
+    const top = pool.filter(c => !c.r.excluded).sort((a, b) => key.has(b) - key.has(a) || b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
+    // The alternate's NOTAMs always, whatever its rank.
+    if (alt && !top.includes(alt.icao)) top.unshift(alt.icao);
+    // A failed NOTAM fetch keeps the last good set (marked with its age)
+    // rather than blanking what the pilot already had.
+    let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();
+    const ntP = ri.fetchNotams(top);
+    ntP.catch(() => {});
+    const wx = await wxP;
+    try { const n = await ntP; if (n.off) notamsOff = true; else notams = n.notams; }
+    catch (e) {
+      notamsErr = String(e.message || e);
+      if (cache?.notams) { notams = cache.notams; notamsAt = cache.notamsAt || cache.at; }
+      else notamsOff = true;
+    }
+    // SIGMETs: a failed fetch keeps the last set, as NOTAMs do.
+    let sig = cache?.sig || null;
+    { const s2 = await sigP; if (s2) sig = s2; }
+    cache = { at: Date.now(), wx, notams, notamsOff, notamsErr, notamsAt, sig };
+    writeCache(leg, cache);
+  }
+  const wmap = new Map();
+  for (const m of cache?.wx?.metars || []) wmap.set(m.id, { metar: m });
+  for (const t of cache?.wx?.tafs || []) wmap.set(t.id, { ...(wmap.get(t.id) || {}), taf: t });
+  for (const c of pool) {
+    const n = cache?.notams ? cache.notams[c.ap.icao] : null;
+    c.wxEntry = wmap.get(c.ap.icao) || null;
+    c.notams = Array.isArray(n) ? n : null;
+    c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, rules, mode });
+  }
+  // Stretches with no usable airport within the hour (open ocean): the
+  // route points whose nearest non-excluded candidate is beyond the radius.
+  const usable = all.filter(c => !c.r.excluded && c.r.score > 0);
+  const gaps = [];
+  let open = null;
+  for (const p of route.pts) {
+    const near = usable.some(c => Math.abs(c.along - p.s) < ri.RADIUS_NM * 1.6
+      && Math.hypot((c.ap.lat - p.lat), (c.lonDraw - p.lon) * Math.cos(p.lat * Math.PI / 180)) * 60 <= ri.RADIUS_NM);
+    if (!near && !open) open = { from: p.s };
+    if (near && open) { open.to = p.s; gaps.push(open); open = null; }
+  }
+  if (open) { open.to = route.total; gaps.push(open); }
+  return {
+    mode,
+    dbDate: db.v,
+    leg, A, B, route, tm, pool, gaps: gaps.filter(g => g.to - g.from > 40),
+    // The alternate is always on the map and in the list.
+    shown: (() => { const sh = ri.pickShown(pool, route, 5); const a = pool.find(c => isAltn(c.ap, leg)); return a && !sh.includes(a) ? [...sh, a] : sh; })(),
+    fetchedAt: cache?.at || 0,
+    notamsOff: !cache || cache.notamsOff || !cache.notams,
+    notamsErr: cache?.notamsErr || '',
+    notamsAt: cache?.notamsAt || cache?.at || 0,
+    hasWx: !!cache?.wx,
+    // The SIGMETs this flight meets, at the times it meets them.
+    sig: ri.sigmetsAlong(cache?.sig?.sigmets, route, tm),
+    sigAt: cache?.sig?.at || 0,
+  };
+}
+
+// ---------- Filed route ----------
+// Paste the ATC route (or the whole FPL / OFP route block) and the map,
+// the airports along it, the CPDLC banner and the FDP estimate follow it
+// (plan-route.js). Cleared, it's the great circle again.
+async function planAction(what) {
+  const slot = $('ri-plan-slot');
+  if (!state || !slot) return;
+  const leg = state.model.leg;
+  if (what === 'close') { slot.innerHTML = ''; return; }
+  if (what === 'open') {
+    const p = plan.getPlan(leg);
+    slot.innerHTML = `<div id="ri-plan" class="ri-plan">
+        <div class="ri-plan-h"><b>Filed route</b> ${esc(state.model.A.icao)} → ${esc(state.model.B.icao)}
+          <small>Paste the ATC route from the OFP or flight plan — airways, DCT and levels are fine.</small></div>
+        <textarea id="ri-plan-text" rows="4" spellcheck="false" autocapitalize="characters" autocomplete="off"
+          placeholder="SUVAS1A SUVAS UL53 PAPIN UM601 ...">${esc(p?.text || '')}</textarea>
+        <div class="ri-plan-btns">
+          <button type="button" class="btn primary" data-ri-plan="draw">Draw route</button>
+          ${p ? '<button type="button" class="btn" data-ri-plan="clear">Back to great circle</button>' : ''}
+          <button type="button" class="btn" data-ri-plan="close">Cancel</button>
+        </div>
+        <p id="ri-plan-out" class="ri-plan-out">${p ? planSummary(p) : 'Until a route is pasted, the great circle is used — and in the air, off it by 15 nm or more, the way flown then GPS straight to the destination.'}</p>
+      </div>`;
+    slot.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (what === 'clear') {
+    plan.setPlan(leg, null);
+    toast('Great circle again');
+    await paint(await build(leg), state.showAll);
+    return;
+  }
+  if (what === 'draw') {
+    const text = ($('ri-plan-text')?.value || '').trim();
+    const out = $('ri-plan-out');
+    if (!text) { if (out) out.textContent = 'Paste the route first.'; return; }
+    if (out) out.textContent = 'Finding the waypoints…';
+    let fixes;
+    try { fixes = await plan.loadFixes(); }
+    catch { if (out) out.textContent = 'Couldn\'t load the waypoint list — it needs internet the first time.'; return; }
+    const db = await ri.loadDb();
+    const apOf = (c) => db.a[c] ? ri.findAirport(db, c) : null;
+    // Every name against the current navaid data first (the 2013 list has
+    // fixes that have moved since), then placed.
+    const names = plan.routeNames(text, state.model.A, state.model.B);
+    await plan.freshen(names, fixes, (k) => { if (out) out.textContent = `Checking the waypoints against current data… ${k}/${names.length}`; });
+    const r = plan.parse(text, state.model.A, state.model.B, fixes, apOf);
+    if (!r.found) { if (out) out.textContent = `No waypoints recognised${r.missing.length ? ` (not found: ${r.missing.slice(0, 8).join(' ')})` : ''} — still on the great circle.`; return; }
+    const saved = { text, pts: r.pts.map(p => ({ n: p.n, lat: +p.lat.toFixed(4), lon: +p.lon.toFixed(4) })), missing: r.missing, found: r.found };
+    plan.setPlan(leg, saved);
+    await paint(await build(leg), state.showAll);
+    toast(`Route drawn: ${planSummary(saved)}`);
+  }
+}
+function planSummary(p) {
+  const nm = Math.round(plan.lengthNm(p.pts)).toLocaleString('en-US');
+  return `${p.found} waypoint${p.found === 1 ? '' : 's'} · ${nm} nm${p.missing?.length ? ` · not found, left out: ${p.missing.slice(0, 8).join(' ')}${p.missing.length > 8 ? ' …' : ''}` : ''}`;
+}
+
+// ---------- Map ----------
+// The map is always MAP_W wide in drawing units; its height sets its shape.
+const MAP_W = 720, MAP_H = 420;
+const MAP_PEEK = 36;      // px of what's below the map left showing under it
+const MAP_MIN_PX = 240;   // a phone on its side: the map, then scroll for the rest
+
+// In the In flight tab and full screen the map takes all the height left in
+// the sheet, on any screen and either way up, so nothing of it is ever behind
+// the bottom bar (a drag on the map pans it, so it couldn't be scrolled into
+// view). One row stays showing under it: it says there's more below, and it's
+// somewhere to scroll from. The shape comes from the drawing, not from
+// squeezing the frame: squeezed, an SVG letterboxes inside its box and taps no
+// longer land where pins are drawn.
+function mapHeight(frame) {
+  const sheet = document.querySelector('.route-sheet');
+  const r = frame.getBoundingClientRect();
+  if (!r.width || !(docked() || sheet.classList.contains('is-full'))) return MAP_H;
+  const top = r.top - sheet.getBoundingClientRect().top + sheet.scrollTop;
+  const room = sheet.clientHeight - top - parseFloat(getComputedStyle(sheet).paddingBottom) - MAP_PEEK;
+  return Math.round(MAP_W * Math.max(room, Math.min(sheet.clientHeight - 8, MAP_MIN_PX)) / r.width);
+}
+// Draw the map into its place, whatever stands there: the empty slot of a
+// fresh screen or the map being replaced.
+function drawMap(frame) {
+  const { model, list, world, md } = state;
+  frame.outerHTML = mapSvg(model, list, world, md, mapHeight(frame));
+  const svg = $('ri-map');
+  if (svg) { wireZoom(svg); pinScale(svg, mapGeom.W); relabel(); }
+  paintMapWx();
+  livePaintAt = 0;
+  paintLive();
+  paintEly();
+  elyRefresh();
+  if (elySel) openEly(elySel);          // the map was redrawn: its box too
+  paintAtisBtns();
+}
+// The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
+// the new shape, still looking at the same place at the same scale.
+async function refit() {
+  const svg = $('ri-map');
+  if (!svg || !state || !mapGeom) return;
+  if (Math.abs(mapHeight(svg.parentElement) - mapGeom.H) >= 4) {
+    await fingersUp();
+    const frame = $('ri-map')?.parentElement;
+    if (!frame) return;
+    const was = mapGeom, v = currentView();
+    const lon = was.view.cLon + ((v.x + v.w / 2) / was.W - 0.5) * was.view.spanLon;
+    const lat = was.view.cLat - ((v.y + v.h / 2) / was.H - 0.5) * was.view.spanLat;
+    const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
+    viewAnim++; previewing = null;
+    drawMap(frame);
+    if (sel) openCard(sel, { keepView: true });
+    if (v.w < was.W * 0.98) {
+      const w = v.w * was.view.spanLon / mapGeom.view.spanLon, h = w * mapGeom.H / mapGeom.W;
+      setViewBox({ x: mapGeom.proj.x(lon) - w / 2, y: mapGeom.proj.y(lat) - h / 2, w, h });
+    }
+    return;
+  }
+  pinScale(svg, getViewBox().w);
+  relabel();
+}
+function mapSvg(m, list, world, md, H2 = MAP_H) {
+  const W = MAP_W;
+  const pts = m.route.pts.map(p => [p.lon, p.lat]).concat(list.map(c => [c.lonDraw, c.ap.lat]));
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  for (const [lon, lat] of pts) {
+    minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+    minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+  }
+  // Same true-shape framing as the logbook map: one scale both ways.
+  const cLat0 = (minLat + maxLat) / 2;
+  const k = Math.cos(Math.max(-60, Math.min(60, cLat0)) * Math.PI / 180);
+  let spanX = Math.max((maxLon - minLon) * k * 1.12, 8), spanY = Math.max((maxLat - minLat) * 1.12 + 2, 6);
+  if (spanX / spanY > W / H2) spanY = spanX * H2 / W; else spanX = spanY * W / H2;
+  let cLat = cLat0;
+  if (cLat + spanY / 2 > 84) cLat = 84 - spanY / 2;
+  if (cLat - spanY / 2 < -84) cLat = -84 + spanY / 2;
+  const view = { cLon: (minLon + maxLon) / 2, cLat, spanLon: spanX / k, spanLat: Math.min(spanY, 160) };
+  const proj = world.projector({ x0: 0, y0: 0, w: W, h: H2, ...view });
+  let land = world.landPaths(proj, view);
+  for (const shift of [-360, 360]) {
+    const v2 = { ...view, cLon: view.cLon + shift };
+    if (Math.abs(v2.cLon) - v2.spanLon / 2 > 180) continue;
+    land = land.concat(world.landPaths({ x: (lon) => proj.x(lon - shift), y: proj.y }, v2));
+  }
+  // Country borders and FIRs: thin and faint, background only. FIR names
+  // appear once zoomed in (relabel toggles .is-zoomed).
+  let borders = [], firs = [], firLbl = '';
+  if (md) {
+    for (const shift of [0, -360, 360]) {
+      const v2 = { ...view, cLon: view.cLon + shift };
+      if (shift && Math.abs(v2.cLon) - v2.spanLon / 2 > 180) continue;
+      const p2 = shift ? { x: (lon) => proj.x(lon - shift), y: proj.y } : proj;
+      borders = borders.concat(md.borderPaths(p2, v2));
+      firs = firs.concat(md.firPaths(p2, v2));
+    }
+    const l = view.cLon - view.spanLon / 2, r = view.cLon + view.spanLon / 2;
+    const b = view.cLat - view.spanLat / 2, t = view.cLat + view.spanLat / 2;
+    firLbl = md.FIR_LABELS.filter(([, lon, lat]) => lon > l && lon < r && lat > b && lat < t)
+      .map(([id, lon, lat]) => `<g class="ri-fir-lbl" transform="translate(${proj.x(lon).toFixed(1)},${proj.y(lat).toFixed(1)})"><text>${esc(id)}</text></g>`).join('');
+  }
+  const track = 'M' + m.route.pts.map(p => `${proj.x(p.lon).toFixed(1)},${proj.y(p.lat).toFixed(1)}`).join('L');
+  // Every pin carries its ICAO code and its name; relabel() shows as many as
+  // fit at the current zoom (best first) — zoom in and more appear, closer
+  // still and the names join them. Pins stay one size on screen throughout.
+  const rad = PIN_R;
+  const pinData = [];
+  const pins = list.slice().sort((a, b) => shownR(a).score - shownR(b).score).map(c => {
+    const x = proj.x(c.lonDraw), y = proj.y(c.ap.lat);
+    const R = shownR(c), b = ri.band(R.score, R.excluded);
+    const st = c.r.excluded ? null : station(mapWxView(c), rad);
+    pinData.push({ icao: c.ap.icao, x, y, pri: (c.isEnd ? 100 : 0) + (R.excluded ? -1 : R.score),
+                   nameLen: shortName(c.ap).length, windLen: st && st.label ? st.label.len : 0 });
+    // A wide invisible disc under each pin makes it easy to hit with a
+    // finger; taps go to the NEAREST pin anyway (wireZoom).
+    const alt = isAltn(c.ap, m.leg);
+    return `<g class="ri-pin ri-b-${b}${c.isEnd ? ' is-end' : ''}${alt ? ' is-altn' : ''}" data-icao="${esc(c.ap.icao)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <rect class="ri-pin-hit" x="-16" y="-16" width="32" height="32" rx="16"/>
+        <circle class="ri-sel-ring" r="${rad + 5}"/>${alt ? `<rect class="ri-altn-ring" x="${-rad - 4}" y="${-rad - 4}" width="${2 * rad + 8}" height="${2 * rad + 8}" rx="3" transform="rotate(45)"/>` : ''}
+        <g class="ri-st-slot">${st ? st.svg : `<circle class="ri-st-full" r="${rad}"/>`}</g><text class="ri-pin-score" y="3.6">${R.excluded ? '×' : R.score}</text>
+        <text class="ri-pin-code" y="${-rad - 4}">${esc(c.ap.icao)}</text>
+        <text class="ri-pin-name" y="${rad + 11}">${esc(shortName(c.ap))}</text><g class="ri-wind-slot">${st && st.label ? st.label.svg : ''}</g>${alt ? `<g class="ri-altn-tag" transform="translate(${rad + 5},${-rad - 3})"><rect x="0" y="-7" width="22" height="9" rx="2.5"/><text x="11" y="0.3">ALTN</text></g>` : ''}</g>`;
+  }).join('');
+  // SIGMET areas the flight meets, under the track and the pins.
+  const sigGeo = (m.sig || []).map(sg => ({ id: sg.id, rings: sg.polys.map(r => r.map(([lon, lat]) => [proj.x(lon), proj.y(lat)])) }));
+  const sigSvg = (m.sig || []).map((sg, i) => {
+    const rings = sigGeo[i].rings;
+    const d = rings.map(r => 'M' + r.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z').join('');
+    // Its label at the middle of its biggest ring.
+    const big = rings.slice().sort((a, b) => b.length - a.length)[0];
+    const cx = big.reduce((t, p) => t + p[0], 0) / big.length, cy = big.reduce((t, p) => t + p[1], 0) / big.length;
+    return `<g class="ri-sig ri-sig-${sigClass(sg.hazard)}" data-sig="${esc(sg.id)}"><path d="${d}"/><g class="ri-sig-lbl" transform="translate(${cx.toFixed(1)},${cy.toFixed(1)})"><text>${esc(sigShort(sg))}</text></g></g>`;
+  }).join('');
+  mapGeom = { W, H: H2, proj, view, pins: pinData, sig: sigGeo };
+  return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
+      <rect width="${W}" height="${H2}" class="lb-sea"/>
+      ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
+      <g class="ri-firs">${firs.map(dd => `<path d="${dd}"/>`).join('')}</g>
+      <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
+      <g class="ri-fir-lbls">${firLbl}</g>
+      <g class="ri-sigs">${sigSvg}</g>
+      <path d="${track}" class="ri-track${m.route.filed ? ' is-filed' : ''}"/>
+      <g id="ri-iso"></g>
+      ${pins}
+      <g id="ri-iso-lbls"></g>
+      <g id="ri-ely"></g>
+      <g id="ri-ac"></g>
+    </svg>
+    <div class="ri-zoom" role="group" aria-label="Map zoom">
+      <button type="button" data-ri-zoom="in" aria-label="Zoom in">+</button>
+      <button type="button" data-ri-zoom="out" aria-label="Zoom out">−</button>
+      <button type="button" data-ri-zoom="fit" aria-label="Whole route" title="Whole route">⤢</button>
+      <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
+      <button type="button" data-ri-ely class="ri-zoom-ely${elyOn ? ' is-on' : ''}" aria-pressed="${elyOn}" aria-label="El Al aircraft in the air" title="El Al aircraft in the air">LY</button>
+    </div>
+    <div id="ri-atis-btns" class="ri-atis-btns" role="group" aria-label="ATIS"></div>
+    <button type="button" class="ri-to-list" data-ri-list>Airports ↓</button></div>`;
+}
+
+const PIN_R = 9;
+// The airport as the map's weather choice sees it. Only the plot changes —
+// cover, barb, crosswind; the score and its colour stay the rating.
+function mapWxView(c) {
+  if (mapWx === 'auto' || c.r.excluded) return c;
+  const r2 = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: mapWx });
+  return { ...c, r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
+}
+// Redraw just the plots in place, so switching keeps the zoom.
+function restyleStations() {
+  const svg = $('ri-map');
+  if (!svg || !state || !mapGeom || !mapGeom.pins) return;
+  for (const p of mapGeom.pins) {
+    const c = state.model.pool.find(x => x.ap.icao === p.icao);
+    const g = svg.querySelector(`.ri-pin[data-icao="${p.icao}"]`);
+    if (!c || !g || c.r.excluded) continue;
+    const st = station(mapWxView(c), PIN_R);
+    g.querySelector('.ri-st-slot').innerHTML = st.svg;
+    g.querySelector('.ri-wind-slot').innerHTML = st.label ? st.label.svg : '';
+    p.windLen = st.label ? st.label.len : 0;
+  }
+  relabel();
+  paintMapWx();
+}
+// The switch, and one line saying exactly what the plots are.
+function paintMapWx() {
+  document.querySelectorAll('[data-ri-mapwx]').forEach(b => {
+    const on = b.dataset.riMapwx === mapWx;
+    b.classList.toggle('is-on', on); b.setAttribute('aria-selected', String(on));
+  });
+  const note = $('ri-mapwx-note');
+  if (!note || !state || !mapGeom || !mapGeom.pins) return;
+  const drawn = mapGeom.pins.map(p => state.model.pool.find(x => x.ap.icao === p.icao)).filter(c => c && !c.r.excluded);
+  let txt = '';
+  if (mapWx === 'auto') {
+    txt = state.model.mode === 'browse'
+      ? 'Auto: each airport\'s latest METAR (this flight isn\'t today), else its TAF'
+      : 'Auto: the weather each airport is rated on — its TAF for when you\'d pass it, or its METAR when that\'s within the hour';
+  } else if (mapWx === 'metar') {
+    const t = drawn.map(c => c.wxEntry?.metar?.time).filter(Number.isFinite).map(x => x * 1000);
+    const miss = drawn.length - t.length;
+    txt = t.length ? `Now: each airport's latest METAR, observed ${hm(Math.min(...t))}–${hm(Math.max(...t))}` : 'Now: no METARs fetched yet';
+    if (t.length && miss) txt += ` · dashed = no METAR (${miss})`;
+  } else {
+    const views = drawn.map(c => ({ c, w: mapWxView(c).r.wx }));
+    const has = views.filter(v => v.w && v.w.src);
+    const etas = has.filter(v => !v.w.forNow).map(v => v.c.eta).filter(Number.isFinite);
+    txt = has.length ? `At ETA: each airport's TAF for when you'd pass it${etas.length ? `, ${hm(Math.min(...etas))}–${hm(Math.max(...etas))}` : ''}` : 'At ETA: no TAFs fetched yet';
+    if (has.some(v => v.w.forNow)) txt += ' · TAF for now where it doesn\'t reach that time';
+    if (has.length && has.length < views.length) txt += ` · dashed = no TAF (${views.length - has.length})`;
+  }
+  note.textContent = txt;
+}
+function setMapWx(v) {
+  if (v !== 'metar' && v !== 'taf') v = 'auto';
+  mapWx = v;
+  try { localStorage.setItem('fc.routeMapWx', v); } catch {}
+  // The map's choice drives the airport cards too; hand-picks start over.
+  srcPick.clear();
+  restyleStations();
+  const open = $('ri-card-slot')?.querySelector('.ri-card')?.dataset.icao;
+  if (open) openCard(open, { keepView: true });
+}
+
+// Each airport drawn as a weather station plot, in its rating colour:
+//   the circle fills with the sky cover — empty clear, ¼ FEW, ½ SCT, ¾ BKN,
+//   full OVC, ⊗ sky obscured (vertical visibility); a dashed ring when
+//   there's no weather for it;
+//   a wind barb on the side the wind comes FROM — half feather 5 kt, full
+//   feather 10 kt, flag 50 kt; a ring round the circle when calm. Coloured
+//   by the wind limits: crosswind on the best runway against the QRH
+//   take-off / landing limits, and the wind's own strength.
+// Beside it, placed by the label pass: VRB, the gust and the crosswind (X)
+// when it's 10 kt or more.
+function station(c, r) {
+  const w = c.r && c.r.wx, wind = c.r && c.r.wind;
+  if (!w || !w.src) return { svg: `<g class="ri-st is-missing"><circle class="ri-st-bg" r="${r}"/></g>`, label: null };
+  const cov = w.cover || 'clr';
+  const sector = {
+    few: `M0,0 L0,${-r} A${r},${r} 0 0 1 ${r},0 Z`,
+    sct: `M0,0 L0,${-r} A${r},${r} 0 0 1 0,${r} Z`,
+    bkn: `M0,0 L0,${-r} A${r},${r} 0 1 1 ${-r},0 Z`,
+  }[cov];
+  const fill = cov === 'ovc' ? `<circle class="ri-st-fill" r="${r}"/>`
+    : sector ? `<path class="ri-st-fill" d="${sector}"/>`
+    : cov === 'vv' ? `<path class="ri-st-vv" d="M${-r * 0.62},${-r * 0.62} L${r * 0.62},${r * 0.62} M${r * 0.62},${-r * 0.62} L${-r * 0.62},${r * 0.62}"/>` : '';
+  let barb = '', label = null;
+  if (wind && wind.src && wind.wspd != null) {
+    const sp = Math.round(Number(wind.wspd) || 0), gs = Math.round(Number(wind.wgst) || 0);
+    const xw = c.r.xw ? c.r.xw.xw : null;
+    const tb = ri.worstBand(c.r.xw && c.r.xw.lim ? ri.xwBandFor(xw, c.r.xw.lim) : '', ri.speedBand(sp, gs));
+    const tone = tb ? ' is-' + tb : '';
+    const kt = Math.round(sp / 5) * 5;
+    if (kt === 0) barb = `<circle class="ri-st-calm${tone}" r="${r + 3}"/>`;
+    else if (wind.wdir != null) {
+      // Drawn pointing north (wind from 360°), then turned to the direction.
+      const L = 20, tip = -r - L;
+      let y = tip, d = `M0,${-r} L0,${tip}`, flags = '';
+      let left = kt;
+      while (left >= 50) { flags += `M0,${y} L8,${y + 2.2} L0,${y + 4.4} Z`; y += 5.6; left -= 50; }
+      while (left >= 10) { d += ` M0,${y} L8,${y - 4}`; y += 3.4; left -= 10; }
+      if (left >= 5) { if (y === tip) y += 3.4; d += ` M0,${y} L4.5,${y - 2.3}`; }
+      barb = `<g class="ri-st-barb${tone}" transform="rotate(${Number(wind.wdir) % 360})"><path d="${d}"/>${flags ? `<path class="ri-st-flag" d="${flags}"/>` : ''}</g>`;
+    }
+    const txt = [wind.wdir == null && kt ? `VRB ${sp}` : '', gs > sp ? `G${gs}` : '', xw != null && xw >= 10 ? `X${xw}` : ''].filter(Boolean).join(' ');
+    if (txt) label = { len: txt.length, svg: `<g class="ri-pin-wind${tone}"><text x="${r + 4}" y="3.4">${esc(txt)}</text></g>` };
+  }
+  return { svg: `<g class="ri-st">${barb}<circle class="ri-st-bg" r="${r}"/>${fill}<circle class="ri-st-ring" r="${r}"/></g>`, label };
+}
+
+// The key to the station plot, in the same drawing as the map.
+function stationKey() {
+  const r = 6, ic = (inner) => `<svg viewBox="-9 -9 18 18" width="16" height="16" class="ri-b-a"><circle class="ri-st-bg" r="${r}"/>${inner}<circle class="ri-st-ring" r="${r}"/></svg>`;
+  const sec = (d) => `<path class="ri-st-fill" d="${d}"/>`;
+  return [
+    [ic(''), 'clear'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 0 1 ${r},0 Z`)), 'few'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 0 1 0,${r} Z`)), 'sct'],
+    [ic(sec(`M0,0 L0,${-r} A${r},${r} 0 1 1 ${-r},0 Z`)), 'bkn'],
+    [ic(`<circle class="ri-st-fill" r="${r}"/>`), 'ovc'],
+    [ic(`<path class="ri-st-vv" d="M-3.7,-3.7 L3.7,3.7 M3.7,-3.7 L-3.7,3.7"/>`), 'VV'],
+  ].map(([s, t]) => `<span>${s}${t}</span>`).join('') +
+    `<span class="ri-st-key-w">barb: wind from · ½ = 5 kt, | = 10, ▲ = 50 · G gust · X crosswind</span>`;
+}
+
+// A short airport name for map labels: the city, else the name without
+// "International Airport" and the like.
+function shortName(ap) {
+  const n = String(ap.name || '').replace(/\b(International|Intl|Airport|Air Base|Aeroporto|Aéroport|Flughafen)\b/gi, '').replace(/\s+/g, ' ').trim();
+  const city = String(ap.city || '').replace(/\s*[(,].*$/, '').trim();
+  return (city || n).slice(0, 22);
+}
+
+// Show labels that fit, in screen pixels, best first.
+function relabel() {
+  const svg = $('ri-map');
+  if (!svg || !mapGeom || !mapGeom.pins) return;
+  const rect = mapRect(svg);
+  if (!rect.width) return;
+  const v = getViewBox();
+  const sx = rect.width / v.w, sy = rect.height / v.h;
+  const zoomed = v.w <= mapGeom.W * 0.45;
+  svg.classList.toggle('is-zoomed', zoomed);
+  const boxes = [];
+  const free = (b) => !boxes.some(o => b.x < o.x + o.w && o.x < b.x + b.w && b.y < o.y + o.h && o.y < b.y + b.h);
+  // Pins themselves are obstacles for labels.
+  const pts = mapGeom.pins.map(p => ({ ...p, sx: (p.x - v.x) * sx, sy: (p.y - v.y) * sy }));
+  for (const p of pts) boxes.push({ x: p.sx - 9, y: p.sy - 9, w: 18, h: 18 });
+  // The selected airport first, so its labels always win the space.
+  const selIcao = svg.querySelector('.ri-pin.is-sel')?.dataset.icao;
+  for (const p of pts.slice().sort((a, b) => (b.icao === selIcao) * 1000 + b.pri - (a.icao === selIcao) * 1000 - a.pri)) {
+    const g = svg.querySelector(`.ri-pin[data-icao="${p.icao}"]`);
+    if (!g) continue;
+    const inView = p.sx > -20 && p.sx < rect.width + 20 && p.sy > -20 && p.sy < rect.height + 20;
+    const sel = g.classList.contains('is-sel');
+    const code = { x: p.sx - 20, y: p.sy - 27, w: 40, h: 14 };
+    const showCode = inView && (sel || free(code));
+    if (showCode) boxes.push(code);
+    const wb = { x: p.sx + 12, y: p.sy - 8, w: p.windLen * 6.6 + 18, h: 16 };
+    const showWind = !!p.windLen && inView && (sel || free(wb));
+    if (showWind) boxes.push(wb);
+    g.classList.toggle('show-wind', showWind);
+    const nw = p.nameLen * 6.4 + 6;
+    const name = { x: p.sx - nw / 2, y: p.sy + 11, w: nw, h: 14 };
+    const showName = inView && (zoomed || sel) && (sel || free(name));
+    if (showName) boxes.push(name);
+    g.classList.toggle('show-code', showCode);
+    g.classList.toggle('show-name', showName);
+  }
+}
+
+// ---------- Airport card ----------
+// Colour scale shared by the decoded line, the raw METAR/TAF and the wind:
+//   g green  — nothing to think about: CAVOK / 10 km+, ceiling 1,500 ft+
+//   y yellow — marginal: under 1,500 m or a ceiling under 500 ft
+//   o orange — below CAT I (550 m / 200 ft): only a CAT II/III ILS gets in;
+//              fog, snow, freezing drizzle
+//   r red    — below any 737 approach (CAT IIIA, RVR 200 m); thunderstorm,
+//              hail, freezing rain, sand/dust storm
+// Wind (route-info.js), by the runway headings: crosswind with the gust over
+// the QRH landing limit red, over the take-off limit orange, within 5 kt of
+// it yellow (dry 34 / 40 kt, less when wet or narrow); tailwind over 15 kt
+// red, 11–15 orange, 6–10 yellow; strength alone only at 65 kt+ (OM A max).
+// Approach categories aren't in the data, so "below minima" means below the
+// best a 737 can do — with only a VOR approach, orange is already too low.
+function visBand(m) {
+  if (!Number.isFinite(m)) return '';
+  return m < 200 ? 'r' : m < 550 ? 'o' : m < 1500 ? 'y' : m >= 5000 ? 'g' : '';
+}
+function ceilBand(ft) {
+  if (!Number.isFinite(ft)) return 'g';
+  return ft < 200 ? 'o' : ft < 500 ? 'y' : ft >= 1500 ? 'g' : '';
+}
+function wxPhenBand(w) {
+  const t = String(w || '').toUpperCase();
+  if (/TS|GR|FZRA|\+SN|SS|DS|FC|VA/.test(t)) return 'r';
+  if (/FG|SN|FZDZ|PL|\+RA|SQ/.test(t)) return 'o';
+  return '';
+}
+// Wind colours follow the QRH Ops Info crosswind limits, the 10 kt tailwind
+// limit and OM A's 65 kt company maximum — see the wind limits in
+// route-info.js (ri.windBand and friends).
+const bandCls = (b, dflt = 'rd-wind-t') => b ? 'wx-' + b : dflt;
+function limTxt(lim) {
+  return `limit T/O ${lim.to} · LDG ${lim.ldg} kt${lim.rcc < 6 ? ` (${lim.rcc === 5 ? 'wet' : lim.rcc === 3 ? 'snow / ice' : 'RWYCC ' + lim.rcc})` : ''}${lim.cut ? `, −${lim.cut} for the width` : ''}`;
+}
+// One runway end against a wind: components and their colours.
+function windParts(e, w) {
+  const k = e && e.hdg != null ? components(e.hdg, w) : null;
+  if (!k) return null;
+  const lim = ri.xwLimits(w.rcc || ri.rccOfWx(w.wx), e.r && e.r[2]);
+  return { k, lim, xb: ri.xwBandFor(Math.max(k.cross, k.gustCross), lim), tb: ri.tailBand(-k.head), sb: ri.speedBand(w.wspd, w.wgst) };
+}
+const RANK = { r: 4, o: 3, y: 2, '': 1, g: 0 };
+function worst(...bands) { return bands.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'g'); }
+
+
+// One METAR / TAF group's colour band, or null.
+function tokBand(T, rwys, rcc = 6) {
+  let b = null;
+  if (/^(CAVOK|NSC|SKC|CLR|NCD)$/.test(T)) b = 'g';
+  else if (/^\d{4}$/.test(T)) b = visBand(+T === 9999 ? 10000 : +T);
+  else if (/^P6SM$/.test(T)) b = 'g';
+  else if (/^(\d{1,2})SM$/.test(T)) b = visBand(parseInt(T, 10) * 1609);
+  else if (/^M?\d\/\dSM$/.test(T)) b = visBand(0.5 * 1609);
+  else if (/^R\d{2}[LRC]?\/[PM]?(\d{4})/.test(T)) b = visBand(+/^R\d{2}[LRC]?\/[PM]?(\d{4})/.exec(T)[1]);
+  else if (/^(BKN|OVC|VV)(\d{3})/.test(T)) {
+    const base = +/^(?:BKN|OVC|VV)(\d{3})/.exec(T)[1] * 100;
+    b = /CB|TCU/.test(T) ? 'o' : ceilBand(base);
+  }
+  else if (/^(FEW|SCT)\d{3}(CB|TCU)$/.test(T)) b = 'o';
+  else if (/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/.test(T)) {
+    const m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(T);
+    const k = m[4] === 'MPS' ? 1.944 : 1;
+    b = ri.windBand(rwys, m[1] === 'VRB' ? null : +m[1], Math.round(+m[2] * k), m[3] ? Math.round(+m[3] * k) : 0, rcc);
+  }
+  else if (/^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+$/.test(T)
+        || /^[-+]?TS$/.test(T)) b = wxPhenBand(T) || 'y';   // rain, mist, haze … yellow
+  // What kind of change follows: blue.
+  else if (/^(BECMG|TEMPO|INTER|PROB[34]0|FM\d{6})$/.test(T)) b = 'b';
+  return b;
+}
+
+// ---- The forecast around a time ----
+// A TAF cut into its groups — the base forecast, then each FM / BECMG /
+// TEMPO / PROB — each with the hours it covers (ms). Times are day-hour
+// (ddhh/ddhh, FMddhhmm) placed in the month of the TAF's issue.
+function tafGroups(raw, now = Date.now()) {
+  const toks = String(raw || '').split(/(\s+)/);
+  const d0 = new Date(now);
+  const issue = /\b(\d{2})(\d{2})(\d{2})Z\b/.exec(raw);
+  let y = d0.getUTCFullYear(), mo = d0.getUTCMonth();
+  if (issue && +issue[1] > d0.getUTCDate() + 1) { mo -= 1; }   // issued last month
+  const at = (dd, hh, mm = 0) => {
+    let m = mo;
+    if (issue && dd < +issue[1] - 7) m += 1;                // ran into next month
+    return Date.UTC(y, m, dd, hh, mm);
+  };
+  const groups = [];
+  let cur = { start: 0, toks: [], kind: 'base', from: NaN, to: NaN };
+  groups.push(cur);
+  let validTo = NaN, validFrom = NaN;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i], T = t.toUpperCase().trim();
+    const isChange = /^(BECMG|TEMPO|INTER|FM\d{6})$/.test(T) || (/^PROB[34]0$/.test(T));
+    // PROB30 TEMPO is one group.
+    const prevWord = cur.toks.filter(x => x.trim()).slice(-1)[0] || '';
+    if (isChange && !(/^PROB[34]0$/.test(prevWord.toUpperCase()) && /^(TEMPO|INTER)$/.test(T))) {
+      cur = { toks: [], kind: T.startsWith('FM') ? 'fm' : T.startsWith('BECMG') ? 'becmg' : 'temp', from: NaN, to: NaN };
+      groups.push(cur);
+      const fm = /^FM(\d{2})(\d{2})(\d{2})$/.exec(T);
+      if (fm) cur.from = at(+fm[1], +fm[2], +fm[3]);
+    }
+    const per = /^(\d{2})(\d{2})\/(\d{2})(\d{2})$/.exec(T);
+    if (per && !Number.isFinite(cur.from)) {
+      cur.from = at(+per[1], +per[2]); cur.to = at(+per[3], +per[4]);
+      if (cur.kind === 'base') { validFrom = cur.from; validTo = cur.to; }
+    }
+    cur.toks.push(t);
+  }
+  // The base and FM groups last until the next FM; a BECMG holds to the end.
+  const fms = groups.filter(g => g.kind === 'fm');
+  for (const g of groups) {
+    if (g.kind === 'base') g.to = fms.length ? fms[0].from : validTo;
+    else if (g.kind === 'fm') { const nx = fms[fms.indexOf(g) + 1]; g.to = nx ? nx.from : validTo; }
+    else if (g.kind === 'becmg') g.to = validTo;
+  }
+  return groups;
+}
+// The TAF coloured, with a line under each group in force within an hour
+// either side of `eta` (ms).
+function colourTaf(raw, rwys, eta) {
+  // PROB30 / PROB40 printed alone on a line belongs with its TEMPO.
+  raw = String(raw || '').replace(/\b(PROB[34]0)[ \t]*\r?\n\s*(TEMPO|INTER)\b/g, '$1 $2');
+  if (!Number.isFinite(eta) || !/^\s*(TAF\b|[A-Z]{4}\s+\d{6}Z)/.test(String(raw || ''))) return colourRaw(raw, rwys);
+  const lo = eta - 3600e3, hi = eta + 3600e3;
+  return tafGroups(raw).map(g => {
+    const html = colourRaw(g.toks.join(''), rwys);
+    const on = Number.isFinite(g.from) && Number.isFinite(g.to) && g.from < hi && g.to > lo;
+    if (!on) return html;
+    // Underline the words, not the gap before the next group.
+    const m = /^([\s\S]*?)(\s*)$/.exec(html);
+    return `<span class="wx-eta">${m[1]}</span>${m[2]}`;
+  }).join('');
+}
+
+// Raw METAR / TAF with each meaningful group coloured. Only what needs a
+// look is coloured — good values (9999, CAVOK, a high ceiling) stay plain,
+// or a quiet report turns into a wall of green.
+function colourRaw(raw, rwys) {
+  // The weather in this report (or TAF group) stands in for a runway report.
+  const wxs = String(raw || '').toUpperCase().split(/\s+/).filter(t => /^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP)+$|^[-+]?TS/.test(t)).join(' ');
+  const rcc = ri.rccOfWx(wxs);
+  return String(raw || '').split(/(\s+)/).map(tok => {
+    if (/^\s+$/.test(tok) || !tok) return tok;
+    let b = tokBand(tok.toUpperCase(), rwys, rcc);
+    if (b === 'g') b = null;
+    return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
+  }).join('');
+}
+
+// An ATIS in plain words, coloured on the same scale: the METAR groups it
+// carries, plus closures (red), runway surface (dry green, wet yellow,
+// water / slush / snow orange, ice red), RWYCC 6–0 and braking action
+// (good green … poor / nil red), wind shear, CB.
+const SURFACE = { DRY: 'g', DAMP: 'y', WET: 'y', WATER: 'o', SLUSH: 'o', SNOW: 'o', FROST: 'o', CONTAMINATED: 'o', ICE: 'r', ICY: 'r' };
+const BRAKING = { GOOD: 'g', MEDIUM: 'o', POOR: 'r', NIL: 'r' };
+const RWYCC = { 6: 'g', 5: 'g', 4: 'y', 3: 'o', 2: 'o', 1: 'r', 0: 'r' };
+// letter: this ATIS's letter — marked wherever the text names it
+// (INFO D, ATIS ARR Z, END OF ATIS K, … DELTA) as a small green tag.
+const PHON = { A: 'ALPHA', B: 'BRAVO', C: 'CHARLIE', D: 'DELTA', E: 'ECHO', F: 'FOXTROT', G: 'GOLF', H: 'HOTEL', I: 'INDIA', J: 'JULIET', K: 'KILO', L: 'LIMA', M: 'MIKE',
+  N: 'NOVEMBER', O: 'OSCAR', P: 'PAPA', Q: 'QUEBEC', R: 'ROMEO', S: 'SIERRA', T: 'TANGO', U: 'UNIFORM', V: 'VICTOR', W: 'WHISKEY', X: 'XRAY', Y: 'YANKEE', Z: 'ZULU' };
+// Closures and ILS faults found on the way are collected in `items` —
+// { key: 'TWY:AZ3' | 'RWY:18L' | 'EXIT:L3' | 'GATE:12' | 'ILS:32R', kind,
+// ref, label } — and each is a tappable span (data-atis-ref) the airport
+// diagram can light up with it (atis-diagram.js).
+export function atisRefKey(kind, ref) { return `${kind}:${String(ref).toUpperCase().replace(/[-\s]/g, '')}`; }
+function colourAtis(text, rwys, letter = '', items = null) {
+  const L = String(letter || '').toUpperCase().slice(0, 1);
+  let cc = false, ba = 0, prev = '', near = 0;
+  let twyKind = '';
+  // An ILS (or its localiser / glide path) named with a runway and a fault
+  // in the same sentence: "ILS RWY 32R U/S", "GP 25L NOT AVBL".
+  let ils = null;                                   // { idx, rwy, what }
+  const put = (it) => { if (items && !items.some(x => x.key === it.key)) items.push(it); };
+  // Taxiways, exits, runways, stands named after TWY / EXIT / RWY (TWY AZ3
+  // AND AZ4 CLSD): held until the end of the sentence or the next such
+  // word, orange if it says they're closed — so the names stand out
+  // with the red CLSD.
+  let twy = null;                                  // indices into out[] of the names
+  let prevW = '';
+  const out = [];
+  const pieces = String(text || '').split(/(\s+)/);
+  for (const tok of pieces) {
+    const W0 = tok.toUpperCase().replace(/^[(]+|[.,;:)]+$/g, '');
+    if (/^(TWYS?|TAXIWAYS?|EXITS?|RWYS?|RUNWAYS?|STANDS?|GATES?|APRON)$/.test(W0)) {
+      twy = [];
+      twyKind = /^T/.test(W0) ? 'TWY' : /^E/.test(W0) ? 'EXIT' : /^R/.test(W0) ? 'RWY' : /^G/.test(W0) ? 'GATE' : /^S/.test(W0) ? 'STAND' : 'APRON';
+    }
+    else if (twy && (/^[A-Z]{1,2}\d{0,3}[A-Z]?$/.test(W0) || /^\d{1,3}[LRC]?$/.test(W0)) && !/^(AND|OR|TO|BTN|BETWEEN|CLSD|CLOSED|FOR|DUE|WIP|ON|AT|IN)$/.test(W0)) twy.push(out.length);
+    if (twy && /^(CLSD|CLOSED|U\/S)$/.test(W0) && !(ils && ils.rwy)) {
+      for (const i of twy) {
+        const ref = out[i].replace(/<[^>]+>/g, '').replace(/[.,;:()]/g, '');
+        const key = atisRefKey(twyKind, ref);
+        put({ key, kind: twyKind, ref, label: `${twyKind === 'TWY' ? 'Taxiway' : twyKind === 'RWY' ? 'Runway' : twyKind[0] + twyKind.slice(1).toLowerCase()} ${ref} closed` });
+        out[i] = `<span class="wx-o atis-ref" data-atis-ref="${esc(key)}">${out[i]}</span>`;
+      }
+      twy = null;
+    }
+    // ILS faults.
+    if (/^(ILS|LOC|LLZ|GP|GS|GLIDEPATH|LOCALIZER|LOCALISER)$/.test(W0)) ils = { idx: out.length, rwy: '', what: W0 };
+    else if (ils && /^(APCH|APPROACH|APCHS|APPROACHES)$/.test(W0) && out.length - ils.idx <= 4) ils = null;   // "EXP ILS APCH" is the approach in use
+    else if (ils && /^\d{2}[LRC]?$/.test(W0) && !ils.rwy) ils.rwy = W0;
+    else if (ils && ils.rwy && /^(U\/S|UNSERVICEABLE|INOP|AVBL|AVAILABLE|SERVICE)$/.test(W0) && (W0 !== 'AVBL' && W0 !== 'AVAILABLE' || prevW === 'NOT') && (W0 !== 'SERVICE' || prevW === 'OF')) {
+      const key = atisRefKey('ILS', ils.rwy);
+      put({ key, kind: 'ILS', ref: ils.rwy, label: `${ils.what === 'ILS' ? 'ILS' : ils.what} ${ils.rwy} out of service` });
+      out[ils.idx] = `<span class="wx-r atis-ref" data-atis-ref="${esc(key)}">${out[ils.idx]}</span>`;
+      ils = null;
+    }
+    // The letter: a lone L within a few words after INFO / INFORMATION /
+    // ATIS (ARR, DEP and the like may sit between), or its phonetic word.
+    if (/^(INFO|INFORMATION|ATIS)$/.test(W0)) near = 4;
+    else if (/\S/.test(tok) && near > 0) near--;
+    if (L && ((W0 === L && (near > 0 || /^(INFO|INFORMATION|ATIS)$/.test(prevW))) || (PHON[L] && W0 === PHON[L]))) {
+      const m = /^([(]*)(.*?)([.,;:)]*)$/.exec(tok);
+      out.push(`${esc(m[1])}<span class="atis-tag">${esc(m[2])}</span>${esc(m[3])}`);
+      prev = W0; prevW = W0; near = 0;
+      continue;
+    }
+    if (/\S/.test(tok)) prevW = W0;
+    out.push(colourAtisTok(tok));
+    if (/[.]$/.test(tok)) { twy = null; ils = null; }
+  }
+  return out.join('');
+
+  function colourAtisTok(tok) {
+    if (/^\s+$/.test(tok) || !tok) return tok;
+    const T = tok.toUpperCase();
+    const W = T.replace(/^[(]+|[.,;:)]+$/g, '');
+    let b = null;
+    if (W === 'RWYCC' || (W === 'CODE' && prev === 'CONDITION')) { cc = true; prev = W; return esc(tok); }
+    if (cc && /^[0-6](\/[0-6]){0,2}$/.test(W)) b = RWYCC[W.split('/').map(Number).reduce((a, x) => Math.min(a, x), 6)];
+    else {
+      cc = false;
+      if (W === 'ACTION' && prev === 'BRAKING') ba = 5;
+      else if (ba > 0 && BRAKING[W]) b = BRAKING[W];
+      if (ba > 0) ba--;
+      if (b) {}
+      else if (/^(CLSD|CLOSED|CLOSURE|U\/S|UNSERVICEABLE)$/.test(W)) b = 'r';
+      else if (/^(WS|WINDSHEAR)$/.test(W) || (W === 'SHEAR' && prev === 'WIND')) b = 'r';
+      else if (W === 'CB' || W === 'TCU') b = 'o';
+      else if (/^(THUNDERSTORMS?|HAIL|FZRA)$/.test(W)) b = 'r';
+      else if (/^(FOG|SNOW|SNOWFALL)$/.test(W)) b = 'o';
+      else if (/^(MIST|RAIN|DRIZZLE|HAZE|SHOWERS?|SMOKE)$/.test(W)) b = 'y';
+      else if (SURFACE[W]) b = SURFACE[W];
+      // A bare four-digit number in words is a time or QNH, not a visibility.
+      else if (/^\d{4}$/.test(W)) b = W === '9999' ? null : (/^(QNH|Q|TIME|AT|ISSUED|INFO|METAR)$/.test(prev) || W !== T) ? null : tokBand(W, rwys);
+      else b = tokBand(W, rwys);
+      // Green only for the runway (surface, RWYCC, braking) — not for CAVOK.
+      if (b === 'g' && !SURFACE[W] && !BRAKING[W]) b = null;
+    }
+    prev = W;
+    return b ? `<span class="wx-${b}">${esc(tok)}</span>` : esc(tok);
+  }
+}
+
+// The same colouring for the Brief tab: a report at one airport, by its code.
+// With the airport data not loaded yet, wind just stays uncoloured.
+export async function colouredReports(code, reports, eta = NaN) {
+  let rwys = [];
+  try {
+    const ap = ri.findAirport(await ri.loadDb(), code);
+    if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
+  } catch {}
+  return reports.map(raw => colourTaf(raw, rwys, eta));
+}
+// The ATIS window: METAR and TAF as above, the ATIS by colourAtis.
+export async function colouredWx(code, { metar = '', taf = '', atis = '', eta = NaN, letter = '', items = null }) {
+  let rwys = [];
+  try {
+    const ap = ri.findAirport(await ri.loadDb(), code);
+    if (ap) { rwys = ap.rwy.filter(r => r[1] >= 5500); if (!rwys.length) rwys = ap.rwy; }
+  } catch {}
+  return { metar: colourRaw(metar, rwys), taf: colourTaf(taf, rwys, eta), atis: colourAtis(atis, rwys, letter, items) };
+}
+
+function wxSummary(w, xw) {
+  if (!w || !w.src) return { band: '', html: 'No forecast covering that time.' };
+  const ceilB = ceilBand(w.ceil), visB = visBand(w.vis), phB = wxPhenBand(w.wx), xB = ri.worstBand(xw && xw.lim ? ri.xwBandFor(xw.xw, xw.lim) : '', ri.speedBand(w.wspd, w.wgst));
+  const part = (b, t) => t ? `<span class="wx-${b || 'n'}">${esc(t)}</span>` : '';
+  const ceil = Number.isFinite(w.ceil) ? `ceiling ${Math.round(w.ceil).toLocaleString('en-US')} ft` : 'no ceiling';
+  const vis = Number.isFinite(w.vis) ? (w.vis >= 9999 ? 'vis 10 km+' : `vis ${w.vis >= 5000 ? Math.round(w.vis / 1000) + ' km' : Math.round(w.vis) + ' m'}`) : '';
+  const wind = (w.wspd || w.wgst) ? `wind ${w.wdir == null ? 'VRB' : String(w.wdir).padStart(3, '0')}/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt` : 'wind calm';
+  // No significant weather and a light crosswind are good news, not neutral.
+  const band = worst(ceilB, visB, phB || 'g', xB === 'y' ? '' : xB || (xw && xw.xw > 15 ? '' : 'g'));
+  const verdict = { g: 'Good', y: 'Marginal', o: 'Below CAT I — CAT II/III ILS only', r: 'Below 737 minima / hazardous', '': 'Workable' }[band];
+  return {
+    band,
+    html: `<span class="wx-pill wx-bg-${band || 'n'}">${verdict}</span> ${[part(ceilB, ceil), part(visB, vis), part(xB, wind), part(phB, w.wx)].filter(Boolean).join(' · ')}`,
+  };
+}
+
+// The airport's runways to scale, north up, from the database's threshold
+// positions — drawn like a chart: runway strips with a centreline, a bar at
+// any displaced threshold, the designators turned to lie along each runway,
+// the LDA written alongside it (on the side away from the other runways),
+// and the best landing end for the forecast wind as a filled pill. Runways
+// closed by NOTAM are red. A standard wind barb, in its own colour, sits top
+// right with the wind written beneath it in the same colour.
+const FT = 0.3048;
+function upright(deg) { let a = ((deg % 360) + 360) % 360; if (a > 90 && a <= 270) a -= 180; return a; }
+function windBarb(x, y, dir, spd, gst, srcLabel = '') {
+  const th = dir * Math.PI / 180;
+  const v = [Math.sin(th), -Math.cos(th)];            // towards where it blows FROM
+  const perp = [-v[1], v[0]];                          // barbs on the clockwise side
+  const L = 30, tip = [x + v[0] * L, y + v[1] * L];
+  let s = Math.round((spd || 0) / 5) * 5, d = 0, out = '';
+  const at = (k) => [tip[0] - v[0] * k, tip[1] - v[1] * k];
+  while (s >= 50) {                                    // pennants
+    const [px, py] = at(d), [qx, qy] = at(d + 6);
+    out += `<path d="M${px.toFixed(1)},${py.toFixed(1)} L${(px + perp[0] * 11).toFixed(1)},${(py + perp[1] * 11).toFixed(1)} L${qx.toFixed(1)},${qy.toFixed(1)} Z" class="rd-barb-f"/>`;
+    s -= 50; d += 8;
+  }
+  while (s >= 10) {                                    // full barbs
+    const [px, py] = at(d);
+    out += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(px + perp[0] * 12 + v[0] * 4).toFixed(1)}" y2="${(py + perp[1] * 12 + v[1] * 4).toFixed(1)}"/>`;
+    s -= 10; d += 5;
+  }
+  if (s >= 5) {                                        // half barb
+    const [px, py] = at(d || 4);
+    out += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(px + perp[0] * 6 + v[0] * 2).toFixed(1)}" y2="${(py + perp[1] * 6 + v[1] * 2).toFixed(1)}"/>`;
+  }
+  const label = `${String(dir).padStart(3, '0')}°/${spd}${gst ? 'G' + gst : ''} kt`;
+  return `<g class="rd-wind"><circle cx="${x}" cy="${y}" r="3"/>
+      <line x1="${x}" y1="${y}" x2="${tip[0].toFixed(1)}" y2="${tip[1].toFixed(1)}"/>${out}</g>
+    <text x="${x}" y="${y + 46}" class="rd-wtxt">${label}</text>
+    ${srcLabel ? `<text x="${x}" y="${y + 58}" class="rd-wsrc">${esc(srcLabel)}</text>` : ''}`;
+}
+// The same barb, alone in a small SVG (the ATIS diagram's wind box).
+export function windBarbSvg(dir, spd, gst) {
+  return `<svg viewBox="-36 -36 72 72" width="46" height="46" aria-hidden="true">${windBarb(0, 0, dir, spd, gst).replace(/<text[\s\S]*$/, '')}</svg>`;
+}
+function runwayDiagram(c) {
+  const ap = c.ap, rw = ap.rwy;
+  if (!rw.length) return '';
+  // The right-hand column is kept for the wind barb; runways and their
+  // labels are laid out in the area to its left.
+  const W = 380, Hh = 260, PAD = 46, WIND_COL = 76, DW = W - WIND_COL;
+  const lat0 = ap.lat, lon0 = ap.lon, kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
+  const segs = rw.map((r, i) => {
+    let a, b;
+    if (r[5] != null && r[8] != null) {
+      a = [(r[6] - lon0) * kx, (r[5] - lat0) * ky];
+      b = [(r[8] - lon0) * kx, (r[7] - lat0) * ky];
+    } else {
+      // No threshold positions: through the middle on its heading, side by side.
+      const L = r[1] * FT, h = (r[3] ?? 0) * Math.PI / 180, off = (i - (rw.length - 1) / 2) * 500;
+      a = [-Math.sin(h) * L / 2 + off, -Math.cos(h) * L / 2];
+      b = [Math.sin(h) * L / 2 + off, Math.cos(h) * L / 2];
+    }
+    return { r, a, b };
+  });
+  const xs = segs.flatMap(s => [s.a[0], s.b[0]]), ys = segs.flatMap(s => [s.a[1], s.b[1]]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = Math.max(maxX - minX, (maxY - minY) * (DW - 2 * PAD) / (Hh - 2 * PAD), 1500);
+  const sc = (DW - 2 * PAD) / span;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const P = ([x, y]) => [DW / 2 + (x - cx) * sc, Hh / 2 - (y - cy) * sc];
+  const closed = new Set((c.r.flags && c.r.flags.rwyClosed) || []);
+  const bestEnd = c.r.xw ? c.r.xw.rwy : null;
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  const strips = [], labels = [], endLabels = [];
+  const geo = segs.map(({ a, b }) => [P(a), P(b)]);
+  for (const { r, a, b } of segs) {
+    const p1 = P(a), p2 = P(b);
+    const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) || 1;
+    const u = [(p2[0] - p1[0]) / len, (p2[1] - p1[1]) / len], n = [-u[1], u[0]];
+    const hw = Math.max(3, Math.min(7, (r[2] || 148) * FT * sc / 2));
+    const ends = String(r[0]).split('/');
+    const isClosed = closed.has(r[0]) || ends.some(e => closed.has(e));
+    const cls = isClosed ? 'rd-closed' : r[1] < 5500 ? 'rd-short' : 'rd-rwy';
+    const q = (pt, k) => `${(pt[0] + n[0] * k).toFixed(1)},${(pt[1] + n[1] * k).toFixed(1)}`;
+    strips.push(`<polygon points="${q(p1, hw)} ${q(p2, hw)} ${q(p2, -hw)} ${q(p1, -hw)}" class="${cls}"/>`);
+    if (len > 50 && !isClosed) {
+      strips.push(`<line x1="${(p1[0] + u[0] * 8).toFixed(1)}" y1="${(p1[1] + u[1] * 8).toFixed(1)}" x2="${(p2[0] - u[0] * 8).toFixed(1)}" y2="${(p2[1] - u[1] * 8).toFixed(1)}" class="rd-cl"/>`);
+    }
+    // Displaced thresholds: a bar across the runway where landing starts.
+    for (const [disp, pt, sgn] of [[r[9], p1, 1], [r[10], p2, -1]]) {
+      if (!(disp > 0)) continue;
+      const k = disp * FT * sc, t = [pt[0] + u[0] * k * sgn, pt[1] + u[1] * k * sgn];
+      strips.push(`<line x1="${(t[0] + n[0] * (hw + 2)).toFixed(1)}" y1="${(t[1] + n[1] * (hw + 2)).toFixed(1)}" x2="${(t[0] - n[0] * (hw + 2)).toFixed(1)}" y2="${(t[1] - n[1] * (hw + 2)).toFixed(1)}" class="rd-dthr"/>`);
+    }
+    if (isClosed) {
+      const m = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+      labels.push(`<text x="${m[0].toFixed(1)}" y="${m[1].toFixed(1)}" class="rd-clsd" transform="rotate(${upright(Math.atan2(u[1], u[0]) * 180 / Math.PI).toFixed(1)} ${m[0].toFixed(1)} ${m[1].toFixed(1)})">CLOSED</text>`);
+    }
+    // Runway ends are labelled after all strips are known (below), so the
+    // labels can be placed clear of each other — Ben Gurion's 26 and 21
+    // thresholds are ~150 m apart and used to print on top of each other.
+    const ang = upright(Math.atan2(u[1], u[0]) * 180 / Math.PI);
+    for (const [id, pt, sgn, disp] of [[ends[0], p1, -1, r[9]], [ends[1], p2, 1, r[10]]]) {
+      if (!id) continue;
+      endLabels.push({ id, pt, d: [u[0] * sgn, u[1] * sgn], ang, lda: r[1] - (disp || 0) });
+    }
+  }
+  // Each end: the designator in a box (like the painted marking) with that
+  // direction's LDA in small muted type directly beneath it — so a number in
+  // a box is always a runway, and a length always belongs to the box above.
+  // Tried outward from the threshold at growing distances, then nudged
+  // sideways, until it clears every label already placed.
+  const placed = [];
+  const selId = selEnd.get(ap.icao) || bestEnd;
+  for (const e of endLabels) {
+    let pos = null;
+    outer: for (const dist of [18, 32, 46, 60, 74]) {
+      for (const side of [0, 1, -1, 2, -2]) {
+        const x = e.pt[0] + e.d[0] * dist - e.d[1] * side * 16, y = e.pt[1] + e.d[1] * dist + e.d[0] * side * 16;
+        if (x < 20 || x > DW - 4 || y < 18 || y > Hh - 22) continue;
+        // The box AND its LDA line beneath (~50 × 30 px) must stay clear.
+        if (placed.some(([px, py]) => Math.hypot(px - x, py - y) < 40)) continue;
+        if (geo.some(([s1, s2]) => {
+          const dx = s2[0] - s1[0], dy = s2[1] - s1[1], L2 = dx * dx + dy * dy || 1;
+          const t = Math.max(0, Math.min(1, ((x - s1[0]) * dx + (y - s1[1]) * dy) / L2));
+          return Math.hypot(x - (s1[0] + t * dx), y - (s1[1] + t * dy)) < 11;
+        })) continue;
+        pos = [x, y]; break outer;
+      }
+    }
+    if (!pos) pos = [e.pt[0] + e.d[0] * 18, e.pt[1] + e.d[1] * 18];
+    placed.push(pos);
+    const isSel = e.id === selId, isBest = e.id === bestEnd;
+    labels.push(`<g class="rd-end${isSel ? ' is-sel' : ''}${isBest ? ' is-best' : ''}" data-rw-end="${esc(e.id)}" transform="translate(${pos[0].toFixed(1)},${pos[1].toFixed(1)}) rotate(${e.ang.toFixed(1)})">
+        <rect x="-14" y="-9" width="28" height="17" rx="3" class="rd-idbox"/>
+        <text y="3.8" class="rd-id">${esc(e.id)}</text>
+        <text y="18" class="rd-lda">LDA ${fmt(e.lda)}</text></g>`);
+  }
+  const w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
+  const wsrc = w && w.src ? (w.src === 'METAR' ? `METAR ${w.at ? hm(w.at) : ''}` : `TAF ${hm(c.eta)}`) : '';
+  const barb = (w && w.src && w.wdir != null && (w.wspd || w.wgst)) ? windBarb(W - WIND_COL / 2, 44, w.wdir, w.wspd || 0, w.wgst, wsrc) : '';
+  return `<svg class="rd" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Runway diagram, north up">
+      <text x="16" y="18" class="rd-n">N</text><path d="M16,22 L11,34 L16,30 L21,34 Z" class="rd-np"/>
+      ${strips.join('')}${labels.join('')}${barb}
+    </svg>`;
+}
+
+// The big NOTAM items, as red tags under the diagram: aerodrome closed,
+// runways closed, ILS / LOC / GP out. Everything else stays in the list.
+function bigNotamTags(c) {
+  const tags = notamTagList(c.r.flags);
+  return tags.length ? `<div class="rd-tags">${tags.map(t => `<span class="rd-tag">⛔ ${esc(t)}</span>`).join('')}</div>` : '';
+}
+function notamTagList(f) {
+  if (!f) return [];
+  const tags = [];
+  if (f.adClosed) tags.push('AERODROME CLOSED');
+  for (const rw of f.rwyClosed) tags.push(`RWY ${rw} CLOSED`);
+  for (const t of f.ilsOut) {
+    const m = /\b(ILS|LOC|LLZ|GP|GS)\b[^.]*?\bRWY\s*(\d{2}[LRC]?)/.exec(t) || /\bRWY\s*(\d{2}[LRC]?)\b[^.]*?\b(ILS|LOC|LLZ|GP|GS)\b/.exec(t);
+    const sys = m ? (/^\d/.test(m[1]) ? m[2] : m[1]) : 'ILS';
+    const rwy = m ? (/^\d/.test(m[1]) ? m[1] : m[2]) : '';
+    tags.push(`${sys}${rwy ? ' ' + rwy : ''} U/S`);
+  }
+  return [...new Set(tags)];
+}
+// The NOTAMs saved with this leg's route weather for one airport, for the
+// Brief: how many, the big items, and when. null when none are saved.
+// `ts`: your time at that airport. `now` tags are the big items in force now
+// but not then — shown as "now, not at your time".
+export async function notamsFor(leg, code, ts = Date.now()) {
+  const db = await ri.loadDb();
+  const ap = ri.findAirport(db, code);
+  const c = ap && readCache(leg);
+  const n = c?.notams?.[ap.icao];
+  if (!Array.isArray(n)) return null;
+  const tags = notamTagList(ri.notamFlags(n, ts));
+  const nowTags = Math.abs(ts - Date.now()) > 3600e3 ? notamTagList(ri.notamFlags(n, Date.now())).filter(t => !tags.includes(t)) : [];
+  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at };
+}
+function surfaceText(rw) {
+  const SURF = { ASP: 'asphalt', ASPH: 'asphalt', ASPHALT: 'asphalt', CON: 'concrete', CONC: 'concrete', CONCRETE: 'concrete', PEM: 'part asphalt / concrete', BIT: 'bitumen', MAC: 'macadam' };
+  const COND = { E: 'excellent', G: 'good', F: 'fair', P: 'poor' };
+  const s = String(rw[11] || '').toUpperCase();
+  const [base, cond] = s.split('-');
+  return [SURF[base] || base.toLowerCase(), COND[cond] ? COND[cond] + ' condition' : ''].filter(Boolean).join(', ');
+}
+
+// Head / tail and cross components for one runway end (headings and winds
+// are both true). Gusts give the worst-case crosswind.
+function components(hdg, w) {
+  if (!w || w.wdir == null || !(w.wspd || w.wgst)) return null;
+  const a = (w.wdir - hdg) * Math.PI / 180;
+  const sp = w.wspd || 0, gs = w.wgst || 0;
+  return {
+    head: Math.round(Math.cos(a) * sp),
+    cross: Math.round(Math.abs(Math.sin(a)) * sp),
+    side: Math.sin(a) > 0 ? 'right' : 'left',
+    gustCross: gs ? Math.round(Math.abs(Math.sin(a)) * gs) : 0,
+    gustHead: gs ? Math.round(Math.cos(a) * gs) : 0,
+  };
+}
+function runwayEnds(ap) {
+  const out = [];
+  for (const r of ap.rwy) {
+    const ends = String(r[0]).split('/');
+    ends.forEach((id, i) => {
+      if (!id) return;
+      out.push({ id, r, hdg: r[3] == null ? null : (i === 0 ? r[3] : (r[3] + 180) % 360),
+                 lda: r[1] - ((i === 0 ? r[9] : r[10]) || 0), disp: (i === 0 ? r[9] : r[10]) || 0 });
+    });
+  }
+  return out;
+}
+// The runway picker: one chip per runway end (★ = best for the forecast
+// wind), and the chosen end's details — wind components, LDA, surface,
+// approaches, and the NOTAMs that name it.
+// One line above the diagram: which runway to use with the best wind there
+// is for the moment you're looking (METAR when browsing or close, the TAF
+// for the abeam time when planning), its components, and where the wind
+// came from.
+function bestRunwayLine(c) {
+  const w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
+  const longest = (c.r.usable && c.r.usable[0]) ? c.r.usable[0][0] : (c.ap.rwy[0] || [''])[0];
+  if (!w || !w.src) return `<div class="rd-bestline">No wind for this time — pick a runway below.</div>`;
+  const src = w.src === 'METAR' ? `METAR ${w.at ? hm(w.at) : ''}`.trim() : `TAF for ${hm(c.eta)}`;
+  if (!(w.wspd || w.wgst)) return `<div class="rd-bestline">Wind calm <span class="rw-src">(${esc(src)})</span> — any runway; longest is ${esc(longest)}.</div>`;
+  if (w.wdir == null) return `<div class="rd-bestline">Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt <span class="rw-src">(${esc(src)})</span> — no preferred runway; longest is ${esc(longest)}.</div>`;
+  const best = c.r.xw && runwayEnds(c.ap).find(e => e.id === c.r.xw.rwy);
+  if (!best) return '';
+  const P = windParts(best, w);
+  if (!P) return '';
+  const k = P.k;
+  const hw = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="${bandCls(P.tb)}">tailwind ${-k.head} kt</span>`;
+  return `<div class="rd-bestline">Best runway now: <span class="rw-box">${esc(best.id)}</span>
+      <span class="${bandCls(P.sb)}">${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> — ${hw} ·
+      <span class="${bandCls(P.xb)}">crosswind ${k.cross} kt from the ${k.side}${k.gustCross ? `, ${k.gustCross} in gusts` : ''}</span>
+      <span class="rw-src">(${esc(src)} · ${limTxt(P.lim)})</span></div>`;
+}
+
+// ---------- Runways in the ATIS window ----------
+// The wind the ATIS gives — "WIND 180 DEG, 9 KT", "WIND VRB 2 KT", a METAR
+// group 18009G20KT, a "MAX 25" gust — else the METAR's. An ATIS wind is
+// magnetic; the runway headings here are true, so it's turned to true by the
+// airport's variation, taken from its runway numbers (a runway's number is
+// its magnetic heading ÷ 10). The METAR's wind is already true.
+function atisWind(text) {
+  const T = String(text || '').toUpperCase().replace(/\s+/g, ' ');
+  let m = /\bWIND\s+(\d{3}|VRB)\s*(?:DEG(?:REES)?)?[,\s]*(\d{1,3})\s*(?:KT|KTS|KNOTS)(?:[,\s]*(?:MAX(?:IMUM)?|GUSTS?(?: TO)?|G)\s*(\d{1,3}))?/.exec(T);
+  let mag = true;
+  // A METAR group quoted in the ATIS (EDDF: "SPECI 081215 09003KT") is the
+  // METAR's — true already.
+  if (!m) { m = /\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/.exec(T); mag = false; }
+  if (!m) return null;
+  return { wdir: m[1] === 'VRB' ? null : +m[1], wspd: +m[2], wgst: m[3] ? +m[3] : 0, mag };
+}
+function metarWind(raw) {
+  const m = /\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)\b/.exec(String(raw || ''));
+  if (!m) return null;
+  const k = m[4] === 'MPS' ? 1.944 : 1;
+  return { wdir: m[1] === 'VRB' ? null : +m[1], wspd: Math.round(+m[2] * k), wgst: m[3] ? Math.round(+m[3] * k) : 0, mag: false };
+}
+function variationOf(ends) {
+  const d = ends.filter(e => e.hdg != null && /^\d{2}/.test(e.id))
+    .map(e => ((e.hdg - parseInt(e.id, 10) * 10) % 360 + 540) % 360 - 180);
+  return d.length ? d.reduce((a, x) => a + x, 0) / d.length : 0;
+}
+// The runway the ATIS says is in use for this end (arrival / departure).
+function atisRunwayInUse(text, ends, end) {
+  const T = String(text || '').toUpperCase();
+  const ids = new Set(ends.map(e => e.id));
+  const want = end === 'dep' ? /\b(?:DEP(?:ARTURES?)?|TKOF|TAKE-?OFF)\b[^.]{0,30}?\bRWYS?\s*(\d{2}[LRC]?)/ : /\b(?:ARR(?:IVALS?)?|LDG|LANDING|APCH|APPROACH)\b[^.]{0,30}?\bRWYS?\s*(\d{2}[LRC]?)/;
+  const m = want.exec(T) || /\bRWYS?\s*(?:IN USE\s*)?(\d{2}[LRC]?)/.exec(T);
+  return m && ids.has(m[1]) ? m[1] : '';
+}
+// What the ATIS window's diagram needs: the wind (true, with where it came
+// from), the runway in use per the ATIS, and every runway end with its
+// heading and LDA. rwyWindHtml() then gives the chosen end's components.
+// The TAF's wind at a time: the last base / FM / BECMG group in force then
+// that gives one (TEMPO and PROB are passing, so not the planning wind).
+function tafWindAt(raw, ts) {
+  if (!raw) return null;
+  const t = Number.isFinite(ts) ? ts : Date.now();
+  let best = null;
+  for (const g of tafGroups(raw)) {
+    if (g.kind === 'temp') continue;
+    if (Number.isFinite(g.from) && g.from > t) continue;
+    if (Number.isFinite(g.to) && g.to < t && g.kind !== 'becmg') continue;
+    const w = metarWind(g.toks.join(''));
+    if (w) best = w;
+  }
+  return best;
+}
+export async function atisWindInfo(code, { atis = '', metar = '', taf = '', when = NaN, end = 'arr' } = {}) {
+  let ap = null;
+  try { ap = ri.findAirport(await ri.loadDb(), code); } catch {}
+  if (!ap) return null;
+  const ends = runwayEnds(ap).filter(e => e.r[1] >= 3000);
+  // ATIS first, then the METAR, then the TAF for your time there.
+  const aw = atisWind(atis), mw = aw ? null : metarWind(metar), tw = aw || mw ? null : tafWindAt(taf, when);
+  let w = aw || mw || tw;
+  const src = aw ? 'ATIS' : mw ? 'METAR' : tw ? 'TAF' : '';
+  if (w && w.mag && w.wdir != null) w = { ...w, wdir: Math.round((w.wdir + variationOf(ends) + 360) % 360) };
+  return { w, src, inUse: atisRunwayInUse(atis, ends, end), ends };
+}
+// The wind's own strength band (g y o r) for a wind object, for app.js.
+export function windSpeedBand(w) { return w ? ri.speedBand(w.wspd, w.wgst) : ''; }
+export function rwyWindHtml(info, id) {
+  const e = info && info.ends.find(x => x.id === id);
+  if (!e) return '';
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  const head = `<div class="ad-wp-rw"><span class="rw-box">${esc(e.id)}</span> <b>${fmt(e.lda)}</b> ft</div>`;
+  const P = windParts(e, info.w || {});
+  if (!P) return head + `<div class="ad-wp-k">${info.w && info.w.wdir == null && info.w.wspd ? 'VRB' : '—'}</div>`;
+  const k = P.k;
+  return head + `<div class="ad-wp-k">${k.head >= 0 ? `HW <b>${k.head}</b>` : `<span class="${bandCls(P.tb, '')}">TW <b>${-k.head}</b></span>`}
+    · <span class="${bandCls(P.xb, '')}">XW <b>${k.cross}</b>${k.side === 'right' ? 'R' : 'L'}${k.gustCross ? ` G${k.gustCross}` : ''}</span></div>
+    <div class="ad-wp-lim">${limTxt(P.lim)}</div>`;
+}
+
+function runwayPanel(c, m) {
+  const ap = c.ap, w = c.r.wind && c.r.wind.src ? c.r.wind : c.r.wx;
+  const ends = runwayEnds(ap);
+  if (!ends.length) return '';
+  const best = c.r.xw ? c.r.xw.rwy : null;
+  const selId = selEnd.get(ap.icao) || best || ends[0].id;
+  const sel = ends.find(e => e.id === selId) || ends[0];
+  const chips = ends.map(e => {
+    const P = w ? windParts(e, w) : null;
+    const tone = P ? ri.worstBand(P.xb, P.tb) : '';
+    return `<button type="button" class="rw-chip${e.id === sel.id ? ' is-sel' : ''}${tone ? ' t-' + tone : ''}" data-rw-end="${esc(e.id)}">${esc(e.id)}${e.id === best ? ' ★' : ''}</button>`;
+  }).join('');
+  const P = w ? windParts(sel, w) : null;
+  const k = P ? P.k : null;
+  const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  let windLine = 'No forecast wind for that time.';
+  if (k) {
+    const hwTxt = k.head >= 0 ? `headwind ${k.head} kt` : `<span class="${bandCls(P.tb)}">tailwind ${-k.head} kt</span>`;
+    const xb = ri.xwBandFor(k.cross, P.lim), gxb = ri.xwBandFor(k.gustCross, P.lim);
+    const srcTxt = w.src === 'METAR' ? `METAR${w.at ? ' ' + hm(w.at) : ''} — current` : `TAF for ${hm(c.eta)}`;
+    windLine = `<span class="${bandCls(P.sb)}">Wind ${String(w.wdir).padStart(3, '0')}°/${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt</span> <span class="rw-src">(${srcTxt})</span>: ${hwTxt} · `
+      + `<span class="${bandCls(xb)}">crosswind ${k.cross} kt from the ${k.side}</span>`
+      + (k.gustCross ? ` · <span class="${bandCls(gxb)}">gusting ${k.gustCross} kt cross</span>` : '')
+      + ` <span class="rw-src">· ${limTxt(P.lim)}</span>`;
+  } else if (w && w.wdir == null && (w.wspd || w.wgst)) {
+    windLine = `Wind variable ${w.wspd}${w.wgst ? 'G' + w.wgst : ''} kt — components can't be worked out.`;
+  } else if (w && w.src) {
+    windLine = 'Wind calm.';
+  }
+  // What the NOTAMs say about this runway (and its reciprocal): when they're
+  // on, an "ILS RWY 26 …" NOTAM is also the only sign the data gives that an
+  // ILS exists there at all.
+  const recip = String(sel.r[0]).split('/');
+  const mentions = (c.notams || []).filter(n => recip.some(id => new RegExp(`\\bRWY\\s*${id}\\b|\\b${id}\\b`).test(String(n.text).toUpperCase())));
+  const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
+  const ilsHint = (c.notams || []).some(n => new RegExp(`\\b(ILS|LOC|LLZ)\\b[^.]{0,30}\\bRWY\\s*${sel.id}\\b|\\bRWY\\s*${sel.id}\\b[^.]{0,30}\\b(ILS|LOC|LLZ)\\b`).test(String(n.text).toUpperCase()));
+  const nav = ap.nav.length ? ap.nav.map(n => `${esc(n[0])} ${esc(n[1])} ${esc(n[2])}`).join(' · ') : 'none listed';
+  return `<div class="rw-chips" role="group" aria-label="Pick a runway">${chips}</div>
+    <div class="rw-sel">
+      <div class="rw-sel-h"><span class="rw-box">${esc(sel.id)}</span>
+        ${sel.hdg != null ? `${String(Math.round(sel.hdg)).padStart(3, '0')}°T · ` : ''}LDA <b>${fmt(sel.lda)} ft</b>${sel.disp ? ` (threshold displaced ${fmt(sel.disp)} ft)` : ''}
+        · ${sel.r[2] || '—'} ft wide${surfaceText(sel.r) ? ' · ' + esc(surfaceText(sel.r)) : ''}${sel.r[4] ? ' · lit' : ''}${sel.r[1] < 5500 ? ' · <span class="wx-r">too short for a 737</span>' : ''}</div>
+      <div>${windLine}</div>
+      <div class="rw-sub"><b>Approaches:</b> ${ilsHint ? `an ILS / LOC to RWY ${esc(sel.id)} is named in a NOTAM — ` : ''}approach types and CAT I-II-III aren't in any free data — check the chart.</div>
+      <div class="rw-sub"><b>Navaids at ${esc(ap.icao)}:</b> ${nav}</div>
+      ${m.notamsOff ? '' : (() => {
+        const ls = nb.briefs(mentions, c.eta, 3600e3, { lat: ap.lat, lon: ap.lon });
+        return `<div class="rw-sub"><b>NOTAMs for RWY ${esc(String(sel.r[0]))}:</b> ${ls.length ? ntBriefHtml(ls, c.eta) : '<span class="wx-g">none that matter</span>'}</div>`;
+      })()}
+    </div>`;
+}
+
+// One NOTAM: its text, then a muted line with its number, validity and
+// schedule (Item D) when the source gives them.
+function ntItem(n, sev) {
+  const day = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')} ${hm(d.getTime())}` : ''; };
+  const from = n.start ? day(n.start) : '', to = n.end ? day(n.end) + (n.est ? ' EST' : '') : 'PERM';
+  const meta = [n.id, from ? `${from} – ${to}` : '', n.sched].filter(Boolean).join(' · ');
+  return `<li class="nt nt-${sev || 'n'}">${esc(n.text)}${meta ? `<div class="nt-meta">${esc(meta)}</div>` : ''}</li>`;
+}
+
+function notamList(c, m) {
+  if (m.notamsOff) return `<div class="ri-sub">${m.notamsErr
+    ? `Not checked — the NOTAM service answered “${esc(m.notamsErr)}”.`
+    : 'Not checked — NOTAMs aren’t set up yet (Settings → Route info).'}</div>`;
+  if (!c.notams) return `<div class="ri-sub">Not fetched for this airport (only the best 30 are checked).</div>`;
+  const stale = m.notamsErr ? `<div class="ri-sub"><span class="wx-o">Saved ${ago(m.notamsAt)} — refresh failed (${esc(m.notamsErr)}).</span></div>` : '';
+  // The bottom lines only — what's in force an hour either side of when
+  // you'd be there — coloured; every NOTAM, in full, folded under them.
+  const usable = new Set((c.r.usable || []).flatMap(r => String(r[0]).split('/')));
+  const lines = nb.briefs(c.notams, c.eta, 3600e3, { lat: c.ap.lat, lon: c.ap.lon });
+  const all = c.notams.slice().map(n => ({ ...n, sev: ri.notamSeverity(n.text, usable) })).sort((a, b) => RANK[b.sev] - RANK[a.sev]);
+  return `${stale}${ntBriefHtml(lines, c.eta)}
+    <details class="nt-more"><summary>All NOTAMs (${all.length})</summary><ul class="nt-list">${all.map(n => ntItem(n, n.sev)).join('')}</ul></details>`;
+}
+// The short lines, each folded: a coloured dot, the bottom line, where it
+// is from the field (when the NOTAM gives a position) and when it's in
+// force; tap to open the full NOTAM(s). Shared with the ATIS window.
+export function ntBriefHtml(lines, ts) {
+  if (!lines.length) return `<div class="ntb-none">Nothing that matters around ${hm(ts)}</div>`;
+  return `<div class="ntb-list">${lines.map(l => {
+    const keys = l.items.map(i => atisRefKey(i.kind, i.ref)).join(' ');
+    const when = l.ns.length === 1 ? nb.validity(l.ns[0]) : '';
+    const full = l.ns.map(n => `<div class="ntb-n"><div class="ntb-nm">${esc([n.id, nb.validity(n)].filter(Boolean).join(' · '))}</div>${esc(n.text)}</div>`).join('');
+    return `<details class="ntb ntb-${l.sev}"${keys && !l.off ? ` data-ntb-refs="${esc(keys)}"` : ''}><summary><i></i><span class="ntb-x">${l.off ? '<b class="ntb-offtag">Now · not at your time</b> ' : ''}${esc(l.text)}${l.count > 1 ? ` <small>×${l.count}</small>` : ''}${l.where ? ` <small>· ${esc(l.where)}</small>` : ''}</span>${when ? `<span class="ntb-t">${esc(when)}</span>` : ''}</summary>${full}</details>`;
+  }).join('')}${lines.length > 1 ? '<button type="button" class="ntb-all" data-ntb-all>Open all</button>' : ''}</div>`;
+}
+function dayHm(ms) {
+  const d = new Date(ms), today = new Date();
+  const same = d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth();
+  return same ? hm(ms) : `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// Exactly where an airport lost its points, biggest first — every part of
+// the rating short of its maximum (route-info.js rate().lost).
+function whyNot10(r) {
+  if (r.excluded || (r.score === 0 && r.why && r.why.length)) {
+    return `<ul class="ri-why is-zero">${(r.why || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>`;
+  }
+  if (r.score >= 10 || !r.lost || !r.lost.length) return '';
+  const rows = r.lost.filter(l => l.pts >= 0.05).map(l =>
+    `<li><span class="ri-lost">−${l.pts.toFixed(1).replace(/\.0$/, '')}</span>${esc(l.what)}</li>`).join('');
+  return `<div class="ri-why-h">Why not 10</div><ul class="ri-why">${rows}</ul>`;
+}
+
+// Which weather the card leads with, and why — the pilot shouldn't have to
+// wonder whether a number is a forecast or an observation.
+function wxContext(c, m, r) {
+  const src = r.wx && r.wx.src;
+  const by = c.pickedBy === 'map' ? 'as chosen for the map' : 'chosen by you';
+  if (c.picked === 'metar') return src ? `METAR — ${by} (tap it again for automatic)` : 'No METAR for this airport';
+  if (c.picked === 'taf') return !src ? 'No TAF for this airport'
+    : r.wx.forNow ? `TAF for now — ${by} (it doesn't cover that time)` : `TAF for ${hm(c.eta)} — ${by} (tap it again for automatic)`;
+  if (c.near) return `Current METAR — you're about ${Math.round(c.near)} min away`;
+  if (m.mode === 'browse') return src === 'METAR'
+    ? 'Current METAR — this flight isn\'t today, so its forecast doesn\'t matter yet'
+    : 'No METAR — showing the TAF';
+  if (src === 'METAR') return 'Current METAR — you\'d be there within the hour';
+  if (src === 'TAF') return `TAF for ${hm(c.eta)} — when you'd be passing (worst case of the forecast)`;
+  return 'No METAR / TAF covering that time';
+}
+
+function cardHtml(c, m) {
+  // In the air with GPS and this airport within about an hour: what it has
+  // NOW matters more than the forecast, so re-rate it on the METAR.
+  if (gpsFix && gpsFix.airborne && c.wxEntry) {
+    const L = liveRated(c, gpsFix);
+    if (L.eta) c = { ...c, near: L.t.min, eta: L.eta, r: L.r };
+  }
+  // The pilot picked METAR or TAF by tapping it: that source drives the
+  // diagram's wind, the best runway, the runway panel and the summary. The
+  // rating itself stays as listed.
+  // Nothing picked on the card: the map's METAR / TAF choice applies.
+  const own = srcPick.get(c.ap.icao);
+  const pick = own === 'auto' ? null : own || (mapWx !== 'auto' ? mapWx : null);
+  if (pick && c.wxEntry) {
+    const r2 = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: pick });
+    c = { ...c, picked: pick, pickedBy: own ? 'you' : 'map', r: { ...c.r, wx: r2.wx, wind: r2.wind, xw: r2.xw } };
+  }
+  const ap = c.ap, r = c.r, b = ri.band(r.score, r.excluded);
+  const usable = (r.usable && r.usable.length) ? r.usable : ap.rwy;
+  const rwys = ap.rwy.map(x => `<tr class="${x[1] < 5500 ? 'rd-row-short' : ''}"><td>${esc(x[0])}</td><td>${x[1].toLocaleString('en-US')} × ${x[2] || '—'} ft</td><td>${x[4] ? 'lit' : ''}</td><td>${esc(surfaceText(x))}</td></tr>`).join('');
+  const nav = ap.nav.length ? ap.nav.map(n => `${esc(n[0])} ${esc(n[1])} ${esc(n[2])}`).join(' · ') : 'none listed';
+  const metar = c.wxEntry?.metar?.raw, taf = c.wxEntry?.taf?.raw;
+  const ws = wxSummary(r.wx, r.xw);
+  return `<div class="ri-card" data-icao="${esc(ap.icao)}">
+      <div class="ri-card-head">
+        <span class="ri-score ri-b-${b}">${r.excluded ? '×' : r.score}</span>
+        <div><b>${esc(ap.icao)}${ap.iata ? ' · ' + esc(ap.iata) : ''}</b> ${esc(ap.name)}
+          <div class="ri-sub">${esc(ap.city)}${ap.city ? ', ' : ''}${esc(ap.country)} · ${ap.size === 2 ? 'large' : 'medium'} airport · elev ${ap.elev.toLocaleString('en-US')} ft</div></div>
+        <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
+      </div>
+      ${ap.icao === m.A.icao || ap.icao === m.B.icao ? '' : isAltn(ap, m.leg)
+        ? `<button type="button" class="ri-altn-btn is-on" data-ri-altn="">✓ Alternate for ${esc(m.B.iata || m.B.icao)} · remove</button>`
+        : `<button type="button" class="ri-altn-btn" data-ri-altn="${esc(ap.icao)}">Set as alternate for ${esc(m.B.iata || m.B.icao)}</button>`}
+      <div class="view-switch" role="tablist" aria-label="Airport view">
+        <button type="button" class="vs-btn" role="tab" aria-selected="false" data-ri-notes>Notes</button>
+        <button type="button" class="vs-btn is-on" role="tab" aria-selected="true">Diversion</button>
+      </div>
+      <div class="ri-sub">Abeam ≈ ${hm(c.eta)} · ${Math.round(c.distNm)} nm off the route</div>
+      ${whyNot10(r)}
+      <h5>Runways</h5>
+      ${bestRunwayLine(c)}
+      ${runwayDiagram(c)}
+      ${bigNotamTags(c)}
+      <table class="ri-rwy"><tbody>${rwys}</tbody></table>
+      <div class="ri-upd">Runway data: OurAirports, ${esc(m.dbDate || '—')} · LDA ≈ length − displaced threshold · grooving / friction treatment isn't in the free data</div>
+      <h5>Runway</h5>
+      ${runwayPanel(c, m)}
+      <h5>Weather</h5>
+      <div class="ri-wxctx">${esc(wxContext(c, m, r))}</div>
+      <div class="ri-upd">${m.fetchedAt ? `Fetched ${hm(m.fetchedAt)} (${ago(m.fetchedAt)}) from aviationweather.gov` : 'Not fetched yet — tap Update'}${c.wxEntry?.metar?.time ? ` · METAR issued ${hm(c.wxEntry.metar.time * 1000)}` : ''}</div>
+      <div class="ri-wx">${ws.html}</div>
+      ${(() => {
+        const mt = c.wxEntry?.metar?.time ? c.wxEntry.metar.time * 1000 : null;
+        // Each report is a button: tap to drive the diagram and runway from
+        // it; the one in use is ringed.
+        const using = r.wx && r.wx.src;
+        const blk = (kind, title, raw) => `<button type="button" class="ri-rawpick${using === kind.toUpperCase() ? ' is-on' : ''}${c.picked === kind ? ' is-picked' : ''}" data-wx-pick="${kind}">
+            <span class="ri-rawh">${title}${using === kind.toUpperCase() ? ' · in use' : ' · tap to use'}</span>
+            <pre class="ri-raw">${kind === 'taf' ? colourTaf(raw, usable, c.eta) : colourRaw(raw, usable)}</pre></button>`;
+        const mBlock = metar ? blk('metar', `METAR${mt ? ` · ${hm(mt)}, ${ago(mt)}` : ''}`, metar) : '';
+        const tBlock = taf ? blk('taf', 'TAF', taf) : '';
+        return using === 'TAF' ? tBlock + mBlock : mBlock + tBlock;
+      })()}
+      <button type="button" class="wx-atis-go" data-atis-open="${esc(ap.icao)}" data-atis-end="${ap.icao === m.A.icao ? 'dep' : ap.icao === m.B.icao ? 'arr' : ''}">ATIS ›</button>
+      <div class="ri-key"><span class="wx-g">good</span> · <span class="wx-y">marginal</span> · <span class="wx-o">below CAT I</span> · <span class="wx-r">below 737 minima / hazard</span> · <span class="wx-b">change</span> · <span class="wx-eta">in force ±1 h</span></div>
+      <h5>NOTAMs</h5>
+      ${notamList(c, m)}
+    </div>`;
+}
+
+// ---------- Screen ----------
+function ago(ms) {
+  if (!ms) return 'never';
+  const m = Math.round((Date.now() - ms) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+// Below the map (the lists, a card): a small bubble back up to the map,
+// the twin of the map's "Airports ↓".
+let toMapWired = null;
+function watchToMap() {
+  const sheet = document.querySelector('.route-sheet');
+  if (!sheet || toMapWired === sheet) return;
+  toMapWired = sheet;
+  const upd = () => {
+    const b = document.querySelector('.ri-to-map'), m = document.querySelector('.ri-map-wrap');
+    if (!b || !m) return;
+    b.classList.toggle('is-on', m.getBoundingClientRect().bottom < sheet.getBoundingClientRect().top + 60);
+  };
+  sheet.addEventListener('scroll', upd, { passive: true });
+}
+async function paint(model, showAll = false) {
+  // This module's own ?v= stamp, so the map files load under exactly the URL
+  // the service worker precached (a fixed old ?v= only got cached on first
+  // use, which may be offline).
+  const V = new URL(import.meta.url).search;
+  const world = await import('./worldmap.js' + V);
+  let md = null;
+  try { md = await import('./mapdata.js' + V); } catch {}   // borders + FIRs: nice to have
+  const list = showAll ? model.pool : model.shown;
+  const counts = { a: 0, b: 0, c: 0, d: 0, x: 0 };
+  for (const c of list) counts[ri.band(c.r.score, c.r.excluded)]++;
+  // A flight that isn't today carries its date, so it's clear which one this is.
+  const day = (ms) => { const d = new Date(ms); return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCFullYear()).slice(-2)} `; };
+  const fl = model.leg && model.leg.flight ? `${String(model.leg.flight).replace(/^0+/, '')} · ` : '';
+  $('route-sub').textContent = `${fl}${model.A.iata || model.A.icao} → ${model.B.iata || model.B.icao} · ${Math.round(model.route.total).toLocaleString('en-US')} nm · take-off ≈ ${model.mode === 'browse' ? day(model.tm.takeoff) : ''}${hm(model.tm.takeoff)}`;
+  $('route-body').innerHTML = `
+    <div id="ri-plan-slot"></div>
+    <div id="ri-ready" class="ri-ready"></div>
+    ${model.gaps.length ? `<div class="ri-gap">No airport within an hour: ${model.gaps.map(g =>
+      `${hm(model.tm.etaAt(g.from))}–${hm(model.tm.etaAt(g.to))}`).join(', ')}</div>` : ''}
+    <div class="ri-mapwx"><span>Map weather</span>
+      <div class="view-switch" role="tablist" aria-label="Weather on the map">
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="auto">Auto</button>
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="metar">Now · METAR</button>
+        <button type="button" class="vs-btn" role="tab" data-ri-mapwx="taf">At ETA · TAF</button>
+      </div></div>
+    <div id="ri-cpdlc" class="ri-cpdlc" hidden></div>
+    <div id="ri-map-slot" class="ri-map-wrap"></div>
+    <div id="ri-mapwx-note" class="ri-map-src ri-mapwx-note"></div>
+    <div id="ri-card-slot"></div>
+    ${sigListHtml(model)}
+    <div class="ri-status">
+      Weather ${model.hasWx ? 'fetched ' + ago(model.fetchedAt) : 'not fetched yet'} ·
+      NOTAMs ${model.notamsOff ? 'not checked' : model.notamsErr ? 'saved ' + ago(model.notamsAt) : 'checked'} ·
+      within an hour (${ri.RADIUS_NM} nm) of the ${model.route.filed ? 'filed route' : model.route.gps ? `way flown, then GPS ${model.route.avoid ? 'on' : 'straight'} to ${esc(model.B.icao)} (${ago(model.route.gpsAt)})${model.route.avoid ? `, round ${esc(model.route.avoid.join(', '))}` : ''}` : model.route.avoid ? `great circle bent round ${esc(model.route.avoid.join(', '))} (no-fly airspace)` : 'great-circle route'}
+      <button type="button" class="ri-plan-link" data-ri-plan="open">${model.route.filed ? 'Edit route' : 'Paste filed route'}</button>
+    </div>
+    <div class="ri-legend">
+      <span><i class="ri-dot ri-b-a"></i>8–10 ${counts.a}</span><span><i class="ri-dot ri-b-b"></i>6–7 ${counts.b}</span>
+      <span><i class="ri-dot ri-b-c"></i>4–5 ${counts.c}</span><span><i class="ri-dot ri-b-d"></i>1–3 ${counts.d}</span>
+      <span><i class="ri-dot ri-b-x"></i>no-go ${counts.x}</span>
+      <button type="button" class="ri-all" data-ri-all>${showAll ? 'Best per stretch' : `Show all ${model.pool.length}`}</button>
+    </div>
+    <div class="ri-map-src ri-st-key">${stationKey()}</div>
+    ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
+    <div id="ri-near"></div>
+    <div id="ri-list-wrap"></div>
+    <button type="button" class="ri-to-map" data-ri-map>Map ↑</button>`;
+  const slot = $('ri-map-slot');
+  watchToMap();
+  state = { model, showAll, list, world, md };
+  viewAnim++; previewing = null;     // nothing left over from the map just replaced
+  listKey = '';
+  renderList();
+  // Once it's flying, what was saved before departure is settled: the map gets the row.
+  $('ri-ready')?.classList.toggle('is-past', docked() && Date.now() > model.tm.takeoff);
+  // The rows above the map first: what's left of the height is the map's.
+  await paintReady();
+  if (slot.isConnected) drawMap(slot);
+}
+// The airport list: in route order (time abeam), or — with a GPS fix —
+// nearest to the aircraft first, with distance and where it lies from you.
+// Live GPS redraws it only when the order actually changes, so a row doesn't
+// jump from under your finger every few seconds.
+// Red "LVP" beside an airport whose weather (as rated) means low-visibility
+// procedures. Kept on the row's own key so a change repaints it.
+function lvpTag(c) {
+  const why = c.r && !c.r.excluded ? ri.lvpOf(c.r.wx, c.wxEntry?.metar?.raw) : null;
+  return why ? ` <span class="ri-lvp" title="Low-visibility procedures likely — ${esc(why)}">LVP</span>` : '';
+}
+
+function renderList() {
+  const wrap = $('ri-list-wrap');
+  if (!wrap || !state) return;
+  const list = state.showAll ? state.model.pool : state.model.shown;
+  const g = gpsFix;
+  const order = g ? (listOrder || 'gps') : 'route';
+  let rows = list;
+  let info = null;
+  if (order === 'gps') {
+    info = new Map(list.map(c => {
+      const d = distNm(g.lat, g.lon, c.ap.lat, c.ap.lon), b = brg(g.lat, g.lon, c.ap.lat, c.ap.lon);
+      return [c, { d, b, t: g.airborne ? timeTo(c.ap, g) : null }];
+    }));
+    rows = list.slice().sort((a, b) => info.get(a).d - info.get(b).d);
+  }
+  const key = order + ':' + rows.map(c => c.ap.icao + (lvpTag(c) ? '!' : '')).join(',');
+  if (key === listKey) {
+    // Same order: just refresh the distances in place.
+    if (info) for (const c of rows) {
+      const el = wrap.querySelector(`.ri-row[data-icao="${c.ap.icao}"] .ri-row-d`);
+      if (el) el.textContent = `${Math.round(info.get(c).d)} nm`;
+    }
+    return;
+  }
+  listKey = key;
+  const where = (x) => {
+    if (!g) return '';
+    if (!g.airborne) return `brg ${String(Math.round(x.b)).padStart(3, '0')}°`;
+    const rel = ((x.b - g.trk + 540) % 360) - 180;
+    return Math.abs(rel) < 15 ? 'ahead' : Math.abs(rel) > 150 ? 'behind' : `${Math.round(Math.abs(rel))}° ${rel > 0 ? 'R' : 'L'}`;
+  };
+  const toggle = g ? `<div class="ri-order" role="group" aria-label="List order">
+      <button type="button" class="${order === 'gps' ? 'is-on' : ''}" data-ri-order="gps">Nearest to aircraft</button>
+      <button type="button" class="${order === 'route' ? 'is-on' : ''}" data-ri-order="route">Route order</button></div>` : '';
+  wrap.innerHTML = toggle + `<div class="ri-list">${rows.map(c0 => {
+    const c = liveR.has(c0.ap.icao) ? { ...c0, r: liveR.get(c0.ap.icao) } : c0;
+    const b = ri.band(c.r.score, c.r.excluded);
+    const x = info && info.get(c0);
+    return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
+        <span class="ri-row-t">${x ? (x.t ? '≈' + Math.round(x.t.min) + '′' : '') : hm(c.eta).replace('Z', '')}</span>
+        <span class="ri-score ri-b-${b}">${c.r.excluded ? '×' : c.r.score}</span>
+        <span class="ri-row-code"><b>${esc(c.ap.icao)}</b>${c.ap.iata ? `<small>${esc(c.ap.iata)}</small>` : ''}</span>
+        <span class="ri-row-n">${lvpTag(c)} ${esc(c.ap.city || c.ap.name)} <i>${esc(x ? where(x) : c.ap.cc)}</i></span>
+        <span class="ri-row-d">${Math.round(x ? x.d : c.distNm)} nm</span>
+      </button>`;
+  }).join('')}</div>`;
+}
+
+// ---------- Ready for offline ----------
+// What's actually on the device for this flight, checked rather than
+// assumed: the route's METARs / TAFs and how old, the Airspeed Unreliable
+// app, the airport database, NOTAMs. Gaps fill by themselves whenever there's
+// a connection (autoUpdate, open); nothing here needs a tap.
+async function savedInCache(path) {
+  try { return !!(await caches.match(new URL(path, location.href).href)); } catch { return false; }
+}
+async function paintReady() {
+  const el = $('ri-ready');
+  if (!el || !state) return;
+  const m = state.model, leg = m.leg;
+  const c = leg ? readCache(leg) : null;
+  const db = await savedInCache('./data/divdb.json');
+  const n = c && c.wx ? (c.wx.metars || []).length : 0;
+  const ageMin = c ? (Date.now() - c.at) / 60000 : Infinity;
+  const wxOk = c && ageMin <= 60;
+  const item = (ok, txt, warn) => `<span class="rr-item ${ok ? 'ok' : warn ? 'warn' : 'no'}">${ok ? '✓' : warn ? '!' : '–'} ${esc(txt)}</span>`;
+  el.innerHTML = `
+    ${item(wxOk, c ? `Route weather ${ago(c.at)} · ${n} airports` : 'Route weather not saved', c && !wxOk)}
+    ${item(db, db ? 'Airport data saved' : 'Airport data not saved')}
+    ${item(!m.notamsOff && !m.notamsErr, m.notamsOff ? (m.notamsErr ? 'NOTAMs not available' : 'NOTAMs not set up') : m.notamsErr ? `NOTAMs ${ago(m.notamsAt)}` : 'NOTAMs checked', !m.notamsOff && !!m.notamsErr)}`;
+  refit();     // a chip that wraps changes the room under it
+}
+// What the flight needs saved on the device besides the weather. ASU comes
+// from its own worker, one level up, which saves it into this app's storage.
+const hostsAsu = () => /\/flight-card-pwa\//.test(location.pathname);
+export async function ensureSaved() {
+  if (navigator.onLine === false) return;
+  if ('serviceWorker' in navigator && hostsAsu()) {
+    try { await navigator.serviceWorker.register('../sw.js', { scope: '../' }); } catch {}
+  }
+  if (!(await savedInCache('./data/divdb.json'))) { try { await fetch('./data/divdb.json'); } catch {} }
+  // The airport diagrams for both ends and the alternate — fetched once and
+  // kept a month, so the ATIS window draws closures with no internet.
+  saveDiagrams(screenLeg()).catch(() => {});
+}
+// The ends and alternate as database airports.
+async function endAirports(leg) {
+  if (!leg) return [];
+  const db = await ri.loadDb();
+  const out = [];
+  for (const code of [leg.dep, leg.arr, altnOf(leg)]) {
+    const ap = code && ri.findAirport(db, code);
+    if (ap && !out.includes(ap)) out.push(ap);
+  }
+  return out;
+}
+let diagramsBusy = false;
+// A new alternate: its diagram too.
+window.addEventListener('fc:altn-changed', () => { saveDiagrams(screenLeg()).catch(() => {}); });
+async function saveDiagrams(leg) {
+  if (diagramsBusy || !leg || navigator.onLine === false) return;
+  // Only for the flight in hand — not every old or future leg browsed.
+  if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
+  diagramsBusy = true;
+  try {
+    const ad = await import('./atis-diagram.js?v=291');
+    for (const ap of await endAirports(leg)) {
+      if (ad.hasGeo(ap.icao)) continue;
+      await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
+      window.dispatchEvent(new CustomEvent('fc:ready-changed'));
+    }
+  } finally { diagramsBusy = false; }
+}
+// Where a flight stands, for the Flight screen's one line.
+export async function readiness(leg) {
+  const c = readCache(leg);
+  const db = await savedInCache('./data/divdb.json');
+  const asu = !hostsAsu() || await savedInCache('../data/qrh-800.json');
+  // Both ends need a report of their own: a route set of 75 airports says
+  // nothing about the one you're landing at.
+  const have = new Set([...(c?.wx?.metars || []), ...(c?.wx?.tafs || [])].map(r => r.id));
+  let noWx = [];
+  if (c) {
+    const apDb = await ri.loadDb().catch(() => null);
+    noWx = apDb ? [leg.dep, leg.arr].filter(code => {
+      const ap = ri.findAirport(apDb, code);
+      return ap && !have.has(ap.icao);
+    }) : [];
+  }
+  let noMap = [];
+  try {
+    const ad = await import('./atis-diagram.js?v=291');
+    noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
+  } catch {}
+  return {
+    wxAt: c ? c.at : 0, db, asu, noWx, noMap,
+    notams: !c ? 'none' : c.notamsErr ? 'failed' : c.notamsOff || !c.notams ? 'off' : 'ok',
+  };
+}
+
+// ---------- At a glance ----------
+// Departure (at take-off), destination and alternate (at ETA), rated from
+// what's saved — no fetching — each with the one thing worth a look: below
+// CAT I, a crosswind or tailwind past its limit, a red NOTAM, TS. Plus the
+// SIGMETs the route meets. For the Brief's one line; `null` when nothing's
+// saved for the leg yet.
+let glMemo = null;
+export async function glance(leg) {
+  if (!leg || !leg.dep || !leg.arr) return null;
+  const c = readCache(leg);
+  if (!c || !c.wx) return null;
+  const id = idOf(leg) + '|' + (altnOf(leg) || '');
+  if (!glMemo || glMemo.id !== id || glMemo.at !== c.at) glMemo = { id, at: c.at, model: await build(leg, { doFetch: false }) };
+  const m = glMemo.model, db = await ri.loadDb();
+  const wmap = new Map();
+  for (const x of c.wx.metars || []) wmap.set(x.id, { metar: x });
+  for (const x of c.wx.tafs || []) wmap.set(x.id, { ...(wmap.get(x.id) || {}), taf: x });
+  // The ends are where you're going whatever the diversion rules say.
+  const rules = { exclude: [], penalty: {} };
+  const one = (ap, eta, role) => {
+    if (!ap) return null;
+    const notams = Array.isArray(c.notams?.[ap.icao]) ? c.notams[ap.icao] : null;
+    const wxEntry = wmap.get(ap.icao) || null;
+    const r = ri.rate(ap, { distNm: 0, eta, wxEntry, notams, rules, mode: m.mode });
+    const issues = [];
+    let tone = '';
+    const bump = (t) => { if ({ r: 3, o: 2, y: 1 }[t] > ({ r: 3, o: 2, y: 1 }[tone] || 0)) tone = t; };
+    if (!wxEntry) { issues.push('no weather'); bump('o'); }
+    for (const w of r.why) {
+      if (/^Below CAT I|^Aerodrome closed|^No usable runway/.test(w)) { issues.push(w.replace(' (forecast)', '')); bump('r'); }
+      else if (/^Low cloud/.test(w)) { issues.push('low cloud / vis'); bump('o'); }
+      else if (/^Weather:/.test(w)) { issues.push(w.slice(9).trim()); bump('o'); }
+    }
+    const xw = r.xw;
+    if (xw && xw.lim) {
+      const lim = role === 'dep' ? xw.lim.to : xw.lim.ldg;
+      const b = role === 'dep' ? (xw.xw > lim ? 'r' : xw.xw > lim - 5 ? 'o' : '') : ri.xwBandFor(xw.xw, xw.lim);
+      if (b === 'r' || b === 'o') { issues.push(`XW ${xw.xw}/${lim}`); bump(b); }
+      if (xw.hw < 0) { const tb = ri.tailBand(-xw.hw); if (tb === 'r' || tb === 'o') { issues.push(`TW ${-xw.hw}`); bump(tb); } }
+    }
+    if (r.wind) { const sb = ri.speedBand(r.wind.wspd, r.wind.wgst); if (sb) { issues.push(`wind ${Math.max(r.wind.wspd || 0, r.wind.wgst || 0)} kt`); bump('r'); } }
+    let red = 0;
+    if (notams) {
+      const lines = nb.briefs(notams, eta, 3600e3).filter(l => l.sev === 'r');
+      red = lines.length;
+      const said = (t) => issues.some(x => x.toLowerCase().replace(/ by notam$/, '') === String(t).toLowerCase());
+      if (red === 1 && !said(lines[0].text)) issues.push(lines[0].text);
+      else if (red > 1) issues.push(`${red} red NOTAMs`);
+      if (red) bump('r');
+    }
+    return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams };
+  };
+  const altCode = altnOf(leg);
+  const alt = altCode ? ri.findAirport(db, altCode) : null;
+  const tB = m.tm.etaAt(m.route.total);
+  return {
+    at: c.at,
+    ends: [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), alt && alt.icao !== m.B.icao ? one(alt, tB, 'alt') : null].filter(Boolean),
+    sig: (m.sig || []).length,
+    notamsOff: m.notamsOff,
+  };
+}
+
+// `fromMap`: chosen by tapping the map — the map stays exactly where it is
+// (the magenta ring shows the choice) and the page only scrolls enough for
+// the card's head to show below it, so the next tap lands where you aimed.
+// Settings changed the diversion rules: re-rate what's on screen now.
+window.addEventListener('fc:div-rules', () => {
+  if (state && state.model) build(state.model.leg).then(m => paint(m, state.showAll)).catch(() => {});
+});
+
+// ---------- ATIS from the map ----------
+// Departure, destination and alternate, top left of the map: one tap opens
+// that airport's ATIS window (app.js handles data-atis-open). Each shows
+// its letter once the ATIS has been fetched (the app does every 10 min).
+function paintAtisBtns() {
+  const box = $('ri-atis-btns');
+  if (!box || !state) return;
+  const m = state.model;
+  const alt = altnOf(m.leg);
+  const row = (end, label, code) => {
+    if (!code) return '';
+    const e = wxm.peekCachedWx(code);
+    const L = e && e.datis ? wxm.extractLetter(e.datis, end === 'dep' ? 'dep' : 'arr') : '';
+    return `<button type="button" data-atis-open="${esc(code)}" data-atis-end="${end === 'altn' ? '' : end}" title="ATIS ${esc(code)}">
+        <span class="ri-ab-l">${label}</span><b>${esc(code)}</b>${L ? `<span class="atis-tag">${esc(L)}</span>` : ''}</button>`;
+  };
+  box.innerHTML = row('dep', 'DEP', m.A.icao) + row('arr', 'ARR', m.B.icao) + row('altn', 'ALT', alt);
+}
+window.addEventListener('fc:atis-updated', () => paintAtisBtns());
+
+// ---------- El Al traffic (LY button) ----------
+// Are we in the air in this leg's aircraft right now (from just before
+// take-off to just after landing)? Then its "last seen" position is us —
+// stale, and pointless to draw.
+function inFlightNow() {
+  const leg = state && state.model.leg;
+  if (!leg) return false;
+  const p = legPlanActual(leg);
+  const ok = Number.isFinite;
+  const start = ok(p.takeoff) ? p.takeoff : ok(p.obt) ? p.obt : ok(p.ctot) ? p.ctot : p.std;
+  const delay = ok(p.obt) && ok(p.std) ? p.obt - p.std : 0;
+  const end = ok(p.landing) ? p.landing : ok(p.ibt) ? p.ibt : ok(p.sta) ? p.sta + delay : NaN;
+  if (!ok(start) || !ok(end)) return false;
+  const now = Date.now();
+  return now >= start - 20 * 60000 && now <= end + 20 * 60000;
+}
+// This leg's aircraft: its registration (EKJ → 4X-EKJ) and callsign (ELY541).
+function ownIds() {
+  const leg = state && state.model.leg;
+  const d = (leg && leg.dataCard) || {};
+  const card = (() => { try { return storage.getCurrent().dataCard; } catch { return {}; } })();
+  let reg = String(d.tail || (leg && leg.tail) || card.tail || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (/^[A-Z]{3}$/.test(reg)) reg = '4X' + reg;
+  if (/^4X[A-Z]{3}$/.test(reg)) reg = '4X-' + reg.slice(2);
+  const num = String((leg && leg.flight) || '').replace(/\D/g, '').replace(/^0+/, '');
+  return { reg, cs: num ? 'ELY' + num : '' };
+}
+function setEly(on) {
+  elyOn = on;
+  try { localStorage.setItem('fc.routeEly', on ? '1' : '0'); } catch {}
+  document.querySelectorAll('[data-ri-ely]').forEach(b => { b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+  // Off: the other El Al aircraft go; your own stays.
+  if (!on) { if (elySel && !elyList.find(a => a.hex === elySel)?.own) closeEly(); elyList = elyList.filter(a => a.own); paintEly(); return; }
+  elyRefresh(true);
+}
+// Your own aircraft is always on the map (its last position when it isn't
+// transmitting); LY adds every other El Al flight round the route.
+async function elyRefresh(now = false) {
+  clearTimeout(elyTimer);
+  if (!state) return;
+  if (now || Date.now() - elyAt >= ely.REFRESH_MS) {
+    const { reg: reg0 } = ownIds();
+    if (navigator.onLine === false) {
+      if (now && elyOn) toast('No internet — El Al traffic needs a connection');
+      if (inFlightNow()) elyList = elyList.filter(a => !a.stale);
+      // Offline: where it was last seen, if we know.
+      const ls = reg0 && !inFlightNow() && ely.lastSeen(reg0);
+      if (ls && !elyList.some(a => a.own)) elyList = [...elyList, { ...ls, own: true, stale: true, hex: 'last-' + ls.hex }];
+    } else {
+      const list = elyOn ? await ely.fetchEly(state.model.route.pts).catch(() => null) : [];
+      // This flight's own aircraft, wherever it is — or where it was last seen.
+      const { reg, cs } = ownIds();
+      const own = (reg || cs) ? await ely.fetchOwn(reg, cs).catch(() => null) : null;
+      if (list) {
+        if (own) { const i = list.findIndex(a => a.hex === own.hex); if (i >= 0) list[i] = own; else list.push(own); }
+        // Its last position only when we aren't flying it now (then it's us).
+        else { const ls = reg && !inFlightNow() && ely.lastSeen(reg); if (ls) list.push({ ...ls, own: true, stale: true, hex: 'last-' + ls.hex }); }
+        for (const a of list) { const was = elyList.find(x => x.hex === a.hex); if (was && was.route !== undefined) { a.route = was.route; a.fits = ely.routeFits(a.route, a); } }
+        elyList = list; elyAt = Date.now();
+        if (elySel && !list.some(a => a.hex === elySel)) closeEly();
+        if (now && elyOn) toast(list.length ? `${list.length} El Al aircraft near the route` : 'No El Al aircraft in the air near the route');
+      }
+    }
+  }
+  paintEly();
+  if (elySel && $('ri-ely-pop')) openEly(elySel);
+  // Only while Route info is on screen.
+  if (document.querySelector('#ri-map')) elyTimer = setTimeout(() => elyRefresh(), ely.REFRESH_MS);
+}
+const PLANE = 'M0,-7 L1.2,-2.2 L6.5,1.2 L6.5,2.4 L1.2,0.9 L0.9,4.6 L2.6,6 L2.6,6.8 L0,6 L-2.6,6.8 L-2.6,6 L-0.9,4.6 L-1.2,0.9 L-6.5,2.4 L-6.5,1.2 L-1.2,-2.2 Z';
+function paintEly() {
+  const g = $('ri-ely');
+  if (!g || !mapGeom || !state) return;
+  const P = mapGeom.proj;
+  const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
+  const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
+  mapGeom.ely = elyList.map(a => ({ hex: a.hex, x: P.x(unwrap(a.lon)), y: P.y(a.lat) }));
+  // The chosen one's route: flown part solid, still to go dashed.
+  let rt = '';
+  const sel = elyList.find(a => a.hex === elySel);
+  if (sel && sel.route && sel.fits) {
+    // Great circles, as flown — not straight lines on the chart.
+    const xy = (p) => `${P.x(unwrap(p.lon)).toFixed(1)},${P.y(p.lat).toFixed(1)}`;
+    const gc = (a, b) => { const r = ri.routePoints(a, b, 32); return 'M' + (Array.isArray(r) ? r : r.pts).map(xy).join('L'); };
+    rt = `<path class="ri-ely-done" d="${gc(sel.route.from, sel)}"/><path class="ri-ely-togo" d="${gc(sel, sel.route.to)}"/>`;
+    // Its airports, marked even where Route info has no pin for them.
+    const pinned = new Set((mapGeom.pins || []).map(p => p.icao));
+    for (const e of [sel.route.from, sel.route.to]) {
+      if (!e || pinned.has(e.icao)) continue;
+      rt += `<g class="ri-ely-apt" transform="translate(${xy(e)})"><g class="ri-ely-k"><rect x="-4" y="-4" width="8" height="8" rx="1.5"/><text y="-7">${esc(e.icao)}</text></g></g>`;
+    }
+  }
+  // The chosen one drawn last, on top.
+  const order = elyList.map((a, i) => i).sort((i, j) => (elyList[i].hex === elySel) - (elyList[j].hex === elySel));
+  g.innerHTML = rt + order.map(i => {
+    const a = elyList[i];
+    const { x, y } = mapGeom.ely[i];
+    return `<g class="ri-ely-ac${a.own ? ' is-own' : ''}${a.stale ? ' is-stale' : ''}${a.hex === elySel ? ' is-sel' : elySel ? ' is-dim' : ''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <g class="ri-ely-k">${a.own ? '<circle class="ri-ely-ring" r="10"/>' : ''}<path d="${PLANE}" transform="rotate(${Math.round(a.trk)})"/><text y="15">${esc(a.own ? (a.reg || a.flight) : a.flight)}</text></g></g>`;
+  }).join('');
+}
+// The chosen aircraft's details in a small box on the map itself (top
+// left, clear of the zoom buttons) — no scrolling away to a card.
+function closeEly() {
+  $('ri-ely-pop')?.remove();
+  if (elySel) { elySel = ''; paintEly(); }
+}
+async function openEly(hex) {
+  const a = elyList.find(x => x.hex === hex);
+  const wrap = $('ri-map')?.parentElement;
+  if (!a || !wrap) return;
+  elySel = hex;
+  const box = (rt) => {
+    const ends = rt ? `${esc(rt.from.iata || rt.from.icao)} → ${esc(rt.to.iata || rt.to.icao)}` : rt === undefined ? 'route…' : 'route not known';
+    const names = rt ? `${esc(rt.from.name || '')} → ${esc(rt.to.name || '')}` : '';
+    return `<div class="ri-ely-pop-h"><b>${esc(a.flight)}</b> <span>${ends}</span>
+        <button type="button" class="ri-ely-pop-x" data-ri-ely-close aria-label="Close">✕</button></div>
+      ${names ? `<div class="ri-ely-pop-n">${names}${rt && !a.fits ? ' · <i>route unsure</i>' : ''}</div>` : ''}
+      <div class="ri-ely-pop-f"><span>${esc(a.reg || '—')}${a.type ? ' · ' + esc(ely.typeName(a.type)) : ''}</span>
+        ${a.ground ? `<span><b>On the ground</b>${near ? ' at ' + esc(near) : ''}</span>` : `<span><b>FL${String(a.fl).padStart(3, '0')}</b> · ${a.gs} kt</span>`}</div>
+      ${eta ? `<div class="ri-ely-pop-f"><span><b>ETA ${hm(eta.at)}</b> · ${eta.left} nm to go</span></div>` : ''}
+      ${a.own ? `<div class="ri-ely-pop-n">${a.stale ? `Your aircraft — last seen ${ago(a.seen)}, not transmitting now` : 'Your aircraft'}</div>` : ''}`;
+  };
+  // On the ground: the airport it's at, from the diversion database.
+  let near = '';
+  if (a.ground) {
+    try {
+      const db = await ri.loadDb();
+      let best = null;
+      for (const code of Object.keys(db.a)) { const [la, lo] = db.a[code]; const d = Math.abs(la - a.lat) + Math.abs(lo - a.lon); if (!best || d < best[1]) best = [code, d]; }
+      if (best && best[1] < 0.2) near = best[0];
+    } catch {}
+  }
+  let eta = a.route ? ely.etaOf(a, a.route) : null;
+  let el = $('ri-ely-pop');
+  if (!el) { wrap.insertAdjacentHTML('beforeend', '<div id="ri-ely-pop" class="ri-ely-pop" role="dialog" aria-label="Aircraft"></div>'); el = $('ri-ely-pop'); }
+  el.innerHTML = box(a.route);
+  paintEly();
+  if (a.route === undefined) {
+    a.route = await ely.routeOf(a.cs);
+    a.fits = ely.routeFits(a.route, a);
+    eta = ely.etaOf(a, a.route);
+    if (elySel === hex && $('ri-ely-pop')) { $('ri-ely-pop').innerHTML = box(a.route); paintEly(); }
+  }
+}
+
+// ---------- SIGMETs ----------
+const SIG_NAMES = { TS: 'Thunderstorms', TURB: 'Turbulence', ICE: 'Icing', MTW: 'Mountain wave', VA: 'Volcanic ash',
+  TC: 'Tropical cyclone', DS: 'Dust storm', SS: 'Sandstorm', RDOACT: 'Radioactive cloud', IFR: 'Low ceiling / visibility', MTN: 'Mountain obscuration' };
+const SIG_QUAL = { SEV: 'Severe', OBSC: 'Obscured', EMBD: 'Embedded', FRQ: 'Frequent', SQL: 'Squall line', ISOL: 'Isolated', OCNL: 'Occasional', HVY: 'Heavy' };
+function sigClass(h) { return { TS: 'ts', TC: 'ts', TURB: 'turb', MTW: 'turb', ICE: 'ice', VA: 'va', RDOACT: 'va' }[h] || 'other'; }
+function sigLevels(sg) {
+  const fl = (ft) => ft == null ? '' : ft === 0 ? 'SFC' : 'FL' + String(Math.round(ft / 100)).padStart(3, '0');
+  if (sg.base != null && sg.top != null) return `${fl(sg.base)}–${fl(sg.top)}`;
+  if (sg.top != null) return `up to ${fl(sg.top)}`;
+  if (sg.base != null) return `above ${fl(sg.base)}`;
+  return '';
+}
+function sigShort(sg) {
+  const t = sg.top != null ? ' ' + String(Math.round(sg.top / 100)) : '';
+  return (sg.hazard || 'SIGMET') + t;
+}
+function sigWhen(ms) { return new Date(ms).toISOString().slice(11, 16) + 'Z'; }
+function inPoly(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+// Under the map: one line for each SIGMET the flight meets, tap for details.
+function sigListHtml(m) {
+  const head = `SIGMETs on your way${m.sigAt ? ` · checked ${ago(m.sigAt)}` : ''}`;
+  if (!m.sigAt) return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div><div class="ri-sig-none">Not fetched yet — tap Update</div></div>`;
+  if (!m.sig.length) return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div><div class="ri-sig-none">None on the route at the times you'd be there</div></div>`;
+  return `<div class="ri-sig-list"><div class="ri-sig-h">${head}</div>${m.sig.map(sg => `<button type="button" class="ri-sig-row" data-ri-sig="${esc(sg.id)}">
+      <i class="ri-sig-sw ri-sig-${sigClass(sg.hazard)}"></i>
+      <b>${esc(SIG_NAMES[sg.hazard] || sg.hazard || 'SIGMET')}</b>
+      <span>${esc([SIG_QUAL[sg.qual], sigLevels(sg), sg.fir].filter(Boolean).join(' · '))}</span>
+      <span class="ri-sig-t">you ≈ ${sigWhen(sg.pass[0])}${sg.pass[1] - sg.pass[0] > 5 * 60000 ? '–' + sigWhen(sg.pass[1]) : ''}</span>
+    </button>`).join('')}</div>`;
+}
+function sigCardHtml(sg) {
+  const mv = sg.dir && sg.dir !== '-' ? `moving ${esc(sg.dir)}${sg.spd && sg.spd !== '0' ? ' ' + esc(sg.spd) + ' kt' : ''}` : (sg.spd === '0' ? 'stationary' : '');
+  const ch = { NC: 'no change', WKN: 'weakening', INTSF: 'intensifying' }[sg.chng] || '';
+  return `<div class="ri-sig-card">
+      <div class="ri-sig-card-h"><i class="ri-sig-sw ri-sig-${sigClass(sg.hazard)}"></i>
+        <b>${esc([SIG_QUAL[sg.qual], (SIG_NAMES[sg.hazard] || sg.hazard || 'SIGMET').toLowerCase()].filter(Boolean).join(' '))}</b></div>
+      <div class="ri-sig-facts">
+        <span><i>Levels</i>${esc(sigLevels(sg) || '—')}</span>
+        <span><i>Valid</i>${sigWhen(Date.parse(sg.from))}–${sigWhen(Date.parse(sg.to))}</span>
+        <span><i>You there</i>≈ ${sigWhen(sg.pass[0])}${sg.pass[1] - sg.pass[0] > 5 * 60000 ? '–' + sigWhen(sg.pass[1]) : ''}</span>
+        <span><i>FIR</i>${esc(sg.firName || sg.fir || '—')}</span>
+        ${mv || ch ? `<span><i>Trend</i>${[mv, ch].filter(Boolean).join(', ')}</span>` : ''}
+      </div>
+      <pre class="ri-raw ri-sig-raw">${esc(sg.raw)}</pre>
+    </div>`;
+}
+function openSig(ids, { fromMap = false } = {}) {
+  if (!state) return;
+  const list = state.model.sig.filter(sg => ids.includes(sg.id));
+  const slot = $('ri-card-slot');
+  if (!list.length || !slot) return;
+  slot.innerHTML = `<div class="ri-card ri-sig-cards">
+      <div class="ri-card-head"><div><b>SIGMET${list.length > 1 ? 's' : ''}</b> <span class="ri-sub">on your way</span></div>
+        <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button></div>
+      ${list.map(sigCardHtml).join('')}
+    </div>`;
+  document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
+  for (const id of ids) document.querySelector(`.ri-sig[data-sig="${CSS.escape(id)}"]`)?.classList.add('is-sel');
+  const sheet = document.querySelector('.route-sheet');
+  if (fromMap) {
+    const top = slot.getBoundingClientRect().top, room = window.innerHeight - 140;
+    if (sheet && top > room) sheet.scrollBy({ top: top - room, behavior: 'smooth' });
+  } else slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function openCard(icao, { keepView = false, fromMap = false } = {}) {
+  if (!state) return;
+  const c = state.model.pool.find(x => x.ap.icao === icao);
+  const slot = $('ri-card-slot');
+  if (!c || !slot) return;
+  slot.innerHTML = cardHtml(c, state.model);
+  document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
+  const pin = document.querySelector(`.ri-pin[data-icao="${icao}"]`);
+  if (pin) {
+    pin.classList.add('is-sel');
+    // Drawn on top of its neighbours (still under the aircraft and ring labels).
+    pin.parentNode.insertBefore(pin, $('ri-iso-lbls') || null);
+    relabel();
+  }
+  if (keepView) return;
+  if (fromMap) {
+    // Down to the "Set as alternate" button (the card's head when there's
+    // none), all on the same screen as the map above it.
+    const sheet = document.querySelector('.route-sheet');
+    const tgt = slot.querySelector('.ri-altn-btn') || slot.querySelector('.ri-card-head') || slot;
+    const bottom = tgt.getBoundingClientRect().bottom;
+    const bar = document.querySelector('.tabbar, .bottom-bar, nav.bar');
+    const bt = bar ? bar.getBoundingClientRect() : null;
+    const room = (bt && bt.height && bt.top > 0 && bt.top <= window.innerHeight ? bt.top : window.innerHeight) - 14;
+    if (sheet && bottom > room) sheet.scrollBy({ top: bottom - room, behavior: 'smooth' });
+    return;
+  }
+  slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  if (mapGeom) {
+    const x = mapGeom.proj.x(c.lonDraw), y = mapGeom.proj.y(c.ap.lat);
+    // A close look around the airport — about 600 nm across whatever the
+    // route's length, so its neighbours are named and the rest drop out.
+    const nmPerUnit = state.model.route.total / Math.max(1, Math.hypot(
+      mapGeom.proj.x(state.model.B.lon) - mapGeom.proj.x(state.model.A.lon),
+      mapGeom.proj.y(state.model.B.lat) - mapGeom.proj.y(state.model.A.lat)));
+    const w = Math.max(mapGeom.W / 24, Math.min(mapGeom.W, 600 / (nmPerUnit || 1))), h = w * mapGeom.H / mapGeom.W;
+    animateViewBox({ x: x - w / 2, y: y - h / 2, w, h }, 380);
+  }
+}
+
+// ---------- Live: the aircraft from GPS ----------
+// While the screen is open, GPS (when the device has it and it's allowed)
+// puts the aircraft on the map and works out which airports are NEAREST IN
+// TIME — not miles: one 30 nm straight ahead is quicker than one 30 nm
+// behind (the turn), and from cruise height even a close one takes as long
+// as the descent needs. Two shaded shapes show what's reachable in 30 and
+// 60 minutes. A rough model, labelled as one:
+//   turn at 25° bank (rate = 1091·tan25°/TAS, max 3°/s);
+//   descent needs ~3 nm per 1,000 ft above the field + 10 nm to slow down,
+//   so a closer airport still costs that many track miles;
+//   ~85% of present ground speed (≥ 250 kt) until 30 nm out, 210 kt for the
+//   last 30 nm, + 4 min to land.
+const TURN_BANK_TAN = Math.tan(25 * Math.PI / 180);
+function brg(lat1, lon1, lat2, lon2) {
+  const f1 = lat1 * Math.PI / 180, f2 = lat2 * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dl) * Math.cos(f2), x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function distNm(lat1, lon1, lat2, lon2) {
+  const R = Math.PI / 180;
+  const a = Math.sin((lat2 - lat1) * R / 2) ** 2 + Math.cos(lat1 * R) * Math.cos(lat2 * R) * Math.sin((lon2 - lon1) * R / 2) ** 2;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(a))) * 3440.065;
+}
+function destPoint(lat, lon, b, dNm) {
+  const R = Math.PI / 180, d = dNm / 3440.065, f1 = lat * R, l1 = lon * R, th = b * R;
+  const f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(th));
+  const l2 = l1 + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(f1), Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+  return [f2 / R, l2 / R];
+}
+function speeds(g) {
+  const tas = Math.max(250, g.gs || 0);
+  return { vFar: Math.max(250, 0.85 * tas), vNear: 210, rate: Math.min(3, 1091 * TURN_BANK_TAN / tas) };
+}
+function minutesFor(dTrack, turnDeg, g) {
+  const { vFar, vNear, rate } = speeds(g);
+  const near = Math.min(dTrack, 30), far = Math.max(0, dTrack - near);
+  return turnDeg / rate / 60 + far / vFar * 60 + near / vNear * 60 + 4;
+}
+function timeTo(ap, g) {
+  const d = distNm(g.lat, g.lon, ap.lat, ap.lon);
+  const b = brg(g.lat, g.lon, ap.lat, ap.lon);
+  const rel = ((b - g.trk + 540) % 360) - 180;          // −180..180, + = right
+  const need = Math.max(0, (g.altFt - (ap.elev || 0)) / 1000 * 3 + 10);
+  // Closer than the descent needs: the extra track miles are flown anyway,
+  // and the turn is made inside them (a descending turn), so it adds no time.
+  const min = d < need ? minutesFor(need, 0, g) : minutesFor(d, Math.abs(rel), g);
+  return { min, d, rel };
+}
+// The edge of what's reachable in T minutes, bearing by bearing.
+function isochrone(g, T) {
+  const { vFar, vNear, rate } = speeds(g);
+  const need = Math.max(0, g.altFt / 1000 * 3 + 10);
+  const diskOk = minutesFor(need, 0, g) <= T;
+  const pts = [];
+  for (let b = 0; b < 360; b += 5) {
+    const turn = Math.abs(((b - g.trk + 540) % 360) - 180) / rate / 60;
+    const left = T - 4 - turn;
+    let r = 0;
+    if (left > 0) {
+      const tNear = 30 / vNear * 60;
+      r = left <= tNear ? left / 60 * vNear : 30 + (left - tNear) / 60 * vFar;
+    }
+    // Everything within the descent distance is reachable in any direction
+    // once there's time to fly that distance at all — the turn is made while
+    // descending (see timeTo). Only when even that can't be done in T is a
+    // direction empty. Without this, the ring lost its back half at cruise
+    // levels and looked as if nothing behind could be reached.
+    if (r < need) r = diskOk ? need : 0;
+    pts.push(destPoint(g.lat, g.lon, b, r));
+  }
+  return pts;
+}
+// With no usable heading yet, assume the aircraft is flying the route.
+function routeTrackNear(lat, lon) {
+  const pts = state.model.route.pts;
+  let bi = 0, bd = Infinity;
+  pts.forEach((p, i) => { const d = distNm(lat, lon, p.lat, p.lon); if (d < bd) { bd = d; bi = i; } });
+  const a = pts[Math.min(bi, pts.length - 2)], b = pts[Math.min(bi + 1, pts.length - 1)];
+  return brg(a.lat, a.lon, b.lat, b.lon);
+}
+// A recent airborne fix that fits this leg (not a position from another
+// flight, not one kilometres out) → it shapes the route.
+const GPS_ROUTE_MAX_AGE = 3 * 60000, OFF_ROUTE_NM = 15, REROUTE_EVERY = 3 * 60000;
+// Only the flight being flown now (STD − 1 h to STA + 2 h): an old or future
+// leg keeps its great circle, or the route pasted for it.
+function legIsNow(leg, now = Date.now()) {
+  const std = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
+  let sta = legTs(leg.arr_date || leg.dep_date, leg.arr_time, leg.dep_year);
+  if (!Number.isFinite(std)) return false;
+  if (!Number.isFinite(sta) || sta < std) sta = std + 6 * 3600e3;
+  return now >= std - 3600e3 && now <= sta + 2 * 3600e3;
+}
+function gpsOnLeg(A, B) {
+  const g = gpsFix;
+  if (!g || !g.airborne || Date.now() - g.at > GPS_ROUTE_MAX_AGE) return null;
+  const ab = distNm(A.lat, A.lon, B.lat, B.lon);
+  if (distNm(A.lat, A.lon, g.lat, g.lon) + distNm(g.lat, g.lon, B.lat, B.lon) > ab * 1.6 + 100) return null;
+  return g;
+}
+// Off the drawn route by more than OFF_ROUTE_NM (no filed route): redraw it
+// from where we are — at most every few minutes, keeping the open card.
+let rerouteAt = 0;
+function maybeReroute() {
+  if (!state || busy || state.model.route.filed || !gpsFix || !gpsFix.airborne || !legIsNow(state.model.leg)) return;
+  if (Date.now() - rerouteAt < REROUTE_EVERY) return;
+  const off = Math.min(...state.model.route.pts.map(p => distNm(gpsFix.lat, gpsFix.lon, p.lat, p.lon)));
+  if (off < OFF_ROUTE_NM) return;
+  rerouteAt = Date.now();
+  const leg = state.model.leg;
+  build(leg, { doFetch: false }).then(repaintKeeping)
+    .then(() => { if (navigator.onLine !== false) refresh(false); }).catch(() => {});
+}
+function onFix(pos) {
+  const c = pos.coords;
+  // A network guess (Wi-Fi only, kilometres out) isn't a position to fly by.
+  if (!plan.goodFix(c.accuracy)) return;
+  const now = pos.timestamp || Date.now();
+  let trk = Number.isFinite(c.heading) && c.heading >= 0 && (c.speed || 0) > 20 ? c.heading : null;
+  let gs = Number.isFinite(c.speed) && c.speed >= 0 ? c.speed * 1.94384 : null;
+  if (gpsPrev) {
+    const dd = distNm(gpsPrev.lat, gpsPrev.lon, c.latitude, c.longitude);
+    const dt = (now - gpsPrev.at) / 3600000;
+    if (trk == null && dd > 0.3) trk = brg(gpsPrev.lat, gpsPrev.lon, c.latitude, c.longitude);
+    if (gs == null && dt > 0) gs = dd / dt;
+  }
+  if (trk == null) trk = gpsFix ? gpsFix.trk : (state ? routeTrackNear(c.latitude, c.longitude) : 0);
+  gpsFix = {
+    lat: c.latitude, lon: c.longitude, at: now,
+    altFt: Number.isFinite(c.altitude) ? c.altitude * 3.28084 : 0,
+    gs: gs || 0, trk, airborne: (gs || 0) > 80,
+  };
+  gpsPrev = { lat: c.latitude, lon: c.longitude, at: now };
+  if (now - livePaintAt > 5000) paintLive();
+  maybeReroute();
+}
+function startGps() {
+  if (gpsWatch != null || !navigator.geolocation) return;
+  try {
+    gpsWatch = navigator.geolocation.watchPosition(onFix, () => {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+  } catch { gpsWatch = null; }
+}
+function stopGps() {
+  if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch {} }
+  gpsWatch = null;
+}
+// Above the map, airborne with GPS: the FIR we're in, the next one along
+// the way to the destination and its CPDLC log-on (cpdlc.js). Only when
+// it changes does the DOM.
+let cpdlcMod = null;
+async function paintCpdlc(g) {
+  const el = $('ri-cpdlc');
+  if (!el) return;
+  if (!g || !g.airborne || !state) { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=291'); } catch { el.hidden = true; return; }
+  const B = state.model.B;
+  const wps = state.model.route.filed ? state.model.route.wps : null;
+  const on = wps ? plan.progress(wps, g) : null;
+  const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
+  const tag = (id) => {
+    if (!id) return '';
+    const c = cpdlcMod.cpdlcOf(id);
+    return c.on ? `<span class="ri-cpdlc-on">CPDLC <b>${esc(c.code)}</b></span>${c.note ? ` <small>${esc(c.note)}</small>` : ''}`
+      : `<span class="ri-cpdlc-off">${esc(c.note)}</span>`;
+  };
+  // Where we are on the left, what's next on the right — the order they're flown.
+  const side = (cls, head, id, when) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
+      <b class="ri-cpdlc-fir">${esc(id)}</b> ${tag(id)}${when ? ` <span class="ri-cpdlc-when">${when}</span>` : ''}</div>`;
+  const html = (r.here || r.next)
+    ? (r.here ? side('is-now', 'Now', r.here, r.next ? '' : 'to the destination') : '<div class="ri-cpdlc-side is-now"></div>')
+      + (r.next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>` + side('is-next', 'Next', r.next,
+        `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}`) : '')
+    : '';
+  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+  el.hidden = !html;
+}
+// One score for an airport everywhere in the air: within about an hour, what
+// it has NOW (METAR) matters more than the forecast for when we'd have passed
+// it, so the nearest list, the strip's Nearest chip and the airport card all
+// re-rate it the same way — never 6 in the list and 8 on the card.
+// The live ratings of the last GPS fix (icao → rating), for the pins and lists.
+let liveR = new Map();
+const shownR = (c) => liveR.get(c.ap.icao) || c.r;
+function liveRated(c, g) {
+  const t = timeTo(c.ap, g);
+  if (!g || !g.airborne || !c.wxEntry || t.min > 60) return { c, t, r: c.r };
+  const eta = Date.now() + t.min * 60000;
+  return { c, t, eta, r: ri.rate(c.ap, { distNm: c.distNm, eta, wxEntry: c.wxEntry, notams: c.notams, mode: 'near' }) };
+}
+// Nearest by time, best first: airports within NEAR_TIE_MIN of the quickest
+// are as good as equally near, so the highest rating among them leads.
+const NEAR_TIE_MIN = 3;
+function nearestList(pool, g) {
+  const all = pool.filter(c => !c.r.excluded).map(c => liveRated(c, g))
+    .filter(x => !x.r.excluded && x.r.score > 0).sort((a, b) => a.t.min - b.t.min);
+  if (!all.length) return all;
+  const lim = all[0].t.min + NEAR_TIE_MIN;
+  const tie = all.filter(x => x.t.min <= lim).sort((a, b) => b.r.score - a.r.score || a.t.min - b.t.min);
+  return [...tie, ...all.filter(x => x.t.min > lim)];
+}
+function paintLive() {
+  livePaintAt = Date.now();
+  paintCpdlc(gpsFix).catch(() => {});
+  const iso = $('ri-iso'), ac = $('ri-ac'), near = $('ri-near');
+  if (!iso || !ac || !mapGeom || !state) return;
+  const g = gpsFix;
+  if (!g) { liveR = new Map(); iso.innerHTML = ''; ac.innerHTML = ''; if ($('ri-iso-lbls')) $('ri-iso-lbls').innerHTML = ''; if (near) near.innerHTML = ''; document.querySelector('.ri-map-wrap')?.classList.remove('has-ac'); return; }
+  const P = mapGeom.proj;
+  const mid = (state.model.route.pts[0].lon + state.model.route.pts.at(-1).lon) / 2;
+  const unwrap = (lon) => { while (lon - mid > 180) lon -= 360; while (lon - mid < -180) lon += 360; return lon; };
+  const xy = ([lat, lon]) => `${P.x(unwrap(lon)).toFixed(1)},${P.y(lat).toFixed(1)}`;
+  // Each ring carries its time, written along the ring just outside it —
+  // parallel to the line, never across it — as near as it can to ahead-and-
+  // right of the nose, on a stretch of ring that is on the map.
+  const vb = getViewBox(), pad = 0.06;
+  const onMap = ([x, y]) => x > vb.x + vb.w * pad && x < vb.x + vb.w * (1 - pad) && y > vb.y + vb.h * pad && y < vb.y + vb.h * (1 - pad);
+  const acXY = xy([g.lat, g.lon]).split(',').map(Number);
+  // Labels keep clear of the airport pins (about 26 px around each).
+  const kUnits = parseFloat(getComputedStyle($('ri-map')).getPropertyValue('--ri-k')) || 1;
+  const clearOfPins = (q) => !(mapGeom.pins || []).some(p => Math.hypot(p.x - q[0], p.y - q[1]) < 26 * kUnits);
+  const lbls = [];
+  iso.innerHTML = g.airborne ? [60, 30].map(T => {
+    const pts = isochrone(g, T);
+    if (pts.every(p => Math.abs(p[0] - g.lat) < 1e-6)) return '';
+    const P = pts.map(p => xy(p).split(',').map(Number));
+    const dist = (q) => Math.hypot(q[0] - acXY[0], q[1] - acXY[1]);
+    const far = Math.max(...P.map(dist));
+    const want = (((g.trk + 45) % 360) + 360) % 360;
+    const order = P.map((q, i) => i).sort((a, b) => Math.abs(((a * 5 - want + 540) % 360) - 180) - Math.abs(((b * 5 - want + 540) % 360) - 180));
+    const ok = (i) => dist(P[i]) > far * 0.5 && onMap(P[i]);
+    const at = order.find(i => ok(i) && clearOfPins(P[i])) ?? order.find(ok) ?? order.find(i => dist(P[i]) > far * 0.5) ?? order[0];
+    const n = P.length, p0 = P[(at - 1 + n) % n], p1 = P[(at + 1) % n], q = P[at];
+    let ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI;
+    if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;           // keep it upright
+    // Which side of the line is "outside": the local +y after rotating.
+    const ny = [-Math.sin(ang * Math.PI / 180), Math.cos(ang * Math.PI / 180)];
+    const outY = (ny[0] * (q[0] - acXY[0]) + ny[1] * (q[1] - acXY[1])) > 0;
+    lbls.push(`<g class="ri-iso-lbl ri-iso-lbl-${T}" transform="translate(${q[0].toFixed(1)},${q[1].toFixed(1)}) rotate(${ang.toFixed(1)})"><text y="${outY ? 11 : -4}">${T} min</text></g>`);
+    return `<path d="M${P.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L')}Z" class="ri-iso ri-iso-${T}"/>`;
+  }).join('') : '';
+  const isoL = $('ri-iso-lbls');
+  if (isoL) isoL.innerHTML = lbls.join('');
+  document.querySelector('.ri-map-wrap')?.classList.toggle('has-ac', !!g);
+  const [x, y] = xy([g.lat, g.lon]).split(',');
+  ac.innerHTML = `<g class="ri-ac" transform="translate(${x},${y})"><g class="ri-ac-in" style="transform: scale(var(--ri-k,1)) rotate(${g.trk.toFixed(0)}deg)">
+      <path d="M0,-11 L2,-3 L10,2 L10,4 L2,2 L1.5,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.5,8 L-2,2 L-10,4 L-10,2 L-2,-3 Z"/></g></g>`;
+  liveR = new Map();
+  if (g.airborne) for (const c of state.model.pool) {
+    if (c.r.excluded) continue;
+    const L = liveRated(c, g);
+    if (L.eta) liveR.set(c.ap.icao, L.r);
+  }
+  // Pins re-scored in place (no map rebuild every fix).
+  document.querySelectorAll('#ri-map .ri-pin[data-icao]').forEach(pin => {
+    const c = state.model.pool.find(x => x.ap.icao === pin.dataset.icao);
+    if (!c) return;
+    const R = shownR(c), b = ri.band(R.score, R.excluded), t = pin.querySelector('.ri-pin-score');
+    if (t && t.textContent !== String(R.excluded ? '×' : R.score)) t.textContent = R.excluded ? '×' : R.score;
+    [...pin.classList].forEach(k => { if (/^ri-b-/.test(k) && k !== 'ri-b-' + b) pin.classList.remove(k); });
+    pin.classList.add('ri-b-' + b);
+  });
+  renderList();
+  if (!near) return;
+  if (!g.airborne) {
+    near.innerHTML = `<div class="ri-near-h">GPS: on the ground — nearest-by-time appears once airborne.</div>`;
+    return;
+  }
+  const cands = nearestList(state.model.pool, g).slice(0, 6);
+  const fl = g.altFt > 1000 ? `FL${String(Math.round(g.altFt / 100)).padStart(3, '0')} · ` : '';
+  near.innerHTML = `<div class="ri-near-h">Nearest by time · GPS ${fl}${Math.round(g.gs)} kt · track ${String(Math.round(g.trk)).padStart(3, '0')}° <span class="rw-src">(rough: turn + descent + approach)</span></div>
+    ${cands.map(({ c, t, r }) => {
+      const b = ri.band(r.score, r.excluded);
+      const side = Math.abs(t.rel) < 15 ? 'ahead' : Math.abs(t.rel) > 150 ? 'behind' : `${Math.round(Math.abs(t.rel))}° ${t.rel > 0 ? 'right' : 'left'}`;
+      return `<button type="button" class="ri-row" data-icao="${esc(c.ap.icao)}">
+          <span class="ri-row-t">≈${Math.round(t.min)}′</span>
+          <span class="ri-score ri-b-${b}">${r.score}</span>
+          <span class="ri-row-code"><b>${esc(c.ap.icao)}</b>${c.ap.iata ? `<small>${esc(c.ap.iata)}</small>` : ''}</span>
+          <span class="ri-row-n">${lvpTag({ ...c, r })} ${esc(shortName(c.ap))} <i>${esc(side)}</i></span>
+          <span class="ri-row-d">${Math.round(t.d)} nm</span></button>`;
+    }).join('')}`;
+}
+
+// ---------- Zoom & pan ----------
+// Pinch (two fingers) or scroll to zoom, drag to pan, double-tap to see the
+// whole route again. Works on the SVG viewBox, so pins and text stay sharp.
+function currentView() { return previewing || getViewBox(); }
+function getViewBox() {
+  const svg = $('ri-map');
+  const [x, y, w, h] = (svg?.getAttribute('viewBox') || '0 0 720 420').split(/\s+/).map(Number);
+  return { x, y, w, h };
+}
+// Where the map sits on screen, ignoring any preview transform (the
+// frame around it doesn't move while the picture inside does).
+function mapRect(svg) {
+  const r = (svg.parentElement || svg).getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.width * (mapGeom ? mapGeom.H / mapGeom.W : 420 / 720) };
+}
+// The view kept inside the map: zoom limits, no panning past the edges.
+function clampView(v) {
+  const W = mapGeom.W, Hh = mapGeom.H;
+  const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
+  return { x: Math.max(0, Math.min(W - w, v.x)), y: Math.max(0, Math.min(Hh - h, v.y)), w, h };
+}
+// Redraw the map at a view: everything re-laid, labels re-placed. Costly on
+// an iPad with every coastline, border, FIR and pin, so a moving finger or
+// an animation never calls it per frame — they slide a picture of the map
+// instead (previewView) and commit once at the end.
+function setViewBox(v) {
+  const svg = $('ri-map');
+  if (!svg || !mapGeom) return;
+  const c = clampView(v);
+  previewing = null;
+  svg.style.transform = '';
+  svg.classList.remove('is-moving');
+  svg.setAttribute('viewBox', `${c.x.toFixed(1)} ${c.y.toFixed(1)} ${c.w.toFixed(1)} ${c.h.toFixed(1)}`);
+  pinScale(svg, c.w);
+  relabel();
+}
+// Show the map at a view WITHOUT redrawing it: a GPU transform of the map
+// as last drawn. Pins grow and shrink with it for that moment and snap back
+// to size on commit — the way map apps do it.
+let previewing = null;
+function previewView(v) {
+  const svg = $('ri-map');
+  if (!svg || !mapGeom) return;
+  const c = clampView(v), v0 = getViewBox();
+  const R = mapRect(svg);
+  const s = v0.w / c.w;
+  const tx = (v0.x - c.x) / c.w * R.width, ty = (v0.y - c.y) / c.h * R.height;
+  svg.classList.add('is-moving');
+  svg.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${s.toFixed(4)})`;
+  previewing = c;
+}
+function commitView() { if (previewing) setViewBox(previewing); }
+// Pins hold one on-screen size — about 18 px across — whatever the zoom and
+// however wide the map is drawn (a phone draws the 720-unit map at ~340 px,
+// which shrank them to dots). Pins are drawn at ~9 units, so k = units/px.
+function pinScale(svg, vbW) {
+  const px = mapRect(svg).width || mapGeom?.W || 720;
+  const k = Math.max(0.02, Math.min(2.4, vbW / px));
+  svg.style.setProperty('--ri-k', k.toFixed(3));
+}
+// Smooth zoom / pan to a view (buttons, double-tap, choosing an airport).
+// Any touch or wheel on the map cancels it, so it never fights a finger.
+let viewAnim = 0;
+function animateViewBox(to, ms = 260) {
+  commitView();
+  const from = getViewBox(), t0 = performance.now(), id = ++viewAnim;
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  const step = (now) => {
+    if (id !== viewAnim) return;
+    const t = Math.min(1, (now - t0) / ms), e = ease(t);
+    const v = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e,
+                w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e };
+    if (t < 1) { previewView(v); requestAnimationFrame(step); } else setViewBox(v);
+  };
+  requestAnimationFrame(step);
+}
+// Zoom by `f` (0.5 = twice as close) about a point in map units.
+function zoomAbout(f, px, py, animate = true) {
+  const v = currentView();
+  const cx = px ?? v.x + v.w / 2, cy = py ?? v.y + v.h / 2;
+  const to = { x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f, w: v.w * f, h: v.h * f };
+  if (animate) animateViewBox(to); else setViewBox(to);
+}
+// The map's own buttons: + − fit, and ✈ (centre on the aircraft) with GPS.
+function mapZoom(kind) {
+  if (!mapGeom) return;
+  closePick();
+  if (kind === 'in') zoomAbout(0.5);
+  else if (kind === 'out') zoomAbout(2);
+  else if (kind === 'fit') animateViewBox({ x: 0, y: 0, w: mapGeom.W, h: mapGeom.H });
+  else if (kind === 'ac' && gpsFix) {
+    const v = currentView(), x = mapGeom.proj.x(gpsFix.lon), y = mapGeom.proj.y(gpsFix.lat);
+    const w = Math.min(v.w, mapGeom.W / 3), h = w * mapGeom.H / mapGeom.W;
+    animateViewBox({ x: x - w / 2, y: y - h / 2, w, h });
+  }
+}
+// Airports too close to tell apart under a finger: a small list at the tap
+// to choose from, instead of guessing.
+function closePick() { $('ri-pick')?.remove(); }
+function showPick(list, cx, cy) {
+  closePick();
+  const wrap = document.querySelector('.ri-map-wrap');
+  if (!wrap || !state) return;
+  const rows = list.map(p => state.model.pool.find(c => c.ap.icao === p.icao)).filter(Boolean).map(c =>
+    `<button type="button" data-ri-pick="${esc(c.ap.icao)}"><span class="ri-score ri-b-${ri.band(c.r.score, c.r.excluded)}">${c.r.excluded ? '×' : c.r.score}</span><b>${esc(c.ap.icao)}</b> ${esc(shortName(c.ap))}</button>`).join('');
+  wrap.insertAdjacentHTML('beforeend', `<div id="ri-pick" class="ri-pick" role="menu" aria-label="Choose an airport">${rows}</div>`);
+  const el = $('ri-pick'), r = wrap.getBoundingClientRect();
+  el.style.left = Math.max(6, Math.min(r.width - el.offsetWidth - 6, cx - r.left + 14)) + 'px';
+  el.style.top = Math.max(6, Math.min(r.height - el.offsetHeight - 6, cy - r.top - el.offsetHeight / 2)) + 'px';
+}
+// Resolves when no finger is on the map (or after a few seconds regardless).
+function fingersUp() {
+  const t0 = Date.now();
+  return new Promise(res => { const tick = () => (!mapTouching || Date.now() - t0 > 4000) ? res() : setTimeout(tick, 80); tick(); });
+}
+function wireZoom(svg) {
+  // The fingers on the map, read from the browser's own list on every touch
+  // event rather than counted up and down — a count goes wrong the moment
+  // iOS drops an event, and then taps miss and drags zoom until a reload.
+  const pts = new Map();
+  let start = null, lastTap = { t: 0, x: 0, y: 0 }, down = null;
+  let frame = 0, want = null, wheelT = 0;
+  // One map update per screen frame, however many touch events arrive.
+  const show = (v) => {
+    want = v;
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (want) previewView(want); });
+  };
+  const toSvg = (cx, cy) => {
+    const r = mapRect(svg), v = currentView();
+    return { x: v.x + (cx - r.left) / r.width * v.w, y: v.y + (cy - r.top) / r.height * v.h };
+  };
+  // The pins within reach of a fingertip, nearest first.
+  const elyAt0 = (cx, cy) => {
+    if (!mapGeom || !mapGeom.ely) return null;
+    const r = mapRect(svg), v = currentView();
+    let best = null;
+    for (const p of mapGeom.ely) {
+      const d = Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy);
+      if (d < 22 && (!best || d < best.d)) best = { hex: p.hex, d };
+    }
+    return best && best.hex;
+  };
+  const pinsAt = (cx, cy) => {
+    if (!mapGeom || !mapGeom.pins) return [];
+    const r = mapRect(svg), v = currentView();
+    return mapGeom.pins.map(p => ({ icao: p.icao,
+      d: Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy) }))
+      .filter(p => p.d < 30).sort((a, b) => a.d - b.d);
+  };
+  // With the whole route on screen there's nothing to pan: one finger up or
+  // down scrolls the Route info sheet instead (with a little momentum), so
+  // the map never hands the gesture to the browser — which let a pinch get
+  // taken over as a scroll, and scrolled the main page behind.
+  const sheet = () => document.querySelector('.route-sheet');
+  let scroll0 = 0, vel = 0, lastY = 0, lastT = 0, coast = 0;
+  const coastOn = () => {
+    const sh = sheet(); if (!sh) return;
+    cancelAnimationFrame(coast);
+    // Exponential slow-down, integrated exactly per frame, so a dropped or
+    // slow frame doesn't fling the sheet further than a smooth one would.
+    const D = 0.994, K = -Math.log(D);
+    let v = Math.max(-4, Math.min(4, vel)), t = performance.now();
+    const stepF = (now) => {
+      const dt = Math.min(100, now - t); t = now;
+      const f = Math.pow(D, dt);
+      sh.scrollTop -= v * (1 - f) / K; v *= f;
+      if (Math.abs(v) > 0.02) coast = requestAnimationFrame(stepF);
+    };
+    if (Math.abs(v) > 0.1) coast = requestAnimationFrame(stepF);
+  };
+  const atWhole = () => start && start.v.w >= mapGeom.W * 0.98;
+  const restart = () => {
+    commitView();
+    start = pts.size ? { v: getViewBox(), pts: new Map([...pts].map(([k, p]) => [k, { ...p }])) } : null;
+  };
+  svg.addEventListener('wheel', (e) => {
+    // Plain wheel / trackpad scroll: the page. Pinch (ctrl+wheel) or ⌘/⌥: zoom.
+    if (!(e.ctrlKey || e.metaKey || e.altKey)) return;
+    e.preventDefault();
+    viewAnim++;
+    const p = toSvg(e.clientX, e.clientY), v = currentView(), f = Math.exp(e.deltaY * 0.0015);
+    show({ x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f, w: v.w * f, h: v.h * f });
+    clearTimeout(wheelT); wheelT = setTimeout(() => { cancelAnimationFrame(frame); frame = 0; want = null; commitView(); }, 140);
+  }, { passive: false });
+  // The fingers now on the map. A thumb resting elsewhere on the screen isn't
+  // one of them.
+  const readTouches = (e) => {
+    pts.clear();
+    for (const t of e.touches) if (svg.contains(t.target)) pts.set(t.identifier, { x: t.clientX, y: t.clientY });
+    mapTouching = pts.size > 0;
+  };
+  // Put the last wanted view on screen now, not on the next frame.
+  const flush = () => {
+    if (frame) { cancelAnimationFrame(frame); frame = 0; if (want) previewView(want); }
+    want = null;
+  };
+  const baseline = (y) => { scroll0 = sheet()?.scrollTop || 0; vel = 0; lastY = y; lastT = performance.now(); };
+  const pressed = () => {
+    viewAnim++;
+    cancelAnimationFrame(coast);
+    closePick();
+    flush();
+    const [p] = pts.values();
+    down = pts.size === 1 ? { x: p.x, y: p.y, moved: false } : null;
+    restart();
+    baseline(p.y);
+  };
+  const moved = () => {
+    if (!start || !pts.size) return;
+    // Whatever the fingers are now is the truth, whatever events were missed.
+    if (pts.size !== start.pts.size || [...pts.keys()].some(k => !start.pts.has(k))) { pressed(); if (down) down.moved = true; return; }
+    const [ka, kb] = pts.keys();
+    const a = pts.get(ka), b = pts.get(kb), a0 = start.pts.get(ka), b0 = start.pts.get(kb);
+    // A fingertip wanders on a tap (more so in turbulence): only a real drag
+    // counts, and the drag starts from there, so the map doesn't jump.
+    if (down && !down.moved) {
+      if (Math.hypot(a.x - down.x, a.y - down.y) <= 14) return;
+      down.moved = true;
+      restart();
+      baseline(a.y);
+      return;
+    }
+    const r = mapRect(svg);
+    if (b) {
+      const d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y), d1 = Math.hypot(a.x - b.x, a.y - b.y);
+      const f = d1 > 0 ? d0 / d1 : 1;
+      // Zoom about the pinch's start midpoint and follow the midpoint as it moves.
+      const m0x = (a0.x + b0.x) / 2, m0y = (a0.y + b0.y) / 2, m1x = (a.x + b.x) / 2, m1y = (a.y + b.y) / 2;
+      const v = start.v, w = v.w * f, h = v.h * f;
+      const px = v.x + (m0x - r.left) / r.width * v.w, py = v.y + (m0y - r.top) / r.height * v.h;
+      show({ x: px - (m1x - r.left) / r.width * w, y: py - (m1y - r.top) / r.height * h, w, h });
+    } else if (down) {
+      if (atWhole()) {
+        const sh = sheet(); if (!sh) return;
+        sh.scrollTop = scroll0 - (a.y - a0.y);
+        const now = performance.now();
+        if (now > lastT) vel = 0.8 * vel + 0.2 * ((a.y - lastY) / (now - lastT));
+        lastY = a.y; lastT = now;
+      } else {
+        const dx = (a.x - a0.x) / r.width * start.v.w, dy = (a.y - a0.y) / r.height * start.v.h;
+        show({ ...start.v, x: start.v.x - dx, y: start.v.y - dy });
+      }
+    }
+  };
+  // `x, y`: where the finger left; `n`: fingers there were; `cancelled`: iOS
+  // took the touch away, which is never a tap.
+  const released = (x, y, n, cancelled) => {
+    const wasTap = !cancelled && n === 1 && down && !down.moved;
+    const scrolling = n === 1 && down && down.moved && atWhole();
+    // Draw the map once, at the view the fingers left it.
+    flush();
+    restart();
+    if (scrolling) coastOn();
+    // Out of a pinch with one finger still down: it carries on as a drag.
+    if (pts.size === 1) {
+      const [p] = pts.values();
+      down = { x: p.x, y: p.y, moved: true };
+      baseline(p.y);
+      return;
+    }
+    if (pts.size) return;
+    down = null;
+    if (wasTap) tapped(x, y);
+  };
+  // A tap, however long the finger stayed: the airport there opens. Two
+  // quick taps on open map zoom in there (+ / − / fit do the rest).
+  const tapped = (x, y) => {
+    const near = pinsAt(x, y), now = Date.now();
+    // An El Al aircraft under the finger: its card.
+    const lyHit = elyAt0(x, y);
+    if (lyHit) { lastTap = { t: 0 }; openEly(lyHit); return; }
+    // Anywhere else on the map puts the chosen aircraft down again.
+    if (elySel) closeEly();
+    // Inside a SIGMET area (or several): its details — unless the finger is
+    // right on an airport, which still opens the airport.
+    const sp = toSvg(x, y);
+    const hits = (mapGeom?.sig || []).filter(g => g.rings.some(r => inPoly(sp.x, sp.y, r))).map(g => g.id);
+    if (hits.length && !near.some(p => p.d < 14)) { lastTap = { t: 0 }; openSig(hits, { fromMap: true }); return; }
+    if (near.length) {
+      lastTap = { t: 0 };
+      const under = near.filter(p => p.d < 18);
+      if (under.length > 1) showPick(under.slice(0, 5), x, y);
+      else openCard(near[0].icao, { fromMap: true });
+      return;
+    }
+    if (now - lastTap.t < 320 && Math.hypot(x - lastTap.x, y - lastTap.y) < 30) {
+      const p = toSvg(x, y);
+      zoomAbout(0.5, p.x, p.y);
+      lastTap = { t: 0 };
+    } else lastTap = { t: now, x, y };
+  };
+  svg.addEventListener('touchstart', (e) => {
+    // Ours from the first moment, so iOS never takes it for a scroll or a
+    // text selection part-way through.
+    if (e.cancelable) e.preventDefault();
+    readTouches(e);
+    if (pts.size) pressed();
+  }, { passive: false });
+  svg.addEventListener('touchmove', (e) => {
+    if (e.cancelable) e.preventDefault();
+    readTouches(e);
+    moved();
+  }, { passive: false });
+  const touchEnd = (e) => {
+    const n = pts.size, t = e.changedTouches[0];
+    readTouches(e);
+    released(t.clientX, t.clientY, n, e.type === 'touchcancel');
+  };
+  svg.addEventListener('touchend', touchEnd);
+  svg.addEventListener('touchcancel', touchEnd);
+  // A mouse (desktop, or one paired with the iPad). Touch comes through above.
+  svg.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    try { svg.setPointerCapture(e.pointerId); } catch {}
+    pts.clear(); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    pressed();
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || !pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved();
+  });
+  const mouseEnd = (e) => {
+    if (e.pointerType !== 'mouse' || !pts.has(e.pointerId)) return;
+    pts.clear();
+    released(e.clientX, e.clientY, 1, e.type !== 'pointerup');
+  };
+  svg.addEventListener('pointerup', mouseEnd);
+  svg.addEventListener('pointercancel', mouseEnd);
+  svg.addEventListener('lostpointercapture', mouseEnd);
+}
+
+// `legArg`: a specific flight (the logbook's "Route info") — otherwise the
+// leg on the main screen.
+// `focus`: an airport (ICAO or IATA) whose card opens straight away — from
+// the airport popup's "Diversion card" or the flight strip's nearest chip.
+export async function open(legArg = null, { focus = '', keepDock = false } = {}) {
+  if (!keepDock) overlayEl().classList.remove('is-docked');
+  const leg = legArg || activeLeg();
+  pinned = leg ? idOf(leg) : null;
+  pinnedLeg = legArg || null;
+  if (!leg || !leg.dep || !leg.arr) { toast('Route info needs a leg with departure and destination'); return; }
+  showOverlay('route-overlay');
+  startGps();
+  $('route-body').innerHTML = '<p class="muted small" style="padding:18px 4px;">Plotting the route…</p>';
+  try {
+    const cache = readCache(leg);
+    const stale = !cache || Date.now() - cache.at > FRESH_MS;
+    // Show what's on the device straight away, then refresh if it's old.
+    await paint(await build(leg, { doFetch: false }));
+    const f = String(focus || '').toUpperCase();
+    const hit = f && state.model.pool.find(c => c.ap.icao === f || c.ap.iata === f);
+    if (hit) openCard(hit.ap.icao);
+    else if (f) toast(`${f} isn't within an hour of this route`);
+    ensureSaved();
+    if (stale && navigator.onLine !== false) await refresh(false);
+  } catch (err) {
+    $('route-body').innerHTML = `<p class="muted small" style="padding:18px 4px;">${esc(err.message || err)}</p>`;
+  }
+}
+// A repaint that keeps what's being looked at: the open airport card, the
+// map's zoom and the scroll. The new map replaces the old one, so never under
+// a finger.
+async function repaintKeeping(model) {
+  if ($('route-overlay').classList.contains('hidden')) return;
+  await fingersUp();
+  const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
+  const vb = $('ri-map') ? currentView() : null;
+  const scroll = document.querySelector('.route-sheet')?.scrollTop || 0;
+  await paint(model, state?.showAll);
+  if (sel) openCard(sel, { keepView: true });
+  if (vb) setViewBox(vb);
+  const sh = document.querySelector('.route-sheet'); if (sh) sh.scrollTop = scroll;
+}
+// Resolves true once the route's weather / NOTAMs were fetched and saved.
+export async function refresh(announce = true) {
+  const leg = screenLeg();
+  if (!leg || busy) return false;
+  if (navigator.onLine === false) {
+    const c = readCache(leg);
+    if (announce) toast(c ? `No internet — showing the weather saved ${ago(c.at)}` : 'No internet — no weather saved for this route yet');
+    return false;
+  }
+  busy = true;
+  const btn = $('route-refresh');
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+  try {
+    const model = await build(leg, { doFetch: true });
+    if (!$('route-overlay').classList.contains('hidden')) {
+      // A background refresh must not throw away what's being looked at:
+      // keep the open airport card and the map's zoom across the repaint.
+      // The new map replaces the old one, so never under a finger.
+      await repaintKeeping(model);
+    }
+    if (announce) toast('Route weather updated');
+    return true;
+  } catch (err) {
+    if (announce) toast('Update failed — showing the last copy (' + (err.message || err) + ')');
+    return false;
+  } finally {
+    busy = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Update'; }
+  }
+}
+
+// From 12 hours before departure until arrival, keep the route's METARs and
+// TAFs on the device — every 30 min, then every 15 in the last hour and en
+// route, whenever there's a connection — so with no internet in the air the
+// last TAF and METAR for every airport are still there to read.
+export async function autoUpdate() {
+  const leg = screenLeg();
+  if (!leg || !leg.dep || !leg.arr || busy || navigator.onLine === false) return;
+  const std = legTs(leg.dep_date, leg.dep_time, leg.dep_year);
+  const sta = legTs(leg.arr_date, leg.arr_time, leg.arr_year || leg.dep_year);
+  if (!Number.isFinite(std)) return;
+  const now = Date.now();
+  const end = Number.isFinite(sta) ? sta + 15 * 60000 : std + 12 * H;
+  if (now < std - 12 * H || now > end) return;
+  await ensureSaved();
+  const cache = readCache(leg);
+  const every = now >= std - 65 * 60000 ? FRESH_MS : 30 * 60000;
+  if (cache && now - cache.at < every) return;
+  await refresh(false);
+}
+
+// The airport quickest to reach from a GPS fix, for the flight strip's chip.
+// Uses the route's saved weather (no fetching); the model is rebuilt only
+// when the flight or its saved weather changes.
+let nearMemo = null;
+export async function nearestNow(leg, g) {
+  if (!leg || !leg.dep || !leg.arr || !g) return null;
+  const id = idOf(leg), c = readCache(leg), at = c ? c.at : 0;
+  if (!nearMemo || nearMemo.id !== id || nearMemo.at !== at) nearMemo = { id, at, model: await build(leg, { doFetch: false }) };
+  const best = nearestList(nearMemo.model.pool, { ...g, airborne: true })[0];
+  return best ? { icao: best.c.ap.icao, min: best.t.min, score: best.r.score, band: ri.band(best.r.score, false) } : null;
+}
+
+// Show an airport's card in the open Route info (the notes' "Diversion"
+// when Route info is already open beneath them).
+export function focusAirport(code) {
+  const f = String(code || '').toUpperCase();
+  const hit = state && f && state.model.pool.find(c => c.ap.icao === f || c.ap.iata === f);
+  if (hit) openCard(hit.ap.icao);
+  else if (f) toast(`${f} isn't within an hour of this route`);
+}
+
+// The In flight tab: Route info in the page, between the top bar and the
+// bottom bar. Still the same overlay element, so everything that stacks on
+// it (notes, airport cards) keeps working; .is-docked is all that differs.
+const overlayEl = () => $('route-overlay');
+const docked = () => !!overlayEl()?.classList.contains('is-docked');
+export async function dock({ focus = '' } = {}) {
+  overlayEl().classList.add('is-docked');
+  applyFull(false);       // the tab always opens with the bars showing
+  await open(null, { focus, keepDock: true });
+}
+export function undock() {
+  overlayEl().classList.remove('is-docked');
+  stopGps();
+  hideOverlay('route-overlay');
+}
+function closeRoute() {
+  stopGps();
+  hideOverlay('route-overlay');
+  // Opened over the In flight tab (from the logbook): the tab comes back.
+  window.dispatchEvent(new CustomEvent('fc:route-closed'));
+}
+function applyFull(on, remember = false) {
+  document.querySelector('.route-sheet')?.classList.toggle('is-full', on);
+  const b = $('route-full');
+  if (b) { b.textContent = on ? '⤡' : '⤢'; b.setAttribute('aria-pressed', String(on)); }
+  if (remember) { try { localStorage.setItem('fc.route.full', on ? '1' : ''); } catch {} }
+  requestAnimationFrame(() => { const svg = $('ri-map'); if (svg) { pinScale(svg, getViewBox().w); relabel(); } });
+}
+
+// Wiring — once, on first import.
+let wired = false;
+export function wire() {
+  if (wired) return;
+  wired = true;
+  $('route-close')?.addEventListener('click', closeRoute);
+  $('route-refresh')?.addEventListener('click', () => refresh(true));
+  $('route-plan')?.addEventListener('click', () => planAction($('ri-plan') ? 'close' : 'open'));
+  // Full screen, remembered on this device — like the notes.
+  const sheet = document.querySelector('.route-sheet');
+  try { applyFull(localStorage.getItem('fc.route.full') === '1'); } catch {}
+  $('route-full')?.addEventListener('click', () => applyFull(!sheet.classList.contains('is-full'), true));
+  let fitT = 0;
+  new ResizeObserver(() => { clearTimeout(fitT); fitT = setTimeout(refit, 120); }).observe(sheet);
+  // The saved-for-offline line follows the connection.
+  for (const ev of ['online', 'offline']) window.addEventListener(ev, () => { if (state) paintReady(); });
+  // A pinch with one finger off the map would zoom the whole page instead.
+  for (const ev of ['gesturestart', 'gesturechange']) {
+    $('route-overlay')?.addEventListener(ev, (e) => { if (e.target.closest?.('.ri-map-wrap')) e.preventDefault(); }, { passive: false });
+  }
+  $('route-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'route-overlay') { if (!docked()) closeRoute(); return; }
+    if (e.target.closest('[data-ri-close]')) {
+      $('ri-card-slot').innerHTML = '';
+      document.querySelectorAll('.ri-pin.is-sel, .ri-sig.is-sel').forEach(p => p.classList.remove('is-sel'));
+      relabel();
+      return;
+    }
+    if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const pb = e.target.closest('[data-ri-plan]');
+    if (pb) { planAction(pb.dataset.riPlan); return; }
+    const ab = e.target.closest('[data-ri-altn]');
+    if (ab && state) {
+      const icao = ab.closest('.ri-card')?.dataset.icao;
+      setAltnFor(state.model.leg, ab.dataset.riAltn);
+      toast(ab.dataset.riAltn ? `${ab.dataset.riAltn} is the alternate — on the Brief page` : 'Alternate removed');
+      // Rebuild so the alternate joins the map (and its NOTAMs come with
+      // the next update), then reopen its card.
+      build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
+      return;
+    }
+    if (e.target.closest('[data-ri-ely-close]')) { closeEly(); return; }
+    if (e.target.closest('[data-ri-ely]')) { setEly(!elyOn); return; }
+    const sb = e.target.closest('[data-ri-sig]');
+    if (sb) { openSig([sb.dataset.riSig]); return; }
+    if (e.target.closest('[data-ri-map]')) { document.querySelector('.route-sheet')?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+    const zb = e.target.closest('[data-ri-zoom]');
+    if (zb) { mapZoom(zb.dataset.riZoom); return; }
+    const pk = e.target.closest('[data-ri-pick]');
+    if (pk) { closePick(); openCard(pk.dataset.riPick, { fromMap: true }); return; }
+    const mw = e.target.closest('[data-ri-mapwx]');
+    if (mw) { setMapWx(mw.dataset.riMapwx); return; }
+    if (e.target.closest('#ri-map')) return;          // taps on the map: wireZoom
+    if (e.target.closest('[data-ri-notes]')) {
+      const icao = e.target.closest('.ri-card')?.dataset.icao;
+      const c = state && state.model.pool.find(x => x.ap.icao === icao);
+      if (!c) return;
+      // Notes are keyed the way the flight strip opens them (IATA first).
+      const code = c.ap.iata || c.ap.icao;
+      const leg = screenLeg();
+      // The notes already open underneath (Route info was opened from them):
+      // close Route info and go back down to them. Otherwise open them on
+      // top, leaving Route info open beneath — closing the notes then comes
+      // straight back here.
+      const back = !$('airport-overlay').classList.contains('hidden');
+      if (back) { stopGps(); hideOverlay('route-overlay'); }
+      window.dispatchEvent(new CustomEvent('fc:airport-notes', { detail: { code, leg, back } }));
+      return;
+    }
+    const wp = e.target.closest('[data-wx-pick]');
+    if (wp) {
+      const icao = wp.closest('.ri-card')?.dataset.icao;
+      if (icao) {
+        const own = srcPick.get(icao);
+        const eff = own === 'auto' ? null : own || (mapWx !== 'auto' ? mapWx : null);
+        if (eff !== wp.dataset.wxPick) srcPick.set(icao, wp.dataset.wxPick);
+        else if (mapWx !== 'auto') srcPick.set(icao, 'auto');
+        else srcPick.delete(icao);
+        openCard(icao, { keepView: true });
+      }
+      return;
+    }
+    const ord = e.target.closest('[data-ri-order]');
+    if (ord) { listOrder = ord.dataset.riOrder; listKey = ''; renderList(); return; }
+    const end = e.target.closest('[data-rw-end]');
+    if (end) {
+      const icao = end.closest('.ri-card')?.dataset.icao;
+      if (icao) { selEnd.set(icao, end.dataset.rwEnd); openCard(icao, { keepView: true }); }
+      return;
+    }
+    const hit = e.target.closest('[data-icao]');
+    if (hit && !hit.classList.contains('ri-card')) openCard(hit.dataset.icao);
+  });
+}

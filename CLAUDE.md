@@ -37,6 +37,24 @@ Work on `sky-club`, merge to `main`. GitHub Pages serves `main`. The root `wrang
 3. `node --check` any edited JS (a PostToolUse hook does this automatically).
 4. After merge to main: `scripts/check-deploy.sh`.
 
+### Flight Card: beta first
+
+Flight Card is flown with, so a change goes to the beta copy before the live app:
+
+1. Stamp `flight-card-pwa` as usual, then `node scripts/beta.mjs` copies it to
+   `flight-card-beta/` (own cache `fcbeta-vN`, name "Flight Card β", β badge).
+2. Commit **only** `flight-card-beta/` (plus scripts/docs). Leave
+   `flight-card-pwa/` uncommitted, merge to main. Beta:
+   `https://brook46.github.io/b737-asu-pwa/flight-card-beta/`.
+3. When the pilot OKs it on the iPad, commit `flight-card-pwa/` and merge —
+   that's the promotion. Then re-run `beta.mjs` so beta = live.
+
+Beta shares the origin, so it shares localStorage (roster, logbook, notes,
+settings) with the live app: real data to test with, but a beta bug that writes
+bad data writes it for both. Its cache prefix must never start `flightcard-`
+(the live worker deletes those on activate). Urgent one-line fixes may skip
+beta if the pilot asks.
+
 **Version the whole module graph, never just `app.js`.** Pages serves every file
 with `cache-control: max-age=600`, so bumping only the entry point buys a fresh
 `app.js` paired with ten-minute-old `modules/*.js`. A module missing an export

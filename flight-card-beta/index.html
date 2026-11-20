@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05080f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f7f7f9" media="(prefers-color-scheme: light)" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" sizes="152x152" href="./icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="./icons/icon-167.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Flight Card β</title>
+  <meta name="apple-mobile-web-app-title" content="FC β" />
+  <!-- Design typefaces (Flight Deck Dashboard): Barlow for display/values,
+       Barlow Semi Condensed for letterspaced labels. display=swap so the
+       system font renders instantly and offline (the PWA must never block
+       on a CDN); Safari caches the woff2s after first online load. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./app.css?v=291" />
+</head>
+<body>
+  <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
+  <div class="app-top">
+  <header class="app-header">
+    <div class="hdr-row hdr-row-1">
+      <span id="clock-utc" class="clock-utc" title="UTC time">— Z</span>
+      <button id="net-pill" class="net-pill" type="button" hidden title="No internet — showing saved data">Offline</button>
+      <div class="hdr-ctot">
+        <input id="hdr-ctot" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="—" aria-label="CTOT (UTC)" />
+        <button id="hdr-ctot-fa" type="button" title="Look up on Flightaware" aria-label="Look up on Flightaware">↗</button>
+        <button id="hdr-ctot-bell" data-action="ctot-bell" type="button" class="hdr-ctot-bell is-off" title="Enable CTOT alerts (20 / 10 / now)" aria-label="Toggle CTOT alerts">🔕</button>
+      </div>
+      <div class="hdr-spacer"></div>
+      <div class="actions">
+        <!-- "•••": a native <details>, so it opens even if the page's script
+             is frozen — Reload in it must keep working then (it's a plain
+             link for exactly that reason). -->
+        <details id="more-menu" class="more-menu">
+          <summary class="btn icon-btn" title="More" aria-label="More">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </summary>
+          <div class="more-pop" role="menu">
+            <button id="new-flight" data-action="new-flight" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 1 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/>
+          </svg><span>New flight</span></button>
+            <button id="print-btn" data-action="checklist-print" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8V3h10v5"/><rect x="3.5" y="8" width="17" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg><span>Print checklist</span></button>
+            <button id="share-toggle" data-action="settings" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
+            <path d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.62l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.07 7.07 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.49-.41h-3.84a.5.5 0 0 0-.49.41l-.36 2.54a7.07 7.07 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.86a.5.5 0 0 0 .12.62l2.03 1.58a7.43 7.43 0 0 0-.05.94c0 .32.02.63.05.94L2.83 14.5a.5.5 0 0 0-.12.62l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96a7.07 7.07 0 0 0 1.62.94l.36 2.54a.5.5 0 0 0 .49.41h3.84a.5.5 0 0 0 .49-.41l.36-2.54a7.07 7.07 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.62l-2.05-1.56zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/>
+          </svg><span>Settings</span></button>
+            <button id="ftl-btn" data-action="ftl" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9.5 2.5h5"/></svg><span>Flight time limits</span></button>
+            <button id="pay-btn" data-action="pay" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg><span>Pay check</span></button>
+            <button id="logbook-btn" data-action="logbook" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 8h6M9 12h6"/></svg><span>Logbook</span></button>
+            <button id="radar-btn" data-action="radar" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="5"/>
+            <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+            <line x1="12" y1="12" x2="19" y2="6.5"/>
+          </svg><span>Radar — track this tail</span></button>
+            <button id="systems-btn" data-action="systems" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l9 5-9 5-9-5 9-5z"/>
+            <path d="M3 12.5l9 5 9-5"/>
+            <path d="M3 16.5l9 5 9-5"/>
+          </svg><span>737 NG Inside</span></button>
+            <a id="guide-link" class="more-item" href="./menu.html" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/></svg><span>How to use</span></a>
+            <!-- Not a .more-item: choosing a theme keeps the menu open, so the
+                 pilot sees the change and can pick again. -->
+            <div class="more-theme" role="group" aria-label="Theme">
+              <span class="more-theme-lbl">Theme</span>
+              <div class="view-switch theme-switch">
+                <button type="button" class="vs-btn" data-theme-set="light">Day</button>
+                <button type="button" class="vs-btn" data-theme-set="dark">Night</button>
+                <button type="button" class="vs-btn" data-theme-set="auto">Auto</button>
+              </div>
+            </div>
+            <!-- Pure HTML anchor — navigates natively even when every JS
+                 event handler in the page is detached / suspended. -->
+            <a id="hard-reload" class="more-item" href="./" role="menuitem" title="Force reload (if the app feels frozen)"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+            <path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          </svg><span>Reload (if frozen)</span></a>
+          </div>
+        </details>
+      </div>
+    </div>
+  </header>
+
+  <div id="leg-switcher" class="leg-switcher hidden" role="region" aria-label="Flight leg switcher">
+    <div class="leg-info">
+      <span id="leg-sum" class="leg-sum">
+        <span id="leg-pos" class="leg-pos">Leg 1 / 1</span>
+        <span id="leg-sum-txt" class="leg-sum-txt"></span>
+      </span>
+      <span id="leg-route" class="leg-route">
+        <span id="leg-flightno" class="leg-flightno"></span>
+        <button id="leg-dep" class="leg-apt" type="button" hidden aria-label="Departure airport info">—</button>
+        <span id="leg-arrow" class="leg-arrow" hidden>→</span>
+        <button id="leg-arr" class="leg-apt" type="button" hidden aria-label="Destination airport info">—</button>
+      </span>
+      <!-- Ben Gurion's own flight board for this leg (modules/tlv-board.js). -->
+      <span id="leg-board" class="leg-board" hidden></span>
+      <!-- Spare FDP for this duty, coloured by how close (paintFdpChip). -->
+      <button id="leg-fdp" class="leg-fdp" type="button" data-action="fdp-chip" hidden></button>
+      <!-- In the air with GPS: the airport quickest to reach (Route info). -->
+      <button id="leg-near" class="leg-near" type="button" hidden></button>
+      <!-- Off-block target worked out from the CTOT (paintOffBlock in app.js).
+           Tap to set this airport's taxi-out time. -->
+      <button id="leg-ctot" class="leg-ctot" type="button" hidden
+              title="Off-block time from the CTOT — tap to set the taxi-out time"></button>
+    </div>
+    <div class="leg-ctrls">
+      <button id="leg-prev" data-action="leg-prev" class="leg-btn" aria-label="Previous leg">◀</button>
+      <button id="leg-now"  data-action="leg-now"  class="leg-btn leg-now" title="Jump to current-time leg" aria-label="Jump to current-time leg">
+        <!-- Material-style "flight takeoff": an angled plane lifting off a runway -->
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+          <path d="M2.5 19h19v2h-19v-2zm19.07-9.94c-.21-.79-1.02-1.26-1.81-1.05L14.92 9.36 8.46 3.36l-1.93.52 3.88 6.71L5.79 11.74l-1.55-1.21-1.45.39 2.02 3.51.81 1.41 1.55-.41 5.7-1.52 4.86-1.3 4.83-1.29c.79-.21 1.26-1.02 1.05-1.81z"/>
+        </svg>
+      </button>
+      <button id="leg-next" data-action="leg-next" class="leg-btn" aria-label="Next leg">▶</button>
+    </div>
+    <!-- Always showing, on one row: T/O, LDG, flight number, aircraft, flight time. -->
+    <div class="leg-quick">
+      <div class="leg-roles">
+      <button id="leg-to-role"  class="leg-role-pill is-none"
+              data-role-key="to_role"  type="button"
+              aria-label="Takeoff role: none; tap to cycle PF / PM / none">T/O&nbsp;—</button>
+      <button id="leg-ldg-role" class="leg-role-pill is-none"
+              data-role-key="ldg_role" type="button"
+              aria-label="Landing role: none; tap to cycle PF / PM / none">LDG&nbsp;—</button>
+      </div>
+      <input id="hdr-flight" class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="FLT #" aria-label="Flight number" />
+      <input id="hdr-tail"   class="hdr-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="TAIL" aria-label="Tail" />
+      <input id="hdr-fltime" class="hdr-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="FLT TIME" aria-label="Flight time (HH:MM)" />
+    </div>
+  </div>
+
+  </div>
+
+  <!-- Pull-to-refresh: a round badge that slides out from under the header,
+       its ring filling as the page is pulled; it spins while refreshing and
+       ends on a tick (app.js wirePullRefresh). -->
+  <div id="ptr" class="ptr" aria-hidden="true">
+    <svg viewBox="0 0 40 40" width="40" height="40">
+      <circle class="ptr-track" cx="20" cy="20" r="12" />
+      <circle class="ptr-arc" cx="20" cy="20" r="12" pathLength="100" />
+      <path class="ptr-ok" d="M14 20.5l4 4 8-8.5" />
+    </svg>
+  </div>
+  <main id="main" class="main">
+    <!-- How the flight stands: filled by paintReadyLine in app.js, only from
+         12 h before departure until arrival. Tap for Route info. -->
+    <button id="ready-line" data-action="route-info" class="ready-line" type="button" hidden></button>
+    <!-- At a glance: DEP / ARR / ALT rated, with what's worth a look (paintGlance). -->
+    <div id="glance" class="glance" role="group" aria-label="Flight at a glance" hidden></div>
+
+    <!-- In flight is Route info itself; this only speaks when a leg has no route. -->
+    <p id="phase-air" class="phase-note muted small" hidden>Route info needs a leg with departure and destination.</p>
+
+    <!-- Data card -->
+    <section class="card" id="card-data" data-section="data">
+      <header class="card-head">
+        <button class="card-toggle" data-target="data" aria-expanded="true">
+          <span class="chev">▾</span>
+          <span class="card-title">Data card</span>
+        </button>
+        <button id="data-reset-all" data-action="clear-flight" class="btn ghost-btn clear-btn" title="Choose what to clear on this flight">Clear…</button>
+        <button id="data-edit" class="btn ghost-btn" aria-pressed="false" title="Arrange the data card" aria-label="Arrange the data card">✎</button>
+      </header>
+      <div class="card-body" id="data-body"></div>
+    </section>
+
+    <!-- Brief tab: both ends' METAR and TAF, placed after the Flight group by
+         data-card.js. Tap one for the full weather. -->
+    <section id="before-wx" class="before-wx" hidden></section>
+
+    <!-- History -->
+    <section class="card collapsed" id="card-history" data-section="history">
+      <header class="card-head">
+        <button class="card-toggle" data-target="history" aria-expanded="false">
+          <span class="chev">▸</span>
+          <span class="card-title">History</span>
+        </button>
+      </header>
+      <div class="card-body" id="history-body"></div>
+    </section>
+  </main>
+
+  <!-- The checklist: a page on a phone, the right-hand side on an iPad. The ⧉
+       icon floats it: a window that can be dragged, on top of every screen,
+       and it stays floating until the icon is tapped again. -->
+  <section id="card-checklist" class="checklist-float" aria-label="Checklist" hidden>
+    <header id="checklist-head" class="checklist-head">
+      <span class="card-title">Checklist</span>
+      <button id="checklist-print" data-action="checklist-print" class="btn ghost-btn" title="Print checklist" aria-label="Print checklist">🖨</button>
+      <button id="checklist-edit"  data-action="checklist-edit"  class="btn ghost-btn" aria-pressed="false" title="Edit checklist">✎</button>
+      <button id="checklist-float-btn" data-action="checklist-float" class="btn ghost-btn" aria-pressed="false" title="Floating on top of every screen; tap again for the normal checklist" aria-label="Floating window">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="8.5" width="12" height="12" rx="2"/><path d="M8.5 8.5v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3"/></svg>
+      </button>
+      <button data-action="checklist-close" class="btn ghost-btn" aria-label="Close checklist">✕</button>
+    </header>
+    <div class="checklist-scroll" id="checklist-body"></div>
+  </section>
+
+  <!-- Brief, Checklist, In flight, then the tools, in thumb reach. Sits under the windows
+       (z-index), so a window's ✕ is always the way back. -->
+  <!-- Backup reminder (modules/backup.js due()): one tap to the share sheet. -->
+  <div id="backup-nudge" class="backup-nudge" role="status" hidden>
+    <span id="backup-nudge-txt"></span>
+    <button type="button" class="btn primary" data-backup-now>Back up now</button>
+    <button type="button" class="btn" data-backup-later>Later</button>
+  </div>
+  <nav class="tabbar" aria-label="Main">
+    <button id="tab-before" data-phase-set="before" class="tab" type="button">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 1 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" fill="currentColor"/></svg><span>Brief</span>
+    </button>
+    <button id="tab-checklist" data-action="checklist-tab" class="tab" type="button">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 12.5l3 3 5-6"/></svg><span>Checklist</span>
+    </button>
+    <button id="tab-air" data-phase-set="air" class="tab" type="button">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c4-1 6-12 16-12"/><circle cx="4" cy="18" r="1.8" fill="currentColor" stroke="none"/><circle cx="20" cy="6" r="1.8" fill="currentColor" stroke="none"/><circle cx="9" cy="8" r="2.2"/><circle cx="16" cy="15" r="2.2"/></svg><span>In flight</span>
+    </button>
+    <button id="pa-toggle"  data-action="pa-toggle" class="tab" title="Passenger speech (PA)" aria-label="Passenger speech">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path d="M3 10v4h3l5 4V6L6 10H3zm12.5 2a3.5 3.5 0 0 0-1.8-3v6a3.5 3.5 0 0 0 1.8-3zm-1.8-7.5v2.05A6 6 0 0 1 18 12a6 6 0 0 1-4.3 5.95V20A8 8 0 0 0 20 12a8 8 0 0 0-6.3-7.5z" fill="currentColor"/>
+      </svg><span>PA</span>
+    </button>
+    <button id="asu-btn" data-action="asu" class="tab" title="Airspeed Unreliable — QRH pitch &amp; N1 (works offline)" aria-label="Airspeed Unreliable quick reference">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8.5"/>
+        <path d="M12 12l3.5-3"/>
+        <line x1="4.8" y1="19.2" x2="19.2" y2="4.8"/>
+      </svg><span>ASU</span>
+    </button>
+    <button id="mynotes-btn" data-action="mynotes" class="tab" type="button" aria-label="My notes">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg><span>Notes</span>
+    </button>
+  </nav>
+
+  <!-- OCR overlay -->
+  <div id="ocr-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ocr-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="ocr-label" class="pad-label">Auto-fill from OPT / FMC / roster</span>
+        <button id="ocr-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="ocr-source" class="ocr-source">
+        <p class="muted small">Pick a screenshot of the OPT TAKEOFF screen or the FMC TAKEOFF REF page. The parser pulls V-speeds, N1 (incl. D-TO derate label), Flaps, and the aircraft profile.</p>
+        <div class="ocr-source-row">
+          <label class="btn primary block">
+            <input id="ocr-file" type="file" accept="image/*" hidden />
+            Upload screenshot
+          </label>
+        </div>
+      </div>
+
+      <div id="ocr-progress" class="ocr-progress hidden">
+        <div class="ocr-spinner"></div>
+        <span id="ocr-progress-text">Loading OCR engine…</span>
+        <button id="ocr-cancel-progress" class="btn ghost-btn" type="button">Cancel</button>
+      </div>
+
+      <div id="ocr-review" class="ocr-review hidden">
+        <p class="muted small">Review parsed values — anything off, just type over it. Tap Apply to commit.</p>
+        <div id="ocr-fields" class="ocr-fields"></div>
+        <div class="pad-actions">
+          <button id="ocr-cancel" class="btn">Cancel</button>
+          <button id="ocr-apply" class="btn primary">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Passenger speech overlay -->
+  <div id="pa-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pa-label">
+    <div class="ocr-sheet pa-sheet">
+      <div class="pad-head">
+        <span id="pa-label" class="pad-label">Passenger speech (PA)</span>
+        <button id="pa-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="pa-tabs" class="pa-tabs"></div>
+
+      <div class="pa-title-row">
+        <span id="pa-title" class="pa-title">—</span>
+        <div id="pa-lang" class="pa-lang"></div>
+        <button id="pa-edit"   class="btn ghost-btn" title="Edit body" aria-label="Edit body">✎</button>
+        <button id="pa-rename" class="btn ghost-btn" title="Rename PA" aria-label="Rename">⌨</button>
+        <button id="pa-delete" class="btn ghost-btn" title="Delete PA" aria-label="Delete">🗑</button>
+      </div>
+
+      <div id="pa-legend" class="pa-legend hidden">
+        <span class="pa-legend-hint">@crew names everyone on board automatically (@cockpit / @cabin for one half). @tod resolves to morning / noon / afternoon / evening / night, Hebrew-aware.</span>
+      </div>
+
+      <div id="pa-body" class="pa-body"></div>
+    </div>
+  </div>
+
+  <!-- Live weather overlay: D-ATIS + METAR for the Dep airport -->
+  <div id="wx-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wx-label">
+    <div class="ocr-sheet wx-sheet">
+      <div class="pad-head">
+        <span id="wx-label" class="pad-label">Weather</span>
+        <button id="wx-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <!-- Airport source switcher — choose Dep / Arr / a custom airport.
+           Each chip has its own ↻ refresh button so the user can force a
+           fresh fetch for that specific airport without first having to
+           switch the active source. -->
+      <div class="wx-src-row">
+        <button id="wx-src-dep" type="button" class="wx-src" data-src="dep">
+          <span class="wx-src-lbl">Dep</span>
+          <span id="wx-src-dep-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-dep" class="wx-src-refresh" data-refresh="dep" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh dep airport">↻</span>
+        </button>
+        <button id="wx-src-arr" type="button" class="wx-src" data-src="arr">
+          <span class="wx-src-lbl">Arr</span>
+          <span id="wx-src-arr-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-arr" class="wx-src-refresh" data-refresh="arr" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh arr airport">↻</span>
+        </button>
+        <button id="wx-src-altn" type="button" class="wx-src" data-src="altn">
+          <span class="wx-src-lbl">Altn</span>
+          <span id="wx-src-altn-code" class="wx-src-code">—</span>
+          <span id="wx-refresh-altn" class="wx-src-refresh" data-refresh="altn" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh alternate airport">↻</span>
+        </button>
+        <label class="wx-src wx-src-custom" data-src="custom">
+          <span class="wx-src-lbl">Other</span>
+          <input id="wx-src-custom-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="ICAO" maxlength="4" />
+          <span id="wx-refresh-custom" class="wx-src-refresh" data-refresh="custom" role="button" tabindex="0" title="Refresh this airport" aria-label="Refresh custom airport">↻</span>
+        </label>
+      </div>
+
+      <div class="wx-current">
+        <div class="wx-letter-wrap">
+          <div id="wx-letter" class="wx-letter">—</div>
+          <div id="wx-letter-how" class="wx-letter-how"></div>
+        </div>
+        <div class="wx-station">
+          <div id="wx-icao" class="wx-icao">—</div>
+          <div id="wx-time" class="wx-time">—</div>
+        </div>
+        <div id="wx-when" class="wx-when"></div>
+        <button id="wx-refresh" class="btn ghost-btn" aria-label="Refresh">↻</button>
+      </div>
+
+      <!-- Manual letter chips sit RIGHT under the big letter so a tap is
+           one motion away from the displayed letter — no expand required. -->
+      <div id="wx-chips" class="atis-chips wx-chips"></div>
+
+      <section class="wx-section wx-sec-atis">
+        <div class="wx-section-head">
+          <h3 class="wx-h">D-ATIS <span id="wx-datis-src" class="wx-datis-src"></span></h3>
+          <a id="wx-atisguru" class="wx-link" href="#" target="_blank" rel="noopener">↗ atis.guru</a>
+        </div>
+        <!-- The airport with the ATIS's closures on it (atis-diagram.js). -->
+        <div id="wx-atis-diagram" class="wx-atis-diagram" hidden></div>
+        <pre id="wx-datis-text" class="wx-text">—</pre>
+      </section>
+
+      <section class="wx-section wx-sec-wx">
+        <h3 class="wx-h">METAR</h3>
+        <pre id="wx-metar-text" class="wx-text">—</pre>
+      </section>
+
+      <section class="wx-section wx-sec-wx">
+        <div class="wx-section-head">
+          <h3 class="wx-h">TAF</h3>
+          <a id="wx-tafview" class="wx-link" href="#" target="_blank" rel="noopener">↗ aviationweather.gov</a>
+        </div>
+        <pre id="wx-taf-text" class="wx-text">—</pre>
+      </section>
+    </div>
+  </div>
+
+  <!-- "Start new flight ELY##" confirmation — appears when the user types a
+       new flight number into the header. Auto-fills route + block time from
+       the local LY table when known. Aircraft tail is left blank because no
+       free public API gives the day's tail assignment. -->
+  <div id="newflight-confirm-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet nf-confirm-sheet">
+      <div class="pad-head">
+        <span class="pad-label" id="nfc-title">Start new flight</span>
+        <button id="nfc-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small" id="nfc-blurb">Adding a new flight to your leg list. The existing flight stays where it is.</p>
+      <dl id="nfc-rows" class="nf-rows"></dl>
+      <p class="muted small nfc-note">Tail and live times need the day's dispatch / OPT — entered after creation.</p>
+      <div class="settings-row-btns">
+        <button id="nfc-cancel" class="btn block">Cancel</button>
+        <button id="nfc-create" class="btn primary block">Create flight</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New flight modal: reset checklist OR paste roster (instead of the old
+       "archive + start fresh" confirm dialog). -->
+  <div id="newflight-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span class="pad-label">New flight</span>
+        <button id="newflight-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small">What do you want to do?</p>
+      <div class="settings-row-btns">
+        <button id="newflight-blank" class="btn primary block">
+          <span class="nf-h">New flight from scratch</span>
+          <span class="nf-sub">Add a blank leg and type tail, route, crew and numbers manually</span>
+        </button>
+        <button id="newflight-paste" class="btn block">
+          <span class="nf-h">Paste roster</span>
+          <span class="nf-sub">Add flights from your duty bulletin</span>
+        </button>
+        <button id="newflight-reset" class="btn block">
+          <span class="nf-h">Clear this flight…</span>
+          <span class="nf-sub">Choose what to clear: takeoff numbers, fuel, ATIS, SOB, ticks</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- "Clear this flight": the one place the main screen erases anything.
+       Rows are filled by openClearSheet in app.js. -->
+  <div id="clear-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="clear-label">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span id="clear-label" class="pad-label">Clear this flight</span>
+        <button id="clear-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="clear-rows" class="clear-rows"></div>
+      <button id="clear-go" class="btn block clear-go" type="button">Clear selected</button>
+    </div>
+  </div>
+
+  <!-- Roster-paste modal: textarea + Parse button. Reaches the same
+       roster.parseRoster + applyRoster pipeline as the OCR paste-text used to. -->
+  <div id="roster-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="ocr-sheet">
+      <div class="pad-head">
+        <span class="pad-label">Paste roster</span>
+        <button id="roster-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <p class="muted small">
+        Paste your duty bulletin (the "Slip details (UTC)" text) <em>or</em>
+        a JSON export from your crew portal. New flights are added to your list,
+        sorted by departure time, with duplicates merged.
+      </p>
+      <textarea id="roster-text" rows="10" placeholder="Paste the bulletin text or [ { edd, flt, dep, arr, … } ] JSON here…"></textarea>
+      <div class="pad-actions">
+        <label class="btn" style="cursor:pointer;">
+          <input id="roster-file" type="file" accept="application/json,.json" hidden />
+          Load .json…
+        </label>
+        <button id="roster-cancel" class="btn">Cancel</button>
+        <button id="roster-parse"  class="btn primary">Add flights</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings sheet — calendar sync + AirDrop JSON + (Phase 3+) logbook
+       export + (Phase 5+) analytics. -->
+  <div id="settings-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-label">
+    <div class="ocr-sheet share-sheet settings-sheet">
+      <div class="pad-head">
+        <span id="settings-label" class="pad-label">Settings</span>
+        <button id="settings-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <details class="set-row">
+        <summary><span class="set-name">Duty calendar</span><span class="set-status" id="set-st-calendar"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Paste the "Secret address in iCal format" from your Google
+          Calendar. Flight Card pulls every duty period from it.
+        </p>
+        <p class="muted small">
+          Sync removes <em>future</em> legs you've taken out of your duty
+          calendar. Past flown legs always stay — they're your logbook.
+          Nothing is ever pushed back to El Al or to your calendar.
+        </p>
+        </details>
+        <a class="cal-guide" href="./menu.html#start">How to connect, step by step ›</a>
+        <div class="cal-row">
+          <label class="cal-row-label" for="cal-url">Duty roster (read)</label>
+          <input id="cal-url" type="password" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Secret iCal URL (hidden)" class="cal-url" aria-label="Duty calendar secret iCal URL (hidden)" />
+        </div>
+        <div class="settings-row-btns">
+          <button id="cal-sync" class="btn primary">Sync now</button>
+        </div>
+        <p id="cal-status" class="muted small cal-status"></p>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Sensors</span><span class="set-status" id="set-st-sensors"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Geolocation auto-detects takeoff &amp; landing; Motion captures the
+          touchdown G. Both only fire while the PWA is open and granted
+          permission. Decline either — the matching field stays manually
+          editable.
+        </p>
+        </details>
+        <div id="sensors-grid" class="sensors-grid">
+          <div class="sensor-row" data-sensor="geolocation">
+            <span class="sensor-name">Geolocation (GPS)</span>
+            <span class="sensor-state" data-state="unknown">…</span>
+            <button class="btn sensor-btn" data-sensor-req="geolocation">Request</button>
+          </div>
+          <div class="sensor-row" data-sensor="motion">
+            <span class="sensor-name">Motion (Max G)</span>
+            <span class="sensor-state" data-state="unknown">…</span>
+            <button class="btn sensor-btn" data-sensor-req="motion">Request</button>
+          </div>
+        </div>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Flight strip</span><span class="set-status" id="set-st-strip"></span></summary>
+        <div class="set-body">
+        <p class="muted small">Every flight, past and future, in a slim strip. Swipe in from its edge (or tap the small handle there) to bring it in; tap a flight to jump to it. It slides away a few seconds after you stop touching it.</p>
+        <div class="seg fs-side-pick" role="group" aria-label="Flight strip side" id="fs-side-pick"></div>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Route info</span><span class="set-status" id="set-st-route"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Airports within an hour of the route, rated 0–10 for a 737. Countries
+          listed as excluded are shown grey and rated 0; factors add or take
+          points (e.g. <code>Egypt -2</code>), for a whole country or one airport (<code>LCLK +1</code>).
+        </p>
+        <p class="muted small">
+          NOTAMs come worldwide from autorouter.aero (Eurocontrol’s database) with a
+          free account whose API access autorouter support has enabled. Its email and
+          password live only in the Cloudflare worker, as the secrets
+          <code>AUTOROUTER_USER</code> and <code>AUTOROUTER_PASS</code>
+          (an FAA key, <code>FAA_NOTAM_ID</code> / <code>FAA_NOTAM_SECRET</code>, also works).
+          Until then ratings say “NOTAMs not checked”. ILS / CAT categories are
+          in no free data, so the airport card says to check the chart.
+        </p>
+        </details>
+        <p class="muted small">A country by name or code (Turkey, TR), or an airport by ICAO code (LCLK) — an airport's own factor wins over its country's. Separate with commas.</p>
+        <label class="cal-row-label" for="div-exclude">Excluded countries / airports</label>
+        <textarea id="div-exclude" class="cal-url div-rules" rows="2" autocomplete="off" autocapitalize="words" spellcheck="false"></textarea>
+        <label class="cal-row-label" for="div-penalty">Factors (points, e.g. Egypt -2, LCLK +1)</label>
+        <textarea id="div-penalty" class="cal-url div-rules" rows="2" autocomplete="off" autocapitalize="words" spellcheck="false"></textarea>
+        </div>
+      </details>
+
+      <h2 class="settings-group">Advanced</h2>
+      <details class="set-row">
+        <summary><span class="set-name">Logbook calendar</span><span class="set-status" id="set-st-lbcal"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Flight Card publishes your logbook to a private URL after every
+          change. Subscribe once in Apple Calendar (Settings → Calendar →
+          Accounts → Add Subscribed Calendar) and it stays fresh by itself.
+          The link below is the key — anyone with it can read the calendar.
+        </p>
+        </details>
+        <div class="cal-row">
+          <label class="cal-row-label" for="lbpush-url">Subscribe URL</label>
+          <input id="lbpush-url" type="text" readonly autocomplete="off" spellcheck="false" class="cal-url" aria-label="Logbook subscribe URL (read-only)" />
+        </div>
+        <div class="settings-row-btns">
+          <button id="lbpush-copy" class="btn primary">Copy link</button>
+        </div>
+        <p id="lbpush-status" class="muted small cal-status"></p>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Social notes</span><span class="set-status" id="set-st-social"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          The <strong>Social</strong> tab in each airport popup shows your
+          Apple Notes airport folder. Your Mac reads the folder every two hours
+          and publishes any change to this feed; the app picks it up whenever
+          you open it. Edit the notes in Apple Notes — while a feed is set the
+          Social tab is read-only here. Your <strong>Personal</strong> tab is
+          never touched.
+        </p>
+        </details>
+        <label class="cal-row-label" for="social-url">Social feed URL</label>
+        <input id="social-url" type="url" inputmode="url" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="https://… .json" class="cal-url" aria-label="Social notes feed URL" />
+        <div id="social-sync-status" class="cal-status muted small"></div>
+        </div>
+      </details>
+      <details class="set-row">
+        <summary><span class="set-name">Import sectors (CSV)</span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Load the <code>MySectors.csv</code> your crew portal exports and every
+          sector in it joins the logbook and the insights — route, tail,
+          aircraft type, block and airborne time, who you flew with, and whether
+          you were PF or PM for each take-off and landing. Flights the app
+          already has are <em>filled in</em>, never overwritten, so anything you
+          typed yourself stays. Deadhead sectors are left out — you were a
+          passenger. Safe to load the same file again.
+        </p>
+        </details>
+        <div class="settings-row-btns">
+          <label class="btn primary">
+            <input id="sectors-csv" type="file" accept=".csv,text/csv" hidden />
+            Load sectors .csv…
+          </label>
+          <button id="sectors-clear" class="btn">Remove imported</button>
+        </div>
+        <p id="sectors-status" class="muted small cal-status"></p>
+        </div>
+      </details>
+      <details class="set-row" id="set-pay">
+        <summary><span class="set-name">Pay check</span><span class="set-status" id="set-st-pay"></span></summary>
+        <div class="set-body">
+        <p class="muted small">Your pay rules file and card one stay on this iPad only (and in your own backup). Open Pay check to import the rules, fill card one and see the month.</p>
+        <div class="settings-row-btns"><button class="btn primary" type="button" data-action="pay">Open Pay check</button></div>
+        </div>
+      </details>
+      <details class="set-row" id="set-backup">
+        <summary><span class="set-name">Backup</span><span class="set-status" id="set-st-backup"></span></summary>
+        <div class="set-body">
+        <details class="set-why"><summary aria-label="What is this?">?</summary>
+        <p class="muted small">
+          Everything on this iPad in one file: flights and logbook, crew, PAs,
+          checklist, airport notes, your Notes, alternates, taxi times,
+          highlights and settings, including your calendar and feed links.
+          Choose <b>Save to Files → iCloud Drive</b> to have it on any iPad, or
+          <b>Mail</b> to send it to yourself. The app uploads nothing.
+        </p>
+        </details>
+        <div id="backup-last" class="muted small"></div>
+        <div class="settings-row-btns">
+          <button id="backup-now" class="btn primary" type="button">Back up now</button>
+          <label class="btn">
+            <input id="backup-pick" type="file" accept="application/json,.json" hidden />
+            Restore or import a file…
+          </label>
+        </div>
+        <div id="backup-preview" class="backup-preview" hidden></div>
+        <button id="backup-undo" class="btn" type="button" hidden>Undo the last restore</button>
+        </div>
+      </details>
+      <details class="set-row" id="set-export">
+        <summary><span class="set-name">Export</span><span class="set-status">choose what to share</span></summary>
+        <div class="set-body">
+        <p class="muted small">
+          A file of just what you tick — Notes tabs, airport notes, crew notes,
+          PAs, past, future or chosen flights — for a friend or another of your
+          devices. On the other device: Settings → Backup → <b>Restore or import
+          a file…</b>. Importing only adds; nothing there is replaced.
+        </p>
+        <div class="settings-row-btns">
+          <button id="export-open" class="btn primary" type="button">Choose what to export…</button>
+        </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- Analytics overlay — populated from modules/analytics.js when opened
+       so it always reflects the latest legs/history. -->
+  <div id="analytics-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="analytics-title">
+    <div class="ocr-sheet analytics-sheet">
+      <div class="pad-head">
+        <span id="analytics-title" class="pad-label">Your flying</span>
+        <button id="analytics-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="analytics-body" class="analytics-body"></div>
+    </div>
+  </div>
+
+  <!-- Pay check — painted by paintPay() in app.js from modules/pay.js. The
+       rules come from the pilot's own file, imported on the device. -->
+  <div id="pay-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+    <div class="ocr-sheet analytics-sheet pay-sheet">
+      <div class="pad-head">
+        <span id="pay-title" class="pad-label">Pay check</span>
+        <button id="pay-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <input id="pay-rules-pick" type="file" accept="application/json,.json" hidden />
+      <div id="pay-body" class="analytics-body"></div>
+    </div>
+  </div>
+  <!-- Flight time limits (OM A 7.2) — painted by paintFtl() in app.js from
+       modules/ftl.js. -->
+  <div id="ftl-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ftl-title">
+    <div class="ocr-sheet analytics-sheet ftl-sheet">
+      <div class="pad-head">
+        <span id="ftl-title" class="pad-label">Flight time limits</span>
+        <button id="ftl-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="ftl-body" class="analytics-body"></div>
+    </div>
+  </div>
+
+  <!-- My notes — the Notes tab: the pilot's own named notes (LVP, MEL,
+       a radio, diversions…), one at a time in one editor, with the same
+       bold / italic / highlighter brush as the airport notes. -->
+  <!-- Export: pick what goes in a file (modules/export.js). -->
+  <div id="export-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="export-label">
+    <div class="ocr-sheet export-sheet">
+      <div class="pad-head">
+        <span id="export-label" class="pad-label">Export</span>
+        <button id="export-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="export-body" class="export-body"></div>
+      <div class="export-foot">
+        <span id="export-sum" class="export-sum"></span>
+        <button id="export-go" class="btn primary" type="button" disabled>Export</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crew notes: every crew note and colour tag (modules/crew-notes.js). -->
+  <div id="crewnotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewnotes-label">
+    <div class="ocr-sheet crewnotes-sheet">
+      <div class="pad-head">
+        <span id="crewnotes-label" class="pad-label">Crew notes</span>
+        <button id="crewnotes-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="crewnotes-body" class="crewnotes-body"></div>
+    </div>
+  </div>
+
+  <div id="mynotes-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mynotes-label">
+    <div class="ocr-sheet mynotes-sheet">
+      <div class="pad-head">
+        <span id="mynotes-label" class="pad-label">My notes</span>
+        <button id="mynotes-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="mynotes-tabrow">
+        <div id="mynotes-tabs" class="pa-tabs"></div>
+        <button id="mynotes-edit" class="btn mynotes-edit" type="button" aria-pressed="false">Edit</button>
+      </div>
+      <div id="mynotes-edit-hint" class="mynotes-edit-hint" hidden>Drag a tab to move it · tap it to rename · ✕ to delete
+        <label class="btn mynotes-import">
+          <input id="mynotes-file" type="file" accept="application/json,.json" hidden />
+          Import notes…
+        </label>
+      </div>
+      <div class="mynotes-search">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <input id="mynotes-q" type="search" placeholder="Search all notes" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search all notes" />
+        <span id="mynotes-qcount" class="mynotes-qcount"></span>
+      </div>
+      <div id="mynotes-results" class="mynotes-results" hidden></div>
+      <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
+        <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
+        <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+        <span class="apt-fmt-sep" aria-hidden="true"></span>
+        <span class="apt-hl-label">Brush</span>
+        <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+        <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+        <span class="apt-fmt-sep" aria-hidden="true"></span>
+        <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+        <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
+      </div>
+      <div id="mynote-body" class="airport-notes mynote-body" contenteditable="true"
+           role="textbox" aria-multiline="true" aria-label="Note"
+           data-placeholder="Write anything you want to keep — frequencies, what to do in LVP, MEL items, diversion plans…"></div>
+    </div>
+  </div>
+
+  <!-- In-app Logbook overlay (Phase 14). Lists every stored leg (current
+       legs + history) newest-first. Tap a row to switch the active leg to
+       it. Lightweight read-only view — no editing, no export. -->
+  <div id="logbook-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="logbook-title">
+    <div class="ocr-sheet logbook-sheet">
+      <div class="pad-head">
+        <span id="logbook-title" class="pad-label">Logbook</span>
+        <button id="logbook-export-btn" class="btn" type="button" aria-expanded="false">Export</button>
+        <button id="analytics-open" class="btn" type="button">Analytics</button>
+        <button id="logbook-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="logbook-export-row" class="settings-row-btns" hidden>
+        <button id="logbook-csv" class="btn primary" type="button">Spreadsheet (.csv)</button>
+        <button id="logbook-export" class="btn" type="button">Calendar (.ics)</button>
+      </div>
+      <div class="lb-search">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="logbook-search" type="search" placeholder="Date, flight, aircraft, crew, airport" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search the logbook">
+        <span id="logbook-search-n" class="lb-search-n"></span>
+        <button id="logbook-search-clear" type="button" class="lb-search-clear" aria-label="Clear search" hidden>✕</button>
+      </div>
+      <div id="logbook-body" class="logbook-body"></div>
+    </div>
+  </div>
+
+  <!-- Crew "last flight with" popup — opens from the ⏱ chip on any crew
+       cell. Lists every leg the pilot has shared with that crew member. -->
+  <div id="crewlog-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="crewlog-title">
+    <div class="ocr-sheet crewlog-sheet">
+      <div class="pad-head">
+        <span id="crewlog-title" class="pad-label">Flights together</span>
+        <button id="crewlog-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="crewlog-body" class="crewlog-body"></div>
+    </div>
+  </div>
+
+  <!-- Airport info popup — opens from the tappable Dep / Arr codes in the
+       leg-switcher route. Shows the ICAO + city name, every past flight
+       that arrived there (crew + date), and a persistent notes box. -->
+  <div id="airport-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="airport-title">
+    <div class="ocr-sheet airport-sheet">
+      <div class="pad-head">
+        <span id="airport-title" class="pad-label">Airport</span>
+        <!-- The same Notes | Diversion switch as on a Route info airport card,
+             so going between the two views of an airport is one familiar tap. -->
+        <div class="view-switch" role="tablist" aria-label="Airport view">
+          <button type="button" class="vs-btn is-on" role="tab" aria-selected="true">Notes</button>
+          <button id="airport-route" type="button" class="vs-btn" role="tab" aria-selected="false" title="This airport as a diversion: runways, wind, weather">Diversion</button>
+        </div>
+        <!-- Notes full screen: hides the flight list and gives the note the
+             whole display. Top right beside ✕, as in Route info. -->
+        <button id="apt-full" class="btn icon-btn" type="button" aria-pressed="false"
+                title="Full screen" aria-label="Show notes full screen">⤢</button>
+        <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="airport-city" class="airport-city muted small"></div>
+      <!-- Two-column body: scrollable past-flights list on the left, the
+           notes box as the main pane on the right. -->
+      <div class="airport-cols">
+        <div id="airport-body" class="airport-body"></div>
+        <div class="airport-notes-col">
+          <div class="apt-tab-row">
+            <div class="airport-tabs" role="tablist">
+              <button id="apt-tab-personal" class="airport-tab is-active" data-apt-tab="personal" role="tab" type="button">Personal</button>
+              <button id="apt-tab-social"   class="airport-tab" data-apt-tab="social" role="tab" type="button">Social</button>
+            </div>
+          </div>
+          <!-- Formatting bar — Personal tab only. Bold / italic + a small
+               colour set. Uses execCommand: deprecated on paper, but still
+               the only rich-text API iOS Safari's contenteditable honours. -->
+          <div id="apt-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <span class="apt-hl-label">Brush</span>
+            <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+            <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="removeFormat" title="Clear formatting" aria-label="Clear formatting">✕</button>
+          </div>
+          <!-- Highlighter — Social tab only. Pick a brush, then select words. Kept
+               on THIS device only: never sent to the feed or to Apple Notes,
+               and re-applied after every sync (see hlRender in app.js). -->
+          <div id="apt-hl" class="apt-fmt-bar apt-hl-bar hidden" role="toolbar" aria-label="Highlight">
+            <span class="apt-hl-label">Brush</span>
+            <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+            <span class="apt-fmt-sep" aria-hidden="true"></span>
+            <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
+            <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
+            <span class="apt-hl-note muted small">This iPad only</span>
+          </div>
+          <!-- Personal note — hand-edited by the pilot. contenteditable (not a
+               textarea) so bold + colours survive; CSS unicode-bidi:plaintext
+               gives per-line RTL/LTR so Hebrew and English lines each align
+               to their own side. -->
+          <div id="airport-notes" class="airport-notes" contenteditable="true"
+               role="textbox" aria-multiline="true" aria-label="Personal note"
+               data-placeholder="Parking, customs, handling, good coffee — anything you want to remember about this station."></div>
+          <!-- Social note — synced from the Apple Notes folder via the Mac.
+               A rendered div, not a textarea: the feed carries formatting
+               (bold, underline, colours, bullets) and a textarea showed it as
+               raw tags. Read-only while a feed is set (see setSocialHtml). -->
+          <!-- "Changed …" — a synced note that differs from when last acknowledged. -->
+          <div id="airport-social-changed" class="soc-changed hidden" role="status"></div>
+          <div id="airport-social" class="airport-notes hidden" contenteditable="true"
+               role="textbox" aria-multiline="true" aria-label="Social note"
+               data-placeholder="Shared / crew-sourced notes for this station. Set a feed URL in Settings → Social notes to sync them from your Apple Notes."></div>
+          <div id="airport-social-hint" class="airport-social-hint muted small hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duty details — a non-flight calendar event (sim, training, standby,
+       day off…) tapped in History or the logbook. Read-only: the calendar is
+       the source, and nothing is ever written back to it. -->
+  <!-- A sibling app (Airspeed Unreliable, 737 NG Inside) opened INSIDE Flight
+       Card, full screen. On iOS a Home-Screen app opens a new window as a
+       separate browser with its own storage, where the app was never saved —
+       so offline it couldn't load. In here it runs from Flight Card's own
+       saved copy. -->
+  <div id="embed-overlay" class="overlay hidden embed-overlay" role="dialog" aria-modal="true" aria-labelledby="embed-title">
+    <div class="embed-sheet">
+      <div class="embed-bar">
+        <button id="embed-done" class="btn primary" type="button">Done</button>
+        <span id="embed-title" class="embed-title"></span>
+        <span id="embed-note" class="embed-note"></span>
+      </div>
+      <iframe id="embed-frame" title="" allow="geolocation"></iframe>
+    </div>
+  </div>
+
+  <!-- Route info: diversion airports along the route (modules/route-ui.js). -->
+  <div id="route-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="route-label">
+    <div class="ocr-sheet route-sheet">
+      <div class="pad-head">
+        <span id="route-label" class="pad-label">Route info</span>
+        <button id="route-plan" class="btn" type="button" title="Paste the filed route">Route</button>
+        <button id="route-refresh" class="btn" type="button">Update</button>
+        <button id="route-full" class="btn icon-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen">⤢</button>
+        <button id="route-close" class="btn icon-btn" type="button" aria-label="Close">✕</button>
+      </div>
+      <div id="route-sub" class="route-sub"></div>
+      <div id="route-body"></div>
+    </div>
+  </div>
+
+  <div id="duty-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="duty-title">
+    <div class="ocr-sheet duty-sheet">
+      <div class="pad-head">
+        <span class="duty-head"><span id="duty-badge" class="duty-badge">DTY</span><span id="duty-kind" class="pad-label">Duty</span></span>
+        <button id="duty-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <h2 id="duty-title" class="duty-title"></h2>
+      <div id="duty-when" class="duty-when"></div>
+      <div id="duty-notes" class="duty-notes"></div>
+    </div>
+  </div>
+
+  <!-- Landing score modal — fires once when gps.js detects 'landed' and
+       g.js has produced a max_g. Tap anywhere to dismiss. -->
+  <div id="landing-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landing-title">
+    <div class="landing-sheet" data-score="">
+      <div class="landing-emoji" aria-hidden="true">🛬</div>
+      <div id="landing-title" class="landing-title">Touchdown</div>
+      <div id="landing-g" class="landing-g">— G</div>
+      <div id="landing-verdict" class="landing-verdict">—</div>
+      <div id="landing-meta" class="landing-meta muted small">—</div>
+      <button id="landing-close" class="btn primary">OK</button>
+    </div>
+  </div>
+
+  <!-- Print preview — builds a quarter-A4 "kneeboard" card: a band of
+       hand-written blanks on top, the checklist down the left, a free-writing
+       block on the right. One A4 prints the card four times. -->
+  <div id="print-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="print-title">
+    <div class="ocr-sheet print-sheet">
+      <div class="pad-head">
+        <span id="print-title" class="pad-label">Print checklist</span>
+        <button id="print-close" class="btn icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="print-cols">
+        <!-- Left: what goes on the card, and in what order -->
+        <div class="print-ctrls">
+          <!-- The basics first: three steps that get a card printed. Everything
+               a first print doesn't need sits folded under Advanced. -->
+          <ol class="print-steps">
+            <li><strong>Set up the card</strong> — the boxes on top and the checklist, below.</li>
+            <li><strong>Check the preview</strong> — it is the real A4 page.</li>
+            <li><strong>Print</strong> — or <strong>Share as PDF</strong> and tap Print in the share sheet.</li>
+          </ol>
+          <div class="airport-tabs" role="tablist">
+            <button id="print-tab-top" class="airport-tab is-active" data-print-tab="top" role="tab" type="button">Top boxes</button>
+            <button id="print-tab-cl"  class="airport-tab" data-print-tab="checklist" role="tab" type="button">Checklist</button>
+          </div>
+          <!-- Tab 1: the hand-written band across the top of the card -->
+          <div id="print-pane-top">
+          <p class="muted small print-hint">Tap <span aria-hidden="true">⠿</span> to move a box: <b>▲ ▼</b>, or tap a <b>Move here</b> line. You can also drag it. Type to rename · <span aria-hidden="true">◉</span> hide · <span aria-hidden="true">✕</span> delete.</p>
+          <div id="print-fields" class="print-fieldlist"></div>
+          <button type="button" id="print-addbox" class="print-adddiv">+ box</button>
+          <p class="muted small print-hint">Boxes between two <b>new line</b> marks share one row on the card.</p>
+          </div>
+          <!-- Tab 2: the checklist itself. Edits here are the real checklist,
+               shared with the card on the main screen, and they are permanent —
+               nothing in the app reseeds a checklist the user has touched. -->
+          <div id="print-pane-cl" class="hidden">
+          <p class="muted small print-hint">Tap <span aria-hidden="true">⠿</span> to move: <b>▲ ▼</b>, or tap a <b>Move here</b> line. You can also drag. A heading moves with its items. Type to rename · <span aria-hidden="true">✕</span> delete.</p>
+          <div id="print-cl-list" class="print-fieldlist"></div>
+          <div class="print-cl-adds">
+            <button type="button" id="print-addsec"  class="print-adddiv">+ section</button>
+            <button type="button" id="print-additem" class="print-adddiv">+ item</button>
+          </div>
+          <p class="muted small print-hint">This is your real checklist, the same one as on the Checklist screen. App updates never reset it.</p>
+          </div>
+          <div class="print-flags">
+            <label class="print-flag"><input type="checkbox" id="print-checklist" /> <span>Checklist column</span></label>
+            <label class="print-flag"><input type="checkbox" id="print-blank" /> <span>Notes block</span></label>
+          </div>
+          <div class="print-size">
+            <label for="print-textsize">Text size</label>
+            <input type="range" id="print-textsize" min="75" max="160" step="5" value="100"
+                   aria-label="Printed text size" />
+            <output id="print-textsize-out">100%</output>
+          </div>
+          <button id="print-go" class="btn primary print-go">Print</button>
+          <!-- The route that works from the Home Screen app. The page's own
+               print command opens nothing there, but the system share sheet
+               does, and for a PDF it offers Print. Never navigates, so it can't
+               strand the pilot on a page with no way back. -->
+          <button type="button" id="print-pdf" class="btn print-go print-pdf">Share as PDF</button>
+          <p class="muted small print-note">From the Home Screen app, Print often opens nothing.
+            Use <strong>Share as PDF</strong>, then tap <strong>Print</strong> (or save it to Files).</p>
+          <details class="print-adv">
+            <summary>Advanced — margins, both sides</summary>
+            <label class="print-flag"><input type="checkbox" id="print-both" /> <span>Both sides (8 cards per sheet)</span></label>
+            <p class="muted small print-note">Puts cards on the back too. Turn on two-sided printing in the printer's own dialog as well.</p>
+            <div class="print-size">
+              <label for="print-clip">Clip margin</label>
+              <input type="range" id="print-clip" min="0" max="30" step="1" value="12"
+                     aria-label="Blank strip at the top and bottom edges, where the clip grips the folded sheet" />
+              <output id="print-clip-out">12mm</output>
+            </div>
+            <p class="muted small print-note">A blank strip at the top and bottom for the kneeboard clip.</p>
+            <div class="print-size">
+              <label for="print-edge">Edge margin</label>
+              <input type="range" id="print-edge" min="0" max="10" step="1" value="5"
+                     aria-label="Safe margin on all four paper edges" />
+              <output id="print-edge-out">5mm</output>
+            </div>
+            <p class="muted small print-note">Keep 5mm. Less, and most printers cut off the bottom cards or shift the whole page.</p>
+            <p class="muted small print-note">The sheet holds four cards. Fold it in half: the bottom two print upside down so they read the right way after folding.</p>
+          </details>
+        </div>
+        <!-- Right: live preview of a single card, at true proportions -->
+        <div class="print-preview-wrap">
+          <div class="print-preview-label muted small">Preview — the whole A4 sheet, bottom pair upside down for folding</div>
+          <div id="print-preview" class="print-preview"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filled only at print time; hidden on screen, visible to the printer. -->
+  <div id="print-root" aria-hidden="true"></div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./app.js?v=291"></script>
+  <div class="beta-badge" aria-label="Beta version 291" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v291</div>
+</body>
+</html>
