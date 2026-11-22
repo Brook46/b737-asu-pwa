@@ -8,14 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=292';
-import * as ri from './route-info.js?v=292';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=292';
-import * as wxm from './wx.js?v=292';
-import * as nb from './notam-brief.js?v=292';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=292';
-import * as plan from './plan-route.js?v=292';
-import * as ely from './ely-traffic.js?v=292';
+import * as storage from './storage.js?v=293';
+import * as ri from './route-info.js?v=293';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=293';
+import * as wxm from './wx.js?v=293';
+import * as nb from './notam-brief.js?v=293';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=293';
+import * as plan from './plan-route.js?v=293';
+import * as ely from './ely-traffic.js?v=293';
+import * as al from './altn.js?v=293';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -57,20 +58,9 @@ const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => St
 // The alternate for this leg's destination, chosen by hand and kept per
 // destination on this device — the same store the Brief's Alternate row
 // uses (fc.altn, keyed by the arrival code). Either code may be stored.
-function altnOf(leg) {
-  try { return String((JSON.parse(localStorage.getItem('fc.altn') || '{}'))[String(leg?.arr || '').toUpperCase()] || '').toUpperCase(); } catch { return ''; }
-}
-function isAltn(ap, leg) { const a = altnOf(leg); return !!a && (a === ap.icao || a === ap.iata); }
-function setAltnFor(leg, code) {
-  try {
-    const all = JSON.parse(localStorage.getItem('fc.altn') || '{}');
-    const k = String(leg?.arr || '').toUpperCase();
-    if (!k) return;
-    if (code) all[k] = code; else delete all[k];
-    localStorage.setItem('fc.altn', JSON.stringify(all));
-  } catch {}
-  window.dispatchEvent(new CustomEvent('fc:altn-changed'));
-}
+// There can be several (altn.js).
+function altnsOf(leg) { return al.altnsFor(leg?.arr); }
+function isAltn(ap, leg) { return altnsOf(leg).some(a => a === ap.icao || a === ap.iata); }
 function screenLeg() {
   if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
     const hit = storage.getLegs().find(l => idOf(l) === pinned);
@@ -122,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=292');
+    avoidMod ||= await import('./avoid.js?v=293');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -188,8 +178,8 @@ async function build(leg, { doFetch = false } = {}) {
   let cache = readCache(leg);
   if (doFetch) {
     const ids = pool.map(c => c.ap.icao);
-    const alt = altnOf(leg) && ri.findAirport(db, altnOf(leg));
-    if (alt && !ids.includes(alt.icao)) ids.push(alt.icao);
+    const alts = altnsOf(leg).map(code => ri.findAirport(db, code)).filter(Boolean);
+    for (const alt of alts) if (!ids.includes(alt.icao)) ids.push(alt.icao);
     // Weather, NOTAMs and SIGMETs side by side — one slow source no longer
     // holds up the others.
     const wxP = ri.fetchWeather(ids);
@@ -198,8 +188,8 @@ async function build(leg, { doFetch = false } = {}) {
     // first, then the best.
     const key = ri.keyAtEnds(pool, route);
     const top = pool.filter(c => !c.r.excluded).sort((a, b) => key.has(b) - key.has(a) || b.r.score - a.r.score).slice(0, 30).map(c => c.ap.icao);
-    // The alternate's NOTAMs always, whatever its rank.
-    if (alt && !top.includes(alt.icao)) top.unshift(alt.icao);
+    // The alternates' NOTAMs always, whatever their rank.
+    for (const alt of alts) if (!top.includes(alt.icao)) top.unshift(alt.icao);
     // A failed NOTAM fetch keeps the last good set (marked with its age)
     // rather than blanking what the pilot already had.
     let notams = null, notamsOff = false, notamsErr = '', notamsAt = Date.now();
@@ -244,7 +234,7 @@ async function build(leg, { doFetch = false } = {}) {
     dbDate: db.v,
     leg, A, B, route, tm, pool, gaps: gaps.filter(g => g.to - g.from > 40),
     // The alternate is always on the map and in the list.
-    shown: (() => { const sh = ri.pickShown(pool, route, 5); const a = pool.find(c => isAltn(c.ap, leg)); return a && !sh.includes(a) ? [...sh, a] : sh; })(),
+    shown: (() => { const sh = ri.pickShown(pool, route, 5); return [...sh, ...pool.filter(c => isAltn(c.ap, leg) && !sh.includes(c))]; })(),
     fetchedAt: cache?.at || 0,
     notamsOff: !cache || cache.notamsOff || !cache.notams,
     notamsErr: cache?.notamsErr || '',
@@ -1405,8 +1395,8 @@ function cardHtml(c, m) {
         <button type="button" class="ri-card-x" data-ri-close aria-label="Close">✕</button>
       </div>
       ${ap.icao === m.A.icao || ap.icao === m.B.icao ? '' : isAltn(ap, m.leg)
-        ? `<button type="button" class="ri-altn-btn is-on" data-ri-altn="">✓ Alternate for ${esc(m.B.iata || m.B.icao)} · remove</button>`
-        : `<button type="button" class="ri-altn-btn" data-ri-altn="${esc(ap.icao)}">Set as alternate for ${esc(m.B.iata || m.B.icao)}</button>`}
+        ? `<button type="button" class="ri-altn-btn is-on" data-ri-altn="${esc(ap.icao)}" data-ri-altn-off>✓ Alternate for ${esc(m.B.iata || m.B.icao)} · remove</button>`
+        : `<button type="button" class="ri-altn-btn" data-ri-altn="${esc(ap.icao)}">${altnsOf(m.leg).length ? 'Add as another alternate' : 'Set as alternate'} for ${esc(m.B.iata || m.B.icao)}</button>`}
       <div class="view-switch" role="tablist" aria-label="Airport view">
         <button type="button" class="vs-btn" role="tab" aria-selected="false" data-ri-notes>Notes</button>
         <button type="button" class="vs-btn is-on" role="tab" aria-selected="true">Diversion</button>
@@ -1625,7 +1615,7 @@ async function endAirports(leg) {
   if (!leg) return [];
   const db = await ri.loadDb();
   const out = [];
-  for (const code of [leg.dep, leg.arr, altnOf(leg)]) {
+  for (const code of [leg.dep, leg.arr, ...altnsOf(leg)]) {
     const ap = code && ri.findAirport(db, code);
     if (ap && !out.includes(ap)) out.push(ap);
   }
@@ -1640,7 +1630,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=292');
+    const ad = await import('./atis-diagram.js?v=293');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1666,7 +1656,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=292');
+    const ad = await import('./atis-diagram.js?v=293');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -1686,7 +1676,7 @@ export async function glance(leg) {
   if (!leg || !leg.dep || !leg.arr) return null;
   const c = readCache(leg);
   if (!c || !c.wx) return null;
-  const id = idOf(leg) + '|' + (altnOf(leg) || '');
+  const id = idOf(leg) + '|' + altnsOf(leg).join(',');
   if (!glMemo || glMemo.id !== id || glMemo.at !== c.at) glMemo = { id, at: c.at, model: await build(leg, { doFetch: false }) };
   const m = glMemo.model, db = await ri.loadDb();
   const wmap = new Map();
@@ -1727,12 +1717,11 @@ export async function glance(leg) {
     }
     return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams };
   };
-  const altCode = altnOf(leg);
-  const alt = altCode ? ri.findAirport(db, altCode) : null;
+  const alts = altnsOf(leg).map(code => ri.findAirport(db, code)).filter(a => a && a.icao !== m.B.icao);
   const tB = m.tm.etaAt(m.route.total);
   return {
     at: c.at,
-    ends: [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), alt && alt.icao !== m.B.icao ? one(alt, tB, 'alt') : null].filter(Boolean),
+    ends: [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), ...alts.map(a => one(a, tB, 'alt'))].filter(Boolean),
     sig: (m.sig || []).length,
     notamsOff: m.notamsOff,
   };
@@ -1754,7 +1743,7 @@ function paintAtisBtns() {
   const box = $('ri-atis-btns');
   if (!box || !state) return;
   const m = state.model;
-  const alt = altnOf(m.leg);
+  const alts = altnsOf(m.leg);
   const row = (end, label, code) => {
     if (!code) return '';
     const e = wxm.peekCachedWx(code);
@@ -1762,7 +1751,7 @@ function paintAtisBtns() {
     return `<button type="button" data-atis-open="${esc(code)}" data-atis-end="${end === 'altn' ? '' : end}" title="ATIS ${esc(code)}">
         <span class="ri-ab-l">${label}</span><b>${esc(code)}</b>${L ? `<span class="atis-tag">${esc(L)}</span>` : ''}</button>`;
   };
-  box.innerHTML = row('dep', 'DEP', m.A.icao) + row('arr', 'ARR', m.B.icao) + row('altn', 'ALT', alt);
+  box.innerHTML = row('dep', 'DEP', m.A.icao) + row('arr', 'ARR', m.B.icao) + alts.map((a, i) => row('altn', alts.length > 1 ? `ALT${i + 1}` : 'ALT', a)).join('');
 }
 window.addEventListener('fc:atis-updated', () => paintAtisBtns());
 
@@ -2177,7 +2166,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=292'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=293'); } catch { el.hidden = true; return; }
   const B = state.model.B;
   const wps = state.model.route.filed ? state.model.route.wps : null;
   const on = wps ? plan.progress(wps, g) : null;
@@ -2814,8 +2803,19 @@ export function wire() {
     const ab = e.target.closest('[data-ri-altn]');
     if (ab && state) {
       const icao = ab.closest('.ri-card')?.dataset.icao;
-      setAltnFor(state.model.leg, ab.dataset.riAltn);
-      toast(ab.dataset.riAltn ? `${ab.dataset.riAltn} is the alternate — on the Brief page` : 'Alternate removed');
+      const arr = state.model.leg.arr, code = ab.dataset.riAltn;
+      if (ab.hasAttribute('data-ri-altn-off')) {
+        // Stored as either code: drop whichever this airport was saved under.
+        const ap = state.model.pool.find(c => c.ap.icao === code)?.ap;
+        for (const k of [code, ap && ap.iata].filter(Boolean)) al.removeAltn(arr, k);
+        toast(`${code} removed from the alternates`);
+      } else if (!al.addAltn(arr, code)) {
+        toast(`Up to ${al.MAX} alternates — remove one first`);
+        return;
+      } else {
+        const n = altnsOf(state.model.leg).length;
+        toast(n > 1 ? `${code} added — ${n} alternates, on the Brief page` : `${code} is the alternate — on the Brief page`);
+      }
       // Rebuild so the alternate joins the map (and its NOTAMs come with
       // the next update), then reopen its card.
       build(state.model.leg).then(async m => { await paint(m, state.showAll); if (icao) openCard(icao, { keepView: true }); }).catch(() => {});
