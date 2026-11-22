@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=290';
-import { dateTs, legTs } from './dates.js?v=290';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=290';
+import { flipName } from './roster.js?v=293';
+import { dateTs, legTs } from './dates.js?v=293';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=293';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1686,7 +1686,8 @@ export function mergeExport(parts, divider = '<b>— imported —</b>') {
     s.speeches.push({ ...sp, id: s.speeches.some(x => x.id === sp.id) ? 'sp-' + Math.random().toString(36).slice(2, 8) : sp.id });
     out.speeches++;
   }
-  const legs = (parts.legs || []).filter(l => l && l.dep_date);
+  // Flights already here get the file's typed data in their empty fields.
+  const legs = fillExisting((parts.legs || []).filter(l => l && l.dep_date), out);
   const now = Date.now();
   const future = legs.filter(l => (depTs(l) || 0) > now), past = legs.filter(l => !((depTs(l) || 0) > now));
   if (past.length) out.legs += addImportedLegs(past.map(l => ({ ...l }))).added;
@@ -1784,11 +1785,48 @@ export function exportJson() { return JSON.stringify(read(), null, 2); }
 // removed — flights, duties, crew, notes and PAs the backup has and this
 // device doesn't are added. Same rule as the calendar: the device's own edits
 // win. Returns what was added, for the toast.
+// A flight that's on both sides (the calendar put it here before the backup
+// came in): what the pilot typed on it — T/O and LDG roles, crew names, the
+// data card, notes, ticks — fills whatever's empty here. Never overwrites.
+const blank = (v) => v == null || v === '';
+function fillLegFrom(mine, theirs) {
+  let n = 0;
+  for (const bag of ['dataCard', 'ticks', 'notes']) {
+    const src = theirs && theirs[bag];
+    if (!src || typeof src !== 'object') continue;
+    if (!mine[bag] || typeof mine[bag] !== 'object') mine[bag] = {};
+    for (const [k, v] of Object.entries(src)) if (!blank(v) && blank(mine[bag][k])) { mine[bag][k] = v; n++; }
+  }
+  for (const [k, v] of Object.entries(theirs || {})) {
+    if (k === 'dataCard' || k === 'ticks' || k === 'notes' || blank(v) || typeof v === 'object') continue;
+    if (blank(mine[k])) { mine[k] = v; n++; }
+  }
+  return n;
+}
+const legKeyOf = (l) => [String(l.flight || '').replace(/\D/g, '').replace(/^0+/, ''), l.dep_date, l.dep_year, l.dep, l.arr].join('|');
+// Fill the flights already here from `list`; returns the ones that aren't.
+function fillExisting(list, out) {
+  const here = new Map(everyLeg().map(l => [legKeyOf(l), l]));
+  const rest = [];
+  for (const l of list) {
+    const mine = here.get(legKeyOf(l));
+    if (!mine) { rest.push(l); continue; }
+    if (fillLegFrom(mine, l)) out.filled = (out.filled || 0) + 1;
+  }
+  return rest;
+}
+
 export function mergeStateFrom(raw) {
   const other = migrate(JSON.parse(raw));
   const s = read();
-  const added = { legs: 0, duties: 0, crew: 0, notes: 0, airportNotes: 0, speeches: 0 };
-  const key = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].join('|');
+  const added = { legs: 0, duties: 0, crew: 0, notes: 0, airportNotes: 0, speeches: 0, filled: 0 };
+  const key = legKeyOf;
+  // Flights on both sides: the backup's typed data fills the empty fields.
+  fillExisting([
+    ...(other.history || []).flatMap(h => h.legs || []),
+    ...(other.imported || []),
+    ...((other.current && other.current.legs) || []),
+  ], added);
   const have = new Set(everyLeg().map(key));
   // Duty records: a whole record when it's new, else only its missing legs.
   const histIds = new Set(s.history.map(h => h.id));

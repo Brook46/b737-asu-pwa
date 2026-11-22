@@ -3719,6 +3719,23 @@ body {
 .ready-line.is-warn b { color: var(--warn); }
 .ready-line.is-bad b { color: var(--danger); }
 
+/* At a glance: one chip per airport, wrapping on a phone. */
+.glance { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: -2px; }
+.glance[hidden] { display: none; }
+.gl-chip {
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 10px;
+  border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: 999px; background: var(--bg-elev);
+  color: var(--fg); font: inherit; font-size: 13px; line-height: 1.2;
+}
+.gl-chip.is-warn { border-color: var(--warn); }
+.gl-chip.is-bad  { border-color: var(--danger); }
+.gl-role { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: var(--fg-mute); }
+.gl-chip .ri-score { min-width: 0; }
+.gl-ok { color: var(--good); font-weight: 700; }
+.gl-iss { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-phase="air"] #glance { display: none; }
+
 /* ---------- The tabs ---------- */
 body[data-phase="air"] #card-data,
 body[data-phase="air"] #card-history,

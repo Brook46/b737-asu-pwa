@@ -75,6 +75,8 @@ async function overpassNow(q) {
 // (half a minute or more), so the ATIS refresh fetches it in the
 // background when there are closures. `refs` is accepted for older callers.
 const inflight = new Map();
+// Is this airport's diagram on the device (for Ready for flight)?
+export function hasGeo(icao) { return !!readCache(icao); }
 export function airportGeo(icao, lat, lon) {
   if (!inflight.has(icao)) inflight.set(icao, load(icao, lat, lon).finally(() => inflight.delete(icao)));
   return inflight.get(icao);

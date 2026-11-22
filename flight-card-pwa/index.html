@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=290" />
+  <link rel="stylesheet" href="./app.css?v=293" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -152,6 +152,8 @@
     <!-- How the flight stands: filled by paintReadyLine in app.js, only from
          12 h before departure until arrival. Tap for Route info. -->
     <button id="ready-line" data-action="route-info" class="ready-line" type="button" hidden></button>
+    <!-- At a glance: DEP / ARR / ALT rated, with what's worth a look (paintGlance). -->
+    <div id="glance" class="glance" role="group" aria-label="Flight at a glance" hidden></div>
 
     <!-- In flight is Route info itself; this only speaks when a leg has no route. -->
     <p id="phase-air" class="phase-note muted small" hidden>Route info needs a leg with departure and destination.</p>
@@ -1048,6 +1050,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=290"></script>
+  <script type="module" src="./app.js?v=293"></script>
 </body>
 </html>
