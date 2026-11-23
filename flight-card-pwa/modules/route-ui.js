@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=293';
-import * as ri from './route-info.js?v=293';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=293';
-import * as wxm from './wx.js?v=293';
-import * as nb from './notam-brief.js?v=293';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=293';
-import * as plan from './plan-route.js?v=293';
-import * as ely from './ely-traffic.js?v=293';
-import * as al from './altn.js?v=293';
+import * as storage from './storage.js?v=299';
+import * as ri from './route-info.js?v=299';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=299';
+import * as wxm from './wx.js?v=299';
+import * as nb from './notam-brief.js?v=299';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=299';
+import * as plan from './plan-route.js?v=299';
+import * as ely from './ely-traffic.js?v=299';
+import * as al from './altn.js?v=299';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -59,7 +59,7 @@ const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => St
 // destination on this device — the same store the Brief's Alternate row
 // uses (fc.altn, keyed by the arrival code). Either code may be stored.
 // There can be several (altn.js).
-function altnsOf(leg) { return al.altnsFor(leg?.arr); }
+function altnsOf(leg) { return al.altnsOfLeg(leg); }
 function isAltn(ap, leg) { return altnsOf(leg).some(a => a === ap.icao || a === ap.iata); }
 function screenLeg() {
   if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=293');
+    avoidMod ||= await import('./avoid.js?v=299');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -446,7 +446,9 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-fir-lbls">${firLbl}</g>
       <g class="ri-sigs">${sigSvg}</g>
+      <g id="ri-fir-hl"></g>
       <path d="${track}" class="ri-track${m.route.filed ? ' is-filed' : ''}"/>
+      <g id="ri-fir-leg"></g>
       <g id="ri-iso"></g>
       ${pins}
       <g id="ri-iso-lbls"></g>
@@ -1100,7 +1102,9 @@ export async function notamsFor(leg, code, ts = Date.now()) {
   if (!Array.isArray(n)) return null;
   const tags = notamTagList(ri.notamFlags(n, ts));
   const nowTags = Math.abs(ts - Date.now()) > 3600e3 ? notamTagList(ri.notamFlags(n, Date.now())).filter(t => !tags.includes(t)) : [];
-  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at };
+  // Each NOTAM's id and one-line summary, for "new since you last looked".
+  const list = n.map(x => ({ id: x.id || String(x.text || '').slice(0, 40), line: (nb.bottomLine(x) || {}).text || String(x.text || '').slice(0, 70) }));
+  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at, list };
 }
 function surfaceText(rw) {
   const SURF = { ASP: 'asphalt', ASPH: 'asphalt', ASPHALT: 'asphalt', CON: 'concrete', CONC: 'concrete', CONCRETE: 'concrete', PEM: 'part asphalt / concrete', BIT: 'bitumen', MAC: 'macadam' };
@@ -1630,7 +1634,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=293');
+    const ad = await import('./atis-diagram.js?v=299');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1656,12 +1660,36 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=293');
+    const ad = await import('./atis-diagram.js?v=299');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
     wxAt: c ? c.at : 0, db, asu, noWx, noMap,
     notams: !c ? 'none' : c.notamsErr ? 'failed' : c.notamsOff || !c.notams ? 'off' : 'ok',
+  };
+}
+
+// ---------- Report an issue ----------
+// The raw data behind this flight's screens — the reports, NOTAMs and route
+// as fetched — for the pilot's own issue report (report.js).
+export async function reportData(leg) {
+  if (!leg) return null;
+  const c = readCache(leg);
+  const db = await ri.loadDb().catch(() => null);
+  const codes = [leg.dep, leg.arr, ...altnsOf(leg)].map(x => (db && ri.findAirport(db, x)?.icao) || String(x || '').toUpperCase()).filter(Boolean);
+  const pick = (list) => (list || []).filter(r => codes.includes(r.id));
+  const filed = plan.getPlan(leg);
+  let model = null;
+  try { model = await build(leg, { doFetch: false }); } catch (e) { model = { error: String(e.message || e) }; }
+  return {
+    airports: codes,
+    savedAt: c ? new Date(c.at).toISOString() : null,
+    metars: pick(c?.wx?.metars), tafs: pick(c?.wx?.tafs),
+    notams: c?.notams ? Object.fromEntries(codes.map(k => [k, c.notams[k] || null])) : null,
+    notamsErr: c?.notamsErr || '', notamsOff: !!c?.notamsOff,
+    filedRoute: filed ? { text: filed.text || '', missing: filed.missing || [], points: (filed.pts || []).map(p => [p.n || '', p.lat, p.lon]) } : null,
+    route: model && model.route ? { nm: Math.round(model.route.total), filed: !!model.route.filed, gps: !!model.route.gps, avoid: model.route.avoid || null } : model,
+    glance: await glance(leg).catch(() => null),
   };
 }
 
@@ -1715,13 +1743,40 @@ export async function glance(leg) {
       else if (red > 1) issues.push(`${red} red NOTAMs`);
       if (red) bump('r');
     }
-    return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams };
+    // Alternate planning minima (OM A 8.1.3.1.5): the forecast from an hour
+    // before to an hour after the ETA (at the ETA once airborne), worst of it.
+    // The real figures are the approach's own NPA RVR/VIS and DH/MDH (+1,000 m
+    // and +200 ft with NPA only), which the app doesn't have — so it shows the
+    // worst forecast against typical NPA minima (1,500 m / 500 ft), orange,
+    // for the pilot to set against the chart; below CAT I it's red.
+    if (role === 'alt' && wxEntry) {
+      const span = Date.now() > m.tm.etaAt(0) ? [eta] : [-60, -40, -20, 0, 20, 40, 60].map(k => eta + k * 60000);
+      let vis = Infinity, ceil = Infinity;
+      for (const t of span) {
+        const w = ri.wxAt(wxEntry, t, Date.now(), m.mode);
+        if (!w || !w.src) continue;
+        if (Number.isFinite(w.vis)) vis = Math.min(vis, w.vis);
+        if (Number.isFinite(w.ceil)) ceil = Math.min(ceil, w.ceil);
+      }
+      const fig = `${Number.isFinite(vis) ? (vis >= 9999 ? '10 km' : Math.round(vis / 100) * 100 + ' m') : '—'} / ${Number.isFinite(ceil) ? Math.round(ceil / 100) * 100 + ' ft' : 'no ceiling'}`;
+      if (vis < 550 || ceil < 200) { if (!issues.some(x => /CAT I/.test(x))) issues.push(`below CAT I ${span.length > 1 ? 'within ETA ±1 h' : 'at ETA'} (${fig})`); bump('r'); }
+      else if (vis < 1500 || ceil < 500) { issues.push(`check ALT planning minima: ${fig} ${span.length > 1 ? 'ETA ±1 h' : 'at ETA'}`); bump('o'); }
+    }
+    return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams, belowMin: r.why.some(w => /^Below CAT I/.test(w)), noWx: !wxEntry };
   };
   const alts = altnsOf(leg).map(code => ri.findAirport(db, code)).filter(a => a && a.icao !== m.B.icao);
   const tB = m.tm.etaAt(m.route.total);
+  const ends = [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), ...alts.map(a => one(a, tB, 'alt'))].filter(Boolean);
+  // OM A 8.1.3.1.4: two destination alternates when the destination is
+  // forecast below landing minima at the ETA, or there's no forecast for it.
+  const arrE = ends.find(e => e.role === 'arr');
+  if (arrE && (arrE.belowMin || arrE.noWx) && alts.length < 2) {
+    arrE.issues.unshift(`2 alternates required (${alts.length} set)`);
+    arrE.tone = 'r';
+  }
   return {
     at: c.at,
-    ends: [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), ...alts.map(a => one(a, tB, 'alt'))].filter(Boolean),
+    ends,
     sig: (m.sig || []).length,
     notamsOff: m.notamsOff,
   };
@@ -2162,32 +2217,148 @@ function stopGps() {
 // the way to the destination and its CPDLC log-on (cpdlc.js). Only when
 // it changes does the DOM.
 let cpdlcMod = null;
+// The CPDLC bar: where we are and the next FIR / sector, with its log-on —
+// in the air from GPS, on the ground the first two of the route. Tap for
+// every FIR and sector along the whole route, in order, with the time you'd
+// enter each and its log-on (or voice); in the air the one you're in is
+// marked and those behind are greyed.
+// The list drops down over the map (it never pushes the page) and only
+// while asked for; closed again by the bar or a tap anywhere else.
+let cpdlcOpen = false;
+let cpdlcSel = -1;          // the row picked in the list: highlighted on the map
+let cpdlcSegs = [];
+let firMemo = null;
+function routeFirs(m) {
+  const key = m.route.total.toFixed(1) + ':' + m.route.pts.length + ':' + m.route.pts[0].lat.toFixed(3);
+  if (!firMemo || firMemo.key !== key) firMemo = { key, segs: cpdlcMod.firsAlong(m.route.pts) };
+  return firMemo.segs;
+}
+function alongOf(pts, g) {
+  let best = null, bd = Infinity;
+  const k = Math.cos(g.lat * Math.PI / 180);
+  for (const p of pts) {
+    let dl = p.lon - g.lon; while (dl > 180) dl -= 360; while (dl < -180) dl += 360;
+    const d = (p.lat - g.lat) ** 2 + (dl * k) ** 2;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best ? best.s : 0;
+}
 async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
-  if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=293'); } catch { el.hidden = true; return; }
-  const B = state.model.B;
-  const wps = state.model.route.filed ? state.model.route.wps : null;
-  const on = wps ? plan.progress(wps, g) : null;
-  const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
+  if (!state) { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=299'); } catch { el.hidden = true; return; }
+  const m = state.model, B = m.B;
+  const air = !!(g && g.airborne);
   const tag = (id) => {
-    if (!id) return '';
+    if (!id) return '<span class="ri-cpdlc-off">no FIR on the map</span>';
     const c = cpdlcMod.cpdlcOf(id);
     return c.on ? `<span class="ri-cpdlc-on">CPDLC <b>${esc(c.code)}</b></span>${c.note ? ` <small>${esc(c.note)}</small>` : ''}`
       : `<span class="ri-cpdlc-off">${esc(c.note)}</span>`;
   };
-  // Where we are on the left, what's next on the right — the order they're flown.
-  const side = (cls, head, id, when) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
-      <b class="ri-cpdlc-fir">${esc(id)}</b> ${tag(id)}${when ? ` <span class="ri-cpdlc-when">${when}</span>` : ''}</div>`;
-  const html = (r.here || r.next)
-    ? (r.here ? side('is-now', 'Now', r.here, r.next ? '' : 'to the destination') : '<div class="ri-cpdlc-side is-now"></div>')
-      + (r.next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>` + side('is-next', 'Next', r.next,
-        `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}`) : '')
-    : '';
-  if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
+  const segs = routeFirs(m).filter(x => x.id || x.to - x.from >= 20);
+  const at = air ? alongOf(m.route.pts, g) : 0;
+  let here = '', next = '', when = '', nowHead = 'Now';
+  if (air) {
+    const wps = m.route.filed ? m.route.wps : null;
+    const on = wps ? plan.progress(wps, g) : null;
+    const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
+    here = r.here; next = r.next;
+    when = r.next ? `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}` : '';
+  } else if (segs.length) {
+    nowHead = 'First';
+    here = segs[0].id; next = segs[1] ? segs[1].id : '';
+    when = segs[1] ? `at ${hm(m.tm.etaAt(segs[1].from))}` : '';
+  }
+  const side = (cls, head, id, w) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
+      <b class="ri-cpdlc-fir">${esc(id || '—')}</b> ${tag(id)}${w ? ` <span class="ri-cpdlc-when">${w}</span>` : ''}</div>`;
+  const picked = !cpdlcOpen && segs[cpdlcSel] ? segs[cpdlcSel] : null;
+  const more = segs.length > 1
+    ? (picked ? `<button type="button" class="ri-cpdlc-pick" data-ri-fir-clear aria-label="Clear ${esc(picked.id || '')} from the map">${esc(picked.id || '—')}<i>✕</i></button>` : '')
+      : '';
+  const bar = `<div class="ri-cpdlc-bar"${segs.length > 1 ? ` data-ri-cpdlc role="button" tabindex="0" aria-expanded="${cpdlcOpen}" aria-label="Every FIR and sector on the route"` : ''}>${side('is-now', nowHead, here, next ? '' : 'to the destination')}`
+    // The arrow between them: points on to Next, and turns down with the list.
+    + (next || segs.length > 1 ? `<span class="ri-cpdlc-arrow${segs.length > 1 ? ' is-toggle' : ''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '')
+    + (next ? side('is-next', 'Next', next, when) : '')
+    + more + `</div>`;
+  const curIdx = air ? segs.findIndex(x => at >= x.from && at < x.to) : -1;
+  cpdlcSegs = segs;
+  const drop = segs.length > 1 ? `<div class="ri-cpdlc-drop" role="listbox" aria-label="FIRs and sectors on the route">
+      <div class="ri-cpdlc-drop-h">${segs.length} FIRs &amp; sectors · ${Math.round(m.route.total)} nm <span>tap one to show it on the map</span></div>
+      <ol class="ri-cpdlc-list">${segs.map((x, i) => {
+        const past = air && x.to <= at, cur = i === curIdx, c = x.id ? cpdlcMod.cpdlcOf(x.id) : null;
+        return `<li class="${past ? 'is-past' : ''}${cur ? ' is-cur' : ''}${i === cpdlcSel ? ' is-sel' : ''}" data-ri-fir="${i}" role="option" aria-selected="${i === cpdlcSel}">
+          <span class="ri-cl-dot ${c && c.on ? 'on' : 'off'}" aria-hidden="true"></span>
+          <span class="ri-cl-main"><b class="ri-cl-id">${esc(x.id || '—')}</b>${cur ? '<em>now</em>' : ''}
+            <span class="ri-cl-c">${c ? (c.on ? `CPDLC <b>${esc(c.code)}</b>${c.note ? ` · ${esc(c.note)}` : ''}` : esc(c.note)) : 'no FIR on the map'}</span></span>
+          <span class="ri-cl-side"><span class="ri-cl-t">${i === 0 ? 'dep' : hm(m.tm.etaAt(x.from))}</span><span class="ri-cl-d">${Math.round(x.to - x.from)} nm</span></span></li>`;
+      }).join('')}</ol></div>` : '';
+  const html = (here || next ? bar : '') + drop;
+  if (el.dataset.html !== html) {
+    const sc = el.querySelector('.ri-cpdlc-list')?.scrollTop || 0;
+    el.innerHTML = html; el.dataset.html = html;
+    const l2 = el.querySelector('.ri-cpdlc-list'); if (l2) l2.scrollTop = sc;
+  }
+  el.classList.toggle('is-open', cpdlcOpen && segs.length > 1);
+  paintFirHl();
   el.hidden = !html;
 }
+// The FIRs of the route on the map while the list is open: each faintly,
+// the picked one filled and named, with its stretch of the route bold.
+function paintFirHl() {
+  const g = $('ri-fir-hl'), gl = $('ri-fir-leg');
+  if (!g) return;
+  if ((!cpdlcOpen && cpdlcSel < 0) || !mapGeom || !state || !cpdlcMod) { g.innerHTML = ''; if (gl) gl.innerHTML = ''; return; }
+  let top = '';      // over the route line: the stretch and the name
+  const P = mapGeom.proj, cLon = mapGeom.view.cLon;
+  const unwrap = (lon) => { while (lon - cLon > 180) lon -= 360; while (lon - cLon < -180) lon += 360; return lon; };
+  const ring = (pts) => {
+    let d = '';
+    for (let i = 0; i + 1 < pts.length; i += 2) d += (i ? 'L' : 'M') + P.x(unwrap(pts[i])).toFixed(1) + ',' + P.y(pts[i + 1]).toFixed(1);
+    return d + 'Z';
+  };
+  const ids = [...new Set(cpdlcSegs.map(x => x.id).filter(Boolean))];
+  const sel = cpdlcSegs[cpdlcSel];
+  // Open: all of them faint for orientation; closed, the picked one alone.
+  let out = (cpdlcOpen ? ids : []).filter(id => !sel || id !== sel.id).map(id => cpdlcMod.ringsOf(id).map(r => `<path class="ri-firhl" d="${ring(r)}"/>`).join('')).join('');
+  if (sel && sel.id) {
+    out += cpdlcMod.ringsOf(sel.id).map(r => `<path class="ri-firhl is-sel" d="${ring(r)}"/>`).join('');
+    const pts = state.model.route.pts.filter(p => p.s >= sel.from - 1 && p.s <= sel.to + 1);
+    if (pts.length > 1) top += `<path class="ri-firhl-leg" d="M${pts.map(p => `${P.x(unwrap(p.lon)).toFixed(1)},${P.y(p.lat).toFixed(1)}`).join('L')}"/>`;
+    const lb = cpdlcMod.labelOf(sel.id) || pts[Math.floor(pts.length / 2)];
+    if (lb) top += `<g class="ri-firhl-lbl" transform="translate(${P.x(unwrap(lb.lon)).toFixed(1)},${P.y(lb.lat).toFixed(1)})"><text>${esc(sel.id)}</text></g>`;
+  }
+  g.innerHTML = out;
+  if (gl) gl.innerHTML = top;
+}
+function setCpdlcOpen(on) {
+  cpdlcOpen = on;
+  paintCpdlc(gpsFix).catch(() => {});
+}
+// Picked from the list: the list folds away and the map moves to show that
+// FIR and the route's stretch through it.
+function zoomToFir(i) {
+  const sel = cpdlcSegs[i];
+  if (!sel || !mapGeom || !state) return;
+  const P = mapGeom.proj, cLon = mapGeom.view.cLon;
+  const unwrap = (lon) => { while (lon - cLon > 180) lon -= 360; while (lon - cLon < -180) lon += 360; return lon; };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const add = (lon, lat) => { const x = P.x(unwrap(lon)), y = P.y(lat); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
+  for (const r of cpdlcMod.ringsOf(sel.id)) for (let k = 0; k + 1 < r.length; k += 2) add(r[k], r[k + 1]);
+  for (const p of state.model.route.pts) if (p.s >= sel.from && p.s <= sel.to) add(p.lon, p.lat);
+  if (!Number.isFinite(x0)) return;
+  const W = mapGeom.W, Hh = mapGeom.H;
+  const w = Math.max(x1 - x0, (y1 - y0) * W / Hh) * 1.18, h = w * Hh / W;
+  animateViewBox(clampView({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h }), 380);
+}
+// A tap anywhere outside the open list closes it — and only that: the tap
+// doesn't also open an airport underneath.
+document.addEventListener('click', (e) => {
+  if (!cpdlcOpen || e.target.closest('#ri-cpdlc')) return;
+  e.preventDefault(); e.stopPropagation();
+  setCpdlcOpen(false);
+}, true);
+
 // One score for an airport everywhere in the air: within about an hour, what
 // it has NOW (METAR) matters more than the forecast for when we'd have passed
 // it, so the nearest list, the strip's Nearest chip and the airport card all
@@ -2798,6 +2969,21 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    const fr = e.target.closest('[data-ri-fir]');
+    if (fr) {
+      const i = +fr.dataset.riFir;
+      cpdlcSel = i;
+      setCpdlcOpen(false);
+      zoomToFir(i);
+      return;
+    }
+    if (e.target.closest('[data-ri-fir-clear]')) {
+      cpdlcSel = -1;
+      paintCpdlc(gpsFix).catch(() => {});
+      mapZoom('fit');
+      return;
+    }
+    if (e.target.closest('[data-ri-cpdlc]')) { setCpdlcOpen(!cpdlcOpen); return; }
     const pb = e.target.closest('[data-ri-plan]');
     if (pb) { planAction(pb.dataset.riPlan); return; }
     const ab = e.target.closest('[data-ri-altn]');
@@ -2807,14 +2993,14 @@ export function wire() {
       if (ab.hasAttribute('data-ri-altn-off')) {
         // Stored as either code: drop whichever this airport was saved under.
         const ap = state.model.pool.find(c => c.ap.icao === code)?.ap;
-        for (const k of [code, ap && ap.iata].filter(Boolean)) al.removeAltn(arr, k);
+        for (const k of [code, ap && ap.iata].filter(Boolean)) al.removeAltn(state.model.leg, k);
         toast(`${code} removed from the alternates`);
-      } else if (!al.addAltn(arr, code)) {
+      } else if (!al.addAltn(state.model.leg, code, 'flight')) {
         toast(`Up to ${al.MAX} alternates — remove one first`);
         return;
       } else {
         const n = altnsOf(state.model.leg).length;
-        toast(n > 1 ? `${code} added — ${n} alternates, on the Brief page` : `${code} is the alternate — on the Brief page`);
+        toast(`${code} added for this flight${n > 1 ? ` (${n} alternates)` : ''} — on the Brief, tap “This flight only” to keep it for every ${arr} flight`, 3500);
       }
       // Rebuild so the alternate joins the map (and its NOTAMs come with
       // the next update), then reopen its card.

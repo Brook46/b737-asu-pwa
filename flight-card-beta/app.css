@@ -4069,7 +4069,14 @@ body[data-phase="air"] #ready-line { display: none; }
 .ri-cpdlc-side.is-next { justify-content: flex-end; text-align: right; }
 .ri-cpdlc-side .ri-cpdlc-h { flex-basis: 100%; }
 .ri-cpdlc-side small { flex-basis: 100%; }
-.ri-cpdlc-arrow { flex: none; color: var(--fg-mute); font-size: 18px; }
+.ri-cpdlc-arrow { flex: none; color: var(--fg-mute); font-size: 18px; display: inline-flex; }
+.ri-cpdlc-arrow.is-toggle {
+  width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 50%;
+  color: var(--accent); background: var(--accent-soft);
+}
+.ri-cpdlc-arrow svg { transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+.ri-cpdlc.is-open .ri-cpdlc-arrow.is-toggle svg { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ri-cpdlc-arrow svg { transition: none; } }
 
 
 /* Highlighter brush: the one in hand is ringed and lifted. */

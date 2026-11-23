@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=293" />
+  <link rel="stylesheet" href="./app.css?v=299" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -65,6 +65,7 @@
             <path d="M3 12.5l9 5 9-5"/>
             <path d="M3 16.5l9 5 9-5"/>
           </svg><span>737 NG Inside</span></button>
+            <button id="report-btn" data-action="report" class="more-item" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg><span>Report an issue</span></button>
             <a id="guide-link" class="more-item" href="./menu.html" role="menuitem"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/></svg><span>How to use</span></a>
             <!-- Not a .more-item: choosing a theme keeps the menu open, so the
                  pilot sees the change and can pick again. -->
@@ -73,6 +74,7 @@
               <div class="view-switch theme-switch">
                 <button type="button" class="vs-btn" data-theme-set="light">Day</button>
                 <button type="button" class="vs-btn" data-theme-set="dark">Night</button>
+                <button type="button" class="vs-btn" data-theme-set="cockpit" title="Night, dimmed and warmer for the flight deck">Cockpit</button>
                 <button type="button" class="vs-btn" data-theme-set="auto">Auto</button>
               </div>
             </div>
@@ -154,6 +156,8 @@
     <button id="ready-line" data-action="route-info" class="ready-line" type="button" hidden></button>
     <!-- At a glance: DEP / ARR / ALT rated, with what's worth a look (paintGlance). -->
     <div id="glance" class="glance" role="group" aria-label="Flight at a glance" hidden></div>
+    <!-- After landing: confirm the block times for the logbook and FTL (paintLanded). -->
+    <section id="landed" class="landed" aria-label="Confirm block times" hidden></section>
 
     <!-- In flight is Route info itself; this only speaks when a leg has no route. -->
     <p id="phase-air" class="phase-note muted small" hidden>Route info needs a leg with departure and destination.</p>
@@ -208,7 +212,7 @@
   <!-- Backup reminder (modules/backup.js due()): one tap to the share sheet. -->
   <div id="backup-nudge" class="backup-nudge" role="status" hidden>
     <span id="backup-nudge-txt"></span>
-    <button type="button" class="btn primary" data-backup-now>Back up now</button>
+    <button type="button" class="btn primary" data-backup-now>Back up</button>
     <button type="button" class="btn" data-backup-later>Later</button>
   </div>
   <nav class="tabbar" aria-label="Main">
@@ -1050,6 +1054,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=293"></script>
+  <script type="module" src="./app.js?v=299"></script>
 </body>
 </html>

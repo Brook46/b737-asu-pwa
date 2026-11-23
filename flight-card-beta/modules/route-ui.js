@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=298';
-import * as ri from './route-info.js?v=298';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=298';
-import * as wxm from './wx.js?v=298';
-import * as nb from './notam-brief.js?v=298';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=298';
-import * as plan from './plan-route.js?v=298';
-import * as ely from './ely-traffic.js?v=298';
-import * as al from './altn.js?v=298';
+import * as storage from './storage.js?v=299';
+import * as ri from './route-info.js?v=299';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=299';
+import * as wxm from './wx.js?v=299';
+import * as nb from './notam-brief.js?v=299';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=299';
+import * as plan from './plan-route.js?v=299';
+import * as ely from './ely-traffic.js?v=299';
+import * as al from './altn.js?v=299';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=298');
+    avoidMod ||= await import('./avoid.js?v=299');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -1634,7 +1634,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=298');
+    const ad = await import('./atis-diagram.js?v=299');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1660,7 +1660,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=298');
+    const ad = await import('./atis-diagram.js?v=299');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2247,7 +2247,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=298'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=299'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
@@ -2275,9 +2275,11 @@ async function paintCpdlc(g) {
   const picked = !cpdlcOpen && segs[cpdlcSel] ? segs[cpdlcSel] : null;
   const more = segs.length > 1
     ? (picked ? `<button type="button" class="ri-cpdlc-pick" data-ri-fir-clear aria-label="Clear ${esc(picked.id || '')} from the map">${esc(picked.id || '—')}<i>✕</i></button>` : '')
-      + `<span class="ri-cpdlc-more" aria-hidden="true">${segs.length}<i>${cpdlcOpen ? '▴' : '▾'}</i></span>` : '';
+      : '';
   const bar = `<div class="ri-cpdlc-bar"${segs.length > 1 ? ` data-ri-cpdlc role="button" tabindex="0" aria-expanded="${cpdlcOpen}" aria-label="Every FIR and sector on the route"` : ''}>${side('is-now', nowHead, here, next ? '' : 'to the destination')}`
-    + (next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>${side('is-next', 'Next', next, when)}` : '')
+    // The arrow between them: points on to Next, and turns down with the list.
+    + (next || segs.length > 1 ? `<span class="ri-cpdlc-arrow${segs.length > 1 ? ' is-toggle' : ''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '')
+    + (next ? side('is-next', 'Next', next, when) : '')
     + more + `</div>`;
   const curIdx = air ? segs.findIndex(x => at >= x.from && at < x.to) : -1;
   cpdlcSegs = segs;
