@@ -10,7 +10,7 @@
 // some centres start lower. Outside that list it says so — there may still
 // be FANS somewhere, so the AIP or the Jeppesen pages have the last word.
 
-import { FIR_LABELS, firRings } from './mapdata.js?v=295';
+import { FIR_LABELS, firRings } from './mapdata.js?v=298';
 
 // FIR (or ACC sector) on the map → the log-on to use there.
 const LOGON = {
@@ -136,3 +136,8 @@ export function firsAlong(pts, step = 10) {
   }
   return segs;
 }
+
+// The outline(s) of one FIR / sector, as [lon, lat, …] flat rings — for
+// highlighting it on the Route info map.
+export function ringsOf(id) { return id ? ringsNamed().filter(r => r.id === id).map(r => r.pts) : []; }
+export function labelOf(id) { const l = FIR_LABELS.find(x => x[0] === id); return l ? { lon: l[1], lat: l[2] } : null; }
