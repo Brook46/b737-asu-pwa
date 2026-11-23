@@ -41,7 +41,9 @@ Work on `sky-club`, merge to `main`. GitHub Pages serves `main`. The root `wrang
 
 Flight Card is flown with, so a change goes to the beta copy before the live app:
 
-1. Stamp `flight-card-pwa` as usual, then `node scripts/beta.mjs` copies it to
+1. Stamp `flight-card-pwa` as usual, then `node scripts/beta.mjs` runs the
+   regression tests (`tests/flight-card.test.mjs`, one per bug the pilot
+   reported — add one for every new bug fixed) and, if they pass, copies it to
    `flight-card-beta/` (own cache `fcbeta-vN`, name "Flight Card β", β badge).
 2. Commit **only** `flight-card-beta/` (plus scripts/docs). Leave
    `flight-card-pwa/` uncommitted, merge to main. Beta:

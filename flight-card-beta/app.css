@@ -144,6 +144,33 @@
   --glow-soft: none;
 }
 
+:root[data-theme="dark"][data-cockpit] {
+  /* Night on a dark flight deck: no white, less blue, everything a step
+     dimmer — the red / orange / green of the weather and limits stay apart. */
+  --bg: #000000;
+  --bg-elev: #0d0c0b;
+  --bg-sunk: rgba(120,110,100,0.16);
+  --fg: #c9bfb2;
+  --fg-mute: rgba(201,191,178,0.58);
+  --fg-dim:  rgba(201,191,178,0.30);
+  --line: rgba(120,110,100,0.35);
+  --line-soft: rgba(120,110,100,0.20);
+  --accent: #c8862b;
+  --accent-2: #d9a35a;
+  --accent-soft: rgba(200,134,43,0.18);
+  --accent-grad: linear-gradient(#c8862b, #c8862b);
+  --on-accent: #120c05;
+  --good: #3fa860;
+  --warn: #d98a1c;
+  --danger: #e04a3c;
+  --tick-bg: #c8862b;
+  --tick-fg: #120c05;
+  --glass-bg: #0d0c0b;
+  --glass-bg-strong: rgba(13,12,11,0.88);
+  --glass-hi: transparent;
+}
+:root[data-cockpit] img, :root[data-cockpit] .ri-map-wrap svg { filter: brightness(.8); }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
 /* Never shorter than the screen. In a Home Screen app on iOS, a page no taller
@@ -3976,7 +4003,25 @@ body[data-phase="air"] #ready-line { display: none; }
 .ri-cpdlc-off { color: var(--warn); font-weight: 600; }
 .ri-cpdlc small { color: var(--fg-mute); font-size: 12px; }
 .ri-cpdlc-when { color: var(--fg); }
-.ri-cpdlc { flex-wrap: nowrap; align-items: center; }
+/* Bar, then the toggle, then (open) the whole route's FIRs and sectors. */
+.ri-cpdlc { display: block; }
+.ri-cpdlc-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 8px; }
+.ri-cpdlc-all {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; margin-top: 6px; padding: 4px 0 0;
+  border: 0; border-top: 0.5px solid var(--line); background: transparent; color: var(--accent);
+  font: inherit; font-size: 12px; font-weight: 600; text-align: center; cursor: pointer;
+}
+.ri-cpdlc-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ri-cpdlc-list li {
+  display: grid; grid-template-columns: 3.4em 4.2em 1fr auto; align-items: baseline; gap: 8px;
+  padding: 4px 6px; border-radius: 6px; font-size: 13px;
+}
+.ri-cpdlc-list li.is-cur { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ri-cpdlc-list li.is-past { opacity: .45; }
+.ri-cl-t { color: var(--fg-mute); }
+.ri-cl-c { min-width: 0; }
+.ri-cl-c small { display: block; }
+.ri-cl-d { color: var(--fg-mute); font-size: 12px; }
 .ri-cpdlc-side { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
 .ri-cpdlc-side.is-next { justify-content: flex-end; text-align: right; }
 .ri-cpdlc-side .ri-cpdlc-h { flex-basis: 100%; }
@@ -4039,16 +4084,18 @@ div.airport-notes.mynote-body { flex: 1 1 auto; min-height: 30vh; max-height: no
 .backup-counts { margin: 4px 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }
 .btn.danger { color: var(--danger); }
 .backup-nudge {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 41;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 10px);
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
-  max-width: min(560px, calc(100vw - 24px)); padding: 10px 12px 10px 16px; border-radius: 16px;
-  background: var(--glass-bg-strong); box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 0.5px var(--line);
+  /* A thin strip resting on the tab bar — one line, never over the page. */
+  position: fixed; left: 0; right: 0; z-index: 39;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h));
+  display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  padding: 4px max(env(safe-area-inset-right, 0px), 12px) 4px max(env(safe-area-inset-left, 0px), 12px);
+  background: var(--glass-bg-strong); border-top: 0.5px solid var(--line);
   backdrop-filter: saturate(180%) blur(var(--glass-blur)); -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
-  font-size: 14px; font-weight: 600;
+  font-size: 13px; font-weight: 600; color: var(--fg-mute);
 }
 .backup-nudge[hidden] { display: none; }
-.backup-nudge .btn { padding: 6px 12px; font-size: 13px; }
+.backup-nudge #backup-nudge-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.backup-nudge .btn { flex: none; padding: 3px 10px; min-height: 0; font-size: 12px; line-height: 18px; }
 /* Notes tab: search across all notes. */
 .mynotes-search {
   display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: var(--radius-ctl);
@@ -4942,3 +4989,32 @@ details.ntb.is-hl > summary .ntb-x { background: rgba(245, 196, 0, .35); border-
 .fs-handle.fs-right, .fs-handle.fs-left { touch-action: pan-y; }
 .fs-handle.fs-bottom, .fs-handle.fs-top { touch-action: pan-x; }
 .ad-rw path.is-other { opacity: .35; }
+
+/* The backup strip takes ~30px above the tab bar: the page makes room. */
+body:has(#backup-nudge:not([hidden])) .main { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--tabbar-h) + 46px); }
+
+/* Brief tile: what changed since Got it — orange, like Social's changes. */
+.wx-chg { margin: 0 12px 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.wx-chg-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--warn); }
+.wx-chg-ok { -webkit-appearance: none; appearance: none; border: 0; border-radius: 999px; padding: 3px 12px;
+  background: var(--warn); color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.wx-chg-k { font-weight: 700; margin-right: 4px; }
+.wx-chg-g { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; background: color-mix(in srgb, var(--warn) 18%, transparent); border-radius: 4px; padding: 0 4px; }
+.wx-chg-nt { -webkit-appearance: none; appearance: none; display: block; width: 100%; margin-top: 2px; padding: 2px 0;
+  border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 12px; text-align: start; cursor: pointer; }
+
+/* After landing: confirm the block times. */
+.landed { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  border-radius: var(--radius-card); background: var(--bg-elev); border: 1px solid var(--accent); }
+.landed[hidden] { display: none; }
+.landed-h { display: flex; flex-direction: column; gap: 2px; }
+.landed-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.landed-row label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .04em; }
+.landed-row input { width: 5.5em; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-sunk);
+  color: var(--fg); font: inherit; font-size: 17px; font-variant-numeric: tabular-nums; }
+.landed-blk { font-weight: 700; font-variant-numeric: tabular-nums; }
+body[data-phase="air"] #landed { display: none; }
+
+.wx-altn-every { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-mute); white-space: nowrap; }
+.wx-scope { color: var(--fg-mute); }

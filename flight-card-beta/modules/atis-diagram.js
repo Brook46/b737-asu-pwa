@@ -171,7 +171,7 @@ function runwayEnd(geo, des) {
 // ['13R/31L']) and the unnamed pieces joined to them — out of everything
 // OpenStreetMap has round it, which can take in another airfield next door
 // (TBS). Without a match, the runways within 2.5 km of the reference point.
-function ownRunways(geo, own) {
+export function ownRunways(geo, own) {
   const ends = new Set((own || []).flatMap(d => String(d).split('/').map(norm)));
   let mine = ends.size ? geo.rw.filter(r => r.ref && norm(r.ref).split('/').some(e => ends.has(e))) : [];
   if (!mine.length) mine = geo.rw.filter(r => r.pts.some(p => Math.hypot(p[0], p[1]) < 2500));

@@ -16,8 +16,8 @@
 // Each fetch is cached for ~9 min so a 10-minute refresh tick gets a fresh
 // pull without thrashing the network on UI re-renders.
 
-import { lookup } from './airports.js?v=293';
-import { WORKER_BASE } from './proxy.js?v=293';
+import { lookup } from './airports.js?v=295';
+import { WORKER_BASE } from './proxy.js?v=295';
 
 // TAF proxy URL — shared with the calendar feature via modules/proxy.js.
 // When WORKER_BASE is null the TAF section falls back to the ↗
@@ -60,19 +60,27 @@ function toIcao(code) {
 // that reads the weather synchronously (peekCachedWx) awaits this first.
 let iataToIcao = null, codesLoad = null;
 export function codesReady() {
-  codesLoad ||= import('./route-info.js?v=293').then(ri => ri.loadDb())
+  codesLoad ||= import('./route-info.js?v=295').then(ri => ri.loadDb())
     .then(db => { iataToIcao = db.byIata; })
     .catch(() => { codesLoad = null; });
   return codesLoad;
 }
 
+// VATSIM first (quick, worldwide), but it turns away a burst of requests —
+// the Brief asks for three or four airports at once and LLBG / LEGE came
+// back "Failed to fetch" while LEBL got through. Then our own worker
+// (aviationweather.gov, the source Route info already uses).
 async function fetchMetar(icao) {
-  try {
-    const res = await fetch('https://metar.vatsim.net/' + encodeURIComponent(icao), { cache: 'no-store' });
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    return text || null;
-  } catch { return null; }
+  const get = async (url) => {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const text = (await res.text()).trim().replace(/^(METAR|SPECI)\s+/, '');
+      return text && text.startsWith(icao) ? text : null;
+    } catch { return null; }
+  };
+  return (await get('https://metar.vatsim.net/' + encodeURIComponent(icao)))
+    || (WORKER_BASE ? await get(WORKER_BASE.replace(/\/$/, '') + '/metar?icao=' + encodeURIComponent(icao)) : null);
 }
 
 async function fetchTaf(icao) {
@@ -92,7 +100,12 @@ async function fetchDatis(icao) {
   const [faa, acars] = await Promise.all([fetchAtisInfo(icao), fetchAcarsAtis(icao)]);
   return faa || acars;
 }
+// atis.info is the FAA's D-ATIS: US airports only (K…, Alaska PA, Hawaii PH,
+// Guam PG). Asked about LLBG or LEBL it answers 404 every ten minutes, so
+// elsewhere it isn't asked — ACARS covers those.
+const FAA_ATIS = /^(K[A-Z]{3}|P[AHG][A-Z]{2})$/;
 async function fetchAtisInfo(icao) {
+  if (!FAA_ATIS.test(icao)) return null;
   try {
     const res = await fetch('https://atis.info/api/' + encodeURIComponent(icao), { cache: 'no-store' });
     if (!res.ok) return null;

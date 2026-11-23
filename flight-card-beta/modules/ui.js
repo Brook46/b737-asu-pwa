@@ -1,7 +1,8 @@
 // ui.js — theme (3-state SVG), toast, overlay helpers.
 
 const THEME_KEY = 'fc.theme';
-const ORDER = ['auto', 'light', 'dark'];
+// cockpit: Night, dimmed and warmer for a dark flight deck (app.css).
+const ORDER = ['auto', 'light', 'dark', 'cockpit'];
 
 const ICONS = {
   auto: `<circle cx="12" cy="12" r="8"/><path d="M12 4 A8 8 0 0 1 12 20 Z" class="fill"/>`,
@@ -15,6 +16,7 @@ const ICONS = {
     <line x1="4.9"  y1="19.1" x2="7"    y2="17"/>
     <line x1="17"   y1="7"    x2="19.1" y2="4.9"/>`,
   dark: `<path d="M20.2 14.3 A7.5 7.5 0 1 1 9.7 3.8 A6 6 0 0 0 20.2 14.3 Z" class="fill"/>`,
+  cockpit: `<path d="M20.2 14.3 A7.5 7.5 0 1 1 9.7 3.8 A6 6 0 0 0 20.2 14.3 Z"/>`,
 };
 
 function getTheme() { return localStorage.getItem(THEME_KEY) || 'auto'; }
@@ -38,8 +40,12 @@ export function setTheme(t) {
 
 function applyTheme(t) {
   const root = document.documentElement;
+  // Cockpit is Night underneath (every dark rule applies) plus its own dimmer tokens.
   if (t === 'auto') root.removeAttribute('data-theme');
-  else root.setAttribute('data-theme', t);
+  else root.setAttribute('data-theme', t === 'cockpit' ? 'dark' : t);
+  root.toggleAttribute('data-cockpit', t === 'cockpit');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta && t === 'cockpit') meta.setAttribute('content', '#000000');
 }
 
 // The ••• menu's Day | Night | Auto switch (and the old single icon, if any).

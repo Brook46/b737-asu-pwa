@@ -30,6 +30,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'flight-card-pwa');
 const DST = join(ROOT, 'flight-card-beta');
 
+// The regression tests (tests/, one per reported bug) first: a failing one
+// stops here, before anything reaches the iPad.
+try { execFileSync(process.execPath, ['--test', join(ROOT, 'tests')], { stdio: 'inherit' }); }
+catch { console.error('\nRegression tests failed — beta not built.'); process.exit(1); }
+
 execFileSync('rsync', ['-a', '--delete',
   '--exclude', 'cloudflare-worker/', '--exclude', 'mac-tools/',
   '--exclude', '_design-ref*', '--exclude', '.DS_Store',

@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=293';
-import * as ri from './route-info.js?v=293';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=293';
-import * as wxm from './wx.js?v=293';
-import * as nb from './notam-brief.js?v=293';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=293';
-import * as plan from './plan-route.js?v=293';
-import * as ely from './ely-traffic.js?v=293';
-import * as al from './altn.js?v=293';
+import * as storage from './storage.js?v=295';
+import * as ri from './route-info.js?v=295';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=295';
+import * as wxm from './wx.js?v=295';
+import * as nb from './notam-brief.js?v=295';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=295';
+import * as plan from './plan-route.js?v=295';
+import * as ely from './ely-traffic.js?v=295';
+import * as al from './altn.js?v=295';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -59,7 +59,7 @@ const idOf = (l) => [l.flight, l.dep_date, l.dep_year, l.dep, l.arr].map(v => St
 // destination on this device — the same store the Brief's Alternate row
 // uses (fc.altn, keyed by the arrival code). Either code may be stored.
 // There can be several (altn.js).
-function altnsOf(leg) { return al.altnsFor(leg?.arr); }
+function altnsOf(leg) { return al.altnsOfLeg(leg); }
 function isAltn(ap, leg) { return altnsOf(leg).some(a => a === ap.icao || a === ap.iata); }
 function screenLeg() {
   if (pinned && !$('route-overlay')?.classList.contains('hidden')) {
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=293');
+    avoidMod ||= await import('./avoid.js?v=295');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -1100,7 +1100,9 @@ export async function notamsFor(leg, code, ts = Date.now()) {
   if (!Array.isArray(n)) return null;
   const tags = notamTagList(ri.notamFlags(n, ts));
   const nowTags = Math.abs(ts - Date.now()) > 3600e3 ? notamTagList(ri.notamFlags(n, Date.now())).filter(t => !tags.includes(t)) : [];
-  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at };
+  // Each NOTAM's id and one-line summary, for "new since you last looked".
+  const list = n.map(x => ({ id: x.id || String(x.text || '').slice(0, 40), line: (nb.bottomLine(x) || {}).text || String(x.text || '').slice(0, 70) }));
+  return { icao: ap.icao, count: n.length, tags, nowTags, at: c.notamsAt || c.at, list };
 }
 function surfaceText(rw) {
   const SURF = { ASP: 'asphalt', ASPH: 'asphalt', ASPHALT: 'asphalt', CON: 'concrete', CONC: 'concrete', CONCRETE: 'concrete', PEM: 'part asphalt / concrete', BIT: 'bitumen', MAC: 'macadam' };
@@ -1630,7 +1632,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=293');
+    const ad = await import('./atis-diagram.js?v=295');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1656,12 +1658,36 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=293');
+    const ad = await import('./atis-diagram.js?v=295');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
     wxAt: c ? c.at : 0, db, asu, noWx, noMap,
     notams: !c ? 'none' : c.notamsErr ? 'failed' : c.notamsOff || !c.notams ? 'off' : 'ok',
+  };
+}
+
+// ---------- Report an issue ----------
+// The raw data behind this flight's screens — the reports, NOTAMs and route
+// as fetched — for the pilot's own issue report (report.js).
+export async function reportData(leg) {
+  if (!leg) return null;
+  const c = readCache(leg);
+  const db = await ri.loadDb().catch(() => null);
+  const codes = [leg.dep, leg.arr, ...altnsOf(leg)].map(x => (db && ri.findAirport(db, x)?.icao) || String(x || '').toUpperCase()).filter(Boolean);
+  const pick = (list) => (list || []).filter(r => codes.includes(r.id));
+  const filed = plan.getPlan(leg);
+  let model = null;
+  try { model = await build(leg, { doFetch: false }); } catch (e) { model = { error: String(e.message || e) }; }
+  return {
+    airports: codes,
+    savedAt: c ? new Date(c.at).toISOString() : null,
+    metars: pick(c?.wx?.metars), tafs: pick(c?.wx?.tafs),
+    notams: c?.notams ? Object.fromEntries(codes.map(k => [k, c.notams[k] || null])) : null,
+    notamsErr: c?.notamsErr || '', notamsOff: !!c?.notamsOff,
+    filedRoute: filed ? { text: filed.text || '', missing: filed.missing || [], points: (filed.pts || []).map(p => [p.n || '', p.lat, p.lon]) } : null,
+    route: model && model.route ? { nm: Math.round(model.route.total), filed: !!model.route.filed, gps: !!model.route.gps, avoid: model.route.avoid || null } : model,
+    glance: await glance(leg).catch(() => null),
   };
 }
 
@@ -1715,13 +1741,40 @@ export async function glance(leg) {
       else if (red > 1) issues.push(`${red} red NOTAMs`);
       if (red) bump('r');
     }
-    return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams };
+    // Alternate planning minima (OM A 8.1.3.1.5): the forecast from an hour
+    // before to an hour after the ETA (at the ETA once airborne), worst of it.
+    // The real figures are the approach's own NPA RVR/VIS and DH/MDH (+1,000 m
+    // and +200 ft with NPA only), which the app doesn't have — so it shows the
+    // worst forecast against typical NPA minima (1,500 m / 500 ft), orange,
+    // for the pilot to set against the chart; below CAT I it's red.
+    if (role === 'alt' && wxEntry) {
+      const span = Date.now() > m.tm.etaAt(0) ? [eta] : [-60, -40, -20, 0, 20, 40, 60].map(k => eta + k * 60000);
+      let vis = Infinity, ceil = Infinity;
+      for (const t of span) {
+        const w = ri.wxAt(wxEntry, t, Date.now(), m.mode);
+        if (!w || !w.src) continue;
+        if (Number.isFinite(w.vis)) vis = Math.min(vis, w.vis);
+        if (Number.isFinite(w.ceil)) ceil = Math.min(ceil, w.ceil);
+      }
+      const fig = `${Number.isFinite(vis) ? (vis >= 9999 ? '10 km' : Math.round(vis / 100) * 100 + ' m') : '—'} / ${Number.isFinite(ceil) ? Math.round(ceil / 100) * 100 + ' ft' : 'no ceiling'}`;
+      if (vis < 550 || ceil < 200) { if (!issues.some(x => /CAT I/.test(x))) issues.push(`below CAT I ${span.length > 1 ? 'within ETA ±1 h' : 'at ETA'} (${fig})`); bump('r'); }
+      else if (vis < 1500 || ceil < 500) { issues.push(`check ALT planning minima: ${fig} ${span.length > 1 ? 'ETA ±1 h' : 'at ETA'}`); bump('o'); }
+    }
+    return { role, icao: ap.icao, eta, score: r.score, band: ri.band(r.score, false), tone, issues, red, notamsChecked: !!notams, belowMin: r.why.some(w => /^Below CAT I/.test(w)), noWx: !wxEntry };
   };
   const alts = altnsOf(leg).map(code => ri.findAirport(db, code)).filter(a => a && a.icao !== m.B.icao);
   const tB = m.tm.etaAt(m.route.total);
+  const ends = [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), ...alts.map(a => one(a, tB, 'alt'))].filter(Boolean);
+  // OM A 8.1.3.1.4: two destination alternates when the destination is
+  // forecast below landing minima at the ETA, or there's no forecast for it.
+  const arrE = ends.find(e => e.role === 'arr');
+  if (arrE && (arrE.belowMin || arrE.noWx) && alts.length < 2) {
+    arrE.issues.unshift(`2 alternates required (${alts.length} set)`);
+    arrE.tone = 'r';
+  }
   return {
     at: c.at,
-    ends: [one(m.A, m.tm.etaAt(0), 'dep'), one(m.B, tB, 'arr'), ...alts.map(a => one(a, tB, 'alt'))].filter(Boolean),
+    ends,
     sig: (m.sig || []).length,
     notamsOff: m.notamsOff,
   };
@@ -2162,29 +2215,72 @@ function stopGps() {
 // the way to the destination and its CPDLC log-on (cpdlc.js). Only when
 // it changes does the DOM.
 let cpdlcMod = null;
+// The CPDLC bar: where we are and the next FIR / sector, with its log-on —
+// in the air from GPS, on the ground the first two of the route. Tap for
+// every FIR and sector along the whole route, in order, with the time you'd
+// enter each and its log-on (or voice); in the air the one you're in is
+// marked and those behind are greyed.
+let cpdlcOpen = (() => { try { return localStorage.getItem('fc.cpdlcOpen') === '1'; } catch { return false; } })();
+let firMemo = null;
+function routeFirs(m) {
+  const key = m.route.total.toFixed(1) + ':' + m.route.pts.length + ':' + m.route.pts[0].lat.toFixed(3);
+  if (!firMemo || firMemo.key !== key) firMemo = { key, segs: cpdlcMod.firsAlong(m.route.pts) };
+  return firMemo.segs;
+}
+function alongOf(pts, g) {
+  let best = null, bd = Infinity;
+  const k = Math.cos(g.lat * Math.PI / 180);
+  for (const p of pts) {
+    let dl = p.lon - g.lon; while (dl > 180) dl -= 360; while (dl < -180) dl += 360;
+    const d = (p.lat - g.lat) ** 2 + (dl * k) ** 2;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best ? best.s : 0;
+}
 async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
-  if (!g || !g.airborne || !state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=293'); } catch { el.hidden = true; return; }
-  const B = state.model.B;
-  const wps = state.model.route.filed ? state.model.route.wps : null;
-  const on = wps ? plan.progress(wps, g) : null;
-  const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
+  if (!state) { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=295'); } catch { el.hidden = true; return; }
+  const m = state.model, B = m.B;
+  const air = !!(g && g.airborne);
   const tag = (id) => {
-    if (!id) return '';
+    if (!id) return '<span class="ri-cpdlc-off">no FIR on the map</span>';
     const c = cpdlcMod.cpdlcOf(id);
     return c.on ? `<span class="ri-cpdlc-on">CPDLC <b>${esc(c.code)}</b></span>${c.note ? ` <small>${esc(c.note)}</small>` : ''}`
       : `<span class="ri-cpdlc-off">${esc(c.note)}</span>`;
   };
-  // Where we are on the left, what's next on the right — the order they're flown.
-  const side = (cls, head, id, when) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
-      <b class="ri-cpdlc-fir">${esc(id)}</b> ${tag(id)}${when ? ` <span class="ri-cpdlc-when">${when}</span>` : ''}</div>`;
-  const html = (r.here || r.next)
-    ? (r.here ? side('is-now', 'Now', r.here, r.next ? '' : 'to the destination') : '<div class="ri-cpdlc-side is-now"></div>')
-      + (r.next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>` + side('is-next', 'Next', r.next,
-        `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}`) : '')
-    : '';
+  const segs = routeFirs(m).filter(x => x.id || x.to - x.from >= 20);
+  const at = air ? alongOf(m.route.pts, g) : 0;
+  let here = '', next = '', when = '', nowHead = 'Now';
+  if (air) {
+    const wps = m.route.filed ? m.route.wps : null;
+    const on = wps ? plan.progress(wps, g) : null;
+    const r = cpdlcMod.nextFir(g, B, g.gs, on ? on.ahead : null);
+    here = r.here; next = r.next;
+    when = r.next ? `in ${Math.round(r.distNm)} nm${r.min != null ? ` · ≈${Math.round(r.min)}′` : ''}` : '';
+  } else if (segs.length) {
+    nowHead = 'First';
+    here = segs[0].id; next = segs[1] ? segs[1].id : '';
+    when = segs[1] ? `at ${hm(m.tm.etaAt(segs[1].from))}` : '';
+  }
+  const side = (cls, head, id, w) => `<div class="ri-cpdlc-side ${cls}"><span class="ri-cpdlc-h">${head}</span>
+      <b class="ri-cpdlc-fir">${esc(id || '—')}</b> ${tag(id)}${w ? ` <span class="ri-cpdlc-when">${w}</span>` : ''}</div>`;
+  const bar = `<div class="ri-cpdlc-bar">${side('is-now', nowHead, here, next ? '' : 'to the destination')}`
+    + (next ? `<span class="ri-cpdlc-arrow" aria-hidden="true">→</span>${side('is-next', 'Next', next, when)}` : '')
+    + `</div>`;
+  const toggle = segs.length > 1 ? `<button type="button" class="ri-cpdlc-all" data-ri-cpdlc aria-expanded="${cpdlcOpen}">
+      ${cpdlcOpen ? 'Hide' : 'All'} ${segs.length} FIRs &amp; sectors ${cpdlcOpen ? '▴' : '▾'}</button>` : '';
+  const curIdx = air ? segs.findIndex(x => at >= x.from && at < x.to) : -1;
+  const list = cpdlcOpen && segs.length > 1 ? `<ol class="ri-cpdlc-list">${segs.map((x, i) => {
+      const past = air && x.to <= at, cur = i === curIdx;
+      return `<li class="${past ? 'is-past' : ''}${cur ? ' is-cur' : ''}">
+        <span class="ri-cl-t">${i === 0 ? 'dep' : hm(m.tm.etaAt(x.from)).replace('Z', '')}</span>
+        <b class="ri-cl-id">${esc(x.id || '—')}</b>
+        <span class="ri-cl-c">${tag(x.id)}</span>
+        <span class="ri-cl-d">${Math.round(x.to - x.from)} nm</span></li>`;
+    }).join('')}</ol>` : '';
+  const html = (here || next ? bar : '') + toggle + list;
   if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
   el.hidden = !html;
 }
@@ -2798,6 +2894,12 @@ export function wire() {
       return;
     }
     if (e.target.closest('[data-ri-all]')) { if (state) paint(state.model, !state.showAll); return; }
+    if (e.target.closest('[data-ri-cpdlc]')) {
+      cpdlcOpen = !cpdlcOpen;
+      try { localStorage.setItem('fc.cpdlcOpen', cpdlcOpen ? '1' : '0'); } catch {}
+      paintCpdlc(gpsFix).then(() => refit()).catch(() => {});
+      return;
+    }
     const pb = e.target.closest('[data-ri-plan]');
     if (pb) { planAction(pb.dataset.riPlan); return; }
     const ab = e.target.closest('[data-ri-altn]');
@@ -2807,14 +2909,14 @@ export function wire() {
       if (ab.hasAttribute('data-ri-altn-off')) {
         // Stored as either code: drop whichever this airport was saved under.
         const ap = state.model.pool.find(c => c.ap.icao === code)?.ap;
-        for (const k of [code, ap && ap.iata].filter(Boolean)) al.removeAltn(arr, k);
+        for (const k of [code, ap && ap.iata].filter(Boolean)) al.removeAltn(state.model.leg, k);
         toast(`${code} removed from the alternates`);
-      } else if (!al.addAltn(arr, code)) {
+      } else if (!al.addAltn(state.model.leg, code, 'flight')) {
         toast(`Up to ${al.MAX} alternates — remove one first`);
         return;
       } else {
         const n = altnsOf(state.model.leg).length;
-        toast(n > 1 ? `${code} added — ${n} alternates, on the Brief page` : `${code} is the alternate — on the Brief page`);
+        toast(`${code} added for this flight${n > 1 ? ` (${n} alternates)` : ''} — on the Brief, tap “This flight only” to keep it for every ${arr} flight`, 3500);
       }
       // Rebuild so the alternate joins the map (and its NOTAMs come with
       // the next update), then reopen its card.

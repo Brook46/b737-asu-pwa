@@ -10,7 +10,7 @@
 // some centres start lower. Outside that list it says so — there may still
 // be FANS somewhere, so the AIP or the Jeppesen pages have the last word.
 
-import { FIR_LABELS, firRings } from './mapdata.js?v=293';
+import { FIR_LABELS, firRings } from './mapdata.js?v=295';
 
 // FIR (or ACC sector) on the map → the log-on to use there.
 const LOGON = {
@@ -101,4 +101,38 @@ export function nextFir(pos, dest, gsKt, ahead = null) {
     run += total;
   }
   return { here, next: '', distNm: null, min: null };
+}
+
+// Every FIR / ACC sector the route passes through, in order: the route's
+// points sampled every `step` nm. [{ id, from, to }] in nm along the route
+// (id '' where no outline covers it — open ocean on the rough map). A sliver
+// under 8 nm between two of the same is the outline's roughness, not a real
+// crossing, and is folded back in.
+export function firsAlong(pts, step = 10) {
+  const segs = [];
+  if (!pts || pts.length < 2) return segs;
+  const norm = (l) => ((l + 540) % 360) - 180;
+  const add = (id, s) => {
+    const last = segs[segs.length - 1];
+    if (last && last.id === id) { last.to = s; return; }
+    if (last) last.to = s;
+    segs.push({ id, from: s, to: s });
+  };
+  add(firAt(pts[0].lat, norm(pts[0].lon)), pts[0].s);
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const a = pts[k], b = pts[k + 1], d = b.s - a.s;
+    const n = Math.max(1, Math.ceil(d / step));
+    for (let i = 1; i <= n; i++) {
+      const f = i / n;
+      add(firAt(a.lat + (b.lat - a.lat) * f, norm(a.lon + (b.lon - a.lon) * f)), a.s + d * f);
+    }
+  }
+  for (let i = 1; i + 1 < segs.length; i++) {
+    if (segs[i].to - segs[i].from < 8 && segs[i - 1].id === segs[i + 1].id) {
+      segs[i - 1].to = segs[i + 1].to;
+      segs.splice(i, 2);
+      i--;
+    }
+  }
+  return segs;
 }
