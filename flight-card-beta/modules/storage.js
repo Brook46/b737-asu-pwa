@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=299';
-import { dateTs, legTs } from './dates.js?v=299';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=299';
+import { flipName } from './roster.js?v=300';
+import { dateTs, legTs } from './dates.js?v=300';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=300';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -97,7 +97,7 @@ const DEFAULT_TEMPLATE = {
 // Announcements" supplement (welcome / turbulence / diversion / descent /
 // landing) rather than ad-libbed phrasing, so it's something the user can
 // read off the iPad and have it sound like a real airline PA.
-const DEFAULT_SPEECHES = [
+export const PRESET_SPEECHES = [
   {
     id: 'sp-welcome', name: 'Welcome',
     bodyEn:
@@ -224,6 +224,23 @@ Please remain seated with your seatbelt fastened. The cabin crew will keep you u
 נא להישאר חגורים במקומותיכם. צוות הקבינה ימשיך לעדכן אתכם ברגע שיהיה מידע נוסף.`
   },
 ];
+// What a new install starts with: the basic Welcome PA written out, and the
+// rest as named, empty tabs for each pilot to write in their own words.
+const DEFAULT_SPEECHES = PRESET_SPEECHES.map(sp => sp.id === 'sp-welcome' ? sp : { ...sp, bodyEn: '', bodyHe: '' });
+// Once per device: a preset PA still word-for-word as shipped is emptied the
+// same way (Welcome kept). One the pilot edited, and every PA they made
+// themselves, is left exactly as it is.
+function trimPresetPAs(st) {
+  if (st.paTrim || !Array.isArray(st.speeches)) return false;
+  const same = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+  for (const sp of st.speeches) {
+    const p = PRESET_SPEECHES.find(x => x.id === sp.id);
+    if (!p || p.id === 'sp-welcome') continue;
+    if (same(sp.bodyEn, p.bodyEn) && same(sp.bodyHe, p.bodyHe)) { sp.bodyEn = ''; sp.bodyHe = ''; }
+  }
+  st.paTrim = 1;
+  return true;
+}
 
 function newFlightRecord() {
   return {
@@ -283,6 +300,7 @@ function read() {
   // Defensive defaults
   cache.template = cache.template || clone(DEFAULT_TEMPLATE);
   cache.speeches = Array.isArray(cache.speeches) && cache.speeches.length ? cache.speeches : clone(DEFAULT_SPEECHES);
+  if (trimPresetPAs(cache)) scheduleWrite();
   cache.current  = cache.current  || newFlightRecord();
   cache.current.dataCard = cache.current.dataCard || {};
   cache.current.ticks    = cache.current.ticks    || {};
@@ -313,7 +331,7 @@ function migrate(s) {
     upgradedSpeeches = s.speeches.map(sp => {
       const { pinned, ...rest } = sp;          // drop the vestigial flag
       if (rest.bodyEn || rest.bodyHe) return rest;
-      const dflt = DEFAULT_SPEECHES.find(d => d.name === rest.name);
+      const dflt = PRESET_SPEECHES.find(d => d.name === rest.name);
       return {
         id: rest.id,
         name: rest.name || 'PA',

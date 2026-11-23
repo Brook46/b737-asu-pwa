@@ -5068,3 +5068,22 @@ body[data-phase="air"] #landed { display: none; }
 
 .wx-altn-every { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-mute); white-space: nowrap; }
 .wx-scope { color: var(--fg-mute); }
+
+/* PA tab with nothing written yet. */
+.pa-empty { display: flex; flex-direction: column; gap: 6px; padding: 28px 18px; text-align: center; color: var(--fg-mute); font-size: 14px; line-height: 1.45; }
+.pa-empty b { color: var(--fg); font-size: 16px; }
+
+/* No roster calendar yet: a centred card over a dimmed page. */
+.calm { position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: calm-in .2s ease; }
+.calm[hidden] { display: none; }
+.calm-card { width: min(420px, 100%); padding: 24px 22px 18px; border-radius: 20px; background: var(--bg-elev); color: var(--fg);
+  box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align: center; display: flex; flex-direction: column; gap: 12px; }
+.calm-ico { width: 56px; height: 56px; margin: 0 auto; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent); }
+.calm-card h2 { margin: 0; font-size: 20px; }
+.calm-card p { margin: 0; color: var(--fg-mute); font-size: 14px; line-height: 1.45; }
+.calm-go { display: block; padding: 12px; font-size: 16px; text-decoration: none; text-align: center; }
+.calm-row { display: flex; gap: 8px; }
+.calm-row .btn { flex: 1; }
+@keyframes calm-in { from { opacity: 0; } to { opacity: 1; } }

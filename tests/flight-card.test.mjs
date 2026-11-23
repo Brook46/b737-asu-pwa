@@ -148,3 +148,21 @@ test('backup merge fills flights already on the iPad', async () => {
   assert.equal(leg.notes.a, 'note');
   assert.equal(leg.ticks.a, 1);
 });
+
+// v300 — preset PAs emptied once (Welcome kept); an edited preset and the
+// pilot's own PA are never touched.
+test('preset PAs trimmed, the pilot’s own kept', async () => {
+  const st = await import(M + 'storage.js?trim');
+  localStorage.clear();
+  const presets = st.PRESET_SPEECHES.map(p => ({ ...p }));
+  presets.find(p => p.id === 'sp-ditching').bodyEn += ' MY OWN EDIT';
+  presets.push({ id: 'sp-mine', name: 'My own PA', bodyEn: 'Hello from me', bodyHe: '' });
+  localStorage.setItem('fc.state', JSON.stringify({ v: 999, speeches: presets }));
+  const s2 = await import(M + 'storage.js?trim2');
+  const got = Object.fromEntries(s2.getSpeeches().map(x => [x.id, x]));
+  assert.ok(got['sp-welcome'].bodyEn.length > 50, 'Welcome kept');
+  assert.equal(got['sp-emergency'].bodyEn, '', 'untouched preset emptied');
+  assert.equal(got['sp-emergency'].name, 'Emergency', 'tab kept');
+  assert.match(got['sp-ditching'].bodyEn, /MY OWN EDIT/, 'edited preset kept');
+  assert.equal(got['sp-mine'].bodyEn, 'Hello from me', 'own PA kept');
+});

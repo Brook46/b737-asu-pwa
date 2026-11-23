@@ -10,7 +10,7 @@
 // one still in clear view), so it reads like a sensible routing, not a
 // staircase. Rough by design: a picture of the likely way round, not a
 // flight plan.
-import { firAt } from './cpdlc.js?v=299';
+import { firAt } from './cpdlc.js?v=300';
 
 // FIR id → country, for the ones avoided.
 const AVOID = [

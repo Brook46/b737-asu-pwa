@@ -6,9 +6,9 @@
 // colours while you type; both autosave independently.
 // Display: substitute @vars and render with each @var highlighted.
 
-import * as storage from './storage.js?v=299';
-import { cityName } from './airports.js?v=299';
-import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=299';
+import * as storage from './storage.js?v=300';
+import { cityName } from './airports.js?v=300';
+import { CREW_KEYS, PILOT_KEYS, CABIN_KEYS } from './crew.js?v=300';
 
 let activeId = null;
 let editing = false;
@@ -474,7 +474,12 @@ function render() {
   } else {
     // Only when the words changed (a new minute in @time, a crew change):
     // replacing identical text would still drop a selection being made.
-    const html = `
+    // An empty tab (the presets ship empty, bar Welcome): say how to fill it.
+    const html = !heText.trim() && !enText.trim() ? `
+      <div class="pa-empty">
+        <b>${escape(sp.name || 'This PA')} is empty</b>
+        <span>Tap ✎ to write it in your own words — Hebrew and English. Tokens like @cpt, @arr and @flighttime fill in from the flight.</span>
+      </div>` : `
       <div class="pa-block pa-block-he" dir="rtl">
         <div class="pa-block-label">עברית</div>
         <div class="pa-rendered" dir="rtl">${renderHtml(heText, data, 'he')}</div>

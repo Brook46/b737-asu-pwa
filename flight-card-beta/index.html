@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=299" />
+  <link rel="stylesheet" href="./app.css?v=300" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -215,6 +215,19 @@
     <span id="backup-nudge-txt"></span>
     <button type="button" class="btn primary" data-backup-now>Back up</button>
     <button type="button" class="btn" data-backup-later>Later</button>
+  </div>
+  <!-- No roster calendar and no flights yet (maybeCalPrompt in app.js). -->
+  <div id="cal-missing" class="calm" role="dialog" aria-modal="true" aria-labelledby="calm-title" hidden>
+    <div class="calm-card">
+      <div class="calm-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M12 13.5v3M12 18.6v.1"/></svg></div>
+      <h2 id="calm-title">No roster calendar yet</h2>
+      <p>Flight Card fills in your flights, crew and times from your roster calendar, and none is connected. It takes a minute: copy the calendar's private link once from Google Calendar and paste it into Settings. Flight Card only reads it.</p>
+      <a class="btn primary calm-go" href="./menu.html#start">Show me how</a>
+      <div class="calm-row">
+        <button type="button" class="btn" data-calm="settings">I have the link</button>
+        <button type="button" class="btn" data-calm="later">Later</button>
+      </div>
+    </div>
   </div>
   <nav class="tabbar" aria-label="Main">
     <button id="tab-before" data-phase-set="before" class="tab" type="button">
@@ -1055,7 +1068,7 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=299"></script>
-  <div class="beta-badge" aria-label="Beta version 299" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v299</div>
+  <script type="module" src="./app.js?v=300"></script>
+  <div class="beta-badge" aria-label="Beta version 300" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v300</div>
 </body>
 </html>
