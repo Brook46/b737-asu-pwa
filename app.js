@@ -159,14 +159,32 @@ const THEME_ICONS = {
     <path d="M20.2 14.3 A7.5 7.5 0 1 1 9.7 3.8 A6 6 0 0 0 20.2 14.3 Z" class="fill"/>`,
 };
 
+// Opened inside Flight Card (its ASU tab, an iframe on the same site): the
+// look follows Flight Card's own Day / Night / Cockpit / Auto (fc.theme, the
+// same storage), not this app's button — which is hidden there.
+const inFlightCard = (() => {
+  try { return window.parent !== window && /\/flight-card-(pwa|beta)\//.test(window.parent.location.pathname); } catch { return false; }
+})();
 function applyTheme() {
-  const mode = localStorage.getItem(THEME_KEY) || 'auto';
+  let mode = localStorage.getItem(THEME_KEY) || 'auto';
+  let cockpit = false;
+  if (inFlightCard) {
+    const fc = localStorage.getItem('fc.theme') || 'auto';
+    cockpit = fc === 'cockpit';
+    mode = cockpit ? 'dark' : (['light', 'dark', 'auto'].includes(fc) ? fc : 'auto');
+  }
   const isDark = mode === 'dark' || (mode === 'auto' && mq.matches);
   document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  document.documentElement.toggleAttribute('data-cockpit', cockpit);
   themeIcon.innerHTML = THEME_ICONS[mode] || THEME_ICONS.auto;
   themeLabel.textContent = mode[0].toUpperCase() + mode.slice(1);
   const meta = document.querySelector('meta[name="theme-color"]:not([media])');
-  if (meta) meta.setAttribute('content', isDark ? '#0b1016' : '#f2f3f5');
+  if (meta) meta.setAttribute('content', cockpit ? '#000000' : isDark ? '#0b1016' : '#f2f3f5');
+}
+if (inFlightCard) {
+  themeBtn.hidden = true; themeBtn.style.display = "none";
+  // Changed in Flight Card while the ASU is open: follow at once.
+  window.addEventListener('storage', (e) => { if (e.key === 'fc.theme') applyTheme(); });
 }
 themeBtn.addEventListener('click', () => {
   const cur = localStorage.getItem(THEME_KEY) || 'auto';

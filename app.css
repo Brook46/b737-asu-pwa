@@ -91,6 +91,37 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
+/* Flight Card's Cockpit theme (dark, dimmed, warm), when opened from there. */
+:root[data-theme="dark"][data-cockpit] {
+  --bg: #000000;
+  --card: rgba(201,191,178,0.05);
+  --card-border: rgba(120,110,100,0.35);
+  --card-elev: rgba(201,191,178,0.035);
+  --text: #c9bfb2;
+  --text-sub: rgba(201,191,178,0.62);
+  --text-mute: rgba(201,191,178,0.42);
+  --accent: #c8862b;
+  --accent-strong: #d9a35a;
+  --accent-soft: rgba(200,134,43,0.16);
+  --accent-grad: linear-gradient(135deg, #d9a35a, #c8862b);
+  --on-accent: #120c05;
+  --glass-bg: rgba(201,191,178,0.05);
+  --glass-bg-strong: rgba(201,191,178,0.06);
+  --glass-border: rgba(120,110,100,0.35);
+  --glass-hi: transparent;
+  --glow: none;
+  --glow-soft: none;
+  --warn: #d98a1c;
+  --danger: #e04a3c;
+  --ok: #3fa860;
+  --amber: #d98a1c;
+  --highlight: #2a2014;
+  --apt-match-bg: #2a2014;
+}
+:root[data-cockpit] body::before { opacity: 0; }
+:root[data-cockpit] .modal { background: rgba(0, 0, 0, 0.82); }
+:root[data-cockpit] .modal-card { background: #14110e; box-shadow: 0 0 0 1px rgba(120,110,100,0.35); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
 html, body {
