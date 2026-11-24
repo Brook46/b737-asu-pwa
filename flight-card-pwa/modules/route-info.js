@@ -25,8 +25,8 @@
 // /notams (autorouter / FAA, off until the pilot's login is set). OurAirports
 // carries no ILS, so approach categories are never guessed.
 
-import { WORKER_BASE } from './proxy.js?v=299';
-import { inForce, closedRwys } from './notam-brief.js?v=299';
+import { WORKER_BASE } from './proxy.js?v=300';
+import { inForce, closedRwys } from './notam-brief.js?v=300';
 
 export const RADIUS_NM = 420;            // one hour at a diversion speed of ~420 kt
 const NM_PER_RAD = 3440.065;

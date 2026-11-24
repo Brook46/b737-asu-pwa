@@ -4,7 +4,7 @@
 // Mail or Notes — and the exact data comes with the report. Nothing is sent
 // anywhere by the app.
 
-import * as storage from './storage.js?v=299';
+import * as storage from './storage.js?v=300';
 
 // The last errors, caught from the start (app.js calls watch()).
 const errors = [];
@@ -24,12 +24,12 @@ export async function build(note = '') {
   const legs = storage.getLegs(), i = storage.getLegIndex(), leg = legs[i] || null;
   let route = null;
   try {
-    const ru = await import('./route-ui.js?v=299');
+    const ru = await import('./route-ui.js?v=300');
     route = await ru.reportData(leg);
   } catch (e) { route = { error: String(e.message || e) }; }
   const wx = {};
   try {
-    const w = await import('./wx.js?v=299');
+    const w = await import('./wx.js?v=300');
     for (const code of [leg?.dep, leg?.arr]) if (code) { const e = w.peekCachedWx(code); if (e) wx[code] = { metar: e.metar, taf: e.taf, atis: e.datis, stale: !!e.stale }; }
   } catch {}
   const r = {
