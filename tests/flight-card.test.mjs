@@ -166,3 +166,17 @@ test('preset PAs trimmed, the pilot’s own kept', async () => {
   assert.match(got['sp-ditching'].bodyEn, /MY OWN EDIT/, 'edited preset kept');
   assert.equal(got['sp-mine'].bodyEn, 'Hello from me', 'own PA kept');
 });
+
+// v305 — high-terrain grid: never below the real summit + the MORA margin.
+// The first build read Mont Blanc ~2,000 ft low (coarse tiles shave peaks).
+test('grid MSA covers the known summits', async () => {
+  const { readFileSync } = await import('node:fs');
+  const d = JSON.parse(readFileSync(new URL('../flight-card-pwa/data/msadb.json', import.meta.url)));
+  const msa = (lat, lon) => d.cells[`${Math.floor(lat)},${Math.floor(lon)}`] * 100;
+  const peaks = [['Mont Blanc', 45.8326, 6.8652, 15774], ['Elbrus', 43.3499, 42.4453, 18510],
+                 ['Damavand', 35.9555, 52.1100, 18406], ['Ararat', 39.7019, 44.2983, 16854], ['Everest', 27.9881, 86.9250, 29032]];
+  for (const [name, lat, lon, ft] of peaks) {
+    // MORA: highest terrain + 2,000 ft (above 5,000 ft). Allow 100 ft for rounding of the summit figure.
+    assert.ok(msa(lat, lon) >= ft + 2000 - 100, `${name}: grid ${msa(lat, lon)} ft, summit ${ft} ft`);
+  }
+});
