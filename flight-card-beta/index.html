@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=302" />
+  <link rel="stylesheet" href="./app.css?v=303" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -757,9 +757,7 @@
           <button type="button" data-mn-view="colour">Colour</button>
           <button type="button" data-mn-view="subject">Subject</button>
         </div>
-        <button id="mynotes-full" class="btn icon-btn mn-full" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="mn-full-open" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="mn-full-close" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
-        </button>
+        <button id="mynotes-full" class="btn icon-btn fs-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen"></button>
         <button id="mynotes-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div class="mynotes-tabrow">
@@ -790,15 +788,15 @@
       </div>
       <div id="mynotes-results" class="mynotes-results" hidden></div>
       <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
-        <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
-        <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+        <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold brush — drag over words; again to un-bold"   aria-label="Bold"><b>B</b></button>
+        <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic brush — drag over words; again to un-italic" aria-label="Italic"><i>I</i></button>
         <span class="apt-fmt-sep" aria-hidden="true"></span>
         <span class="apt-hl-label">Brush</span>
         <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
         <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
         <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
         <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
-        <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+        <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight, bold and italic" aria-label="Eraser brush" aria-pressed="false">⌫</button>
         <span class="apt-fmt-sep" aria-hidden="true"></span>
         <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
         <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
@@ -861,8 +859,8 @@
         </div>
         <!-- Notes full screen: hides the flight list and gives the note the
              whole display. Top right beside ✕, as in Route info. -->
-        <button id="apt-full" class="btn icon-btn" type="button" aria-pressed="false"
-                title="Full screen" aria-label="Show notes full screen">⤢</button>
+        <button id="apt-full" class="btn icon-btn fs-btn" type="button" aria-pressed="false"
+                title="Full screen" aria-label="Show notes full screen"></button>
         <button id="airport-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="airport-city" class="airport-city muted small"></div>
@@ -881,15 +879,15 @@
                colour set. Uses execCommand: deprecated on paper, but still
                the only rich-text API iOS Safari's contenteditable honours. -->
           <div id="apt-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
-            <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold"   aria-label="Bold"><b>B</b></button>
-            <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="bold"   title="Bold brush — drag over words; again to un-bold"   aria-label="Bold"><b>B</b></button>
+            <button type="button" class="apt-fmt-btn" data-apt-fmt="italic" title="Italic brush — drag over words; again to un-italic" aria-label="Italic"><i>I</i></button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <span class="apt-hl-label">Brush</span>
             <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
             <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
             <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
             <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
-            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight, bold and italic" aria-label="Eraser brush" aria-pressed="false">⌫</button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
             <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
@@ -905,7 +903,7 @@
             <button type="button" class="apt-color" data-brush="green"  style="--swatch:#30a46c" title="Green brush"  aria-label="Green highlighter brush" aria-pressed="false"></button>
             <button type="button" class="apt-color" data-brush="pink"   style="--swatch:#ec4899" title="Pink brush"   aria-label="Pink highlighter brush" aria-pressed="false"></button>
             <button type="button" class="apt-color" data-brush="blue"   style="--swatch:#3b82f6" title="Blue brush"   aria-label="Blue highlighter brush" aria-pressed="false"></button>
-            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight" aria-label="Eraser brush" aria-pressed="false">⌫</button>
+            <button type="button" class="apt-fmt-btn" data-brush="erase" title="Eraser brush — removes highlight, bold and italic" aria-label="Eraser brush" aria-pressed="false">⌫</button>
             <span class="apt-fmt-sep" aria-hidden="true"></span>
             <button type="button" class="apt-fmt-btn" data-brush-undo title="Undo" aria-label="Undo the last highlight" disabled>↶</button>
             <button type="button" class="apt-fmt-btn" data-brush-redo title="Redo" aria-label="Redo" disabled>↷</button>
@@ -959,7 +957,7 @@
         <span id="route-label" class="pad-label">Route info</span>
         <button id="route-plan" class="btn" type="button" title="Paste the filed route">Route</button>
         <button id="route-refresh" class="btn" type="button">Update</button>
-        <button id="route-full" class="btn icon-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen">⤢</button>
+        <button id="route-full" class="btn icon-btn fs-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen"></button>
         <button id="route-close" class="btn icon-btn" type="button" aria-label="Close">✕</button>
       </div>
       <div id="route-sub" class="route-sub"></div>
@@ -1087,7 +1085,7 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=302"></script>
-  <div class="beta-badge" aria-label="Beta version 302" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v302</div>
+  <script type="module" src="./app.js?v=303"></script>
+  <div class="beta-badge" aria-label="Beta version 303" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v303</div>
 </body>
 </html>

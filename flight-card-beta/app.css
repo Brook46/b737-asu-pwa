@@ -4091,6 +4091,9 @@ html[data-brush-stroke="green"] ::highlight(brush-stroke) { background-color: rg
 html[data-brush-stroke="pink"]  ::highlight(brush-stroke) { background-color: rgba(236, 72, 153, .33); }
 html[data-brush-stroke="blue"]  ::highlight(brush-stroke) { background-color: rgba(59, 130, 246, .33); }
 html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .25); text-decoration: line-through; }
+html[data-brush-stroke="bold"]   ::highlight(brush-stroke),
+html[data-brush-stroke="italic"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .22); text-decoration: underline; }
+.apt-fmt-btn[data-my-fmt].is-on, .apt-fmt-btn[data-apt-fmt].is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); transform: scale(1.08); }
 
 /* Notes tab: named notes, one editor filling the window. */
 .mynotes-sheet { padding: 12px 12px calc(env(safe-area-inset-bottom, 0) + 12px); }
@@ -5093,9 +5096,6 @@ body[data-phase="air"] #landed { display: none; }
 .mn-view button { -webkit-appearance: none; appearance: none; border: 0; background: transparent; color: var(--fg-mute);
   font: inherit; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
 .mn-view button.is-on { background: var(--bg-elev); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
-.mn-full .mn-full-close { display: none; }
-#mynotes-overlay.is-full .mn-full .mn-full-open { display: none; }
-#mynotes-overlay.is-full .mn-full .mn-full-close { display: inline; }
 #mynotes-overlay.is-full { padding: 0; }
 #mynotes-overlay.is-full .mynotes-sheet { max-width: none; width: 100vw; height: 100vh; border-radius: 0;
   padding-top: max(env(safe-area-inset-top, 0px), 12px); }
@@ -5143,3 +5143,12 @@ body[data-phase="air"] #landed { display: none; }
 #mynotes-tabs.is-grouped .mn-group.is-folded { padding-right: 8px; }
 #mynotes-tabs.is-grouped .mn-group.is-folded .mn-gcount { background: var(--accent-soft); color: var(--accent); }
 #mynotes-tabs.is-grouped .mn-tabs-add { display: inline-flex; }
+
+/* Every full-screen button, one look: four corners out; in full screen,
+   four corners in (aria-pressed). Notes, airport notes, Route info, the
+   airport diagram. */
+.fs-btn { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0;
+  min-width: 36px; min-height: 36px; color: var(--accent); }
+.fs-btn::before { content: ''; width: 18px; height: 18px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/%3E%3C/svg%3E") center / contain no-repeat; }
+.fs-btn[aria-pressed="true"]::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5'/%3E%3C/svg%3E"); }
