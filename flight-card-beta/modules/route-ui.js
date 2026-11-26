@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=309';
-import * as ri from './route-info.js?v=309';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=309';
-import * as wxm from './wx.js?v=309';
-import * as nb from './notam-brief.js?v=309';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=309';
-import * as plan from './plan-route.js?v=309';
-import * as ely from './ely-traffic.js?v=309';
-import * as al from './altn.js?v=309';
+import * as storage from './storage.js?v=310';
+import * as ri from './route-info.js?v=310';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=310';
+import * as wxm from './wx.js?v=310';
+import * as nb from './notam-brief.js?v=310';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=310';
+import * as plan from './plan-route.js?v=310';
+import * as ely from './ely-traffic.js?v=310';
+import * as al from './altn.js?v=310';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=309');
+    avoidMod ||= await import('./avoid.js?v=310');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -1684,7 +1684,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=309');
+    const ad = await import('./atis-diagram.js?v=310');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1710,7 +1710,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=309');
+    const ad = await import('./atis-diagram.js?v=310');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2300,7 +2300,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=309'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=310'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
@@ -2626,8 +2626,17 @@ function animateViewBox(to, ms = 260) {
   requestAnimationFrame(step);
 }
 // Zoom by `f` (0.5 = twice as close) about a point in map units.
+// A zoom factor held inside the limits (W/24 … 4W wide): past the closest
+// zoom the map stops growing, and the point under the fingers stays put —
+// before, the size stopped but the position kept moving, so it slid away.
+function zoomF(w0, f) {
+  if (!mapGeom) return f;
+  const w = Math.max(mapGeom.W / 24, Math.min(mapGeom.W * 4, w0 * f));
+  return w / w0;
+}
 function zoomAbout(f, px, py, animate = true) {
   const v = currentView();
+  f = zoomF(v.w, f);
   const cx = px ?? v.x + v.w / 2, cy = py ?? v.y + v.h / 2;
   const to = { x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f, w: v.w * f, h: v.h * f };
   if (animate) animateViewBox(to); else setViewBox(to);
@@ -2872,7 +2881,8 @@ function wireZoom(svg) {
     e.preventDefault();
     viewAnim++;
     const p = toSvg(e.clientX, e.clientY), v = currentView(), f = Math.exp(e.deltaY * 0.0015);
-    show({ x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f, w: v.w * f, h: v.h * f });
+    const fz = zoomF(v.w, f);
+    show({ x: p.x - (p.x - v.x) * fz, y: p.y - (p.y - v.y) * fz, w: v.w * fz, h: v.h * fz });
     clearTimeout(wheelT); wheelT = setTimeout(() => { cancelAnimationFrame(frame); frame = 0; want = null; commitView(); }, 140);
   }, { passive: false });
   // The fingers now on the map. A thumb resting elsewhere on the screen isn't
@@ -2919,7 +2929,7 @@ function wireZoom(svg) {
       const f = d1 > 0 ? d0 / d1 : 1;
       // Zoom about the pinch's start midpoint and follow the midpoint as it moves.
       const m0x = (a0.x + b0.x) / 2, m0y = (a0.y + b0.y) / 2, m1x = (a.x + b.x) / 2, m1y = (a.y + b.y) / 2;
-      const v = start.v, w = v.w * f, h = v.h * f;
+      const v = start.v, fz = zoomF(v.w, f), w = v.w * fz, h = v.h * fz;
       const px = v.x + (m0x - r.left) / r.width * v.w, py = v.y + (m0y - r.top) / r.height * v.h;
       show({ x: px - (m1x - r.left) / r.width * w, y: py - (m1y - r.top) / r.height * h, w, h });
     } else if (down) {
