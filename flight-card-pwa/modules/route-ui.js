@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=303';
-import * as ri from './route-info.js?v=303';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=303';
-import * as wxm from './wx.js?v=303';
-import * as nb from './notam-brief.js?v=303';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=303';
-import * as plan from './plan-route.js?v=303';
-import * as ely from './ely-traffic.js?v=303';
-import * as al from './altn.js?v=303';
+import * as storage from './storage.js?v=310';
+import * as ri from './route-info.js?v=310';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=310';
+import * as wxm from './wx.js?v=310';
+import * as nb from './notam-brief.js?v=310';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=310';
+import * as plan from './plan-route.js?v=310';
+import * as ely from './ely-traffic.js?v=310';
+import * as al from './altn.js?v=310';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=303');
+    avoidMod ||= await import('./avoid.js?v=310');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -308,6 +308,19 @@ function planSummary(p) {
 // ---------- Map ----------
 // The map is always MAP_W wide in drawing units; its height sets its shape.
 const MAP_W = 720, MAP_H = 420;
+// The map moved off the route: where it's centred now (per flight). Null:
+// framed on the route.
+let viewOff = null;
+const offFor = () => (viewOff && state && viewOff.key === idOf(state.model.leg) ? viewOff : null);
+// Airports in view beyond the route's list (tap one for its card), the db
+// they come from, and the high-terrain grid (data/msadb.json).
+let dbCache = null;
+const extraMap = new Map();
+let msaDb = null, msaOn = (() => { try { return localStorage.getItem('fc.routeMsa') !== '0'; } catch { return true; } })();
+function loadMsa() {
+  if (msaDb) return Promise.resolve(msaDb);
+  return fetch('./data/msadb.json').then(r => r.ok ? r.json() : null).then(d => (msaDb = d)).catch(() => null);
+}
 const MAP_PEEK = 36;      // px of what's below the map left showing under it
 const MAP_MIN_PX = 240;   // a phone on its side: the map, then scroll for the rest
 
@@ -332,7 +345,7 @@ function drawMap(frame) {
   const { model, list, world, md } = state;
   frame.outerHTML = mapSvg(model, list, world, md, mapHeight(frame));
   const svg = $('ri-map');
-  if (svg) { wireZoom(svg); pinScale(svg, mapGeom.W); relabel(); }
+  if (svg) { wireZoom(svg); pinScale(svg, mapGeom.W); relabel(); paintExtra(); }
   paintMapWx();
   livePaintAt = 0;
   paintLive();
@@ -344,6 +357,7 @@ function drawMap(frame) {
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
 // the new shape, still looking at the same place at the same scale.
 async function refit() {
+  if (document.activeElement && document.activeElement.closest?.('#ri-find')) return;   // typing a search: leave the map be
   const svg = $('ri-map');
   if (!svg || !state || !mapGeom) return;
   if (Math.abs(mapHeight(svg.parentElement) - mapGeom.H) >= 4) {
@@ -383,6 +397,17 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
   if (cLat + spanY / 2 > 84) cLat = 84 - spanY / 2;
   if (cLat - spanY / 2 < -84) cLat = -84 + spanY / 2;
   const view = { cLon: (minLon + maxLon) / 2, cLat, spanLon: spanX / k, spanLat: Math.min(spanY, 160) };
+  const off = offFor();
+  if (off) {
+    // Zoomed out past the route: the same shape, a wider span — at most the
+    // whole world (360° across, or 170° top to bottom).
+    const mul = Math.max(1, Math.min(off.mul || 1, 360 / view.spanLon, 170 / view.spanLat));
+    off.mul = mul;
+    view.spanLon *= mul; view.spanLat *= mul;
+    view.cLon = off.cLon;
+    view.cLat = Math.max(-85 + view.spanLat / 2, Math.min(85 - view.spanLat / 2, off.cLat));
+    if (view.spanLat >= 169) view.cLat = 0;
+  }
   const proj = world.projector({ x0: 0, y0: 0, w: W, h: H2, ...view });
   let land = world.landPaths(proj, view);
   for (const shift of [-360, 360]) {
@@ -405,6 +430,22 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
     const b = view.cLat - view.spanLat / 2, t = view.cLat + view.spanLat / 2;
     firLbl = md.FIR_LABELS.filter(([, lon, lat]) => lon > l && lon < r && lat > b && lat < t)
       .map(([id, lon, lat]) => `<g class="ri-fir-lbl" transform="translate(${proj.x(lon).toFixed(1)},${proj.y(lat).toFixed(1)})"><text>${esc(id)}</text></g>`).join('');
+  }
+  // High terrain: 1° cells whose grid MSA is 10,000 ft or more, shaded by
+  // height, the figure (hundreds of feet) once zoomed in.
+  let msaSvg = '';
+  if (msaOn && msaDb && msaDb.cells) {
+    const l = view.cLon - view.spanLon / 2, r = view.cLon + view.spanLon / 2;
+    const b = view.cLat - view.spanLat / 2, t = view.cLat + view.spanLat / 2;
+    const cw = proj.x(1) - proj.x(0), ch = proj.y(0) - proj.y(1);
+    for (const [k, v] of Object.entries(msaDb.cells)) {
+      const [la, lo0] = k.split(',').map(Number);
+      let lo = lo0; while (lo + 1 < l) lo += 360; while (lo > r) lo -= 360;
+      if (lo + 1 < l || lo > r || la + 1 < b || la > t) continue;
+      const band = v >= 180 ? 4 : v >= 150 ? 3 : v >= 120 ? 2 : 1;
+      const x = proj.x(lo), y = proj.y(la + 1);
+      msaSvg += `<g class="ri-msa-c b${band}"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}"/><text class="ri-msa-t" x="${(x + cw / 2).toFixed(1)}" y="${(y + ch / 2).toFixed(1)}">${Math.floor(v / 10)}<tspan>${v % 10}</tspan></text></g>`;
+    }
   }
   const track = 'M' + m.route.pts.map(p => `${proj.x(p.lon).toFixed(1)},${proj.y(p.lat).toFixed(1)}`).join('L');
   // Every pin carries its ICAO code and its name; relabel() shows as many as
@@ -442,6 +483,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
   return `<div class="ri-map-wrap"><svg id="ri-map" class="ri-map" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Route with diversion airports — pinch or scroll to zoom, tap an airport">
       <rect width="${W}" height="${H2}" class="lb-sea"/>
       ${land.map(dd => `<path d="${dd}" class="lb-land"/>`).join('')}
+      <g class="ri-msa">${msaSvg}</g>
       <g class="ri-firs">${firs.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-borders">${borders.map(dd => `<path d="${dd}"/>`).join('')}</g>
       <g class="ri-fir-lbls">${firLbl}</g>
@@ -450,6 +492,7 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <path d="${track}" class="ri-track${m.route.filed ? ' is-filed' : ''}"/>
       <g id="ri-fir-leg"></g>
       <g id="ri-iso"></g>
+      <g id="ri-xpins"></g>
       ${pins}
       <g id="ri-iso-lbls"></g>
       <g id="ri-ely"></g>
@@ -460,6 +503,8 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
       <button type="button" data-ri-zoom="out" aria-label="Zoom out">−</button>
       <button type="button" data-ri-zoom="fit" aria-label="Whole route" title="Whole route"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="2"/><circle cx="18" cy="7" r="2"/><path d="M7.6 15.6L16.4 8.4" stroke-dasharray="2 2.5"/></svg></button>
       <button type="button" data-ri-zoom="ac" class="ri-zoom-ac" aria-label="Centre on the aircraft" title="Centre on the aircraft">✈</button>
+      <button type="button" data-ri-zoom="find" aria-label="Find an airport" title="Find an airport"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+      <button type="button" data-ri-msa class="ri-zoom-msa${msaOn ? ' is-on' : ''}" aria-pressed="${msaOn}" aria-label="High terrain (MSA)" title="High terrain — grid MSA 10,000 ft and above">MSA</button>
       <button type="button" data-ri-ely class="ri-zoom-ely${elyOn ? ' is-on' : ''}" aria-pressed="${elyOn}" aria-label="El Al aircraft in the air" title="El Al aircraft in the air">LY</button>
     </div>
     <div id="ri-atis-btns" class="ri-atis-btns" role="group" aria-label="ATIS"></div>
@@ -1466,6 +1511,10 @@ async function paint(model, showAll = false) {
   const world = await import('./worldmap.js' + V);
   let md = null;
   try { md = await import('./mapdata.js' + V); } catch {}   // borders + FIRs: nice to have
+  await loadMsa();
+  try { dbCache = await ri.loadDb(); } catch {}
+  if (state && state.model && idOf(state.model.leg) !== idOf(model.leg)) viewOff = null;
+  extraMap.clear();
   const list = showAll ? model.pool : model.shown;
   const counts = { a: 0, b: 0, c: 0, d: 0, x: 0 };
   for (const c of list) counts[ri.band(c.r.score, c.r.excluded)]++;
@@ -1503,6 +1552,7 @@ async function paint(model, showAll = false) {
     </div>
     <div class="ri-map-src ri-st-key">${stationKey()}</div>
     ${md ? `<div class="ri-map-src"><i class="ri-k-brd"></i>borders <i class="ri-k-fir"></i>FIRs (rough — VAT-Spy, CC BY-SA; Natural Earth)</div>` : ''}
+    ${msaDb ? `<div class="ri-map-src"><i class="ri-k-msa"></i>high terrain: approximate grid MSA, hundreds of ft, 1° cells of 10,000 ft and above (AWS Terrain Tiles) — not for navigation, use the chart's grid MORA</div>` : ''}
     <div id="ri-near"></div>
     <div id="ri-list-wrap"></div>
     <button type="button" class="ri-to-map" data-ri-map>Map ↑</button>`;
@@ -1634,7 +1684,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=303');
+    const ad = await import('./atis-diagram.js?v=310');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1660,7 +1710,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=303');
+    const ad = await import('./atis-diagram.js?v=310');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2030,10 +2080,13 @@ function openSig(ids, { fromMap = false } = {}) {
 
 function openCard(icao, { keepView = false, fromMap = false } = {}) {
   if (!state) return;
-  const c = state.model.pool.find(x => x.ap.icao === icao);
+  const c = state.model.pool.find(x => x.ap.icao === icao) || extraCand(icao);
   const slot = $('ri-card-slot');
   if (!c || !slot) return;
+  if (c.extra) fetchExtraWx(c);
+  const xst = c.extra ? extraStatus(c) : '';
   slot.innerHTML = cardHtml(c, state.model);
+  if (xst) slot.querySelector('.ri-card-head')?.insertAdjacentHTML('afterend', `<div class="ri-sub ri-xstat${c.fetching ? ' is-busy' : ''}">Off the route · ${esc(xst)}</div>`);
   document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
   const pin = document.querySelector(`.ri-pin[data-icao="${icao}"]`);
   if (pin) {
@@ -2247,7 +2300,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=303'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=310'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
@@ -2481,10 +2534,36 @@ function mapRect(svg) {
   return { left: r.left, top: r.top, width: r.width, height: r.width * (mapGeom ? mapGeom.H / mapGeom.W : 420 / 720) };
 }
 // The view kept inside the map: zoom limits, no panning past the edges.
+// Past the edge is allowed (by most of a map's width): the map re-centres
+// there when the move ends (setViewBox → recenterAt).
 function clampView(v) {
   const W = mapGeom.W, Hh = mapGeom.H;
-  const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
-  return { x: Math.max(0, Math.min(W - w, v.x)), y: Math.max(0, Math.min(Hh - h, v.y)), w, h };
+  // Wider than the map is allowed while zooming out: it then redraws wider
+  // (recenterAt), up to the whole world.
+  const w = Math.max(W / 24, Math.min(W * 4, v.w)), h = w * Hh / W;
+  const mx = W * 0.8 + Math.max(0, w - W), my = Hh * 0.8 + Math.max(0, h - Hh);
+  return { x: Math.max(-mx, Math.min(W - w + mx, v.x)), y: Math.max(-my, Math.min(Hh - h + my, v.y)), w, h };
+}
+const outOfFrame = (c) => c.w > mapGeom.W + 1 || c.x < -1 || c.y < -1 || c.x + c.w > mapGeom.W + 1 || c.y + c.h > mapGeom.H + 1;
+// Redraw the map centred where the view is now, at the same scale.
+function recenterAt(c) {
+  const was = mapGeom, frame = $('ri-map')?.parentElement;
+  if (!frame || !state) return;
+  const lon = was.view.cLon + ((c.x + c.w / 2) / was.W - 0.5) * was.view.spanLon;
+  const lat = was.view.cLat - ((c.y + c.h / 2) / was.H - 0.5) * was.view.spanLat;
+  const mul0 = offFor()?.mul || 1;
+  viewOff = { key: idOf(state.model.leg), cLon: ((lon + 540) % 360) - 180, cLat: Math.max(-80, Math.min(80, lat)),
+    mul: mul0 * Math.max(1, c.w / was.W) };
+  const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
+  viewAnim++; previewing = null;
+  drawMap(frame);
+  if (sel) openCard(sel, { keepView: true });
+  const w = Math.min(mapGeom.W, c.w * was.view.spanLon / mapGeom.view.spanLon), h = w * mapGeom.H / mapGeom.W;
+  // Kept inside the new frame (near the poles the centre is held back), so
+  // this never asks for another recentre.
+  const x = Math.max(0, Math.min(mapGeom.W - w, mapGeom.proj.x(viewOff.cLon) - w / 2));
+  const y = Math.max(0, Math.min(mapGeom.H - h, mapGeom.proj.y(viewOff.cLat) - h / 2));
+  setViewBox({ x, y, w, h });
 }
 // Redraw the map at a view: everything re-laid, labels re-placed. Costly on
 // an iPad with every coastline, border, FIR and pin, so a moving finger or
@@ -2495,11 +2574,16 @@ function setViewBox(v) {
   if (!svg || !mapGeom) return;
   const c = clampView(v);
   previewing = null;
+  // Re-centred only once the fingers are off the map: rebuilding it under a
+  // gesture left the rest of the touch on a map that was gone, and iOS
+  // scrolled the whole window with it.
+  if (outOfFrame(c) && !mapTouching) { recenterAt(c); return; }
   svg.style.transform = '';
   svg.classList.remove('is-moving');
   svg.setAttribute('viewBox', `${c.x.toFixed(1)} ${c.y.toFixed(1)} ${c.w.toFixed(1)} ${c.h.toFixed(1)}`);
   pinScale(svg, c.w);
   relabel();
+  paintExtra();
 }
 // Show the map at a view WITHOUT redrawing it: a GPU transform of the map
 // as last drawn. Pins grow and shrink with it for that moment and snap back
@@ -2542,19 +2626,170 @@ function animateViewBox(to, ms = 260) {
   requestAnimationFrame(step);
 }
 // Zoom by `f` (0.5 = twice as close) about a point in map units.
+// A zoom factor held inside the limits (W/24 … 4W wide): past the closest
+// zoom the map stops growing, and the point under the fingers stays put —
+// before, the size stopped but the position kept moving, so it slid away.
+function zoomF(w0, f) {
+  if (!mapGeom) return f;
+  const w = Math.max(mapGeom.W / 24, Math.min(mapGeom.W * 4, w0 * f));
+  return w / w0;
+}
 function zoomAbout(f, px, py, animate = true) {
   const v = currentView();
+  f = zoomF(v.w, f);
   const cx = px ?? v.x + v.w / 2, cy = py ?? v.y + v.h / 2;
   const to = { x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f, w: v.w * f, h: v.h * f };
   if (animate) animateViewBox(to); else setViewBox(to);
 }
 // The map's own buttons: + − fit, and ✈ (centre on the aircraft) with GPS.
+// ---------- Any airport on the map ----------
+// What was last fetched for an airport off the route — kept on the device so
+// it's there offline: { ICAO: { at, metar, taf, notams } }, the 40 newest.
+const XAP = 'fc.xap';
+function xapAll() { try { return JSON.parse(localStorage.getItem(XAP) || '{}') || {}; } catch { return {}; } }
+function xapSave(icao, v) {
+  const o = xapAll(); o[icao] = { ...(o[icao] || {}), ...v, at: Date.now() };
+  for (const k of Object.keys(o).sort((a, b) => (o[b].at || 0) - (o[a].at || 0)).slice(40)) delete o[k];
+  try { localStorage.setItem(XAP, JSON.stringify(o)); } catch {}
+}
+// Zoomed in or moved off the route, every airport in view (medium and large)
+// that isn't already a pin shows as a small grey one; tap it for its card,
+// rated like the rest (from where it's nearest the route).
+function extraCand(icao) {
+  if (!state || !dbCache) return null;
+  if (extraMap.has(icao)) return extraMap.get(icao);
+  const ap = ri.findAirport(dbCache, icao);
+  if (!ap) return null;
+  const m = state.model;
+  let best = m.route.pts[0], bd = Infinity;
+  for (const p of m.route.pts) { const d = distNm(p.lat, p.lon, ap.lat, ap.lon); if (d < bd) { bd = d; best = p; } }
+  let lonDraw = ap.lon; while (lonDraw - best.lon > 180) lonDraw -= 360; while (lonDraw - best.lon < -180) lonDraw += 360;
+  const cache = readCache(m.leg), saved = xapAll()[ap.icao] || null;
+  const metar = (cache?.wx?.metars || []).find(x => x.id === ap.icao) || saved?.metar, taf = (cache?.wx?.tafs || []).find(x => x.id === ap.icao) || saved?.taf;
+  const notams = Array.isArray(cache?.notams?.[ap.icao]) ? cache.notams[ap.icao] : Array.isArray(saved?.notams) ? saved.notams : null;
+  const c = { ap, lonDraw, distNm: bd, along: best.s, eta: m.tm.etaAt(best.s), isEnd: false, extra: true,
+    wxEntry: metar || taf ? { metar, taf } : null, notams, savedAt: saved?.at || 0 };
+  c.r = ri.rate(ap, { distNm: bd, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: m.mode });
+  extraMap.set(icao, c);
+  return c;
+}
+// Everything there is, once per session, when its card opens online: METAR,
+// TAF and NOTAMs, then rated again and its pin recoloured. Offline: what's
+// saved, said so on the card.
+function fetchExtraWx(c) {
+  if (c.fetched || c.fetching || navigator.onLine === false) return;
+  c.fetching = true;
+  const id = c.ap.icao;
+  Promise.all([
+    ri.fetchWeather([id]).catch(() => null),
+    ri.fetchNotams([id]).catch(() => null),
+  ]).then(([wx, nt]) => {
+    c.fetching = false; c.fetched = true;
+    const metar = (wx?.metars || []).find(x => x.id === id), taf = (wx?.tafs || []).find(x => x.id === id);
+    if (metar || taf) c.wxEntry = { metar, taf };
+    if (nt && nt.notams && Array.isArray(nt.notams[id])) c.notams = nt.notams[id];
+    c.fetchOk = !!(wx || nt);
+    if (c.fetchOk) { xapSave(id, { metar: c.wxEntry?.metar || null, taf: c.wxEntry?.taf || null, notams: c.notams }); c.savedAt = Date.now(); }
+    c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: state.model.mode });
+    paintExtra();
+    if (document.querySelector(`#ri-card-slot .ri-card[data-icao="${id}"]`)) openCard(id, { keepView: true });
+  });
+}
+// The line on an off-route airport's card saying where its data stands.
+function extraStatus(c) {
+  if (c.fetching) return 'Getting the weather and NOTAMs…';
+  if (navigator.onLine === false) return c.savedAt ? `Offline — weather and NOTAMs saved ${ago(c.savedAt)}` : 'Offline — nothing saved for this airport yet; the rating is from its runways and size';
+  if (c.fetched && !c.fetchOk) return 'Couldn’t get its weather or NOTAMs just now';
+  if (c.fetched) return `Weather ${c.wxEntry ? 'and' : 'not available ·'} NOTAMs ${c.notams ? 'checked' : 'not available'} just now`;
+  return '';
+}
+function paintExtra() {
+  const g = $('ri-xpins');
+  if (!g || !mapGeom || !state || !dbCache) return;
+  const v = getViewBox(), W = mapGeom.W;
+  if (!(v.w < W * 0.75 || offFor())) { g.innerHTML = ''; mapGeom.xpins = []; return; }
+  const P = mapGeom.proj, view = mapGeom.view;
+  const lonOf = (x) => view.cLon + (x / W - 0.5) * view.spanLon, latOf = (y) => view.cLat - (y / mapGeom.H - 0.5) * view.spanLat;
+  const l = lonOf(v.x), r = lonOf(v.x + v.w), t = latOf(v.y), b = latOf(v.y + v.h);
+  const have = new Set(mapGeom.pins.map(p => p.icao));
+  const hits = [];
+  for (const [icao, a] of Object.entries(dbCache.a)) {
+    if (have.has(icao)) continue;
+    let lon = a[1]; while (lon < l - 180) lon += 360; while (lon > r + 180) lon -= 360;
+    if (a[0] < b || a[0] > t || lon < l || lon > r) continue;
+    hits.push({ icao, lat: a[0], lon, size: a[6] || 0 });
+  }
+  hits.sort((x, y) => y.size - x.size);
+  // Wide view: the big airports only; zoomed in, the medium ones too.
+  const wide = v.w >= W * 0.5;
+  const show = hits.filter(h => !wide || h.size >= 2).slice(0, wide ? 25 : 60);
+  mapGeom.xpins = show.map(h => ({ icao: h.icao, x: P.x(h.lon), y: P.y(h.lat) }));
+  g.innerHTML = mapGeom.xpins.map(p => {
+    const c = extraCand(p.icao), r = c && c.r;
+    const b = r ? ri.band(r.score, r.excluded) : 'x';
+    return `<g class="ri-xpin ri-b-${b}${c && (c.wxEntry || c.notams) ? ' has-data' : ''}" data-icao="${esc(p.icao)}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})"><circle r="6.5"/><text class="ri-xpin-s" y="2.6">${r ? (r.excluded ? '×' : r.score) : ''}</text><text class="ri-xpin-c" y="-9">${esc(p.icao)}</text></g>`;
+  }).join('');
+}
+// Find an airport: ICAO, IATA or a city / name; the map goes there and its
+// card opens.
+function openFind() {
+  const wrap = $('ri-map')?.parentElement;
+  if (!wrap || !dbCache) return;
+  if ($('ri-find')) { $('ri-find').remove(); return; }
+  // Not inside the map's frame: the keyboard coming up resizes the window,
+  // the map redraws to fit — and took the box (and the typing) with it.
+  // Fixed over the top of the map instead, in the window itself.
+  const r = wrap.getBoundingClientRect();
+  document.body.insertAdjacentHTML('beforeend', `<div id="ri-find" class="ri-find" style="top:${Math.max(8, r.top + 8)}px;left:${r.left + 8}px;width:${Math.max(220, r.width - 62)}px">
+      <input type="search" placeholder="Airport — ICAO, IATA or city" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search" aria-label="Find an airport" />
+      <div class="ri-find-list" role="listbox"></div></div>`);
+  const box = $('ri-find'), inp = box.querySelector('input'), list = box.querySelector('.ri-find-list');
+  const run = () => {
+    const q = inp.value.trim().toUpperCase();
+    if (q.length < 2) { list.innerHTML = ''; return; }
+    const out = [];
+    for (const [icao, a] of Object.entries(dbCache.a)) {
+      const iata = String(a[7] || ''), name = String(a[3] || '').toUpperCase(), city = String(a[4] || '').toUpperCase();
+      const rank = icao === q || iata === q ? 0 : icao.startsWith(q) || iata.startsWith(q) ? 1 : city.startsWith(q) ? 2 : city.includes(q) || name.includes(q) ? 3 : -1;
+      if (rank >= 0) out.push({ icao, iata, name: a[3], city: a[4], cc: a[5], rank, size: a[6] || 0 });
+    }
+    out.sort((x, y) => x.rank - y.rank || y.size - x.size);
+    list.innerHTML = out.slice(0, 8).map(h => `<button type="button" class="ri-find-hit" data-ri-find="${esc(h.icao)}"><b>${esc(h.icao)}</b>${h.iata ? `<small>${esc(h.iata)}</small>` : ''}<span>${esc(h.city || h.name)} · ${esc(h.cc)}</span></button>`).join('')
+      || '<div class="ri-find-none">No airport found</div>';
+  };
+  inp.addEventListener('input', run);
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Escape') box.remove(); if (e.key === 'Enter') list.querySelector('[data-ri-find]')?.click(); });
+  // Closed by a tap anywhere else, or when Route info closes.
+  const away = (e) => { if (!box.isConnected) { document.removeEventListener('pointerdown', away, true); return; }
+    if (!box.contains(e.target) && !e.target.closest('[data-ri-zoom="find"]')) { box.remove(); document.removeEventListener('pointerdown', away, true); } };
+  setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
+  list.addEventListener('click', (e) => {
+    const h = e.target.closest('[data-ri-find]');
+    if (!h) return;
+    box.remove();
+    goToAirport(h.dataset.riFind);
+  });
+  setTimeout(() => inp.focus(), 30);
+}
+function goToAirport(icao) {
+  const ap = dbCache && ri.findAirport(dbCache, icao);
+  if (!ap || !mapGeom) return;
+  const W = mapGeom.W, w = W / 4, h = w * mapGeom.H / W;
+  const x = mapGeom.proj.x(ap.lon), y = mapGeom.proj.y(ap.lat);
+  const box = { x: x - w / 2, y: y - h / 2, w, h };
+  if (x < 0 || x > W || y < 0 || y > mapGeom.H) recenterAt(box); else animateViewBox(box, 320);
+  setTimeout(() => openCard(icao, { fromMap: true, keepView: true }), 360);
+}
 function mapZoom(kind) {
   if (!mapGeom) return;
   closePick();
   if (kind === 'in') zoomAbout(0.5);
   else if (kind === 'out') zoomAbout(2);
-  else if (kind === 'fit') animateViewBox({ x: 0, y: 0, w: mapGeom.W, h: mapGeom.H });
+  else if (kind === 'fit') {
+    if (offFor()) { viewOff = null; const frame = $('ri-map')?.parentElement; if (frame) { viewAnim++; previewing = null; drawMap(frame); } return; }
+    animateViewBox({ x: 0, y: 0, w: mapGeom.W, h: mapGeom.H });
+  }
+  else if (kind === 'find') openFind();
   else if (kind === 'ac' && gpsFix) {
     const v = currentView(), x = mapGeom.proj.x(gpsFix.lon), y = mapGeom.proj.y(gpsFix.lat);
     const w = Math.min(v.w, mapGeom.W / 3), h = w * mapGeom.H / mapGeom.W;
@@ -2610,7 +2845,7 @@ function wireZoom(svg) {
   const pinsAt = (cx, cy) => {
     if (!mapGeom || !mapGeom.pins) return [];
     const r = mapRect(svg), v = currentView();
-    return mapGeom.pins.map(p => ({ icao: p.icao,
+    return [...mapGeom.pins, ...(mapGeom.xpins || [])].map(p => ({ icao: p.icao,
       d: Math.hypot(r.left + (p.x - v.x) / v.w * r.width - cx, r.top + (p.y - v.y) / v.h * r.height - cy) }))
       .filter(p => p.d < 30).sort((a, b) => a.d - b.d);
   };
@@ -2646,7 +2881,8 @@ function wireZoom(svg) {
     e.preventDefault();
     viewAnim++;
     const p = toSvg(e.clientX, e.clientY), v = currentView(), f = Math.exp(e.deltaY * 0.0015);
-    show({ x: p.x - (p.x - v.x) * f, y: p.y - (p.y - v.y) * f, w: v.w * f, h: v.h * f });
+    const fz = zoomF(v.w, f);
+    show({ x: p.x - (p.x - v.x) * fz, y: p.y - (p.y - v.y) * fz, w: v.w * fz, h: v.h * fz });
     clearTimeout(wheelT); wheelT = setTimeout(() => { cancelAnimationFrame(frame); frame = 0; want = null; commitView(); }, 140);
   }, { passive: false });
   // The fingers now on the map. A thumb resting elsewhere on the screen isn't
@@ -2693,11 +2929,12 @@ function wireZoom(svg) {
       const f = d1 > 0 ? d0 / d1 : 1;
       // Zoom about the pinch's start midpoint and follow the midpoint as it moves.
       const m0x = (a0.x + b0.x) / 2, m0y = (a0.y + b0.y) / 2, m1x = (a.x + b.x) / 2, m1y = (a.y + b.y) / 2;
-      const v = start.v, w = v.w * f, h = v.h * f;
+      const v = start.v, fz = zoomF(v.w, f), w = v.w * fz, h = v.h * fz;
       const px = v.x + (m0x - r.left) / r.width * v.w, py = v.y + (m0y - r.top) / r.height * v.h;
       show({ x: px - (m1x - r.left) / r.width * w, y: py - (m1y - r.top) / r.height * h, w, h });
     } else if (down) {
-      if (atWhole()) {
+      if (down.mode == null) down.mode = atWhole() && Math.abs(a.y - a0.y) > Math.abs(a.x - a0.x) ? 'scroll' : 'pan';
+      if (down.mode === 'scroll') {
         const sh = sheet(); if (!sh) return;
         sh.scrollTop = scroll0 - (a.y - a0.y);
         const now = performance.now();
@@ -2713,7 +2950,7 @@ function wireZoom(svg) {
   // took the touch away, which is never a tap.
   const released = (x, y, n, cancelled) => {
     const wasTap = !cancelled && n === 1 && down && !down.moved;
-    const scrolling = n === 1 && down && down.moved && atWhole();
+    const scrolling = n === 1 && down && down.moved && down.mode === 'scroll';
     // Draw the map once, at the view the fingers left it.
     flush();
     restart();
@@ -2727,6 +2964,8 @@ function wireZoom(svg) {
     }
     if (pts.size) return;
     down = null;
+    // All fingers off: if the map was left past its edge, re-centre now.
+    { const v = getViewBox(); if (mapGeom && outOfFrame(v)) { recenterAt(v); return; } }
     if (wasTap) tapped(x, y);
   };
   // A tap, however long the finger stayed: the airport there opens. Two
@@ -2927,6 +3166,7 @@ export function undock() {
   hideOverlay('route-overlay');
 }
 function closeRoute() {
+  $('ri-find')?.remove();
   stopGps();
   hideOverlay('route-overlay');
   // Opened over the In flight tab (from the logbook): the tab comes back.
@@ -3013,6 +3253,16 @@ export function wire() {
     if (sb) { openSig([sb.dataset.riSig]); return; }
     if (e.target.closest('[data-ri-map]')) { document.querySelector('.route-sheet')?.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     if (e.target.closest('[data-ri-list]')) { $('ri-near')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+    const mb = e.target.closest('[data-ri-msa]');
+    if (mb) {
+      msaOn = !msaOn;
+      try { localStorage.setItem('fc.routeMsa', msaOn ? '1' : '0'); } catch {}
+      const frame = $('ri-map')?.parentElement;
+      if (frame) { const v = getViewBox(); viewAnim++; previewing = null; drawMap(frame); setViewBox(v); }
+      return;
+    }
+    const fh = e.target.closest('[data-ri-find]');
+    if (fh) return;      // handled by the find box itself
     const zb = e.target.closest('[data-ri-zoom]');
     if (zb) { mapZoom(zb.dataset.riZoom); return; }
     const pk = e.target.closest('[data-ri-pick]');

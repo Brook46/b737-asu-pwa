@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=303" />
+  <link rel="stylesheet" href="./app.css?v=310" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -214,6 +214,11 @@
     <span id="backup-nudge-txt"></span>
     <button type="button" class="btn primary" data-backup-now>Back up</button>
     <button type="button" class="btn" data-backup-later>Later</button>
+  </div>
+  <!-- A note's picture, big (tap to zoom, Delete takes it out of the note). -->
+  <div id="note-lightbox" class="note-lb" role="dialog" aria-label="Picture" hidden>
+    <img alt="" />
+    <div class="note-lb-btns"><button type="button" class="btn" data-lb-del>Delete</button><button type="button" class="btn primary">Done</button></div>
   </div>
   <!-- No roster calendar and no flights yet (maybeCalPrompt in app.js). -->
   <div id="cal-missing" class="calm" role="dialog" aria-modal="true" aria-labelledby="calm-title" hidden>
@@ -789,6 +794,10 @@
       <div id="mynote-fmt" class="apt-fmt-bar" role="toolbar" aria-label="Note formatting">
         <button type="button" class="apt-fmt-btn" data-my-fmt="bold"   title="Bold brush — drag over words; again to un-bold"   aria-label="Bold"><b>B</b></button>
         <button type="button" class="apt-fmt-btn" data-my-fmt="italic" title="Italic brush — drag over words; again to un-italic" aria-label="Italic"><i>I</i></button>
+        <label class="apt-fmt-btn mynote-attach" title="Add a photo, screenshot or PDF (or paste one)" aria-label="Add a picture or PDF">
+          <input id="mynote-attach-file" type="file" accept="image/*,application/pdf" multiple hidden />
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.9-8.9a3.7 3.7 0 0 1 5.2 5.2l-8.9 8.9a1.8 1.8 0 0 1-2.6-2.6l8.2-8.2"/></svg>
+        </label>
         <span class="apt-fmt-sep" aria-hidden="true"></span>
         <span class="apt-hl-label">Brush</span>
         <button type="button" class="apt-color" data-brush="yellow" style="--swatch:#facc15" title="Yellow brush" aria-label="Yellow highlighter brush" aria-pressed="false"></button>
@@ -1084,6 +1093,6 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=303"></script>
+  <script type="module" src="./app.js?v=310"></script>
 </body>
 </html>
