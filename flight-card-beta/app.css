@@ -5155,8 +5155,14 @@ body[data-phase="air"] #landed { display: none; }
 
 /* ---------- Route map: any airport, find, high terrain ---------- */
 .ri-xpin > * { transform: scale(var(--ri-k, 1)); }
-.ri-xpin circle { fill: var(--bg-elev); stroke: var(--fg-mute); stroke-width: 1.4; }
-.ri-xpin text { font: 700 8.5px var(--font-label, system-ui); fill: var(--fg-mute); text-anchor: middle; paint-order: stroke; stroke: var(--bg-elev); stroke-width: 2.5px; }
+/* Off-route airports: the same colours and numbers as the route's pins,
+   a touch smaller and lighter until their weather is in. */
+.ri-xpin circle { fill: var(--ri); fill-opacity: .55; stroke: var(--bg-elev); stroke-width: 1.4; }
+.ri-xpin.has-data circle { fill-opacity: .95; }
+.ri-xpin .ri-xpin-s { font: 800 7.5px var(--font-label, system-ui); fill: #fff; text-anchor: middle; }
+.ri-xpin .ri-xpin-c { font: 700 8.5px var(--font-label, system-ui); fill: var(--fg-mute); text-anchor: middle; paint-order: stroke; stroke: var(--bg-elev); stroke-width: 2.5px; }
+.ri-xstat { margin: 4px 0 6px; color: var(--fg-mute); }
+.ri-xstat.is-busy { color: var(--accent); }
 .ri-find { position: fixed; z-index: 160; display: flex; flex-direction: column; gap: 4px; max-width: calc(100vw - 16px); }
 .ri-find input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px;
   background: color-mix(in srgb, var(--bg-elev) 92%, transparent); color: var(--fg); box-shadow: 0 6px 20px rgba(0,0,0,.18);
@@ -5194,4 +5200,4 @@ body[data-phase="air"] #landed { display: none; }
 .note-lb.is-zoom { align-items: flex-start; }
 .note-lb.is-zoom img { max-width: none; max-height: none; width: 220%; margin: 0; cursor: zoom-out; }
 .note-lb-btns { position: sticky; bottom: 0; left: 0; display: flex; justify-content: center; gap: 10px; padding-top: 10px; }
-.ri-map:not(.is-zoomed) .ri-xpin text { display: none; }
+.ri-map:not(.is-zoomed) .ri-xpin .ri-xpin-c { display: none; }

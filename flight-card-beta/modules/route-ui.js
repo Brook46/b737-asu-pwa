@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=308';
-import * as ri from './route-info.js?v=308';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=308';
-import * as wxm from './wx.js?v=308';
-import * as nb from './notam-brief.js?v=308';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=308';
-import * as plan from './plan-route.js?v=308';
-import * as ely from './ely-traffic.js?v=308';
-import * as al from './altn.js?v=308';
+import * as storage from './storage.js?v=309';
+import * as ri from './route-info.js?v=309';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=309';
+import * as wxm from './wx.js?v=309';
+import * as nb from './notam-brief.js?v=309';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=309';
+import * as plan from './plan-route.js?v=309';
+import * as ely from './ely-traffic.js?v=309';
+import * as al from './altn.js?v=309';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=308');
+    avoidMod ||= await import('./avoid.js?v=309');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -398,7 +398,16 @@ function mapSvg(m, list, world, md, H2 = MAP_H) {
   if (cLat - spanY / 2 < -84) cLat = -84 + spanY / 2;
   const view = { cLon: (minLon + maxLon) / 2, cLat, spanLon: spanX / k, spanLat: Math.min(spanY, 160) };
   const off = offFor();
-  if (off) { view.cLon = off.cLon; view.cLat = Math.max(-84 + view.spanLat / 2, Math.min(84 - view.spanLat / 2, off.cLat)); }
+  if (off) {
+    // Zoomed out past the route: the same shape, a wider span — at most the
+    // whole world (360° across, or 170° top to bottom).
+    const mul = Math.max(1, Math.min(off.mul || 1, 360 / view.spanLon, 170 / view.spanLat));
+    off.mul = mul;
+    view.spanLon *= mul; view.spanLat *= mul;
+    view.cLon = off.cLon;
+    view.cLat = Math.max(-85 + view.spanLat / 2, Math.min(85 - view.spanLat / 2, off.cLat));
+    if (view.spanLat >= 169) view.cLat = 0;
+  }
   const proj = world.projector({ x0: 0, y0: 0, w: W, h: H2, ...view });
   let land = world.landPaths(proj, view);
   for (const shift of [-360, 360]) {
@@ -1675,7 +1684,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=308');
+    const ad = await import('./atis-diagram.js?v=309');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1701,7 +1710,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=308');
+    const ad = await import('./atis-diagram.js?v=309');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2075,7 +2084,9 @@ function openCard(icao, { keepView = false, fromMap = false } = {}) {
   const slot = $('ri-card-slot');
   if (!c || !slot) return;
   if (c.extra) fetchExtraWx(c);
+  const xst = c.extra ? extraStatus(c) : '';
   slot.innerHTML = cardHtml(c, state.model);
+  if (xst) slot.querySelector('.ri-card-head')?.insertAdjacentHTML('afterend', `<div class="ri-sub ri-xstat${c.fetching ? ' is-busy' : ''}">Off the route · ${esc(xst)}</div>`);
   document.querySelectorAll('.ri-pin.is-sel').forEach(p => p.classList.remove('is-sel'));
   const pin = document.querySelector(`.ri-pin[data-icao="${icao}"]`);
   if (pin) {
@@ -2289,7 +2300,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=308'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=309'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
@@ -2527,18 +2538,22 @@ function mapRect(svg) {
 // there when the move ends (setViewBox → recenterAt).
 function clampView(v) {
   const W = mapGeom.W, Hh = mapGeom.H;
-  const w = Math.max(W / 24, Math.min(W, v.w)), h = w * Hh / W;
-  const mx = W * 0.8, my = Hh * 0.8;
+  // Wider than the map is allowed while zooming out: it then redraws wider
+  // (recenterAt), up to the whole world.
+  const w = Math.max(W / 24, Math.min(W * 4, v.w)), h = w * Hh / W;
+  const mx = W * 0.8 + Math.max(0, w - W), my = Hh * 0.8 + Math.max(0, h - Hh);
   return { x: Math.max(-mx, Math.min(W - w + mx, v.x)), y: Math.max(-my, Math.min(Hh - h + my, v.y)), w, h };
 }
-const outOfFrame = (c) => c.x < -1 || c.y < -1 || c.x + c.w > mapGeom.W + 1 || c.y + c.h > mapGeom.H + 1;
+const outOfFrame = (c) => c.w > mapGeom.W + 1 || c.x < -1 || c.y < -1 || c.x + c.w > mapGeom.W + 1 || c.y + c.h > mapGeom.H + 1;
 // Redraw the map centred where the view is now, at the same scale.
 function recenterAt(c) {
   const was = mapGeom, frame = $('ri-map')?.parentElement;
   if (!frame || !state) return;
   const lon = was.view.cLon + ((c.x + c.w / 2) / was.W - 0.5) * was.view.spanLon;
   const lat = was.view.cLat - ((c.y + c.h / 2) / was.H - 0.5) * was.view.spanLat;
-  viewOff = { key: idOf(state.model.leg), cLon: ((lon + 540) % 360) - 180, cLat: Math.max(-80, Math.min(80, lat)) };
+  const mul0 = offFor()?.mul || 1;
+  viewOff = { key: idOf(state.model.leg), cLon: ((lon + 540) % 360) - 180, cLat: Math.max(-80, Math.min(80, lat)),
+    mul: mul0 * Math.max(1, c.w / was.W) };
   const sel = document.querySelector('#ri-card-slot .ri-card')?.dataset.icao || null;
   viewAnim++; previewing = null;
   drawMap(frame);
@@ -2619,6 +2634,15 @@ function zoomAbout(f, px, py, animate = true) {
 }
 // The map's own buttons: + − fit, and ✈ (centre on the aircraft) with GPS.
 // ---------- Any airport on the map ----------
+// What was last fetched for an airport off the route — kept on the device so
+// it's there offline: { ICAO: { at, metar, taf, notams } }, the 40 newest.
+const XAP = 'fc.xap';
+function xapAll() { try { return JSON.parse(localStorage.getItem(XAP) || '{}') || {}; } catch { return {}; } }
+function xapSave(icao, v) {
+  const o = xapAll(); o[icao] = { ...(o[icao] || {}), ...v, at: Date.now() };
+  for (const k of Object.keys(o).sort((a, b) => (o[b].at || 0) - (o[a].at || 0)).slice(40)) delete o[k];
+  try { localStorage.setItem(XAP, JSON.stringify(o)); } catch {}
+}
 // Zoomed in or moved off the route, every airport in view (medium and large)
 // that isn't already a pin shows as a small grey one; tap it for its card,
 // rated like the rest (from where it's nearest the route).
@@ -2631,25 +2655,44 @@ function extraCand(icao) {
   let best = m.route.pts[0], bd = Infinity;
   for (const p of m.route.pts) { const d = distNm(p.lat, p.lon, ap.lat, ap.lon); if (d < bd) { bd = d; best = p; } }
   let lonDraw = ap.lon; while (lonDraw - best.lon > 180) lonDraw -= 360; while (lonDraw - best.lon < -180) lonDraw += 360;
-  const cache = readCache(m.leg);
-  const metar = (cache?.wx?.metars || []).find(x => x.id === ap.icao), taf = (cache?.wx?.tafs || []).find(x => x.id === ap.icao);
+  const cache = readCache(m.leg), saved = xapAll()[ap.icao] || null;
+  const metar = (cache?.wx?.metars || []).find(x => x.id === ap.icao) || saved?.metar, taf = (cache?.wx?.tafs || []).find(x => x.id === ap.icao) || saved?.taf;
+  const notams = Array.isArray(cache?.notams?.[ap.icao]) ? cache.notams[ap.icao] : Array.isArray(saved?.notams) ? saved.notams : null;
   const c = { ap, lonDraw, distNm: bd, along: best.s, eta: m.tm.etaAt(best.s), isEnd: false, extra: true,
-    wxEntry: metar || taf ? { metar, taf } : null, notams: Array.isArray(cache?.notams?.[ap.icao]) ? cache.notams[ap.icao] : null };
+    wxEntry: metar || taf ? { metar, taf } : null, notams, savedAt: saved?.at || 0 };
   c.r = ri.rate(ap, { distNm: bd, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: m.mode });
   extraMap.set(icao, c);
   return c;
 }
-// Its weather, once, when its card opens (the route's set didn't include it).
+// Everything there is, once per session, when its card opens online: METAR,
+// TAF and NOTAMs, then rated again and its pin recoloured. Offline: what's
+// saved, said so on the card.
 function fetchExtraWx(c) {
-  if (c.wxEntry || c.wxAsked || navigator.onLine === false) return;
-  c.wxAsked = true;
-  ri.fetchWeather([c.ap.icao]).then(wx => {
-    const metar = (wx?.metars || []).find(x => x.id === c.ap.icao), taf = (wx?.tafs || []).find(x => x.id === c.ap.icao);
-    if (!metar && !taf) return;
-    c.wxEntry = { metar, taf };
+  if (c.fetched || c.fetching || navigator.onLine === false) return;
+  c.fetching = true;
+  const id = c.ap.icao;
+  Promise.all([
+    ri.fetchWeather([id]).catch(() => null),
+    ri.fetchNotams([id]).catch(() => null),
+  ]).then(([wx, nt]) => {
+    c.fetching = false; c.fetched = true;
+    const metar = (wx?.metars || []).find(x => x.id === id), taf = (wx?.tafs || []).find(x => x.id === id);
+    if (metar || taf) c.wxEntry = { metar, taf };
+    if (nt && nt.notams && Array.isArray(nt.notams[id])) c.notams = nt.notams[id];
+    c.fetchOk = !!(wx || nt);
+    if (c.fetchOk) { xapSave(id, { metar: c.wxEntry?.metar || null, taf: c.wxEntry?.taf || null, notams: c.notams }); c.savedAt = Date.now(); }
     c.r = ri.rate(c.ap, { distNm: c.distNm, eta: c.eta, wxEntry: c.wxEntry, notams: c.notams, mode: state.model.mode });
-    if (document.querySelector(`#ri-card-slot .ri-card[data-icao="${c.ap.icao}"]`)) openCard(c.ap.icao, { keepView: true });
-  }).catch(() => {});
+    paintExtra();
+    if (document.querySelector(`#ri-card-slot .ri-card[data-icao="${id}"]`)) openCard(id, { keepView: true });
+  });
+}
+// The line on an off-route airport's card saying where its data stands.
+function extraStatus(c) {
+  if (c.fetching) return 'Getting the weather and NOTAMs…';
+  if (navigator.onLine === false) return c.savedAt ? `Offline — weather and NOTAMs saved ${ago(c.savedAt)}` : 'Offline — nothing saved for this airport yet; the rating is from its runways and size';
+  if (c.fetched && !c.fetchOk) return 'Couldn’t get its weather or NOTAMs just now';
+  if (c.fetched) return `Weather ${c.wxEntry ? 'and' : 'not available ·'} NOTAMs ${c.notams ? 'checked' : 'not available'} just now`;
+  return '';
 }
 function paintExtra() {
   const g = $('ri-xpins');
@@ -2672,7 +2715,11 @@ function paintExtra() {
   const wide = v.w >= W * 0.5;
   const show = hits.filter(h => !wide || h.size >= 2).slice(0, wide ? 25 : 60);
   mapGeom.xpins = show.map(h => ({ icao: h.icao, x: P.x(h.lon), y: P.y(h.lat) }));
-  g.innerHTML = mapGeom.xpins.map(p => `<g class="ri-xpin" data-icao="${esc(p.icao)}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})"><circle r="4"/><text y="-7">${esc(p.icao)}</text></g>`).join('');
+  g.innerHTML = mapGeom.xpins.map(p => {
+    const c = extraCand(p.icao), r = c && c.r;
+    const b = r ? ri.band(r.score, r.excluded) : 'x';
+    return `<g class="ri-xpin ri-b-${b}${c && (c.wxEntry || c.notams) ? ' has-data' : ''}" data-icao="${esc(p.icao)}" transform="translate(${p.x.toFixed(1)},${p.y.toFixed(1)})"><circle r="6.5"/><text class="ri-xpin-s" y="2.6">${r ? (r.excluded ? '×' : r.score) : ''}</text><text class="ri-xpin-c" y="-9">${esc(p.icao)}</text></g>`;
+  }).join('');
 }
 // Find an airport: ICAO, IATA or a city / name; the map goes there and its
 // card opens.
