@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css?v=300" />
+  <link rel="stylesheet" href="./app.css?v=302" />
 </head>
 <body>
   <!-- Pinned as one block, so the flight strip never slides behind the bar. -->
@@ -752,17 +752,36 @@
     <div class="ocr-sheet mynotes-sheet">
       <div class="pad-head">
         <span id="mynotes-label" class="pad-label">My notes</span>
+        <div id="mn-view" class="mn-view" role="group" aria-label="Arrange the tabs">
+          <button type="button" data-mn-view="mine">Mine</button>
+          <button type="button" data-mn-view="colour">Colour</button>
+          <button type="button" data-mn-view="subject">Subject</button>
+        </div>
+        <button id="mynotes-full" class="btn icon-btn mn-full" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="mn-full-open" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="mn-full-close" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+        </button>
         <button id="mynotes-close" class="btn icon-btn" aria-label="Close">✕</button>
       </div>
       <div class="mynotes-tabrow">
         <div id="mynotes-tabs" class="pa-tabs"></div>
         <button id="mynotes-edit" class="btn mynotes-edit" type="button" aria-pressed="false">Edit</button>
       </div>
-      <div id="mynotes-edit-hint" class="mynotes-edit-hint" hidden>Drag a tab to move it · tap it to rename · ✕ to delete
+      <div id="mynotes-edit-hint" class="mynotes-edit-hint" hidden><span id="mn-hint-txt">Drag a tab to move it · tap it for name, colour and subject · ✕ to delete</span>
         <label class="btn mynotes-import">
           <input id="mynotes-file" type="file" accept="application/json,.json" hidden />
           Import notes…
         </label>
+      </div>
+      <!-- A tab's name, colour and subject (tap in Edit, or long-press). -->
+      <div id="mn-meta" class="mn-meta" role="dialog" aria-label="Note tab" hidden>
+        <div class="mn-meta-card">
+          <label class="mn-meta-l">Name<input id="mn-meta-name" type="text" autocomplete="off" maxlength="40" /></label>
+          <div class="mn-meta-l">Colour<div id="mn-meta-colours" class="mn-meta-colours"></div></div>
+          <label class="mn-meta-l">Subject<input id="mn-meta-group" type="text" autocomplete="off" maxlength="30" placeholder="e.g. Weather, Systems, Airports" list="mn-groups" /></label>
+          <datalist id="mn-groups"></datalist>
+          <div id="mn-meta-subjects" class="mn-meta-subjects"></div>
+          <div class="mn-meta-btns"><button type="button" class="btn" data-mn-meta="cancel">Cancel</button><button type="button" class="btn primary" data-mn-meta="save">Save</button></div>
+        </div>
       </div>
       <div class="mynotes-search">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
@@ -1068,7 +1087,7 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=300"></script>
-  <div class="beta-badge" aria-label="Beta version 300" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v300</div>
+  <script type="module" src="./app.js?v=302"></script>
+  <div class="beta-badge" aria-label="Beta version 302" style="position:fixed;top:calc(env(safe-area-inset-top,0px) + 2px);left:50%;transform:translateX(-50%);z-index:9999;padding:1px 8px;border-radius:999px;background:#c2410c;color:#fff;font:700 11px/16px -apple-system,system-ui,sans-serif;pointer-events:none;opacity:.9">β v302</div>
 </body>
 </html>
