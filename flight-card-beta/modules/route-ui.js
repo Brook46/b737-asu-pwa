@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=306';
-import * as ri from './route-info.js?v=306';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=306';
-import * as wxm from './wx.js?v=306';
-import * as nb from './notam-brief.js?v=306';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=306';
-import * as plan from './plan-route.js?v=306';
-import * as ely from './ely-traffic.js?v=306';
-import * as al from './altn.js?v=306';
+import * as storage from './storage.js?v=308';
+import * as ri from './route-info.js?v=308';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=308';
+import * as wxm from './wx.js?v=308';
+import * as nb from './notam-brief.js?v=308';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=308';
+import * as plan from './plan-route.js?v=308';
+import * as ely from './ely-traffic.js?v=308';
+import * as al from './altn.js?v=308';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=306');
+    avoidMod ||= await import('./avoid.js?v=308');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -357,6 +357,7 @@ function drawMap(frame) {
 // The room changed (the iPad turned, ⤢, the top bar grew): redraw the map to
 // the new shape, still looking at the same place at the same scale.
 async function refit() {
+  if (document.activeElement && document.activeElement.closest?.('#ri-find')) return;   // typing a search: leave the map be
   const svg = $('ri-map');
   if (!svg || !state || !mapGeom) return;
   if (Math.abs(mapHeight(svg.parentElement) - mapGeom.H) >= 4) {
@@ -1674,7 +1675,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=306');
+    const ad = await import('./atis-diagram.js?v=308');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1700,7 +1701,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=306');
+    const ad = await import('./atis-diagram.js?v=308');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2288,7 +2289,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=306'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=308'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
@@ -2558,7 +2559,10 @@ function setViewBox(v) {
   if (!svg || !mapGeom) return;
   const c = clampView(v);
   previewing = null;
-  if (outOfFrame(c)) { recenterAt(c); return; }
+  // Re-centred only once the fingers are off the map: rebuilding it under a
+  // gesture left the rest of the touch on a map that was gone, and iOS
+  // scrolled the whole window with it.
+  if (outOfFrame(c) && !mapTouching) { recenterAt(c); return; }
   svg.style.transform = '';
   svg.classList.remove('is-moving');
   svg.setAttribute('viewBox', `${c.x.toFixed(1)} ${c.y.toFixed(1)} ${c.w.toFixed(1)} ${c.h.toFixed(1)}`);
@@ -2676,7 +2680,11 @@ function openFind() {
   const wrap = $('ri-map')?.parentElement;
   if (!wrap || !dbCache) return;
   if ($('ri-find')) { $('ri-find').remove(); return; }
-  wrap.insertAdjacentHTML('beforeend', `<div id="ri-find" class="ri-find">
+  // Not inside the map's frame: the keyboard coming up resizes the window,
+  // the map redraws to fit — and took the box (and the typing) with it.
+  // Fixed over the top of the map instead, in the window itself.
+  const r = wrap.getBoundingClientRect();
+  document.body.insertAdjacentHTML('beforeend', `<div id="ri-find" class="ri-find" style="top:${Math.max(8, r.top + 8)}px;left:${r.left + 8}px;width:${Math.max(220, r.width - 62)}px">
       <input type="search" placeholder="Airport — ICAO, IATA or city" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search" aria-label="Find an airport" />
       <div class="ri-find-list" role="listbox"></div></div>`);
   const box = $('ri-find'), inp = box.querySelector('input'), list = box.querySelector('.ri-find-list');
@@ -2695,6 +2703,10 @@ function openFind() {
   };
   inp.addEventListener('input', run);
   inp.addEventListener('keydown', (e) => { if (e.key === 'Escape') box.remove(); if (e.key === 'Enter') list.querySelector('[data-ri-find]')?.click(); });
+  // Closed by a tap anywhere else, or when Route info closes.
+  const away = (e) => { if (!box.isConnected) { document.removeEventListener('pointerdown', away, true); return; }
+    if (!box.contains(e.target) && !e.target.closest('[data-ri-zoom="find"]')) { box.remove(); document.removeEventListener('pointerdown', away, true); } };
+  setTimeout(() => document.addEventListener('pointerdown', away, true), 0);
   list.addEventListener('click', (e) => {
     const h = e.target.closest('[data-ri-find]');
     if (!h) return;
@@ -2881,7 +2893,7 @@ function wireZoom(svg) {
   // took the touch away, which is never a tap.
   const released = (x, y, n, cancelled) => {
     const wasTap = !cancelled && n === 1 && down && !down.moved;
-    const scrolling = n === 1 && down && down.moved && atWhole();
+    const scrolling = n === 1 && down && down.moved && down.mode === 'scroll';
     // Draw the map once, at the view the fingers left it.
     flush();
     restart();
@@ -2895,6 +2907,8 @@ function wireZoom(svg) {
     }
     if (pts.size) return;
     down = null;
+    // All fingers off: if the map was left past its edge, re-centre now.
+    { const v = getViewBox(); if (mapGeom && outOfFrame(v)) { recenterAt(v); return; } }
     if (wasTap) tapped(x, y);
   };
   // A tap, however long the finger stayed: the airport there opens. Two
@@ -3095,6 +3109,7 @@ export function undock() {
   hideOverlay('route-overlay');
 }
 function closeRoute() {
+  $('ri-find')?.remove();
   stopGps();
   hideOverlay('route-overlay');
   // Opened over the In flight tab (from the logbook): the tab comes back.

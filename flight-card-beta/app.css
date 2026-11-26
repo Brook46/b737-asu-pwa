@@ -5157,7 +5157,7 @@ body[data-phase="air"] #landed { display: none; }
 .ri-xpin > * { transform: scale(var(--ri-k, 1)); }
 .ri-xpin circle { fill: var(--bg-elev); stroke: var(--fg-mute); stroke-width: 1.4; }
 .ri-xpin text { font: 700 8.5px var(--font-label, system-ui); fill: var(--fg-mute); text-anchor: middle; paint-order: stroke; stroke: var(--bg-elev); stroke-width: 2.5px; }
-.ri-find { position: absolute; left: 8px; right: 54px; top: 8px; z-index: 7; display: flex; flex-direction: column; gap: 4px; }
+.ri-find { position: fixed; z-index: 160; display: flex; flex-direction: column; gap: 4px; max-width: calc(100vw - 16px); }
 .ri-find input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 16px;
   background: color-mix(in srgb, var(--bg-elev) 92%, transparent); color: var(--fg); box-shadow: 0 6px 20px rgba(0,0,0,.18);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
