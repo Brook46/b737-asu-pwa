@@ -8,15 +8,15 @@
 // before departure until arrival (autoUpdate, called on the app's 10-minute
 // tick) — so whatever was last fetched is on the device for the flight.
 
-import * as storage from './storage.js?v=303';
-import * as ri from './route-info.js?v=303';
-import { legTs, nearestHm, legPlanActual } from './dates.js?v=303';
-import * as wxm from './wx.js?v=303';
-import * as nb from './notam-brief.js?v=303';
-import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=303';
-import * as plan from './plan-route.js?v=303';
-import * as ely from './ely-traffic.js?v=303';
-import * as al from './altn.js?v=303';
+import * as storage from './storage.js?v=304';
+import * as ri from './route-info.js?v=304';
+import { legTs, nearestHm, legPlanActual } from './dates.js?v=304';
+import * as wxm from './wx.js?v=304';
+import * as nb from './notam-brief.js?v=304';
+import { toast, showOverlay, hideOverlay, raiseOverlay } from './ui.js?v=304';
+import * as plan from './plan-route.js?v=304';
+import * as ely from './ely-traffic.js?v=304';
+import * as al from './altn.js?v=304';
 
 const FRESH_MS = 15 * 60 * 1000;
 const H = 3600000;
@@ -112,7 +112,7 @@ let avoidMod = null;
 const avoidMemo = new Map();
 async function avoidFor(a, b, keep) {
   try {
-    avoidMod ||= await import('./avoid.js?v=303');
+    avoidMod ||= await import('./avoid.js?v=304');
     const k = `${a.lat.toFixed(2)},${a.lon.toFixed(2)}>${b.lat.toFixed(2)},${b.lon.toFixed(2)}`;
     if (avoidMemo.has(k)) return avoidMemo.get(k);
     const r = avoidMod.avoidRoute(a, b);
@@ -1634,7 +1634,7 @@ async function saveDiagrams(leg) {
   if (contextFor(leg, legTs(leg.dep_date, leg.dep_time, leg.dep_year)) !== 'plan') return;
   diagramsBusy = true;
   try {
-    const ad = await import('./atis-diagram.js?v=303');
+    const ad = await import('./atis-diagram.js?v=304');
     for (const ap of await endAirports(leg)) {
       if (ad.hasGeo(ap.icao)) continue;
       await ad.airportGeo(ap.icao, ap.lat, ap.lon).catch(() => null);
@@ -1660,7 +1660,7 @@ export async function readiness(leg) {
   }
   let noMap = [];
   try {
-    const ad = await import('./atis-diagram.js?v=303');
+    const ad = await import('./atis-diagram.js?v=304');
     noMap = (await endAirports(leg)).filter(ap => !ad.hasGeo(ap.icao)).map(ap => ap.icao);
   } catch {}
   return {
@@ -2247,7 +2247,7 @@ async function paintCpdlc(g) {
   const el = $('ri-cpdlc');
   if (!el) return;
   if (!state) { el.hidden = true; return; }
-  try { cpdlcMod ||= await import('./cpdlc.js?v=303'); } catch { el.hidden = true; return; }
+  try { cpdlcMod ||= await import('./cpdlc.js?v=304'); } catch { el.hidden = true; return; }
   const m = state.model, B = m.B;
   const air = !!(g && g.airborne);
   const tag = (id) => {
