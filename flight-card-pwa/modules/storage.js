@@ -9,9 +9,9 @@
 //   history:  [ same shape as current, latest first, capped to HISTORY_MAX ]
 // }
 
-import { flipName } from './roster.js?v=300';
-import { dateTs, legTs } from './dates.js?v=300';
-import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=300';
+import { flipName } from './roster.js?v=303';
+import { dateTs, legTs } from './dates.js?v=303';
+import { CREW_KEYS, CREW_FIELDS, EXTRA_CPT_KEYS, EXTRA_FO_KEYS, CABIN_KEYS, intoSlots } from './crew.js?v=303';
 // The relief-pilot slots before v18 (see the v18 migration).
 const RELIEF_KEYS = ['rp1', 'rp2', 'rp3'];
 
@@ -1646,6 +1646,14 @@ export function addMyNote(name) {
 export function renameMyNote(id, name) {
   const n = getMyNote(id);
   if (n && String(name || '').trim()) { n.name = String(name).trim(); scheduleWrite(); }
+}
+// A tab's colour (a palette key, '' for none) and subject (free text, '' for none).
+export function setMyNoteMeta(id, { color, group } = {}) {
+  const n = getMyNote(id);
+  if (!n) return;
+  if (color !== undefined) { if (color) n.color = String(color); else delete n.color; }
+  if (group !== undefined) { const g = String(group || '').trim(); if (g) n.group = g; else delete n.group; }
+  scheduleWrite();
 }
 export function setMyNoteHtml(id, html) {
   const n = getMyNote(id);

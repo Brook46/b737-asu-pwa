@@ -4091,6 +4091,9 @@ html[data-brush-stroke="green"] ::highlight(brush-stroke) { background-color: rg
 html[data-brush-stroke="pink"]  ::highlight(brush-stroke) { background-color: rgba(236, 72, 153, .33); }
 html[data-brush-stroke="blue"]  ::highlight(brush-stroke) { background-color: rgba(59, 130, 246, .33); }
 html[data-brush-stroke="erase"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .25); text-decoration: line-through; }
+html[data-brush-stroke="bold"]   ::highlight(brush-stroke),
+html[data-brush-stroke="italic"] ::highlight(brush-stroke) { background-color: rgba(127, 127, 127, .22); text-decoration: underline; }
+.apt-fmt-btn[data-my-fmt].is-on, .apt-fmt-btn[data-apt-fmt].is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); transform: scale(1.08); }
 
 /* Notes tab: named notes, one editor filling the window. */
 .mynotes-sheet { padding: 12px 12px calc(env(safe-area-inset-bottom, 0) + 12px); }
@@ -5087,3 +5090,65 @@ body[data-phase="air"] #landed { display: none; }
 .calm-row { display: flex; gap: 8px; }
 .calm-row .btn { flex: 1; }
 @keyframes calm-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- My notes: colours, subjects, full screen ---------- */
+.mn-view { display: inline-flex; margin-left: auto; padding: 2px; border-radius: 9px; background: var(--bg-sunk); }
+.mn-view button { -webkit-appearance: none; appearance: none; border: 0; background: transparent; color: var(--fg-mute);
+  font: inherit; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
+.mn-view button.is-on { background: var(--bg-elev); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+#mynotes-overlay.is-full { padding: 0; }
+#mynotes-overlay.is-full .mynotes-sheet { max-width: none; width: 100vw; height: 100vh; border-radius: 0;
+  padding-top: max(env(safe-area-inset-top, 0px), 12px); }
+#mynotes-overlay.is-full div.airport-notes.mynote-body { font-size: 17px; }
+/* The tabs: one wrapping row, or grouped under foldable headings. */
+#mynotes-tabs { display: flex; flex-direction: column; gap: 6px; }
+.mn-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.mn-group { display: flex; flex-direction: column; gap: 4px; }
+.mn-ghead { -webkit-appearance: none; appearance: none; display: flex; align-items: center; gap: 6px; padding: 2px 2px; border: 0;
+  background: transparent; color: var(--fg-mute); font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; text-align: start; }
+.mn-ghead.has-on .mn-gname { color: var(--accent); }
+.mn-gdot { width: 10px; height: 10px; border-radius: 50%; background: var(--tc); }
+.mn-gcount { font-weight: 600; letter-spacing: 0; padding: 0 6px; border-radius: 999px; background: var(--bg-sunk); }
+.mn-gchev { font-size: 10px; transition: transform .18s ease; }
+.mn-group.is-folded .mn-gchev { transform: rotate(-90deg); }
+.mn-group.is-folded > .mn-tabs { display: none; }
+.pa-tab.has-c { box-shadow: inset 4px 0 0 var(--tc); padding-left: 14px; }
+[dir="rtl"] .pa-tab.has-c, .pa-tab.has-c:dir(rtl) { box-shadow: inset -4px 0 0 var(--tc); }
+.pa-tab.has-c.on { background: color-mix(in srgb, var(--tc) 18%, var(--bg-sunk)); border-color: var(--tc); color: var(--fg); }
+/* Name / colour / subject card. */
+.mn-meta { position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.4); }
+.mn-meta[hidden] { display: none; }
+.mn-meta-card { width: min(380px, 100%); padding: 18px; border-radius: 18px; background: var(--bg-elev); box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  display: flex; flex-direction: column; gap: 12px; }
+.mn-meta-l { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-mute); }
+.mn-meta-l input { padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-sunk); color: var(--fg);
+  font: inherit; font-size: 16px; letter-spacing: 0; text-transform: none; }
+.mn-meta-colours { display: flex; flex-wrap: wrap; gap: 8px; }
+.mn-sw { -webkit-appearance: none; appearance: none; width: 32px; height: 32px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--tc); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.mn-sw.none { background: var(--bg-sunk); color: var(--fg-mute); font-size: 15px; }
+.mn-sw.is-on { box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--fg); }
+.mn-meta-subjects { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.mn-meta-subjects:empty { display: none; }
+.mn-subj { -webkit-appearance: none; appearance: none; border: 1px solid var(--line); border-radius: 999px; background: transparent;
+  color: var(--fg); font: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer; }
+.mn-meta-btns { display: flex; justify-content: flex-end; gap: 8px; }
+/* Grouped: each group is a compact cluster (name, then its tabs) and the
+   clusters flow side by side, so grouping takes no more room than before. */
+#mynotes-tabs.is-grouped { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 8px; }
+#mynotes-tabs.is-grouped .mn-group { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 3px 4px 3px 8px; border-radius: 12px; background: color-mix(in srgb, var(--bg-sunk) 55%, transparent); }
+#mynotes-tabs.is-grouped .mn-ghead { padding: 4px 2px; }
+#mynotes-tabs.is-grouped .mn-gchev { display: none; }
+#mynotes-tabs.is-grouped .mn-group.is-folded { padding-right: 8px; }
+#mynotes-tabs.is-grouped .mn-group.is-folded .mn-gcount { background: var(--accent-soft); color: var(--accent); }
+#mynotes-tabs.is-grouped .mn-tabs-add { display: inline-flex; }
+
+/* Every full-screen button, one look: four corners out; in full screen,
+   four corners in (aria-pressed). Notes, airport notes, Route info, the
+   airport diagram. */
+.fs-btn { display: inline-flex; align-items: center; justify-content: center; font-size: 0; line-height: 0;
+  min-width: 36px; min-height: 36px; color: var(--accent); }
+.fs-btn::before { content: ''; width: 18px; height: 18px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5'/%3E%3C/svg%3E") center / contain no-repeat; }
+.fs-btn[aria-pressed="true"]::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5'/%3E%3C/svg%3E"); }
